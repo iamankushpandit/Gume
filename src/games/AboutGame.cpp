@@ -1,4 +1,5 @@
 #include "AboutGame.h"
+#include "AppVersion.h"
 
 namespace {
 constexpr uint8_t PAGE_COUNT = 5;
@@ -61,6 +62,7 @@ void AboutGame::render(GameHost& host) {
             drawLine(tft, 106, "Copyright 2026.");
             drawLine(tft, 132, "Trademark owned by the");
             drawLine(tft, 154, "company.");
+            drawLine(tft, 176, String("Version ") + GOODTIME_KIDS_VERSION);
             break;
         case 1:
             drawLine(tft, 50, "Tic-Tac-Toe: two players.");

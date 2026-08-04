@@ -1,5 +1,7 @@
 # GoodTime Kids Educational Game Platform
 
+Current firmware version: `1.0.1`.
+
 Firmware for the Sunton ESP32-2432S028R "Cheap Yellow Display" with a small educational game engine. The dark themed launcher, seventeen games, and an About screen are compiled into flash; Memory and Counting can load settings from the microSD card.
 
 ## What Is Included

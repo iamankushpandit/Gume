@@ -30,7 +30,7 @@ constexpr Rect HOME_BUTTON{0, 0, 44, TOP_BAR_HEIGHT};
 Rect launcherTileRect(uint8_t slot) {
     const uint8_t col = slot % 2;
     const uint8_t row = slot / 2;
-    return Rect{static_cast<int16_t>(10 + col * 155), static_cast<int16_t>(42 + row * 56), 145, 48};
+    return Rect{static_cast<int16_t>(10 + col * 155), static_cast<int16_t>(48 + row * 56), 145, 48};
 }
 #endif
 }
@@ -464,7 +464,7 @@ private:
     void renderLauncher() {
         TFT_eSPI& tft = board_.display();
         Ui::clear(tft);
-        tft.fillRect(0, 0, SCREEN_WIDTH, 34, Ui::surface());
+        tft.fillRect(0, 0, SCREEN_WIDTH, 44, Ui::surface());
         tft.setTextColor(TFT_WHITE, Ui::surface());
         tft.setTextDatum(ML_DATUM);
         tft.drawString("GoodTime Kids!", 12, 17, 4);
@@ -472,7 +472,7 @@ private:
         tft.drawString(Clock::timeText(), SCREEN_WIDTH - 6, 9, 2);
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.setTextDatum(TR_DATUM);
-        tft.drawString("(C) GoodTime Micro™", SCREEN_WIDTH - 6, 22, 1);
+        tft.drawString("(C) GoodTime Micro™", SCREEN_WIDTH - 6, 31, 1);
 
         const uint8_t start = launcherPage_ * 6;
         const uint8_t total = launcherEntryCount();
