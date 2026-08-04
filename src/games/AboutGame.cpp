@@ -66,25 +66,25 @@ void AboutGame::render(GameHost& host) {
             drawLine(tft, 50, "Tic-Tac-Toe: two players.");
             drawLine(tft, 72, "Memory: match card pairs.");
             drawLine(tft, 94, "Math: add and subtract.");
-            drawLine(tft, 116, "Time: read analog clocks.");
-            drawLine(tft, 138, "Simon: repeat color sequences.");
-            drawLine(tft, 160, "Sudoku: 2x2, 4x4, then 6x6.");
+            drawLine(tft, 116, "Multiply: times tables 1-12.");
+            drawLine(tft, 138, "Time: read analog clocks.");
+            drawLine(tft, 160, "Simon: repeat color sequences.");
             break;
         case 2:
-            drawLine(tft, 50, "Shapes: match colors and shapes.");
-            drawLine(tft, 72, "Counting: count dots and tap.");
-            drawLine(tft, 94, "Money: count and compare coins.");
-            drawLine(tft, 116, "Fractions: compare pie charts.");
-            drawLine(tft, 138, "Maze: 30 solvable mazes.");
-            drawLine(tft, 160, "Sorting: order number tiles.");
+            drawLine(tft, 50, "Sudoku: 2x2, 4x4, then 6x6.");
+            drawLine(tft, 72, "Shapes: match colors and shapes.");
+            drawLine(tft, 94, "Counting: count dots and tap.");
+            drawLine(tft, 116, "Money: count and compare coins.");
+            drawLine(tft, 138, "Fractions: compare pie charts.");
+            drawLine(tft, 160, "Maze: 30 solvable mazes.");
             break;
         case 3:
-            drawLine(tft, 50, "Color Mix: pick mixed colors.");
-            drawLine(tft, 72, "Slide: solvable number puzzle.");
-            drawLine(tft, 94, "Odd One: find the different item.");
-            drawLine(tft, 116, "Whack A Mole: tap smiley faces.");
-            drawLine(tft, 148, "Scores save on the device.");
-            drawLine(tft, 170, "The launcher uses a dark theme.");
+            drawLine(tft, 50, "Sorting: order number tiles.");
+            drawLine(tft, 72, "Color Mix: pick mixed colors.");
+            drawLine(tft, 94, "Slide: solvable number puzzle.");
+            drawLine(tft, 116, "Odd One: find the different item.");
+            drawLine(tft, 138, "Whack A Mole: tap smiley faces.");
+            drawLine(tft, 170, "Scores save on the device.");
             break;
         default:
             drawLine(tft, 50, "Fraction Circles starts simple:");

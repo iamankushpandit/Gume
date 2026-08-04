@@ -9,6 +9,7 @@
 #include "games/MathGame.h"
 #include "games/MemoryGame.h"
 #include "games/MoneyGame.h"
+#include "games/MultiplicationGame.h"
 #include "games/OddOneOutGame.h"
 #include "games/ShapeColorGame.h"
 #include "games/SimonGame.h"
@@ -167,6 +168,7 @@ private:
         TicTacToe,
         Memory,
         Math,
+        Multiplication,
         Time,
         WhackAMole,
         Simon,
@@ -191,7 +193,7 @@ private:
     };
 
     uint8_t launcherEntryCount() const {
-        return 17;
+        return 18;
     }
 
     LauncherEntry launcherEntry(uint8_t index) const {
@@ -203,30 +205,32 @@ private:
             case 2:
                 return LauncherEntry{EntryKind::Math, 0, "Math", "add & subtract"};
             case 3:
-                return LauncherEntry{EntryKind::Time, 0, "Time", "read clock"};
+                return LauncherEntry{EntryKind::Multiplication, 0, "Multiply", "times tables"};
             case 4:
-                return LauncherEntry{EntryKind::WhackAMole, 0, "Whack", "tap smiles"};
+                return LauncherEntry{EntryKind::Time, 0, "Time", "read clock"};
             case 5:
-                return LauncherEntry{EntryKind::Simon, 0, "Simon", "repeat colors"};
+                return LauncherEntry{EntryKind::WhackAMole, 0, "Whack", "tap smiles"};
             case 6:
-                return LauncherEntry{EntryKind::Sudoku, 0, "Sudoku", "2x2 to 6x6"};
+                return LauncherEntry{EntryKind::Simon, 0, "Simon", "repeat colors"};
             case 7:
-                return LauncherEntry{EntryKind::ShapeColor, 0, "Shapes", "match color"};
+                return LauncherEntry{EntryKind::Sudoku, 0, "Sudoku", "2x2 to 6x6"};
             case 8:
-                return LauncherEntry{EntryKind::Counting, 0, "Counting", "tap number"};
+                return LauncherEntry{EntryKind::ShapeColor, 0, "Shapes", "match color"};
             case 9:
-                return LauncherEntry{EntryKind::Money, 0, "Money", "count coins"};
+                return LauncherEntry{EntryKind::Counting, 0, "Counting", "tap number"};
             case 10:
-                return LauncherEntry{EntryKind::Fractions, 0, "Fractions", "pie slices"};
+                return LauncherEntry{EntryKind::Money, 0, "Money", "count coins"};
             case 11:
-                return LauncherEntry{EntryKind::Maze, 0, "Maze", "drag dot"};
+                return LauncherEntry{EntryKind::Fractions, 0, "Fractions", "pie slices"};
             case 12:
-                return LauncherEntry{EntryKind::Sort, 0, "Sorting", "order nums"};
+                return LauncherEntry{EntryKind::Maze, 0, "Maze", "drag dot"};
             case 13:
-                return LauncherEntry{EntryKind::ColorMix, 0, "Color Mix", "mix colors"};
+                return LauncherEntry{EntryKind::Sort, 0, "Sorting", "order nums"};
             case 14:
-                return LauncherEntry{EntryKind::SlidingPuzzle, 0, "Slide", "number puzzle"};
+                return LauncherEntry{EntryKind::ColorMix, 0, "Color Mix", "mix colors"};
             case 15:
+                return LauncherEntry{EntryKind::SlidingPuzzle, 0, "Slide", "number puzzle"};
+            case 16:
                 return LauncherEntry{EntryKind::OddOneOut, 0, "Odd One", "find different"};
             default:
                 return LauncherEntry{EntryKind::About, 0, "About", "company info"};
@@ -273,6 +277,9 @@ private:
                 break;
             case EntryKind::Math:
                 activeGame_ = &math_;
+                break;
+            case EntryKind::Multiplication:
+                activeGame_ = &multiplication_;
                 break;
             case EntryKind::Time:
                 activeGame_ = &time_;
@@ -343,6 +350,14 @@ private:
                 tft.setTextDatum(MC_DATUM);
                 tft.drawString("+", cx - 7, cy - 5, 2);
                 tft.drawString("-", cx + 8, cy + 6, 2);
+                tft.setTextDatum(TL_DATUM);
+                break;
+            case EntryKind::Multiplication:
+                tft.fillRoundRect(cx - 17, cy - 14, 34, 28, 4, TFT_WHITE);
+                tft.setTextColor(Ui::rgb(36, 132, 204), TFT_WHITE);
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString("x", cx, cy - 3, 2);
+                tft.drawString("12", cx + 2, cy + 10, 1);
                 tft.setTextDatum(TL_DATUM);
                 break;
             case EntryKind::Time:
@@ -498,6 +513,7 @@ private:
     TicTacToeGame ticTacToe_;
     MemoryGame memory_;
     MathGame math_;
+    MultiplicationGame multiplication_;
     TimeGame time_;
     WhackAMoleGame whackAMole_;
     SimonGame simon_;

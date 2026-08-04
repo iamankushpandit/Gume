@@ -1,13 +1,13 @@
 # GoodTime Kids Educational Game Platform
 
-Firmware for the Sunton ESP32-2432S028R "Cheap Yellow Display" with a small educational game engine. The dark themed launcher, sixteen games, and an About screen are compiled into flash; Memory and Counting can load settings from the microSD card.
+Firmware for the Sunton ESP32-2432S028R "Cheap Yellow Display" with a small educational game engine. The dark themed launcher, seventeen games, and an About screen are compiled into flash; Memory and Counting can load settings from the microSD card.
 
 ## What Is Included
 
 - `bringup` firmware: display, touch calibration, SD retry, and last-touch test screen.
-- `app` firmware: launcher plus two-player Tic-Tac-Toe, 4x6 Memory Match, adaptive Math, Time, Whack A Mole, Simon Says, Sudoku, Shape & Color, Counting, Money, Fraction Circles, progressive Maze, Sorting, Color Mix, Sliding Puzzle, Odd One Out, and About.
+- `app` firmware: launcher plus two-player Tic-Tac-Toe, 4x6 Memory Match, adaptive Math, Multiplication Tables, Time, Whack A Mole, Simon Says, Sudoku, Shape & Color, Counting, Money, Fraction Circles, progressive Maze, Sorting, Color Mix, Sliding Puzzle, Odd One Out, and About.
 - SD content loader for `/games/memory/default.json` and `/games/counting/default.json`.
-- Persistent score tracking where it makes sense: Tic-Tac-Toe match counts, Memory best moves, Math best correct-count/time, Time best streak, Whack A Mole best score, Simon best sequence, Sudoku best board size, Shape best taps, Counting best streak, Money best streak, Fraction Circles best streak, Maze best moves per level, Sorting best streak, Color Mix best streak, Sliding Puzzle best moves, and Odd One Out best streak.
+- Persistent score tracking where it makes sense: Tic-Tac-Toe match counts, Memory best moves, Math best correct-count/time, Multiplication Tables best streak, Time best streak, Whack A Mole best score, Simon best sequence, Sudoku best board size, Shape best taps, Counting best streak, Money best streak, Fraction Circles best streak, Maze best moves per level, Sorting best streak, Color Mix best streak, Sliding Puzzle best moves, and Odd One Out best streak.
 - 12-hour AM/PM clock in the top-right corner. It starts from the firmware build time and advances with uptime; there is no RTC/NTP setup yet.
 - Example SD card files under `data/sd`.
 - A content schema in `docs/SD_CONTENT_SPEC.md`.
@@ -81,6 +81,7 @@ Scores are saved in ESP32 non-volatile storage, not on the SD card. Reflashing n
 ## Game Notes
 
 - `Time`: shows an analog clock and asks the child to choose the matching text time. It starts with hour times, then adds half-hour, quarter-hour, five-minute, and minute-level questions.
+- `Multiplication Tables`: quick-fire facts from 1 through 12 with four answer choices. Difficulty starts with the 2s, 5s, and 10s, then adds the harder tables.
 - `Whack A Mole`: a 9x9 grid where the child taps the smiley face before it moves. The speed increases with score and 10 misses in a row ends the round.
 - `Money`: drawn US coins teach totals, making an amount, comparing coin groups, and making change. Difficulty ramps from pennies/nickels to quarters, half-dollars, and bigger amounts.
 - `Fraction Circles`: drawn pie charts teach matching fractions, matching pies, and comparing fractions. Difficulty starts with halves/quarters, adds thirds/eighths, then unlike-fraction comparisons.
