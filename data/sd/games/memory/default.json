@@ -1,0 +1,6 @@
+{
+  "type": "memory_config",
+  "rows": 4,
+  "cols": 6,
+  "symbols": ["sun", "moon", "red", "blue", "cat", "dog", "3", "7", "A", "B", "C", "D"]
+}
