@@ -96,20 +96,25 @@ void CountingGame::render(GameHost& host) {
     Ui::clear(tft);
     Ui::drawTopBar(tft, title());
     tft.setTextColor(Ui::text(), Ui::bg());
+    /* The font-4 question spans roughly 60..260px when centred, and a
+     * right-aligned "Score n/m" at the same y started around 213 -- they
+     * overlapped. Score and streak now share one small line underneath. */
     tft.setTextDatum(TC_DATUM);
-    tft.drawString("How many objects?", SCREEN_WIDTH / 2, 34, 4);
-    tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Score ") + score_ + "/" + rounds_, SCREEN_WIDTH - 8, 34, 2);
-    tft.drawString(String("Streak ") + streak_ + " Best " + bestStreak_, SCREEN_WIDTH - 8, 50, 1);
+    tft.drawString("How many objects?", SCREEN_WIDTH / 2, 32, 4);
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.drawString(String("Score ") + score_ + "/" + rounds_ +
+                   "   Streak " + streak_ + "   Best " + bestStreak_,
+                   SCREEN_WIDTH / 2, 60, 1);
+    tft.setTextColor(Ui::text(), Ui::bg());
 
-    const Rect area{18, 68, 284, 104};
+    const Rect area{18, 76, 284, 98};
     tft.fillRoundRect(area.x, area.y, area.w, area.h, 8, Ui::panel());
     tft.drawRoundRect(area.x, area.y, area.w, area.h, 8, Ui::outline());
     for (uint8_t i = 0; i < count_; ++i) {
         const uint8_t col = i % 7;
         const uint8_t row = i / 7;
         const int16_t x = area.x + 24 + col * 39 + (row % 2) * 8;
-        const int16_t y = area.y + 25 + row * 32;
+        const int16_t y = area.y + 24 + row * 30;
         tft.fillCircle(x, y, 10, DOT_COLORS[i % 5]);
         tft.drawCircle(x, y, 10, TFT_DARKGREY);
     }

@@ -114,37 +114,68 @@ the case LED so the cue doesn't depend on the screen flashing.
 
 ---
 
-## Screens
+---
 
-### Flags
+## Every game
 
-<p align="center">
-  <img src="docs/screens/flags-country.png" width="360" alt="Flags: name the country">
-  <img src="docs/screens/flags-capital.png" width="360" alt="Flags: capital bonus">
-</p>
+One screen per game, in launcher order.
 
-Name the country, then earn the capital-city bonus. The tier chip (top centre)
-switches Easy / Medium / Hard.
-
-### Countries
+### Numbers and early maths
 
 <p align="center">
-  <img src="docs/screens/countries-outline.png" width="360" alt="Countries: name the outline">
-  <img src="docs/screens/countries-continent.png" width="360" alt="Countries: which continent">
+  <img src="docs/screens/counting.png" width="300" alt="Counting">
+  <img src="docs/screens/fingers-count.png" width="300" alt="Finger Counting: count them">
+  <img src="docs/screens/fingers-show.png" width="300" alt="Finger Counting: show me N">
+  <img src="docs/screens/shapearith.png" width="300" alt="Shape Arith">
+</p>
+<p align="center">
+  <img src="docs/screens/numberline.png" width="300" alt="Number Line">
+  <img src="docs/screens/math.png" width="300" alt="Math">
+  <img src="docs/screens/multiply.png" width="300" alt="Multiplication">
+</p>
+<p align="center">
+  <img src="docs/screens/fractions.png" width="300" alt="Fractions">
+  <img src="docs/screens/money.png" width="300" alt="Money">
+  <img src="docs/screens/sorting.png" width="300" alt="Sorting">
 </p>
 
-The continent round names the country, because the question is about *where it
-sits*, not what it is.
-
-### Finger Counting
+### World knowledge
 
 <p align="center">
-  <img src="docs/screens/fingers-count.png" width="360" alt="Finger Counting: count them">
-  <img src="docs/screens/fingers-show.png" width="360" alt="Finger Counting: show me N">
+  <img src="docs/screens/flags-country.png" width="300" alt="Flags: name the country">
+  <img src="docs/screens/flags-capital.png" width="300" alt="Flags: capital bonus">
+  <img src="docs/screens/countries-outline.png" width="300" alt="Countries: name the outline">
+</p>
+<p align="center">
+  <img src="docs/screens/countries-continent.png" width="300" alt="Countries: which continent">
+  <img src="docs/screens/calendar.png" width="300" alt="Calendar">
+  <img src="docs/screens/time.png" width="300" alt="Time">
 </p>
 
-Raised fingers stand tall with a nail; folded ones are short stubs — no colour
-knowledge needed to tell them apart.
+### Logic, memory and attention
+
+<p align="center">
+  <img src="docs/screens/simon.png" width="300" alt="Simon Says">
+  <img src="docs/screens/memory.png" width="300" alt="Memory Match">
+  <img src="docs/screens/oddone.png" width="300" alt="Odd One Out">
+</p>
+<p align="center">
+  <img src="docs/screens/shapes.png" width="300" alt="Shape & Color">
+  <img src="docs/screens/colormix.png" width="300" alt="Color Mix">
+  <img src="docs/screens/sudoku.png" width="300" alt="Sudoku">
+</p>
+<p align="center">
+  <img src="docs/screens/slide.png" width="300" alt="Slide Puzzle">
+  <img src="docs/screens/maze.png" width="300" alt="Maze">
+  <img src="docs/screens/whack.png" width="300" alt="Whack A Mole">
+</p>
+<p align="center">
+  <img src="docs/screens/tictactoe.png" width="300" alt="Tic-Tac-Toe">
+</p>
+
+---
+
+## System screens
 
 ### Settings
 
