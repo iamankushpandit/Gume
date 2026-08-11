@@ -1,22 +1,63 @@
 #include "Ui.h"
 #include "hal/Clock.h"
+#include <WiFi.h>
+#include "map_n_flag.h"
 
 namespace {
-constexpr uint16_t COLOR_BG = 0x0843;
-constexpr uint16_t COLOR_BAR = 0x10A6;
-constexpr uint16_t COLOR_SURFACE = 0x18E8;
-constexpr uint16_t COLOR_PANEL = 0x212B;
-constexpr uint16_t COLOR_TEXT = 0xF7BE;
-constexpr uint16_t COLOR_MUTED = 0xA534;
-constexpr uint16_t COLOR_OUTLINE = 0x52AA;
-constexpr uint16_t COLOR_SUCCESS = 0x37F0;
-constexpr uint16_t COLOR_ERROR = 0xF9EA;
-constexpr uint16_t COLOR_WARNING = 0xFFE6;
+// Fixed (theme-independent)
+constexpr uint16_t COLOR_SUCCESS  = 0x37F0;
+constexpr uint16_t COLOR_ERROR    = 0xF9EA;
+constexpr uint16_t COLOR_WARNING  = 0xFFE6;
 constexpr uint16_t COLOR_BAR_TEXT = TFT_WHITE;
-constexpr uint16_t COLOR_SHADOW = 0x0000;
+constexpr uint16_t COLOR_SHADOW   = 0x0000;
+
+// Dark palette
+constexpr uint16_t DARK_BG      = 0x0843;
+constexpr uint16_t DARK_BAR     = 0x10A6;
+constexpr uint16_t DARK_SURFACE = 0x18E8;
+constexpr uint16_t DARK_PANEL   = 0x212B;
+constexpr uint16_t DARK_TEXT    = 0xF7BE;
+constexpr uint16_t DARK_MUTED   = 0xA534;
+constexpr uint16_t DARK_OUTLINE = 0x52AA;
+
+// Light palette
+constexpr uint16_t LIGHT_BG      = 0xFFFF;
+constexpr uint16_t LIGHT_BAR     = 0x10A6; // keep dark header both themes
+constexpr uint16_t LIGHT_SURFACE = 0xEF7D;
+constexpr uint16_t LIGHT_PANEL   = 0xDEFB;
+constexpr uint16_t LIGHT_TEXT    = 0x2124;
+constexpr uint16_t LIGHT_MUTED   = 0x8410;
+constexpr uint16_t LIGHT_OUTLINE = 0xC618;
+
+// Runtime palette (updated by setTheme)
+uint16_t COLOR_BG      = DARK_BG;
+uint16_t COLOR_BAR     = DARK_BAR;
+uint16_t COLOR_SURFACE = DARK_SURFACE;
+uint16_t COLOR_PANEL   = DARK_PANEL;
+uint16_t COLOR_TEXT    = DARK_TEXT;
+uint16_t COLOR_MUTED   = DARK_MUTED;
+uint16_t COLOR_OUTLINE = DARK_OUTLINE;
 }
 
 namespace Ui {
+
+static Theme s_theme = Theme::Dark;
+
+void setTheme(Theme t) {
+    s_theme = t;
+    const bool dark = (t == Theme::Dark);
+    COLOR_BG      = dark ? DARK_BG      : LIGHT_BG;
+    COLOR_BAR     = dark ? DARK_BAR     : LIGHT_BAR;
+    COLOR_SURFACE = dark ? DARK_SURFACE : LIGHT_SURFACE;
+    COLOR_PANEL   = dark ? DARK_PANEL   : LIGHT_PANEL;
+    COLOR_TEXT    = dark ? DARK_TEXT    : LIGHT_TEXT;
+    COLOR_MUTED   = dark ? DARK_MUTED   : LIGHT_MUTED;
+    COLOR_OUTLINE = dark ? DARK_OUTLINE : LIGHT_OUTLINE;
+}
+
+Theme currentTheme() {
+    return s_theme;
+}
 
 uint16_t rgb(uint8_t r, uint8_t g, uint8_t b) {
     return static_cast<uint16_t>(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
@@ -58,6 +99,19 @@ uint16_t warning() {
     return COLOR_WARNING;
 }
 
+uint16_t shade(uint16_t color, uint8_t percent) {
+    uint16_t r = (color >> 11) & 0x1F;
+    uint16_t g = (color >> 5) & 0x3F;
+    uint16_t b = color & 0x1F;
+    r = static_cast<uint16_t>((r * percent) / 100);
+    g = static_cast<uint16_t>((g * percent) / 100);
+    b = static_cast<uint16_t>((b * percent) / 100);
+    if (r > 31) r = 31;
+    if (g > 63) g = 63;
+    if (b > 31) b = 31;
+    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
+}
+
 void clear(TFT_eSPI& tft) {
     tft.fillScreen(COLOR_BG);
 }
@@ -70,19 +124,96 @@ void drawHomeIcon(TFT_eSPI& tft, const Rect& r) {
     tft.fillRect(cx - 4, r.y + r.h - 12, 8, 7, COLOR_BAR);
 }
 
+void drawGearIcon(TFT_eSPI& tft, const Rect& r, uint16_t color) {
+    const int16_t cx = r.x + r.w / 2;
+    const int16_t cy = r.y + r.h / 2;
+    const int16_t outer = min<int16_t>(r.w, r.h) / 2 - 2;
+    const int16_t inner = max<int16_t>(3, outer - 4);
+    for (uint8_t i = 0; i < 8; ++i) {
+        const float angle = i * PI / 4.0f;
+        const int16_t x0 = cx + static_cast<int16_t>(cosf(angle) * inner);
+        const int16_t y0 = cy + static_cast<int16_t>(sinf(angle) * inner);
+        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * (outer + 2));
+        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * (outer + 2));
+        tft.drawLine(x0, y0, x1, y1, color);
+    }
+    tft.drawCircle(cx, cy, outer, color);
+    tft.drawCircle(cx, cy, inner - 1, color);
+    tft.fillCircle(cx, cy, 2, color);
+}
+
 void drawTopBar(TFT_eSPI& tft, const String& title) {
     tft.fillRect(0, 0, SCREEN_WIDTH, TOP_BAR_HEIGHT, COLOR_BAR);
+    // Raised edge: highlight along the top, shadow along the bottom seam.
+    tft.drawFastHLine(0, 0, SCREEN_WIDTH, shade(COLOR_BAR, 145));
+    tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, SCREEN_WIDTH, shade(COLOR_BAR, 60));
     drawHomeIcon(tft, Rect{0, 0, 42, TOP_BAR_HEIGHT});
+    drawGearIcon(tft, Rect{SCREEN_WIDTH - 34, 3, 26, 24});
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     String fitted = title;
-    while (fitted.length() > 2 && tft.textWidth(fitted, 2) > 178) {
+    while (fitted.length() > 2 && tft.textWidth(fitted, 2) > 110) {
         fitted.remove(fitted.length() - 1);
     }
     tft.drawString(fitted, 48, TOP_BAR_HEIGHT / 2, 2);
     tft.setTextDatum(MR_DATUM);
-    tft.drawString(Clock::timeText(), SCREEN_WIDTH - 6, TOP_BAR_HEIGHT / 2, 2);
+    /* Right side: clock and its sync badge kept together (the badge describes
+     * the clock), then the wifi badge, then the gear. Wedging wifi between the
+     * time and its own sync state read as unrelated. */
+    tft.drawString(Clock::timeText(), SCREEN_WIDTH - 98, TOP_BAR_HEIGHT / 2, 2);
+    Ui::drawSyncBadge(tft, SCREEN_WIDTH - 88, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
+    Ui::drawWifiBadge(tft, SCREEN_WIDTH - 64, TOP_BAR_HEIGHT / 2, COLOR_BAR);
     tft.setTextDatum(TL_DATUM);
+}
+
+void drawSyncBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg) {
+    const uint16_t col = synced ? COLOR_SUCCESS : COLOR_WARNING;
+    tft.fillCircle(cx, cy, 6, col);
+    tft.drawCircle(cx, cy, 6, bg);
+    if (synced) {
+        // tick
+        tft.drawLine(cx - 3, cy,     cx - 1, cy + 2, TFT_BLACK);
+        tft.drawLine(cx - 3, cy + 1, cx - 1, cy + 3, TFT_BLACK);
+        tft.drawLine(cx - 1, cy + 2, cx + 3, cy - 2, TFT_BLACK);
+        tft.drawLine(cx - 1, cy + 3, cx + 3, cy - 1, TFT_BLACK);
+    } else {
+        // exclamation
+        tft.drawFastVLine(cx, cy - 3, 4, TFT_BLACK);
+        tft.drawFastVLine(cx + 1, cy - 3, 4, TFT_BLACK);
+        tft.drawPixel(cx, cy + 3, TFT_BLACK);
+        tft.drawPixel(cx + 1, cy + 3, TFT_BLACK);
+    }
+}
+
+bool wifiUp() {
+    return WiFi.status() == WL_CONNECTED;
+}
+
+void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
+    const bool up = wifiUp();
+
+    /* Bars track the real RSSI rather than always showing full strength.
+     * Thresholds follow the usual desktop convention. */
+    uint8_t lit = 0;
+    if (up) {
+        const int32_t rssi = WiFi.RSSI();
+        lit = rssi > -55 ? 4 : (rssi > -65 ? 3 : (rssi > -75 ? 2 : 1));
+    }
+
+    const uint16_t on  = up ? COLOR_SUCCESS : rgb(120, 126, 138);
+    const uint16_t off = rgb(70, 74, 84);
+    const int16_t base = static_cast<int16_t>(cy + 6);
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        const int16_t h = static_cast<int16_t>(3 + i * 3);   // 3,6,9,12
+        const int16_t x = static_cast<int16_t>(cx - 7 + i * 4);
+        tft.fillRect(x, static_cast<int16_t>(base - h), 3, h, i < lit ? on : off);
+    }
+    if (!up) {
+        tft.drawLine(cx - 8, cy - 6, cx + 8, cy + 7, COLOR_ERROR);
+        tft.drawLine(cx - 8, cy - 7, cx + 8, cy + 6, COLOR_ERROR);
+    }
+    (void)bg;
 }
 
 void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed, uint8_t font) {
@@ -91,6 +222,17 @@ void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill
         tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 6, COLOR_SHADOW);
     }
     tft.fillRoundRect(r.x, r.y + yOffset, r.w, r.h, 6, fill);
+
+    /* Bevel: a lighter line under the top edge and a darker one above the
+     * bottom edge reads as a raised surface. Inverted while pressed so the
+     * button visibly sinks. Two hlines, so the cost is negligible. */
+    if (r.w > 10 && r.h > 8) {
+        const uint16_t hi = shade(fill, 138);
+        const uint16_t lo = shade(fill, 68);
+        tft.drawFastHLine(r.x + 4, r.y + yOffset + 1, r.w - 8, pressed ? lo : hi);
+        tft.drawFastHLine(r.x + 4, r.y + yOffset + r.h - 2, r.w - 8, pressed ? hi : lo);
+    }
+
     tft.drawRoundRect(r.x, r.y + yOffset, r.w, r.h, 6, outline);
     tft.setTextColor(text, fill);
     tft.setTextDatum(MC_DATUM);
@@ -195,6 +337,110 @@ void drawStarShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16
         const int next = (i + 1) % 10;
         tft.drawLine(px[i], py[i], px[next], py[next], color);
     }
+}
+
+// ---------------------------------------------------------------------------
+// map-n-flag image blitting
+// ---------------------------------------------------------------------------
+namespace {
+// Widest thing we ever draw is max(flag width, map box) pixels.
+constexpr int16_t MNF_MAX_ROW = (MNF_FLAG_WIDTH > MNF_MAP_BOX) ? MNF_FLAG_WIDTH : MNF_MAP_BOX;
+}
+
+/*
+ * TFT_eSPI's pushPixels() sends the raw 16-bit values straight out; whether the
+ * high or low byte goes first is governed by the swapBytes flag. Our buffers
+ * hold host-order RGB565, so without swapBytes the panel reads the halves
+ * transposed: red 0xF800 arrives as 0x00F8 (blue) and blue 0x001F as 0x1F00
+ * (green). White survives, which is why only the coloured parts looked wrong.
+ *
+ * Save/restore rather than setting it globally, so we do not disturb any other
+ * drawing code that relies on the current setting.
+ */
+void drawCountryImage(TFT_eSPI& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor) {
+    const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
+    if (im == nullptr) return;
+
+    uint16_t row[MNF_MAX_ROW];
+    const bool prevSwap = tft.getSwapBytes();
+    tft.setSwapBytes(true);
+    tft.startWrite();
+    for (uint16_t yy = 0; yy < im->h; ++yy) {
+        mnf_row_rgb565(im, yy, row, bgColor);
+        tft.setAddrWindow(x, static_cast<int16_t>(y + yy), im->w, 1);
+        tft.pushPixels(row, im->w);
+    }
+    tft.endWrite();
+    tft.setSwapBytes(prevSwap);
+}
+
+bool drawCountryImageCentred(TFT_eSPI& tft, const void* img, const Rect& r, uint16_t bgColor) {
+    const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
+    if (im == nullptr) return false;
+    drawCountryImage(tft, im,
+                     static_cast<int16_t>(r.x + (r.w - im->w) / 2),
+                     static_cast<int16_t>(r.y + (r.h - im->h) / 2), bgColor);
+    return true;
+}
+
+bool drawCountryImageTinted(TFT_eSPI& tft, const void* img, const Rect& r,
+                            uint16_t bgColor, uint16_t inkColor) {
+    const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
+    if (im == nullptr) return false;
+
+    const int16_t x = static_cast<int16_t>(r.x + (r.w - im->w) / 2);
+    const int16_t y = static_cast<int16_t>(r.y + (r.h - im->h) / 2);
+
+    uint16_t row[MNF_MAX_ROW];
+    const bool prevSwap = tft.getSwapBytes();
+    tft.setSwapBytes(true);
+    tft.startWrite();
+    for (uint16_t yy = 0; yy < im->h; ++yy) {
+        mnf_row_rgb565_tint(im, yy, row, bgColor, inkColor);
+        tft.setAddrWindow(x, static_cast<int16_t>(y + yy), im->w, 1);
+        tft.pushPixels(row, im->w);
+    }
+    tft.endWrite();
+    tft.setSwapBytes(prevSwap);
+    return true;
+}
+
+bool drawCountryImageScaled(TFT_eSPI& tft, const void* img, const Rect& r,
+                            uint16_t bgColor, uint8_t scale) {
+    const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
+    if (im == nullptr) return false;
+    if (scale < 1) scale = 1;
+
+    // Cap the scale so the result still fits the target rect.
+    while (scale > 1 && (im->w * scale > r.w || im->h * scale > r.h)) --scale;
+    if (scale == 1) return drawCountryImageCentred(tft, im, r, bgColor);
+
+    const int16_t outW = static_cast<int16_t>(im->w * scale);
+    const int16_t x = static_cast<int16_t>(r.x + (r.w - outW) / 2);
+    const int16_t y = static_cast<int16_t>(r.y + (r.h - im->h * scale) / 2);
+
+    uint16_t src[MNF_MAX_ROW];
+    uint16_t dst[MNF_MAX_ROW * 3];   // scale is clamped to 3 by the rect check below
+    if (outW > static_cast<int16_t>(sizeof(dst) / sizeof(dst[0]))) {
+        return drawCountryImageCentred(tft, im, r, bgColor);
+    }
+
+    const bool prevSwap = tft.getSwapBytes();
+    tft.setSwapBytes(true);
+    tft.startWrite();
+    for (uint16_t yy = 0; yy < im->h; ++yy) {
+        mnf_row_rgb565(im, yy, src, bgColor);
+        for (uint16_t xx = 0; xx < im->w; ++xx) {
+            for (uint8_t s = 0; s < scale; ++s) dst[xx * scale + s] = src[xx];
+        }
+        for (uint8_t s = 0; s < scale; ++s) {
+            tft.setAddrWindow(x, static_cast<int16_t>(y + yy * scale + s), outW, 1);
+            tft.pushPixels(dst, outW);
+        }
+    }
+    tft.endWrite();
+    tft.setSwapBytes(prevSwap);
+    return true;
 }
 
 }

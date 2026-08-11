@@ -19,6 +19,15 @@ private:
     };
 
     Rect padRect(uint8_t index) const;
+    void drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const;
+
+    /* Simon used to repaint the whole screen on every step, so each colour in
+     * the sequence produced a full-screen flash -- uncomfortable generally and
+     * a real risk for anyone photosensitive. We now redraw only the pads whose
+     * state actually changed, plus the one-line status strip. */
+    bool fullRedraw_ = true;
+    bool litDrawn_[4] = {false, false, false, false};
+    String statusDrawn_;
     void appendStep();
     void startShowing();
     int8_t touchedPad(int16_t x, int16_t y) const;

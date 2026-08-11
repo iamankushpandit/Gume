@@ -19,8 +19,14 @@ constexpr uint8_t PIN_TOUCH_SCLK = 25;
 constexpr uint8_t PIN_TOUCH_CS = 33;
 constexpr uint8_t PIN_TOUCH_IRQ = 36;
 
-constexpr uint8_t PIN_RGB_R = 4;
-constexpr uint8_t PIN_RGB_G = 16;
+/* RGB LED, common anode (drive LOW to light a channel).
+ *
+ * The red and green lines are crossed relative to the usual CYD pinout on this
+ * unit: driving GPIO4 lit GREEN, not red. Verified on hardware -- an orange
+ * (R255 G110) mix came out green, and purple (R200 B255) came out cyan/blue,
+ * which is exactly what swapping R and G produces. */
+constexpr uint8_t PIN_RGB_R = 16;
+constexpr uint8_t PIN_RGB_G = 4;
 constexpr uint8_t PIN_RGB_B = 17;
 constexpr uint8_t PIN_SPEAKER = 26;
 

@@ -11,6 +11,8 @@ public:
     virtual ContentLoader& content() = 0;
     virtual void goHome() = 0;
     virtual void relaunchActiveGame() = 0;
+    virtual void openSettings() = 0;
+    virtual void openWifi() = 0;
 };
 
 class Game {

@@ -1,4 +1,5 @@
 #include "Clock.h"
+#include <time.h>
 
 namespace {
 uint32_t baseSeconds_ = 0;
@@ -23,6 +24,13 @@ void ensureReady() {
 }
 
 uint32_t secondsToday() {
+    struct tm timeinfo;
+    // Prefer NTP-synced time; year > 2020 confirms sync has happened
+    if (getLocalTime(&timeinfo, 0) && timeinfo.tm_year > (2020 - 1900)) {
+        return static_cast<uint32_t>(timeinfo.tm_hour) * 3600UL
+             + static_cast<uint32_t>(timeinfo.tm_min)  * 60UL
+             + static_cast<uint32_t>(timeinfo.tm_sec);
+    }
     ensureReady();
     return (baseSeconds_ + (millis() - bootMillis_) / 1000UL) % 86400UL;
 }
@@ -49,8 +57,29 @@ String timeText() {
     return String(buffer);
 }
 
+String dateText() {
+    struct tm t;
+    // Only meaningful once NTP has run; the build-time fallback has no date.
+    if (!getLocalTime(&t, 0) || t.tm_year <= (2020 - 1900)) {
+        return String("--");
+    }
+    static const char* const WD[7]  = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    static const char* const MO[12] = {"Jan","Feb","Mar","Apr","May","Jun",
+                                       "Jul","Aug","Sep","Oct","Nov","Dec"};
+    char buf[24];
+    snprintf(buf, sizeof(buf), "%s %s %d %d",
+             WD[t.tm_wday % 7], MO[t.tm_mon % 12], t.tm_mday, t.tm_year + 1900);
+    return String(buf);
+}
+
 uint32_t minuteKey() {
     return secondsToday() / 60UL;
+}
+
+bool synced() {
+    struct tm timeinfo;
+    // Same gate secondsToday() uses to prefer NTP over the build-time estimate.
+    return getLocalTime(&timeinfo, 0) && timeinfo.tm_year > (2020 - 1900);
 }
 
 }

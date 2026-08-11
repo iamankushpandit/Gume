@@ -3,3 +3,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Downloaded dataset cache -- tools/gen_country_facts.py re-fetches it on demand
+tools/countries_cache.json
+__pycache__/
+*.pyc

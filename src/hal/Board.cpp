@@ -1,6 +1,12 @@
 #include "Board.h"
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiUdp.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include <math.h>
+#include <WiFi.h>
 #include "ui/Ui.h"
 
 namespace {
@@ -9,6 +15,7 @@ constexpr uint8_t CMD_READ_X = 0xD0;
 constexpr uint8_t CMD_READ_Y = 0x90;
 constexpr uint8_t CMD_READ_Z1 = 0xB0;
 constexpr uint8_t CMD_READ_Z2 = 0xC0;
+constexpr const char* DEFAULT_NTP_SERVER = "pool.ntp.org";
 
 uint16_t read16(File& file) {
     uint16_t result = file.read();
@@ -88,6 +95,7 @@ void Board::begin() {
 
     tft_.init();
     tft_.setRotation(CYD_SCREEN_ROTATION);
+    displayRotation_ = CYD_SCREEN_ROTATION;
     tft_.setTextWrap(false, false);
     Ui::clear(tft_);
 
@@ -283,7 +291,28 @@ TouchPoint Board::pollTouch() {
     const RawTouch raw = readRawTouch();
     TouchPoint next;
     next.pressure = raw.pressure;
-    next.down = mapTouch(raw, next.x, next.y);
+    int16_t lx = 0, ly = 0;
+    next.down = mapTouch(raw, lx, ly); // lx/ly are always landscape (rot=1) calibrated
+    if (next.down) {
+        switch (displayRotation_) {
+            case 2: // portrait: rotate 90° CW from landscape
+                next.x = ly;
+                next.y = static_cast<int16_t>(SCREEN_WIDTH - 1 - lx);
+                break;
+            case 0: // portrait: rotate 90° CCW from landscape
+                next.x = static_cast<int16_t>(SCREEN_HEIGHT - 1 - ly);
+                next.y = lx;
+                break;
+            case 3: // landscape flipped
+                next.x = static_cast<int16_t>(SCREEN_WIDTH - 1 - lx);
+                next.y = static_cast<int16_t>(SCREEN_HEIGHT - 1 - ly);
+                break;
+            default: // 1 = standard landscape (calibrated)
+                next.x = lx;
+                next.y = ly;
+                break;
+        }
+    }
     next.justPressed = next.down && !lastTouch_.down;
     next.justReleased = !next.down && lastTouch_.down;
     if (!next.down) {
@@ -304,10 +333,12 @@ void Board::beep(uint16_t frequency, uint16_t ms) {
 }
 
 void Board::beepOk() {
+    pulseRgb(0, 255, 40, 450);      // green = correct
     beep(1175, 55);
 }
 
 void Board::beepError() {
+    pulseRgb(255, 0, 0, 450);       // red = wrong
     beep(220, 120);
 }
 
@@ -327,6 +358,126 @@ bool Board::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
         prefs_.putUInt(key, value);
     }
     return shouldSave;
+}
+
+Board::ThemeMode Board::themeMode() {
+    return prefs_.getUChar("themeMode", static_cast<uint8_t>(ThemeMode::Dark)) == static_cast<uint8_t>(ThemeMode::Light)
+        ? ThemeMode::Light
+        : ThemeMode::Dark;
+}
+
+void Board::setThemeMode(ThemeMode mode) {
+    prefs_.putUChar("themeMode", static_cast<uint8_t>(mode));
+}
+
+Board::LayoutMode Board::layoutMode() {
+    return prefs_.getUChar("layoutMode", static_cast<uint8_t>(LayoutMode::Horizontal)) == static_cast<uint8_t>(LayoutMode::Vertical)
+        ? LayoutMode::Vertical
+        : LayoutMode::Horizontal;
+}
+
+void Board::setLayoutMode(LayoutMode mode) {
+    prefs_.putUChar("layoutMode", static_cast<uint8_t>(mode));
+}
+
+uint16_t Board::screenSaverSeconds() {
+    const uint16_t stored = prefs_.getUShort("idleSecs", 300);
+    return stored < 15 ? 15 : stored;
+}
+
+void Board::setScreenSaverSeconds(uint16_t seconds) {
+    const uint16_t clamped = seconds < 15 ? 15 : seconds;
+    prefs_.putUShort("idleSecs", clamped);
+}
+
+bool Board::gameVisible(const char* appId, bool fallback) {
+    char key[20];
+    snprintf(key, sizeof(key), "show_%s", appId);
+    return prefs_.getBool(key, fallback);
+}
+
+void Board::setGameVisible(const char* appId, bool visible) {
+    char key[20];
+    snprintf(key, sizeof(key), "show_%s", appId);
+    prefs_.putBool(key, visible);
+}
+
+void Board::loadWifiCache() {
+    if (wifiCacheLoaded_) return;
+    // isKey() first, so a missing entry does not log an NVS error every call.
+    wifiSsidCache_ = prefs_.isKey("wifiSsid") ? prefs_.getString("wifiSsid", "") : String();
+    wifiPassCache_ = prefs_.isKey("wifiPass") ? prefs_.getString("wifiPass", "") : String();
+    wifiCacheLoaded_ = true;
+}
+
+String Board::wifiSsid() {
+    loadWifiCache();
+    return wifiSsidCache_;
+}
+
+String Board::wifiPassword() {
+    loadWifiCache();
+    return wifiPassCache_;
+}
+
+void Board::setWifiCredentials(const String& ssid, const String& password) {
+    const size_t nS = prefs_.putString("wifiSsid", ssid);
+    const size_t nP = prefs_.putString("wifiPass", password);
+    wifiSsidCache_ = ssid;
+    wifiPassCache_ = password;
+    wifiCacheLoaded_ = true;
+    // putString returns 0 when the write fails (a full NVS partition is the
+    // usual cause), so log the byte counts rather than assuming success.
+    Serial.printf("[wifi] saved '%s' -> ssid %u bytes, pass %u bytes\n",
+                  ssid.c_str(), (unsigned)nS, (unsigned)nP);
+}
+
+void Board::clearWifiCredentials() {
+    prefs_.remove("wifiSsid");
+    prefs_.remove("wifiPass");
+    wifiSsidCache_ = String();
+    wifiPassCache_ = String();
+    wifiCacheLoaded_ = true;
+}
+
+bool Board::hasWifiCredentials() {
+    loadWifiCache();
+    return wifiSsidCache_.length() > 0;
+}
+
+bool Board::ntpEnabled() {
+    return prefs_.getBool("ntpOn", true);
+}
+
+void Board::setNtpEnabled(bool enabled) {
+    prefs_.putBool("ntpOn", enabled);
+}
+
+String Board::ntpServer() {
+    String server = prefs_.getString("ntpServer", DEFAULT_NTP_SERVER);
+    if (server.length() == 0) {
+        server = DEFAULT_NTP_SERVER;
+    }
+    return server;
+}
+
+void Board::setNtpServer(const String& server) {
+    const String value = server.length() > 0 ? server : String(DEFAULT_NTP_SERVER);
+    prefs_.putString("ntpServer", value);
+}
+
+bool Board::isWifiConnected() {
+    return WiFi.status() == WL_CONNECTED;
+}
+
+void Board::setDisplayRotation(uint8_t rotation) {
+    displayRotation_ = rotation;
+    tft_.setRotation(rotation);
+    lastTouch_ = TouchPoint{}; // clear stale touch after rotation change
+}
+
+uint8_t Board::displayRotation() const {
+    return displayRotation_;
 }
 
 void Board::setRgb(bool red, bool green, bool blue) {
@@ -402,3 +553,412 @@ bool Board::drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_
     bmp.close();
     return true;
 }
+
+// ---------------------------------------------------------------------------
+// Time sync
+//
+// The radio exists solely to fetch the time. We connect on demand, call
+// configTime(), and then re-issue it every five minutes so the clock cannot
+// drift. Re-calling configTime() is used instead of sntp_set_sync_interval()
+// because that symbol was renamed across ESP32 core versions.
+// ---------------------------------------------------------------------------
+namespace {
+constexpr uint32_t TIME_CONNECT_TIMEOUT_MS = 20000;
+constexpr uint32_t TIME_SYNC_TIMEOUT_MS    = 45000;
+constexpr uint32_t TIME_RETRY_MS           = 5UL * 60UL * 1000UL;
+constexpr uint32_t TIME_RESYNC_MS          = 5UL * 60UL * 1000UL;
+
+bool clockLooksValid() {
+    struct tm t;
+    // A year past 2020 means SNTP has actually delivered a real timestamp.
+    return getLocalTime(&t, 0) && t.tm_year > (2020 - 1900);
+}
+}
+
+namespace {
+/* Named zones with their standard-time offset in minutes. DST is handled by
+ * re-detecting from the public IP, which reports the offset currently in
+ * effect -- simpler and more reliable than shipping a TZ rule database. */
+struct TzZone { const char* name; const char* posix; };
+/* POSIX TZ strings rather than fixed offsets, so daylight saving is handled by
+ * the C library. A plain offset would be correct for only part of the year --
+ * "US Central" is UTC-6 in winter but UTC-5 from March to November. */
+const TzZone TZ_ZONES[] = {
+    { "UTC",            "UTC0"                          },
+    { "US Eastern",     "EST5EDT,M3.2.0,M11.1.0"        },
+    { "US Central",     "CST6CDT,M3.2.0,M11.1.0"        },
+    { "US Mountain",    "MST7MDT,M3.2.0,M11.1.0"        },
+    { "US Arizona",     "MST7"                          },
+    { "US Pacific",     "PST8PDT,M3.2.0,M11.1.0"        },
+    { "US Alaska",      "AKST9AKDT,M3.2.0,M11.1.0"      },
+    { "Hawaii",         "HST10"                         },
+    { "Brazil (Sao Paulo)", "<-03>3"                    },
+    { "UK / Ireland",   "GMT0BST,M3.5.0/1,M10.5.0"      },
+    { "Central Europe", "CET-1CEST,M3.5.0,M10.5.0/3"    },
+    { "East Europe",    "EET-2EEST,M3.5.0/3,M10.5.0/4"  },
+    { "India",          "IST-5:30"                      },
+    { "China",          "CST-8"                         },
+    { "Japan / Korea",  "JST-9"                         },
+    { "Sydney",         "AEST-10AEDT,M10.1.0,M4.1.0/3"  },
+    { "New Zealand",    "NZST-12NZDT,M9.5.0,M4.1.0/3"   },
+};
+constexpr uint8_t TZ_ZONE_COUNT = sizeof(TZ_ZONES) / sizeof(TZ_ZONES[0]);
+}
+
+uint8_t Board::tzZoneCount() { return TZ_ZONE_COUNT; }
+
+const char* Board::tzZonePosix(uint8_t index) {
+    if (index >= TZ_ZONE_COUNT) return "UTC0";
+    return TZ_ZONES[index].posix;
+}
+
+const char* Board::tzZoneName(uint8_t index) {
+    if (index >= TZ_ZONE_COUNT) return "?";
+    return TZ_ZONES[index].name;
+}
+
+bool Board::tzZoneChosen() {
+    return prefs_.getUChar("tzZone", 0xFF) != 0xFF;
+}
+
+uint8_t Board::tzZoneIndex() {
+    const uint8_t i = prefs_.getUChar("tzZone", 0);
+    return i < TZ_ZONE_COUNT ? i : 0;
+}
+
+void Board::setTzZoneIndex(uint8_t index) {
+    if (index >= TZ_ZONE_COUNT) index = 0;
+    prefs_.putUChar("tzZone", index);
+    tzAutoDetected_ = false;
+    if (WiFi.status() == WL_CONNECTED) {
+        applyTimeConfig();
+        lastResyncMs_ = millis();
+    } else {
+        // Apply the rules locally so the displayed time is right even offline.
+        setenv("TZ", TZ_ZONES[index].posix, 1);
+        tzset();
+    }
+}
+
+int16_t Board::tzOffsetMinutes() {
+    return static_cast<int16_t>(prefs_.getShort("tzOffMin", 0));
+}
+
+void Board::setTzOffsetMinutes(int16_t minutes) {
+    if (minutes < -12 * 60) minutes = -12 * 60;
+    if (minutes >  14 * 60) minutes =  14 * 60;
+    prefs_.putShort("tzOffMin", minutes);
+    if (WiFi.status() == WL_CONNECTED) {
+        applyTimeConfig();
+        lastResyncMs_ = millis();
+    }
+}
+
+bool Board::detectTimezone() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+
+    /* ip-api.com's "line" format returns the raw value with no JSON to parse.
+     * The offset it reports already includes DST, so re-running this on each
+     * sync keeps the clock right across the spring/autumn transitions. */
+    HTTPClient http;
+    http.setTimeout(5000);
+    if (!http.begin("http://ip-api.com/line/?fields=offset")) {
+        Serial.println("[time] tz lookup: http.begin failed");
+        return false;
+    }
+    Serial.println("[time] tz lookup: querying ip-api.com");
+
+    const int code = http.GET();
+    if (code != 200) {
+        Serial.printf("[time] tz lookup failed, http %d\n", code);
+        http.end();
+        return false;
+    }
+
+    const String body = http.getString();
+    http.end();
+
+    const long seconds = body.toInt();
+    if (seconds == 0 && body.indexOf('0') < 0) return false;   // unparseable
+    if (seconds < -12 * 3600L || seconds > 14 * 3600L) return false;
+
+    const int16_t minutes = static_cast<int16_t>(seconds / 60);
+    Serial.printf("[time] detected UTC%+d:%02d from public IP\n",
+                  minutes / 60, abs(minutes % 60));
+    prefs_.putShort("tzOffMin", minutes);
+    tzAutoDetected_ = true;
+    applyTimeConfig();
+    return true;
+}
+
+bool Board::timeSynced() const {
+    return timeSyncState_ == TimeSyncState::Synced;
+}
+
+void Board::beginTimeSync() {
+    if (!ntpEnabled() || !hasWifiCredentials()) return;
+    if (timeSyncState_ == TimeSyncState::Connecting ||
+        timeSyncState_ == TimeSyncState::Syncing) return;
+
+    lastSyncAttemptMs_ = millis();
+
+    if (WiFi.status() == WL_CONNECTED) {
+        applyTimeConfig();
+        // Same direct query used on the fresh-connect path; SNTP alone stays
+        // silent on this network.
+        if (!ntpUdpProbe(ntpServer().c_str())) ntpUdpProbe("time.google.com");
+        timeSyncStartedMs_ = millis();
+        timeSyncState_ = TimeSyncState::Syncing;
+        Serial.println("[time] already connected -> syncing");
+        return;
+    }
+
+    /* Only start our own association if nothing else is mid-connect. The Wi-Fi
+     * setup screen issues its own WiFi.begin(); firing a second one on top of
+     * it used to restart the handshake underneath the user. */
+    const uint32_t now = millis();
+    if (lastWifiBeginMs_ != 0 && now - lastWifiBeginMs_ < 30000UL) {
+        timeSyncState_ = TimeSyncState::Connecting;
+        timeSyncStartedMs_ = now;
+        return;
+    }
+
+    WiFi.mode(WIFI_STA);
+    const String ssid = wifiSsid();
+    const String pass = wifiPassword();
+    Serial.printf("[time] connecting to %s\n", ssid.c_str());
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    lastWifiBeginMs_ = now;
+    timeSyncStartedMs_ = now;
+    timeSyncState_ = TimeSyncState::Connecting;
+}
+
+/* Single place that programs SNTP, so the timezone can never be forgotten the
+ * way the Wi-Fi screen's hardcoded configTime(0, 0, ...) did. */
+void Board::applyTimeConfig() {
+    /* A hand-picked zone uses its POSIX rules, so daylight saving is applied by
+     * the C library -- "US Central" is UTC-6 in winter but UTC-5 from March to
+     * November, and a stored fixed offset would be wrong for most of the year.
+     * Only fall back to a raw offset when the zone is still auto-detected, in
+     * which case the detected value already reflects the DST in force. */
+    const uint8_t z = prefs_.getUChar("tzZone", 0xFF);
+    if (z != 0xFF && z < tzZoneCount()) {
+        const char* posix = tzZonePosix(z);
+        configTzTime(posix, ntpServer().c_str(), "time.google.com", "time.cloudflare.com");
+        Serial.printf("[time] configTzTime %s (%s)\n", tzZoneName(z), posix);
+    } else {
+        const long off = static_cast<long>(tzOffsetMinutes()) * 60L;
+        configTime(off, 0, ntpServer().c_str(), "time.google.com", "time.cloudflare.com");
+        Serial.printf("[time] configTime offset=%lds server=%s\n", off, ntpServer().c_str());
+    }
+}
+
+bool Board::ntpUdpProbe(const char* host) {
+    if (WiFi.status() != WL_CONNECTED) return false;
+
+    IPAddress ip;
+    if (!WiFi.hostByName(host, ip)) {
+        Serial.printf("[time] DNS FAILED for %s\n", host);
+        return false;
+    }
+    Serial.printf("[time] %s -> %s\n", host, ip.toString().c_str());
+
+    WiFiUDP udp;
+    if (!udp.begin(2390)) {
+        Serial.println("[time] udp begin failed");
+        return false;
+    }
+
+    uint8_t pkt[48] = {0};
+    pkt[0] = 0b11100011;          // LI=3 (unsynced), VN=4, Mode=3 (client)
+    udp.beginPacket(ip, 123);
+    udp.write(pkt, 48);
+    udp.endPacket();
+
+    const uint32_t t0 = millis();
+    while (millis() - t0 < 4000) {
+        if (udp.parsePacket() >= 48) {
+            udp.read(pkt, 48);
+            udp.stop();
+            // Transmit timestamp, seconds since 1900. Convert to Unix epoch.
+            const uint32_t ntpSecs = (static_cast<uint32_t>(pkt[40]) << 24) |
+                                     (static_cast<uint32_t>(pkt[41]) << 16) |
+                                     (static_cast<uint32_t>(pkt[42]) << 8)  |
+                                      static_cast<uint32_t>(pkt[43]);
+            if (ntpSecs == 0) {
+                Serial.println("[time] UDP reply had a zero timestamp");
+                return false;
+            }
+            const uint32_t unixSecs = ntpSecs - 2208988800UL;
+            struct timeval tv;
+            tv.tv_sec = static_cast<time_t>(unixSecs);
+            tv.tv_usec = 0;
+            settimeofday(&tv, nullptr);
+            Serial.printf("[time] UDP NTP OK, clock set from %s (unix %u)\n",
+                          host, (unsigned)unixSecs);
+            return true;
+        }
+        delay(20);
+    }
+    udp.stop();
+    Serial.printf("[time] no UDP reply from %s - port 123 blocked?\n", host);
+    return false;
+}
+
+void Board::syncTimeNow() {
+    /* An explicit tap on "Sync now" is a direct instruction, so it deliberately
+     * ignores the Auto-time switch. Routing it through beginTimeSync() meant
+     * the ntpEnabled() guard swallowed it silently -- the log filled with
+     * "manual sync requested" and nothing ever happened. */
+    timeSyncState_ = TimeSyncState::Idle;
+    lastSyncAttemptMs_ = 0;
+    lastResyncMs_ = 0;
+    Serial.println("[time] manual sync requested");
+
+    if (!hasWifiCredentials()) {
+        Serial.println("[time] manual sync: no saved network");
+        return;
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[time] manual sync: not connected, associating");
+        beginTimeSync();
+        return;
+    }
+
+    if (!tzZoneChosen()) detectTimezone();
+    applyTimeConfig();
+    if (!ntpUdpProbe(ntpServer().c_str())) {
+        ntpUdpProbe("time.google.com");
+    }
+    timeSyncStartedMs_ = millis();
+    timeSyncState_ = TimeSyncState::Syncing;
+}
+
+void Board::tickTimeSync() {
+    const uint32_t now = millis();
+
+    switch (timeSyncState_) {
+        case TimeSyncState::Idle:
+            if (ntpEnabled() && hasWifiCredentials() &&
+                (lastSyncAttemptMs_ == 0 || now - lastSyncAttemptMs_ >= TIME_RETRY_MS)) {
+                beginTimeSync();
+            }
+            break;
+
+        case TimeSyncState::Connecting:
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.printf("[time] wifi up, ip=%s rssi=%d\n",
+                              WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
+                // Only auto-detect while the user has not chosen a zone by hand.
+                if (prefs_.getUChar("tzZone", 0xFF) == 0xFF) detectTimezone();
+                applyTimeConfig();
+                // One direct query up front: it proves DNS and UDP/123 in the
+                // log, and usually sets the clock before SNTP even polls.
+                if (!ntpUdpProbe(ntpServer().c_str())) {
+                    ntpUdpProbe("time.google.com");
+                }
+                timeSyncStartedMs_ = now;
+                timeSyncState_ = TimeSyncState::Syncing;
+            } else if (now - timeSyncStartedMs_ > TIME_CONNECT_TIMEOUT_MS) {
+                Serial.printf("[time] connect timeout, status=%d\n", (int)WiFi.status());
+                timeSyncState_ = TimeSyncState::Idle;
+            }
+            break;
+
+        case TimeSyncState::Syncing:
+            if (clockLooksValid()) {
+                struct tm t;
+                getLocalTime(&t, 0);
+                Serial.printf("[time] SYNCED %04d-%02d-%02d %02d:%02d:%02d (%s)\n",
+                              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
+                              t.tm_hour, t.tm_min, t.tm_sec,
+                              /* Name the zone rather than the stored offset.
+                               * The stored value is only the auto-detect
+                               * fallback and diverges from the POSIX rules
+                               * under DST, which previously made this log read
+                               * "tz-6" while the clock was correctly on -5. */
+                              tzZoneChosen() ? tzZoneName(tzZoneIndex()) : "auto");
+                timeSyncState_ = TimeSyncState::Synced;
+                lastResyncMs_ = now;
+            } else if (now - timeSyncStartedMs_ > TIME_SYNC_TIMEOUT_MS) {
+                // SNTP stayed silent. Try the direct query once more before
+                // giving up; it uses a different code path inside lwIP.
+                Serial.println("[time] sntp timeout, trying direct UDP");
+                if (ntpUdpProbe("time.google.com") || ntpUdpProbe("time.cloudflare.com")) {
+                    timeSyncState_ = TimeSyncState::Synced;
+                    lastResyncMs_ = now;
+                } else {
+                    timeSyncState_ = TimeSyncState::Idle;
+                }
+            }
+            break;
+
+        case TimeSyncState::Synced:
+            if (now - lastResyncMs_ >= TIME_RESYNC_MS) {
+                lastResyncMs_ = now;
+                if (WiFi.status() == WL_CONNECTED) {
+                    applyTimeConfig();
+                } else {
+                    timeSyncState_ = TimeSyncState::Idle;
+                    lastSyncAttemptMs_ = 0;
+                }
+            }
+            break;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RGB status LED
+//
+// Common anode: pulling a pin LOW lights that channel, so the PWM duty is
+// inverted. Three LEDC channels give full colour mixing, bright enough to read
+// through a translucent enclosure.
+// ---------------------------------------------------------------------------
+namespace {
+constexpr uint8_t RGB_CH_R = 5;
+constexpr uint8_t RGB_CH_G = 6;
+constexpr uint8_t RGB_CH_B = 7;
+constexpr uint32_t RGB_PWM_HZ   = 5000;
+constexpr uint8_t  RGB_PWM_BITS = 8;
+}
+
+void Board::setRgbEnabled(bool on) {
+    prefs_.putBool("rgbOn", on);
+    if (!on) setRgbColor(0, 0, 0);
+}
+
+bool Board::rgbEnabled() {
+    return prefs_.getBool("rgbOn", true);
+}
+
+void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {
+    if (!rgbReady_) {
+        ledcSetup(RGB_CH_R, RGB_PWM_HZ, RGB_PWM_BITS);
+        ledcSetup(RGB_CH_G, RGB_PWM_HZ, RGB_PWM_BITS);
+        ledcSetup(RGB_CH_B, RGB_PWM_HZ, RGB_PWM_BITS);
+        ledcAttachPin(PIN_RGB_R, RGB_CH_R);
+        ledcAttachPin(PIN_RGB_G, RGB_CH_G);
+        ledcAttachPin(PIN_RGB_B, RGB_CH_B);
+        rgbReady_ = true;
+    }
+    rgbR_ = r; rgbG_ = g; rgbB_ = b;
+    // Inverted: duty 255 = fully off on a common-anode LED.
+    ledcWrite(RGB_CH_R, 255 - r);
+    ledcWrite(RGB_CH_G, 255 - g);
+    ledcWrite(RGB_CH_B, 255 - b);
+}
+
+void Board::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
+    if (!rgbEnabled()) return;
+    setRgbColor(r, g, b);
+    rgbHoldUntilMs_ = millis() + ms;
+}
+
+void Board::tickRgb() {
+    if (rgbHoldUntilMs_ == 0) return;
+    if (millis() >= rgbHoldUntilMs_) {
+        rgbHoldUntilMs_ = 0;
+        setRgbColor(0, 0, 0);
+    }
+}
+
