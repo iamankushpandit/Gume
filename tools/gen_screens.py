@@ -251,27 +251,29 @@ def simon():
 
 
 def launcher_wide():
-    im, d = blank(); d.rectangle([0, 0, W - 1, 43], fill=SURFACE)
+    im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
-    d.line([(0, 43), (W, 43)], fill=shade(SURFACE, 60))
-    d.text((10, 6), "GoodTime Kids!", font=F4, fill=TEXT)
-    d.text((10, 30), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
+    d.text((10, 5), "GoodTime Kids!", font=F4, fill=TEXT)
+    d.text((10, 34), "(C) GoodTime Micro", font=F1, fill=MUTED)
     t = "12:41 AM"
-    d.text((W - 68 - d.textlength(t, font=F2), 5), t, font=F2, fill=TEXT)
-    sync_badge(d, W - 58, 11); wifi_badge(d, W - 36, 11)
+    d.text((W - 40 - d.textlength(t, font=F1), 9), t, font=F1, fill=TEXT)
+    sync_badge(d, W - 68, 34); wifi_badge(d, W - 46, 34)
+    d.line([(W - 88, 8), (W - 88, 40)], fill=OUTLINE)
+    d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
     tiles = [("Number Line", "jump to number"), ("Countries", "maps & continents"),
              ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
              ("Fingers", "count on hands"), ("Calendar", "days & months")]
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub) in enumerate(tiles):
-        x, y = 10 + (slot % 2) * 155, 48 + (slot // 2) * 56
+        x, y = 10 + (slot % 2) * 155, 52 + (slot // 2) * 53
         fill = cols[slot % 3]
-        d.rounded_rectangle([x + 2, y + 3, x + 146, y + 50], 6, fill=SHADOW)
-        d.rounded_rectangle([x, y, x + 144, y + 47], 6, fill=fill)
+        d.rounded_rectangle([x + 2, y + 3, x + 146, y + 48], 6, fill=SHADOW)
+        d.rounded_rectangle([x, y, x + 144, y + 45], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 140, y + 1)], fill=shade(fill, 138))
-        d.ellipse([x + 10, y + 8, x + 38, y + 36], fill=(120, 200, 255), outline=WHITE)
-        d.text((x + 48, y + 10), title, font=F2, fill=WHITE)
-        d.text((x + 48, y + 30), sub, font=F1, fill=(235, 245, 255))
+        d.ellipse([x + 10, y + 8, x + 36, y + 34], fill=(120, 200, 255), outline=WHITE)
+        d.text((x + 46, y + 9), title, font=F2, fill=WHITE)
+        d.text((x + 46, y + 28), sub, font=F1, fill=(235, 245, 255))
     button(d, (8, 212, 74, 24), "Prev"); button(d, (W - 82, 212, 74, 24), "Next")
     d.text((W / 2 - 12, 217), "3/5", font=F2, fill=TEXT)
     return im
@@ -305,23 +307,51 @@ def launcher_tall():
     return im
 
 
+def tabs(d, active_device):
+    """Mirrors Ui::drawTab: active tab is page-coloured with rounded top only."""
+    for i, (lab, x) in enumerate([("Device / Wi-Fi", 4), ("Games", 160)]):
+        active = (i == 0) == active_device
+        top = 32 if active else 36
+        h = 28 if active else 24
+        fill = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 151, top + h], 6, fill=fill, outline=OUTLINE)
+        d.rectangle([x, top + h - 7, x + 151, top + h], fill=fill)
+        if active:
+            d.line([(x + 6, top + 1), (x + 145, top + 1)], fill=shade(fill, 150))
+        d.text((x + 76 - d.textlength(lab, font=F2) / 2, top + h / 2 - 7), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    ax = 4 if active_device else 160
+    d.line([(4, 60), (ax, 60)], fill=OUTLINE)
+    d.line([(ax + 152, 60), (316, 60)], fill=OUTLINE)
+
+
 def settings_device():
     im, d = blank(); topbar(d, "Settings")
-    button(d, (4, 32, 150, 28), "Device / Wi-Fi", BLUE, WHITE)
-    button(d, (162, 32, 150, 28), "Games")
-    button(d, (8, 70, 144, 40), "Theme: Dark")
-    button(d, (164, 70, 144, 40), "Menu: Tall")
-    button(d, (8, 120, 144, 40), "Saver: 60s")
-    button(d, (164, 120, 144, 40), "Light: On")
-    button(d, (8, 170, 304, 40), "Network & Time", BLUE, WHITE)
-    d.text((8, 222), "Menu layout applies to the home screen only", font=F1, fill=MUTED)
+    tabs(d, True)
+    button(d, (8, 68, 144, 36), "Theme: Dark")
+    button(d, (164, 68, 144, 36), "Menu: Tall")
+    button(d, (8, 110, 144, 36), "Saver: 60s")
+    button(d, (164, 110, 144, 36), "Light: On")
+    button(d, (8, 152, 148, 36), "Network", BLUE, WHITE)
+    button(d, (164, 152, 144, 36), "Flip: Off")
+    d.text((8, 190), "Brightness", font=F1, fill=MUTED)
+    d.text((312 - d.textlength("80%", font=F1), 190), "80%", font=F1, fill=MUTED)
+    # slider: track, filled portion, handle -- mirrors Ui::drawSlider
+    r = (8, 200, 304, 32)
+    cy = r[1] + r[3] // 2
+    pad, span = 11, r[2] - 22
+    fill = int((80 - 25) / 75 * span)
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + span, cy + 4], 4, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=BLUE)
+    hx = r[0] + pad + fill
+    d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
     return im
 
 
 def settings_games():
     im, d = blank(); topbar(d, "Settings")
-    button(d, (4, 32, 150, 28), "Device / Wi-Fi")
-    button(d, (162, 32, 150, 28), "Games", BLUE, WHITE)
+    tabs(d, False)
     for i, (lab, on) in enumerate([("Slide", 1), ("Odd One", 1), ("Shape Arith", 1),
                                    ("Fingers", 0), ("Calendar", 1)]):
         y = 62 + i * 29

@@ -4,11 +4,17 @@
 #include "map_n_flag.h"
 
 namespace {
-// Fixed (theme-independent)
-constexpr uint16_t COLOR_SUCCESS  = 0x37F0;
-constexpr uint16_t COLOR_ERROR    = 0xF9EA;
-constexpr uint16_t COLOR_WARNING  = 0xFFE6;
 constexpr uint16_t COLOR_BAR_TEXT = TFT_WHITE;
+
+/* Status colours used to be theme-independent brights. On the light theme's
+ * white background a pale yellow warning was almost invisible and the green
+ * washed out, so each has a darker light-theme counterpart. */
+constexpr uint16_t DARK_SUCCESS  = 0x37F0;   // bright green on dark
+constexpr uint16_t DARK_ERROR    = 0xF9EA;
+constexpr uint16_t DARK_WARNING  = 0xFFE6;   // pale yellow on dark
+constexpr uint16_t LIGHT_SUCCESS = 0x04A0;   // deep green on white
+constexpr uint16_t LIGHT_ERROR   = 0xC0C3;   // deep red on white
+constexpr uint16_t LIGHT_WARNING = 0xBB40;   // amber on white
 constexpr uint16_t COLOR_SHADOW   = 0x0000;
 
 // Dark palette
@@ -37,6 +43,9 @@ uint16_t COLOR_PANEL   = DARK_PANEL;
 uint16_t COLOR_TEXT    = DARK_TEXT;
 uint16_t COLOR_MUTED   = DARK_MUTED;
 uint16_t COLOR_OUTLINE = DARK_OUTLINE;
+uint16_t COLOR_SUCCESS = DARK_SUCCESS;
+uint16_t COLOR_ERROR   = DARK_ERROR;
+uint16_t COLOR_WARNING = DARK_WARNING;
 }
 
 namespace Ui {
@@ -53,6 +62,9 @@ void setTheme(Theme t) {
     COLOR_TEXT    = dark ? DARK_TEXT    : LIGHT_TEXT;
     COLOR_MUTED   = dark ? DARK_MUTED   : LIGHT_MUTED;
     COLOR_OUTLINE = dark ? DARK_OUTLINE : LIGHT_OUTLINE;
+    COLOR_SUCCESS = dark ? DARK_SUCCESS  : LIGHT_SUCCESS;
+    COLOR_ERROR   = dark ? DARK_ERROR    : LIGHT_ERROR;
+    COLOR_WARNING = dark ? DARK_WARNING  : LIGHT_WARNING;
 }
 
 Theme currentTheme() {
@@ -148,7 +160,8 @@ void drawTopBar(TFT_eSPI& tft, const String& title) {
     tft.drawFastHLine(0, 0, SCREEN_WIDTH, shade(COLOR_BAR, 145));
     tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, SCREEN_WIDTH, shade(COLOR_BAR, 60));
     drawHomeIcon(tft, Rect{0, 0, 42, TOP_BAR_HEIGHT});
-    drawGearIcon(tft, Rect{SCREEN_WIDTH - 34, 3, 26, 24});
+    // The top bar stays dark in both themes, so this gear is always white.
+    drawGearIcon(tft, Rect{SCREEN_WIDTH - 34, 3, 26, 24}, COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     String fitted = title;
@@ -168,20 +181,22 @@ void drawTopBar(TFT_eSPI& tft, const String& title) {
 
 void drawSyncBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg) {
     const uint16_t col = synced ? COLOR_SUCCESS : COLOR_WARNING;
+    // Light theme uses dark fills, so the glyph flips to white to stay legible.
+    const uint16_t glyph = (s_theme == Theme::Light) ? TFT_WHITE : TFT_BLACK;
     tft.fillCircle(cx, cy, 6, col);
     tft.drawCircle(cx, cy, 6, bg);
     if (synced) {
         // tick
-        tft.drawLine(cx - 3, cy,     cx - 1, cy + 2, TFT_BLACK);
-        tft.drawLine(cx - 3, cy + 1, cx - 1, cy + 3, TFT_BLACK);
-        tft.drawLine(cx - 1, cy + 2, cx + 3, cy - 2, TFT_BLACK);
-        tft.drawLine(cx - 1, cy + 3, cx + 3, cy - 1, TFT_BLACK);
+        tft.drawLine(cx - 3, cy,     cx - 1, cy + 2, glyph);
+        tft.drawLine(cx - 3, cy + 1, cx - 1, cy + 3, glyph);
+        tft.drawLine(cx - 1, cy + 2, cx + 3, cy - 2, glyph);
+        tft.drawLine(cx - 1, cy + 3, cx + 3, cy - 1, glyph);
     } else {
         // exclamation
-        tft.drawFastVLine(cx, cy - 3, 4, TFT_BLACK);
-        tft.drawFastVLine(cx + 1, cy - 3, 4, TFT_BLACK);
-        tft.drawPixel(cx, cy + 3, TFT_BLACK);
-        tft.drawPixel(cx + 1, cy + 3, TFT_BLACK);
+        tft.drawFastVLine(cx, cy - 3, 4, glyph);
+        tft.drawFastVLine(cx + 1, cy - 3, 4, glyph);
+        tft.drawPixel(cx, cy + 3, glyph);
+        tft.drawPixel(cx + 1, cy + 3, glyph);
     }
 }
 
@@ -201,7 +216,8 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
     }
 
     const uint16_t on  = up ? COLOR_SUCCESS : rgb(120, 126, 138);
-    const uint16_t off = rgb(70, 74, 84);
+    // Unlit bars must read against the background in both themes.
+    const uint16_t off = (s_theme == Theme::Light) ? rgb(190, 194, 202) : rgb(70, 74, 84);
     const int16_t base = static_cast<int16_t>(cy + 6);
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -214,6 +230,87 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
         tft.drawLine(cx - 8, cy - 7, cx + 8, cy + 6, COLOR_ERROR);
     }
     (void)bg;
+}
+
+void drawSlider(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint8_t minPct) {
+    if (pct < minPct) pct = minPct;
+    if (pct > 100) pct = 100;
+
+    const uint16_t accent = rgb(36, 132, 204);
+    const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
+    const int16_t trackH = 8;
+    const int16_t pad = 11;                       // keeps the handle inside r
+    const int16_t x0 = static_cast<int16_t>(r.x + pad);
+    const int16_t span = static_cast<int16_t>(r.w - 2 * pad);
+
+    const uint16_t range = static_cast<uint16_t>(100 - minPct);
+    const int16_t fill = range == 0 ? span
+        : static_cast<int16_t>((static_cast<int32_t>(pct - minPct) * span) / range);
+
+    tft.fillRoundRect(x0, static_cast<int16_t>(cy - trackH / 2), span, trackH, trackH / 2, COLOR_PANEL);
+    tft.drawRoundRect(x0, static_cast<int16_t>(cy - trackH / 2), span, trackH, trackH / 2, COLOR_OUTLINE);
+    if (fill > 2) {
+        tft.fillRoundRect(x0, static_cast<int16_t>(cy - trackH / 2), fill, trackH, trackH / 2, accent);
+    }
+
+    const int16_t hx = static_cast<int16_t>(x0 + fill);
+    tft.fillCircle(hx, cy, 10, COLOR_SURFACE);
+    tft.drawCircle(hx, cy, 10, COLOR_OUTLINE);
+    tft.fillCircle(hx, cy, 6, accent);
+}
+
+uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct) {
+    const int16_t pad = 11;
+    const int16_t x0 = static_cast<int16_t>(r.x + pad);
+    const int16_t span = static_cast<int16_t>(r.w - 2 * pad);
+    if (span <= 0) return minPct;
+
+    int32_t rel = x - x0;
+    if (rel < 0) rel = 0;
+    if (rel > span) rel = span;
+    return static_cast<uint8_t>(minPct + (rel * (100 - minPct)) / span);
+}
+
+void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active) {
+    /* Active tab: full height, page-coloured, rounded top corners only -- the
+     * square bottom is what lets it merge into the content area. Inactive:
+     * inset from the top so it reads as sitting behind, and darker. */
+    const int16_t top = static_cast<int16_t>(active ? r.y : r.y + 4);
+    const int16_t h   = static_cast<int16_t>(active ? r.h : r.h - 4);
+    const uint16_t fill = active ? COLOR_SURFACE : COLOR_PANEL;
+
+    tft.fillRoundRect(r.x, top, r.w, h, 6, fill);
+    // Square off the bottom so the rounded corners only appear at the top.
+    tft.fillRect(r.x, static_cast<int16_t>(top + h - 7), r.w, 7, fill);
+
+    tft.drawFastHLine(static_cast<int16_t>(r.x + 6), top, static_cast<int16_t>(r.w - 12), COLOR_OUTLINE);
+    tft.drawFastVLine(r.x, static_cast<int16_t>(top + 6), static_cast<int16_t>(h - 6), COLOR_OUTLINE);
+    tft.drawFastVLine(static_cast<int16_t>(r.x + r.w - 1), static_cast<int16_t>(top + 6),
+                      static_cast<int16_t>(h - 6), COLOR_OUTLINE);
+    if (active) {
+        // A brighter lip along the top reads as the selected sheet.
+        tft.drawFastHLine(static_cast<int16_t>(r.x + 6), static_cast<int16_t>(top + 1),
+                          static_cast<int16_t>(r.w - 12), shade(fill, 150));
+    }
+
+    tft.setTextColor(active ? COLOR_TEXT : COLOR_MUTED, fill);
+    tft.setTextDatum(MC_DATUM);
+    String fitted = label;
+    while (fitted.length() > 2 && tft.textWidth(fitted, 2) > r.w - 10) {
+        fitted.remove(fitted.length() - 1);
+    }
+    tft.drawString(fitted, static_cast<int16_t>(r.x + r.w / 2),
+                   static_cast<int16_t>(top + h / 2), 2);
+    tft.setTextDatum(TL_DATUM);
+}
+
+void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
+                     const Rect& activeTab) {
+    // Draw the rule under the strip, but skip the active tab so it joins the
+    // page below -- the detail that makes it read as a tab rather than a button.
+    tft.drawFastHLine(x0, y, static_cast<int16_t>(activeTab.x - x0), COLOR_OUTLINE);
+    const int16_t rightStart = static_cast<int16_t>(activeTab.x + activeTab.w);
+    tft.drawFastHLine(rightStart, y, static_cast<int16_t>(x1 - rightStart), COLOR_OUTLINE);
 }
 
 void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed, uint8_t font) {

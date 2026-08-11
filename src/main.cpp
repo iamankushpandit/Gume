@@ -44,7 +44,7 @@ constexpr Rect LAUNCHER_SETTINGS_BUTTON{SCREEN_WIDTH - 32, 18, 24, 22};
 #ifndef CYD_BRINGUP_ONLY
 // Portrait puts the gear under the clock, so it needs a taller header.
 constexpr int16_t LAUNCHER_HEADER_H_TALL = 78;
-constexpr int16_t LAUNCHER_HEADER_H_WIDE = 44;
+constexpr int16_t LAUNCHER_HEADER_H_WIDE = 48;
 
 int16_t launcherHeaderHeight(Board::LayoutMode mode) {
     return mode == Board::LayoutMode::Vertical ? LAUNCHER_HEADER_H_TALL
@@ -57,7 +57,7 @@ Rect launcherGearRect(Board::LayoutMode mode, int16_t lW) {
     if (mode == Board::LayoutMode::Vertical) {
         return Rect{static_cast<int16_t>(lW - 32), 48, 26, 24};
     }
-    return Rect{static_cast<int16_t>(lW - 30), 3, 26, 26};
+    return Rect{static_cast<int16_t>(lW - 30), 11, 26, 26};
 }
 
 Rect launcherTileRect(uint8_t slot, Board::LayoutMode mode) {
@@ -74,7 +74,7 @@ Rect launcherTileRect(uint8_t slot, Board::LayoutMode mode) {
         // Landscape: 2 columns of wide tiles.
         const uint8_t col = slot % 2;
         const uint8_t row = slot / 2;
-        return Rect{static_cast<int16_t>(10 + col * 155), static_cast<int16_t>(48 + row * 56), 145, 48};
+        return Rect{static_cast<int16_t>(10 + col * 155), static_cast<int16_t>(52 + row * 53), 145, 46};
     }
 }
 #endif
@@ -155,6 +155,10 @@ public:
         randomSeed(static_cast<uint32_t>(esp_random()));
         content_.begin(board_);
         Clock::begin();
+        Serial.printf("[boot] rot=%d layout=%s (CYD_SCREEN_ROTATION=%d)\n",
+                      (int)board_.displayRotation(),
+                      board_.layoutMode() == Board::LayoutMode::Vertical ? "Tall" : "Wide",
+                      (int)CYD_SCREEN_ROTATION);
         Serial.printf("[boot] ntp=%d creds=%d ssid='%s' tzmin=%d\n",
                       (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
                       board_.wifiSsid().c_str(), (int)board_.tzOffsetMinutes());
@@ -234,12 +238,19 @@ public:
         delay(18);
     }
 
+    /* Base rotation for a view, XOR 2 when flipped. XOR 2 is exactly a
+     * 180-degree turn for both orientations: 1<->3 landscape, 0<->2 portrait. */
+    uint8_t effectiveRotation(bool landscape) {
+        const uint8_t base = landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
+        return board_.screenFlipped() ? static_cast<uint8_t>(base ^ 2) : base;
+    }
+
     void goHome() override {
         activeGame_ = nullptr;
         view_ = View::Launcher;
         clampLauncherPage();
         // Rotate display based on chosen layout mode
-        board_.setDisplayRotation(board_.layoutMode() == Board::LayoutMode::Vertical ? CYD_PORTRAIT_ROTATION : CYD_SCREEN_ROTATION);
+        board_.setDisplayRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         content_.scan();
         launcherDirty_ = true;
     }
@@ -263,7 +274,7 @@ public:
         // Remember where we came from so we can go back there, not to the
         // launcher. Losing the open Settings screen was disorienting.
         ssavPrevView_ = view_;
-        board_.setDisplayRotation(CYD_SCREEN_ROTATION); // always landscape
+        board_.setDisplayRotation(effectiveRotation(true)); // always landscape
         view_ = View::ScreenSaver;
         screenSaverStartMs_ = millis();
         ssav_initialized_ = false;
@@ -277,8 +288,7 @@ public:
         // Games always run landscape; only the launcher follows the Tall/Wide
         // setting. Restore whichever the destination view needs.
         board_.setDisplayRotation(
-            (!backToGame && board_.layoutMode() == Board::LayoutMode::Vertical)
-                ? CYD_PORTRAIT_ROTATION : CYD_SCREEN_ROTATION);
+            effectiveRotation(backToGame || board_.layoutMode() != Board::LayoutMode::Vertical));
 
         /* setDisplayRotation() clears lastTouch_. With the finger still on the
          * glass the next poll then reports justPressed again, and that phantom
@@ -536,7 +546,7 @@ private:
         // Every game is authored against the fixed 320x240 landscape canvas
         // (SCREEN_WIDTH/SCREEN_HEIGHT), so the Tall/Wide menu setting
         // deliberately does not apply here.
-        board_.setDisplayRotation(CYD_SCREEN_ROTATION);
+        board_.setDisplayRotation(effectiveRotation(true));
         activeGame_->begin(*this);
         activeGame_->render(*this);
         activeGame_->clearDirty();
@@ -758,16 +768,25 @@ private:
             // Thin rule under the title to separate it from the tiles.
             tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
         } else {
-            tft.drawString("GoodTime Kids!", 10, 15, 4);
+            /* Two rows rather than one. A font-4 title is ~190px wide, so the
+             * clock, both badges and the gear could not share its line without
+             * crowding. Branding now occupies the left across two lines and the
+             * status items form a tidy block on the right. */
+            tft.drawString("GoodTime Kids!", 10, 16, 4);
             tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.drawString("(C) GoodTime Micro", 10, 33, 1);
+            tft.drawString("(C) GoodTime Micro", 10, 38, 1);
+
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(MR_DATUM);
-            tft.drawString(Clock::timeText(), static_cast<int16_t>(lW - 68), 11, 2);
-            Ui::drawSyncBadge(tft, static_cast<int16_t>(lW - 58), 11, Clock::synced(), Ui::surface());
-            Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 36), 11, Ui::surface());
+            tft.drawString(Clock::timeText(), static_cast<int16_t>(lW - 40), 14, 1);
+            Ui::drawSyncBadge(tft, static_cast<int16_t>(lW - 68), 34, Clock::synced(), Ui::surface());
+            Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 46), 34, Ui::surface());
+            // Hairline separating the status block from the branding.
+            tft.drawFastVLine(static_cast<int16_t>(lW - 88), 8, 32, Ui::outline());
         }
-        Ui::drawGearIcon(tft, gearBtn);
+        // Launcher header is Ui::surface() -- near-white on the light theme,
+        // where a white gear was invisible. Use the theme's text colour.
+        Ui::drawGearIcon(tft, gearBtn, Ui::text());
 
         const uint8_t pageSize = launcherPageSize();
         const uint8_t start = launcherPage_ * pageSize;

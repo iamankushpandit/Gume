@@ -11,13 +11,19 @@ void SettingsGame::begin(GameHost& host) {
 }
 
 Rect SettingsGame::tabRect(Tab t) const {
-    return t == Tab::Device ? Rect{4, 32, 150, 28} : Rect{162, 32, 150, 28};
+    // Bottom edge lands on the baseline at y=60 so the active tab merges
+    // into the content area below it.
+    return t == Tab::Device ? Rect{4, 32, 152, 28} : Rect{160, 32, 152, 28};
 }
-Rect SettingsGame::themeRect()  const { return Rect{8,  70, 144, 40}; }
-Rect SettingsGame::layoutRect() const { return Rect{164, 70, 144, 40}; }
-Rect SettingsGame::saverRect()  const { return Rect{8, 120, 144, 40}; }
-Rect SettingsGame::ntpRect()    const { return Rect{164, 120, 144, 40}; }
-Rect SettingsGame::wifiRect()   const { return Rect{8, 170, 304, 40}; }
+/* Rows tightened from 40px to 36 to free the bottom of the page for the
+ * brightness slider. */
+Rect SettingsGame::themeRect()  const { return Rect{8,   68, 144, 36}; }
+Rect SettingsGame::layoutRect() const { return Rect{164, 68, 144, 36}; }
+Rect SettingsGame::saverRect()  const { return Rect{8,  110, 144, 36}; }
+Rect SettingsGame::ntpRect()    const { return Rect{164, 110, 144, 36}; }
+Rect SettingsGame::brightRect() const { return Rect{8,  200, 304, 32}; }
+Rect SettingsGame::wifiRect()   const { return Rect{8,  152, 148, 36}; }
+Rect SettingsGame::flipRect()   const { return Rect{164, 152, 144, 36}; }
 Rect SettingsGame::gameCheckRect(uint8_t row) const {
     // 29px pitch keeps all five rows clear of the Prev/Next buttons at y=210.
     return Rect{8, static_cast<int16_t>(62 + row * 29), 304, 27};
@@ -64,6 +70,15 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
         if (wifiRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.openWifi(); return;
         }
+        if (brightRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.setBrightness(Ui::sliderValueAt(brightRect(), touch.x, Board::BRIGHTNESS_MIN));
+            markDirty(); return;
+        }
+        if (flipRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.setScreenFlipped(!board.screenFlipped());
+            host.goHome();          // re-apply the rotation immediately
+            return;
+        }
     } else {
         constexpr uint8_t VISIBLE = 5;
         if (gamesPrevRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && gameScroll_ > 0) {
@@ -105,11 +120,18 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     Ui::drawButton(tft, ntpRect(),
         String("Light: ") + (board.rgbEnabled() ? "On" : "Off"),
         Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, wifiRect(), "Network & Time", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+    Ui::drawButton(tft, wifiRect(), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+    Ui::drawButton(tft, flipRect(),
+        String("Flip: ") + (board.screenFlipped() ? "On" : "Off"),
+        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString("Menu layout applies to the home screen only", 8, 222, 1);
+    tft.drawString("Brightness", 8, 190, 1);
+    tft.setTextDatum(TR_DATUM);
+    tft.drawString(String(board.brightness()) + "%", SCREEN_WIDTH - 8, 190, 1);
+    tft.setTextDatum(TL_DATUM);
+    Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
 }
 
 void SettingsGame::renderGamesTab(GameHost& host) {
@@ -160,12 +182,12 @@ void SettingsGame::render(GameHost& host) {
     Ui::clear(tft);
     Ui::drawTopBar(tft, title());
 
-    const uint16_t devFill  = tab_ == Tab::Device ? Ui::rgb(36, 132, 204) : Ui::panel();
-    const uint16_t gameFill = tab_ == Tab::Games  ? Ui::rgb(36, 132, 204) : Ui::panel();
-    const uint16_t devTc    = tab_ == Tab::Device ? TFT_WHITE : Ui::text();
-    const uint16_t gameTc   = tab_ == Tab::Games  ? TFT_WHITE : Ui::text();
-    Ui::drawButton(tft, tabRect(Tab::Device), "Device / Wi-Fi", devFill,  Ui::outline(), devTc,  false, 2);
-    Ui::drawButton(tft, tabRect(Tab::Games),  "Games",          gameFill, Ui::outline(), gameTc, false, 2);
+    const bool deviceActive = (tab_ == Tab::Device);
+    Ui::drawTab(tft, tabRect(Tab::Device), "Device / Wi-Fi", deviceActive);
+    Ui::drawTab(tft, tabRect(Tab::Games),  "Games",          !deviceActive);
+    // Rule under the strip, broken where the active tab meets the page.
+    const Rect active = tabRect(deviceActive ? Tab::Device : Tab::Games);
+    Ui::drawTabBaseline(tft, 60, 4, SCREEN_WIDTH - 4, active);
 
     if (tab_ == Tab::Device) {
         renderDeviceTab(host);

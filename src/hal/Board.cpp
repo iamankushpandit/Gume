@@ -100,6 +100,7 @@ void Board::begin() {
     Ui::clear(tft_);
 
     prefs_.begin("cydkids", false);
+    applyBrightness();      // needs prefs, so it runs after begin()
     loadTouchCalibration();
     mountSd();
 }
@@ -389,6 +390,44 @@ Board::ThemeMode Board::themeMode() {
 
 void Board::setThemeMode(ThemeMode mode) {
     prefs_.putUChar("themeMode", static_cast<uint8_t>(mode));
+}
+
+namespace {
+constexpr uint8_t  BL_CHANNEL  = 4;      // RGB LED uses 5, 6 and 7
+constexpr uint32_t BL_PWM_HZ   = 5000;
+constexpr uint8_t  BL_PWM_BITS = 8;
+bool blReady = false;
+}
+
+uint8_t Board::brightness() {
+    const uint8_t v = prefs_.getUChar("bright", 100);
+    if (v < BRIGHTNESS_MIN) return BRIGHTNESS_MIN;
+    return v > 100 ? 100 : v;
+}
+
+void Board::setBrightness(uint8_t percent) {
+    if (percent < BRIGHTNESS_MIN) percent = BRIGHTNESS_MIN;
+    if (percent > 100) percent = 100;
+    prefs_.putUChar("bright", percent);
+    applyBrightness();
+}
+
+void Board::applyBrightness() {
+    if (!blReady) {
+        ledcSetup(BL_CHANNEL, BL_PWM_HZ, BL_PWM_BITS);
+        ledcAttachPin(PIN_TFT_BACKLIGHT, BL_CHANNEL);
+        blReady = true;
+    }
+    // Backlight is active high on this board, so duty maps straight through.
+    ledcWrite(BL_CHANNEL, (brightness() * 255) / 100);
+}
+
+bool Board::screenFlipped() {
+    return prefs_.getBool("scrFlip", false);
+}
+
+void Board::setScreenFlipped(bool flipped) {
+    prefs_.putBool("scrFlip", flipped);
 }
 
 Board::LayoutMode Board::layoutMode() {

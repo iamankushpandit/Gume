@@ -50,6 +50,20 @@ void drawSyncBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, bool synced, uint16_t 
 void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg);
 /** True when the station interface is associated. */
 bool wifiUp();
+/* Browser-style tab. The active one is rounded on top only, filled with the
+ * page colour and merged into the content below by leaving its bottom edge
+ * open; inactive tabs sit lower, darker and separated by the divider line.
+ * Draw the tabs first, then call drawTabBaseline(). */
+/* Web-style slider: rounded track, filled portion, round handle.
+ * `pct` and the returned value are both in [minPct, 100] -- the full travel
+ * maps to that range, so the value can never fall below the floor. */
+void drawSlider(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint8_t minPct);
+uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct);
+
+void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active);
+void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
+                     const Rect& activeTab);
+
 void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed = false, uint8_t font = 2);
 void drawLabel(TFT_eSPI& tft, const Rect& r, const String& text, uint16_t color, uint8_t font = 2, Align align = Align::Left);
 int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16_t color, uint8_t font = 2, Align align = Align::Left);

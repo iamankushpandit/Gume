@@ -63,6 +63,21 @@ public:
 
     ThemeMode themeMode();
     void setThemeMode(ThemeMode mode);
+    /* 180-degree flip on top of the current layout's base rotation, so the
+     * USB edge can be put on whichever side suits the stand. Landscape toggles
+     * between rotation 1 and 3, portrait between 0 and 2. */
+    /* Backlight brightness as a percentage. The floor is deliberately well
+     * above zero: at very low duty the panel is unreadable, and a child who
+     * dragged it to the bottom would have no way to see the control to undo
+     * it. The slider's full travel maps to BRIGHTNESS_MIN..100. */
+    static constexpr uint8_t BRIGHTNESS_MIN = 25;
+    uint8_t brightness();
+    void setBrightness(uint8_t percent);
+    void applyBrightness();
+
+    bool screenFlipped();
+    void setScreenFlipped(bool flipped);
+
     LayoutMode layoutMode();
     void setLayoutMode(LayoutMode mode);
     uint16_t screenSaverSeconds();

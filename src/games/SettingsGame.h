@@ -23,6 +23,8 @@ private:
     Rect saverRect() const;
     Rect ntpRect() const;
     Rect wifiRect() const;
+    Rect flipRect() const;
+    Rect brightRect() const;
     Rect gameCheckRect(uint8_t row) const;
     Rect gamesPrevRect() const;
     Rect gamesNextRect() const;
