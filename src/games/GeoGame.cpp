@@ -97,16 +97,28 @@ void GeoGame::makeContinentOptions() {
     correctBtn_ = current_ != nullptr ? current_->continent : 0;
 }
 
+namespace {
+struct GeoFilter { uint8_t tier; };
+bool geoAllows(uint16_t i, void* ctx) {
+    return countryQualifies(i, static_cast<const GeoFilter*>(ctx)->tier, true);
+}
+}
+
 void GeoGame::newQuestion() {
     const uint16_t pool = countryPoolSize(tier_, true);
     if (pool == 0) { current_ = nullptr; return; }
 
-    for (uint8_t attempt = 0; attempt < 40; ++attempt) {
-        const CountryFact* c = countryFromPool(
-            static_cast<uint16_t>(random(pool)), tier_, true);
-        if (c == nullptr) continue;
-        current_ = c;
-        if (pool <= RECENT_COUNT || !recentlyUsed(c->iso2)) break;
+    // Same mastery weighting as the flag game, tracked separately: knowing a
+    // flag says little about recognising the country's outline.
+    GeoFilter filter{tier_};
+    for (uint8_t attempt = 0; attempt < 24; ++attempt) {
+        const uint16_t idx = progress_.pickWeighted(geoAllows, &filter);
+        if (idx == 0xFFFF) break;
+        current_ = &COUNTRY_FACTS[idx];
+        if (pool <= RECENT_COUNT || !recentlyUsed(current_->iso2)) break;
+    }
+    if (current_ == nullptr) {
+        current_ = countryFromPool(static_cast<uint16_t>(random(pool)), tier_, true);
     }
     rememberCurrent();
 
@@ -123,6 +135,8 @@ void GeoGame::newQuestion() {
 void GeoGame::begin(GameHost& host) {
     tier_ = static_cast<uint8_t>(host.board().getScore("geoTier", 1));
     if (tier_ < 1 || tier_ > 3) tier_ = 1;
+    progress_.begin(host.board(), "geoSrs", COUNTRY_FACT_COUNT);
+    correctStreak_ = 0;
     score_ = 0; rounds_ = 0;
     for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
     recentPos_ = 0;
@@ -159,8 +173,25 @@ void GeoGame::update(GameHost& host, const TouchPoint& touch) {
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
         ++rounds_;
-        if (lastCorrect_) { ++score_; host.board().beepOk(); }
-        else              { host.board().beepError(); }
+        // Only the "which country" round grades outline recognition; the
+        // continent round tests a different fact about the same country.
+        if (mode_ == Mode::WhichCountry) {
+            progress_.record(countryIndex(current_), lastCorrect_);
+            progress_.flush();
+        }
+        if (lastCorrect_) {
+            ++score_;
+            ++correctStreak_;
+            host.board().beepOk();
+            if (correctStreak_ >= 6 && tier_ < 3) {
+                ++tier_;
+                correctStreak_ = 0;
+                host.board().setScore("geoTier", tier_);
+            }
+        } else {
+            correctStreak_ = 0;
+            host.board().beepError();
+        }
         feedbackUntil_ = now + 1700UL;
         phase_ = Phase::Feedback;
         markDirty();

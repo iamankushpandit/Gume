@@ -57,6 +57,10 @@ public:
     void setScore(const char* key, uint32_t value);
     bool saveBestScore(const char* key, uint32_t value, bool lowerIsBetter);
 
+    /* Small binary blobs, used by engine/Progress for per-item mastery. */
+    void loadBlob(const char* key, void* dst, size_t len);
+    void saveBlob(const char* key, const void* src, size_t len);
+
     ThemeMode themeMode();
     void setThemeMode(ThemeMode mode);
     LayoutMode layoutMode();

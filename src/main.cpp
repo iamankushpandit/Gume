@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <esp_system.h>
 #include "engine/Game.h"
+#include "engine/GameCatalog.h"
 #include "games/AboutGame.h"
 #include "games/CountingGame.h"
 #include "games/ColorMixGame.h"
@@ -341,18 +342,14 @@ private:
     };
 
     // Game IDs for visibility — must match SettingsGame::GAME_IDS order and indices 0-19
-    static constexpr uint8_t GAME_COUNT_TOTAL = 23;
-    static constexpr const char* GAME_VISIBILITY_IDS[GAME_COUNT_TOTAL] = {
-        "tictactoe","memory","math","multiply","time","whack","simon","sudoku",
-        "shapecolor","counting","money","fractions","maze","sort","colormix",
-        "slide","oddone","shapearith","fingers","calendar",
-        "numberline","geo","flags"
-    };
+    // Ids, titles and Settings labels all come from engine/GameCatalog.cpp now,
+    // so this file and SettingsGame can no longer drift apart.
+    static constexpr uint8_t GAME_COUNT_TOTAL = GAME_CATALOG_COUNT;
 
     uint8_t launcherEntryCount() {
         uint8_t count = 3; // Settings, WiFi, About always shown
         for (uint8_t i = 0; i < GAME_COUNT_TOTAL; ++i) {
-            if (board_.gameVisible(GAME_VISIBILITY_IDS[i])) ++count;
+            if (board_.gameVisible(GAME_CATALOG[i].id)) ++count;
         }
         return count;
     }
@@ -404,7 +401,7 @@ private:
     LauncherEntry launcherEntry(uint8_t filteredIndex) {
         uint8_t fi = 0;
         for (uint8_t raw = 0; raw < GAME_COUNT_TOTAL; ++raw) {
-            if (!board_.gameVisible(GAME_VISIBILITY_IDS[raw])) continue;
+            if (!board_.gameVisible(GAME_CATALOG[raw].id)) continue;
             if (fi == filteredIndex) return allEntry(raw);
             ++fi;
         }

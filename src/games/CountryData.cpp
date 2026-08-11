@@ -41,6 +41,16 @@ static bool qualifies(const CountryFact& f, uint8_t maxTier, bool needsMap) {
     return mnf_flag(f.iso2) != nullptr;
 }
 
+uint16_t countryIndex(const CountryFact* fact) {
+    if (fact == nullptr) return 0xFFFF;
+    return static_cast<uint16_t>(fact - COUNTRY_FACTS);
+}
+
+bool countryQualifies(uint16_t i, uint8_t maxTier, bool needsMap) {
+    if (i >= COUNTRY_FACT_COUNT) return false;
+    return qualifies(COUNTRY_FACTS[i], maxTier, needsMap);
+}
+
 uint16_t countryPoolSize(uint8_t maxTier, bool needsMap) {
     uint16_t n = 0;
     for (uint16_t i = 0; i < COUNTRY_FACT_COUNT; ++i) {

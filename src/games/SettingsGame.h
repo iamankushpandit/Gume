@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "ui/Ui.h"
+#include "engine/GameCatalog.h"
 
 class SettingsGame : public Game {
 public:
@@ -13,9 +14,8 @@ public:
 private:
     enum class Tab : uint8_t { Device, Games };
 
-    static const char* GAME_IDS[];
-    static const char* GAME_LABELS[];
-    static constexpr uint8_t GAME_COUNT = 23;
+    // Ids and labels come from engine/GameCatalog.h -- single source of truth.
+    static constexpr uint8_t GAME_COUNT = GAME_CATALOG_COUNT;
 
     Rect tabRect(Tab t) const;
     Rect themeRect() const;

@@ -3,6 +3,7 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 #include "CountryData.h"
+#include "engine/Progress.h"
 
 /*
  * Guess the Flag.
@@ -41,6 +42,11 @@ private:
     void makeOptions();
     void newQuestion();
 
+    /* Spaced repetition: countries answered wrong come back sooner. Shared
+     * key with GeoGame would conflate two different skills, so each has its
+     * own record. */
+    Progress progress_;
+    uint8_t correctStreak_ = 0;
     uint8_t tier_ = 1;
     Phase phase_ = Phase::Country;
 

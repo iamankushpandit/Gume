@@ -58,3 +58,9 @@ uint16_t countryPoolSize(uint8_t maxTier, bool needsMap);
  * range. Pair with countryPoolSize() to pick a random entry.
  */
 const CountryFact* countryFromPool(uint16_t index, uint8_t maxTier, bool needsMap);
+
+/** Position of a fact within COUNTRY_FACTS, the key used by Progress. */
+uint16_t countryIndex(const CountryFact* fact);
+
+/** True if the country at COUNTRY_FACTS[i] is in the tier and has the art. */
+bool countryQualifies(uint16_t i, uint8_t maxTier, bool needsMap);

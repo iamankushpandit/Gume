@@ -3,6 +3,7 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 #include "CountryData.h"
+#include "engine/Progress.h"
 
 /*
  * Guess the Country.
@@ -43,6 +44,8 @@ private:
     void makeContinentOptions();
     void newQuestion();
 
+    Progress progress_;
+    uint8_t correctStreak_ = 0;
     uint8_t tier_ = 1;
     Mode  mode_  = Mode::WhichCountry;
     Phase phase_ = Phase::Asking;

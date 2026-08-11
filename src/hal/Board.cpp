@@ -230,6 +230,13 @@ bool Board::waitForStableRaw(int16_t& rawX, int16_t& rawY) {
 }
 
 void Board::runTouchCalibration() {
+    /* Always calibrate in rotation 1. mapTouch() stores an affine in
+     * rotation-1 coordinates and pollTouch() derives every other orientation
+     * from it, so calibrating in any other rotation would be applied twice. */
+    const uint8_t savedRotation = displayRotation_;
+    tft_.setRotation(1);
+    displayRotation_ = 1;
+
     constexpr int16_t screenPts[3][2] = {
         {28, 36},
         {SCREEN_WIDTH - 29, SCREEN_HEIGHT / 2},
@@ -274,6 +281,9 @@ void Board::runTouchCalibration() {
         delay(1500);
     }
     tft_.setTextDatum(TL_DATUM);
+
+    tft_.setRotation(savedRotation);
+    displayRotation_ = savedRotation;
 }
 
 bool Board::mapTouch(const RawTouch& raw, int16_t& x, int16_t& y) const {
@@ -358,6 +368,17 @@ bool Board::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
         prefs_.putUInt(key, value);
     }
     return shouldSave;
+}
+
+void Board::loadBlob(const char* key, void* dst, size_t len) {
+    // isKey() first so a first run does not log an NVS "not found" error.
+    if (!prefs_.isKey(key)) return;
+    if (prefs_.getBytesLength(key) != len) return;   // size changed: start over
+    prefs_.getBytes(key, dst, len);
+}
+
+void Board::saveBlob(const char* key, const void* src, size_t len) {
+    prefs_.putBytes(key, src, len);
 }
 
 Board::ThemeMode Board::themeMode() {

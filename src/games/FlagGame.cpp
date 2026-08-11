@@ -85,17 +85,30 @@ void FlagGame::makeOptions() {
     }
 }
 
+namespace {
+struct PoolFilter { uint8_t tier; bool needsMap; };
+bool poolAllows(uint16_t i, void* ctx) {
+    const PoolFilter* f = static_cast<const PoolFilter*>(ctx);
+    return countryQualifies(i, f->tier, f->needsMap);
+}
+}
+
 void FlagGame::newQuestion() {
     const uint16_t pool = countryPoolSize(tier_, false);
     if (pool == 0) { current_ = nullptr; return; }
 
-    // Avoid repeating anything from the last few rounds when the pool allows.
-    for (uint8_t attempt = 0; attempt < 40; ++attempt) {
-        const CountryFact* c = countryFromPool(
-            static_cast<uint16_t>(random(pool)), tier_, false);
-        if (c == nullptr) continue;
-        current_ = c;
-        if (pool <= RECENT_COUNT || !recentlyUsed(c->iso2)) break;
+    /* Weighted by mastery rather than uniform: a flag that was missed recently
+     * carries up to 8x the weight of one that is already known, so practice
+     * concentrates where it is needed without ever fully dropping the rest. */
+    PoolFilter filter{tier_, false};
+    for (uint8_t attempt = 0; attempt < 24; ++attempt) {
+        const uint16_t idx = progress_.pickWeighted(poolAllows, &filter);
+        if (idx == 0xFFFF) break;
+        current_ = &COUNTRY_FACTS[idx];
+        if (pool <= RECENT_COUNT || !recentlyUsed(current_->iso2)) break;
+    }
+    if (current_ == nullptr) {
+        current_ = countryFromPool(static_cast<uint16_t>(random(pool)), tier_, false);
     }
     rememberCurrent();
 
@@ -108,6 +121,8 @@ void FlagGame::newQuestion() {
 void FlagGame::begin(GameHost& host) {
     tier_ = static_cast<uint8_t>(host.board().getScore("geoTier", 1));
     if (tier_ < 1 || tier_ > 3) tier_ = 1;
+    progress_.begin(host.board(), "flagSrs", COUNTRY_FACT_COUNT);
+    correctStreak_ = 0;
     score_ = 0; rounds_ = 0; capBonus_ = 0;
     for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
     recentPos_ = 0;
@@ -154,8 +169,23 @@ void FlagGame::update(GameHost& host, const TouchPoint& touch) {
 
         if (phase_ == Phase::Country) {
             ++rounds_;
-            if (lastCorrect_) { ++score_; host.board().beepOk(); }
-            else              { host.board().beepError(); }
+            progress_.record(countryIndex(current_), lastCorrect_);
+            progress_.flush();
+            if (lastCorrect_) {
+                ++score_;
+                ++correctStreak_;
+                host.board().beepOk();
+                /* Auto-promote: six in a row means the current pool is too easy.
+                 * The tier button still overrides this by hand. */
+                if (correctStreak_ >= 6 && tier_ < 3) {
+                    ++tier_;
+                    correctStreak_ = 0;
+                    host.board().setScore("geoTier", tier_);
+                }
+            } else {
+                correctStreak_ = 0;
+                host.board().beepError();
+            }
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::FeedbackCountry;
         } else {

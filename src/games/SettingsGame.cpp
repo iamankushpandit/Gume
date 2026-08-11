@@ -1,18 +1,5 @@
 #include "SettingsGame.h"
 
-// Must match launcherEntry() order in main.cpp (indices 0-19 are games)
-const char* SettingsGame::GAME_IDS[] = {
-    "tictactoe","memory","math","multiply","time","whack","simon","sudoku",
-    "shapecolor","counting","money","fractions","maze","sort","colormix",
-    "slide","oddone","shapearith","fingers","calendar",
-    "numberline","geo","flags"
-};
-const char* SettingsGame::GAME_LABELS[] = {
-    "Tic-Tac-Toe","Memory","Math","Multiply","Time","Whack","Simon","Sudoku",
-    "Shapes","Counting","Money","Fractions","Maze","Sorting","Color Mix",
-    "Slide","Odd One","Shape Arith","Fingers","Calendar",
-    "Number Line","Countries","Flags"
-};
 
 const char* SettingsGame::title() const { return "Settings"; }
 
@@ -91,7 +78,7 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
             const uint8_t gi = gameScroll_ + row;
             if (gi >= GAME_COUNT) break;
             if (gameCheckRect(row).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                board.setGameVisible(GAME_IDS[gi], !board.gameVisible(GAME_IDS[gi]));
+                board.setGameVisible(GAME_CATALOG[gi].id, !board.gameVisible(GAME_CATALOG[gi].id));
                 markDirty(); return;
             }
         }
@@ -134,7 +121,7 @@ void SettingsGame::renderGamesTab(GameHost& host) {
         const uint8_t gi = gameScroll_ + row;
         if (gi >= GAME_COUNT) break;
         const Rect r = gameCheckRect(row);
-        const bool on = board.gameVisible(GAME_IDS[gi]);
+        const bool on = board.gameVisible(GAME_CATALOG[gi].id);
         tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
         tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
         tft.fillRoundRect(r.x + 4, r.y + 6, 16, 16, 3, on ? Ui::success() : Ui::panel());
@@ -146,7 +133,7 @@ void SettingsGame::renderGamesTab(GameHost& host) {
         }
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
-        tft.drawString(GAME_LABELS[gi], r.x + 28, r.y + r.h / 2, 2);
+        tft.drawString(GAME_CATALOG[gi].label, r.x + 28, r.y + r.h / 2, 2);
     }
     // Real buttons rather than the old font-1 text links, which were nearly
     // impossible to hit and easy to miss entirely.
