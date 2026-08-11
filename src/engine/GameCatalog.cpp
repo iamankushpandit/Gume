@@ -2,29 +2,32 @@
 
 /* Order defines the launcher order AND the Settings list order. The `id`
  * strings are persisted visibility keys -- changing one resets that game's
- * visibility for existing devices, so leave them alone. */
+ * visibility for existing devices, so leave them alone.
+ *
+ * Columns: id, launcher title, launcher subtitle, Settings label, About blurb.
+ * Blurbs are rendered at font 1 across ~292px, so keep them under ~46 chars. */
 const GameCatalogEntry GAME_CATALOG[GAME_CATALOG_COUNT] = {
-    { "tictactoe",  "Tic-Tac-Toe", "2 player",          "Tic-Tac-Toe" },
-    { "memory",     "Memory",      "match pairs",       "Memory"      },
-    { "math",       "Math",        "add & subtract",    "Math"        },
-    { "multiply",   "Multiply",    "times tables",      "Multiply"    },
-    { "time",       "Time",        "read clock",        "Time"        },
-    { "whack",      "Whack",       "tap smiles",        "Whack"       },
-    { "simon",      "Simon",       "repeat colors",     "Simon"       },
-    { "sudoku",     "Sudoku",      "2x2 to 6x6",        "Sudoku"      },
-    { "shapecolor", "Shapes",      "match color",       "Shapes"      },
-    { "counting",   "Counting",    "tap number",        "Counting"    },
-    { "money",      "Money",       "count coins",       "Money"       },
-    { "fractions",  "Fractions",   "pie slices",        "Fractions"   },
-    { "maze",       "Maze",        "drag dot",          "Maze"        },
-    { "sort",       "Sorting",     "order nums",        "Sorting"     },
-    { "colormix",   "Color Mix",   "mix colors",        "Color Mix"   },
-    { "slide",      "Slide",       "number puzzle",     "Slide"       },
-    { "oddone",     "Odd One",     "find different",    "Odd One"     },
-    { "shapearith", "Shape Arith", "add & subtract",    "Shape Arith" },
-    { "fingers",    "Fingers",     "count on hands",    "Fingers"     },
-    { "calendar",   "Calendar",    "days & months",     "Calendar"    },
-    { "numberline", "Number Line", "jump to number",    "Number Line" },
-    { "geo",        "Countries",   "maps & continents", "Countries"   },
-    { "flags",      "Flags",       "guess the flag",    "Flags"       },
+    { "tictactoe",  "Tic-Tac-Toe", "2 player",          "Tic-Tac-Toe", "Two players take turns."         },
+    { "memory",     "Memory",      "match pairs",       "Memory",      "Match the hidden pairs."         },
+    { "math",       "Math",        "add & subtract",    "Math",        "Add and subtract."               },
+    { "multiply",   "Multiply",    "times tables",      "Multiply",    "Times tables."                   },
+    { "time",       "Time",        "read clock",        "Time",        "Read an analog clock."           },
+    { "whack",      "Whack",       "tap smiles",        "Whack",       "Tap the smiles quickly."         },
+    { "simon",      "Simon",       "repeat colors",     "Simon",       "Repeat the colour sequence."     },
+    { "sudoku",     "Sudoku",      "2x2 to 6x6",        "Sudoku",      "2x2 up to 6x6 grids."            },
+    { "shapecolor", "Shapes",      "match color",       "Shapes",      "Match shape and colour."         },
+    { "counting",   "Counting",    "tap number",        "Counting",    "Count objects, tap the number."  },
+    { "money",      "Money",       "count coins",       "Money",       "Count coins and make change."    },
+    { "fractions",  "Fractions",   "pie slices",        "Fractions",   "Match the pie chart."            },
+    { "maze",       "Maze",        "drag dot",          "Maze",        "Drag the dot to the exit."       },
+    { "sort",       "Sorting",     "order nums",        "Sorting",     "Order numbers up or down."       },
+    { "colormix",   "Color Mix",   "mix colors",        "Color Mix",   "Mix two colours."                },
+    { "slide",      "Slide",       "number puzzle",     "Slide",       "Slide tiles into order."         },
+    { "oddone",     "Odd One",     "find different",    "Odd One",     "Find the one that differs."      },
+    { "shapearith", "Shape Arith", "add & subtract",    "Shape Arith", "Add and take away shapes."       },
+    { "fingers",    "Fingers",     "count on hands",    "Fingers",     "Count on two hands."             },
+    { "calendar",   "Calendar",    "days & months",     "Calendar",    "Days and months in order."       },
+    { "numberline", "Number Line", "jump to number",    "Number Line", "Hop along a number line."        },
+    { "geo",        "Countries",   "maps & continents", "Countries",   "Name the country and continent." },
+    { "flags",      "Flags",       "guess the flag",    "Flags",       "Name the flag, then its capital."},
 };

@@ -14,12 +14,17 @@
  * `title`    launcher tile heading
  * `subtitle` launcher tile caption
  * `label`    Settings list row
+ * `blurb`    one-line explanation shown on the About screen
+ *
+ * About used to hold its own hand-written list and had silently fallen six
+ * games behind. Driving it from here means it cannot drift again.
  */
 struct GameCatalogEntry {
     const char* id;
     const char* title;
     const char* subtitle;
     const char* label;
+    const char* blurb;
 };
 
 constexpr uint8_t GAME_CATALOG_COUNT = 23;

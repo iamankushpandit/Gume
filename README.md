@@ -183,6 +183,12 @@ up and advances the colour, mirrored on the case LED. Touching it returns you to
 
 ---
 
+## Version
+
+Current release: **2.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+
+---
+
 ## Build and flash
 
 ```bash

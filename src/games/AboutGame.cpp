@@ -1,8 +1,18 @@
 #include "AboutGame.h"
 #include "AppVersion.h"
+#include "engine/GameCatalog.h"
 
 namespace {
-constexpr uint8_t PAGE_COUNT = 5;
+/* The game list is paged straight out of GAME_CATALOG. The previous version
+ * kept its own hand-written list and had quietly fallen six games behind, so
+ * nothing here names a game directly. */
+constexpr uint8_t GAMES_PER_PAGE = 7;
+constexpr uint8_t GAME_PAGES =
+    (GAME_CATALOG_COUNT + GAMES_PER_PAGE - 1) / GAMES_PER_PAGE;
+constexpr uint8_t PAGE_INTRO = 0;
+constexpr uint8_t PAGE_FIRST_GAME = 1;
+constexpr uint8_t PAGE_CREDITS = PAGE_FIRST_GAME + GAME_PAGES;
+constexpr uint8_t PAGE_COUNT = PAGE_CREDITS + 1;
 }
 
 const char* AboutGame::title() const {
@@ -55,46 +65,46 @@ void AboutGame::render(GameHost& host) {
     tft.setTextColor(Ui::text(), Ui::surface());
     tft.setTextDatum(TL_DATUM);
 
-    switch (page_) {
-        case 0:
-            drawLine(tft, 50, "(C) GoodTime Micro Company™", 2);
-            drawLine(tft, 80, "Kids educational games for CYD.");
-            drawLine(tft, 106, "Copyright 2026.");
-            drawLine(tft, 132, "Trademark owned by the");
-            drawLine(tft, 154, "company.");
-            drawLine(tft, 176, String("Version ") + GOODTIME_KIDS_VERSION);
-            break;
-        case 1:
-            drawLine(tft, 50, "Tic-Tac-Toe: two players.");
-            drawLine(tft, 72, "Memory: match card pairs.");
-            drawLine(tft, 94, "Math: add and subtract.");
-            drawLine(tft, 116, "Multiply: times tables 1-12.");
-            drawLine(tft, 138, "Time: read analog clocks.");
-            drawLine(tft, 160, "Simon: repeat color sequences.");
-            break;
-        case 2:
-            drawLine(tft, 50, "Sudoku: 2x2, 4x4, then 6x6.");
-            drawLine(tft, 72, "Shapes: match colors and shapes.");
-            drawLine(tft, 94, "Counting: count dots and tap.");
-            drawLine(tft, 116, "Money: count and compare coins.");
-            drawLine(tft, 138, "Fractions: compare pie charts.");
-            drawLine(tft, 160, "Maze: 30 solvable mazes.");
-            break;
-        case 3:
-            drawLine(tft, 50, "Sorting: order number tiles.");
-            drawLine(tft, 72, "Color Mix: pick mixed colors.");
-            drawLine(tft, 94, "Slide: solvable number puzzle.");
-            drawLine(tft, 116, "Odd One: find the different item.");
-            drawLine(tft, 138, "Whack A Mole: tap smiley faces.");
-            drawLine(tft, 170, "Scores save on the device.");
-            break;
-        default:
-            drawLine(tft, 50, "Fraction Circles starts simple:");
-            drawLine(tft, 72, "halves and quarters first.");
-            drawLine(tft, 98, "Then thirds, eighths, and");
-            drawLine(tft, 120, "unlike-fraction comparisons.");
-            drawLine(tft, 152, "Built for 320x240 touch screens.");
-            break;
+    if (page_ == PAGE_INTRO) {
+        drawLine(tft, 48, "(C) GoodTime Micro Company", 2);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        drawLine(tft, 72, "Educational games for the Cheap", 1);
+        drawLine(tft, 86, "Yellow Display. Copyright 2026.", 1);
+        tft.setTextColor(Ui::text(), Ui::surface());
+        drawLine(tft, 108, String("Version ") + GOODTIME_KIDS_VERSION, 2);
+        drawLine(tft, 134, String(GAME_CATALOG_COUNT) + " games built in", 2);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        drawLine(tft, 158, "195 flags and 191 country maps,", 1);
+        drawLine(tft, 172, "all stored on the device.", 1);
+
+    } else if (page_ < PAGE_CREDITS) {
+        const uint8_t start = static_cast<uint8_t>((page_ - PAGE_FIRST_GAME) * GAMES_PER_PAGE);
+        for (uint8_t i = 0; i < GAMES_PER_PAGE; ++i) {
+            const uint8_t idx = static_cast<uint8_t>(start + i);
+            if (idx >= GAME_CATALOG_COUNT) break;
+            const int16_t y = static_cast<int16_t>(48 + i * 21);
+
+            tft.setTextColor(Ui::text(), Ui::surface());
+            tft.drawString(GAME_CATALOG[idx].title, 14, y, 2);
+            tft.setTextColor(Ui::muted(), Ui::surface());
+            String blurb = GAME_CATALOG[idx].blurb;
+            while (blurb.length() > 2 && tft.textWidth(blurb, 1) > 190) {
+                blurb.remove(blurb.length() - 1);
+            }
+            tft.drawString(blurb, 118, static_cast<int16_t>(y + 4), 1);
+        }
+
+    } else {
+        drawLine(tft, 48, "Artwork credits", 2);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        drawLine(tft, 74, "Flags: lipis/flag-icons (MIT).", 1);
+        drawLine(tft, 90, "Maps: mapsicon by David Jaiss,", 1);
+        drawLine(tft, 104, "used with attribution. Not for", 1);
+        drawLine(tft, 118, "resale.", 1);
+        drawLine(tft, 138, "Capitals: mledoze/countries.", 1);
+        tft.setTextColor(Ui::text(), Ui::surface());
+        drawLine(tft, 162, "Wi-Fi is used only for the clock.", 1);
+        drawLine(tft, 176, "No accounts, no tracking.", 1);
     }
 
     Ui::drawButton(tft, prevRect(), "Prev", page_ > 0 ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text(), false, 2);
