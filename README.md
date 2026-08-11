@@ -11,7 +11,7 @@ from an NTP server.
 | | |
 |---|---|
 | Games | 23 |
-| Flash | 2,302,533 / 3,145,728 bytes (**73.2%**) |
+| Flash | 2,304,761 / 3,145,728 bytes (**73.3%**) |
 | RAM | 50,312 / 327,680 bytes (**15.4%**) |
 | Country artwork | 195 flags + 191 outlines, 1.11 MiB (49% of the image) |
 
@@ -216,7 +216,7 @@ up and advances the colour, mirrored on the case LED. Touching it returns you to
 
 ## Version
 
-Current release: **2.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **2.0.1** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 

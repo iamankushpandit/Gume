@@ -1,5 +1,61 @@
 # Changelog
 
+## 2.0.1 — 2026-08-11
+
+Display and theming fixes, all reported from the device.
+
+### Added
+
+- **Screen brightness.** The backlight moves from a plain `digitalWrite` to
+  LEDC PWM, with the level persisted and a web-style slider in Settings
+  (rounded track, filled portion, round handle).
+
+  The floor is **25%, not 0** — deliberately. At very low duty the panel is
+  unreadable, and a child who dragged it to the bottom would have no way to
+  *see* the control needed to undo it. The slider's full travel maps to
+  25–100, so the unusable range cannot be reached at all.
+
+- **Screen flip.** A Settings toggle turns the display 180° for whichever
+  layout is active — landscape 1↔3, portrait 0↔2, i.e. base XOR 2. All five
+  rotation call sites now go through a single `effectiveRotation()` helper, so
+  they cannot drift apart. Rotation and layout are logged at boot *after*
+  `goHome()`, which is what actually applies them.
+
+### Fixed
+
+- **Light theme was partly invisible.** The launcher header is
+  `Ui::surface()` — near-white on the light theme — but the gear icon defaulted
+  to **white**, so it could not be seen at all. Status colours were also
+  theme-*independent* brights: pale yellow on white barely registered and the
+  green washed out. Each now has a darker light-theme counterpart, badge glyphs
+  flip to white over those darker fills, and unlit Wi-Fi bars lighten so they
+  still read. The top bar stays dark in both themes, so its gear is explicitly
+  white.
+
+- **Wi-Fi badge overlapped the gear** in the wide launcher header by 2px. The
+  header is rebuilt as two rows: branding on the left across two lines, the
+  status block on the right behind a hairline divider. A font-4 title is about
+  190px wide, so it was never going to share one line with a clock, two badges
+  and a gear without crowding.
+
+- **Counting overlapped itself.** The font-4 question spans roughly 60–260px
+  when centred, while the right-aligned score started around 213px — both drawn
+  at the same y. Score and streak now share one small line beneath the question.
+
+### Changed
+
+- **Settings tabs look like tabs.** `Ui::drawTab` draws browser-style tabs: the
+  active one is page-coloured with rounded top corners only and breaks the
+  baseline beneath itself so it merges into the content area. Inactive tabs sit
+  lower and darker. They previously rendered as ordinary buttons.
+
+- Settings rows tightened from 40px to 36 to make room for the slider; verified
+  clear down to the slider ending at y=232 of 240.
+
+- README now pictures **every one of the 23 games** — 33 generated screens in
+  total. `tools/gen_screens.py` takes each game's geometry from its own `Rect`
+  helpers in `src/games/`.
+
 ## 2.0.0 — 2026-08-11
 
 The geography release. Three new games, real country artwork, spaced
