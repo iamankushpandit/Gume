@@ -87,6 +87,22 @@ harmless at the call site and each was eating most of a 20ms frame.
 
 ### Fixed
 
+- **Corrected the artwork licensing, which had been wrong since the Countries
+  game was removed.** README carried a warning that the country outlines came
+  from `djaiss/mapsicon` -- whose terms are *"don't resell them - I forbid
+  it!"* -- and told readers that anyone wanting to monetise the project must
+  first swap them for Natural Earth. About credited mapsicon too.
+
+  That artwork went with the Countries game. The binary contains no mapsicon
+  data and no reference to it: `mnf_map()` is never called, the library ships
+  no country-outline arrays, and `nm` on the firmware finds zero matching
+  symbols. The US state outlines that replaced them are Natural Earth, public
+  domain. **Every asset now compiled in is MIT or public domain.**
+
+  A credit that outlives its asset is not harmless -- this one misrepresented
+  what the owner was allowed to do with their own project. `check_docs.py`
+  now fails if mapsicon is credited while nothing calls `mnf_map()`.
+
 - **The boot counter was stuck.** `"boots"` was persisted only inside the
   unclean-reset branch, so a cold boot -- which is every power cycle, since
   RTC memory does not survive one -- read back whatever the last crash had

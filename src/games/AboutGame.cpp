@@ -141,9 +141,9 @@ void AboutGame::renderCredits(TFT_eSPI& tft) {
     drawLine(tft, 48, "Artwork credits", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 74, "Flags: lipis/flag-icons (MIT).", 1);
-    drawLine(tft, 88, "Outlines: djaiss/mapsicon.", 1);
-    drawLine(tft, 102, "Capitals: mledoze/countries.", 1);
-    drawLine(tft, 116, "US state data is public domain.", 1);
+    drawLine(tft, 88, "State flags: fonttools/region-flags.", 1);
+    drawLine(tft, 102, "State outlines: Natural Earth.", 1);
+    drawLine(tft, 116, "Capitals: mledoze/countries (ODbL).", 1);
     tft.setTextColor(Ui::text(), Ui::surface());
     drawLine(tft, 142, "No accounts. No tracking.", 1);
     drawLine(tft, 156, "No data ever leaves the device.", 1);

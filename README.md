@@ -16,9 +16,9 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 26 |
-| Flash | 2,254,141 / 3,145,728 bytes (**71.7%**) |
+| Flash | 2,254,157 / 3,145,728 bytes (**71.7%**) |
 | RAM | 64,940 / 327,680 bytes (**19.8%**) |
-| Country artwork | 195 flags + 191 outlines, 1.11 MiB (49% of the image) |
+| Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 <p align="center">
   <img src="docs/screens/launcher-wide.png" width="420" alt="Home screen, Wide layout">
@@ -447,16 +447,22 @@ Code in this repository is MIT.
 
 | Asset | Source | Licence |
 |---|---|---|
-| Flags | [lipis/flag-icons](https://github.com/lipis/flag-icons) | MIT |
-| Country outlines | [djaiss/mapsicon](https://github.com/djaiss/mapsicon) | ⚠️ **Custom — no resale** |
+| Country flags | [lipis/flag-icons](https://github.com/lipis/flag-icons) | MIT |
+| US state flags | [fonttools/region-flags](https://github.com/fonttools/region-flags) | Public domain |
+| US state outlines | [Natural Earth](https://www.naturalearthdata.com/) | Public domain (ODC PDDL) |
 | Capitals / regions | [mledoze/countries](https://github.com/mledoze/countries) | ODbL |
 
-> ⚠️ **The outline artwork is not licensed for resale.** mapsicon's terms are
-> *"Do what you want with them as long as you mention me in your project. Please
-> don't resell them - I forbid it!"* Fine for personal and educational use **with
-> credit to David Jaiss**. Anyone wanting to sell or otherwise monetise this must
-> first swap the outlines for [Natural Earth](https://www.naturalearthdata.com/)
-> (public domain), which touches only the asset pipeline.
->
-> Note also that the Arduino-ESP32 core is **LGPL** — distributing a
-> statically-linked binary carries relinking obligations.
+**Every asset compiled into this firmware is MIT or public domain.**
+
+This used to carry a warning that the country outlines came from
+[djaiss/mapsicon](https://github.com/djaiss/mapsicon), whose terms are *"don't
+resell them - I forbid it!"*, making the build unsuitable for commercial use.
+That artwork went when the Countries game was removed. The current binary
+contains **no mapsicon data and no reference to it** — `mnf_map()` is never
+called and the library ships no country-outline arrays. The US state outlines
+that replaced them are Natural Earth, which is public domain.
+
+The remaining obligation is attribution, not restriction: `mledoze/countries`
+is ODbL, so the capital/region data must keep its credit. Note also that the
+Arduino-ESP32 core is **LGPL** — distributing a statically-linked binary
+carries relinking obligations.

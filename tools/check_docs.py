@@ -135,6 +135,36 @@ def check_about_is_derived(problems):
                            "supposed to derive facts, not restate them" % symbol)
 
 
+def check_credits_match_artwork(problems):
+    """Don't credit artwork that is no longer compiled in.
+
+    The Countries game went, and with it the djaiss/mapsicon country outlines
+    -- but README kept a licence warning saying the build could not be sold
+    commercially, and About kept crediting mapsicon. A credit that outlives the
+    asset is not harmless: this one misrepresented what the owner was allowed
+    to do with their own project.
+
+    `mnf_map()` is the only way country outlines can reach the screen. If
+    nothing calls it, mapsicon must not be credited anywhere.
+    """
+    sources = []
+    for folder in ("games", "ui"):
+        directory = os.path.join(ROOT, "src", folder)
+        for name in sorted(os.listdir(directory)):
+            if name.endswith((".cpp", ".h")):
+                sources.append(read("src", folder, name))
+    uses_country_outlines = any(re.search(r"mnf_map\s*\(", text) for text in sources)
+
+    for doc in ("README.md", os.path.join("src", "games", "AboutGame.cpp")):
+        text = read(doc)
+        credits_mapsicon = re.search(r"mapsicon", text, re.I) is not None
+        if credits_mapsicon and not uses_country_outlines:
+            if doc == "README.md" and "no mapsicon data" in text:
+                continue   # explaining its removal is fine; crediting it is not
+            fail(problems, "%s credits mapsicon but nothing calls mnf_map() -- "
+                           "the country outlines are no longer compiled in" % doc)
+
+
 def main():
     problems = []
     check_version(problems)
@@ -142,6 +172,7 @@ def main():
     check_source_tree(problems)
     check_size_agreement(problems)
     check_about_is_derived(problems)
+    check_credits_match_artwork(problems)
 
     if problems:
         print("Docs are out of sync with the code:\n")
