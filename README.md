@@ -251,11 +251,14 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
 
 - **Profiles** -- shown at boot; picks whose scores are being written.
 - **Scores** -- bests and worsts for the active child, per game.
-- **About** -- what each game is for, in a parent's words.
-- **System Info** -- four tabs of live telemetry (board, memory, network, app
-  state) plus the BLE tab described below. This is a diagnostics screen, not a
-  toy: chip and reset reason, heap and fragmentation, Wi-Fi throughput,
-  watchdog stalls.
+- **About** -- what each game is for, in a parent's words, plus a **What the
+  radios do** page. Every fact on that page is read from the running system
+  rather than typed in: the game list comes from `GAME_CATALOG`, the version
+  from the firmware constant, Wi-Fi state from `Board`, and beacon state and
+  the advertised name from `BleBeacon`. It cannot drift out of date.
+- **System Info** -- five tabs of live telemetry: board, memory, network, BLE
+  and app state. This is a diagnostics screen, not a toy: chip and reset
+  reason, heap with a fragmentation meter, Wi-Fi throughput, watchdog stalls.
 
 ### Battery
 
@@ -299,7 +302,9 @@ Wi-Fi entirely).
 The beacon is **off by default** and opt-in from *Settings -> Beacon*. When it is
 on, the launcher header shows a Bluetooth badge -- drawn **only** while the radio
 is genuinely advertising, so it is never a question of whether an icon looks
-greyed out.
+greyed out. It is placed per layout: landscape puts it on the clock's line,
+positioned off the measured width of the clock string, because the badge row
+there has about 8px of slack; portrait simply extends the badge row.
 
 What goes on air is a device name and a hardware id. That is all:
 
@@ -402,23 +407,29 @@ The main firmware also traces the clock over serial at 115200:
 ```
 src/
   main.cpp              launcher, screen saver, game dispatch
+  wifi_diag.cpp         standalone radio test (env:wifidiag only)
   engine/
-    Game.h              base class; full vs partial redraw invalidation
+    Game.h              base class; lifecycle + full vs partial invalidation
     GameCatalog.cpp     the single source of truth for the game list
+    ScoreCatalog.cpp    which games report a score, and how to label it
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
-  games/                one .cpp/.h pair per game
+  games/                one .cpp/.h pair per game and per system app
     CountryData.cpp     capitals, continents, difficulty tiers
     CountryDataTable.cpp  generated -- see tools/gen_country_facts.py
+    StateData.cpp       50 US states: code, name, capital, tier
   hal/
-    Board.cpp           display, touch, NVS, Wi-Fi/NTP, audio, RGB LED, profiles
+    Board.cpp           display, touch, NVS, Wi-Fi/NTP, RGB LED, profiles
     BleBeacon.cpp       the one authoritative BLE advertisement payload
     Clock.cpp           time and date formatting
     Watchdog.cpp        loop supervisor, stall logging, crash breadcrumb
-  ui/Ui.cpp             theming, widgets, map-n-flag blitting
+  ui/
+    Ui.cpp              theme, widgets, badges, map-n-flag blitting
+    RowList.cpp         scrolling label/value list; fixed buffers, no heap
 tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_screens.py        regenerates the images in this README
+  check_docs.py         fails if these docs have drifted from the code
 docs/
   BLE_BEACON_SPEC.md    what the beacon broadcasts, and why that is checkable
   SD_CONTENT_SPEC.md    optional SD content format

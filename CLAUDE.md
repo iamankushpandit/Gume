@@ -15,6 +15,15 @@ build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
 A README claiming the wrong game count or a stale flash figure is a defect
 belonging to whoever last changed the thing it describes.
 
+**Run `python tools/check_docs.py` before you commit.** It fails if the version,
+the game count, the source-tree listing or the build figures have drifted, and
+if the About app has started restating facts instead of deriving them. These
+rules existed and the docs went stale anyway -- the README shipped claiming 23
+games when there were 26, and the source listing missed three files that had
+been added. Asking for vigilance does not work at the end of a long change; the
+check does. It is not a substitute for reading the prose, only for the parts a
+machine can catch.
+
 ## The About app is user-facing documentation — keep it true
 
 `AboutGame` is the only documentation most owners will ever read, and the only
