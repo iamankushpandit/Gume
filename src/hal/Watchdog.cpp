@@ -37,7 +37,9 @@ TaskHandle_t monitorTask_ = nullptr;
 volatile uint32_t heartbeat_ = 0;
 volatile uint32_t lastFeedMs_ = 0;
 volatile uint32_t lastFrameMs_ = 0;
+volatile uint32_t lastWorkMs_ = 0;
 volatile uint32_t maxFrameMs_ = 0;
+volatile uint32_t maxWorkMs_ = 0;
 volatile uint32_t stalls_ = 0;
 volatile uint32_t minFreeHeap_ = 0xFFFFFFFFUL;
 volatile bool armed_ = false;
@@ -254,6 +256,13 @@ void feed() {
     }
 }
 
+void recordFrameWork(uint32_t workMs) {
+    lastWorkMs_ = workMs;
+    if (workMs > maxWorkMs_) {
+        maxWorkMs_ = workMs;
+    }
+}
+
 void setContext(const char* tag) {
     copyContext(context_, tag);
     copyContext(rtcCrumb.context, tag);
@@ -293,7 +302,9 @@ Stats stats() {
     Stats s;
     s.loops = heartbeat_;
     s.lastFrameMs = lastFrameMs_;
+    s.lastWorkMs = lastWorkMs_;
     s.maxFrameMs = maxFrameMs_;
+    s.maxWorkMs = maxWorkMs_;
     s.stalls = stalls_;
     s.freeHeap = ESP.getFreeHeap();
     s.minFreeHeap = minFreeHeap_ == 0xFFFFFFFFUL ? s.freeHeap : minFreeHeap_;

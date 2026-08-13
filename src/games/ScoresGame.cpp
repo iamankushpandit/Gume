@@ -45,7 +45,7 @@ void ScoresGame::render(GameHost& host) {
     Board& board = host.board();
     TFT_eSPI& tft = board.display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
@@ -102,7 +102,7 @@ void ScoresGame::render(GameHost& host) {
     const bool canPrev = page_ > 0;
     const bool canNext = page_ + 1 < pages;
     Ui::drawPagerButton(tft, prevRect(), "Prev", canPrev);
-    Ui::drawButton(tft, switchRect(), "Switch kid", Ui::rgb(36, 132, 204),
+    Ui::drawButton(tft, switchRect(), "Switch player", Ui::rgb(36, 132, 204),
                    Ui::outline(), TFT_WHITE, false, 2);
     Ui::drawPagerButton(tft, nextRect(), "Next", canNext);
     tft.setTextDatum(TL_DATUM);

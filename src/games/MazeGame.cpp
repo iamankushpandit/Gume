@@ -519,7 +519,7 @@ void MazeGame::update(GameHost& host, const TouchPoint& touch) {
 void MazeGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
     Ui::drawLabel(tft, Rect{12, 32, 296, 16}, "Drag the red dot to the green exit", Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);

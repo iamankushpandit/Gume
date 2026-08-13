@@ -132,7 +132,7 @@ void MemoryGame::update(GameHost& host, const TouchPoint& touch) {
 void MemoryGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     const uint8_t total = config_.rows * config_.cols;
     for (uint8_t i = 0; i < total; ++i) {

@@ -126,7 +126,7 @@ void ShapeColorGame::update(GameHost& host, const TouchPoint& touch) {
 void ShapeColorGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
     Ui::drawLabel(tft, Rect{10, 32, 300, 18}, "Tap a shape, then its matching outline", Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);

@@ -120,7 +120,7 @@ void SortGame::update(GameHost& host, const TouchPoint& touch) {
 void SortGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

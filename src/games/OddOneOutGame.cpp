@@ -154,7 +154,7 @@ void OddOneOutGame::update(GameHost& host, const TouchPoint& touch) {
 void OddOneOutGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

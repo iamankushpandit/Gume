@@ -28,6 +28,7 @@
 #include "games/StateMapGame.h"
 #include "games/StatesGame.h"
 #include "games/SudokuGame.h"
+#include "games/SystemInfoGame.h"
 #include "games/TimeGame.h"
 #include "games/TicTacToeGame.h"
 #include "games/TraceGame.h"
@@ -44,8 +45,10 @@ namespace {
 constexpr uint8_t CYD_PORTRAIT_ROTATION = 0;
 
 constexpr Rect HOME_BUTTON{0, 0, 44, TOP_BAR_HEIGHT};
-constexpr Rect SETTINGS_BUTTON{SCREEN_WIDTH - 34, 3, 26, 24};
-constexpr Rect LAUNCHER_SETTINGS_BUTTON{SCREEN_WIDTH - 32, 18, 24, 22};
+
+Rect topBarSettingsRect(int16_t screenW) {
+    return Rect{static_cast<int16_t>(screenW - 34), 3, 26, 24};
+}
 
 #ifndef CYD_BRINGUP_ONLY
 // Portrait puts the gear under the clock, so it needs a taller header.
@@ -64,6 +67,16 @@ Rect launcherGearRect(Board::LayoutMode mode, int16_t lW) {
         return Rect{static_cast<int16_t>(lW - 32), 48, 26, 24};
     }
     return Rect{static_cast<int16_t>(lW - 30), 11, 26, 26};
+}
+
+Rect launcherProfileRect(Board::LayoutMode mode, int16_t lW) {
+    if (mode == Board::LayoutMode::Vertical) {
+        return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, lW - 46)), 20};
+    }
+    const int16_t x = 104;
+    const int16_t rightLimit = static_cast<int16_t>(lW - 116);
+    const int16_t w = static_cast<int16_t>(min<int16_t>(104, max<int16_t>(72, rightLimit - x)));
+    return Rect{x, 29, w, 18};
 }
 
 Rect launcherTileRect(uint8_t slot, Board::LayoutMode mode) {
@@ -97,7 +110,7 @@ void drawBringup(const TouchPoint& touch = TouchPoint{}) {
     tft.fillRect(0, 0, SCREEN_WIDTH, TOP_BAR_HEIGHT, Ui::surface());
     tft.setTextColor(TFT_WHITE, Ui::surface());
     tft.setTextDatum(ML_DATUM);
-    tft.drawString("Hello CYD", 10, TOP_BAR_HEIGHT / 2, 4);
+    tft.drawString("Hello Board", 10, TOP_BAR_HEIGHT / 2, 4);
     tft.setTextDatum(MR_DATUM);
     tft.drawString(Clock::timeText(), SCREEN_WIDTH - 6, TOP_BAR_HEIGHT / 2, 2);
 
@@ -244,7 +257,8 @@ public:
                 launcherDirty_ = false;
             }
         } else if (activeGame_ != nullptr) {
-            if (touch.justPressed && SETTINGS_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            const Rect settingsButton = topBarSettingsRect(static_cast<int16_t>(board_.display().width()));
+            if (touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 openSettings();
             } else if (touch.justPressed && HOME_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 goHome();
@@ -256,6 +270,7 @@ public:
                 activeGame_->clearDirty();
             }
         }
+        Watchdog::recordFrameWork(millis() - nowMs);
         delay(18);
     }
 
@@ -302,8 +317,7 @@ public:
     }
 
     void openProfiles() override {
-        // Always landscape: the picker is authored for the 320x240 canvas.
-        applyRotation(effectiveRotation(true));
+        applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         Watchdog::setContext("Profiles");
         view_ = View::Profiles;
         activeGame_ = &profile_;
@@ -388,7 +402,8 @@ private:
         Flag,
         Settings,
         WiFi,
-        About
+        About,
+        SystemInfo
     };
 
     struct LauncherEntry {
@@ -404,7 +419,7 @@ private:
     static constexpr uint8_t GAME_COUNT_TOTAL = GAME_CATALOG_COUNT;
 
     uint8_t launcherEntryCount() {
-        uint8_t count = 5; // Scores, Settings, WiFi, Profiles, About always shown
+        uint8_t count = 6; // Scores, Settings, WiFi, Profiles, About, SystemInfo always shown
         for (uint8_t i = 0; i < GAME_COUNT_TOTAL; ++i) {
             if (board_.gameVisible(i)) ++count;
         }
@@ -445,12 +460,13 @@ private:
                                  GAME_CATALOG[raw].title, GAME_CATALOG[raw].subtitle};
         }
         switch (static_cast<uint8_t>(raw - GAME_CATALOG_COUNT)) {
-            case 0:  return LauncherEntry{EntryKind::Scores,   0, "Scores",   "best & worst"};
-            case 3:  return LauncherEntry{EntryKind::Profiles, 0, "Profiles", "switch kid"};
-            case 1:  return LauncherEntry{EntryKind::Settings, 0, "Settings", "device prefs"};
-            case 2:  return LauncherEntry{EntryKind::WiFi,     0, "Wi-Fi",    "network & time"};
-            case 4:  return LauncherEntry{EntryKind::About,    0, "About",    "company info"};
-            default: return LauncherEntry{EntryKind::About,    0, "About",    "company info"};
+            case 0:  return LauncherEntry{EntryKind::Scores,     0, "Scores",      "best & worst"};
+            case 3:  return LauncherEntry{EntryKind::Profiles,   0, "Profiles",    "switch player"};
+            case 1:  return LauncherEntry{EntryKind::Settings,   0, "Settings",    "device prefs"};
+            case 2:  return LauncherEntry{EntryKind::WiFi,       0, "Wi-Fi",       "network & time"};
+            case 4:  return LauncherEntry{EntryKind::SystemInfo, 0, "System Info", "device status"};
+            case 5:  return LauncherEntry{EntryKind::About,      0, "About",       "company info"};
+            default: return LauncherEntry{EntryKind::About,      0, "About",       "company info"};
         }
     }
 
@@ -461,12 +477,13 @@ private:
             if (CATALOG_KINDS[raw] == kind) return GAME_CATALOG[raw].title;
         }
         switch (kind) {
-            case EntryKind::Scores:   return "Scores";
-            case EntryKind::Settings: return "Settings";
-            case EntryKind::WiFi:     return "Wi-Fi";
-            case EntryKind::Profiles: return "Profiles";
-            case EntryKind::About:    return "About";
-            default:                  return "Game";
+            case EntryKind::Scores:     return "Scores";
+            case EntryKind::Settings:   return "Settings";
+            case EntryKind::WiFi:       return "Wi-Fi";
+            case EntryKind::Profiles:   return "Profiles";
+            case EntryKind::SystemInfo: return "System Info";
+            case EntryKind::About:      return "About";
+            default:                    return "Game";
         }
     }
 
@@ -487,7 +504,13 @@ private:
         }
         const int16_t lW = static_cast<int16_t>(board_.display().width());
         const int16_t lH = static_cast<int16_t>(board_.display().height());
-        const Rect gearBtn = launcherGearRect(board_.layoutMode(), lW);
+        const Board::LayoutMode mode = board_.layoutMode();
+        const Rect profileBtn = launcherProfileRect(mode, lW);
+        if (profileBtn.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            openProfiles();
+            return;
+        }
+        const Rect gearBtn = launcherGearRect(mode, lW);
         if (gearBtn.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
             return;
@@ -512,7 +535,7 @@ private:
             if (index >= count) {
                 break;
             }
-            if (launcherTileRect(slot, board_.layoutMode()).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (launcherTileRect(slot, mode).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 launch(launcherEntry(index));
                 return;
             }
@@ -615,6 +638,9 @@ private:
             case EntryKind::Flag:
                 activeGame_ = &flag_;
                 break;
+            case EntryKind::SystemInfo:
+                activeGame_ = &systemInfo_;
+                break;
             case EntryKind::About:
                 activeGame_ = &about_;
                 break;
@@ -623,10 +649,9 @@ private:
         activeKind_ = kind;
         // A crash report is far more useful when it names the screen.
         Watchdog::setContext(kindTitle(kind));
-        // Every game is authored against the fixed 320x240 landscape canvas
-        // (SCREEN_WIDTH/SCREEN_HEIGHT), so the Tall/Wide menu setting
-        // deliberately does not apply here.
-        applyRotation(effectiveRotation(true));
+        const bool followsLayout = (kind == EntryKind::SystemInfo);
+        applyRotation(effectiveRotation(!followsLayout ||
+                                        board_.layoutMode() != Board::LayoutMode::Vertical));
         activeGame_->begin(*this);
         activeGame_->render(*this);
         activeGame_->clearDirty();
@@ -847,6 +872,11 @@ private:
                 tft.drawString("i", cx, cy + 1, 4);
                 tft.setTextDatum(TL_DATUM);
                 break;
+            case EntryKind::SystemInfo:
+                tft.drawRoundRect(cx - 15, cy - 10, 30, 20, 2, TFT_WHITE);
+                tft.fillTriangle(cx - 2, cy - 8, cx - 6, cy + 1, cx - 1, cy + 1, Ui::rgb(255, 226, 90));
+                tft.fillTriangle(cx + 2, cy + 8, cx + 6, cy - 1, cx + 1, cy - 1, Ui::rgb(255, 226, 90));
+                break;
         }
     }
 
@@ -858,6 +888,7 @@ private:
         const bool tall = (mode == Board::LayoutMode::Vertical);
         const int16_t headerH = launcherHeaderHeight(mode);
         const Rect gearBtn = launcherGearRect(mode, lW);
+        const Rect profileBtn = launcherProfileRect(mode, lW);
 
         Ui::clear(tft);
         tft.fillRect(0, 0, lW, headerH, Ui::surface());
@@ -870,9 +901,10 @@ private:
              * The clock now sits on the second line with the gear beneath it. */
             tft.setTextDatum(MC_DATUM);
             tft.drawString("GoodTime Kids!", static_cast<int16_t>(lW / 2), 17, 4);
-            tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.setTextDatum(ML_DATUM);
-            tft.drawString(board_.profileName(board_.activeProfile()), 8, 40, 1);
+            /* No visible profile chip: on a 240px-wide header it overlapped
+             * the status badges. The rect stays live as an invisible touch
+             * target, so tapping the name area still opens Profiles. */
+            (void)profileBtn;
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(Clock::timeText(), 8, 60, 2);
@@ -880,26 +912,36 @@ private:
                 const int16_t bx = static_cast<int16_t>(8 + tft.textWidth(Clock::timeText(), 2) + 10);
                 Ui::drawSyncBadge(tft, bx, 60, Clock::synced(), Ui::surface());
                 Ui::drawWifiBadge(tft, static_cast<int16_t>(bx + 22), 60, Ui::surface());
+                Ui::drawBatteryBadge(tft, static_cast<int16_t>(bx + 46), 60, 
+                                     board_.getBatteryPercent(), 
+                                     board_.getPowerSource() == Board::PowerState::EXTERNAL_POWER, 
+                                     Ui::surface());
             }
             // Thin rule under the title to separate it from the tiles.
             tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
         } else {
             /* Two rows rather than one. A font-4 title is ~190px wide, so the
-             * clock, both badges and the gear could not share its line without
+             * clock, badges and the gear could not share its line without
              * crowding. Branding now occupies the left across two lines and the
              * status items form a tidy block on the right. */
             tft.drawString("GoodTime Kids!", 10, 16, 4);
             tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.drawString(String("(C) GoodTime Micro  -  ") +
-                           board_.profileName(board_.activeProfile()), 10, 38, 1);
+            tft.drawString("(C) GoodTime Micro", 10, 38, 1);
+            // Invisible profile touch target -- see the portrait branch.
+            (void)profileBtn;
 
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(MR_DATUM);
             tft.drawString(Clock::timeText(), static_cast<int16_t>(lW - 40), 14, 1);
-            Ui::drawSyncBadge(tft, static_cast<int16_t>(lW - 68), 34, Clock::synced(), Ui::surface());
-            Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 46), 34, Ui::surface());
+            Ui::drawSyncBadge(tft, static_cast<int16_t>(lW - 92), 34, Clock::synced(), Ui::surface());
+            Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 68), 34, Ui::surface());
+            Ui::drawBatteryBadge(tft, static_cast<int16_t>(lW - 44), 34, 
+                                 board_.getBatteryPercent(), 
+                                 board_.getPowerSource() == Board::PowerState::EXTERNAL_POWER, 
+                                 Ui::surface());
             // Hairline separating the status block from the branding.
-            tft.drawFastVLine(static_cast<int16_t>(lW - 88), 8, 32, Ui::outline());
+            // Move hairline slightly further left to accommodate the extra badge
+            tft.drawFastVLine(static_cast<int16_t>(lW - 110), 8, 32, Ui::outline());
         }
         // Launcher header is Ui::surface() -- near-white on the light theme,
         // where a white gear was invisible. Use the theme's text colour.
@@ -1151,6 +1193,16 @@ private:
         for (int16_t y = 0; y < effH; y += 14) {
             tft.fillRect(effW/2 - 1, y, 2, 8, Ui::rgb(40,40,40));
         }
+
+        // Draw battery badge at the top middle over the centre line
+        const int16_t batCx = effW / 2;
+        const int16_t batCy = 14;
+        tft.fillRect(static_cast<int16_t>(batCx - 12), static_cast<int16_t>(batCy - 6), 24, 12, TFT_BLACK);
+        Ui::drawBatteryBadge(tft, batCx, batCy,
+                             board_.getBatteryPercent(),
+                             board_.getPowerSource() == Board::PowerState::EXTERNAL_POWER,
+                             TFT_BLACK);
+
         // Draw paddles
         tft.fillRoundRect(LX - PAD_W/2, static_cast<int16_t>(ssav_ly_ - PAD_H/2), PAD_W, PAD_H, 3, ssav_color_);
         tft.fillRoundRect(RX - PAD_W/2, static_cast<int16_t>(ssav_ry_ - PAD_H/2), PAD_W, PAD_H, 3, ssav_color_);
@@ -1192,6 +1244,7 @@ private:
     NumberLineGame numberLine_;
     FlagGame flag_;
     AboutGame about_;
+    SystemInfoGame systemInfo_;
     Game* activeGame_ = nullptr;
     EntryKind activeKind_ = EntryKind::About;   // labels the watchdog context
     View view_ = View::Launcher;

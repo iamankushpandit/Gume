@@ -169,7 +169,7 @@ void SimonGame::render(GameHost& host) {
 
     if (fullRedraw_) {
         Ui::clear(tft);
-        Ui::drawTopBar(tft, title());
+        Ui::drawTopBar(host.board(), title());
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
         tft.drawString(String("Score ") + score_, 10, 36, 2);

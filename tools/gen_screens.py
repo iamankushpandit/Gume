@@ -5,7 +5,7 @@ Render preview images of the UI for the README.
 
 These are MOCK-UPS, not device photos: they redraw each view in Python using
 the exact rectangles and fonts from the C++ source, so they show real layout
-and real artwork but are generated on the host. The CYD's display cannot be
+and real artwork but are generated on the host. The display cannot be
 read back over SPI (MISO is not wired for the panel on this board), so true
 screenshots are not possible without a camera.
 

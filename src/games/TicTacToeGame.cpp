@@ -135,7 +135,7 @@ void TicTacToeGame::drawMark(TFT_eSPI& tft, uint8_t cell, char mark) {
 void TicTacToeGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
     Ui::drawButton(tft, RESET_BUTTON, "Reset", YELLOW, Ui::outline(), TFT_BLACK);
     Ui::drawLabel(tft, Rect{94, 36, 72, 24}, message_, Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());

@@ -18,7 +18,7 @@
 static void banner() {
     Serial.println();
     Serial.println("=========================================");
-    Serial.println(" CYD Wi-Fi diagnostic");
+    Serial.println(" Board Wi-Fi diagnostic");
     Serial.println("=========================================");
     Serial.printf("chip     : %s rev%d, %d core(s)\n",
                   ESP.getChipModel(), ESP.getChipRevision(), ESP.getChipCores());

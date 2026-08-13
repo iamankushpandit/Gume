@@ -202,7 +202,7 @@ void FlagGame::update(GameHost& host, const TouchPoint& touch) {
 void FlagGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     // --- status row ------------------------------------------------------
     tft.setTextDatum(TL_DATUM);

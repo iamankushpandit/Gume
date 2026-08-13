@@ -30,7 +30,7 @@ Owns the `TFT_eSPI` instance. Calibration is captured in rotation 1 and derived 
 
 LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` are the game-facing wrappers — there is no audio despite the name; `PIN_SPEAKER` is stubbed.
 
-The red and green GPIOs are physically crossed on this unit versus the common CYD pinout. `BoardConfig.h` already accounts for it (`PIN_RGB_R = 16`, `PIN_RGB_G = 4`) and it was verified on hardware — leave it alone.
+The red and green GPIOs are physically crossed on this unit versus the standard pinout. `BoardConfig.h` already accounts for it (`PIN_RGB_R = 16`, `PIN_RGB_G = 4`) and it was verified on hardware — leave it alone.
 
 ### Wi-Fi and time
 

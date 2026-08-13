@@ -299,7 +299,7 @@ void WifiGame::render(GameHost& host) {
     Board& board = host.board();
     TFT_eSPI& tft = board.display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     if (phase_ == Phase::Idle) {
         const String ssid = board.wifiSsid();

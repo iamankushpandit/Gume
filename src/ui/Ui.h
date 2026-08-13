@@ -20,6 +20,8 @@ enum class Align {
     Center
 };
 
+class Board;
+
 namespace Ui {
 uint16_t rgb(uint8_t r, uint8_t g, uint8_t b);
 
@@ -36,7 +38,7 @@ uint16_t success();
 uint16_t error();
 uint16_t warning();
 void clear(TFT_eSPI& tft);
-void drawTopBar(TFT_eSPI& tft, const String& title);
+void drawTopBar(Board& board, const String& title);
 void drawHomeIcon(TFT_eSPI& tft, const Rect& r);
 void drawGearIcon(TFT_eSPI& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
@@ -48,6 +50,11 @@ void drawSyncBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, bool synced, uint16_t 
 /* Wi-Fi state beside the clock: signal arcs when associated, greyed with a red
  * slash when not. Centred on (cx, cy), about 16px across. */
 void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg);
+
+/* Battery state beside Wi-Fi. Shows battery outline holding a percentage fill,
+ * or a plug icon if external power is supplied. */
+void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg);
+
 /** True when the station interface is associated. */
 bool wifiUp();
 /* Browser-style tab. The active one is rounded on top only, filled with the

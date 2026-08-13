@@ -14,16 +14,17 @@ public:
 private:
     enum class Phase : uint8_t { Pick, Menu, Rename, Games };
 
-    Rect slotRect(uint8_t i) const;
-    Rect menuRect(uint8_t i) const;
-    Rect addRect() const;
-    Rect doneRect() const;
-    Rect keyRect(uint8_t row, uint8_t col) const;
-    Rect menuActionRect(uint8_t i) const;
-    Rect gameCheckRect(uint8_t row) const;
-    Rect gamesBackRect() const;
-    Rect gamesPrevRect() const;
-    Rect gamesNextRect() const;
+    Rect slotRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect menuRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect addRect(int16_t screenW, int16_t screenH) const;
+    Rect doneRect(int16_t screenW, int16_t screenH) const;
+    Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
+    Rect menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect gameCheckRect(uint8_t row, int16_t screenW) const;
+    Rect gamesBackRect(int16_t screenW) const;
+    Rect gamesPrevRect(int16_t screenH) const;
+    Rect gamesNextRect(int16_t screenW, int16_t screenH) const;
+    uint8_t visibleGameRows(int16_t screenH) const;
     uint8_t rowCount(Board& board) const;
     uint8_t profileForRow(Board& board, uint8_t row) const;
 

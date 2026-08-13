@@ -38,7 +38,9 @@ constexpr size_t CONTEXT_MAX = 24;
 struct Stats {
     uint32_t loops = 0;          // frames since boot
     uint32_t lastFrameMs = 0;    // duration of the frame most recently fed
+    uint32_t lastWorkMs = 0;     // frame time spent working before delay()
     uint32_t maxFrameMs = 0;     // worst frame since boot
+    uint32_t maxWorkMs = 0;      // worst work slice since boot
     uint32_t stalls = 0;         // times the loop went quiet past STALL_WARN_MS
     uint32_t freeHeap = 0;
     uint32_t minFreeHeap = 0;    // low water mark since boot
@@ -63,6 +65,8 @@ struct LastRun {
 void begin();
 /** Call once per frame from loop(). Arms the hardware watchdog on first call. */
 void feed();
+/** Record active work time for the frame that is about to sleep. */
+void recordFrameWork(uint32_t workMs);
 
 /** Label the current screen so a crash report says where it happened. */
 void setContext(const char* tag);

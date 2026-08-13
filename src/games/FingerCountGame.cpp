@@ -177,7 +177,7 @@ void FingerCountGame::drawHand(TFT_eSPI& tft, uint8_t hand) const {
 void FingerCountGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);

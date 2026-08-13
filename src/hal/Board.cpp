@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiUdp.h>
+#include <stdarg.h>
 #include <sys/time.h>
 #include <time.h>
 
@@ -75,6 +76,8 @@ void Board::begin() {
     Serial.begin(115200);
     delay(100);
 
+    pinMode(PIN_BAT_ADC, INPUT);
+
     pinMode(PIN_TFT_BACKLIGHT, OUTPUT);
     digitalWrite(PIN_TFT_BACKLIGHT, HIGH);
 
@@ -108,6 +111,110 @@ void Board::begin() {
 
 TFT_eSPI& Board::display() {
     return tft_;
+}
+
+Board::BatteryTelemetry Board::readBatteryTelemetry() {
+    // Read 12-bit ADC. Usually, for ESP32 default config, it's 3.3V reference 
+    // with 11dB attenuation.
+    const int numSamples = 10;
+    int adcValues = 0;
+    for (int i = 0; i < numSamples; ++i) {
+        adcValues += analogRead(PIN_BAT_ADC);
+        delay(1);
+    }
+    BatteryTelemetry sample;
+    sample.rawAdc = static_cast<uint16_t>(adcValues / numSamples);
+    const float avgAdc = adcValues / static_cast<float>(numSamples);
+    // Voltage at ADC pin
+    sample.adcVoltage = (avgAdc / 4095.0f) * 3.3f;
+    // The E32R28T-1 has an assumed 100k/100k voltage divider on BAT_ADC.
+    // TODO(HARDWARE-VALIDATION): Verify E32R28T-1 battery ADC calibration, divider ratio, battery-present thresholds, no-battery behavior, USB-power behavior, and charging-state detection using physical hardware.
+    sample.batteryVoltage = sample.adcVoltage * 2.0f;
+    return sample;
+}
+
+float Board::getBatteryVoltage() {
+    return readBatteryTelemetry().batteryVoltage;
+}
+
+Board::PowerState Board::getPowerSource() {
+    const float vBat = readBatteryTelemetry().batteryVoltage;
+    if (vBat > 4.35f) {
+        // Significantly above normal single-cell LiPo range: provisionally interpret as no battery connected, external USB power.
+        return PowerState::EXTERNAL_POWER;
+    } else if (vBat >= 3.0f && vBat <= 4.35f) {
+        // Battery present. Could be external power also attached, but we report BATTERY. 
+        // Can't reliably distinguish without charge state.
+        return PowerState::BATTERY;
+    }
+    return PowerState::UNKNOWN;
+}
+
+bool Board::isBatteryPresent() {
+    return getPowerSource() == PowerState::BATTERY;
+}
+
+int8_t Board::getBatteryPercent() {
+    const BatteryTelemetry sample = readBatteryTelemetry();
+    if (sample.batteryVoltage < 3.0f || sample.batteryVoltage > 4.35f) {
+        return -1;
+    }
+    const float vBat = sample.batteryVoltage;
+    // Rough estimate for LiPo (3.2V to 4.2V is typical range)
+    if (vBat >= 4.2f) return 100;
+    if (vBat <= 3.2f) return 0;
+    
+    // Linear approximation
+    return static_cast<int8_t>((vBat - 3.2f) / (4.2f - 3.2f) * 100.0f);
+}
+
+Board::ChargingState Board::getChargingState() {
+    // Current hardware cannot reliably distinguish charging state
+    return ChargingState::UNKNOWN;
+}
+
+void Board::logNetworkActivity(const char* fmt, ...) {
+    NetworkActivity& entry = networkActivity_[networkActivityNext_];
+    entry.atMs = millis();
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(entry.detail, sizeof(entry.detail), fmt, args);
+    va_end(args);
+
+    networkActivityNext_ = static_cast<uint8_t>((networkActivityNext_ + 1) % NETWORK_ACTIVITY_CAP);
+    if (networkActivityUsed_ < NETWORK_ACTIVITY_CAP) {
+        networkActivityUsed_++;
+    }
+}
+
+uint8_t Board::networkActivityCount() const {
+    return networkActivityUsed_;
+}
+
+Board::NetworkActivity Board::networkActivity(uint8_t newestFirstIndex) const {
+    NetworkActivity empty;
+    if (newestFirstIndex >= networkActivityUsed_) {
+        return empty;
+    }
+
+    int16_t index = static_cast<int16_t>(networkActivityNext_) - 1 - newestFirstIndex;
+    while (index < 0) {
+        index += NETWORK_ACTIVITY_CAP;
+    }
+    return networkActivity_[index];
+}
+
+void Board::noteTimeSyncSuccess() {
+    lastTimeSyncMs_ = millis();
+    lastTimeSyncEpoch_ = time(nullptr);
+}
+
+uint32_t Board::lastTimeSyncMs() const {
+    return lastTimeSyncMs_;
+}
+
+time_t Board::lastTimeSyncEpoch() const {
+    return lastTimeSyncEpoch_;
 }
 
 bool Board::sdReady() const {
@@ -376,16 +483,16 @@ uint8_t Board::kidCount() {
 
 String Board::profileName(uint8_t index) {
     if (index == GUEST_INDEX) return String("Guest");
-    char key[8];
+    char key[10];
     snprintf(key, sizeof(key), "pname%u", index);
     const String stored = prefs_.isKey(key) ? prefs_.getString(key, "") : String();
     if (stored.length() > 0) return stored;
-    return String("Kid ") + static_cast<int>(index + 1);
+    return String("Player ") + static_cast<int>(index + 1);
 }
 
 void Board::setProfileName(uint8_t index, const String& name) {
     if (index >= MAX_KIDS) return;      // Guest cannot be renamed
-    char key[8];
+    char key[10];
     snprintf(key, sizeof(key), "pname%u", index);
     prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
 }
@@ -394,7 +501,7 @@ uint8_t Board::addKid(const String& name) {
     const uint8_t n = kidCount();
     if (n >= MAX_KIDS) return 0xFF;
     prefs_.putUChar("kids", static_cast<uint8_t>(n + 1));
-    setProfileName(n, name.length() ? name : String("Kid ") + static_cast<int>(n + 1));
+    setProfileName(n, name.length() ? name : String("Player ") + static_cast<int>(n + 1));
     return n;
 }
 
@@ -836,13 +943,16 @@ bool Board::detectTimezone() {
     http.setTimeout(5000);
     if (!http.begin("http://ip-api.com/line/?fields=offset")) {
         Serial.println("[time] tz lookup: http.begin failed");
+        logNetworkActivity("HTTP ip-api.com begin fail");
         return false;
     }
     Serial.println("[time] tz lookup: querying ip-api.com");
+    logNetworkActivity("HTTP ip-api.com GET");
 
     const int code = http.GET();
     if (code != 200) {
         Serial.printf("[time] tz lookup failed, http %d\n", code);
+        logNetworkActivity("HTTP ip-api.com %d", code);
         http.end();
         return false;
     }
@@ -857,6 +967,7 @@ bool Board::detectTimezone() {
     const int16_t minutes = static_cast<int16_t>(seconds / 60);
     Serial.printf("[time] detected UTC%+d:%02d from public IP\n",
                   minutes / 60, abs(minutes % 60));
+    logNetworkActivity("HTTP ip-api.com ok tz=%+d", minutes / 60);
     prefs_.putShort("tzOffMin", minutes);
     tzAutoDetected_ = true;
     applyTimeConfig();
@@ -899,6 +1010,7 @@ void Board::beginTimeSync() {
     const String ssid = wifiSsid();
     const String pass = wifiPassword();
     Serial.printf("[time] connecting to %s\n", ssid.c_str());
+    logNetworkActivity("WiFi begin %s", ssid.c_str());
     WiFi.begin(ssid.c_str(), pass.c_str());
     lastWifiBeginMs_ = now;
     timeSyncStartedMs_ = now;
@@ -918,10 +1030,12 @@ void Board::applyTimeConfig() {
         const char* posix = tzZonePosix(z);
         configTzTime(posix, ntpServer().c_str(), "time.google.com", "time.cloudflare.com");
         Serial.printf("[time] configTzTime %s (%s)\n", tzZoneName(z), posix);
+        logNetworkActivity("SNTP cfg %s + fallbacks", ntpServer().c_str());
     } else {
         const long off = static_cast<long>(tzOffsetMinutes()) * 60L;
         configTime(off, 0, ntpServer().c_str(), "time.google.com", "time.cloudflare.com");
         Serial.printf("[time] configTime offset=%lds server=%s\n", off, ntpServer().c_str());
+        logNetworkActivity("SNTP cfg %s + fallbacks", ntpServer().c_str());
     }
 }
 
@@ -933,13 +1047,16 @@ bool Board::ntpUdpProbe(const char* host) {
     IPAddress ip;
     if (!WiFi.hostByName(host, ip)) {
         Serial.printf("[time] DNS FAILED for %s\n", host);
+        logNetworkActivity("DNS fail %s", host);
         return false;
     }
     Serial.printf("[time] %s -> %s\n", host, ip.toString().c_str());
+    logNetworkActivity("DNS %s -> %s", host, ip.toString().c_str());
 
     WiFiUDP udp;
     if (!udp.begin(2390)) {
         Serial.println("[time] udp begin failed");
+        logNetworkActivity("NTP UDP open fail");
         return false;
     }
 
@@ -970,12 +1087,15 @@ bool Board::ntpUdpProbe(const char* host) {
             settimeofday(&tv, nullptr);
             Serial.printf("[time] UDP NTP OK, clock set from %s (unix %u)\n",
                           host, (unsigned)unixSecs);
+            noteTimeSyncSuccess();
+            logNetworkActivity("NTP UDP ok %s", host);
             return true;
         }
         delay(20);
     }
     udp.stop();
     Serial.printf("[time] no UDP reply from %s - port 123 blocked?\n", host);
+    logNetworkActivity("NTP UDP no reply %s", host);
     return false;
 }
 
@@ -1052,6 +1172,8 @@ void Board::tickTimeSync() {
                                * under DST, which previously made this log read
                                * "tz-6" while the clock was correctly on -5. */
                               tzZoneChosen() ? tzZoneName(tzZoneIndex()) : "auto");
+                noteTimeSyncSuccess();
+                logNetworkActivity("SNTP sync ok");
                 timeSyncState_ = TimeSyncState::Synced;
                 lastResyncMs_ = now;
             } else if (now - timeSyncStartedMs_ > TIME_SYNC_TIMEOUT_MS) {
@@ -1135,4 +1257,3 @@ void Board::tickRgb() {
         setRgbColor(0, 0, 0);
     }
 }
-

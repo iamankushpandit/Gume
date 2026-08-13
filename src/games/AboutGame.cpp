@@ -58,7 +58,7 @@ void AboutGame::update(GameHost&, const TouchPoint& touch) {
 void AboutGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     tft.fillRoundRect(10, 38, 300, 158, 6, Ui::surface());
     tft.drawRoundRect(10, 38, 300, 158, 6, Ui::outline());

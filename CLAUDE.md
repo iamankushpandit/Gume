@@ -1,6 +1,6 @@
 # GUme — GoodTime Kids
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 26 games, all baked into flash. Target hardware is the ESP32-2432S028R "Cheap Yellow Display" (CYD): ILI9341 320×240 TFT + XPT2046 resistive touch. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 26 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240×320 resistive-touch board): ILI9341 320×240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -108,7 +108,13 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 Flash is global and nearly the binding constraint (~73% of the 3 MB partition). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
-### Git hygiene
+### Modularity rule
+
+If a file is becoming large (as a rule of thumb, `src/main.cpp` > ~400 lines of active logic in a single function, or any `.cpp` > ~600 lines total), **refactor it into a more modular form first** before making the requested change. Split into helper files, break large functions into smaller ones, or extract a new class — whatever fits the existing architecture. The refactor must not break existing functionality (build must still succeed and behaviour must be unchanged), and it must land as its own commit before the feature change that prompted it.
+
+This keeps diffs reviewable, conflicts locatable, and prevents any single file from becoming a merge hazard.
+
+## Git hygiene
 
 - Stage explicit paths. `git add -A` will sweep up another agent's half-finished work.
 - Commit narrowly — one game or one concern per commit — so conflicts stay resolvable.
@@ -167,6 +173,8 @@ Most games still repaint wholesale. Simon is the reference for partial redraw �
 
 Games are authored against a fixed 320×240 landscape canvas. Only the launcher supports portrait (`LayoutMode::Vertical`, 4 tiles/page vs 6 in landscape).
 
+**System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
+
 ## Layout
 
 ```
@@ -184,9 +192,9 @@ docs/                     SD_CONTENT_SPEC.md, screens/
 
 ## Hardware notes
 
-Pins live in `include/BoardConfig.h`; read it rather than trusting generic CYD pinouts online.
+Pins live in `include/BoardConfig.h`; read it rather than trusting generic ESP32 pinouts online.
 
-- **The RGB LED's red and green lines are crossed on this unit** relative to the usual CYD pinout — `PIN_RGB_R = 16`, `PIN_RGB_G = 4`, `PIN_RGB_B = 17`. This is already corrected in `BoardConfig.h` and verified on hardware; do not "fix" it again. Common anode, so drive is inverted.
+- **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout — `PIN_RGB_R = 16`, `PIN_RGB_G = 4`, `PIN_RGB_B = 17`. This is already corrected in `BoardConfig.h` and verified on hardware; do not "fix" it again. Common anode, so drive is inverted.
 - Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `TOUCH_PRESSURE_THRESHOLD = 350`, `TOUCH_HIT_SLOP = 8`.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` — at lower duty the panel is unreadable and a child could not see the slider to undo it.
 - `PIN_SPEAKER = 26` exists but audio is stubbed; `beepOk()`/`beepError()` pulse the RGB LED instead.

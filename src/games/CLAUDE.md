@@ -23,6 +23,7 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 - Hit test with `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`.
 - Feedback via `board.beepOk()` / `board.beepError()` (pulses the RGB LED; there is no audio).
 - Assume a fixed 320×240 landscape canvas — games do not run in portrait.
+- **System/UI apps (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens) MUST support both landscape and portrait orientations.** Read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
 - Never block `update()` for more than a second or two. The loop is watchdogged (`Watchdog::TIMEOUT_SECONDS = 12`) and a long busy-wait reboots the device. Games do not feed or touch the watchdog themselves; if you genuinely must block, ask `Board` to do it behind a `Watchdog::Pause`.
 
 ## Adding a game

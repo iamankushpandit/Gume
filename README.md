@@ -1,7 +1,7 @@
 # GoodTime Kids
 
-A 23-game educational console for young children, running on a **$12 ESP32
-"Cheap Yellow Display"** (ESP32-2432S028R — ILI9341 320×240 resistive
+A 23-game educational console for young children, running on an **ESP32-32E
+board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
 Everything is baked into the firmware: **no SD card, no internet, no accounts,
@@ -25,7 +25,7 @@ from an NTP server.
 > exact rectangles, fonts and colours from the C++ source, so the layout is
 > accurate. The flag and outline artwork *is* the real pixel data, decoded from
 > the generated arrays the device draws from. True screenshots aren't possible
-> because the CYD doesn't wire the panel's MISO line for read-back.
+> because the target board doesn't wire the panel's MISO line for read-back.
 
 ---
 

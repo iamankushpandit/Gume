@@ -165,7 +165,7 @@ void ObjectAddGame::update(GameHost& host, const TouchPoint& touch) {
 void ObjectAddGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     // Score + problem text
     tft.setTextColor(Ui::text(), Ui::bg());

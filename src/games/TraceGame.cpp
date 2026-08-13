@@ -371,7 +371,7 @@ void TraceGame::render(GameHost& host) {
 
     if (needsFullRender()) {
         Ui::clear(tft);
-        Ui::drawTopBar(tft, title());
+        Ui::drawTopBar(host.board(), title());
     } else {
         tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());
         tft.fillRect(0, 218, SCREEN_WIDTH, 22, Ui::bg());

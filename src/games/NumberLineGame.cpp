@@ -87,7 +87,7 @@ void NumberLineGame::update(GameHost& host, const TouchPoint& touch) {
 void NumberLineGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());

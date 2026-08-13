@@ -18,6 +18,17 @@ struct TouchPoint {
 
 class Board {
 public:
+    struct BatteryTelemetry {
+        uint16_t rawAdc = 0;
+        float adcVoltage = 0.0f;
+        float batteryVoltage = 0.0f;
+    };
+
+    struct NetworkActivity {
+        uint32_t atMs = 0;
+        char detail[40] = {0};
+    };
+
     struct TouchCalibration {
         uint32_t magic = 0;
         float ax = 0.0f;
@@ -33,6 +44,17 @@ public:
         Light = 1,
     };
 
+    // TODO(HARDWARE-VALIDATION): Verify E32R28T-1 battery ADC calibration, divider ratio, battery-present thresholds, no-battery behavior, USB-power behavior, and charging-state detection using physical hardware.
+    enum class PowerState {
+        BATTERY,
+        EXTERNAL_POWER,
+        UNKNOWN
+    };
+
+    enum class ChargingState {
+        UNKNOWN
+    };
+
     enum class LayoutMode : uint8_t {
         Horizontal = 0,
         Vertical = 1,
@@ -42,6 +64,13 @@ public:
 
     void begin();
     TFT_eSPI& display();
+
+    PowerState getPowerSource();
+    BatteryTelemetry readBatteryTelemetry();
+    float getBatteryVoltage();
+    int8_t getBatteryPercent();
+    bool isBatteryPresent();
+    ChargingState getChargingState();
 
     bool sdReady() const;
     bool mountSd();
@@ -141,6 +170,8 @@ public:
     bool ntpUdpProbe(const char* host);
     void tickTimeSync();
     bool timeSynced() const;
+    uint32_t lastTimeSyncMs() const;
+    time_t lastTimeSyncEpoch() const;
     /* Time zone.
      *
      * Routers do not advertise a zone (DHCP option 100/101 exists but is
@@ -175,6 +206,8 @@ public:
     void setRgbEnabled(bool on);
     bool rgbEnabled();
     bool drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_t maxH);
+    uint8_t networkActivityCount() const;
+    NetworkActivity networkActivity(uint8_t newestFirstIndex) const;
 
 private:
     struct RawTouch {
@@ -216,8 +249,16 @@ private:
     bool wifiCacheLoaded_ = false;
     void loadWifiCache();
     String scopedKey(const char* key);   // "p0_" + key, per active profile
+    void logNetworkActivity(const char* fmt, ...);
+    void noteTimeSyncSuccess();
 
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;
+    uint32_t lastTimeSyncMs_ = 0;
+    time_t lastTimeSyncEpoch_ = 0;
+    static constexpr uint8_t NETWORK_ACTIVITY_CAP = 8;
+    NetworkActivity networkActivity_[NETWORK_ACTIVITY_CAP]{};
+    uint8_t networkActivityNext_ = 0;
+    uint8_t networkActivityUsed_ = 0;
 };

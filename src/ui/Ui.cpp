@@ -1,5 +1,6 @@
 #include "Ui.h"
 #include "hal/Clock.h"
+#include "hal/Board.h"
 #include <WiFi.h>
 #include "map_n_flag.h"
 
@@ -139,43 +140,68 @@ void drawHomeIcon(TFT_eSPI& tft, const Rect& r) {
 void drawGearIcon(TFT_eSPI& tft, const Rect& r, uint16_t color) {
     const int16_t cx = r.x + r.w / 2;
     const int16_t cy = r.y + r.h / 2;
-    const int16_t outer = min<int16_t>(r.w, r.h) / 2 - 2;
-    const int16_t inner = max<int16_t>(3, outer - 4);
+    const int16_t outer = static_cast<int16_t>(min<int16_t>(r.w, r.h) / 2 - 3);
+    const int16_t hubOuter = max<int16_t>(4, outer - 4);
+    const int16_t hubInner = max<int16_t>(2, hubOuter - 4);
+
     for (uint8_t i = 0; i < 8; ++i) {
-        const float angle = i * PI / 4.0f;
-        const int16_t x0 = cx + static_cast<int16_t>(cosf(angle) * inner);
-        const int16_t y0 = cy + static_cast<int16_t>(sinf(angle) * inner);
-        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * (outer + 2));
-        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * (outer + 2));
-        tft.drawLine(x0, y0, x1, y1, color);
+        const float angle = static_cast<float>(i) * PI / 4.0f;
+        const float dx = cosf(angle);
+        const float dy = sinf(angle);
+        const float px = -dy;
+        const float py = dx;
+
+        const int16_t tx0 = static_cast<int16_t>(cx + dx * hubOuter + px * 2.0f);
+        const int16_t ty0 = static_cast<int16_t>(cy + dy * hubOuter + py * 2.0f);
+        const int16_t tx1 = static_cast<int16_t>(cx + dx * (outer + 1) + px * 2.0f);
+        const int16_t ty1 = static_cast<int16_t>(cy + dy * (outer + 1) + py * 2.0f);
+        const int16_t tx2 = static_cast<int16_t>(cx + dx * (outer + 1) - px * 2.0f);
+        const int16_t ty2 = static_cast<int16_t>(cy + dy * (outer + 1) - py * 2.0f);
+        const int16_t tx3 = static_cast<int16_t>(cx + dx * hubOuter - px * 2.0f);
+        const int16_t ty3 = static_cast<int16_t>(cy + dy * hubOuter - py * 2.0f);
+
+        tft.drawLine(tx0, ty0, tx1, ty1, color);
+        tft.drawLine(tx1, ty1, tx2, ty2, color);
+        tft.drawLine(tx2, ty2, tx3, ty3, color);
+        tft.drawLine(tx3, ty3, tx0, ty0, color);
     }
-    tft.drawCircle(cx, cy, outer, color);
-    tft.drawCircle(cx, cy, inner - 1, color);
-    tft.fillCircle(cx, cy, 2, color);
+
+    tft.drawCircle(cx, cy, hubOuter, color);
+    tft.drawCircle(cx, cy, static_cast<int16_t>(hubOuter - 1), color);
+    tft.drawCircle(cx, cy, hubInner, color);
+    tft.fillCircle(cx, cy, 1, color);
 }
 
-void drawTopBar(TFT_eSPI& tft, const String& title) {
-    tft.fillRect(0, 0, SCREEN_WIDTH, TOP_BAR_HEIGHT, COLOR_BAR);
+void drawTopBar(Board& board, const String& title) {
+    TFT_eSPI& tft = board.display();
+    const int16_t w = static_cast<int16_t>(tft.width());
+    tft.fillRect(0, 0, w, TOP_BAR_HEIGHT, COLOR_BAR);
     // Raised edge: highlight along the top, shadow along the bottom seam.
-    tft.drawFastHLine(0, 0, SCREEN_WIDTH, shade(COLOR_BAR, 145));
-    tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, SCREEN_WIDTH, shade(COLOR_BAR, 60));
+    tft.drawFastHLine(0, 0, w, shade(COLOR_BAR, 145));
+    tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, w, shade(COLOR_BAR, 60));
     drawHomeIcon(tft, Rect{0, 0, 42, TOP_BAR_HEIGHT});
     // The top bar stays dark in both themes, so this gear is always white.
-    drawGearIcon(tft, Rect{SCREEN_WIDTH - 34, 3, 26, 24}, COLOR_BAR_TEXT);
+    drawGearIcon(tft, Rect{static_cast<int16_t>(w - 34), 3, 26, 24}, COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     String fitted = title;
-    while (fitted.length() > 2 && tft.textWidth(fitted, 2) > 110) {
+    const bool narrow = w < 280;
+    const int16_t statusLeft = narrow ? 92 : static_cast<int16_t>(w - 132);
+    const int16_t titleMax = static_cast<int16_t>(max<int16_t>(32, statusLeft - 52));
+    while (fitted.length() > 2 && tft.textWidth(fitted, 2) > titleMax) {
         fitted.remove(fitted.length() - 1);
     }
     tft.drawString(fitted, 48, TOP_BAR_HEIGHT / 2, 2);
     tft.setTextDatum(MR_DATUM);
     /* Right side: clock and its sync badge kept together (the badge describes
-     * the clock), then the wifi badge, then the gear. Wedging wifi between the
-     * time and its own sync state read as unrelated. */
-    tft.drawString(Clock::timeText(), SCREEN_WIDTH - 98, TOP_BAR_HEIGHT / 2, 2);
-    Ui::drawSyncBadge(tft, SCREEN_WIDTH - 88, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
-    Ui::drawWifiBadge(tft, SCREEN_WIDTH - 64, TOP_BAR_HEIGHT / 2, COLOR_BAR);
+     * the clock), then the wifi badge, then the gear. */
+    tft.drawString(Clock::timeText(), static_cast<int16_t>(w - (narrow ? 108 : 124)), TOP_BAR_HEIGHT / 2, 2);
+    Ui::drawSyncBadge(tft, static_cast<int16_t>(w - (narrow ? 98 : 114)), TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
+    Ui::drawWifiBadge(tft, static_cast<int16_t>(w - (narrow ? 76 : 90)), TOP_BAR_HEIGHT / 2, COLOR_BAR);
+    Ui::drawBatteryBadge(tft, static_cast<int16_t>(w - (narrow ? 52 : 64)), TOP_BAR_HEIGHT / 2, 
+                         board.getBatteryPercent(), 
+                         board.getPowerSource() == Board::PowerState::EXTERNAL_POWER, 
+                         COLOR_BAR);
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -230,6 +256,61 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
         tft.drawLine(cx - 8, cy - 7, cx + 8, cy + 6, COLOR_ERROR);
     }
     (void)bg;
+}
+
+void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg) {
+    const uint16_t outClr = (s_theme == Theme::Light) ? rgb(120, 126, 138) : rgb(160, 164, 180);
+    const int16_t bx = static_cast<int16_t>(cx - 7);
+    const int16_t by = static_cast<int16_t>(cy - 4);
+    const int16_t bw = 13;
+    const int16_t bh = 9;
+
+    // Shell
+    tft.drawRect(bx, by, bw, bh, outClr);
+    // Positive terminal
+    tft.drawFastVLine(static_cast<int16_t>(bx + bw), static_cast<int16_t>(cy - 2), 5, outClr);
+    tft.drawFastVLine(static_cast<int16_t>(bx + bw + 1), static_cast<int16_t>(cy - 1), 3, outClr);
+
+    if (isExternalPower && percent < 0) {
+        // No battery, external power only. Draw an un-filled bolt.
+        tft.fillTriangle(static_cast<int16_t>(cx - 1), static_cast<int16_t>(cy - 3), 
+                         static_cast<int16_t>(cx - 3), cy, 
+                         static_cast<int16_t>(cx + 1), cy, outClr);
+        tft.fillTriangle(static_cast<int16_t>(cx + 1), static_cast<int16_t>(cy + 3), 
+                         static_cast<int16_t>(cx + 3), cy, 
+                         static_cast<int16_t>(cx - 1), cy, outClr);
+        return;
+    }
+
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+
+    uint16_t fillCol;
+    if (percent < 30) {
+        fillCol = COLOR_ERROR;
+    } else if (percent <= 55) {
+        fillCol = COLOR_WARNING;
+    } else {
+        fillCol = COLOR_SUCCESS;
+    }
+
+    // Inner fill
+    int16_t fw = static_cast<int16_t>((percent * 11) / 100);
+    if (fw == 0 && percent > 0) fw = 1;
+    if (fw > 0) {
+        tft.fillRect(static_cast<int16_t>(bx + 1), static_cast<int16_t>(by + 1), fw, static_cast<int16_t>(bh - 2), fillCol);
+    }
+    
+    if (isExternalPower) {
+        // Bolt cutout overlay to show charging
+        const uint16_t boltCol = (percent > 25) ? bg : outClr;
+        tft.fillTriangle(static_cast<int16_t>(cx - 1), static_cast<int16_t>(cy - 3), 
+                         static_cast<int16_t>(cx - 3), cy, 
+                         static_cast<int16_t>(cx + 1), cy, boltCol);
+        tft.fillTriangle(static_cast<int16_t>(cx + 1), static_cast<int16_t>(cy + 3), 
+                         static_cast<int16_t>(cx + 3), cy, 
+                         static_cast<int16_t>(cx - 1), cy, boltCol);
+    }
 }
 
 void drawSlider(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint8_t minPct) {

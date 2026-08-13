@@ -106,7 +106,7 @@ void SequenceGame::update(GameHost& host, const TouchPoint& touch) {
 void SequenceGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
 
     // Mode toggle buttons
     for (uint8_t m = 0; m < 2; ++m) {

@@ -94,7 +94,7 @@ void CountingGame::update(GameHost& host, const TouchPoint& touch) {
 void CountingGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
     tft.setTextColor(Ui::text(), Ui::bg());
     /* The font-4 question spans roughly 60..260px when centred, and a
      * right-aligned "Score n/m" at the same y started around 213 -- they

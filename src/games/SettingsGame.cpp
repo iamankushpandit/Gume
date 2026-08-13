@@ -99,7 +99,7 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
 void SettingsGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
-    Ui::drawTopBar(tft, title());
+    Ui::drawTopBar(host.board(), title());
     renderDeviceTab(host);
     tft.setTextDatum(TL_DATUM);
 }
