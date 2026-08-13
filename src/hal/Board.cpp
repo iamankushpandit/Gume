@@ -8,6 +8,7 @@
 #include <math.h>
 #include <WiFi.h>
 #include "ui/Ui.h"
+#include "Watchdog.h"
 
 namespace {
 constexpr uint32_t TOUCH_CAL_MAGIC = 0x43594431UL;
@@ -231,6 +232,10 @@ bool Board::waitForStableRaw(int16_t& rawX, int16_t& rawY) {
 }
 
 void Board::runTouchCalibration() {
+    /* The wizard blocks for as long as it takes a child to tap three
+     * crosshairs, which is exactly the kind of stall the watchdog reboots on. */
+    const Watchdog::Pause wdtPause;
+
     /* Always calibrate in rotation 1. mapTouch() stores an affine in
      * rotation-1 coordinates and pollTouch() derives every other orientation
      * from it, so calibrating in any other rotation would be applied twice. */
@@ -417,6 +422,10 @@ String Board::scopedKey(const char* key) {
 }
 
 void Board::factoryReset() {
+    /* The watchdog's own crash record lives in its own NVS namespace and is
+     * deliberately left alone: a parent resetting a device that keeps crashing
+     * is exactly when that history is worth keeping. */
+    Watchdog::pause();   // an NVS erase can outrun a frame; we reboot anyway
     Serial.println("[reset] erasing all stored data");
     prefs_.clear();
     prefs_.end();
@@ -536,16 +545,30 @@ void Board::setScreenSaverSeconds(uint16_t seconds) {
     prefs_.putUShort("idleSecs", clamped);
 }
 
-bool Board::gameVisible(const char* appId, bool fallback) {
-    char key[20];
-    snprintf(key, sizeof(key), "show_%s", appId);
-    return prefs_.getBool(key, fallback);
+bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
+    if (isGuest()) return true;
+    return gameVisibleFor(catalogIndex, activeProfile(), fallback);
 }
 
-void Board::setGameVisible(const char* appId, bool visible) {
-    char key[20];
-    snprintf(key, sizeof(key), "show_%s", appId);
-    prefs_.putBool(key, visible);
+void Board::setGameVisible(uint8_t catalogIndex, bool visible) {
+    if (isGuest()) return;
+    setGameVisibleFor(catalogIndex, activeProfile(), visible);
+}
+
+bool Board::gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback) {
+    if (profileIndex == GUEST_INDEX) return true;
+    char suffix[6];
+    snprintf(suffix, sizeof(suffix), "gv%u", catalogIndex);
+    String key = String("p") + static_cast<int>(profileIndex) + "_" + suffix;
+    return prefs_.getBool(key.c_str(), fallback);
+}
+
+void Board::setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible) {
+    if (profileIndex == GUEST_INDEX) return;
+    char suffix[6];
+    snprintf(suffix, sizeof(suffix), "gv%u", catalogIndex);
+    String key = String("p") + static_cast<int>(profileIndex) + "_" + suffix;
+    prefs_.putBool(key.c_str(), visible);
 }
 
 void Board::loadWifiCache() {
@@ -802,6 +825,9 @@ void Board::setTzOffsetMinutes(int16_t minutes) {
 
 bool Board::detectTimezone() {
     if (WiFi.status() != WL_CONNECTED) return false;
+    /* DNS plus a 5s HTTP round trip runs on the loop task and can outlast the
+     * watchdog's frame budget on a slow network. */
+    const Watchdog::Pause wdtPause;
 
     /* ip-api.com's "line" format returns the raw value with no JSON to parse.
      * The offset it reports already includes DST, so re-running this on each
@@ -901,6 +927,8 @@ void Board::applyTimeConfig() {
 
 bool Board::ntpUdpProbe(const char* host) {
     if (WiFi.status() != WL_CONNECTED) return false;
+    // hostByName() blocks on DNS and the reply wait is another 4s.
+    const Watchdog::Pause wdtPause;
 
     IPAddress ip;
     if (!WiFi.hostByName(host, ip)) {

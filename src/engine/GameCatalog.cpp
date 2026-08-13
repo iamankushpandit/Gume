@@ -30,4 +30,7 @@ const GameCatalogEntry GAME_CATALOG[GAME_CATALOG_COUNT] = {
     { "numberline", "Number Line", "jump to number",    "Number Line", "Hop along a number line."        },
     { "flags",      "Flags",       "guess the flag",    "Flags",       "Name the flag, then its capital."},
     { "states",     "US States",   "states & capitals", "US States",   "US states and their capitals."   },
+    { "trace",      "Trace",       "A-Z & 0-9",         "Trace",       "Trace letters and numbers."      },
+    { "stateflags", "State Flags", "name the flag",     "State Flags", "Name the state flag, then capital."},
+    { "statemaps",  "State Maps",  "name the outline",  "State Maps",  "Name the state outline, then capital."},
 };

@@ -1,0 +1,89 @@
+#pragma once
+
+#include <Arduino.h>
+
+/* Background supervisor for the main loop.
+ *
+ * Two independent layers, neither of which any game has to know about:
+ *
+ *  1. The ESP32 hardware task watchdog, subscribed to the Arduino loop task.
+ *     If a frame ever takes longer than TIMEOUT_SECONDS the chip panics and
+ *     reboots, so a hung game can never leave a child staring at a frozen
+ *     screen.
+ *  2. A low priority FreeRTOS monitor task pinned to core 0 that samples a
+ *     heartbeat counter, frame times and heap once a second. It logs a stall
+ *     warning well before the hardware watchdog fires, and keeps a breadcrumb
+ *     in RTC memory (which survives a reset) recording which screen was up,
+ *     how long the device had been running and how bad the heap had got.
+ *
+ * After a crash the breadcrumb is read back on the next boot, printed to the
+ * serial log and -- only when the reset was unclean -- written to NVS so it
+ * also survives a power cycle. lastRun() exposes it for a diagnostics screen.
+ *
+ * The hardware watchdog is armed lazily on the first feed() rather than in
+ * begin(), because boot can legitimately block for minutes inside the touch
+ * calibration wizard while it waits for a finger. Anything else that blocks
+ * for a long time on purpose should sit between pause() and resume(). */
+namespace Watchdog {
+
+/** Hardware reboot threshold. A frame this slow is a hang, not slow code. */
+constexpr uint32_t TIMEOUT_SECONDS = 12;
+/** Logged as a stall long before the hardware watchdog would reboot. */
+constexpr uint32_t STALL_WARN_MS = 3000;
+/** Free heap below this is logged as a warning every monitor tick. */
+constexpr uint32_t HEAP_WARN_BYTES = 24 * 1024;
+
+constexpr size_t CONTEXT_MAX = 24;
+
+struct Stats {
+    uint32_t loops = 0;          // frames since boot
+    uint32_t lastFrameMs = 0;    // duration of the frame most recently fed
+    uint32_t maxFrameMs = 0;     // worst frame since boot
+    uint32_t stalls = 0;         // times the loop went quiet past STALL_WARN_MS
+    uint32_t freeHeap = 0;
+    uint32_t minFreeHeap = 0;    // low water mark since boot
+    uint32_t largestBlock = 0;   // biggest allocatable block, i.e. fragmentation
+    uint32_t uptimeSeconds = 0;
+    uint32_t bootCount = 0;
+    bool armed = false;          // hardware watchdog subscribed
+};
+
+/** Post-mortem of the run before this one. */
+struct LastRun {
+    bool valid = false;          // a breadcrumb was found
+    bool unclean = false;        // panic / watchdog / brownout reset
+    char context[CONTEXT_MAX] = {0};
+    uint32_t uptimeSeconds = 0;
+    uint32_t maxFrameMs = 0;
+    uint32_t minFreeHeap = 0;
+    int resetReason = 0;         // esp_reset_reason_t
+};
+
+/** Start the monitor task and read back the previous run's breadcrumb. */
+void begin();
+/** Call once per frame from loop(). Arms the hardware watchdog on first call. */
+void feed();
+
+/** Label the current screen so a crash report says where it happened. */
+void setContext(const char* tag);
+const char* context();
+
+/** Bracket deliberately long blocking work (calibration, factory reset). */
+void pause();
+void resume();
+
+/** Scoped pause(), so an early return cannot leave the watchdog disarmed. */
+struct Pause {
+    Pause() { pause(); }
+    ~Pause() { resume(); }
+    Pause(const Pause&) = delete;
+    Pause& operator=(const Pause&) = delete;
+};
+
+Stats stats();
+const LastRun& lastRun();
+const char* resetReasonText(int reason);
+/** Dump the previous run and the current state to the serial log. */
+void printReport();
+
+}   // namespace Watchdog

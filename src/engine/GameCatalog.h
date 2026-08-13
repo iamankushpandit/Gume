@@ -27,5 +27,5 @@ struct GameCatalogEntry {
     const char* blurb;
 };
 
-constexpr uint8_t GAME_CATALOG_COUNT = 23;
+constexpr uint8_t GAME_CATALOG_COUNT = 26;
 extern const GameCatalogEntry GAME_CATALOG[GAME_CATALOG_COUNT];

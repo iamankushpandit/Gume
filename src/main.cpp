@@ -24,14 +24,18 @@
 #include "games/SimonGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
+#include "games/StateFlagGame.h"
+#include "games/StateMapGame.h"
 #include "games/StatesGame.h"
 #include "games/SudokuGame.h"
 #include "games/TimeGame.h"
 #include "games/TicTacToeGame.h"
+#include "games/TraceGame.h"
 #include "games/WifiGame.h"
 #include "games/WhackAMoleGame.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
+#include "hal/Watchdog.h"
 #include "ui/Ui.h"
 
 namespace {
@@ -109,6 +113,8 @@ void drawBringup(const TouchPoint& touch = TouchPoint{}) {
 
 void setup() {
     board.begin();
+    Watchdog::begin();
+    Watchdog::setContext("bringup");
     Clock::begin();
     if (!board.hasTouchCalibration()) {
         board.runTouchCalibration();
@@ -117,6 +123,7 @@ void setup() {
 }
 
 void loop() {
+    Watchdog::feed();
     const TouchPoint touch = board.pollTouch();
     if (touch.justPressed) {
         if (Rect{28, 178, 124, 42}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -151,6 +158,9 @@ public:
 
     void begin() {
         board_.begin();
+        // Straight after Serial comes up, so the crash report from the
+        // previous run is the first thing in the log.
+        Watchdog::begin();
         if (!board_.hasTouchCalibration()) {
             board_.runTouchCalibration();
         }
@@ -174,6 +184,7 @@ public:
     }
 
     void loop() {
+        Watchdog::feed();
         const TouchPoint rawTouch = board_.pollTouch();
         const uint32_t nowMs = millis();
 
@@ -266,6 +277,7 @@ public:
     }
 
     void goHome() override {
+        Watchdog::setContext("Launcher");
         activeGame_ = nullptr;
         view_ = View::Launcher;
         clampLauncherPage();
@@ -292,6 +304,7 @@ public:
     void openProfiles() override {
         // Always landscape: the picker is authored for the 320x240 canvas.
         applyRotation(effectiveRotation(true));
+        Watchdog::setContext("Profiles");
         view_ = View::Profiles;
         activeGame_ = &profile_;
         profile_.begin(*this);
@@ -306,6 +319,7 @@ public:
         ssavPrevView_ = view_;
         // Follow the chosen layout so the company mark is upright either way.
         applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
+        Watchdog::setContext("ScreenSaver");
         view_ = View::ScreenSaver;
         screenSaverStartMs_ = millis();
         ssav_initialized_ = false;
@@ -324,9 +338,11 @@ public:
         lastActivityMs_ = millis();
 
         if (backToGame) {
+            Watchdog::setContext(kindTitle(activeKind_));
             view_ = View::Game;
             activeGame_->requestRender();
         } else {
+            Watchdog::setContext("Launcher");
             view_ = View::Launcher;
             clampLauncherPage();
             launcherDirty_ = true;
@@ -364,6 +380,9 @@ private:
         Sequence,
         NumberLine,
         States,
+        Trace,
+        StateFlag,
+        StateMap,
         Scores,
         Profiles,
         Flag,
@@ -387,7 +406,7 @@ private:
     uint8_t launcherEntryCount() {
         uint8_t count = 5; // Scores, Settings, WiFi, Profiles, About always shown
         for (uint8_t i = 0; i < GAME_COUNT_TOTAL; ++i) {
-            if (board_.gameVisible(GAME_CATALOG[i].id)) ++count;
+            if (board_.gameVisible(i)) ++count;
         }
         return count;
     }
@@ -416,7 +435,8 @@ private:
         EntryKind::Maze,      EntryKind::Sort,          EntryKind::ColorMix,
         EntryKind::SlidingPuzzle, EntryKind::OddOneOut, EntryKind::ObjectAdd,
         EntryKind::FingerCount,   EntryKind::Sequence,  EntryKind::NumberLine,
-        EntryKind::Flag,          EntryKind::States,
+        EntryKind::Flag,          EntryKind::States,    EntryKind::Trace,
+        EntryKind::StateFlag,     EntryKind::StateMap,
     };
 
     LauncherEntry allEntry(uint8_t raw) const {
@@ -434,10 +454,26 @@ private:
         }
     }
 
+    /* Human-readable name for a kind, taken from the same catalog the tiles
+     * use, so the watchdog's crash context cannot drift from the launcher. */
+    const char* kindTitle(EntryKind kind) const {
+        for (uint8_t raw = 0; raw < GAME_CATALOG_COUNT; ++raw) {
+            if (CATALOG_KINDS[raw] == kind) return GAME_CATALOG[raw].title;
+        }
+        switch (kind) {
+            case EntryKind::Scores:   return "Scores";
+            case EntryKind::Settings: return "Settings";
+            case EntryKind::WiFi:     return "Wi-Fi";
+            case EntryKind::Profiles: return "Profiles";
+            case EntryKind::About:    return "About";
+            default:                  return "Game";
+        }
+    }
+
     LauncherEntry launcherEntry(uint8_t filteredIndex) {
         uint8_t fi = 0;
         for (uint8_t raw = 0; raw < GAME_COUNT_TOTAL; ++raw) {
-            if (!board_.gameVisible(GAME_CATALOG[raw].id)) continue;
+            if (!board_.gameVisible(raw)) continue;
             if (fi == filteredIndex) return allEntry(raw);
             ++fi;
         }
@@ -561,6 +597,15 @@ private:
             case EntryKind::States:
                 activeGame_ = &states_;
                 break;
+            case EntryKind::Trace:
+                activeGame_ = &trace_;
+                break;
+            case EntryKind::StateFlag:
+                activeGame_ = &stateFlag_;
+                break;
+            case EntryKind::StateMap:
+                activeGame_ = &stateMap_;
+                break;
             case EntryKind::Scores:
                 activeGame_ = &scores_;
                 break;
@@ -575,6 +620,9 @@ private:
                 break;
         }
         view_ = View::Game;
+        activeKind_ = kind;
+        // A crash report is far more useful when it names the screen.
+        Watchdog::setContext(kindTitle(kind));
         // Every game is authored against the fixed 320x240 landscape canvas
         // (SCREEN_WIDTH/SCREEN_HEIGHT), so the Tall/Wide menu setting
         // deliberately does not apply here.
@@ -754,6 +802,28 @@ private:
                 tft.fillRect(cx - 16, cy - 11, 14, 10, Ui::rgb(232, 232, 242));
                 tft.drawRoundRect(cx - 16, cy - 11, 32, 22, 3, TFT_WHITE);
                 break;
+            case EntryKind::Trace:
+                tft.setTextColor(TFT_WHITE, fill);
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString("A", cx - 6, cy - 2, 4);
+                for (int16_t d = 0; d < 12; d += 3) {
+                    tft.fillCircle(cx + 12, cy - 10 + d, 1, Ui::rgb(108, 232, 148));
+                }
+                tft.setTextDatum(TL_DATUM);
+                break;
+            case EntryKind::StateFlag:
+                tft.drawFastVLine(cx - 12, cy - 15, 30, TFT_WHITE);
+                tft.fillRect(cx - 11, cy - 14, 24, 15, Ui::rgb(90, 130, 230));
+                tft.fillRect(cx - 11, cy - 14, 24, 5, Ui::rgb(255, 246, 178));
+                tft.drawRect(cx - 11, cy - 14, 24, 15, TFT_WHITE);
+                tft.fillCircle(cx + 10, cy + 8, 4, Ui::rgb(255, 200, 0));
+                break;
+            case EntryKind::StateMap:
+                tft.fillRoundRect(cx - 14, cy - 14, 28, 28, 2, Ui::bg());
+                tft.drawRoundRect(cx - 14, cy - 14, 28, 28, 2, TFT_WHITE);
+                tft.fillTriangle(cx - 6, cy - 8, cx + 10, cy - 2, cx - 2, cy + 10, Ui::rgb(36, 132, 204));
+                tft.fillCircle(cx + 10, cy + 8, 4, Ui::rgb(255, 200, 0));
+                break;
             case EntryKind::Profiles:
                 tft.fillCircle(cx - 6, cy - 5, 6, TFT_WHITE);
                 tft.fillCircle(cx - 6, cy + 9, 10, TFT_WHITE);
@@ -922,108 +992,164 @@ private:
         board_.setRgbColor(c[0], c[1], c[2]);
     }
 
+    /* Serves the ball again from centre with the base speed and a clean
+     * rally. Used both when a rally reaches SSAV_MAX_HITS and as a fallback
+     * if the ball ever somehow gets past a paddle. */
+    void resetScreenSaverRally(int16_t effW, int16_t effH) {
+        ssav_bx_ = effW / 2.0f;
+        ssav_by_ = effH / 2.0f;
+        ssav_bvx_ = (random(2) ? 2.8f : -2.8f);
+        ssav_bvy_ = 1.6f;
+        ssav_hits_ = 0;
+        ssav_color_ = Ui::rgb(80, 180, 255);
+    }
+
     void renderScreenSaver() {
         TFT_eSPI& tft = board_.display();
-        
+
+        // The saver rotates the physical display to match the chosen layout
+        // (unlike regular games, which are pinned to the fixed 320x240
+        // landscape canvas). It has to lay itself out against the *actual*
+        // panel dimensions, not the SCREEN_WIDTH/SCREEN_HEIGHT landscape
+        // constants -- using the fixed constants here was why the court
+        // looked rotated 90 degrees from the real screen in vertical mode.
+        const int16_t effW = static_cast<int16_t>(tft.width());
+        const int16_t effH = static_cast<int16_t>(tft.height());
+
         if (!ssav_initialized_) {
             tft.fillScreen(TFT_BLACK);
             // Ball starts centre, random direction
-            ssav_bx_  = SCREEN_WIDTH  / 2.0f;
-            ssav_by_  = SCREEN_HEIGHT / 2.0f;
+            ssav_bx_  = effW / 2.0f;
+            ssav_by_  = effH / 2.0f;
             ssav_bvx_ = (random(2) ? 2.8f : -2.8f);
             ssav_bvy_ = 1.6f + random(100) * 0.02f;
             // Paddles start centred
-            ssav_ly_  = SCREEN_HEIGHT / 2.0f;
-            ssav_ry_  = SCREEN_HEIGHT / 2.0f;
+            ssav_ly_  = effH / 2.0f;
+            ssav_ry_  = effH / 2.0f;
             ssav_hits_ = 0;
             ssav_color_ = Ui::rgb(80, 180, 255);
+            ssav_textCy_ = -1;
             ssav_initialized_ = true;
         }
-        
+
         constexpr int16_t PAD_H = 40;  // paddle height
         constexpr int16_t PAD_W = 6;
         constexpr int16_t BALL  = 6;
         constexpr int16_t LX    = 10; // left paddle x centre
-        constexpr int16_t RX    = SCREEN_WIDTH - 10; // right paddle x centre
-        
+        const int16_t RX = static_cast<int16_t>(effW - 10); // right paddle x centre
+
         // Erase previous positions
         tft.fillRect(LX - PAD_W/2, static_cast<int16_t>(ssav_ly_ - PAD_H/2 - 2), PAD_W, PAD_H + 4, TFT_BLACK);
         tft.fillRect(RX - PAD_W/2, static_cast<int16_t>(ssav_ry_ - PAD_H/2 - 2), PAD_W, PAD_H + 4, TFT_BLACK);
         tft.fillRect(static_cast<int16_t>(ssav_bx_ - BALL), static_cast<int16_t>(ssav_by_ - BALL), BALL*2, BALL*2, TFT_BLACK);
-        
+
         // Move ball
         ssav_bx_ += ssav_bvx_;
         ssav_by_ += ssav_bvy_;
-        
+
         // Bounce top/bottom
         if (ssav_by_ < BALL) { ssav_by_ = BALL; ssav_bvy_ = fabsf(ssav_bvy_); }
-        if (ssav_by_ > SCREEN_HEIGHT - BALL) { ssav_by_ = SCREEN_HEIGHT - BALL; ssav_bvy_ = -fabsf(ssav_bvy_); }
-        
-        // Only the paddle the ball is heading toward tracks it. The idle one
-        // mirrors vertically, so the two always sweep in opposite directions
-        // instead of moving in lockstep.
-        const float padSpeed = 3.2f;
+        if (ssav_by_ > effH - BALL) { ssav_by_ = effH - BALL; ssav_bvy_ = -fabsf(ssav_bvy_); }
+
+        // Speed ramps off the hit count -- eased with sqrt so the very first
+        // few touches already feel like a jump, then it keeps climbing
+        // toward FAST_SPEED/FAST_PAD_SPEED as the rally approaches MAX_HITS.
+        // Paddle speed rides the same curve so paddles visibly quicken too,
+        // not just the ball. The vertical kick off a paddle is clamped below
+        // BASE_PAD_SPEED so the paddles can always keep pace and the rally
+        // reliably runs the full MAX_HITS before serving again.
+        constexpr uint8_t MAX_HITS = 30;
+        constexpr float BASE_SPEED = 3.0f;
+        constexpr float FAST_SPEED = 22.0f;
+        constexpr float BASE_PAD_SPEED = 3.2f;
+        constexpr float FAST_PAD_SPEED = 7.5f;
+        constexpr float MAX_KICK_BVY = 3.0f;
+        const float easedT = sqrtf(static_cast<float>(min<uint8_t>(ssav_hits_, MAX_HITS)) / MAX_HITS);
+
+        // Only the paddle the ball is currently heading toward moves at all.
+        // The other one holds perfectly still -- it doesn't start sweeping
+        // to meet the ball until the instant the ball bounces back toward
+        // it (ballGoingLeft flips), giving it the whole crossing to get
+        // into position, same as the paddle that just returned the serve.
+        const float padSpeed = BASE_PAD_SPEED + (FAST_PAD_SPEED - BASE_PAD_SPEED) * easedT;
         const bool ballGoingLeft = ssav_bvx_ < 0.0f;
-        const float mirrorY = static_cast<float>(SCREEN_HEIGHT) - ssav_by_;
-        const float lTargetY = ballGoingLeft ? ssav_by_ : mirrorY;
-        const float rTargetY = ballGoingLeft ? mirrorY  : ssav_by_;
-        if (ssav_ly_ < lTargetY - padSpeed) ssav_ly_ += padSpeed;
-        else if (ssav_ly_ > lTargetY + padSpeed) ssav_ly_ -= padSpeed;
-        if (ssav_ry_ < rTargetY - padSpeed) ssav_ry_ += padSpeed;
-        else if (ssav_ry_ > rTargetY + padSpeed) ssav_ry_ -= padSpeed;
+        if (ballGoingLeft) {
+            if (ssav_ly_ < ssav_by_ - padSpeed) ssav_ly_ += padSpeed;
+            else if (ssav_ly_ > ssav_by_ + padSpeed) ssav_ly_ -= padSpeed;
+        } else {
+            if (ssav_ry_ < ssav_by_ - padSpeed) ssav_ry_ += padSpeed;
+            else if (ssav_ry_ > ssav_by_ + padSpeed) ssav_ry_ -= padSpeed;
+        }
         // Clamp paddles
         if (ssav_ly_ < PAD_H/2) ssav_ly_ = PAD_H/2;
-        if (ssav_ly_ > SCREEN_HEIGHT - PAD_H/2) ssav_ly_ = SCREEN_HEIGHT - PAD_H/2;
+        if (ssav_ly_ > effH - PAD_H/2) ssav_ly_ = effH - PAD_H/2;
         if (ssav_ry_ < PAD_H/2) ssav_ry_ = PAD_H/2;
-        if (ssav_ry_ > SCREEN_HEIGHT - PAD_H/2) ssav_ry_ = SCREEN_HEIGHT - PAD_H/2;
-        
+        if (ssav_ry_ > effH - PAD_H/2) ssav_ry_ = effH - PAD_H/2;
+
         // Bounce off left paddle
         if (ssav_bvx_ < 0 && ssav_bx_ <= LX + PAD_W/2 + BALL) {
             if (ssav_by_ >= ssav_ly_ - PAD_H/2 && ssav_by_ <= ssav_ly_ + PAD_H/2) {
-                ssav_bvx_ = fabsf(ssav_bvx_) * 1.10f;
-                if (ssav_bvx_ > 9.0f) ssav_bvx_ = 9.0f;
-                ssav_bvy_ += (ssav_by_ - ssav_ly_) * 0.06f;
-                ssav_bx_ = LX + PAD_W/2 + BALL + 1;
                 onScreenSaverHit();
+                const float t = sqrtf(static_cast<float>(min<uint8_t>(ssav_hits_, MAX_HITS)) / MAX_HITS);
+                ssav_bvx_ = BASE_SPEED + (FAST_SPEED - BASE_SPEED) * t;
+                ssav_bvy_ = constrain(ssav_bvy_ + (ssav_by_ - ssav_ly_) * 0.05f, -MAX_KICK_BVY, MAX_KICK_BVY);
+                ssav_bx_ = LX + PAD_W/2 + BALL + 1;
+                if (ssav_hits_ >= MAX_HITS) resetScreenSaverRally(effW, effH);
             }
         }
         // Bounce off right paddle
         if (ssav_bvx_ > 0 && ssav_bx_ >= RX - PAD_W/2 - BALL) {
             if (ssav_by_ >= ssav_ry_ - PAD_H/2 && ssav_by_ <= ssav_ry_ + PAD_H/2) {
-                ssav_bvx_ = -fabsf(ssav_bvx_) * 1.10f;
-                if (ssav_bvx_ < -9.0f) ssav_bvx_ = -9.0f;
-                ssav_bvy_ += (ssav_by_ - ssav_ry_) * 0.06f;
-                ssav_bx_ = RX - PAD_W/2 - BALL - 1;
                 onScreenSaverHit();
+                const float t = sqrtf(static_cast<float>(min<uint8_t>(ssav_hits_, MAX_HITS)) / MAX_HITS);
+                ssav_bvx_ = -(BASE_SPEED + (FAST_SPEED - BASE_SPEED) * t);
+                ssav_bvy_ = constrain(ssav_bvy_ + (ssav_by_ - ssav_ry_) * 0.05f, -MAX_KICK_BVY, MAX_KICK_BVY);
+                ssav_bx_ = RX - PAD_W/2 - BALL - 1;
+                if (ssav_hits_ >= MAX_HITS) resetScreenSaverRally(effW, effH);
             }
         }
-        // Reset if somehow past edge
-        if (ssav_bx_ < 0 || ssav_bx_ > SCREEN_WIDTH) {
-            ssav_bx_ = SCREEN_WIDTH / 2.0f;
-            ssav_by_ = SCREEN_HEIGHT / 2.0f;
-            ssav_bvx_ = ssav_bvx_ > 0 ? 2.8f : -2.8f;
-            ssav_bvy_ = 1.6f;
-            ssav_hits_ = 0;
-            ssav_color_ = Ui::rgb(80, 180, 255);
+        // Reset if somehow past edge (paddles should always catch it now,
+        // but this stays as a safety net)
+        if (ssav_bx_ < 0 || ssav_bx_ > effW) {
+            resetScreenSaverRally(effW, effH);
         }
-        
+
         /* Company mark, laid out for whichever orientation the saver is in.
-         * Drawn once per frame under the ball, so it never flickers. */
+         * Drawn once per frame under the ball, so it never flickers. It
+         * bobs slowly up and down so it isn't a static burn-in target. */
         {
-            const int16_t sw = static_cast<int16_t>(tft.width());
-            const int16_t sh = static_cast<int16_t>(tft.height());
+            // Amplitude scales with the panel's actual usable height (which
+            // flips with orientation), so the mark sweeps out toward the
+            // top/bottom edges instead of a fixed, orientation-blind 10px.
+            // TEXT_BAND_TOP/BOTTOM below is the mark's own footprint, kept
+            // clear of the true edge.
+            const float bobAmplitude = fmaxf(10.0f, effH / 2.0f - 40.0f);
+            const float bob = sinf(static_cast<float>(millis()) * 0.00035f) * bobAmplitude;
+            const int16_t cy = static_cast<int16_t>(effH / 2.0f + bob);
+
+            // The mark moves a little every frame; drawString only clears
+            // behind its own new position, so the old spot was left
+            // un-erased and built up into a smeared trail. Erase the whole
+            // band it can occupy before drawing the new frame.
+            constexpr int16_t TEXT_BAND_TOP = 26;    // above centre line
+            constexpr int16_t TEXT_BAND_BOTTOM = 22; // below centre line
+            if (ssav_textCy_ >= 0) {
+                tft.fillRect(0, static_cast<int16_t>(ssav_textCy_ - TEXT_BAND_TOP), effW,
+                             TEXT_BAND_TOP + TEXT_BAND_BOTTOM, TFT_BLACK);
+            }
             tft.setTextDatum(MC_DATUM);
             tft.setTextColor(Ui::rgb(120, 128, 150), TFT_BLACK);
-            tft.drawString("GoodTime Micro", sw / 2, static_cast<int16_t>(sh / 2 - 10), 4);
+            tft.drawString("GoodTime Micro", effW / 2, static_cast<int16_t>(cy - 10), 4);
             tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
             tft.drawString("(C) GoodTime Micro Company",
-                           sw / 2, static_cast<int16_t>(sh / 2 + 14), 1);
+                           effW / 2, static_cast<int16_t>(cy + 14), 1);
             tft.setTextDatum(TL_DATUM);
+            ssav_textCy_ = cy;
         }
 
         // Draw court centre line
-        for (int16_t y = 0; y < SCREEN_HEIGHT; y += 14) {
-            tft.fillRect(SCREEN_WIDTH/2 - 1, y, 2, 8, Ui::rgb(40,40,40));
+        for (int16_t y = 0; y < effH; y += 14) {
+            tft.fillRect(effW/2 - 1, y, 2, 8, Ui::rgb(40,40,40));
         }
         // Draw paddles
         tft.fillRoundRect(LX - PAD_W/2, static_cast<int16_t>(ssav_ly_ - PAD_H/2), PAD_W, PAD_H, 3, ssav_color_);
@@ -1031,12 +1157,6 @@ private:
         // Ball takes the rally colour too, with a white core so it stays visible.
         tft.fillRoundRect(static_cast<int16_t>(ssav_bx_ - BALL), static_cast<int16_t>(ssav_by_ - BALL), BALL*2, BALL*2, 2, ssav_color_);
         tft.fillRoundRect(static_cast<int16_t>(ssav_bx_ - BALL/2), static_cast<int16_t>(ssav_by_ - BALL/2), BALL, BALL, 1, TFT_WHITE);
-
-        // Rally counter, so the speed-up is legible as progress.
-        tft.setTextColor(Ui::rgb(70, 70, 76), TFT_BLACK);
-        tft.setTextDatum(TC_DATUM);
-        tft.drawString(String(ssav_hits_), SCREEN_WIDTH / 2, 6, 2);
-        tft.setTextDatum(TL_DATUM);
     }
     
     Board board_;
@@ -1064,12 +1184,16 @@ private:
     FingerCountGame fingerCount_;
     SequenceGame sequence_;
     StatesGame states_;
+    StateFlagGame stateFlag_;
+    StateMapGame stateMap_;
+    TraceGame trace_;
     ProfileGame profile_;
     ScoresGame scores_;
     NumberLineGame numberLine_;
     FlagGame flag_;
     AboutGame about_;
     Game* activeGame_ = nullptr;
+    EntryKind activeKind_ = EntryKind::About;   // labels the watchdog context
     View view_ = View::Launcher;
     // Pong screen saver state
     float ssav_bx_ = 160.0f, ssav_by_ = 120.0f;
@@ -1081,6 +1205,7 @@ private:
     uint8_t ssav_hits_ = 0;      // rally length: drives colour and speed
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;
+    int16_t ssav_textCy_ = -1;  // previous frame's company-mark centre y, -1 = not drawn yet
     uint8_t launcherPage_ = 0;
     uint32_t lastClockMinute_ = 0;
     uint32_t lastActivityMs_ = 0;

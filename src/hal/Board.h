@@ -112,8 +112,10 @@ public:
     void setLayoutMode(LayoutMode mode);
     uint16_t screenSaverSeconds();
     void setScreenSaverSeconds(uint16_t seconds);
-    bool gameVisible(const char* appId, bool fallback = true);
-    void setGameVisible(const char* appId, bool visible);
+    bool gameVisible(uint8_t catalogIndex, bool fallback = true);
+    void setGameVisible(uint8_t catalogIndex, bool visible);
+    bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true);
+    void setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible);
     String wifiSsid();
     String wifiPassword();
     void setWifiCredentials(const String& ssid, const String& password);
