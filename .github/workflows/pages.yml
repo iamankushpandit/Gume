@@ -28,8 +28,12 @@ jobs:
 
       # `enablement: true` turns Pages on for the repository the first time
       # this runs, so the site does not need a visit to Settings -> Pages to go
-      # live. It is a no-op on every run after that.
+      # live, and is a no-op on every run after that. It is allowed to fail:
+      # the API refuses when the repository's default workflow permissions are
+      # read-only, and that must not cost us the firmware build -- the deploy
+      # job is the honest test of whether Pages is on.
       - uses: actions/configure-pages@v5
+        continue-on-error: true
         with:
           enablement: true
 
