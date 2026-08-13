@@ -160,6 +160,74 @@ Rules, in the order they bite:
    flash; System Info's Memory tab reports free heap, minimum free heap,
    largest allocatable block and fragmentation. Read them.
 
+## Adding a game or an app — the whole checklist
+
+The old version of this list had five items, all of them code. Everything that
+has since been shipped broken or stale was *outside* those five: the README game
+table, the screenshot gallery, `docs/screens/`, the changelog. A game that
+launches correctly and is invisible in every document describing the product is
+not finished.
+
+Work through all four groups. Nothing here is optional for a screen that ships.
+
+### 1. Code — miss one and it fails silently or won't link
+
+1. `src/games/NewGame.{h,cpp}` — subclass `Game`.
+2. `src/engine/GameCatalog.cpp` — append an entry. Blurbs render at font 1
+   across ~292 px, so keep them under ~46 chars. **`id` is a persisted NVS
+   visibility key**: renaming it later resets that game's visibility on every
+   existing device.
+3. `src/main.cpp` — add to `enum class EntryKind`.
+4. `src/main.cpp` — add to `CATALOG_KINDS[]` **at the same index as the catalog
+   entry**. Nothing enforces this; a misalignment compiles, links, and launches
+   the wrong game from the right tile.
+5. `src/main.cpp` — a `case` in `launchKind()` (wires the instance) and one in
+   `drawLauncherIcon()` (draws the tile icon).
+6. `src/engine/ScoreCatalog.cpp` — only if it records a score, so the Scores
+   screen can show it.
+
+### 2. Docs — the part that actually gets forgotten
+
+7. `README.md` — a row in the right game table (what it is, what it builds,
+   age), or a bullet under the system screens if it is an app.
+8. `README.md` — an `<img>` in the matching screenshot gallery.
+9. `CHANGELOG.md` — an entry under the unreleased heading.
+
+### 3. Screens
+
+10. `tools/gen_screens.py` — a render function plus an entry in `SCREENS` or
+    `EXTRA_SCREENS`. Take the geometry from the game's own `Rect` helpers so
+    the mock-up matches the device rather than approximating it.
+11. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
+    generated image; nothing else will tell you it came out wrong.
+
+### 4. Verify
+
+12. `pio run` — and put the new flash/RAM figures in `README.md` **and**
+    `CLAUDE.md`. They are the two places that disagree.
+13. `python tools/check_docs.py` — must be clean.
+14. Flash it and actually play it. Take the board lock first.
+
+### What you do NOT hand-edit
+
+These derive from `GAME_CATALOG` and update themselves. Editing them by hand is
+how About fell six games behind in the first place:
+
+- the **About** app's game list, count and blurbs
+- the **Settings → Games** visibility list
+- the **launcher** tiles and paging
+
+### If it is a system app rather than a game
+
+Everything above still applies, plus:
+
+- It **must work in both orientations.** Read `tft.width()` / `tft.height()` at
+  render time, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Settings and Wi-Fi
+  currently violate this and are the reason the rule is stated so bluntly.
+- If it touches a radio, stores data, or changes what leaves the device, the
+  **About radios page** and the **README privacy section** are part of the same
+  change — and About must *read* the state, not restate it.
+
 Four things that cause real damage here if you skip them:
 
 1. **Branch into your own worktree before you start.** New requirement → `git worktree add ../GUme-<slug> -b feat/<slug>`, then work there. Do **not** `git switch` inside the main checkout: it holds other agents' uncommitted work and switching under them strands it. A worktree also gives you a private `.pio/` build dir.

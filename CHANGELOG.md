@@ -87,6 +87,19 @@ harmless at the call site and each was eating most of a 20ms frame.
 
 ### Fixed
 
+- **"Adding a game" became "Adding a game or an app", and grew from five items
+  to fourteen.** The old list was five code edits, and everything that has
+  since been shipped broken or stale was outside those five: the README game
+  table, the screenshot gallery, `docs/screens/`, the changelog. Four games
+  reached a release listed in the catalog and named nowhere in the README.
+
+  The list now covers code, docs, screens and verification, states which
+  surfaces derive from `GAME_CATALOG` and must *not* be hand-edited, and adds
+  the extra obligations for a system app (both orientations; the About radios
+  page if it touches a radio). `check_docs.py` enforces the two items a machine
+  can see: every catalogued game is named in the README, and every catalogued
+  game has a screenshot.
+
 - **Regenerated the README mock-ups, which had drifted badly.**
   `docs/screens/` still held `countries-outline.png` and
   `countries-continent.png` for a game deleted two releases ago; the launcher

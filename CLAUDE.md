@@ -302,17 +302,73 @@ Views: **Profiles** (shown at boot, picks whose scores are being written) → **
   hand-written UI description of the payload -- see `docs/BLE_BEACON_SPEC.md`.
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `KidsPlatformApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose — a calibration wizard, a network round trip — must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
-## Adding a game
+## Adding a game or an app — the whole checklist
 
-Five coordinated edits — miss one and it fails silently or won't link:
+The old version of this list had five items, all of them code. Everything that
+has since been shipped broken or stale was *outside* those five: the README game
+table, the screenshot gallery, `docs/screens/`, the changelog. A game that
+launches correctly and is invisible in every document describing the product is
+not finished.
+
+Work through all four groups. Nothing here is optional for a screen that ships.
+
+### 1. Code — miss one and it fails silently or won't link
 
 1. `src/games/NewGame.{h,cpp}` — subclass `Game`.
-2. `src/engine/GameCatalog.cpp` — append an entry. Blurbs render at font 1 across ~292 px, so keep them under ~46 chars.
+2. `src/engine/GameCatalog.cpp` — append an entry. Blurbs render at font 1
+   across ~292 px, so keep them under ~46 chars. **`id` is a persisted NVS
+   visibility key**: renaming it later resets that game's visibility on every
+   existing device.
 3. `src/main.cpp` — add to `enum class EntryKind`.
-4. `src/main.cpp` — add to `CATALOG_KINDS[]` **at the same index as the catalog entry**.
-5. `src/main.cpp` — add a `case` to `launchKind()` (wires the instance) and to `drawLauncherIcon()` (draws the tile icon).
+4. `src/main.cpp` — add to `CATALOG_KINDS[]` **at the same index as the catalog
+   entry**. Nothing enforces this; a misalignment compiles, links, and launches
+   the wrong game from the right tile.
+5. `src/main.cpp` — a `case` in `launchKind()` (wires the instance) and one in
+   `drawLauncherIcon()` (draws the tile icon).
+6. `src/engine/ScoreCatalog.cpp` — only if it records a score, so the Scores
+   screen can show it.
 
-If the game records a score, also add it to `src/engine/ScoreCatalog.cpp` so the Scores screen can display it.
+### 2. Docs — the part that actually gets forgotten
+
+7. `README.md` — a row in the right game table (what it is, what it builds,
+   age), or a bullet under the system screens if it is an app.
+8. `README.md` — an `<img>` in the matching screenshot gallery.
+9. `CHANGELOG.md` — an entry under the unreleased heading.
+
+### 3. Screens
+
+10. `tools/gen_screens.py` — a render function plus an entry in `SCREENS` or
+    `EXTRA_SCREENS`. Take the geometry from the game's own `Rect` helpers so
+    the mock-up matches the device rather than approximating it.
+11. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
+    generated image; nothing else will tell you it came out wrong.
+
+### 4. Verify
+
+12. `pio run` — and put the new flash/RAM figures in `README.md` **and**
+    `CLAUDE.md`. They are the two places that disagree.
+13. `python tools/check_docs.py` — must be clean.
+14. Flash it and actually play it. Take the board lock first.
+
+### What you do NOT hand-edit
+
+These derive from `GAME_CATALOG` and update themselves. Editing them by hand is
+how About fell six games behind in the first place:
+
+- the **About** app's game list, count and blurbs
+- the **Settings → Games** visibility list
+- the **launcher** tiles and paging
+
+### If it is a system app rather than a game
+
+Everything above still applies, plus:
+
+- It **must work in both orientations.** Read `tft.width()` / `tft.height()` at
+  render time, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Settings and Wi-Fi
+  currently violate this and are the reason the rule is stated so bluntly.
+- If it touches a radio, stores data, or changes what leaves the device, the
+  **About radios page** and the **README privacy section** are part of the same
+  change — and About must *read* the state, not restate it.
 
 ## Rendering model
 

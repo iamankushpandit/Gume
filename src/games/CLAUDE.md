@@ -33,7 +33,7 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 
 ## Adding a game
 
-Beyond the new file pair, four edits elsewhere, all required:
+**The full checklist lives in the root `CLAUDE.md` under "Adding a game or an app" — work through that, not this summary.** It covers the docs, the screenshots and the verification steps, which is where things have actually been shipped broken. The code edits alone are:
 
 1. `../engine/GameCatalog.cpp` — append an entry. `id` becomes a permanent NVS key; blurb must stay under ~46 chars.
 2. `../main.cpp` — new `EntryKind` enumerator.
@@ -41,6 +41,8 @@ Beyond the new file pair, four edits elsewhere, all required:
 4. `../main.cpp` — `case` in `launchKind()` and in `drawLauncherIcon()`.
 
 Scoring games also need an entry in `../engine/ScoreCatalog.cpp`.
+
+Then the part that gets forgotten: a README table row and gallery image, a `tools/gen_screens.py` render function, regenerated screens, a changelog entry, and `python tools/check_docs.py` clean. A game that launches correctly and is invisible in every document describing the product is not finished.
 
 ### If other agents are working in parallel
 

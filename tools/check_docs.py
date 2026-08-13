@@ -165,6 +165,27 @@ def check_credits_match_artwork(problems):
                            "the country outlines are no longer compiled in" % doc)
 
 
+def check_games_are_documented(problems):
+    """Every catalogued game must appear in README by name.
+
+    Step 7 of the "Adding a game or an app" checklist. A game that launches
+    correctly and is invisible in every document describing the product is not
+    finished -- US States, State Flags, State Maps and Trace all shipped that
+    way, listed in the catalog and absent from the README.
+    """
+    catalog = read("src", "engine", "GameCatalog.cpp")
+    titles = re.findall(r'^\s*\{\s*"[a-z0-9]+",\s*"([^"]+)"', catalog, re.M)
+    if not titles:
+        fail(problems, "GameCatalog.cpp: could not parse any game titles")
+        return
+
+    readme = read("README.md")
+    for title in titles:
+        if title not in readme:
+            fail(problems, "game '%s' is in GAME_CATALOG but never named in "
+                           "README.md" % title)
+
+
 def check_screens(problems):
     """Screenshots must exist, be referenced, and not outlive their feature.
 
@@ -214,6 +235,7 @@ def main():
     check_size_agreement(problems)
     check_about_is_derived(problems)
     check_credits_match_artwork(problems)
+    check_games_are_documented(problems)
     check_screens(problems)
 
     if problems:
