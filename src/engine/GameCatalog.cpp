@@ -28,6 +28,6 @@ const GameCatalogEntry GAME_CATALOG[GAME_CATALOG_COUNT] = {
     { "fingers",    "Fingers",     "count on hands",    "Fingers",     "Count on two hands."             },
     { "calendar",   "Calendar",    "days & months",     "Calendar",    "Days and months in order."       },
     { "numberline", "Number Line", "jump to number",    "Number Line", "Hop along a number line."        },
-    { "geo",        "Countries",   "maps & continents", "Countries",   "Name the country and continent." },
     { "flags",      "Flags",       "guess the flag",    "Flags",       "Name the flag, then its capital."},
+    { "states",     "US States",   "states & capitals", "US States",   "US states and their capitals."   },
 };

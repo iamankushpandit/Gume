@@ -23,7 +23,7 @@ private:
     Rect saverRect() const;
     Rect ntpRect() const;
     Rect wifiRect() const;
-    Rect flipRect() const;
+    Rect resetRect() const;
     Rect brightRect() const;
     Rect gameCheckRect(uint8_t row) const;
     Rect gamesPrevRect() const;
@@ -32,6 +32,9 @@ private:
     void renderDeviceTab(GameHost& host);
     void renderGamesTab(GameHost& host);
 
+    // Two-step: the first tap arms, the second erases. A single tap on a
+    // destructive control is too easy for a child to hit by accident.
+    bool confirmReset_ = false;
     Tab  tab_  = Tab::Device;
     uint8_t gameScroll_ = 0; // scroll offset for game list
 };

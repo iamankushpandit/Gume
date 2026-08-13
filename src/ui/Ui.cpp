@@ -271,6 +271,14 @@ uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct) {
     return static_cast<uint8_t>(minPct + (rel * (100 - minPct)) / span);
 }
 
+void drawPagerButton(TFT_eSPI& tft, const Rect& r, const String& label, bool enabled) {
+    drawButton(tft, r, label,
+               enabled ? COLOR_PANEL : COLOR_SURFACE,
+               COLOR_OUTLINE,
+               enabled ? COLOR_TEXT : COLOR_MUTED,
+               false, 2);
+}
+
 void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active) {
     /* Active tab: full height, page-coloured, rounded top corners only -- the
      * square bottom is what lets it merge into the content area. Inactive:
@@ -398,6 +406,41 @@ int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16
     }
     drawLine();
     return y;
+}
+
+void drawHopArc(TFT_eSPI& tft, int16_t x1, int16_t x2, int16_t baseY,
+                int16_t height, uint16_t color, bool arrowAtEnd) {
+    const float cx = (x1 + x2) * 0.5f;
+    const float rx = fabsf(static_cast<float>(x2 - x1)) * 0.5f;
+    if (rx < 1.0f) return;
+
+    /* Enough chords that the curve reads as smooth at this size; the arc spans
+     * roughly 28px, so 18 segments puts each chord well under 2px. */
+    constexpr uint8_t SEGMENTS = 18;
+    const float dir = (x2 >= x1) ? 1.0f : -1.0f;
+
+    float px = static_cast<float>(x1);
+    float py = static_cast<float>(baseY);
+    for (uint8_t i = 1; i <= SEGMENTS; ++i) {
+        const float t = static_cast<float>(PI) * i / SEGMENTS;   // 0..PI
+        const float nx = cx - dir * cosf(t) * rx;
+        const float ny = baseY - sinf(t) * height;
+        // Two parallel chords give a 2px stroke without a thick-line helper.
+        tft.drawLine(static_cast<int16_t>(px), static_cast<int16_t>(py),
+                     static_cast<int16_t>(nx), static_cast<int16_t>(ny), color);
+        tft.drawLine(static_cast<int16_t>(px), static_cast<int16_t>(py - 1),
+                     static_cast<int16_t>(nx), static_cast<int16_t>(ny - 1), color);
+        px = nx; py = ny;
+    }
+
+    if (arrowAtEnd) {
+        // Small head at the landing point so the direction of travel is clear.
+        const int16_t ax = static_cast<int16_t>(x2);
+        const int16_t ay = static_cast<int16_t>(baseY);
+        const int16_t back = static_cast<int16_t>(dir * 5);
+        tft.drawLine(ax, ay, static_cast<int16_t>(ax - back), static_cast<int16_t>(ay - 5), color);
+        tft.drawLine(ax, ay, static_cast<int16_t>(ax - back), static_cast<int16_t>(ay + 1), color);
+    }
 }
 
 void drawTriangleShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled) {

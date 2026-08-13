@@ -13,6 +13,7 @@ public:
     virtual void relaunchActiveGame() = 0;
     virtual void openSettings() = 0;
     virtual void openWifi() = 0;
+    virtual void openProfiles() = 0;
 };
 
 class Game {

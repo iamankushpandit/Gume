@@ -15,14 +15,16 @@
 #include "games/ObjectAddGame.h"
 #include "games/FingerCountGame.h"
 #include "games/FlagGame.h"
-#include "games/GeoGame.h"
 #include "games/NumberLineGame.h"
 #include "games/SequenceGame.h"
+#include "games/ProfileGame.h"
+#include "games/ScoresGame.h"
 #include "games/SettingsGame.h"
 #include "games/ShapeColorGame.h"
 #include "games/SimonGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
+#include "games/StatesGame.h"
 #include "games/SudokuGame.h"
 #include "games/TimeGame.h"
 #include "games/TicTacToeGame.h"
@@ -157,7 +159,7 @@ public:
         Clock::begin();
         Serial.printf("[boot] rot=%d layout=%s (CYD_SCREEN_ROTATION=%d)\n",
                       (int)board_.displayRotation(),
-                      board_.layoutMode() == Board::LayoutMode::Vertical ? "Tall" : "Wide",
+                      board_.layoutMode() == Board::LayoutMode::Vertical ? "Vertical" : "Horizontal",
                       (int)CYD_SCREEN_ROTATION);
         Serial.printf("[boot] ntp=%d creds=%d ssid='%s' tzmin=%d\n",
                       (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
@@ -166,7 +168,9 @@ public:
         lastClockMinute_ = Clock::minuteKey();
         lastActivityMs_ = millis();
         Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
-        goHome();
+        // Ask who is playing before anything else, so scores land in the
+        // right child's slot from the very first game.
+        openProfiles();
     }
 
     void loop() {
@@ -209,7 +213,13 @@ public:
             }
         }
         
-        if (view_ == View::ScreenSaver) {
+        if (view_ == View::Profiles) {
+            profile_.update(*this, touch);
+            if (view_ == View::Profiles && profile_.needsRender()) {
+                profile_.render(*this);
+                profile_.clearDirty();
+            }
+        } else if (view_ == View::ScreenSaver) {
             if (touch.justPressed) {
                 exitScreenSaver();
             } else if (nowMs - ssav_lastFrameMs_ >= 40) { // ~25 fps
@@ -238,11 +248,8 @@ public:
         delay(18);
     }
 
-    /* Base rotation for a view, XOR 2 when flipped. XOR 2 is exactly a
-     * 180-degree turn for both orientations: 1<->3 landscape, 0<->2 portrait. */
     uint8_t effectiveRotation(bool landscape) {
-        const uint8_t base = landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
-        return board_.screenFlipped() ? static_cast<uint8_t>(base ^ 2) : base;
+        return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
     }
 
     void goHome() override {
@@ -268,13 +275,24 @@ public:
     void openWifi() override {
         launchKind(EntryKind::WiFi);
     }
+
+    void openProfiles() override {
+        // Always landscape: the picker is authored for the 320x240 canvas.
+        board_.setDisplayRotation(effectiveRotation(true));
+        view_ = View::Profiles;
+        activeGame_ = &profile_;
+        profile_.begin(*this);
+        profile_.render(*this);
+        profile_.clearDirty();
+    }
     
     void enterScreenSaver() {
         board_.setRgbColor(0, 140, 255);   // start of the rally palette
         // Remember where we came from so we can go back there, not to the
         // launcher. Losing the open Settings screen was disorienting.
         ssavPrevView_ = view_;
-        board_.setDisplayRotation(effectiveRotation(true)); // always landscape
+        // Follow the chosen layout so the company mark is upright either way.
+        board_.setDisplayRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         view_ = View::ScreenSaver;
         screenSaverStartMs_ = millis();
         ssav_initialized_ = false;
@@ -310,6 +328,7 @@ public:
 
 private:
     enum class View {
+        Profiles,
         Launcher,
         Game,
         ScreenSaver
@@ -337,7 +356,8 @@ private:
         FingerCount,
         Sequence,
         NumberLine,
-        Geo,
+        States,
+        Scores,
         Flag,
         Settings,
         WiFi,
@@ -357,7 +377,7 @@ private:
     static constexpr uint8_t GAME_COUNT_TOTAL = GAME_CATALOG_COUNT;
 
     uint8_t launcherEntryCount() {
-        uint8_t count = 3; // Settings, WiFi, About always shown
+        uint8_t count = 4; // Scores, Settings, WiFi, About always shown
         for (uint8_t i = 0; i < GAME_COUNT_TOTAL; ++i) {
             if (board_.gameVisible(GAME_CATALOG[i].id)) ++count;
         }
@@ -377,34 +397,30 @@ private:
         return board_.layoutMode() == Board::LayoutMode::Vertical ? 4 : 6;
     }
 
+    /* EntryKind in catalog order. The launcher titles and subtitles come from
+     * GAME_CATALOG, so this file no longer repeats them -- only the mapping
+     * from catalog slot to the concrete game object lives here. */
+    static constexpr EntryKind CATALOG_KINDS[GAME_CATALOG_COUNT] = {
+        EntryKind::TicTacToe, EntryKind::Memory,        EntryKind::Math,
+        EntryKind::Multiplication, EntryKind::Time,     EntryKind::WhackAMole,
+        EntryKind::Simon,     EntryKind::Sudoku,        EntryKind::ShapeColor,
+        EntryKind::Counting,  EntryKind::Money,         EntryKind::Fractions,
+        EntryKind::Maze,      EntryKind::Sort,          EntryKind::ColorMix,
+        EntryKind::SlidingPuzzle, EntryKind::OddOneOut, EntryKind::ObjectAdd,
+        EntryKind::FingerCount,   EntryKind::Sequence,  EntryKind::NumberLine,
+        EntryKind::Flag,          EntryKind::States,
+    };
+
     LauncherEntry allEntry(uint8_t raw) const {
-        switch (raw) {
-            case 0:  return LauncherEntry{EntryKind::TicTacToe,    0, "Tic-Tac-Toe", "2 player"};
-            case 1:  return LauncherEntry{EntryKind::Memory,       0, "Memory",       "match pairs"};
-            case 2:  return LauncherEntry{EntryKind::Math,         0, "Math",         "add & subtract"};
-            case 3:  return LauncherEntry{EntryKind::Multiplication,0,"Multiply",     "times tables"};
-            case 4:  return LauncherEntry{EntryKind::Time,         0, "Time",         "read clock"};
-            case 5:  return LauncherEntry{EntryKind::WhackAMole,   0, "Whack",        "tap smiles"};
-            case 6:  return LauncherEntry{EntryKind::Simon,        0, "Simon",        "repeat colors"};
-            case 7:  return LauncherEntry{EntryKind::Sudoku,       0, "Sudoku",       "2x2 to 6x6"};
-            case 8:  return LauncherEntry{EntryKind::ShapeColor,   0, "Shapes",       "match color"};
-            case 9:  return LauncherEntry{EntryKind::Counting,     0, "Counting",     "tap number"};
-            case 10: return LauncherEntry{EntryKind::Money,        0, "Money",        "count coins"};
-            case 11: return LauncherEntry{EntryKind::Fractions,    0, "Fractions",    "pie slices"};
-            case 12: return LauncherEntry{EntryKind::Maze,         0, "Maze",         "drag dot"};
-            case 13: return LauncherEntry{EntryKind::Sort,         0, "Sorting",      "order nums"};
-            case 14: return LauncherEntry{EntryKind::ColorMix,     0, "Color Mix",    "mix colors"};
-            case 15: return LauncherEntry{EntryKind::SlidingPuzzle,0, "Slide",        "number puzzle"};
-            case 16: return LauncherEntry{EntryKind::OddOneOut,    0, "Odd One",      "find different"};
-            case 17: return LauncherEntry{EntryKind::ObjectAdd,    0, "Shape Arith",  "add & subtract"};
-            case 18: return LauncherEntry{EntryKind::FingerCount,  0, "Fingers",      "count on hands"};
-            case 19: return LauncherEntry{EntryKind::Sequence,     0, "Calendar",     "days & months"};
-            case 20: return LauncherEntry{EntryKind::NumberLine,   0, "Number Line",  "jump to number"};
-            case 21: return LauncherEntry{EntryKind::Geo,          0, "Countries",    "maps & continents"};
-            case 22: return LauncherEntry{EntryKind::Flag,         0, "Flags",        "guess the flag"};
-            case 23: return LauncherEntry{EntryKind::Settings,     0, "Settings",     "device prefs"};
-            case 24: return LauncherEntry{EntryKind::WiFi,         0, "Wi-Fi",        "network & time"};
-            default: return LauncherEntry{EntryKind::About,        0, "About",        "company info"};
+        if (raw < GAME_CATALOG_COUNT) {
+            return LauncherEntry{CATALOG_KINDS[raw], 0,
+                                 GAME_CATALOG[raw].title, GAME_CATALOG[raw].subtitle};
+        }
+        switch (static_cast<uint8_t>(raw - GAME_CATALOG_COUNT)) {
+            case 0:  return LauncherEntry{EntryKind::Scores,   0, "Scores",   "best & worst"};
+            case 1:  return LauncherEntry{EntryKind::Settings, 0, "Settings", "device prefs"};
+            case 2:  return LauncherEntry{EntryKind::WiFi,     0, "Wi-Fi",    "network & time"};
+            default: return LauncherEntry{EntryKind::About,    0, "About",    "company info"};
         }
     }
 
@@ -532,8 +548,11 @@ private:
             case EntryKind::NumberLine:
                 activeGame_ = &numberLine_;
                 break;
-            case EntryKind::Geo:
-                activeGame_ = &geo_;
+            case EntryKind::States:
+                activeGame_ = &states_;
+                break;
+            case EntryKind::Scores:
+                activeGame_ = &scores_;
                 break;
             case EntryKind::Flag:
                 activeGame_ = &flag_;
@@ -711,18 +730,24 @@ private:
                 }
                 tft.fillCircle(cx + 7, cy - 4, 5, Ui::rgb(255, 246, 178));
                 break;
-            case EntryKind::Geo:
-                tft.fillCircle(cx, cy, 15, Ui::rgb(120, 200, 255));
-                tft.fillEllipse(cx - 4, cy - 5, 7, 4, Ui::rgb(80, 190, 110));
-                tft.fillEllipse(cx + 6, cy + 3, 6, 5, Ui::rgb(80, 190, 110));
-                tft.fillEllipse(cx - 7, cy + 7, 4, 3, Ui::rgb(80, 190, 110));
-                tft.drawCircle(cx, cy, 15, TFT_WHITE);
-                break;
             case EntryKind::Flag:
                 tft.drawFastVLine(cx - 12, cy - 15, 30, TFT_WHITE);
                 tft.fillRect(cx - 11, cy - 14, 24, 15, Ui::rgb(230, 90, 90));
                 tft.fillRect(cx - 11, cy - 14, 24, 5, Ui::rgb(255, 246, 178));
                 tft.drawRect(cx - 11, cy - 14, 24, 15, TFT_WHITE);
+                break;
+            case EntryKind::States:
+                tft.fillRoundRect(cx - 16, cy - 11, 32, 22, 3, Ui::rgb(60, 90, 170));
+                tft.fillRect(cx - 16, cy - 11, 14, 10, Ui::rgb(232, 232, 242));
+                tft.drawRoundRect(cx - 16, cy - 11, 32, 22, 3, TFT_WHITE);
+                break;
+            case EntryKind::Scores:
+                for (uint8_t b = 0; b < 3; ++b) {
+                    const int16_t h = static_cast<int16_t>(8 + b * 7);
+                    tft.fillRect(static_cast<int16_t>(cx - 14 + b * 10),
+                                 static_cast<int16_t>(cy + 12 - h), 8, h,
+                                 b == 2 ? Ui::rgb(255, 226, 90) : TFT_WHITE);
+                }
                 break;
             case EntryKind::About:
                 tft.fillCircle(cx, cy, 16, TFT_WHITE);
@@ -843,8 +868,8 @@ private:
         const uint8_t pages = max<uint8_t>(1, (total + pageSize - 1) / pageSize);
         if (pages > 1) {
             const int16_t pY = static_cast<int16_t>(lH - 28);
-            Ui::drawButton(tft, Rect{8, pY, 74, 24}, "Prev", launcherPage_ > 0 ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text(), false, 2);
-            Ui::drawButton(tft, Rect{static_cast<int16_t>(lW - 82), pY, 74, 24}, "Next", launcherPage_ + 1 < pages ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text(), false, 2);
+            Ui::drawPagerButton(tft, Rect{8, pY, 74, 24}, "Prev", launcherPage_ > 0);
+            Ui::drawPagerButton(tft, Rect{static_cast<int16_t>(lW - 82), pY, 74, 24}, "Next", launcherPage_ + 1 < pages);
             tft.setTextColor(Ui::text(), Ui::bg());
             tft.setTextDatum(MC_DATUM);
             tft.drawString(String(launcherPage_ + 1) + "/" + pages, lW / 2, static_cast<int16_t>(pY + 12), 2);
@@ -960,6 +985,20 @@ private:
             ssav_color_ = Ui::rgb(80, 180, 255);
         }
         
+        /* Company mark, laid out for whichever orientation the saver is in.
+         * Drawn once per frame under the ball, so it never flickers. */
+        {
+            const int16_t sw = static_cast<int16_t>(tft.width());
+            const int16_t sh = static_cast<int16_t>(tft.height());
+            tft.setTextDatum(MC_DATUM);
+            tft.setTextColor(Ui::rgb(120, 128, 150), TFT_BLACK);
+            tft.drawString("GoodTime Micro", sw / 2, static_cast<int16_t>(sh / 2 - 10), 4);
+            tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
+            tft.drawString("(C) GoodTime Micro Company",
+                           sw / 2, static_cast<int16_t>(sh / 2 + 14), 1);
+            tft.setTextDatum(TL_DATUM);
+        }
+
         // Draw court centre line
         for (int16_t y = 0; y < SCREEN_HEIGHT; y += 14) {
             tft.fillRect(SCREEN_WIDTH/2 - 1, y, 2, 8, Ui::rgb(40,40,40));
@@ -1002,8 +1041,10 @@ private:
     ObjectAddGame objectAdd_;
     FingerCountGame fingerCount_;
     SequenceGame sequence_;
+    StatesGame states_;
+    ProfileGame profile_;
+    ScoresGame scores_;
     NumberLineGame numberLine_;
-    GeoGame geo_;
     FlagGame flag_;
     AboutGame about_;
     Game* activeGame_ = nullptr;

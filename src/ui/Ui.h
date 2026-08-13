@@ -64,9 +64,20 @@ void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active);
 void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
                      const Rect& activeTab);
 
+/* Prev/Next style button that visibly disables. Several screens greyed only
+ * the fill and left the label at full strength, so a dead button still looked
+ * live; routing them all through here keeps that consistent. */
+void drawPagerButton(TFT_eSPI& tft, const Rect& r, const String& label, bool enabled);
+
 void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed = false, uint8_t font = 2);
 void drawLabel(TFT_eSPI& tft, const Rect& r, const String& text, uint16_t color, uint8_t font = 2, Align align = Align::Left);
 int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16_t color, uint8_t font = 2, Align align = Align::Left);
+/* Smooth semicircular hop from x1 to x2, peaking `height` above baseY.
+ * Plotted as short chords around a half ellipse -- drawing two straight lines
+ * to a midpoint (as the number line game did) renders a triangle, not an arc. */
+void drawHopArc(TFT_eSPI& tft, int16_t x1, int16_t x2, int16_t baseY,
+                int16_t height, uint16_t color, bool arrowAtEnd = true);
+
 void drawTriangleShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled);
 void drawStarShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled);
 

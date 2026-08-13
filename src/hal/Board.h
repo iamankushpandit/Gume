@@ -53,9 +53,29 @@ public:
 
     void beepOk();
     void beepError();
+    /* ---- Profiles -------------------------------------------------------
+     * Scores, best/worst records and spaced-repetition data are stored per
+     * child. Every key that goes through getScore/setScore/saveBestScore and
+     * loadBlob/saveBlob is transparently prefixed with the active profile, so
+     * all 22 games became per-profile without touching a single game file.
+     * Device settings (theme, layout, Wi-Fi, brightness) stay global. */
+    static constexpr uint8_t PROFILE_COUNT = 3;
+    static constexpr uint8_t PROFILE_NAME_MAX = 9;   // NAME_MAX is a POSIX macro, do not reuse it
+
+    uint8_t activeProfile();
+    void setActiveProfile(uint8_t index);
+    String profileName(uint8_t index);
+    void setProfileName(uint8_t index, const String& name);
+
+    /** Wipe every stored setting, score and credential, then reboot. */
+    void factoryReset();
+
     uint32_t getScore(const char* key, uint32_t fallback = 0);
     void setScore(const char* key, uint32_t value);
     bool saveBestScore(const char* key, uint32_t value, bool lowerIsBetter);
+    /** The opposite extreme, recorded automatically alongside every best. */
+    uint32_t worstScore(const char* key, uint32_t fallback = 0);
+    bool hasScore(const char* key);
 
     /* Small binary blobs, used by engine/Progress for per-item mastery. */
     void loadBlob(const char* key, void* dst, size_t len);
@@ -63,9 +83,6 @@ public:
 
     ThemeMode themeMode();
     void setThemeMode(ThemeMode mode);
-    /* 180-degree flip on top of the current layout's base rotation, so the
-     * USB edge can be put on whichever side suits the stand. Landscape toggles
-     * between rotation 1 and 3, portrait between 0 and 2. */
     /* Backlight brightness as a percentage. The floor is deliberately well
      * above zero: at very low duty the panel is unreadable, and a child who
      * dragged it to the bottom would have no way to see the control to undo
@@ -74,9 +91,6 @@ public:
     uint8_t brightness();
     void setBrightness(uint8_t percent);
     void applyBrightness();
-
-    bool screenFlipped();
-    void setScreenFlipped(bool flipped);
 
     LayoutMode layoutMode();
     void setLayoutMode(LayoutMode mode);
@@ -183,6 +197,7 @@ private:
     String wifiPassCache_;
     bool wifiCacheLoaded_ = false;
     void loadWifiCache();
+    String scopedKey(const char* key);   // "p0_" + key, per active profile
 
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;

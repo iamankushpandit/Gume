@@ -383,13 +383,9 @@ void WifiGame::render(GameHost& host) {
         }
 
         const uint8_t pages = static_cast<uint8_t>((n + 4) / 5);
-        Ui::drawButton(tft, Rect{8, 208, 90, 26}, "Prev",
-                       zonePage_ > 0 ? Ui::panel() : Ui::surface(), Ui::outline(),
-                       zonePage_ > 0 ? Ui::text() : Ui::muted(), false, 2);
+        Ui::drawPagerButton(tft, Rect{8, 208, 90, 26}, "Prev", zonePage_ > 0);
         Ui::drawButton(tft, Rect{106, 208, 108, 26}, "Cancel", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-        Ui::drawButton(tft, Rect{222, 208, 90, 26}, "Next",
-                       zonePage_ + 1 < pages ? Ui::panel() : Ui::surface(), Ui::outline(),
-                       zonePage_ + 1 < pages ? Ui::text() : Ui::muted(), false, 2);
+        Ui::drawPagerButton(tft, Rect{222, 208, 90, 26}, "Next", zonePage_ + 1 < pages);
 
     } else if (phase_ == Phase::Scanning) {
 
@@ -446,9 +442,9 @@ void WifiGame::render(GameHost& host) {
             }
         }
         const uint8_t pages = max<uint8_t>(1, (netCount_ + 4) / 5);
-        Ui::drawButton(tft, Rect{8, 206, 84, 26}, "Prev", listPage_ > 0 ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text());
+        Ui::drawPagerButton(tft, Rect{8, 206, 84, 26}, "Prev", listPage_ > 0);
         Ui::drawButton(tft, Rect{104, 206, 112, 26}, "Back", Ui::panel(), Ui::outline(), Ui::text());
-        Ui::drawButton(tft, Rect{228, 206, 84, 26}, "Next", listPage_ + 1 < pages ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text());
+        Ui::drawPagerButton(tft, Rect{228, 206, 84, 26}, "Next", listPage_ + 1 < pages);
 
     } else if (phase_ == Phase::Keyboard) {
         const char (*keys)[11] = symbols_ ? KEYS_SYMBOL

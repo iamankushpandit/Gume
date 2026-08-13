@@ -74,7 +74,7 @@ void AboutGame::render(GameHost& host) {
         drawLine(tft, 108, String("Version ") + GOODTIME_KIDS_VERSION, 2);
         drawLine(tft, 134, String(GAME_CATALOG_COUNT) + " games built in", 2);
         tft.setTextColor(Ui::muted(), Ui::surface());
-        drawLine(tft, 158, "195 flags and 191 country maps,", 1);
+        drawLine(tft, 158, "195 flags and 50 US states,", 1);
         drawLine(tft, 172, "all stored on the device.", 1);
 
     } else if (page_ < PAGE_CREDITS) {
@@ -98,17 +98,15 @@ void AboutGame::render(GameHost& host) {
         drawLine(tft, 48, "Artwork credits", 2);
         tft.setTextColor(Ui::muted(), Ui::surface());
         drawLine(tft, 74, "Flags: lipis/flag-icons (MIT).", 1);
-        drawLine(tft, 90, "Maps: mapsicon by David Jaiss,", 1);
-        drawLine(tft, 104, "used with attribution. Not for", 1);
-        drawLine(tft, 118, "resale.", 1);
-        drawLine(tft, 138, "Capitals: mledoze/countries.", 1);
+        drawLine(tft, 90, "Capitals: mledoze/countries.", 1);
+        drawLine(tft, 104, "US state data is public domain.", 1);
         tft.setTextColor(Ui::text(), Ui::surface());
         drawLine(tft, 162, "Wi-Fi is used only for the clock.", 1);
         drawLine(tft, 176, "No accounts, no tracking.", 1);
     }
 
-    Ui::drawButton(tft, prevRect(), "Prev", page_ > 0 ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, nextRect(), "Next", page_ + 1 < PAGE_COUNT ? Ui::panel() : Ui::surface(), Ui::outline(), Ui::text(), false, 2);
+    Ui::drawPagerButton(tft, prevRect(), "Prev", page_ > 0);
+    Ui::drawPagerButton(tft, nextRect(), "Next", page_ + 1 < PAGE_COUNT);
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
     tft.drawString(String(page_ + 1) + "/" + PAGE_COUNT, SCREEN_WIDTH / 2, 220, 2);

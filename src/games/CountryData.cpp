@@ -37,7 +37,9 @@ const char* continentName(uint8_t continent) {
  * outline, so the geography game must skip them. */
 static bool qualifies(const CountryFact& f, uint8_t maxTier, bool needsMap) {
     if (f.tier > maxTier) return false;
-    if (needsMap) return mnf_map(f.iso2) != nullptr;
+    /* Outlines were removed for licensing reasons, so needsMap can never be
+     * satisfied. Kept in the signature so callers do not all have to change. */
+    if (needsMap) return false;
     return mnf_flag(f.iso2) != nullptr;
 }
 

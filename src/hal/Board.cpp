@@ -353,33 +353,92 @@ void Board::beepError() {
     beep(220, 120);
 }
 
+uint8_t Board::activeProfile() {
+    const uint8_t v = prefs_.getUChar("profile", 0);
+    return v < PROFILE_COUNT ? v : 0;
+}
+
+void Board::setActiveProfile(uint8_t index) {
+    if (index >= PROFILE_COUNT) index = 0;
+    prefs_.putUChar("profile", index);
+}
+
+String Board::profileName(uint8_t index) {
+    if (index >= PROFILE_COUNT) index = 0;
+    char key[8];
+    snprintf(key, sizeof(key), "pname%u", index);
+    const String stored = prefs_.isKey(key) ? prefs_.getString(key, "") : String();
+    if (stored.length() > 0) return stored;
+    return String("Kid ") + static_cast<int>(index + 1);
+}
+
+void Board::setProfileName(uint8_t index, const String& name) {
+    if (index >= PROFILE_COUNT) return;
+    char key[8];
+    snprintf(key, sizeof(key), "pname%u", index);
+    prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
+}
+
+String Board::scopedKey(const char* key) {
+    // NVS keys cap at 15 chars; the longest game key is 10, so "pN_" fits.
+    return String("p") + static_cast<int>(activeProfile()) + "_" + key;
+}
+
+void Board::factoryReset() {
+    Serial.println("[reset] erasing all stored data");
+    prefs_.clear();
+    prefs_.end();
+    delay(50);
+    ESP.restart();
+}
+
 uint32_t Board::getScore(const char* key, uint32_t fallback) {
-    return prefs_.getUInt(key, fallback);
+    return prefs_.getUInt(scopedKey(key).c_str(), fallback);
 }
 
 void Board::setScore(const char* key, uint32_t value) {
-    prefs_.putUInt(key, value);
+    prefs_.putUInt(scopedKey(key).c_str(), value);
 }
 
 bool Board::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
+    const String k = scopedKey(key);
     const uint32_t missing = lowerIsBetter ? UINT32_MAX : 0;
-    const uint32_t current = prefs_.getUInt(key, missing);
+    const uint32_t current = prefs_.getUInt(k.c_str(), missing);
     const bool shouldSave = lowerIsBetter ? value < current : value > current;
     if (shouldSave) {
-        prefs_.putUInt(key, value);
+        prefs_.putUInt(k.c_str(), value);
+    }
+
+    /* Track the opposite extreme too, so the Scores screen can show a range
+     * without every game having to record it. */
+    const String wk = k + "W";
+    const uint32_t wMissing = lowerIsBetter ? 0 : UINT32_MAX;
+    const uint32_t wCurrent = prefs_.getUInt(wk.c_str(), wMissing);
+    const bool saveWorst = lowerIsBetter ? value > wCurrent : value < wCurrent;
+    if (saveWorst) {
+        prefs_.putUInt(wk.c_str(), value);
     }
     return shouldSave;
 }
 
+uint32_t Board::worstScore(const char* key, uint32_t fallback) {
+    return prefs_.getUInt((scopedKey(key) + "W").c_str(), fallback);
+}
+
+bool Board::hasScore(const char* key) {
+    return prefs_.isKey(scopedKey(key).c_str());
+}
+
 void Board::loadBlob(const char* key, void* dst, size_t len) {
+    const String k = scopedKey(key);
     // isKey() first so a first run does not log an NVS "not found" error.
-    if (!prefs_.isKey(key)) return;
-    if (prefs_.getBytesLength(key) != len) return;   // size changed: start over
-    prefs_.getBytes(key, dst, len);
+    if (!prefs_.isKey(k.c_str())) return;
+    if (prefs_.getBytesLength(k.c_str()) != len) return;   // size changed: start over
+    prefs_.getBytes(k.c_str(), dst, len);
 }
 
 void Board::saveBlob(const char* key, const void* src, size_t len) {
-    prefs_.putBytes(key, src, len);
+    prefs_.putBytes(scopedKey(key).c_str(), src, len);
 }
 
 Board::ThemeMode Board::themeMode() {
@@ -420,14 +479,6 @@ void Board::applyBrightness() {
     }
     // Backlight is active high on this board, so duty maps straight through.
     ledcWrite(BL_CHANNEL, (brightness() * 255) / 100);
-}
-
-bool Board::screenFlipped() {
-    return prefs_.getBool("scrFlip", false);
-}
-
-void Board::setScreenFlipped(bool flipped) {
-    prefs_.putBool("scrFlip", flipped);
 }
 
 Board::LayoutMode Board::layoutMode() {

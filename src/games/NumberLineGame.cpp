@@ -122,12 +122,9 @@ void NumberLineGame::render(GameHost& host) {
             const uint8_t from = isAdd_ ? n1_ + step : n1_ - step;
             const uint8_t to   = isAdd_ ? from + 1   : from - 1;
             const int16_t x1 = numToX(from), x2 = numToX(to);
-            const int16_t mx = (x1 + x2) / 2;
-            tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
-            tft.setTextDatum(MC_DATUM);
-            tft.drawString(isAdd_ ? "~>" : "<~", mx, static_cast<int16_t>(lineY - 22), 1);
-            tft.drawLine(x1, lineY, mx, static_cast<int16_t>(lineY - 16), Ui::rgb(255, 200, 0));
-            tft.drawLine(mx, static_cast<int16_t>(lineY - 16), x2, lineY, Ui::rgb(255, 200, 0));
+            // Real semicircular hop. This used to be two straight lines meeting
+            // at a midpoint, which drew a triangle rather than an arc.
+            Ui::drawHopArc(tft, x1, x2, lineY, 20, Ui::rgb(255, 200, 0));
         }
     }
 
