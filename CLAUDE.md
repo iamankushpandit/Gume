@@ -150,9 +150,36 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Two diagnostic environments exist for hardware triage:
-- `pio run -e bringup` — full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
-- `pio run -e wifidiag` — builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
+Five environments, because the 2.8-inch CYD ships with two different panel
+controllers on an otherwise identical board:
+
+| Env | What it is |
+|---|---|
+| `app` | the console, ILI9341 panel (single-USB board) — the default |
+| `app_st7789` | the console, ST7789 panel (two-USB board, a.k.a. CYD2USB) |
+| `bringup` | `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app, ILI9341 |
+| `bringup_st7789` | the same check for the ST7789 panel |
+| `wifidiag` | builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test. No display code, so one build serves both panels |
+
+### The panel matrix
+
+Only the **2.8-inch ESP32-2432S028R** is supported, in both its revisions. They
+share every GPIO; the difference is `[panel_ili9341]` vs `[panel_st7789]` in
+`platformio.ini` (driver, `TFT_RGB_ORDER`, inversion, `BOARD_NAME`). Adding a
+panel means a `[panel_*]` section, two envs, and an entry in `BOARDS` in
+`tools/gen_site.py` — nothing else, and **no** pin changes.
+
+**Only the ILI9341 board has ever been powered on.** Everything else is
+compiled against a published pin map, and the site labels it untested per
+board. Do not quietly promote a board to tested; that claim is about hardware
+someone else is holding.
+
+`ESP32-2432S024R` (2.4-inch) is deliberately excluded and is not a flag change:
+its XPT2046 **shares the display SPI bus**, which `Board::pollTouch()` cannot
+do — it bit-bangs dedicated pins — plus the backlight moves to GPIO 27 and
+GPIO 34 is a light sensor where this board has its battery divider. The
+3.5-inch boards need the 320×240 canvas letterboxed, and the S3 boards are a
+second HAL port.
 
 ### Build gotchas
 
@@ -420,11 +447,13 @@ resulting `.bin` files beside the manifest that points at them. Nobody
 regenerates it by hand, so it cannot go stale on its own — but three things
 break it, and all three fail in someone else's browser rather than here:
 
-1. **Adding or renaming a PlatformIO environment.** The page offers one
-   firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
-   build that env, its manifest points at binaries that do not exist and the
-   flash fails partway. `check_docs.py` cross-checks `VARIANTS` against
-   `platformio.ini` and the workflow.
+1. **Adding a board or a firmware.** The picker is the cross product of
+   `BOARDS` and `VARIANTS` in `gen_site.py`, and CI builds exactly what
+   `gen_site.py --print-envs` reports, so one edit covers page and build. What
+   still bites: an env named there that `platformio.ini` does not define, which
+   `check_docs.py` catches. Every board carries a `tested` flag, and an
+   untested one must say so in the picker -- that is checked too, because it is
+   a claim about hardware nobody here is holding.
 2. **Changing what the firmware transmits or stores.** The page carries a
    privacy section, and the same rule applies to it as to the About radio page
    and the README: a privacy claim that has drifted from the hardware is worse

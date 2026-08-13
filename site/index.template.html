@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GoodTime Kids &mdash; {{GAME_COUNT}}-game console firmware for the ESP32</title>
-<meta name="description" content="GoodTime Kids is open ESP32 firmware: {{GAME_COUNT}} educational games for young children on a {{BOARD}} touchscreen board. Flash it from this page.">
+<meta name="description" content="GoodTime Kids is open ESP32 firmware: {{GAME_COUNT}} educational games for young children on a 2.8-inch ESP32 cheap yellow display. Flash it from this page.">
 <style>
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #14181d;
@@ -91,13 +91,13 @@ footer {
   <h1>GoodTime Kids</h1>
   <p class="tag">
     A {{GAME_COUNT}}-game educational console for young children, running as open
-    firmware on a {{BOARD}} touchscreen board. No accounts, no telemetry, no SD
-    card &mdash; every game is baked into flash.
+    firmware on the ESP32 "cheap yellow display" touchscreen boards. No accounts,
+    no telemetry, no SD card &mdash; every game is baked into flash.
   </p>
   <div class="badges">
     <span class="badge">v{{VERSION}}</span>
     <span class="badge">{{GAME_COUNT}} games</span>
-    <span class="badge">ESP32 &middot; {{BOARD}}</span>
+    <span class="badge">ESP32 &middot; CYD 2.8&Prime;</span>
     <span class="badge">Flash {{FLASH}}</span>
     <span class="badge">RAM {{RAM}}</span>
   </div>
@@ -141,6 +141,17 @@ footer {
 {{VARIANT_OPTIONS}}
         </select>
       </div>
+    </div>
+
+    <p id="board-note" class="note"></p>
+    <div id="untested" class="warn" hidden>
+      <b>This board has never been run.</b> The firmware was written on, and only
+      ever tested on, the single-USB ILI9341 board. This build is compiled
+      against that board's published pin map and has not been powered on here.
+      It may show wrong colours, a blank screen, misplaced touch, or not boot at
+      all. Flash it only if you are willing to recover the board yourself, and
+      please <a id="report-link" href="{{REPO}}/issues">open an issue</a> saying
+      whether it worked &mdash; that is the only way it stops being untested.
     </div>
 
     <p id="variant-note"></p>
@@ -188,9 +199,10 @@ footer {
       <tr>
         <th style="width:26%">Board</th>
         <td>
-          <b>{{BOARD}}</b> (ESP32-32E, sold as a 2.8-inch "cheap yellow display"):
-          ILI9341 320&times;240 panel, XPT2046 <b>resistive</b> touch, 4 MB flash,
-          no PSRAM, onboard single-cell Li-ion charging.
+          A 2.8-inch ESP32 "cheap yellow display": 240&times;320 panel, XPT2046
+          <b>resistive</b> touch, 4 MB flash, no PSRAM, onboard single-cell
+          Li-ion charging. Both panel revisions are built here &mdash;
+{{BOARD_TABLE}}
         </td>
       </tr>
       <tr>
@@ -207,10 +219,14 @@ footer {
       </tr>
     </table>
     <p class="note" style="margin-bottom:0">
-      Other ESP32 boards will accept the binary, but the pin map, the screen
-      rotation and the touch controller are compiled in for this one, so a
-      different board most likely gives you a blank screen. Build from source
-      with your own pins in <code>include/BoardConfig.h</code> instead.
+      Other CYD sizes are <b>not</b> covered. The 2.4-inch ESP32-2432S024R looks
+      like a close relative and is not one: its touch controller shares the
+      display's SPI bus, its backlight is on GPIO&nbsp;27, and GPIO&nbsp;34 is a
+      light sensor rather than a battery divider &mdash; this firmware
+      bit-bangs dedicated touch pins, so it needs driver work, not a flag. The
+      3.5-inch and ESP32-S3 boards differ more still. Any other board will
+      accept the binary and most likely show you a blank screen; build from
+      source with your own pins in <code>include/BoardConfig.h</code> instead.
     </p>
   </div>
 </section>
@@ -260,8 +276,44 @@ footer {
   </div>
 </section>
 
+<section id="risk">
+  <h2>Use at your own risk</h2>
+  <div class="card">
+    <p style="margin-top:0">
+      This is an open-source hobby project, published so that people can read it,
+      build it and run it. It is <b>not a product</b>, and flashing it is
+      something you choose to do to your own hardware.
+    </p>
+    <ul class="tight">
+      <li><b>No warranty of any kind.</b> The software is provided "as is",
+        without warranty express or implied, including but not limited to
+        merchantability, fitness for a particular purpose and non-infringement.
+        Nothing here is a guarantee that it works, that it keeps working, or
+        that it does what this page says.</li>
+      <li><b>You accept the risk.</b> Flashing overwrites whatever is on the
+        board. It can leave a device unusable until you re-flash it, and on a
+        board this firmware has never been run on it may not work at all. You
+        are responsible for your hardware and for anything connected to it,
+        including the battery.</li>
+      <li><b>No liability.</b> To the maximum extent permitted by law, the
+        authors and contributors are not liable for any claim, damages, data
+        loss, hardware damage or other liability arising from the software or
+        its use.</li>
+      <li><b>It is a toy, not a safety device.</b> Children using it should be
+        supervised as they would be with any battery-powered electronics.</li>
+    </ul>
+    <p style="margin-bottom:0" class="note">
+      Transparency is the point of publishing the source: every line the device
+      runs is readable at <a href="{{REPO}}">{{REPO}}</a>, and the privacy claims
+      above are checkable against it. That transparency is not a guarantee, and
+      it is not a substitute for one.
+    </p>
+  </div>
+</section>
+
 <footer>
   GoodTime Kids v{{VERSION}} &middot; page generated {{BUILT}} &middot;
+  no warranty &mdash; <a href="#risk">use at your own risk</a> &middot;
   <a href="{{REPO}}">source on GitHub</a> &middot;
   <a href="{{REPO}}/blob/main/CHANGELOG.md">changelog</a>
 </footer>
@@ -274,22 +326,27 @@ footer {
    * and the manifest beside it; CI drops the .bin files into build.dir. */
   var BUILDS = {{BUILDS_JSON}};
 
-  var boardSel  = document.getElementById('board');
+  var boardSel   = document.getElementById('board');
   var variantSel = document.getElementById('variant');
-  var note      = document.getElementById('variant-note');
-  var links     = document.getElementById('download-links');
-  var installer = document.getElementById('installer');
+  var note       = document.getElementById('variant-note');
+  var boardNote  = document.getElementById('board-note');
+  var untested   = document.getElementById('untested');
+  var links      = document.getElementById('download-links');
+  var installer  = document.getElementById('installer');
 
   function apply() {
     var build = null;
     for (var i = 0; i < BUILDS.length; i++) {
-      if (BUILDS[i].board === boardSel.value && BUILDS[i].env === variantSel.value) {
+      if (BUILDS[i].board === boardSel.value &&
+          BUILDS[i].variant === variantSel.value) {
         build = BUILDS[i];
         break;
       }
     }
     if (!build) return;
     note.textContent = build.note;
+    boardNote.textContent = build.boardNote;
+    untested.hidden = build.tested;
     installer.setAttribute('manifest', build.manifest);
     links.innerHTML = 'Files for this build: ' + build.parts.map(function (part) {
       return '<a href="' + build.dir + '/' + part + '" download>' + part + '</a>';

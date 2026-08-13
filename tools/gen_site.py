@@ -5,10 +5,14 @@ The page is *derived*, for the same reason the About app is: a hand-written
 copy of the game list fell six games behind once already, and a landing page is
 even easier to forget than a screen you look at while holding the device. So
 nothing here is typed twice -- the version comes from AppVersion.h, the games
-and their blurbs from GAME_CATALOG, the build figures from README.md, the board
-name and the firmware environments from platformio.ini.
+and their blurbs from GAME_CATALOG, the build figures from README.md.
+
+The board and firmware matrix lives in BOARDS and VARIANTS below, and CI asks
+for it with --print-envs rather than keeping a second copy, so adding a board
+in one place is enough to get it built, published and offered on the page.
 
     python tools/gen_site.py [--out DIR] [--repo URL]
+    python tools/gen_site.py --print-envs
 
 Writes, into DIR (default `site/_build`, which is not committed):
 
@@ -40,19 +44,19 @@ PARTS = (
     ("firmware.bin",   0x10000),
 )
 
-# One entry per PlatformIO environment offered on the page. `label` is what the
-# picker shows; `note` is the sentence under it, and has to be honest about
-# what the diagnostic builds do -- they replace the games entirely.
+# One entry per firmware the picker offers. `label` is what it shows; `note` is
+# the sentence under it, and has to be honest about what the diagnostic builds
+# do -- they replace the games entirely.
 VARIANTS = (
     {
-        "env": "app",
+        "id": "app",
         "label": "GoodTime Kids (the games)",
         "name": "GoodTime Kids",
         "note": "The full console: {count} games, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon. This is the one you want.",
     },
     {
-        "env": "bringup",
+        "id": "bringup",
         "label": "Bring-up diagnostic (display + touch check)",
         "name": "GoodTime Kids bring-up diagnostic",
         "note": "Diagnostic build, not the console. Draws a display and touch "
@@ -61,24 +65,44 @@ VARIANTS = (
                 "fault from a software one.",
     },
     {
-        "env": "wifidiag",
+        "id": "wifidiag",
         "label": "Wi-Fi radio diagnostic",
         "name": "GoodTime Kids Wi-Fi diagnostic",
         "note": "Diagnostic build, not the console. The radio test compiled "
                 "alone, with no display, touch or game code that could "
                 "interfere; it scans for networks and reports over serial at "
-                "115200 baud.",
+                "115200 baud. No display code, so one build serves every panel.",
     },
 )
 
-# The pin map, screen rotation and touch controller are compile-time constants,
-# so a build is only meaningful on the board it was compiled for. One entry.
+# The panel controller and the pin map are compile-time constants, so a build is
+# only meaningful on the board it was compiled for. `envs` maps a firmware id to
+# the PlatformIO environment that produces it for this board -- wifidiag has no
+# display code, so every board points at the same one.
+#
+# `tested` is not decoration. Only the E32R28T-1 has ever been run; everything
+# else is compiled against a published pin map and never powered on here, and
+# the page says so per board rather than in fine print.
 BOARDS = (
     {
         "id": "e32r28t1",
-        "label": "E32R28T-1 / ESP32-32E -- 2.8 inch ILI9341 + XPT2046 (resistive)",
+        "label": "ESP32-2432S028R, single micro-USB (ILI9341) -- 2.8 inch, resistive",
         "chip": "ESP32",
-        "envs": ("app", "bringup", "wifidiag"),
+        "tested": True,
+        "aka": "Sold as E32R28T-1 / ESP32-32E. The board this firmware was "
+               "written on and the only one it has been run on.",
+        "envs": {"app": "app", "bringup": "bringup", "wifidiag": "wifidiag"},
+    },
+    {
+        "id": "cyd2usb",
+        "label": "ESP32-2432S028R, micro-USB + USB-C (ST7789) -- 2.8 inch, resistive",
+        "chip": "ESP32",
+        "tested": False,
+        "aka": "The later two-USB revision, often called v2/v3 or CYD2USB. Same "
+               "board, same GPIOs, different panel controller: ST7789 with BGR "
+               "colour order and inversion off.",
+        "envs": {"app": "app_st7789", "bringup": "bringup_st7789",
+                 "wifidiag": "wifidiag"},
     },
 )
 
@@ -103,11 +127,6 @@ def find(pattern, text, what, flags=0):
 def version():
     return find(r'GOODTIME_KIDS_VERSION\s+"([^"]+)"',
                 read("include", "AppVersion.h"), "the version").group(1)
-
-
-def board_name():
-    return find(r'BOARD_NAME=\\"([^\\"]+)\\"',
-                read("platformio.ini"), "BOARD_NAME").group(1)
 
 
 def games():
@@ -162,16 +181,65 @@ def manifest_for(board, variant, release):
     }
 
 
+def environments():
+    """Every PlatformIO environment the site needs, deduplicated.
+
+    CI asks for this rather than keeping its own list, so adding a board here
+    is enough to get it built and published.
+    """
+    seen = []
+    for target in BOARDS:
+        for env in target["envs"].values():
+            if env not in seen:
+                seen.append(env)
+    return seen
+
+
+def plan(out, release, game_count):
+    """Write one manifest per (board, firmware) and describe them for the page."""
+    variants = {entry["id"]: entry for entry in VARIANTS}
+    builds = []
+    for target in BOARDS:
+        for variant_id, env in target["envs"].items():
+            if variant_id not in variants:
+                die("board %s offers firmware '%s', which is not in VARIANTS"
+                    % (target["id"], variant_id))
+            variant = variants[variant_id]
+            directory = "firmware/%s/%s" % (target["id"], variant_id)
+            os.makedirs(os.path.join(out, *directory.split("/")))
+            with open(os.path.join(out, *(directory.split("/") + ["manifest.json"])),
+                      "w", encoding="utf-8") as handle:
+                json.dump(manifest_for(target, variant, release), handle, indent=2)
+            builds.append({
+                "board": target["id"],
+                "variant": variant_id,
+                "env": env,
+                "dir": directory,
+                "manifest": directory + "/manifest.json",
+                "note": variant["note"].format(count=game_count),
+                "boardNote": target["aka"],
+                "tested": bool(target["tested"]),
+                "parts": [name for name, _ in PARTS],
+            })
+    return builds
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=os.path.join(ROOT, "site", "_build"),
                         help="output directory (default: site/_build)")
     parser.add_argument("--repo", default="https://github.com/iamankushpandit/Gume",
                         help="repository URL used in the footer links")
+    parser.add_argument("--print-envs", action="store_true",
+                        help="print the PlatformIO environments the site needs, "
+                             "one per line, and exit. CI builds exactly these.")
     args = parser.parse_args()
 
+    if args.print_envs:
+        print("\n".join(environments()))
+        return 0
+
     release = version()
-    board = board_name()
     catalog = games()
     flash, ram = build_figures()
 
@@ -180,43 +248,34 @@ def main():
         shutil.rmtree(out)
     os.makedirs(out)
 
-    variants = {entry["env"]: entry for entry in VARIANTS}
-    builds = []
-    for target in BOARDS:
-        for env in target["envs"]:
-            if env not in variants:
-                die("board %s offers env '%s', which is not in VARIANTS"
-                    % (target["id"], env))
-            variant = variants[env]
-            directory = "firmware/%s/%s" % (target["id"], env)
-            os.makedirs(os.path.join(out, *directory.split("/")))
-            with open(os.path.join(out, *(directory.split("/") + ["manifest.json"])),
-                      "w", encoding="utf-8") as handle:
-                json.dump(manifest_for(target, variant, release), handle, indent=2)
-            builds.append({
-                "board": target["id"],
-                "env": env,
-                "dir": directory,
-                "manifest": directory + "/manifest.json",
-                "note": variant["note"].format(count=len(catalog)),
-                "parts": [name for name, _ in PARTS],
-            })
+    builds = plan(out, release, len(catalog))
+    # CI reads this to know which build directory each environment feeds, so
+    # the workflow never keeps a second copy of the board list.
+    with open(os.path.join(out, "builds.json"), "w", encoding="utf-8") as handle:
+        json.dump(builds, handle, indent=2)
 
     board_options = "\n".join(
-        '          <option value="%s">%s</option>' % (t["id"], escape(t["label"]))
+        '          <option value="%s">%s%s</option>'
+        % (t["id"], escape(t["label"]), "" if t["tested"] else " [untested]")
         for t in BOARDS)
     variant_options = "\n".join(
-        '          <option value="%s">%s</option>' % (v["env"], escape(v["label"]))
+        '          <option value="%s">%s</option>' % (v["id"], escape(v["label"]))
         for v in VARIANTS)
     game_rows = "\n".join(
         "    <div><b>%s</b> &mdash; <span>%s</span></div>"
         % (escape(title), escape(blurb)) for title, blurb in catalog)
+    board_table = "\n".join(
+        "          <br><b>%s</b>%s<br><span class=\"note\">%s</span>"
+        % (escape(t["label"]),
+           "" if t["tested"] else " &mdash; <b>untested</b>",
+           escape(t["aka"]))
+        for t in BOARDS)
 
     page = read("site", "index.template.html")
     for key, value in (
         ("{{VERSION}}", release),
         ("{{GAME_COUNT}}", str(len(catalog))),
-        ("{{BOARD}}", escape(board)),
+        ("{{BOARD_TABLE}}", board_table),
         ("{{FLASH}}", escape(flash)),
         ("{{RAM}}", escape(ram)),
         ("{{BOARD_OPTIONS}}", board_options),

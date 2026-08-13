@@ -242,11 +242,13 @@ resulting `.bin` files beside the manifest that points at them. Nobody
 regenerates it by hand, so it cannot go stale on its own — but three things
 break it, and all three fail in someone else's browser rather than here:
 
-1. **Adding or renaming a PlatformIO environment.** The page offers one
-   firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
-   build that env, its manifest points at binaries that do not exist and the
-   flash fails partway. `check_docs.py` cross-checks `VARIANTS` against
-   `platformio.ini` and the workflow.
+1. **Adding a board or a firmware.** The picker is the cross product of
+   `BOARDS` and `VARIANTS` in `gen_site.py`, and CI builds exactly what
+   `gen_site.py --print-envs` reports, so one edit covers page and build. What
+   still bites: an env named there that `platformio.ini` does not define, which
+   `check_docs.py` catches. Every board carries a `tested` flag, and an
+   untested one must say so in the picker -- that is checked too, because it is
+   a claim about hardware nobody here is holding.
 2. **Changing what the firmware transmits or stores.** The page carries a
    privacy section, and the same rule applies to it as to the About radio page
    and the README: a privacy claim that has drifted from the hardware is worse
