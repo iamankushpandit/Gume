@@ -258,6 +258,17 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
     (void)bg;
 }
 
+String fitted(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font) {
+    String out = text;
+    while (out.length() > 2 && tft.textWidth(out, font) > maxW) {
+        out.remove(out.length() - 1);
+    }
+    if (out.length() < text.length() && out.length() > 1) {
+        out.setCharAt(out.length() - 1, '.');
+    }
+    return out;
+}
+
 void drawBleBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
     (void)bg;
     /* The Bluetooth rune is one continuous stroke through six points on a

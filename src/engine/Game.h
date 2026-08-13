@@ -24,6 +24,16 @@ public:
     virtual void update(GameHost& host, const TouchPoint& touch) = 0;
     virtual void render(GameHost& host) = 0;
 
+    /* Called exactly once when the screen is left, before the next screen's
+     * begin(). Default does nothing, which is correct for the games -- they
+     * hold only their own member state and it is reset by begin().
+     *
+     * Override it if a screen acquires anything that outlives a frame: a
+     * cached buffer, a sampling cadence, a radio or file handle. Nothing here
+     * runs off a task or timer today, so nothing keeps burning cycles after
+     * you leave it; this hook exists so that stays true as screens grow. */
+    virtual void end(GameHost& host) { (void)host; }
+
     bool needsRender() const {
         return dirty_;
     }

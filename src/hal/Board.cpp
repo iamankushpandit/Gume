@@ -1,5 +1,6 @@
 #include "Board.h"
 #include "BleBeacon.h"
+#include <esp_adc_cal.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiUdp.h>
@@ -116,23 +117,92 @@ TFT_eSPI& Board::display() {
     return tft_;
 }
 
+/* Battery sensing on GPIO34.
+ *
+ * Three things here were wrong, and the middle one was costing real frame time.
+ *
+ * 1. The conversion assumed "3.3V reference with 11dB attenuation", which are
+ *    contradictory. At 11dB the ESP32's ADC is nominally 0-3.1V but only
+ *    linear to roughly 2.45V, and its reference varies 1000-1200mV part to
+ *    part. raw/4095*3.3 is therefore wrong twice over -- it ignores the
+ *    per-chip Vref and pretends a badly non-linear converter is a ruler.
+ *    esp_adc_cal uses the eFuse calibration burnt into the chip instead.
+ *
+ * 2. Every call slept 10ms (10 samples x delay(1)) and nothing was cached,
+ *    while getBatteryPercent() and getPowerSource() each sampled
+ *    independently. Drawing one top bar cost ~20ms of pure delay(), and the
+ *    System Info board tab cost ~30ms on every repaint -- which is most of a
+ *    frame, and exactly why scrolling it felt like wading. Now: no delay at
+ *    all, and one sample set shared by every accessor for BATTERY_SAMPLE_MS.
+ *    A battery does not change fast enough for anything finer to be useful.
+ *
+ * 3. Percentage was linear from 3.2V to 4.2V. A LiPo's discharge curve is
+ *    emphatically not linear -- it sits near 3.7V for most of its life -- so
+ *    a linear map reads about 20 points high through the middle. Replaced
+ *    with a piecewise curve.
+ *
+ * GPIO34 is ADC1_CH6, which matters: ADC2 is unusable while Wi-Fi is up, and
+ * this radio is up for NTP. ADC1 has no such conflict.
+ *
+ * TODO(HARDWARE-VALIDATION): the 100k/100k divider ratio is still assumed, as
+ * is the behaviour with no battery fitted. Everything above is chip-level and
+ * safe to fix blind; DIVIDER_RATIO needs a meter on the actual board. */
+namespace {
+esp_adc_cal_characteristics_t s_adcChars;
+bool s_adcCharacterised = false;
+
+/* Fallback only -- overridden by the eFuse value when one is burnt. */
+constexpr uint32_t ADC_DEFAULT_VREF_MV = 1100;
+constexpr uint8_t  BATTERY_SAMPLES = 8;
+
+/* Assumed 100k/100k divider on BAT_ADC. The one unvalidated number left. */
+constexpr float DIVIDER_RATIO = 2.0f;
+
+/* Above a charged cell's float voltage: taken as no battery fitted and the
+ * divider reading the USB rail instead. */
+constexpr float V_NO_BATTERY = 4.35f;
+/* Below a LiPo's safe floor: either deeply flat or nothing connected. */
+constexpr float V_IMPLAUSIBLE = 3.0f;
+
+/* Open-circuit LiPo discharge curve, voltage -> percent. Interpolated between
+ * points; far closer than a straight line through the flat middle. */
+struct CurvePoint { float volts; uint8_t pct; };
+constexpr CurvePoint LIPO_CURVE[] = {
+    {4.20f, 100}, {4.10f, 90}, {4.00f, 80}, {3.93f, 70}, {3.87f, 60},
+    {3.82f, 50},  {3.79f, 40}, {3.77f, 30}, {3.74f, 20}, {3.68f, 10},
+    {3.55f, 5},   {3.20f, 0},
+};
+constexpr uint8_t LIPO_CURVE_COUNT = sizeof(LIPO_CURVE) / sizeof(LIPO_CURVE[0]);
+}   // namespace
+
 Board::BatteryTelemetry Board::readBatteryTelemetry() {
-    // Read 12-bit ADC. Usually, for ESP32 default config, it's 3.3V reference 
-    // with 11dB attenuation.
-    const int numSamples = 10;
-    int adcValues = 0;
-    for (int i = 0; i < numSamples; ++i) {
-        adcValues += analogRead(PIN_BAT_ADC);
-        delay(1);
+    /* Unsigned subtraction, so the millis() rollover at ~49 days is handled
+     * without a special case. */
+    const uint32_t now = millis();
+    if (batterySampled_ && now - batterySampleMs_ < BATTERY_SAMPLE_MS) {
+        return batterySample_;
     }
+
+    if (!s_adcCharacterised) {
+        analogSetPinAttenuation(PIN_BAT_ADC, ADC_11db);
+        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12,
+                                 ADC_DEFAULT_VREF_MV, &s_adcChars);
+        s_adcCharacterised = true;
+    }
+
+    uint32_t accumulator = 0;
+    for (uint8_t i = 0; i < BATTERY_SAMPLES; ++i) {
+        accumulator += static_cast<uint32_t>(analogRead(PIN_BAT_ADC));
+    }
+
     BatteryTelemetry sample;
-    sample.rawAdc = static_cast<uint16_t>(adcValues / numSamples);
-    const float avgAdc = adcValues / static_cast<float>(numSamples);
-    // Voltage at ADC pin
-    sample.adcVoltage = (avgAdc / 4095.0f) * 3.3f;
-    // The E32R28T-1 has an assumed 100k/100k voltage divider on BAT_ADC.
-    // TODO(HARDWARE-VALIDATION): Verify E32R28T-1 battery ADC calibration, divider ratio, battery-present thresholds, no-battery behavior, USB-power behavior, and charging-state detection using physical hardware.
-    sample.batteryVoltage = sample.adcVoltage * 2.0f;
+    sample.rawAdc = static_cast<uint16_t>(accumulator / BATTERY_SAMPLES);
+    sample.adcVoltage = esp_adc_cal_raw_to_voltage(sample.rawAdc, &s_adcChars) / 1000.0f;
+    sample.batteryVoltage = sample.adcVoltage * DIVIDER_RATIO;
+
+    batterySample_ = sample;
+    batterySampleMs_ = now;
+    batterySampled_ = true;
     return sample;
 }
 
@@ -142,33 +212,45 @@ float Board::getBatteryVoltage() {
 
 Board::PowerState Board::getPowerSource() {
     const float vBat = readBatteryTelemetry().batteryVoltage;
-    if (vBat > 4.35f) {
-        // Significantly above normal single-cell LiPo range: provisionally interpret as no battery connected, external USB power.
+    if (vBat > V_NO_BATTERY) {
+        // Above any charged cell: no battery, so the divider is on USB.
         return PowerState::EXTERNAL_POWER;
-    } else if (vBat >= 3.0f && vBat <= 4.35f) {
-        // Battery present. Could be external power also attached, but we report BATTERY. 
-        // Can't reliably distinguish without charge state.
+    }
+    if (vBat >= V_IMPLAUSIBLE) {
+        /* A cell is present. It may well be charging from USB at the same
+         * time -- this board exposes no charge-status line, so the two cannot
+         * be told apart from voltage alone and we report the cell. */
         return PowerState::BATTERY;
     }
     return PowerState::UNKNOWN;
 }
 
+/* Kept separate from the power source on purpose. The old version returned
+ * false whenever the device was on external power, which reads as "no battery
+ * fitted" and is not what the caller is asking. */
 bool Board::isBatteryPresent() {
-    return getPowerSource() == PowerState::BATTERY;
+    const float vBat = readBatteryTelemetry().batteryVoltage;
+    return vBat >= V_IMPLAUSIBLE && vBat <= V_NO_BATTERY;
 }
 
 int8_t Board::getBatteryPercent() {
-    const BatteryTelemetry sample = readBatteryTelemetry();
-    if (sample.batteryVoltage < 3.0f || sample.batteryVoltage > 4.35f) {
-        return -1;
+    const float vBat = readBatteryTelemetry().batteryVoltage;
+    if (vBat < V_IMPLAUSIBLE || vBat > V_NO_BATTERY) {
+        return -1;   // no battery, or a reading we do not believe
     }
-    const float vBat = sample.batteryVoltage;
-    // Rough estimate for LiPo (3.2V to 4.2V is typical range)
-    if (vBat >= 4.2f) return 100;
-    if (vBat <= 3.2f) return 0;
-    
-    // Linear approximation
-    return static_cast<int8_t>((vBat - 3.2f) / (4.2f - 3.2f) * 100.0f);
+    if (vBat >= LIPO_CURVE[0].volts) {
+        return 100;
+    }
+    for (uint8_t i = 1; i < LIPO_CURVE_COUNT; ++i) {
+        const CurvePoint& hi = LIPO_CURVE[i - 1];
+        const CurvePoint& lo = LIPO_CURVE[i];
+        if (vBat >= lo.volts) {
+            const float span = hi.volts - lo.volts;
+            const float frac = span > 0.0f ? (vBat - lo.volts) / span : 0.0f;
+            return static_cast<int8_t>(lo.pct + frac * (hi.pct - lo.pct) + 0.5f);
+        }
+    }
+    return 0;
 }
 
 Board::ChargingState Board::getChargingState() {

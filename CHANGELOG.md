@@ -36,12 +36,43 @@
 - **System Info screen** (four tabs: board, memory, network, app state) with
   live telemetry, scrolling rows and a scroll bar.
 
+### Fixed
+
+- **Battery sensing made ~20-30ms cheaper per frame, and more honest.**
+  `getBatteryPercent()` and `getPowerSource()` each ran their own 10-sample
+  ADC conversion with a `delay(1)` between samples, and `Ui::drawTopBar()`
+  calls both -- so every top bar cost ~20ms of blocking delay and the System
+  Info board tab ~30ms per repaint. That is most of a frame, and it is what
+  made scrolling that screen feel sluggish. One cached sample set, 2s
+  lifetime, no delays, shared by every accessor.
+
+  Three wrong assumptions went with it: the conversion claimed "3.3V reference
+  with 11dB attenuation" (mutually exclusive -- at 11dB the ADC is linear only
+  to ~2.45V and its reference varies 1000-1200mV per chip, so it now goes
+  through `esp_adc_cal` and the eFuse calibration); percentage was linear from
+  3.2-4.2V, which reads ~20 points high through a LiPo's flat middle, and is
+  now a piecewise curve; and `isBatteryPresent()` returned false whenever the
+  device was on external power, which reads as "no battery fitted".
+
+  The 100k/100k divider ratio remains assumed and still wants a meter.
+
+- **System Info no longer smears text into its tab strip while scrolling.**
+  Rows entirely outside the content rect were skipped, but the row straddling
+  the top edge was still drawn in full. The row loop now clips to a viewport.
+
 ### Changed
 
-- **The launcher header no longer draws the profile-name chip.** On a 240px
-  portrait header it overlapped the clock and status badges. The rect stays
-  live as an invisible touch target, so tapping the name area still opens
-  Profiles.
+- **Screens now have an `end()` lifecycle hook**, called on every transition
+  through a single `leaveActiveGame()` funnel so no path can skip it. Nothing
+  in the firmware runs off a task or timer, so no screen keeps consuming
+  cycles after you leave it -- the hook is what keeps that true as screens
+  grow. System Info uses it to release its row list.
+
+- **The launcher header shows the profile name as plain text, not a button.**
+  The framed chip was what overlapped the clock and status badges on a 240px
+  portrait header; the name itself was wanted. In landscape it now sits after
+  the byline rather than across it. The rect is both where it draws and the
+  touch target, so the two cannot drift apart.
 
 - Settings moved to a four-row grid to fit the beacon toggle, with Reset
   spanning both columns.

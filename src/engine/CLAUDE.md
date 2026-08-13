@@ -6,6 +6,10 @@ Framework shared by every screen. No hardware access lives here except through `
 
 Defines `Game` (the screen base class) and `GameHost` (the only system handle a game gets: `board()`, `content()`, `goHome()`, `relaunchActiveGame()`, `openSettings()`, `openWifi()`, `openProfiles()`).
 
+Lifecycle is `begin()` → `update()`/`render()` per frame → `end()`. `end()` is called exactly once when the screen is replaced, before the next screen's `begin()`, and every transition in `main.cpp` funnels through `leaveActiveGame()` so no path can skip it.
+
+The default `end()` does nothing, which is right for the games — they hold only their own members and `begin()` resets those. **Override it if a screen acquires anything that outlives a frame:** a cached buffer, a sampling cadence, a radio or a file handle. Nothing runs off a task or timer today, so no screen keeps burning cycles once you leave it; the hook exists so that stays true as screens grow. `SystemInfoGame` uses it to release its row list, which holds up to 48 pairs of Arduino `String`s.
+
 Invalidation is two-level because a full 320×240 wipe is ~150 KB over SPI / ~30 ms of blanking:
 
 | Member | Access | Use |

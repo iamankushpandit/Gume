@@ -84,6 +84,10 @@ void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
 void drawPagerButton(TFT_eSPI& tft, const Rect& r, const String& label, bool enabled);
 
 void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed = false, uint8_t font = 2);
+/* Truncate `text` to fit `maxW` at `font`, ending in '.' when it was cut.
+ * Header and row values both need this; System Info had its own copy. */
+String fitted(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font);
+
 void drawLabel(TFT_eSPI& tft, const Rect& r, const String& text, uint16_t color, uint8_t font = 2, Align align = Align::Left);
 int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16_t color, uint8_t font = 2, Align align = Align::Left);
 /* Smooth semicircular hop from x1 to x2, peaking `height` above baseY.

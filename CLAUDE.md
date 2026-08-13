@@ -125,9 +125,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,254,313 / 3,145,728 bytes,
-**71.7%**, as of the BLE beacon landing; NimBLE plus the BT controller account
-for ~192 KB of that). RAM sits at 63,996 / 327,680 (19.5%). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
+Flash is global and nearly the binding constraint (2,257,165 / 3,145,728 bytes,
+**71.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 64,060 / 327,680 (19.5%). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
 ### Modularity rule
 
@@ -160,14 +160,16 @@ Views: **Profiles** (shown at boot, picks whose scores are being written) → **
 
 ### Invariants worth knowing before editing
 
-- **Every screen is a `Game`.** Settings, Wi-Fi, Profiles, Scores and About are all `Game` subclasses with the same `begin`/`update`/`render` lifecycle.
+- **Every screen is a `Game`.** Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
+- **`end()` is called on every screen change** via `KidsPlatformApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
+- **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Games never touch hardware directly.** They receive `GameHost&` and go through `host.board()`. Keep it that way.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. Just call those with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** — that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **`GameCatalogEntry::id` is a persisted NVS visibility key.** Renaming one silently resets that game's visibility on existing devices.
 - **`GAME_CATALOG` holds the 26 playable games only.** Scores / Settings / Wi-Fi / Profiles / About / System Info are appended by `KidsPlatformApp::allEntry()` at raw indices `>= GAME_CATALOG_COUNT`, are always visible, and always sort to the end of the launcher.
 - **`CATALOG_KINDS[]` in `main.cpp` must stay index-aligned with `GAME_CATALOG[]`.** Nothing enforces this; a misalignment launches the wrong game from the right tile.
-- **The launcher header has no visible profile chip, but the touch target is still there.** `launcherProfileRect()` is drawn by nothing and hit-tested by `handleLauncherTouch()`; the label overlapped the status badges on a 240px header. Don't "restore" the button, and don't delete the rect.
+- **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift — in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment — measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
@@ -196,6 +198,8 @@ Direct TFT_eSPI primitives, RGB565, no framebuffer. A full 320×240 wipe pushes 
 - `render()` should guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally.
 
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
+
+**Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough — the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
 
 Most games still repaint wholesale. Simon is the reference for partial redraw — it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 

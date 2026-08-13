@@ -74,10 +74,13 @@ Rect launcherProfileRect(Board::LayoutMode mode, int16_t lW) {
     if (mode == Board::LayoutMode::Vertical) {
         return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, lW - 46)), 20};
     }
-    const int16_t x = 104;
-    const int16_t rightLimit = static_cast<int16_t>(lW - 116);
-    const int16_t w = static_cast<int16_t>(min<int16_t>(104, max<int16_t>(72, rightLimit - x)));
-    return Rect{x, 29, w, 18};
+    /* Landscape puts the name on the byline row, to the right of the
+     * copyright rather than across it -- at x=104 the old rect started 14px
+     * before "(C) GoodTime Micro" ended. Runs up to the hairline at lW-110. */
+    const int16_t x = 124;
+    const int16_t rightLimit = static_cast<int16_t>(lW - 114);
+    const int16_t w = static_cast<int16_t>(min<int16_t>(86, max<int16_t>(52, rightLimit - x)));
+    return Rect{x, 30, w, 18};
 }
 
 Rect launcherTileRect(uint8_t slot, Board::LayoutMode mode) {
@@ -292,9 +295,19 @@ public:
         return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
     }
 
+    /* Single funnel for "the active screen is being replaced". Every
+     * transition goes through here so a screen's end() cannot be skipped by
+     * one path and honoured by another. */
+    void leaveActiveGame() {
+        if (activeGame_ != nullptr) {
+            activeGame_->end(*this);
+            activeGame_ = nullptr;
+        }
+    }
+
     void goHome() override {
         Watchdog::setContext("Launcher");
-        activeGame_ = nullptr;
+        leaveActiveGame();
         view_ = View::Launcher;
         clampLauncherPage();
         // Rotate display based on chosen layout mode
@@ -321,6 +334,7 @@ public:
         applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         Watchdog::setContext("Profiles");
         view_ = View::Profiles;
+        leaveActiveGame();
         activeGame_ = &profile_;
         profile_.begin(*this);
         profile_.render(*this);
@@ -548,6 +562,7 @@ private:
     }
 
     void launchKind(EntryKind kind) {
+        leaveActiveGame();
         switch (kind) {
             case EntryKind::TicTacToe:
                 activeGame_ = &ticTacToe_;
@@ -902,10 +917,15 @@ private:
              * The clock now sits on the second line with the gear beneath it. */
             tft.setTextDatum(MC_DATUM);
             tft.drawString("GoodTime Kids!", static_cast<int16_t>(lW / 2), 17, 4);
-            /* No visible profile chip: on a 240px-wide header it overlapped
-             * the status badges. The rect stays live as an invisible touch
-             * target, so tapping the name area still opens Profiles. */
-            (void)profileBtn;
+            /* The name, but no button chrome around it: the framed chip is
+             * what overlapped the status badges on a 240px header. Plain text
+             * in the same rect, which is still the touch target. */
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(Ui::text(), Ui::surface());
+            tft.drawString(Ui::fitted(tft, board_.profileName(board_.activeProfile()),
+                                      profileBtn.w, 2),
+                           static_cast<int16_t>(profileBtn.x + 2),
+                           static_cast<int16_t>(profileBtn.y + profileBtn.h / 2), 2);
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(Clock::timeText(), 8, 60, 2);
@@ -934,8 +954,16 @@ private:
             tft.drawString("GoodTime Kids!", 10, 16, 4);
             tft.setTextColor(Ui::muted(), Ui::surface());
             tft.drawString("(C) GoodTime Micro", 10, 38, 1);
-            // Invisible profile touch target -- see the portrait branch.
-            (void)profileBtn;
+            /* Name sits after the copyright on the byline row, at font 1 --
+             * the gap between them and the hairline is about 86px. Drawn in
+             * the text colour while the byline stays muted, so it reads as
+             * live information rather than more small print. */
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(Ui::text(), Ui::surface());
+            tft.drawString(Ui::fitted(tft, board_.profileName(board_.activeProfile()),
+                                      profileBtn.w, 1),
+                           static_cast<int16_t>(profileBtn.x),
+                           static_cast<int16_t>(profileBtn.y + profileBtn.h / 2), 1);
 
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(MR_DATUM);

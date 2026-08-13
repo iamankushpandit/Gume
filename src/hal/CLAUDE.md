@@ -44,6 +44,20 @@ Timezone is stored in **minutes** to support :30 and :45 zones, and comes from a
 
 Time/date formatting and sync-state helpers over the ESP32 RTC.
 
+## Battery sensing
+
+`PIN_BAT_ADC` is GPIO34 = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
+
+`readBatteryTelemetry()` caches one sample set for `BATTERY_SAMPLE_MS` (2s) and every other accessor — `getBatteryVoltage()`, `getPowerSource()`, `isBatteryPresent()`, `getBatteryPercent()` — reads through it. **Keep it that way.** Before this, each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. That is most of a frame, and it is what made scrolling feel sluggish.
+
+Conversion goes through `esp_adc_cal`, not `raw / 4095 * 3.3`. At 11dB the ESP32's ADC is nominally 0–3.1V but only linear to ~2.45V, and its reference varies 1000–1200mV part to part; the eFuse calibration corrects both. The old comment claiming "3.3V reference with 11dB attenuation" described two mutually exclusive things.
+
+Percentage uses a piecewise LiPo discharge curve. A linear 3.2–4.2V map reads roughly 20 points high through the middle, because a cell sits near 3.7V for most of its life.
+
+`isBatteryPresent()` is deliberately **not** `getPowerSource() == BATTERY` — the old version returned false whenever the device was on external power, which reads as "no battery fitted" and is not the question being asked.
+
+Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k) and the no-battery behaviour of the pin. The board exposes no charge-status line, so `ChargingState` stays `UNKNOWN`.
+
 ## BleBeacon.{h,cpp}
 
 Opt-in, non-connectable BLE presence beacon in namespace `BleBeacon`. Off by default; `Board::bleBeaconEnabled()` / `setBleBeaconEnabled()` hold the switch in the `cydkids` NVS namespace, so a factory reset clears it. `Board::begin()` calls `BleBeacon::begin()` which always builds the advertisement and only powers the radio when opted in.

@@ -9,6 +9,7 @@ public:
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
     void render(GameHost& host) override;
+    void end(GameHost& host) override;
 
 private:
     enum class RowKind : uint8_t {

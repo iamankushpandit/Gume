@@ -28,17 +28,6 @@ int16_t tabStripY() {
     return static_cast<int16_t>(TOP_BAR_HEIGHT + 2);
 }
 
-String fittedText(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font) {
-    String fitted = text;
-    while (fitted.length() > 2 && tft.textWidth(fitted, font) > maxW) {
-        fitted.remove(fitted.length() - 1);
-    }
-    if (fitted.length() < text.length() && fitted.length() > 1) {
-        fitted.setCharAt(fitted.length() - 1, '.');
-    }
-    return fitted;
-}
-
 String formatBytes(uint32_t bytes) {
     if (bytes >= 1024UL * 1024UL) return String(bytes / (1024.0f * 1024.0f), 1) + " MB";
     if (bytes >= 1024UL) return String(bytes / 1024.0f, 1) + " KB";
@@ -150,6 +139,21 @@ void SystemInfoGame::begin(GameHost& host) {
     }
     refreshTelemetry(true);
     markFullDirty();
+}
+
+/* Drop the row list on the way out. Each Row holds two Arduino Strings, so up
+ * to 48 of them keep heap allocated for a screen nobody is looking at. Nothing
+ * here samples in the background -- this screen never started a task or a
+ * timer -- so releasing the rows is all there is to release. */
+void SystemInfoGame::end(GameHost& host) {
+    (void)host;
+    beginRows();
+    for (uint8_t i = 0; i < MAX_ROWS; ++i) {
+        rows_[i].label = String();
+        rows_[i].value = String();
+    }
+    actionRect_ = Rect{};
+    scrolling_ = false;
 }
 
 Rect SystemInfoGame::tabRect(uint8_t idx, int16_t screenW, int16_t stripY) const {
@@ -309,13 +313,21 @@ void SystemInfoGame::drawRows(TFT_eSPI& tft, const Rect& r) {
     tft.fillRect(r.x, r.y, r.w, r.h, Ui::surface());
     actionRect_ = Rect{};   // repopulated below if an Action row is on screen
 
+    /* Hard-clip to the content rect for the whole row loop.
+     *
+     * Skipping rows that fall entirely above r.y is not enough: the row
+     * straddling the top edge is still drawn in full, so scrolling smeared
+     * half a line of text up into the tab strip. vpDatum=false keeps the
+     * coordinates below absolute, so nothing else in here has to change. */
+    tft.setViewport(r.x, r.y, r.w, r.h, false);
+
     for (uint8_t i = 0; i < rowCount_; ++i) {
         const Row& row = rows_[i];
         if (y + row.height < r.y) {
             y = static_cast<int16_t>(y + row.height);
             continue;
         }
-        if (y > r.y + r.h) break;
+        if (y > r.y + r.h) break;   // clipped anyway, but stop the work
 
         if (row.kind == RowKind::Section) {
             tft.setTextDatum(TL_DATUM);
@@ -330,7 +342,7 @@ void SystemInfoGame::drawRows(TFT_eSPI& tft, const Rect& r) {
             tft.setTextColor(Ui::muted(), Ui::surface());
             tft.drawString(row.label, labelX, y, 1);
             tft.setTextColor(row.valueColor, Ui::surface());
-            tft.drawString(fittedText(tft, row.value, static_cast<int16_t>(right - valueX), 1),
+            tft.drawString(Ui::fitted(tft, row.value, static_cast<int16_t>(right - valueX), 1),
                            valueX, y, 1);
         } else if (row.kind == RowKind::Action) {
             const Rect chip{labelX, y, static_cast<int16_t>(min<int16_t>(150, right - labelX)), 18};
@@ -344,6 +356,7 @@ void SystemInfoGame::drawRows(TFT_eSPI& tft, const Rect& r) {
     }
 
     drawScrollBar(tft, r, totalHeight);
+    tft.resetViewport();
 }
 
 void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {

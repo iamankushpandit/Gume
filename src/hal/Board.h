@@ -44,7 +44,10 @@ public:
         Light = 1,
     };
 
-    // TODO(HARDWARE-VALIDATION): Verify E32R28T-1 battery ADC calibration, divider ratio, battery-present thresholds, no-battery behavior, USB-power behavior, and charging-state detection using physical hardware.
+    /* TODO(HARDWARE-VALIDATION): the divider ratio, no-battery behaviour and
+     * USB-power behaviour still need a meter on a real board. The ADC
+     * conversion itself is no longer guesswork -- see Board.cpp. This board
+     * exposes no charge-status line, so ChargingState stays UNKNOWN. */
     enum class PowerState {
         BATTERY,
         EXTERNAL_POWER,
@@ -258,6 +261,14 @@ private:
     String scopedKey(const char* key);   // "p0_" + key, per active profile
     void logNetworkActivity(const char* fmt, ...);
     void noteTimeSyncSuccess();
+
+    /* One battery sample shared by every accessor. getPowerSource() and
+     * getBatteryPercent() are both called while drawing a single top bar, and
+     * each used to run its own blocking 10ms conversion. */
+    static constexpr uint32_t BATTERY_SAMPLE_MS = 2000;
+    BatteryTelemetry batterySample_{};
+    uint32_t batterySampleMs_ = 0;
+    bool batterySampled_ = false;
 
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;

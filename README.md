@@ -16,8 +16,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 26 |
-| Flash | 2,254,313 / 3,145,728 bytes (**71.7%**) |
-| RAM | 63,996 / 327,680 bytes (**19.5%**) |
+| Flash | 2,257,165 / 3,145,728 bytes (**71.8%**) |
+| RAM | 64,060 / 327,680 bytes (**19.5%**) |
 | Country artwork | 195 flags + 191 outlines, 1.11 MiB (49% of the image) |
 
 <p align="center">
@@ -256,6 +256,21 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   state) plus the BLE tab described below. This is a diagnostics screen, not a
   toy: chip and reset reason, heap and fragmentation, Wi-Fi throughput,
   watchdog stalls.
+
+### Battery
+
+The gauge reads GPIO34 through the board's divider, converted with the ESP32's
+own eFuse ADC calibration rather than a nominal 3.3V reference — at 11dB
+attenuation the converter is only linear to about 2.45V and its reference varies
+part to part, so the naive `raw / 4095 × 3.3` is wrong twice over.
+
+Percentage comes off a piecewise LiPo discharge curve, not a straight line: a
+cell sits near 3.7V for most of its life, so a linear map reads about 20 points
+high through the middle.
+
+The divider ratio itself is still an assumption pending a meter on the board,
+and there is no charge-status line on this hardware — so "charging" is honestly
+reported as unknown rather than guessed.
 
 ### Reliability
 
