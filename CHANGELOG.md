@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **BLE beacon.** An opt-in, non-connectable presence broadcast, off by
+  default and switched from *Settings -> Beacon*. It advertises a device name
+  (`LearnKey-<id>`) and a manufacturer-data block holding a family tag, a
+  layout version and two bytes of the factory Bluetooth MAC. 27 of the 31
+  legal payload bytes. Nothing profile-scoped is reachable from the radio path.
+
+  NimBLE rather than the core's Bluedroid stack: advertise-only needs a
+  fraction of the host, and flash is the scarce resource here. Host plus
+  controller cost ~192 KB.
+
+- **System Info BLE tab.** Shows whether advertising is currently active, the
+  advertised name, every decoded field of the manufacturer data, a privacy
+  list of what is *not* broadcast, and under *Show advanced* the interval, TX
+  power, advertising type, controller address and a hex dump of the exact
+  bytes on air.
+
+  Everything on that screen is read back from the same structure the radio was
+  configured from -- `BleBeacon::Advertisement`, compiled into a raw buffer and
+  handed to the controller verbatim. There is no second, hand-written UI
+  description of the payload, so the display and the radio cannot drift apart.
+  Contract written down in `docs/BLE_BEACON_SPEC.md`.
+
+- **Beacon badge in the launcher header.** The Bluetooth rune, drawn only
+  while the radio is genuinely advertising -- there is no greyed-out variant,
+  because "is it transmitting?" should not be a question of shade. Placed
+  per layout mode: landscape puts it on the clock's line, positioned off the
+  measured width of the clock string, because the badge row there has about
+  8px of slack; portrait simply extends the badge row.
+
+- **System Info screen** (four tabs: board, memory, network, app state) with
+  live telemetry, scrolling rows and a scroll bar.
+
+### Changed
+
+- **The launcher header no longer draws the profile-name chip.** On a 240px
+  portrait header it overlapped the clock and status badges. The rect stays
+  live as an invisible touch target, so tapping the name area still opens
+  Profiles.
+
+- Settings moved to a four-row grid to fit the beacon toggle, with Reset
+  spanning both columns.
+
+- `README.md`, `CLAUDE.md`, `AGENTS.md` and the per-directory `CLAUDE.md`
+  files brought back in sync: the game count (23 -> 26), the removed Countries
+  game, the added US States / State Flags / State Maps / Trace games,
+  profiles, the watchdog, and current flash and RAM figures.
+
 ## 2.0.1 — 2026-08-11
 
 Display and theming fixes, all reported from the device.

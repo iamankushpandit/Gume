@@ -12,6 +12,31 @@ This project keeps its guidance in **`CLAUDE.md`** files, which apply to every a
 
 **System/UI app orientation rule:** Any screen that is a system utility (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, or any future app beyond the playable game catalog) must work in **both landscape and portrait**. Read `tft.width()` / `tft.height()` at render time, not `SCREEN_WIDTH`/`SCREEN_HEIGHT`. Use `Ui::drawTab()` for multi-section layouts; the strip adapts when you divide screen width at render time.
 
+## Two standing rules — you should never have to be told these
+
+**1. No AI attribution in commits, ever.** Do not add `Co-Authored-By: Claude`,
+`Co-Authored-By: <any AI>`, "Generated with…" footers, or any other trailer or
+sign-off naming an AI tool or model. The repository's history records the
+author, and that is a human. Check your commit message before you run
+`git commit` — this applies to amends, squashes and PR bodies too.
+
+**2. Keep the docs in sync as part of the change, not as a follow-up.** If your
+change alters behaviour, structure, dependencies, screens, settings, the game
+list or the build, then in the *same* commit you also update whichever of these
+it touched:
+
+| You changed | Update |
+|---|---|
+| Anything user-visible or the feature set | `README.md` — including the games count, the flash/RAM figures from your own `pio run`, and the version |
+| Architecture, invariants, layout, build flags, dependencies | `CLAUDE.md` |
+| The agent protocol itself | `AGENTS.md` (this file) |
+| A subsystem's rules | the `CLAUDE.md` in that directory |
+| A new game | `src/games/CLAUDE.md` and the README game table |
+
+Do not wait to be asked, and do not leave it for "a docs pass later". A stale
+`README.md` that claims the wrong game count or the wrong flash figure is a
+defect, and it is your defect if you shipped the change that made it wrong.
+
 Four things that cause real damage here if you skip them:
 
 1. **Branch into your own worktree before you start.** New requirement → `git worktree add ../GUme-<slug> -b feat/<slug>`, then work there. Do **not** `git switch` inside the main checkout: it holds other agents' uncommitted work and switching under them strands it. A worktree also gives you a private `.pio/` build dir.

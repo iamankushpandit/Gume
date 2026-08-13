@@ -14,7 +14,9 @@ Tabs have an ordering contract: draw all `drawTab()` calls **first**, then `draw
 
 Shapes and icons: `drawTriangleShape()`, `drawStarShape()`, `drawGearIcon()`, `drawHomeIcon()`.
 
-Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI).
+Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI), `drawBatteryBadge()` (fill percentage, or a plug on external power), `drawBleBadge()` (the Bluetooth rune).
+
+`drawBleBadge()` has **no "off" variant on purpose.** An icon that is always present but sometimes greyed turns "is it transmitting?" into a question of shade, and that is the one question the badge exists to answer at a glance — so callers draw it only while `BleBeacon::active()`. It is 10x16 centred on the given point; the launcher header has almost no slack in landscape, so position anything near it off measured text widths rather than fixed offsets.
 
 `Rect` is defined here — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
 

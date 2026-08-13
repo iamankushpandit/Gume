@@ -1,5 +1,22 @@
 # GUme — GoodTime Kids
 
+## Two standing rules — do these without being asked
+
+**No AI attribution in commits.** Never add `Co-Authored-By: Claude`,
+`Co-Authored-By:` naming any AI, "Generated with…" footers, or any trailer that
+credits a model or tool. This applies to commits, amends, squashes and PR
+bodies. The history here records a human author.
+
+**Docs are part of the change, not a follow-up.** If a change alters behaviour,
+architecture, dependencies, screens, settings, the game list or the build, then
+in the *same* commit update `README.md` (feature set, game count, the flash/RAM
+figures from your own `pio run`, version), this file (architecture, invariants,
+build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
+A README claiming the wrong game count or a stale flash figure is a defect
+belonging to whoever last changed the thing it describes.
+
+---
+
 ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 26 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240×320 resistive-touch board): ILI9341 320×240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
 
 ## Build
@@ -16,7 +33,9 @@ Two diagnostic environments exist for hardware triage:
 
 ### Build gotchas
 
-- **The `map-n-flag` dependency is in flux.** Committed `HEAD` uses `https://github.com/iamankushpandit/map-n-flag.git`; the working tree currently points at `file://C:/Users/Ankus/CppEsp32Lib`, a machine-local absolute path. Check `git diff platformio.ini` before assuming which is live. The `file://` form will not resolve on any other machine — don't commit it without confirming that's intended, and don't revert it either, since it may be deliberate in-progress work.
+- **`map-n-flag` points at a machine-local path.** `lib_deps` now carries `file://C:/Users/Ankus/CppEsp32Lib` on `main`, which resolves only on the author's machine — any other checkout must swap it back to `https://github.com/iamankushpandit/map-n-flag.git` to build. It is committed deliberately; don't "fix" it, and don't be surprised when a fresh clone fails to resolve it.
+- **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
+- `lib_ldf_mode = deep+` is required on `env:app` — transitive library headers do not resolve without it.
 - **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` — editing one would do nothing.
 - Partition is `huge_app.csv` (3 MB app). Flash is the scarce resource; artwork and data tables dominate.
 - `CYD_SCREEN_ROTATION=3` is landscape with the USB edge at the bottom. `Board::pollTouch()` compensates for every rotation, so don't hand-correct coordinates in game code.
@@ -106,9 +125,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (71.7% of the 3 MB partition
-as of the BLE beacon landing; NimBLE plus the BT controller account for ~192 KB
-of that). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
+Flash is global and nearly the binding constraint (2,254,313 / 3,145,728 bytes,
+**71.7%**, as of the BLE beacon landing; NimBLE plus the BT controller account
+for ~192 KB of that). RAM sits at 63,996 / 327,680 (19.5%). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
 ### Modularity rule
 
@@ -146,8 +165,10 @@ Views: **Profiles** (shown at boot, picks whose scores are being written) → **
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. Just call those with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** — that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **`GameCatalogEntry::id` is a persisted NVS visibility key.** Renaming one silently resets that game's visibility on existing devices.
-- **`GAME_CATALOG` holds the 26 playable games only.** Scores / Settings / Wi-Fi / Profiles / About are appended by `KidsPlatformApp::allEntry()` at raw indices `>= GAME_CATALOG_COUNT`, are always visible, and always sort to the end of the launcher.
+- **`GAME_CATALOG` holds the 26 playable games only.** Scores / Settings / Wi-Fi / Profiles / About / System Info are appended by `KidsPlatformApp::allEntry()` at raw indices `>= GAME_CATALOG_COUNT`, are always visible, and always sort to the end of the launcher.
 - **`CATALOG_KINDS[]` in `main.cpp` must stay index-aligned with `GAME_CATALOG[]`.** Nothing enforces this; a misalignment launches the wrong game from the right tile.
+- **The launcher header has no visible profile chip, but the touch target is still there.** `launcherProfileRect()` is drawn by nothing and hit-tested by `handleLauncherTouch()`; the label overlapped the status badges on a 240px header. Don't "restore" the button, and don't delete the rect.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment — measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. Never add a

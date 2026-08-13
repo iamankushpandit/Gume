@@ -44,6 +44,20 @@ Timezone is stored in **minutes** to support :30 and :45 zones, and comes from a
 
 Time/date formatting and sync-state helpers over the ESP32 RTC.
 
+## BleBeacon.{h,cpp}
+
+Opt-in, non-connectable BLE presence beacon in namespace `BleBeacon`. Off by default; `Board::bleBeaconEnabled()` / `setBleBeaconEnabled()` hold the switch in the `cydkids` NVS namespace, so a factory reset clears it. `Board::begin()` calls `BleBeacon::begin()` which always builds the advertisement and only powers the radio when opted in.
+
+**The invariant that matters here:** there is exactly one description of the outgoing advertisement. `Advertisement` is compiled by `buildPayload()` into a raw AD-structure buffer, `startRadio()` hands the controller *that buffer* via `NimBLEAdvertisementData::addData()` rather than the per-field helper setters, and the System Info BLE tab reads the same buffer back to display it. Never add a second, hand-written description of the payload to the UI — that is the only way the screen and the radio can drift apart. See `docs/BLE_BEACON_SPEC.md`.
+
+`broadcasting()` returns `nullptr` unless the controller is actually advertising. UI must key off that rather than off the stored setting, which can read On while the radio failed to come up; nothing may be labelled as on air unless it is.
+
+On air: Flags, Complete Local Name (`LearnKey-<id>`) and manufacturer data (company `0xFFFF`, `"LK"`, version, two MAC bytes) — 27 of the 31 legal bytes. The device id is the last two bytes of the factory BT MAC. Nothing profile-scoped is read by this module at all.
+
+`startRadio()` and `stopRadio()` both take a `Watchdog::Pause` — bringing the controller up blocks for a couple of hundred milliseconds and looks exactly like a hang from the loop task. `pause()` no-ops while the watchdog is unarmed, so calling this from `Board::begin()` is safe.
+
+Stopping deinitialises the whole stack (`NimBLEDevice::deinit(true)`) rather than just halting advertising: leaving it up holds ~30 KB of heap the games would rather have, and "off" should mean off.
+
 ## Watchdog.{h,cpp}
 
 Background supervisor for the main loop, in namespace `Watchdog`. Games never interact with it.

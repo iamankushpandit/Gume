@@ -55,6 +55,13 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg);
  * or a plug icon if external power is supplied. */
 void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg);
 
+/* BLE beacon indicator: the Bluetooth rune, drawn only while the radio is
+ * actually advertising. There is no "off" variant on purpose -- an icon that is
+ * always present but sometimes greyed makes "is it transmitting?" a question of
+ * shade, and that is the one question this icon exists to answer at a glance.
+ * Centred on (cx, cy), 10x16. */
+void drawBleBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg);
+
 /** True when the station interface is associated. */
 bool wifiUp();
 /* Browser-style tab. The active one is rounded on top only, filled with the

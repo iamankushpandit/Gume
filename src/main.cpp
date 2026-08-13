@@ -34,6 +34,7 @@
 #include "games/TraceGame.h"
 #include "games/WifiGame.h"
 #include "games/WhackAMoleGame.h"
+#include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -916,6 +917,12 @@ private:
                                      board_.getBatteryPercent(), 
                                      board_.getPowerSource() == Board::PowerState::EXTERNAL_POWER, 
                                      Ui::surface());
+                /* Portrait has room to simply extend the badge row: the gear
+                 * sits at lW-32 on this line, and even the widest clock text
+                 * leaves the beacon badge well short of it. */
+                if (BleBeacon::active()) {
+                    Ui::drawBleBadge(tft, static_cast<int16_t>(bx + 70), 60, Ui::surface());
+                }
             }
             // Thin rule under the title to separate it from the tiles.
             tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
@@ -933,6 +940,18 @@ private:
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(MR_DATUM);
             tft.drawString(Clock::timeText(), static_cast<int16_t>(lW - 40), 14, 1);
+            /* Landscape cannot extend the badge row: it runs from the hairline
+             * at lW-110 to the gear at lW-30 with about 8px to spare. The
+             * beacon badge goes on the clock's line instead, positioned off the
+             * measured width of the clock string so a longer time format pushes
+             * it left rather than under the text. */
+            if (BleBeacon::active()) {
+                const int16_t clockLeft =
+                    static_cast<int16_t>(lW - 40 - tft.textWidth(Clock::timeText(), 1));
+                Ui::drawBleBadge(tft, max<int16_t>(static_cast<int16_t>(lW - 104),
+                                                   static_cast<int16_t>(clockLeft - 14)),
+                                 14, Ui::surface());
+            }
             Ui::drawSyncBadge(tft, static_cast<int16_t>(lW - 92), 34, Clock::synced(), Ui::surface());
             Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 68), 34, Ui::surface());
             Ui::drawBatteryBadge(tft, static_cast<int16_t>(lW - 44), 34, 
