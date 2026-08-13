@@ -34,6 +34,7 @@
 #include "games/TraceGame.h"
 #include "games/WifiGame.h"
 #include "games/WhackAMoleGame.h"
+#include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -73,10 +74,13 @@ Rect launcherProfileRect(Board::LayoutMode mode, int16_t lW) {
     if (mode == Board::LayoutMode::Vertical) {
         return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, lW - 46)), 20};
     }
-    const int16_t x = 104;
-    const int16_t rightLimit = static_cast<int16_t>(lW - 116);
-    const int16_t w = static_cast<int16_t>(min<int16_t>(104, max<int16_t>(72, rightLimit - x)));
-    return Rect{x, 29, w, 18};
+    /* Landscape puts the name on the byline row, to the right of the
+     * copyright rather than across it -- at x=104 the old rect started 14px
+     * before "(C) GoodTime Micro" ended. Runs up to the hairline at lW-110. */
+    const int16_t x = 124;
+    const int16_t rightLimit = static_cast<int16_t>(lW - 114);
+    const int16_t w = static_cast<int16_t>(min<int16_t>(86, max<int16_t>(52, rightLimit - x)));
+    return Rect{x, 30, w, 18};
 }
 
 Rect launcherTileRect(uint8_t slot, Board::LayoutMode mode) {
@@ -196,6 +200,11 @@ public:
         openProfiles();
     }
 
+    /* Target frame period. 20ms is 50Hz, comfortably above what the panel and
+     * a child's finger can distinguish, and it leaves headroom for the frames
+     * that legitimately cost more (a full repaint pushes ~150KB over SPI). */
+    static constexpr uint32_t FRAME_BUDGET_MS = 20;
+
     void loop() {
         Watchdog::feed();
         const TouchPoint rawTouch = board_.pollTouch();
@@ -270,8 +279,23 @@ public:
                 activeGame_->clearDirty();
             }
         }
-        Watchdog::recordFrameWork(millis() - nowMs);
-        delay(18);
+        const uint32_t workMs = millis() - nowMs;
+        Watchdog::recordFrameWork(workMs);
+        /* Pace to a deadline, not a fixed nap.
+         *
+         * This used to be an unconditional delay(18), so the frame period was
+         * work + 18ms and a heavy frame was punished twice -- once for being
+         * slow, then again by a full extra sleep on top. Sleeping only the
+         * remainder of the budget makes touch latency depend on how long the
+         * work actually took.
+         *
+         * Always yield at least a tick: the idle task on this core has to run
+         * or its own watchdog trips. */
+        if (workMs < FRAME_BUDGET_MS) {
+            delay(FRAME_BUDGET_MS - workMs);
+        } else {
+            delay(1);
+        }
     }
 
     /* Board::setDisplayRotation() clears lastTouch_. If a finger is still down
@@ -291,9 +315,30 @@ public:
         return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
     }
 
+    /* Single funnel for "the active screen is being replaced". Every
+     * transition goes through here so a screen's end() cannot be skipped by
+     * one path and honoured by another. */
+    void leaveActiveGame() {
+        if (activeGame_ == nullptr) {
+            return;
+        }
+        const char* leaving = Watchdog::context();
+        activeGame_->end(*this);
+        activeGame_ = nullptr;
+        /* A screen that does not hand back what it borrowed is the only way
+         * heap can march downwards on a device with no garbage collector, and
+         * on a 27Hz UI it is invisible until something fails to allocate hours
+         * later. Comparing free heap across the screen's whole lifetime turns
+         * that into a line in the log the first time it happens. */
+        Watchdog::noteScreenLeft(leaving, heapAtLaunch_);
+    }
+
+    /** Free heap immediately before the active screen's begin(). */
+    uint32_t heapAtLaunch_ = 0;
+
     void goHome() override {
         Watchdog::setContext("Launcher");
-        activeGame_ = nullptr;
+        leaveActiveGame();
         view_ = View::Launcher;
         clampLauncherPage();
         // Rotate display based on chosen layout mode
@@ -320,7 +365,9 @@ public:
         applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         Watchdog::setContext("Profiles");
         view_ = View::Profiles;
+        leaveActiveGame();
         activeGame_ = &profile_;
+        heapAtLaunch_ = ESP.getFreeHeap();
         profile_.begin(*this);
         profile_.render(*this);
         profile_.clearDirty();
@@ -547,6 +594,7 @@ private:
     }
 
     void launchKind(EntryKind kind) {
+        leaveActiveGame();
         switch (kind) {
             case EntryKind::TicTacToe:
                 activeGame_ = &ticTacToe_;
@@ -652,6 +700,7 @@ private:
         const bool followsLayout = (kind == EntryKind::SystemInfo);
         applyRotation(effectiveRotation(!followsLayout ||
                                         board_.layoutMode() != Board::LayoutMode::Vertical));
+        heapAtLaunch_ = ESP.getFreeHeap();
         activeGame_->begin(*this);
         activeGame_->render(*this);
         activeGame_->clearDirty();
@@ -901,10 +950,15 @@ private:
              * The clock now sits on the second line with the gear beneath it. */
             tft.setTextDatum(MC_DATUM);
             tft.drawString("GoodTime Kids!", static_cast<int16_t>(lW / 2), 17, 4);
-            /* No visible profile chip: on a 240px-wide header it overlapped
-             * the status badges. The rect stays live as an invisible touch
-             * target, so tapping the name area still opens Profiles. */
-            (void)profileBtn;
+            /* The name, but no button chrome around it: the framed chip is
+             * what overlapped the status badges on a 240px header. Plain text
+             * in the same rect, which is still the touch target. */
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(Ui::text(), Ui::surface());
+            tft.drawString(Ui::fitted(tft, board_.profileName(board_.activeProfile()),
+                                      profileBtn.w, 2),
+                           static_cast<int16_t>(profileBtn.x + 2),
+                           static_cast<int16_t>(profileBtn.y + profileBtn.h / 2), 2);
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(Clock::timeText(), 8, 60, 2);
@@ -916,6 +970,12 @@ private:
                                      board_.getBatteryPercent(), 
                                      board_.getPowerSource() == Board::PowerState::EXTERNAL_POWER, 
                                      Ui::surface());
+                /* Portrait has room to simply extend the badge row: the gear
+                 * sits at lW-32 on this line, and even the widest clock text
+                 * leaves the beacon badge well short of it. */
+                if (BleBeacon::active()) {
+                    Ui::drawBleBadge(tft, static_cast<int16_t>(bx + 70), 60, Ui::surface());
+                }
             }
             // Thin rule under the title to separate it from the tiles.
             tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
@@ -927,12 +987,32 @@ private:
             tft.drawString("GoodTime Kids!", 10, 16, 4);
             tft.setTextColor(Ui::muted(), Ui::surface());
             tft.drawString("(C) GoodTime Micro", 10, 38, 1);
-            // Invisible profile touch target -- see the portrait branch.
-            (void)profileBtn;
+            /* Name sits after the copyright on the byline row, at font 1 --
+             * the gap between them and the hairline is about 86px. Drawn in
+             * the text colour while the byline stays muted, so it reads as
+             * live information rather than more small print. */
+            tft.setTextDatum(ML_DATUM);
+            tft.setTextColor(Ui::text(), Ui::surface());
+            tft.drawString(Ui::fitted(tft, board_.profileName(board_.activeProfile()),
+                                      profileBtn.w, 1),
+                           static_cast<int16_t>(profileBtn.x),
+                           static_cast<int16_t>(profileBtn.y + profileBtn.h / 2), 1);
 
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(MR_DATUM);
             tft.drawString(Clock::timeText(), static_cast<int16_t>(lW - 40), 14, 1);
+            /* Landscape cannot extend the badge row: it runs from the hairline
+             * at lW-110 to the gear at lW-30 with about 8px to spare. The
+             * beacon badge goes on the clock's line instead, positioned off the
+             * measured width of the clock string so a longer time format pushes
+             * it left rather than under the text. */
+            if (BleBeacon::active()) {
+                const int16_t clockLeft =
+                    static_cast<int16_t>(lW - 40 - tft.textWidth(Clock::timeText(), 1));
+                Ui::drawBleBadge(tft, max<int16_t>(static_cast<int16_t>(lW - 104),
+                                                   static_cast<int16_t>(clockLeft - 14)),
+                                 14, Ui::surface());
+            }
             Ui::drawSyncBadge(tft, static_cast<int16_t>(lW - 92), 34, Clock::synced(), Ui::surface());
             Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 68), 34, Ui::surface());
             Ui::drawBatteryBadge(tft, static_cast<int16_t>(lW - 44), 34, 

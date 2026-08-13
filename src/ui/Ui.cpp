@@ -258,6 +258,40 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
     (void)bg;
 }
 
+String fitted(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font) {
+    String out = text;
+    while (out.length() > 2 && tft.textWidth(out, font) > maxW) {
+        out.remove(out.length() - 1);
+    }
+    if (out.length() < text.length() && out.length() > 1) {
+        out.setCharAt(out.length() - 1, '.');
+    }
+    return out;
+}
+
+void drawBleBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
+    (void)bg;
+    /* The Bluetooth rune is one continuous stroke through six points on a
+     * 10x16 box -- (0,4) (10,11) (5,16) (5,0) (10,5) (0,12). Drawing it as a
+     * polyline rather than two triangles keeps the crossing stems aligned at
+     * any size. Stroked twice, offset by a pixel, so it reads at 16px. */
+    const int16_t x0 = static_cast<int16_t>(cx - 5);
+    const int16_t y0 = static_cast<int16_t>(cy - 8);
+    const int16_t px[6] = {0, 10, 5, 5, 10, 0};
+    const int16_t py[6] = {4, 11, 16, 0, 5, 12};
+    // Bluetooth blue: already the app's accent, and legible on both themes.
+    const uint16_t col = rgb(36, 132, 204);
+
+    for (int8_t pass = 0; pass < 2; ++pass) {
+        for (uint8_t i = 0; i + 1 < 6; ++i) {
+            tft.drawLine(static_cast<int16_t>(x0 + px[i] + pass),
+                         static_cast<int16_t>(y0 + py[i]),
+                         static_cast<int16_t>(x0 + px[i + 1] + pass),
+                         static_cast<int16_t>(y0 + py[i + 1]), col);
+        }
+    }
+}
+
 void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg) {
     const uint16_t outClr = (s_theme == Theme::Light) ? rgb(120, 126, 138) : rgb(160, 164, 180);
     const int16_t bx = static_cast<int16_t>(cx - 7);

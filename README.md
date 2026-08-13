@@ -1,18 +1,23 @@
 # GoodTime Kids
 
-A 23-game educational console for young children, running on an **ESP32-32E
+A 26-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
-Everything is baked into the firmware: **no SD card, no internet, no accounts,
-no data collection.** Wi-Fi is used for exactly one thing — fetching the time
-from an NTP server.
+Everything is baked into the firmware: **no SD card, no accounts, no telemetry,
+no data collection.** Two radios exist and both are narrow by design:
+
+- **Wi-Fi** is used for exactly one thing — fetching the time from an NTP
+  server (plus a one-off public-IP lookup to guess the time zone).
+- **Bluetooth LE** is **off by default**. If you turn it on, it broadcasts a
+  device name and a hardware id and nothing else, and the device will show you
+  the exact bytes it is transmitting. See [Privacy](#privacy).
 
 | | |
 |---|---|
-| Games | 23 |
-| Flash | 2,304,761 / 3,145,728 bytes (**73.3%**) |
-| RAM | 50,312 / 327,680 bytes (**15.4%**) |
+| Games | 26 |
+| Flash | 2,251,793 / 3,145,728 bytes (**71.6%**) |
+| RAM | 64,940 / 327,680 bytes (**19.8%**) |
 | Country artwork | 195 flags + 191 outlines, 1.11 MiB (49% of the image) |
 
 <p align="center">
@@ -53,12 +58,14 @@ Ages are a guide, not a gate. Every game can be hidden from the launcher in
 | Game | What it is | What it builds | Age |
 |---|---|---|---|
 | **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus** | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore | 5–12 |
-| **Countries** | A real country outline, alternating *"which country?"* and *"which continent is it in?"* | Map-shape recognition, plus where countries sit in the world | 6–12 |
+| **US States** | Name the state, then its capital | US geography as a name-then-capital pair, the same loop as Flags | 6–12 |
+| **State Flags** | A real state flag, name the state, then its capital | Fifty more flags with the same reward loop | 6–12 |
+| **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition | 7–12 |
 | **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time | 4–7 |
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
 
-Flags and Countries both use **spaced repetition** and **adaptive difficulty** —
-see below.
+Flags and the three US States games all use **spaced repetition**; Flags also
+uses **adaptive difficulty** — see below.
 
 ### Logic, memory and attention
 
@@ -74,6 +81,7 @@ see below.
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
+| **Trace** | Trace letters A–Z and digits 0–9 with a finger | Letter formation and pen control, before a pencil is involved | 3–6 |
 
 ---
 
@@ -84,21 +92,36 @@ see below.
 Questions used to be drawn uniformly at random, so a child saw Brazil exactly as
 often as Bhutan and got no extra practice on the ones they missed.
 
-Flags and Countries now keep a mastery score per country
+Flags and the US States games now keep a mastery score per item
 (`src/engine/Progress.cpp`). A miss costs **twice** what a correct answer earns,
 so a missed country returns quickly and only leaves the rotation after repeated
 success. Weighting runs from **8×** for a recently-missed country down to **1×**
 for a mastered one — mastered items still appear, just rarely, so the mix stays
 varied.
 
-The two games track **separately**: recognising Italy's flag says little about
-recognising its outline.
+Each game tracks **separately**: recognising Italy's flag says little about
+recognising Texas's outline. Mastery is also stored **per child profile**, so
+one child's progress never moves another's.
 
 ### Adaptive difficulty
 
 Three tiers — **Easy** (30 familiar countries), **Medium** (62), **Hard** (all
 195). Six correct in a row promotes a tier automatically. The tier button still
 overrides by hand, and the choice persists.
+
+### Profiles
+
+Up to **five children plus a permanent Guest**, chosen at boot. Scores, mastery
+data and per-game visibility are all scoped to the active profile automatically
+— games never do anything to opt in.
+
+**Guest deliberately persists nothing.** Every score and mastery write is
+dropped while Guest is active. That is what makes it a guest rather than a sixth
+child: a visitor can play without leaving results behind or disturbing anyone
+else's records.
+
+Device settings — theme, layout, brightness, Wi-Fi, time zone, the BLE beacon —
+stay global.
 
 ### Accessibility
 
@@ -144,13 +167,14 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/flags-country.png" width="300" alt="Flags: name the country">
   <img src="docs/screens/flags-capital.png" width="300" alt="Flags: capital bonus">
-  <img src="docs/screens/countries-outline.png" width="300" alt="Countries: name the outline">
+  <img src="docs/screens/calendar.png" width="300" alt="Calendar">
 </p>
 <p align="center">
-  <img src="docs/screens/countries-continent.png" width="300" alt="Countries: which continent">
-  <img src="docs/screens/calendar.png" width="300" alt="Calendar">
   <img src="docs/screens/time.png" width="300" alt="Time">
 </p>
+
+> The **US States**, **State Flags**, **State Maps** and **Trace** screens have
+> no mock-ups yet -- `tools/gen_screens.py` has not been extended to cover them.
 
 ### Logic, memory and attention
 
@@ -184,8 +208,17 @@ One screen per game, in launcher order.
   <img src="docs/screens/settings-games.png" width="360" alt="Settings: game visibility">
 </p>
 
-Theme, menu layout, screen-saver delay and the case light. The Games tab hides
-any game from the launcher, paged five at a time.
+Theme, menu layout, screen-saver delay, the case light, screen brightness, the
+BLE beacon, and a factory reset behind a two-tap confirm. The Games tab hides
+any game from the launcher, paged five at a time -- and that visibility is **per
+child**, so one child's launcher can be pared down without touching another's.
+
+Brightness floors at **25%, not 0**, deliberately: at lower duty the panel is
+unreadable and a child who dragged the slider to the bottom could not see the
+control needed to undo it.
+
+> The Settings mock-up above predates the beacon toggle and the brightness
+> slider; the live screen is a four-row grid with Reset spanning both columns.
 
 **Menu layout is launcher-only.** Every game is authored against the fixed
 320×240 landscape canvas, so Tall changes the home screen and nothing else.
@@ -212,11 +245,107 @@ Pong that plays itself. Paddles sweep opposite ways; every rally speeds the ball
 up and advances the colour, mirrored on the case LED. Touching it returns you to
 **whatever you were doing** — not the home screen.
 
+### Scores, Profiles, About and System Info
+
+Four more screens, all of them ordinary `Game` subclasses like everything else:
+
+- **Profiles** -- shown at boot; picks whose scores are being written.
+- **Scores** -- bests and worsts for the active child, per game.
+- **About** -- what each game is for, in a parent's words.
+- **System Info** -- four tabs of live telemetry (board, memory, network, app
+  state) plus the BLE tab described below. This is a diagnostics screen, not a
+  toy: chip and reset reason, heap and fragmentation, Wi-Fi throughput,
+  watchdog stalls.
+
+### Battery
+
+The gauge reads GPIO34 through the board's divider, converted with the ESP32's
+own eFuse ADC calibration rather than a nominal 3.3V reference — at 11dB
+attenuation the converter is only linear to about 2.45V and its reference varies
+part to part, so the naive `raw / 4095 × 3.3` is wrong twice over.
+
+Percentage comes off a piecewise LiPo discharge curve, not a straight line: a
+cell sits near 3.7V for most of its life, so a linear map reads about 20 points
+high through the middle.
+
+The divider ratio itself is still an assumption pending a meter on the board,
+and there is no charge-status line on this hardware — so "charging" is honestly
+reported as unknown rather than guessed.
+
+### Reliability
+
+A background **watchdog** supervises the main loop (`src/hal/Watchdog.cpp`). The
+ESP32 hardware task watchdog reboots the device if any frame takes longer than
+12 seconds, so a hung game cannot leave a child staring at a frozen screen, and
+a low-priority monitor task samples frame times and heap once a second, logging
+a stall long before that. After an unclean reset the breadcrumb -- which screen
+was up, uptime, heap low-water mark -- survives the reboot and is printed on the
+next boot.
+
+---
+
+## Privacy
+
+The device collects nothing and sends nothing anywhere. No accounts, no
+telemetry, no analytics. Scores and mastery data live in the ESP32's own flash
+and never leave it.
+
+Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
+guess the time zone on first connect (the picker overrides it, and you can skip
+Wi-Fi entirely).
+
+### The BLE beacon
+
+The beacon is **off by default** and opt-in from *Settings -> Beacon*. When it is
+on, the launcher header shows a Bluetooth badge -- drawn **only** while the radio
+is genuinely advertising, so it is never a question of whether an icon looks
+greyed out.
+
+What goes on air is a device name and a hardware id. That is all:
+
+| AD type | Contents |
+|---|---|
+| Flags | LE General Discoverable, BR/EDR not supported |
+| Complete Local Name | `LearnKey-A4F2` |
+| Manufacturer Data | company `0xFFFF`, `"LK"`, layout version, two MAC bytes |
+
+The id is the last two bytes of the factory Bluetooth MAC -- a hardware serial,
+stable so you can recognise your own device in a scanner. Nobody types it and it
+is not derived from anything a child entered. Advertising is **non-connectable**:
+there is no GATT server, so there is nothing to connect to.
+
+**Not broadcast:** child information, child name, location, Wi-Fi credentials,
+Wi-Fi SSID, IP address, game progress, scores, usage history.
+
+That list is structural rather than a promise. `buildPayload()` emits a name AD
+and a manufacturer AD and nothing else, and nothing profile-scoped is reachable
+from the radio path at all.
+
+### You can check all of this on the device
+
+*System Info -> BLE* shows whether advertising is currently active, the actual
+name being advertised, every decoded field of the manufacturer data, the privacy
+list above, and -- under *Show advanced* -- the interval, TX power, advertising
+type, controller address and a **hex dump of the 27 bytes actually on air**.
+
+Turn the beacon off and the same screen says *Broadcasting: Nothing*, relabelling
+the identity block as configuration so nothing reads as being transmitted when it
+is not.
+
+None of that is UI copy describing the payload from memory. There is one
+authoritative structure -- `BleBeacon::Advertisement` -- which is compiled into a
+raw byte buffer, handed to the controller verbatim, and read back by the screen.
+The display and the radio cannot drift apart. The contract is written down in
+[`docs/BLE_BEACON_SPEC.md`](docs/BLE_BEACON_SPEC.md).
+
+The governing principle: **if the device transmits something wirelessly, the
+owner should be able to see what it is transmitting, from the device itself.**
+
 ---
 
 ## Version
 
-Current release: **2.0.1** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **2.1.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 
@@ -236,7 +365,12 @@ Dependencies resolve automatically:
 |---|---|
 | `bodmer/TFT_eSPI` | Display and touch |
 | `bblanchon/ArduinoJson` | Optional SD content configs |
+| `h2zero/NimBLE-Arduino` | BLE beacon -- ~192 KB for host plus controller, against several times that for the core's Bluedroid stack |
 | [`map-n-flag`](https://github.com/iamankushpandit/map-n-flag) | Flag and outline artwork |
+
+> **Building from a fresh clone:** `lib_deps` currently points `map-n-flag` at a
+> local path on the author's machine (`file://C:/Users/Ankus/CppEsp32Lib`).
+> Swap it back to the Git URL above to build anywhere else.
 
 ### Diagnostics
 
@@ -277,12 +411,17 @@ src/
     CountryData.cpp     capitals, continents, difficulty tiers
     CountryDataTable.cpp  generated -- see tools/gen_country_facts.py
   hal/
-    Board.cpp           display, touch, NVS, Wi-Fi/NTP, audio, RGB LED
+    Board.cpp           display, touch, NVS, Wi-Fi/NTP, audio, RGB LED, profiles
+    BleBeacon.cpp       the one authoritative BLE advertisement payload
     Clock.cpp           time and date formatting
+    Watchdog.cpp        loop supervisor, stall logging, crash breadcrumb
   ui/Ui.cpp             theming, widgets, map-n-flag blitting
 tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_screens.py        regenerates the images in this README
+docs/
+  BLE_BEACON_SPEC.md    what the beacon broadcasts, and why that is checkable
+  SD_CONTENT_SPEC.md    optional SD content format
 ```
 
 `GameCatalog` matters more than it looks: the game ids, launcher titles and

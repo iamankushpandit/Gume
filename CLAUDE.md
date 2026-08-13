@@ -1,5 +1,101 @@
 # GUme — GoodTime Kids
 
+## Two standing rules — do these without being asked
+
+**No AI attribution in commits.** Never add `Co-Authored-By: Claude`,
+`Co-Authored-By:` naming any AI, "Generated with…" footers, or any trailer that
+credits a model or tool. This applies to commits, amends, squashes and PR
+bodies. The history here records a human author.
+
+**Docs are part of the change, not a follow-up.** If a change alters behaviour,
+architecture, dependencies, screens, settings, the game list or the build, then
+in the *same* commit update `README.md` (feature set, game count, the flash/RAM
+figures from your own `pio run`, version), this file (architecture, invariants,
+build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
+A README claiming the wrong game count or a stale flash figure is a defect
+belonging to whoever last changed the thing it describes.
+
+## Responsiveness rule — know what a frame costs
+
+The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it
+sleeps only the remainder, so a slow frame is not punished twice. That budget is
+the whole allowance for touch, logic and drawing. Three things have each eaten
+most of it at some point in this codebase, and all three look harmless at the
+call site:
+
+1. **NVS reads.** `Preferences` is flash-backed — every getter is a hash lookup,
+   not a variable read. `screenSaverSeconds()` ran once per loop iteration and
+   `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
+   than once per screen change gets a write-through RAM mirror in `Board`**:
+   the setter updates the mirror and NVS together, so a stale read is not
+   possible. Theme, layout, brightness, idle timeout, active profile, game
+   visibility and the Wi-Fi credentials all work this way now. Add to that list
+   rather than reaching for `prefs_` in a hot path.
+2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
+   and `Ui::drawTopBar()` calls two battery getters, so every top bar cost
+   ~20ms — a whole frame — before anything was drawn. **No `delay()` in
+   anything a render path can reach.** Sample on a cadence and cache.
+3. **Rebuilding content that did not change.** System Info reassembled every
+   row on every frame while scrolling. Scrolling changes an offset, not
+   content. Gate rebuilds behind a stale flag.
+
+Before claiming a screen is fast: System Info's Memory tab shows loop load,
+worst work and worst frame, and the watchdog logs a stall past
+`STALL_WARN_MS`. A worst frame above ~40ms is a bug, not a heavy screen.
+
+Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
+which is why `Game` has two levels of invalidation. Guard static chrome behind
+`needsFullRender()` and repaint only what moved.
+
+## Memory rule — there is no garbage collector
+
+C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.
+So the thing that kills this device is not the leak you are picturing. There is
+not one `new`, `delete`, `malloc` or `free` in this firmware — every screen is a
+`static` instance and everything else is stack or a fixed member. **Keep it that
+way**, and the classic leak is impossible by construction.
+
+What actually kills it is **fragmentation**: many small allocations of differing
+sizes, made and freed over and over, chop the free space into pieces too small
+to satisfy a later request. Free heap looks fine right up to the allocation that
+fails, hours in. The only visible symptom beforehand is the fragmentation
+percentage, which is why System Info shows it.
+
+The offender is almost always Arduino `String`. Every concatenation allocates,
+every assignment may reallocate, and a `String` member that is rewritten each
+frame is a long-lived block being freed and re-made 27 times a second.
+
+Rules, in the order they bite:
+
+1. **No raw owning allocation.** No `new`/`delete`, no `malloc`/`free`, no
+   owning raw pointers. If something genuinely must be dynamic, justify it in a
+   comment and give it an owner with a destructor.
+2. **No `String` in anything that runs per frame.** Build text with `snprintf`
+   into a stack buffer, or store it in a fixed `char[]`. `RowList` (`src/ui/`)
+   is the worked example: it was 48 rows × 2 `String`s rebuilt every frame —
+   about 96 long-lived allocations churning at frame rate — and is now flat
+   char buffers that allocate nothing, ever.
+3. **Don't rebuild content on every frame.** Rebuild when the data changed and
+   keep a `stale` flag. Scrolling changes an offset, not the content.
+4. **A `String` member on a screen is a smell.** A few exist for genuinely
+   user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) — that is
+   the bar. Anything derived from state belongs in a fixed buffer.
+5. **Give back what you borrowed, in `end()`.** Every screen transition goes
+   through `KidsPlatformApp::leaveActiveGame()`, which compares free heap
+   against the value captured before that screen's `begin()` and logs
+   `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
+   Watch the serial log after adding a screen.
+6. **Prefer fixed-size members over growth.** A statically sized array that is
+   occasionally half empty is cheaper and safer here than anything that grows.
+   Trading a few hundred bytes of static RAM for zero heap traffic is nearly
+   always the right call on this device — `RowList` cost 864 bytes of RAM and
+   *saved* 5.5 KB of flash.
+7. **Check the numbers before you claim it is fine.** `pio run` reports RAM and
+   flash; System Info's Memory tab reports free heap, minimum free heap,
+   largest allocatable block and fragmentation. Read them.
+
+---
+
 ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 26 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240×320 resistive-touch board): ILI9341 320×240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
 
 ## Build
@@ -16,7 +112,9 @@ Two diagnostic environments exist for hardware triage:
 
 ### Build gotchas
 
-- **The `map-n-flag` dependency is in flux.** Committed `HEAD` uses `https://github.com/iamankushpandit/map-n-flag.git`; the working tree currently points at `file://C:/Users/Ankus/CppEsp32Lib`, a machine-local absolute path. Check `git diff platformio.ini` before assuming which is live. The `file://` form will not resolve on any other machine — don't commit it without confirming that's intended, and don't revert it either, since it may be deliberate in-progress work.
+- **`map-n-flag` points at a machine-local path.** `lib_deps` now carries `file://C:/Users/Ankus/CppEsp32Lib` on `main`, which resolves only on the author's machine — any other checkout must swap it back to `https://github.com/iamankushpandit/map-n-flag.git` to build. It is committed deliberately; don't "fix" it, and don't be surprised when a fresh clone fails to resolve it.
+- **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
+- `lib_ldf_mode = deep+` is required on `env:app` — transitive library headers do not resolve without it.
 - **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` — editing one would do nothing.
 - Partition is `huge_app.csv` (3 MB app). Flash is the scarce resource; artwork and data tables dominate.
 - `CYD_SCREEN_ROTATION=3` is landscape with the USB edge at the bottom. `Board::pollTouch()` compensates for every rotation, so don't hand-correct coordinates in game code.
@@ -106,7 +204,11 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (~73% of the 3 MB partition). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
+Flash is global and nearly the binding constraint (2,251,793 / 3,145,728 bytes,
+**71.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 64,940 / 327,680 (19.8%) -- higher than it was, deliberately: RowList traded
+864 bytes of static RAM for zero heap traffic. On this device that is a good
+trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
 ### Modularity rule
 
@@ -135,16 +237,25 @@ Views: **Profiles** (shown at boot, picks whose scores are being written) → **
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | `GameCatalog` | `src/engine/GameCatalog.h` | Single source of truth for the game list |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
+| `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload |
 
 ### Invariants worth knowing before editing
 
-- **Every screen is a `Game`.** Settings, Wi-Fi, Profiles, Scores and About are all `Game` subclasses with the same `begin`/`update`/`render` lifecycle.
+- **Every screen is a `Game`.** Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
+- **`end()` is called on every screen change** via `KidsPlatformApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
+- **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Games never touch hardware directly.** They receive `GameHost&` and go through `host.board()`. Keep it that way.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. Just call those with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** — that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **`GameCatalogEntry::id` is a persisted NVS visibility key.** Renaming one silently resets that game's visibility on existing devices.
-- **`GAME_CATALOG` holds the 26 playable games only.** Scores / Settings / Wi-Fi / Profiles / About are appended by `KidsPlatformApp::allEntry()` at raw indices `>= GAME_CATALOG_COUNT`, are always visible, and always sort to the end of the launcher.
+- **`GAME_CATALOG` holds the 26 playable games only.** Scores / Settings / Wi-Fi / Profiles / About / System Info are appended by `KidsPlatformApp::allEntry()` at raw indices `>= GAME_CATALOG_COUNT`, are always visible, and always sort to the end of the launcher.
 - **`CATALOG_KINDS[]` in `main.cpp` must stay index-aligned with `GAME_CATALOG[]`.** Nothing enforces this; a misalignment launches the wrong game from the right tile.
+- **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift — in landscape it sits after the byline, not across it.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment — measure, don't guess.
+- **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
+  is compiled into a raw AD buffer that is handed to the controller verbatim,
+  and the System Info BLE tab reads that same buffer back. Never add a
+  hand-written UI description of the payload -- see `docs/BLE_BEACON_SPEC.md`.
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `KidsPlatformApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose — a calibration wizard, a network round trip — must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game
@@ -168,6 +279,8 @@ Direct TFT_eSPI primitives, RGB565, no framebuffer. A full 320×240 wipe pushes 
 - `render()` should guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally.
 
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
+
+**Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough — the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
 
 Most games still repaint wholesale. Simon is the reference for partial redraw — it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 

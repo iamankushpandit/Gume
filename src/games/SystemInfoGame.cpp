@@ -1,5 +1,6 @@
 #include "SystemInfoGame.h"
 #include "AppVersion.h"
+#include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -19,23 +20,9 @@
 
 namespace {
 constexpr int16_t TAB_STRIP_H = 28;
-constexpr int16_t CONTENT_PAD_X = 6;
-constexpr int16_t CONTENT_PAD_Y = 6;
-constexpr int16_t SCROLLBAR_W = 6;
 
 int16_t tabStripY() {
     return static_cast<int16_t>(TOP_BAR_HEIGHT + 2);
-}
-
-String fittedText(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font) {
-    String fitted = text;
-    while (fitted.length() > 2 && tft.textWidth(fitted, font) > maxW) {
-        fitted.remove(fitted.length() - 1);
-    }
-    if (fitted.length() < text.length() && fitted.length() > 1) {
-        fitted.setCharAt(fitted.length() - 1, '.');
-    }
-    return fitted;
 }
 
 String formatBytes(uint32_t bytes) {
@@ -57,18 +44,6 @@ uint8_t percentOf(uint32_t value, uint32_t total) {
 uint32_t deltaCounter(uint32_t current, uint32_t previous) {
     return current >= previous ? current - previous
                                : (0xFFFFFFFFUL - previous) + current + 1UL;
-}
-
-void drawMeter(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint16_t fill) {
-    if (pct > 100) pct = 100;
-    tft.fillRoundRect(r.x, r.y, r.w, r.h, 3, Ui::panel());
-    tft.drawRoundRect(r.x, r.y, r.w, r.h, 3, Ui::outline());
-    const int16_t innerW = static_cast<int16_t>(max<int16_t>(0, r.w - 2));
-    const int16_t fillW = static_cast<int16_t>((innerW * pct) / 100);
-    if (fillW > 0) {
-        tft.fillRoundRect(static_cast<int16_t>(r.x + 1), static_cast<int16_t>(r.y + 1),
-                          fillW, static_cast<int16_t>(r.h - 2), 2, fill);
-    }
 }
 
 String powerText(Board::PowerState pwr) {
@@ -120,7 +95,7 @@ String wifiPhyText() {
 }
 
 const char* const SystemInfoGame::TAB_LABELS[TAB_COUNT] = {
-    "Board", "Memory", "Network", "App"
+    "Board", "Memory", "Network", "BLE", "App"
 };
 
 const char* SystemInfoGame::title() const {
@@ -138,15 +113,27 @@ void SystemInfoGame::begin(GameHost& host) {
     txRate_ = 0;
     trafficAvailable_ = false;
     trafficBytes_ = false;
-    rowCount_ = 0;
+    rows_.clear();
+    rowsStale_ = true;
     scrolling_ = false;
     scrollAnchorY_ = 0;
     scrollStartOffset_ = 0;
+    bleAdvanced_ = false;
     for (uint8_t i = 0; i < TAB_COUNT; ++i) {
         scrollOffset_[i] = 0;
     }
     refreshTelemetry(true);
     markFullDirty();
+}
+
+/* Nothing to release. rows_ is a flat, statically sized member holding char
+ * buffers, so leaving this screen frees no heap because it never took any --
+ * which is the point of RowList. clear() just resets the count. */
+void SystemInfoGame::end(GameHost& host) {
+    (void)host;
+    rows_.clear();
+    rowsStale_ = true;
+    scrolling_ = false;
 }
 
 Rect SystemInfoGame::tabRect(uint8_t idx, int16_t screenW, int16_t stripY) const {
@@ -208,126 +195,9 @@ SystemInfoGame::TrafficSnapshot SystemInfoGame::readTrafficCounters() const {
     return snap;
 }
 
-void SystemInfoGame::beginRows() {
-    rowCount_ = 0;
-}
-
-void SystemInfoGame::addSection(const String& title) {
-    if (rowCount_ >= MAX_ROWS) return;
-    rows_[rowCount_].kind = RowKind::Section;
-    rows_[rowCount_].label = title;
-    rows_[rowCount_].value = "";
-    rows_[rowCount_].valueColor = Ui::muted();
-    rows_[rowCount_].meterPct = 0;
-    rows_[rowCount_].meterColor = 0;
-    rows_[rowCount_].height = 18;
-    rowCount_++;
-}
-
-void SystemInfoGame::addRow(const String& label, const String& value, uint16_t valueColor, int16_t height) {
-    if (rowCount_ >= MAX_ROWS) return;
-    rows_[rowCount_].kind = RowKind::Text;
-    rows_[rowCount_].label = label;
-    rows_[rowCount_].value = value;
-    rows_[rowCount_].valueColor = valueColor == 0 ? Ui::text() : valueColor;
-    rows_[rowCount_].meterPct = 0;
-    rows_[rowCount_].meterColor = 0;
-    rows_[rowCount_].height = height;
-    rowCount_++;
-}
-
-void SystemInfoGame::addMeter(uint8_t pct, uint16_t color) {
-    if (rowCount_ >= MAX_ROWS) return;
-    rows_[rowCount_].kind = RowKind::Meter;
-    rows_[rowCount_].label = "";
-    rows_[rowCount_].value = "";
-    rows_[rowCount_].valueColor = Ui::text();
-    rows_[rowCount_].meterPct = pct;
-    rows_[rowCount_].meterColor = color;
-    rows_[rowCount_].height = 12;
-    rowCount_++;
-}
-
-int16_t SystemInfoGame::rowsHeight() const {
-    int16_t total = static_cast<int16_t>(CONTENT_PAD_Y * 2);
-    for (uint8_t i = 0; i < rowCount_; ++i) {
-        total = static_cast<int16_t>(total + rows_[i].height);
-    }
-    return total;
-}
-
-void SystemInfoGame::drawScrollBar(TFT_eSPI& tft, const Rect& r, int16_t totalHeight) const {
-    if (totalHeight <= r.h) return;
-    const int16_t trackX = static_cast<int16_t>(r.x + r.w - SCROLLBAR_W - 2);
-    const int16_t trackY = static_cast<int16_t>(r.y + 3);
-    const int16_t trackH = static_cast<int16_t>(r.h - 6);
-    tft.fillRoundRect(trackX, trackY, SCROLLBAR_W, trackH, 3, Ui::panel());
-    tft.drawRoundRect(trackX, trackY, SCROLLBAR_W, trackH, 3, Ui::outline());
-
-    const int16_t thumbH = static_cast<int16_t>(max<int16_t>(18, (trackH * r.h) / totalHeight));
-    const int16_t maxScroll = static_cast<int16_t>(totalHeight - r.h);
-    const int16_t travel = static_cast<int16_t>(max<int16_t>(1, trackH - thumbH));
-    const int16_t thumbY = static_cast<int16_t>(trackY +
-        (static_cast<int32_t>(scrollOffset_[tab_]) * travel) / max<int16_t>(1, maxScroll));
-    tft.fillRoundRect(static_cast<int16_t>(trackX + 1), static_cast<int16_t>(thumbY + 1),
-                      static_cast<int16_t>(SCROLLBAR_W - 2), static_cast<int16_t>(thumbH - 2),
-                      2, Ui::rgb(88, 164, 224));
-}
-
-void SystemInfoGame::clampScroll(uint8_t tabIndex, int16_t viewportH) {
-    const int16_t totalHeight = rowsHeight();
-    const int16_t maxScroll = static_cast<int16_t>(max<int16_t>(0, totalHeight - viewportH));
-    if (scrollOffset_[tabIndex] < 0) scrollOffset_[tabIndex] = 0;
-    if (scrollOffset_[tabIndex] > maxScroll) scrollOffset_[tabIndex] = maxScroll;
-}
-
-void SystemInfoGame::drawRows(TFT_eSPI& tft, const Rect& r) {
-    const int16_t totalHeight = rowsHeight();
-    clampScroll(tab_, r.h);
-    const bool needsScrollBar = totalHeight > r.h;
-    const int16_t rightPad = needsScrollBar ? static_cast<int16_t>(CONTENT_PAD_X + SCROLLBAR_W + 6) : CONTENT_PAD_X;
-    const int16_t labelX = static_cast<int16_t>(r.x + CONTENT_PAD_X);
-    const int16_t valueX = static_cast<int16_t>(r.x + max<int16_t>(92, r.w / 2));
-    const int16_t right = static_cast<int16_t>(r.x + r.w - rightPad);
-    int16_t y = static_cast<int16_t>(r.y + CONTENT_PAD_Y - scrollOffset_[tab_]);
-
-    tft.fillRect(r.x, r.y, r.w, r.h, Ui::surface());
-
-    for (uint8_t i = 0; i < rowCount_; ++i) {
-        const Row& row = rows_[i];
-        if (y + row.height < r.y) {
-            y = static_cast<int16_t>(y + row.height);
-            continue;
-        }
-        if (y > r.y + r.h) break;
-
-        if (row.kind == RowKind::Section) {
-            tft.setTextDatum(TL_DATUM);
-            tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.drawString(row.label, labelX, y, 2);
-            tft.drawFastHLine(static_cast<int16_t>(labelX + 54),
-                              static_cast<int16_t>(y + 7),
-                              static_cast<int16_t>(max<int16_t>(10, right - labelX - 56)),
-                              Ui::outline());
-        } else if (row.kind == RowKind::Text) {
-            tft.setTextDatum(TL_DATUM);
-            tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.drawString(row.label, labelX, y, 1);
-            tft.setTextColor(row.valueColor, Ui::surface());
-            tft.drawString(fittedText(tft, row.value, static_cast<int16_t>(right - valueX), 1),
-                           valueX, y, 1);
-        } else {
-            drawMeter(tft, Rect{labelX, y, static_cast<int16_t>(right - labelX), 8},
-                      row.meterPct, row.meterColor);
-        }
-        y = static_cast<int16_t>(y + row.height);
-    }
-
-    drawScrollBar(tft, r, totalHeight);
-}
-
 void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
     if (refreshTelemetry(false)) {
+        rowsStale_ = true;
         markDirty();
     }
 
@@ -350,20 +220,32 @@ void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
                 if (tab_ != i) {
                     tab_ = i;
                     scrolling_ = false;
+                    rowsStale_ = true;
                     markFullDirty();
                 }
                 return;
             }
         }
 
-        if (content.contains(touch.x, touch.y) && rowsHeight() > content.h) {
+        /* The chip position comes from the previous frame's draw, which is
+         * the frame the user was looking at when they touched it. */
+        if (rows_.actionRect().w > 0 &&
+            rows_.actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            bleAdvanced_ = !bleAdvanced_;
+            rowsStale_ = true;
+            host.board().beepOk();
+            markDirty();
+            return;
+        }
+
+        if (content.contains(touch.x, touch.y) && rows_.totalHeight() > content.h) {
             scrolling_ = true;
             scrollAnchorY_ = touch.y;
             scrollStartOffset_ = scrollOffset_[tab_];
         }
     } else if (touch.down && scrolling_) {
         scrollOffset_[tab_] = static_cast<int16_t>(scrollStartOffset_ - (touch.y - scrollAnchorY_));
-        clampScroll(tab_, content.h);
+        rows_.clampScroll(scrollOffset_[tab_], content.h);
         markDirty();
     }
 }
@@ -382,29 +264,29 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     const Board::BatteryTelemetry battery = board.readBatteryTelemetry();
     const int8_t pct = board.getBatteryPercent();
 
-    beginRows();
-    addSection("Chip");
-    addRow("Board", BOARD_NAME);
-    addRow("Chip", String(ESP.getChipModel()) + " r" + ESP.getChipRevision());
-    addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
-    addRow("SDK", ESP.getSdkVersion());
-    addRow("Firmware", GOODTIME_KIDS_VERSION);
-    addRow("Reset", Watchdog::resetReasonText(static_cast<int>(esp_reset_reason())));
-    addRow("Uptime", uptimeText(millis() / 1000UL));
+    rows_.clear();
+    rows_.addSection("Chip");
+    rows_.addRow("Board", BOARD_NAME);
+    rows_.addRow("Chip", String(ESP.getChipModel()) + " r" + ESP.getChipRevision());
+    rows_.addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
+    rows_.addRow("SDK", ESP.getSdkVersion());
+    rows_.addRow("Firmware", GOODTIME_KIDS_VERSION);
+    rows_.addRow("Reset", Watchdog::resetReasonText(static_cast<int>(esp_reset_reason())));
+    rows_.addRow("Uptime", uptimeText(millis() / 1000UL));
 
-    addSection("Power");
-    addRow("Source", powerText(board.getPowerSource()));
-    addRow("Charging", chargingText(board.getChargingState()));
-    addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
+    rows_.addSection("Power");
+    rows_.addRow("Source", powerText(board.getPowerSource()));
+    rows_.addRow("Charging", chargingText(board.getChargingState()));
+    rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
            (pct >= 0 ? " (" + String(pct) + "%)" : " (no batt)"));
-    addRow("BAT ADC", String(battery.rawAdc) + " raw");
-    addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
+    rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
+    rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
 
-    addSection("Flash");
-    addRow("Chip size", formatBytes(ESP.getFlashChipSize()));
-    addRow("Clock", String(ESP.getFlashChipSpeed() / 1000000UL) + " MHz");
-    addRow("Sketch", formatBytes(ESP.getSketchSize()));
-    addRow("Free app", formatBytes(ESP.getFreeSketchSpace()));
+    rows_.addSection("Flash");
+    rows_.addRow("Chip size", formatBytes(ESP.getFlashChipSize()));
+    rows_.addRow("Clock", String(ESP.getFlashChipSpeed() / 1000000UL) + " MHz");
+    rows_.addRow("Sketch", formatBytes(ESP.getSketchSize()));
+    rows_.addRow("Free app", formatBytes(ESP.getFreeSketchSpace()));
 }
 
 void SystemInfoGame::buildMemoryRows() {
@@ -418,22 +300,28 @@ void SystemInfoGame::buildMemoryRows() {
     const uint32_t frameMs = max<uint32_t>(1, stats.lastFrameMs);
     const uint8_t loopPct = percentOf(stats.lastWorkMs, frameMs);
 
-    beginRows();
-    addSection("Heap");
-    addRow("Used", formatBytes(heapUsed) + " / " + formatBytes(heapTotal));
-    addMeter(heapPct, heapPct > 80 ? Ui::warning() : Ui::success());
-    addRow("Free", formatBytes(heapFree));
-    addRow("Min free", formatBytes(stats.minFreeHeap));
-    addRow("Largest", formatBytes(stats.largestBlock));
-    addRow("PSRAM", psramTotal > 0 ? formatBytes(psramFree) + " free" : "Not present");
+    rows_.clear();
+    rows_.addSection("Heap");
+    rows_.addRow("Used", formatBytes(heapUsed) + " / " + formatBytes(heapTotal));
+    rows_.addMeter(heapPct, heapPct > 80 ? Ui::warning() : Ui::success());
+    rows_.addRow("Free", formatBytes(heapFree));
+    rows_.addRow("Min free", formatBytes(stats.minFreeHeap));
+    rows_.addRow("Largest", formatBytes(stats.largestBlock));
+    /* The number free heap alone will not tell you: plenty available, no
+     * single piece big enough for the next allocation. */
+    const uint8_t frag = Watchdog::heapFragmentation();
+    rows_.addRow("Fragmented", String(frag) + "%",
+                 frag >= 60 ? Ui::error() : (frag >= 35 ? Ui::warning() : Ui::success()));
+    rows_.addMeter(frag, frag >= 60 ? Ui::error() : (frag >= 35 ? Ui::warning() : Ui::success()));
+    rows_.addRow("PSRAM", psramTotal > 0 ? formatBytes(psramFree) + " free" : "Not present");
 
-    addSection("CPU");
-    addRow("Loop load", String(loopPct) + "% (" + stats.lastWorkMs + "/" + stats.lastFrameMs + " ms)");
-    addMeter(loopPct, loopPct > 70 ? Ui::warning() : Ui::success());
-    addRow("Worst work", String(stats.maxWorkMs) + " ms");
-    addRow("Worst frame", String(stats.maxFrameMs) + " ms");
-    addRow("Loops", String(stats.loops));
-    addRow("Boot count", String(stats.bootCount));
+    rows_.addSection("CPU");
+    rows_.addRow("Loop load", String(loopPct) + "% (" + stats.lastWorkMs + "/" + stats.lastFrameMs + " ms)");
+    rows_.addMeter(loopPct, loopPct > 70 ? Ui::warning() : Ui::success());
+    rows_.addRow("Worst work", String(stats.maxWorkMs) + " ms");
+    rows_.addRow("Worst frame", String(stats.maxFrameMs) + " ms");
+    rows_.addRow("Loops", String(stats.loops));
+    rows_.addRow("Boot count", String(stats.bootCount));
 }
 
 void SystemInfoGame::buildNetworkRows(GameHost& host) {
@@ -442,52 +330,146 @@ void SystemInfoGame::buildNetworkRows(GameHost& host) {
     const time_t lastSyncEpoch = board.lastTimeSyncEpoch();
     const uint32_t lastSyncMs = board.lastTimeSyncMs();
 
-    beginRows();
-    addSection("Status");
-    addRow("Wi-Fi", up ? "Connected" : "Disconnected",
+    rows_.clear();
+    rows_.addSection("Status");
+    rows_.addRow("Wi-Fi", up ? "Connected" : "Disconnected",
            up ? Ui::success() : Ui::warning());
-    addRow("Purpose", "NTP + TZ lookup if auto");
-    addRow("NTP server", board.ntpServer());
-    addRow("Fallbacks", "time.google.com, time.cloudflare.com");
-    addRow("TZ lookup", board.tzZoneChosen() ? "Disabled (manual zone)" : "ip-api.com");
-    addRow("Time sync", board.timeSynced() ? "Synced" : "Free-running",
+    rows_.addRow("Purpose", "NTP + TZ lookup if auto");
+    rows_.addRow("NTP server", board.ntpServer());
+    rows_.addRow("Fallbacks", "time.google.com, time.cloudflare.com");
+    rows_.addRow("TZ lookup", board.tzZoneChosen() ? "Disabled (manual zone)" : "ip-api.com");
+    rows_.addRow("Time sync", board.timeSynced() ? "Synced" : "Free-running",
            board.timeSynced() ? Ui::success() : Ui::warning());
-    addRow("Last sync", formatTimestamp(lastSyncEpoch));
-    addRow("Since sync", lastSyncMs != 0 ? syncAgeText(millis() - lastSyncMs) : "Never");
+    rows_.addRow("Last sync", formatTimestamp(lastSyncEpoch));
+    rows_.addRow("Since sync", lastSyncMs != 0 ? syncAgeText(millis() - lastSyncMs) : "Never");
 
-    addSection("Link");
-    addRow("Hostname", String(WiFi.getHostname() ? WiFi.getHostname() : "-"));
-    addRow("MAC", WiFi.macAddress());
-    addRow("Saved SSID", board.wifiSsid().length() ? board.wifiSsid() : "None");
+    rows_.addSection("Link");
+    rows_.addRow("Hostname", String(WiFi.getHostname() ? WiFi.getHostname() : "-"));
+    rows_.addRow("MAC", WiFi.macAddress());
+    rows_.addRow("Saved SSID", board.wifiSsid().length() ? board.wifiSsid() : "None");
     if (up) {
         wifi_ap_record_t ap{};
         const bool haveAp = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
-        addRow("SSID", WiFi.SSID());
-        addRow("RSSI", String(WiFi.RSSI()) + " dBm");
-        addRow("Channel", String(WiFi.channel()));
-        addRow("PHY", wifiPhyText());
-        addRow("BSSID", haveAp ? WiFi.BSSIDstr() : "-");
-        addRow("IP", WiFi.localIP().toString());
-        addRow("Gateway", WiFi.gatewayIP().toString());
-        addRow("Subnet", WiFi.subnetMask().toString());
-        addRow("DNS", WiFi.dnsIP().toString());
+        rows_.addRow("SSID", WiFi.SSID());
+        rows_.addRow("RSSI", String(WiFi.RSSI()) + " dBm");
+        rows_.addRow("Channel", String(WiFi.channel()));
+        rows_.addRow("PHY", wifiPhyText());
+        rows_.addRow("BSSID", haveAp ? WiFi.BSSIDstr() : "-");
+        rows_.addRow("IP", WiFi.localIP().toString());
+        rows_.addRow("Gateway", WiFi.gatewayIP().toString());
+        rows_.addRow("Subnet", WiFi.subnetMask().toString());
+        rows_.addRow("DNS", WiFi.dnsIP().toString());
     }
 
-    addSection("Traffic");
-    addRow("RX", trafficAvailable_ ? formatRate(rxRate_, trafficBytes_) : "Counters off");
-    addRow("TX", trafficAvailable_ ? formatRate(txRate_, trafficBytes_) : "Counters off");
-    addRow("Counters", trafficAvailable_ ? (trafficBytes_ ? "lwIP bytes" : "lwIP packets")
+    rows_.addSection("Traffic");
+    rows_.addRow("RX", trafficAvailable_ ? formatRate(rxRate_, trafficBytes_) : "Counters off");
+    rows_.addRow("TX", trafficAvailable_ ? formatRate(txRate_, trafficBytes_) : "Counters off");
+    rows_.addRow("Counters", trafficAvailable_ ? (trafficBytes_ ? "lwIP bytes" : "lwIP packets")
                                          : "lwIP stats disabled");
 
-    addSection("Recent calls");
+    rows_.addSection("Recent calls");
     if (board.networkActivityCount() == 0) {
-        addRow("Log", "No calls recorded yet");
+        rows_.addRow("Log", "No calls recorded yet");
     } else {
         for (uint8_t i = 0; i < board.networkActivityCount() && i < 8; ++i) {
             const Board::NetworkActivity item = board.networkActivity(i);
             const uint32_t ageMs = item.atMs > 0 ? millis() - item.atMs : 0;
-            addRow(String("T-") + uptimeText(ageMs / 1000UL), item.detail);
+            rows_.addRow(String("T-") + uptimeText(ageMs / 1000UL), item.detail);
         }
+    }
+}
+
+/* What the device is putting on the air, read back from the one structure the
+ * radio was configured from (hal/BleBeacon.h). Nothing here is a hand-written
+ * description of the payload -- every value, including the raw hex, comes from
+ * BleBeacon::configured()/broadcasting(), so the screen cannot drift away from
+ * what the controller is actually transmitting.
+ *
+ * The distinction the screen has to keep honest: `live` is non-null only while
+ * the controller is advertising. When it is null nothing is on air, and the
+ * configured identity is labelled as configuration, never as broadcast. */
+void SystemInfoGame::buildBleRows(GameHost& host) {
+    Board& board = host.board();
+    const BleBeacon::Advertisement& cfg = BleBeacon::configured();
+    const BleBeacon::Advertisement* live = BleBeacon::broadcasting();
+    const bool onAir = (live != nullptr);
+    const BleBeacon::Advertisement& src = onAir ? *live : cfg;
+
+    rows_.clear();
+
+    rows_.addSection("Beacon");
+    if (onAir) {
+        rows_.addRow("Status", "Advertising", Ui::success());
+        rows_.addRow("Mode", BleBeacon::modeText());
+    } else {
+        rows_.addRow("BLE Beacon", board.bleBeaconEnabled() ? "On (radio down)" : "Off",
+               board.bleBeaconEnabled() ? Ui::warning() : Ui::muted());
+        rows_.addRow("Broadcasting", "Nothing", Ui::success());
+        rows_.addRow("Turn on in", "Settings > Beacon", Ui::muted());
+    }
+
+    /* Section title doubles as the configured/broadcast label, so no row below
+     * it can be misread as being on air when it is not. */
+    rows_.addSection(onAir ? "On Air" : "Config");
+    rows_.addRow("Name", src.deviceName);
+    rows_.addRow("Family ID", src.familyId);
+    rows_.addRow("Device ID", src.deviceId);
+
+    rows_.addSection(onAir ? "Mfr Data" : "Mfr (cfg)");
+    rows_.addRow("Company", "0x" + String(src.companyId, HEX) + " unassigned");
+    rows_.addRow("Family", String(src.familyId) + " (" + BleBeacon::FAMILY_TAG + ")");
+    rows_.addRow("Version", String(BleBeacon::PAYLOAD_VERSION));
+    rows_.addRow("Device ID", src.deviceId);
+    rows_.addRow("Raw", BleBeacon::toHex(src.manufacturerData, src.manufacturerLen));
+
+    if (src.serviceUuid16 != 0) {
+        rows_.addRow("Service UUID", "0x" + String(src.serviceUuid16, HEX));
+        if (src.serviceDataLen > 0) {
+            rows_.addRow("Service Data", BleBeacon::toHex(src.serviceData, src.serviceDataLen));
+        }
+    }
+
+    /* The privacy list is not a promise typed into the UI -- it is the direct
+     * consequence of BleBeacon::buildPayload(), which emits a name AD and a
+     * manufacturer AD and nothing else. Anything a game or profile stores is
+     * structurally unreachable from there. */
+    rows_.addSection("Privacy");
+    const uint16_t safe = Ui::success();
+    rows_.addRow("Child info", "Not Broadcast", safe);
+    rows_.addRow("Child name", "Not Broadcast", safe);
+    rows_.addRow("Location", "Not Broadcast", safe);
+    rows_.addRow("Wi-Fi password", "Not Broadcast", safe);
+    rows_.addRow("Wi-Fi SSID", "Not Broadcast", safe);
+    rows_.addRow("IP address", "Not Broadcast", safe);
+    rows_.addRow("Game progress", "Not Broadcast", safe);
+    rows_.addRow("Scores", "Not Broadcast", safe);
+    rows_.addRow("Usage history", "Not Broadcast", safe);
+
+    rows_.addAction(bleAdvanced_ ? "Hide advanced" : "Show advanced");
+
+    if (!bleAdvanced_) {
+        return;
+    }
+
+    rows_.addSection("Advanced");
+    rows_.addRow("Interval", String(src.advIntervalMs) + " ms");
+    rows_.addRow("TX power", src.txPowerConfigured ? (String(src.txPowerDbm) + " dBm")
+                                             : String("Controller default"));
+    rows_.addRow("Adv type", src.connectable ? "Connectable undirected"
+                                       : "Non-connectable");
+    const String addr = BleBeacon::address();
+    rows_.addRow("BLE address", addr.length() ? addr : "Stack down");
+    rows_.addRow("Payload", String(src.payloadLen) + " of " +
+                      String(BleBeacon::PAYLOAD_MAX) + " bytes");
+
+    /* The full AD-structure dump, chunked so each line fits the value column
+     * rather than being truncated to an ellipsis. Byte offsets are labelled so
+     * a reader can line them up against a scanner capture. */
+    constexpr uint8_t PER_ROW = 7;
+    for (uint8_t off = 0; off < src.payloadLen; off = static_cast<uint8_t>(off + PER_ROW)) {
+        const uint8_t n = static_cast<uint8_t>(min<int>(PER_ROW, src.payloadLen - off));
+        rows_.addRow(String(off) + "-" + String(off + n - 1),
+               BleBeacon::toHex(src.payload + off, n));
     }
 }
 
@@ -495,42 +477,56 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
     Board& board = host.board();
     const Watchdog::Stats stats = Watchdog::stats();
 
-    beginRows();
-    addSection("Device");
-    addRow("Theme", board.themeMode() == Board::ThemeMode::Light ? "Light" : "Dark");
-    addRow("Layout", board.layoutMode() == Board::LayoutMode::Vertical ? "Portrait" : "Landscape");
-    addRow("Brightness", String(board.brightness()) + "%");
-    addRow("Saver", String(board.screenSaverSeconds()) + " s");
-    addRow("Profile", board.isGuest() ? "Guest" : board.profileName(board.activeProfile()));
-    addRow("Touch cal", board.hasTouchCalibration() ? "Calibrated" : "Uncalibrated");
-    addRow("SD card", board.sdReady() ? "Ready" : "Not found");
-    addRow("Wi-Fi creds", board.hasWifiCredentials() ? "Stored" : "Not set");
-    addRow("NTP enabled", board.ntpEnabled() ? "Yes" : "No");
+    rows_.clear();
+    rows_.addSection("Device");
+    rows_.addRow("Theme", board.themeMode() == Board::ThemeMode::Light ? "Light" : "Dark");
+    rows_.addRow("Layout", board.layoutMode() == Board::LayoutMode::Vertical ? "Portrait" : "Landscape");
+    rows_.addRow("Brightness", String(board.brightness()) + "%");
+    rows_.addRow("Saver", String(board.screenSaverSeconds()) + " s");
+    rows_.addRow("Profile", board.isGuest() ? "Guest" : board.profileName(board.activeProfile()));
+    rows_.addRow("Touch cal", board.hasTouchCalibration() ? "Calibrated" : "Uncalibrated");
+    rows_.addRow("SD card", board.sdReady() ? "Ready" : "Not found");
+    rows_.addRow("Wi-Fi creds", board.hasWifiCredentials() ? "Stored" : "Not set");
+    rows_.addRow("NTP enabled", board.ntpEnabled() ? "Yes" : "No");
 
-    addSection("Watchdog");
-    addRow("State", stats.armed ? "Armed" : "Not armed");
-    addRow("Stalls", String(stats.stalls));
-    addRow("Uptime", uptimeText(stats.uptimeSeconds));
+    rows_.addSection("Watchdog");
+    rows_.addRow("State", stats.armed ? "Armed" : "Not armed");
+    rows_.addRow("Stalls", String(stats.stalls));
+    rows_.addRow("Uptime", uptimeText(stats.uptimeSeconds));
 
-    addSection("Claims");
-    addRow("Internet use", board.tzZoneChosen() ? "NTP only" : "NTP + ip-api.com");
-    addRow("Bluetooth", "Hardware capable; firmware off");
-    addRow("Temp", "Not shown; ESP32 reading not trusted");
+    rows_.addSection("Claims");
+    rows_.addRow("Internet use", board.tzZoneChosen() ? "NTP only" : "NTP + ip-api.com");
+    rows_.addRow("BLE beacon", BleBeacon::active() ? "Advertising -- see BLE tab"
+                                             : "Off; nothing broadcast");
+    rows_.addRow("Temp", "Not shown; ESP32 reading not trusted");
 }
 
-void SystemInfoGame::drawContent(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
-    const int16_t W = static_cast<int16_t>(tft.width());
-    const int16_t H = static_cast<int16_t>(tft.height());
-    const Rect cr = contentRect(W, H);
-
+void SystemInfoGame::rebuildRows(GameHost& host) {
     switch (tab_) {
         case 0: buildBoardRows(host); break;
         case 1: buildMemoryRows(); break;
         case 2: buildNetworkRows(host); break;
-        case 3: buildAppStateRows(host); break;
+        case 3: buildBleRows(host); break;
+        case 4: buildAppStateRows(host); break;
     }
-    drawRows(tft, cr);
+    rowsStale_ = false;
+}
+
+void SystemInfoGame::drawContent(GameHost& host) {
+    TFT_eSPI& tft = host.board().display();
+    const Rect cr = contentRect(static_cast<int16_t>(tft.width()),
+                                static_cast<int16_t>(tft.height()));
+
+    /* Rebuilt on a telemetry tick, a tab change or a toggle -- not per frame.
+     * The row builders assemble their values with Arduino String, so doing
+     * this on every frame of a scroll drag meant a few hundred transient
+     * allocations a second churning through a heap that cannot be compacted.
+     * Scrolling changes only the offset, and the offset is a draw argument. */
+    if (rowsStale_) {
+        rebuildRows(host);
+    }
+    rows_.clampScroll(scrollOffset_[tab_], cr.h);
+    rows_.draw(tft, cr, scrollOffset_[tab_]);
 }
 
 void SystemInfoGame::render(GameHost& host) {

@@ -1,5 +1,147 @@
 # Changelog
 
+## 2.1.0 — 2026-08-13
+
+BLE beacon with full on-device transparency, a System Info app, and a pass
+over everything that was making the UI feel slow.
+
+Flash 2,251,793 / 3,145,728 (71.6%), RAM 64,940 / 327,680 (19.8%).
+
+### Added
+
+- **BLE beacon.** An opt-in, non-connectable presence broadcast, off by
+  default and switched from *Settings -> Beacon*. It advertises a device name
+  (`LearnKey-<id>`) and a manufacturer-data block holding a family tag, a
+  layout version and two bytes of the factory Bluetooth MAC. 27 of the 31
+  legal payload bytes. Nothing profile-scoped is reachable from the radio path.
+
+  NimBLE rather than the core's Bluedroid stack: advertise-only needs a
+  fraction of the host, and flash is the scarce resource here. Host plus
+  controller cost ~192 KB.
+
+- **System Info BLE tab.** Shows whether advertising is currently active, the
+  advertised name, every decoded field of the manufacturer data, a privacy
+  list of what is *not* broadcast, and under *Show advanced* the interval, TX
+  power, advertising type, controller address and a hex dump of the exact
+  bytes on air.
+
+  Everything on that screen is read back from the same structure the radio was
+  configured from -- `BleBeacon::Advertisement`, compiled into a raw buffer and
+  handed to the controller verbatim. There is no second, hand-written UI
+  description of the payload, so the display and the radio cannot drift apart.
+  Contract written down in `docs/BLE_BEACON_SPEC.md`.
+
+- **Beacon badge in the launcher header.** The Bluetooth rune, drawn only
+  while the radio is genuinely advertising -- there is no greyed-out variant,
+  because "is it transmitting?" should not be a question of shade. Placed
+  per layout mode: landscape puts it on the clock's line, positioned off the
+  measured width of the clock string, because the badge row there has about
+  8px of slack; portrait simply extends the badge row.
+
+- **System Info screen** (five tabs: board, memory, network, BLE, app state)
+  with live telemetry, scrolling rows and a scroll bar.
+
+### Performance
+
+The board felt sluggish, and it was not one thing. Each of these looked
+harmless at the call site and each was eating most of a 20ms frame.
+
+- **NVS reads in hot paths.** `Preferences` is flash-backed -- every getter is
+  a hash lookup, not a variable read. `screenSaverSeconds()` ran once per loop
+  iteration, about 50 times a second. Worse, `gameVisible()` ran up to ~180
+  times per launcher repaint and each call was two NVS reads plus three
+  `String` temporaries, so a single launcher repaint could mean ~360 flash
+  lookups and ~550 allocations.
+
+  Theme, layout, brightness, idle timeout and active profile now have
+  write-through RAM mirrors, and game visibility is a 32-bit mask loaded once
+  per profile. `gameVisible()` went from two NVS reads and three allocations
+  to a shift and a mask.
+
+- **A blocking `delay()` reachable from a render path.** Battery sensing slept
+  10ms per call and `Ui::drawTopBar()` calls two battery getters, so every top
+  bar cost ~20ms of pure `delay()` before anything was drawn. Now one cached
+  sample set with a 2s lifetime and no delays at all.
+
+- **Frame pacing was a fixed nap, not a deadline.** The loop ended in an
+  unconditional `delay(18)`, so the frame period was work + 18ms and a heavy
+  frame was punished twice. It now sleeps only the remainder of a 20ms budget,
+  so touch latency tracks how long the work actually took.
+
+- **Content rebuilt every frame.** System Info reassembled every row on every
+  frame while scrolling. Scrolling changes an offset, not content; rebuilds
+  are now gated behind a stale flag.
+
+### Fixed
+
+- **The boot counter was stuck.** `"boots"` was persisted only inside the
+  unclean-reset branch, so a cold boot -- which is every power cycle, since
+  RTC memory does not survive one -- read back whatever the last crash had
+  left and reported the same number forever. The device sat on "boot #4"
+  across many power cycles, quietly undermining the crash report it appears
+  next to. Now written on every boot.
+
+- **The System Info row list no longer churns the heap.** It held 48 rows of
+  two Arduino `String`s each and rebuilt every one on every frame -- roughly
+  96 long-lived allocations freed and re-made at frame rate, interleaved with
+  every transient `String` the row builders create. On a heap that cannot be
+  compacted that is a fragmentation engine: free heap looks healthy right up
+  to the allocation that fails.
+
+  Extracted to `src/ui/RowList` with fixed `char` buffers, so it now allocates
+  nothing at all, and rebuilds are gated on a stale flag rather than running
+  per frame. Costs 864 bytes of static RAM and *saves* 5.5 KB of flash.
+
+- **Heap accounting per screen.** Every transition compares free heap against
+  the value captured before that screen's `begin()` and logs
+  `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
+  Fragmentation is logged past 60% and shown on the System Info memory tab,
+  since free heap alone will not reveal it.
+
+- **Battery sensing made ~20-30ms cheaper per frame, and more honest.**
+  `getBatteryPercent()` and `getPowerSource()` each ran their own 10-sample
+  ADC conversion with a `delay(1)` between samples, and `Ui::drawTopBar()`
+  calls both -- so every top bar cost ~20ms of blocking delay and the System
+  Info board tab ~30ms per repaint. That is most of a frame, and it is what
+  made scrolling that screen feel sluggish. One cached sample set, 2s
+  lifetime, no delays, shared by every accessor.
+
+  Three wrong assumptions went with it: the conversion claimed "3.3V reference
+  with 11dB attenuation" (mutually exclusive -- at 11dB the ADC is linear only
+  to ~2.45V and its reference varies 1000-1200mV per chip, so it now goes
+  through `esp_adc_cal` and the eFuse calibration); percentage was linear from
+  3.2-4.2V, which reads ~20 points high through a LiPo's flat middle, and is
+  now a piecewise curve; and `isBatteryPresent()` returned false whenever the
+  device was on external power, which reads as "no battery fitted".
+
+  The 100k/100k divider ratio remains assumed and still wants a meter.
+
+- **System Info no longer smears text into its tab strip while scrolling.**
+  Rows entirely outside the content rect were skipped, but the row straddling
+  the top edge was still drawn in full. The row loop now clips to a viewport.
+
+### Changed
+
+- **Screens now have an `end()` lifecycle hook**, called on every transition
+  through a single `leaveActiveGame()` funnel so no path can skip it. Nothing
+  in the firmware runs off a task or timer, so no screen keeps consuming
+  cycles after you leave it -- the hook is what keeps that true as screens
+  grow. System Info uses it to release its row list.
+
+- **The launcher header shows the profile name as plain text, not a button.**
+  The framed chip was what overlapped the clock and status badges on a 240px
+  portrait header; the name itself was wanted. In landscape it now sits after
+  the byline rather than across it. The rect is both where it draws and the
+  touch target, so the two cannot drift apart.
+
+- Settings moved to a four-row grid to fit the beacon toggle, with Reset
+  spanning both columns.
+
+- `README.md`, `CLAUDE.md`, `AGENTS.md` and the per-directory `CLAUDE.md`
+  files brought back in sync: the game count (23 -> 26), the removed Countries
+  game, the added US States / State Flags / State Maps / Trace games,
+  profiles, the watchdog, and current flash and RAM figures.
+
 ## 2.0.1 — 2026-08-11
 
 Display and theming fixes, all reported from the device.

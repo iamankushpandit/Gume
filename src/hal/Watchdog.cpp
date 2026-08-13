@@ -135,6 +135,18 @@ void recoverLastRun() {
             }
         }
     }
+
+    /* Persist the boot counter on every boot, not only after a crash.
+     *
+     * It used to be written inside the unclean-reset branch alone, so a cold
+     * boot -- which is every power cycle, since RTC memory does not survive
+     * one -- read back whatever the last crash had left and reported the same
+     * number forever. The device sat on "boot #4" across many power cycles,
+     * which quietly undermines the crash report it appears alongside. */
+    if (prefs.begin(NVS_NAMESPACE, false)) {
+        prefs.putUInt("boots", rtcCrumb.bootCount);
+        prefs.end();
+    }
 }
 
 void monitorTask(void*) {
@@ -296,6 +308,41 @@ void resume() {
     esp_task_wdt_reset();
     lastFeedMs_ = millis();
     paused_ = false;
+}
+
+uint8_t heapFragmentation() {
+    const uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap == 0) {
+        return 100;
+    }
+    const uint32_t largest = ESP.getMaxAllocHeap();
+    if (largest >= freeHeap) {
+        return 0;
+    }
+    /* The standard measure: how much of what is free cannot be handed out in
+     * one piece. Free heap on its own hides this completely. */
+    return static_cast<uint8_t>(100UL - (largest * 100UL) / freeHeap);
+}
+
+void noteScreenLeft(const char* screen, uint32_t heapAtEntry) {
+    if (heapAtEntry == 0) {
+        return;   // no baseline captured, nothing to compare against
+    }
+    const uint32_t now = ESP.getFreeHeap();
+    if (heapAtEntry > now && (heapAtEntry - now) >= SCREEN_LEAK_WARN_BYTES) {
+        Serial.printf("[heap] '%s' left %lu bytes short (%lu -> %lu)\n",
+                      screen == nullptr ? "?" : screen,
+                      static_cast<unsigned long>(heapAtEntry - now),
+                      static_cast<unsigned long>(heapAtEntry),
+                      static_cast<unsigned long>(now));
+    }
+    const uint8_t frag = heapFragmentation();
+    if (frag >= FRAGMENTATION_WARN_PCT) {
+        Serial.printf("[heap] fragmentation %u%% after '%s' (free %lu, largest %lu)\n",
+                      frag, screen == nullptr ? "?" : screen,
+                      static_cast<unsigned long>(now),
+                      static_cast<unsigned long>(ESP.getMaxAllocHeap()));
+    }
 }
 
 Stats stats() {
