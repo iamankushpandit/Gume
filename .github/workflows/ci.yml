@@ -35,4 +35,4 @@ jobs:
           python tools/check_frame_rules.py
 
       - name: Build firmware
-        run: pio run -e app -e bringup -e wifidiag
+        run: pio run -e app -e app_st7789 -e bringup -e bringup_st7789 -e wifidiag

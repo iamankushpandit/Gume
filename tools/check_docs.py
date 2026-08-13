@@ -245,17 +245,38 @@ def check_site(problems):
         fail(problems, "site/index.template.html hardcodes a version number -- "
                        "it is supposed to use the {{VERSION}} placeholder")
 
-    envs = re.findall(r'"env":\s*"(\w+)"', generator)
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    try:
+        import gen_site
+    except ImportError as problem:
+        fail(problems, "cannot import tools/gen_site.py: %s" % problem)
+        return
+
     ini = read("platformio.ini")
-    workflow = read(".github", "workflows", "pages.yml")
-    for env in envs:
+    for env in gen_site.environments():
         if not re.search(r"^\[env:%s\]" % re.escape(env), ini, re.M):
             fail(problems, "gen_site.py offers firmware '%s', which is not a "
                            "platformio.ini environment" % env)
-        if not re.search(r"\b%s\b" % re.escape(env), workflow):
-            fail(problems, "gen_site.py offers firmware '%s', but the Pages "
-                           "workflow never builds it -- its manifest would "
-                           "point at binaries that do not exist" % env)
+
+    # The Pages workflow must take its build list from the generator. If it ever
+    # goes back to a hardcoded one, every browser-offered environment has to be
+    # named in it -- otherwise a board reaches the page with no binaries behind
+    # it.
+    workflow = read(".github", "workflows", "pages.yml")
+    if "--print-envs" not in workflow:
+        for env in gen_site.environments():
+            if not re.search(r"\b%s\b" % re.escape(env), workflow):
+                fail(problems, "gen_site.py offers firmware '%s', but the Pages "
+                               "workflow never builds it -- its manifest would "
+                               "point at binaries that do not exist" % env)
+
+    # An untested board is a claim about hardware, so it must say so where it
+    # is chosen, not only in a footnote.
+    if any(not target["tested"] for target in gen_site.BOARDS):
+        if "untested" not in template:
+            fail(problems, "gen_site.py lists a board that has never been run, "
+                           "but site/index.template.html has no untested "
+                           "warning for it")
 
 
 def main():

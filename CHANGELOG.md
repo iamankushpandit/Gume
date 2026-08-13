@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### Added
+
+- **Dice.** Pick one, two or three dice and throw them; the faces tumble for a
+  second before they settle. No score is kept -- a best total here would be
+  luck, reachable in a few taps and then frozen at 18 forever, so it would only
+  add a dead row to the Scores app.
+- **Coin Flip.** Best of one, three or five spins. Each coin squashes edge-on
+  and back as it spins, then lands, and a pip row fills in as the round goes on.
+  No score, for the same reason as Dice.
+- **The second 2.8-inch CYD panel.** The ESP32-2432S028R shipped with two
+  display controllers on an otherwise identical board: early single-USB units
+  are ILI9341, later two-USB units (v2/v3, "CYD2USB") are ST7789 with BGR
+  colour order and inversion off. Every GPIO is the same, so this is a flag
+  change, not a second pin map -- `platformio.ini` grows `[panel_ili9341]` and
+  `[panel_st7789]` sections and the `app_st7789` and `bringup_st7789`
+  environments, and the site offers both app builds.
+
+  **The ST7789 build has never been run.** It is compiled against the published
+  pin map for that revision and nothing more, and the picker says so in place,
+  not in a footnote.
+
+  Deliberately *not* added: the 2.4-inch ESP32-2432S024R, whose touch shares
+  the display SPI bus that `Board::pollTouch()` bit-bangs, whose backlight is
+  on GPIO 27, and whose GPIO 34 is a light sensor rather than a battery
+  divider. It needs driver work, not a flag.
+- **A use-at-your-own-risk statement, and a LICENSE file.** README said the
+  code was MIT and the repository had no licence file, so the disclaimer had
+  nothing behind it. There is one now, and the site carries the warranty and
+  liability position where someone about to flash a board can read it.
+
 ### Changed
 
 - **The console is now Braino!** The product was GoodTime Kids; it is Braino!
@@ -15,23 +45,16 @@
   and system tile was reworked around a larger circular plate with a soft
   shadow, stronger outlines and clearer symbols. Percent and Fingers got the
   most direct cleanup, and Dice and Coin Flip use the same icon treatment.
-
-### Added
-
-- **Dice.** Pick one, two or three dice and throw them; the faces tumble for a
-  second before they settle. No score is kept -- a best total here would be
-  luck, reachable in a few taps and then frozen at 18 forever, so it would only
-  add a dead row to the Scores app.
-- **Coin Flip.** Best of one, three or five spins. Each coin squashes edge-on
-  and back as it spins, then lands, and a pip row fills in as the round goes on.
-  No score, for the same reason as Dice.
-
-### Changed
-
 - The web installer offers only the console firmware. The bring-up and Wi-Fi
   diagnostics are still built by CI and still documented in the README, but they
   are no longer in the browser flasher's picker, where choosing one replaces a
   working console with a serial test.
+- **CI derives its browser-flasher build list from the site generator.** The
+  Pages workflow runs `gen_site.py --print-envs` and copies binaries per the
+  generated `builds.json`, so the board matrix exists once. `check_docs.py` now
+  imports the generator rather than pattern-matching it, and fails if a board is
+  offered without a PlatformIO environment, or if an untested board has no
+  warning in the template.
 
 ### Fixed
 

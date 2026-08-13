@@ -63,8 +63,8 @@ The fix, and the standing rule, is to **derive rather than restate**:
 
 | About shows | Derived from |
 |---|---|
-| Version | `GOODTIME_KIDS_VERSION` |
-| Game count and every game name/blurb | `GAME_CATALOG` |
+| Version | `BRAINO_VERSION` |
+| Game count and every game name/blurb | `AppRegistry` playable apps |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
 | Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
@@ -173,18 +173,19 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 ### 1. Code — miss one and it fails silently or won't link
 
 1. `src/games/NewGame.{h,cpp}` — subclass `Game`.
-2. `src/engine/GameCatalog.cpp` — append an entry. Blurbs render at font 1
-   across ~292 px, so keep them under ~46 chars. **`id` is a persisted NVS
-   visibility key**: renaming it later resets that game's visibility on every
-   existing device.
-3. `src/main.cpp` — add to `enum class EntryKind`.
-4. `src/main.cpp` — add to `CATALOG_KINDS[]` **at the same index as the catalog
-   entry**. Nothing enforces this; a misalignment compiles, links, and launches
-   the wrong game from the right tile.
-5. `src/main.cpp` — a `case` in `launchKind()` (wires the instance) and one in
-   `drawLauncherIcon()` (draws the tile icon).
-6. `src/engine/ScoreCatalog.cpp` — only if it records a score, so the Scores
-   screen can show it.
+2. In the game's own `.cpp`, add one `AppMetadata` declaration and a
+   `...AppMetadata()` accessor. Blurbs render at font 1 across ~292 px, so keep
+   them under ~46 chars. **`id` is a persisted NVS visibility key**: renaming it
+   later resets that game's visibility on every existing device. The metadata
+   block also owns launcher icon, launcher index and default visibility.
+3. If the game records a score, declare one local `AppScoreInfo` and point the
+   metadata at it.
+4. `src/engine/AppRegistry.cpp` — add a
+   `metadataCatalogApp(...AppMetadata(), instance)` entry at the intended
+   playable position.
+5. `src/engine/AppRegistry.h` — update `PLAYABLE_APP_COUNT`.
+6. `tools/check_catalog.py` verifies the launcher index, icon binding,
+   playable `AppGame` subclass and system-screen capability declarations.
 
 ### 2. Docs — the part that actually gets forgotten
 
@@ -210,15 +211,15 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 
 ### What you do NOT hand-edit
 
-These derive from `GAME_CATALOG` and update themselves. Editing them by hand is
+These derive from `AppRegistry` and update themselves. Editing them by hand is
 how About fell six games behind in the first place:
 
 - the **About** app's game list, count and blurbs
 - the **Settings → Games** visibility list
 - the **launcher** tiles and paging
 - the **GitHub Pages site** — `tools/gen_site.py` reads the version from
-  `AppVersion.h`, the game list and blurbs from `GAME_CATALOG`, the build
-  figures from `README.md` and the board name from `platformio.ini`. Edit
+  `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
+  figures from `README.md` and the board matrix from `tools/gen_site.py`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
   fails if a version number is typed into it
 
@@ -236,24 +237,29 @@ Everything above still applies, plus:
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all three PlatformIO
-environments on every push to `main`, runs `tools/gen_site.py`, and drops the
-resulting `.bin` files beside the manifest that points at them. Nobody
-regenerates it by hand, so it cannot go stale on its own — but three things
-break it, and all three fail in someone else's browser rather than here:
+Web Serial. `.github/workflows/pages.yml` builds the browser-offered firmware
+environments from `tools/gen_site.py --print-envs` on every push to `main`, then
+drops the resulting `.bin` files beside the manifest that points at them.
+Nobody regenerates it by hand, so it cannot go stale on its own — but three
+things break it, and all three fail in someone else's browser rather than here:
 
-1. **Adding or renaming a PlatformIO environment.** The page offers one
-   firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
-   build that env, its manifest points at binaries that do not exist and the
-   flash fails partway. `check_docs.py` cross-checks `VARIANTS` against
-   `platformio.ini` and the workflow.
+1. **Adding a board or browser-offered firmware.** The picker is the cross
+   product of `BOARDS` and `VARIANTS` in `gen_site.py`, and the Pages workflow
+   builds exactly what `gen_site.py --print-envs` reports, so one edit covers
+   page and published binaries. What still bites: an env named there that
+   `platformio.ini` does not define, which `check_docs.py` catches. Every board
+   carries a `tested` flag, and an untested one must say so in the picker --
+   that is checked too, because it is a claim about hardware nobody here is
+   holding.
 2. **Changing what the firmware transmits or stores.** The page carries a
    privacy section, and the same rule applies to it as to the About radio page
    and the README: a privacy claim that has drifted from the hardware is worse
    than none, because it is believed.
-3. **Making CI unable to build.** `main` deliberately points `map-n-flag` at a
-   machine-local path; the workflow rewrites that line in its own working copy.
-   If `lib_deps` changes shape, fix the `sed` in the same commit.
+3. **Making CI unable to build.** `platformio.ini` is expected to build on a
+   clean checkout, locally and in GitHub Actions. If environments or `lib_deps`
+   change, keep `.github/workflows/ci.yml` building every firmware environment
+   and `.github/workflows/pages.yml` building every browser-offered environment
+   in the same commit.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there — the binaries only exist in CI.
@@ -262,6 +268,6 @@ Four things that cause real damage here if you skip them:
 
 1. **Branch into your own worktree before you start.** New requirement → `git worktree add ../GUme-<slug> -b feat/<slug>`, then work there. Do **not** `git switch` inside the main checkout: it holds other agents' uncommitted work and switching under them strands it. A worktree also gives you a private `.pio/` build dir.
 2. **Multiple agents share this repo.** Read `git status` first; uncommitted work that isn't yours is normal. Stage explicit paths, never `git add -A`. Don't merge to `main` or push unless asked.
-3. **`GAME_CATALOG[]` and `CATALOG_KINDS[]` are index-coupled across two files** and a bad merge misaligns them silently — it still compiles and links, and the only symptom is a tile launching the wrong game. Re-verify entry-for-entry after every merge.
+3. **`APP_REGISTRY[]` and each game's `AppMetadata::launcherIndex` are index-coupled** and a bad merge can duplicate or skip an index silently — it still compiles and links, and the only symptom is a tile launching the wrong game or appearing in the wrong place. Re-run `python tools/check_catalog.py` after every merge touching the registry or game metadata.
 4. **One physical board, one serial port** — shared across all branches and worktrees. Don't flash or factory-reset without saying so; it wipes calibration, profiles and scores another agent may be testing against.
 5. **Take the board lock before building or flashing.** It lives at `(git rev-parse --git-common-dir)/gume-board.lock` so it's visible from every worktree. If it's held by a live process, wait and poll. If no build or flash process is actually running, the lock is stale — delete it and carry on, and say that you did. Release your own lock even when the build fails.
