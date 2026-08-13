@@ -284,10 +284,10 @@ def fingers_show():
     return im
 
 
-def simon():
+def cinnamon():
     im = Image.new("RGB", (W, H), (245, 245, 248)); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
-    d.text((48, 8), "Simon Says", font=F2, fill=TEXT)
+    d.text((48, 8), "Cinnamon Says", font=F2, fill=TEXT)
     d.rounded_rectangle([6, 5, 38, 24], 3, outline=MUTED)
     d.text((11, 9), "home", font=F1, fill=MUTED)
     d.text((10, 34), "Score 4", font=F2, fill=(30, 30, 36))
@@ -490,7 +490,7 @@ SCREENS = [
     ("trace", trace, "Trace: letters and numbers"),
     ("fingers-count", fingers_count, "Finger Counting: count them"),
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
-    ("simon", simon, "Simon Says"),
+    ("cinnamon", cinnamon, "Cinnamon Says"),
     ("settings-device", settings_device, "Settings: device"),
     ("settings-games", settings_games, "Settings: which games appear"),
     ("network-time", network_time, "Network & Time"),
@@ -601,8 +601,8 @@ def whack():
     return im
 
 
-def sudoku():
-    im, d = blank(); topbar(d, "Sudoku")
+def microku():
+    im, d = blank(); topbar(d, "Microku")
     size, cell = 4, 32
     gs = size * cell
     sx, sy = (W - gs) // 2, 58
@@ -945,7 +945,7 @@ EXTRA_SCREENS = [
     ("multiply", multiply, "Multiplication"),
     ("time", time_game, "Time"),
     ("whack", whack, "Whack A Mole"),
-    ("sudoku", sudoku, "Sudoku"),
+    ("microku", microku, "Microku"),
     ("shapes", shapes, "Shape & Color"),
     ("counting", counting, "Counting"),
     ("money", money, "Money"),

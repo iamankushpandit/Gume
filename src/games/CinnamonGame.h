@@ -3,7 +3,7 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class SimonGame : public Game {
+class CinnamonGame : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;
@@ -21,7 +21,7 @@ private:
     Rect padRect(uint8_t index) const;
     void drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const;
 
-    /* Simon used to repaint the whole screen on every step, so each colour in
+    /* Cinnamon used to repaint the whole screen on every step, so each colour in
      * the sequence produced a full-screen flash -- uncomfortable generally and
      * a real risk for anyone photosensitive. We now redraw only the pads whose
      * state actually changed, plus the one-line status strip. */

@@ -1,4 +1,4 @@
-#include "SimonGame.h"
+#include "CinnamonGame.h"
 
 namespace {
 constexpr uint16_t DARK_RED    = 0x6000;
@@ -11,14 +11,14 @@ constexpr uint16_t LIT_GREEN   = 0x07E0;
 constexpr uint16_t LIT_YELLOW  = 0xFFE0;
 }
 
-const char* SimonGame::title() const {
-    return "Simon Says";
+const char* CinnamonGame::title() const {
+    return "Cinnamon Says";
 }
 
-void SimonGame::begin(GameHost& host) {
+void CinnamonGame::begin(GameHost& host) {
     fullRedraw_ = true;
     statusDrawn_ = "";
-    bestScore_ = static_cast<uint16_t>(host.board().getScore("simonBest", 0));
+    bestScore_ = static_cast<uint16_t>(host.board().getScore("cinnamonBest", 0));
     length_ = 0;
     score_ = 0;
     appendStep();
@@ -26,13 +26,13 @@ void SimonGame::begin(GameHost& host) {
     markDirty();
 }
 
-void SimonGame::appendStep() {
+void CinnamonGame::appendStep() {
     if (length_ < sizeof(sequence_)) {
         sequence_[length_++] = random(4);
     }
 }
 
-void SimonGame::startShowing() {
+void CinnamonGame::startShowing() {
     phase_ = Phase::Showing;
     showIndex_ = 0;
     inputIndex_ = 0;
@@ -40,13 +40,13 @@ void SimonGame::startShowing() {
     nextAt_ = millis() + 450UL;
 }
 
-Rect SimonGame::padRect(uint8_t index) const {
+Rect CinnamonGame::padRect(uint8_t index) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;
     return Rect{static_cast<int16_t>(30 + col * 150), static_cast<int16_t>(74 + row * 66), 112, 54};
 }
 
-int8_t SimonGame::touchedPad(int16_t x, int16_t y) const {
+int8_t CinnamonGame::touchedPad(int16_t x, int16_t y) const {
     for (uint8_t i = 0; i < 4; ++i) {
         if (padRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
@@ -55,13 +55,13 @@ int8_t SimonGame::touchedPad(int16_t x, int16_t y) const {
     return -1;
 }
 
-uint16_t SimonGame::padColor(uint8_t index, bool lit) const {
+uint16_t CinnamonGame::padColor(uint8_t index, bool lit) const {
     static constexpr uint16_t dark[4] = {DARK_RED, DARK_BLUE, DARK_GREEN, DARK_YELLOW};
     static constexpr uint16_t bright[4] = {LIT_RED, LIT_BLUE, LIT_GREEN, LIT_YELLOW};
     return lit ? bright[index] : dark[index];
 }
 
-void SimonGame::update(GameHost& host, const TouchPoint& touch) {
+void CinnamonGame::update(GameHost& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if (phase_ == Phase::Showing && now >= nextAt_) {
@@ -127,7 +127,7 @@ void SimonGame::update(GameHost& host, const TouchPoint& touch) {
         ++inputIndex_;
         if (inputIndex_ >= length_) {
             score_ = length_;
-            if (host.board().saveBestScore("simonBest", score_, false)) {
+            if (host.board().saveBestScore("cinnamonBest", score_, false)) {
                 bestScore_ = score_;
             }
             phase_ = Phase::Good;
@@ -142,7 +142,7 @@ void SimonGame::update(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void SimonGame::drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const {
+void CinnamonGame::drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const {
     const Rect r = padRect(index);
     tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 8, Ui::surface());
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, padColor(index, lit));
@@ -162,9 +162,9 @@ void SimonGame::drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const {
     }
 }
 
-void SimonGame::render(GameHost& host) {
+void CinnamonGame::render(GameHost& host) {
     const Ui::Theme savedTheme = Ui::currentTheme();
-    Ui::setTheme(Ui::Theme::Light);          // Simon always renders light
+    Ui::setTheme(Ui::Theme::Light);          // Cinnamon always renders light
     TFT_eSPI& tft = host.board().display();
 
     if (fullRedraw_) {

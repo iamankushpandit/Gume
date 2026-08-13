@@ -54,7 +54,7 @@ protected:
      * Every game used to clear the whole 320x240 screen on any change. At
      * 40MHz SPI that is ~150KB pushed and roughly 30ms of visible wipe before
      * anything is drawn again, which is what made the UI flicker -- and in
-     * Simon's case flash hard enough to be a photosensitivity concern.
+     * Cinnamon's case flash hard enough to be a photosensitivity concern.
      *
      * markDirty()     content changed; repaint the moving parts only.
      * markFullDirty() layout/structure changed; repaint the background too.

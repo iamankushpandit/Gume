@@ -387,7 +387,7 @@ These three are `protected`; the public surface is `needsRender()`, `clearDirty(
 
 **Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough — the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
 
-Most games still repaint wholesale. Simon is the reference for partial redraw — it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
+Most games still repaint wholesale. Cinnamon is the reference for partial redraw — it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
 Games are authored against a fixed 320×240 landscape canvas. Only the launcher supports portrait (`LayoutMode::Vertical`, 4 tiles/page vs 6 in landscape).
 

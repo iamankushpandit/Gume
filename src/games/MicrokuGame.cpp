@@ -1,4 +1,4 @@
-#include "SudokuGame.h"
+#include "MicrokuGame.h"
 
 namespace {
 constexpr uint16_t GIVEN_FILL = 0x294D;
@@ -64,19 +64,19 @@ constexpr StageDef STAGES[] = {
 constexpr uint8_t STAGE_COUNT = sizeof(STAGES) / sizeof(STAGES[0]);
 }
 
-const char* SudokuGame::title() const {
-    return "Sudoku";
+const char* MicrokuGame::title() const {
+    return "Microku";
 }
 
-void SudokuGame::begin(GameHost& host) {
+void MicrokuGame::begin(GameHost& host) {
     stageIndex_ = 0;
     solvedThisRun_ = 0;
-    bestSize_ = static_cast<uint8_t>(host.board().getScore("sudokuBest", 0));
+    bestSize_ = static_cast<uint8_t>(host.board().getScore("microkuBest", 0));
     loadStage(stageIndex_);
     markDirty();
 }
 
-void SudokuGame::loadStage(uint8_t stageIndex) {
+void MicrokuGame::loadStage(uint8_t stageIndex) {
     const StageDef& stage = STAGES[stageIndex];
     size_ = stage.size;
     boxRows_ = stage.boxRows;
@@ -94,7 +94,7 @@ void SudokuGame::loadStage(uint8_t stageIndex) {
     }
 }
 
-Rect SudokuGame::cellRect(uint8_t row, uint8_t col) const {
+Rect MicrokuGame::cellRect(uint8_t row, uint8_t col) const {
     const int16_t cell = size_ == 6 ? 23 : (size_ == 4 ? 32 : 54);
     const int16_t gridSize = cell * size_;
     const int16_t startX = (SCREEN_WIDTH - gridSize) / 2;
@@ -102,13 +102,13 @@ Rect SudokuGame::cellRect(uint8_t row, uint8_t col) const {
     return Rect{static_cast<int16_t>(startX + col * cell), static_cast<int16_t>(startY + row * cell), cell, cell};
 }
 
-Rect SudokuGame::numberRect(uint8_t value) const {
+Rect MicrokuGame::numberRect(uint8_t value) const {
     const int16_t gap = 4;
     const int16_t w = (SCREEN_WIDTH - 16 - gap * (size_ - 1)) / size_;
     return Rect{static_cast<int16_t>(8 + (value - 1) * (w + gap)), 205, w, 30};
 }
 
-int8_t SudokuGame::touchedCell(int16_t x, int16_t y) const {
+int8_t MicrokuGame::touchedCell(int16_t x, int16_t y) const {
     for (uint8_t row = 0; row < size_; ++row) {
         for (uint8_t col = 0; col < size_; ++col) {
             if (cellRect(row, col).contains(x, y, TOUCH_HIT_SLOP)) {
@@ -119,7 +119,7 @@ int8_t SudokuGame::touchedCell(int16_t x, int16_t y) const {
     return -1;
 }
 
-int8_t SudokuGame::touchedNumber(int16_t x, int16_t y) const {
+int8_t MicrokuGame::touchedNumber(int16_t x, int16_t y) const {
     for (uint8_t value = 1; value <= size_; ++value) {
         if (numberRect(value).contains(x, y, TOUCH_HIT_SLOP)) {
             return value;
@@ -128,7 +128,7 @@ int8_t SudokuGame::touchedNumber(int16_t x, int16_t y) const {
     return -1;
 }
 
-bool SudokuGame::complete() const {
+bool MicrokuGame::complete() const {
     const uint8_t total = size_ * size_;
     for (uint8_t i = 0; i < total; ++i) {
         if (board_[i] != solution_[i]) {
@@ -138,7 +138,7 @@ bool SudokuGame::complete() const {
     return true;
 }
 
-void SudokuGame::advanceAfterSolve(GameHost& host) {
+void MicrokuGame::advanceAfterSolve(GameHost& host) {
     if (stageIndex_ + 1 < STAGE_COUNT) {
         ++stageIndex_;
         loadStage(stageIndex_);
@@ -150,7 +150,7 @@ void SudokuGame::advanceAfterSolve(GameHost& host) {
     host.board().beepOk();
 }
 
-void SudokuGame::update(GameHost& host, const TouchPoint& touch) {
+void MicrokuGame::update(GameHost& host, const TouchPoint& touch) {
     if (messageUntil_ > 0 && millis() > messageUntil_) {
         messageUntil_ = 0;
         markDirty();
@@ -188,7 +188,7 @@ void SudokuGame::update(GameHost& host, const TouchPoint& touch) {
         if (complete()) {
             solved_ = true;
             ++solvedThisRun_;
-            if (host.board().saveBestScore("sudokuBest", size_, false)) {
+            if (host.board().saveBestScore("microkuBest", size_, false)) {
                 bestSize_ = size_;
             }
             message_ = stageIndex_ + 1 < STAGE_COUNT ? "Solved - tap next" : "All solved - tap restart";
@@ -206,7 +206,7 @@ void SudokuGame::update(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void SudokuGame::render(GameHost& host) {
+void MicrokuGame::render(GameHost& host) {
     TFT_eSPI& tft = host.board().display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
@@ -261,7 +261,7 @@ void SudokuGame::render(GameHost& host) {
         tft.drawRoundRect(62, 93, 196, 48, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Sudoku solved", SCREEN_WIDTH / 2, 111, 4);
+        tft.drawString("Microku solved", SCREEN_WIDTH / 2, 111, 4);
         tft.drawString(stageIndex_ + 1 < STAGE_COUNT ? "Tap next" : "Tap restart", SCREEN_WIDTH / 2, 134, 2);
     }
     tft.setTextDatum(TL_DATUM);

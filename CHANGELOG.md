@@ -334,7 +334,7 @@ images totalling 1.11 MiB, costing **zero RAM** because they stream from flash.
 
 ### Accessibility
 
-- **Simon no longer flashes the screen.** It repainted the entire display on
+- **Cinnamon no longer flashes the screen.** It repainted the entire display on
   every step, producing a full-screen flash about once a second —
   uncomfortable generally and a genuine risk for photosensitive players. It now
   repaints only the pads that changed, so there is **no full-area luminance
@@ -402,14 +402,14 @@ Every one of these was found by instrumenting the device over serial.
   nothing enforcing agreement.
 - **`engine/Progress`** — reusable per-item mastery tracking.
 - **`Game::markFullDirty()` / `needsFullRender()`** — the groundwork for partial
-  redraw. Simon is converted; the other games still clear the whole screen.
+  redraw. Cinnamon is converted; the other games still clear the whole screen.
 - **`pio run -e wifidiag`** — an isolated radio test that builds with no
   display, touch or game code.
 
 ### Known limitations
 
 - 22 of 23 games still repaint the whole screen on every change, which is
-  visible as flicker. Only Simon has been converted.
+  visible as flicker. Only Cinnamon has been converted.
 - The country outlines (mapsicon) are **not licensed for resale**. Anything
   commercial needs them swapped for Natural Earth first.
 - Tall layout applies to the launcher only; every game is authored against the

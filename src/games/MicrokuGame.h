@@ -3,7 +3,7 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class SudokuGame : public Game {
+class MicrokuGame : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;

@@ -21,13 +21,13 @@
 #include "games/ScoresGame.h"
 #include "games/SettingsGame.h"
 #include "games/ShapeColorGame.h"
-#include "games/SimonGame.h"
+#include "games/CinnamonGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
 #include "games/StateFlagGame.h"
 #include "games/StateMapGame.h"
 #include "games/StatesGame.h"
-#include "games/SudokuGame.h"
+#include "games/MicrokuGame.h"
 #include "games/SystemInfoGame.h"
 #include "games/TimeGame.h"
 #include "games/TicTacToeGame.h"
@@ -425,8 +425,8 @@ private:
         Multiplication,
         Time,
         WhackAMole,
-        Simon,
-        Sudoku,
+        Cinnamon,
+        Microku,
         ShapeColor,
         Counting,
         Money,
@@ -492,7 +492,7 @@ private:
     static constexpr EntryKind CATALOG_KINDS[GAME_CATALOG_COUNT] = {
         EntryKind::TicTacToe, EntryKind::Memory,        EntryKind::Math,
         EntryKind::Multiplication, EntryKind::Time,     EntryKind::WhackAMole,
-        EntryKind::Simon,     EntryKind::Sudoku,        EntryKind::ShapeColor,
+        EntryKind::Cinnamon,     EntryKind::Microku,        EntryKind::ShapeColor,
         EntryKind::Counting,  EntryKind::Money,         EntryKind::Fractions,
         EntryKind::Maze,      EntryKind::Sort,          EntryKind::ColorMix,
         EntryKind::SlidingPuzzle, EntryKind::OddOneOut, EntryKind::ObjectAdd,
@@ -614,11 +614,11 @@ private:
             case EntryKind::WhackAMole:
                 activeGame_ = &whackAMole_;
                 break;
-            case EntryKind::Simon:
-                activeGame_ = &simon_;
+            case EntryKind::Cinnamon:
+                activeGame_ = &cinnamon_;
                 break;
-            case EntryKind::Sudoku:
-                activeGame_ = &sudoku_;
+            case EntryKind::Microku:
+                activeGame_ = &microku_;
                 break;
             case EntryKind::ShapeColor:
                 activeGame_ = &shapeColor_;
@@ -751,13 +751,13 @@ private:
                 tft.drawLine(cx - 16, cy + 6, cx + 16, cy + 6, TFT_WHITE);
                 tft.fillCircle(cx + 11, cy - 10, 5, Ui::rgb(255, 246, 178));
                 break;
-            case EntryKind::Simon:
+            case EntryKind::Cinnamon:
                 tft.fillCircle(cx - 10, cy - 8, 7, Ui::rgb(255, 112, 112));
                 tft.fillCircle(cx + 10, cy - 8, 7, Ui::rgb(94, 190, 255));
                 tft.fillCircle(cx - 10, cy + 10, 7, Ui::rgb(108, 232, 148));
                 tft.fillCircle(cx + 10, cy + 10, 7, Ui::rgb(255, 232, 94));
                 break;
-            case EntryKind::Sudoku:
+            case EntryKind::Microku:
                 tft.fillRoundRect(cx - 16, cy - 16, 32, 32, 2, TFT_WHITE);
                 tft.drawLine(cx, cy - 16, cx, cy + 16, Ui::rgb(36, 132, 204));
                 tft.drawLine(cx - 16, cy, cx + 16, cy, Ui::rgb(36, 132, 204));
@@ -1299,8 +1299,8 @@ private:
     MultiplicationGame multiplication_;
     TimeGame time_;
     WhackAMoleGame whackAMole_;
-    SimonGame simon_;
-    SudokuGame sudoku_;
+    CinnamonGame cinnamon_;
+    MicrokuGame microku_;
     ShapeColorGame shapeColor_;
     CountingGame counting_;
     MoneyGame money_;

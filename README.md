@@ -89,12 +89,12 @@ uses **adaptive difficulty** — see below.
 
 | Game | What it is | What it builds | Age |
 |---|---|---|---|
-| **Simon** | Repeat the colour sequence | Working memory and sustained attention | 4–10 |
+| **Cinnamon** | Repeat the colour sequence | Working memory and sustained attention | 4–10 |
 | **Memory** | Match pairs face-down | Visual working memory | 3–8 |
 | **Odd One** | "Tap the one that is different" | Categorisation — spotting the attribute that doesn't fit | 3–6 |
 | **Shapes** | Match a named shape *and* colour, e.g. "red circle" | Holding two attributes in mind at once | 3–6 |
 | **Color Mix** | "What do you get?" mixing two colours | Colour theory, and that mixing is predictable | 4–8 |
-| **Sudoku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a child's level | 6–12 |
+| **Microku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a child's level | 6–12 |
 | **Slide** | Slide numbered tiles into order | Planning several moves ahead | 6–12 |
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
@@ -143,14 +143,14 @@ stay global.
 
 ### Accessibility
 
-Simon originally repainted the **whole screen** on every step, producing a
+Cinnamon originally repainted the **whole screen** on every step, producing a
 full-screen flash roughly once a second — uncomfortable generally and a genuine
 risk for photosensitive players. It now repaints only the pads that changed, so
 there is **no full-area luminance change at all**, and mirrors each colour on
 the case LED so the cue doesn't depend on the screen flashing.
 
 <p align="center">
-  <img src="docs/screens/simon.png" width="360" alt="Simon Says">
+  <img src="docs/screens/cinnamon.png" width="360" alt="Cinnamon Says">
 </p>
 
 ---
@@ -199,14 +199,14 @@ One screen per game, in launcher order.
 ### Logic, memory and attention
 
 <p align="center">
-  <img src="docs/screens/simon.png" width="300" alt="Simon Says">
+  <img src="docs/screens/cinnamon.png" width="300" alt="Cinnamon Says">
   <img src="docs/screens/memory.png" width="300" alt="Memory Match">
   <img src="docs/screens/oddone.png" width="300" alt="Odd One Out">
 </p>
 <p align="center">
   <img src="docs/screens/shapes.png" width="300" alt="Shape & Color">
   <img src="docs/screens/colormix.png" width="300" alt="Color Mix">
-  <img src="docs/screens/sudoku.png" width="300" alt="Sudoku">
+  <img src="docs/screens/microku.png" width="300" alt="Microku">
 </p>
 <p align="center">
   <img src="docs/screens/slide.png" width="300" alt="Slide Puzzle">
