@@ -1,6 +1,6 @@
 # src/games
 
-One `.h`/`.cpp` pair per screen. Every screen — including Settings, Wi-Fi, Profiles, Scores and About — is a `Game` subclass (`../engine/Game.h`).
+One `.h`/`.cpp` pair per screen. Every screen — including Settings, Wi-Fi, Profiles, Scores, System Info and About — is a `Game` subclass (`../engine/Game.h`).
 
 ## Lifecycle
 
@@ -9,9 +9,12 @@ const char* title() const;                              // display name
 void begin(GameHost& host);                             // (re)initialise on entry
 void update(GameHost& host, const TouchPoint& touch);   // input, once per frame
 void render(GameHost& host);                            // draw current state
+void end(GameHost& host);                               // optional; on leaving
 ```
 
-`main.cpp` calls `begin()` → `render()` → `clearDirty()` on launch, then each frame calls `update()` and re-renders only when `needsRender()` is true.
+`main.cpp` calls `begin()` → `render()` → `clearDirty()` on launch, then each frame calls `update()` and re-renders only when `needsRender()` is true. On leaving, `end()` is called once via `leaveActiveGame()`, before the next screen's `begin()`.
+
+The default `end()` does nothing, which is right for a game holding only its own members. Override it if your screen acquires anything that outlives a frame. Every transition also compares free heap against the value captured before `begin()` and logs `[heap] '<screen>' left N bytes short` if a screen does not hand it back — watch the serial log after adding one.
 
 Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally. Call `markDirty()` for content changes and `markFullDirty()` for layout changes. A full-screen repaint costs ~30 ms of visible blanking, so rapidly-updating games should do partial redraws — `SimonGame` is the reference implementation.
 
@@ -24,6 +27,8 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 - Feedback via `board.beepOk()` / `board.beepError()` (pulses the RGB LED; there is no audio).
 - Assume a fixed 320×240 landscape canvas — games do not run in portrait.
 - **System/UI apps (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens) MUST support both landscape and portrait orientations.** Read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
+- **Never read a setting from `board` more than once per screen change in a hot path.** `Preferences` is flash-backed, so every getter is an NVS lookup. The frequently-read settings have write-through RAM mirrors in `Board`; add to those rather than reaching for a fresh getter each frame. Never call anything containing a `delay()` from `render()` or `update()`.
+- **Don't rebuild content that didn't change.** Scrolling changes an offset, not content. Gate expensive rebuilds behind a stale flag.
 - Never block `update()` for more than a second or two. The loop is watchdogged (`Watchdog::TIMEOUT_SECONDS = 12`) and a long busy-wait reboots the device. Games do not feed or touch the watchdog themselves; if you genuinely must block, ask `Board` to do it behind a `Watchdog::Pause`.
 
 ## Adding a game
