@@ -262,6 +262,37 @@ private:
     void logNetworkActivity(const char* fmt, ...);
     void noteTimeSyncSuccess();
 
+    /* RAM mirrors of the settings that are read every frame.
+     *
+     * Preferences is flash-backed: every getter is a hash lookup into NVS, and
+     * several of these were being hit at frame rate. screenSaverSeconds() ran
+     * once per loop iteration; gameVisible() ran up to ~180 times per launcher
+     * repaint and built three String temporaries each time, which broke the
+     * memory rule as well as the frame budget.
+     *
+     * Write-through: the setters update the mirror and NVS together, so a
+     * stale read is not possible. The Wi-Fi credentials already worked this
+     * way -- this extends the same pattern to the rest of the hot settings. */
+    bool profileCached_ = false;
+    uint8_t cachedProfile_ = 0;
+    bool themeCached_ = false;
+    uint8_t cachedTheme_ = 0;
+    bool layoutCached_ = false;
+    uint8_t cachedLayout_ = 0;
+    bool idleCached_ = false;
+    uint16_t cachedIdleSecs_ = 0;
+
+    /* Game visibility as a bitmask for one profile: bit i = catalog index i.
+     * 32 bits covers the 26-game catalog with room to grow. Loaded in one
+     * pass, then answered from RAM. */
+    static constexpr uint8_t VISIBILITY_BITS = 32;
+    bool visibilityCached_ = false;
+    uint8_t visibilityProfile_ = 0xFF;
+    uint32_t visibilityMask_ = 0;
+    void loadVisibility(uint8_t profileIndex, bool fallback);
+    /** Build "p<N>_gv<I>" without allocating. */
+    static void visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex);
+
     /* One battery sample shared by every accessor. getPowerSource() and
      * getBatteryPercent() are both called while drawing a single top bar, and
      * each used to run its own blocking 10ms conversion. */

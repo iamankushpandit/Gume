@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 2.1.0 — 2026-08-13
+
+BLE beacon with full on-device transparency, a System Info app, and a pass
+over everything that was making the UI feel slow.
+
+Flash 2,251,793 / 3,145,728 (71.6%), RAM 64,940 / 327,680 (19.8%).
 
 ### Added
 
@@ -33,10 +38,48 @@
   measured width of the clock string, because the badge row there has about
   8px of slack; portrait simply extends the badge row.
 
-- **System Info screen** (four tabs: board, memory, network, app state) with
-  live telemetry, scrolling rows and a scroll bar.
+- **System Info screen** (five tabs: board, memory, network, BLE, app state)
+  with live telemetry, scrolling rows and a scroll bar.
+
+### Performance
+
+The board felt sluggish, and it was not one thing. Each of these looked
+harmless at the call site and each was eating most of a 20ms frame.
+
+- **NVS reads in hot paths.** `Preferences` is flash-backed -- every getter is
+  a hash lookup, not a variable read. `screenSaverSeconds()` ran once per loop
+  iteration, about 50 times a second. Worse, `gameVisible()` ran up to ~180
+  times per launcher repaint and each call was two NVS reads plus three
+  `String` temporaries, so a single launcher repaint could mean ~360 flash
+  lookups and ~550 allocations.
+
+  Theme, layout, brightness, idle timeout and active profile now have
+  write-through RAM mirrors, and game visibility is a 32-bit mask loaded once
+  per profile. `gameVisible()` went from two NVS reads and three allocations
+  to a shift and a mask.
+
+- **A blocking `delay()` reachable from a render path.** Battery sensing slept
+  10ms per call and `Ui::drawTopBar()` calls two battery getters, so every top
+  bar cost ~20ms of pure `delay()` before anything was drawn. Now one cached
+  sample set with a 2s lifetime and no delays at all.
+
+- **Frame pacing was a fixed nap, not a deadline.** The loop ended in an
+  unconditional `delay(18)`, so the frame period was work + 18ms and a heavy
+  frame was punished twice. It now sleeps only the remainder of a 20ms budget,
+  so touch latency tracks how long the work actually took.
+
+- **Content rebuilt every frame.** System Info reassembled every row on every
+  frame while scrolling. Scrolling changes an offset, not content; rebuilds
+  are now gated behind a stale flag.
 
 ### Fixed
+
+- **The boot counter was stuck.** `"boots"` was persisted only inside the
+  unclean-reset branch, so a cold boot -- which is every power cycle, since
+  RTC memory does not survive one -- read back whatever the last crash had
+  left and reported the same number forever. The device sat on "boot #4"
+  across many power cycles, quietly undermining the crash report it appears
+  next to. Now written on every boot.
 
 - **The System Info row list no longer churns the heap.** It held 48 rows of
   two Arduino `String`s each and rebuilt every one on every frame -- roughly

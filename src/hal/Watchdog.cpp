@@ -135,6 +135,18 @@ void recoverLastRun() {
             }
         }
     }
+
+    /* Persist the boot counter on every boot, not only after a crash.
+     *
+     * It used to be written inside the unclean-reset branch alone, so a cold
+     * boot -- which is every power cycle, since RTC memory does not survive
+     * one -- read back whatever the last crash had left and reported the same
+     * number forever. The device sat on "boot #4" across many power cycles,
+     * which quietly undermines the crash report it appears alongside. */
+    if (prefs.begin(NVS_NAMESPACE, false)) {
+        prefs.putUInt("boots", rtcCrumb.bootCount);
+        prefs.end();
+    }
 }
 
 void monitorTask(void*) {

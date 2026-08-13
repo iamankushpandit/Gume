@@ -550,15 +550,23 @@ void Board::beepError() {
     beep(220, 120);
 }
 
+/* Cached: gameVisible() calls this for every catalog entry, and the launcher
+ * calls gameVisible() for every entry on every tile it lays out. */
 uint8_t Board::activeProfile() {
-    const uint8_t v = prefs_.getUChar("profile", GUEST_INDEX);
-    if (v == GUEST_INDEX) return GUEST_INDEX;
-    return v < kidCount() ? v : GUEST_INDEX;
+    if (!profileCached_) {
+        const uint8_t v = prefs_.getUChar("profile", GUEST_INDEX);
+        cachedProfile_ = (v == GUEST_INDEX || v >= kidCount()) ? GUEST_INDEX : v;
+        profileCached_ = true;
+    }
+    return cachedProfile_;
 }
 
 void Board::setActiveProfile(uint8_t index) {
     if (index != GUEST_INDEX && index >= kidCount()) index = GUEST_INDEX;
     prefs_.putUChar("profile", index);
+    cachedProfile_ = index;
+    profileCached_ = true;
+    visibilityCached_ = false;   // visibility is per profile
 }
 
 uint8_t Board::kidCount() {
@@ -604,6 +612,10 @@ void Board::removeKid(uint8_t index) {
     snprintf(key, sizeof(key), "pname%u", static_cast<unsigned>(n - 1));
     prefs_.remove(key);
     prefs_.putUChar("kids", static_cast<uint8_t>(n - 1));
+
+    /* Every slot after `index` now refers to a different child, so a cached
+     * visibility mask keyed on a slot number is stale by definition. */
+    visibilityCached_ = false;
 
     if (activeProfile() >= kidCount()) setActiveProfile(GUEST_INDEX);
 }
@@ -678,13 +690,18 @@ void Board::saveBlob(const char* key, const void* src, size_t len) {
 }
 
 Board::ThemeMode Board::themeMode() {
-    return prefs_.getUChar("themeMode", static_cast<uint8_t>(ThemeMode::Dark)) == static_cast<uint8_t>(ThemeMode::Light)
-        ? ThemeMode::Light
-        : ThemeMode::Dark;
+    if (!themeCached_) {
+        cachedTheme_ = prefs_.getUChar("themeMode", static_cast<uint8_t>(ThemeMode::Dark));
+        themeCached_ = true;
+    }
+    return cachedTheme_ == static_cast<uint8_t>(ThemeMode::Light) ? ThemeMode::Light
+                                                                 : ThemeMode::Dark;
 }
 
 void Board::setThemeMode(ThemeMode mode) {
     prefs_.putUChar("themeMode", static_cast<uint8_t>(mode));
+    cachedTheme_ = static_cast<uint8_t>(mode);
+    themeCached_ = true;
 }
 
 namespace {
@@ -718,23 +735,37 @@ void Board::applyBrightness() {
 }
 
 Board::LayoutMode Board::layoutMode() {
-    return prefs_.getUChar("layoutMode", static_cast<uint8_t>(LayoutMode::Horizontal)) == static_cast<uint8_t>(LayoutMode::Vertical)
-        ? LayoutMode::Vertical
-        : LayoutMode::Horizontal;
+    if (!layoutCached_) {
+        cachedLayout_ = prefs_.getUChar("layoutMode", static_cast<uint8_t>(LayoutMode::Horizontal));
+        layoutCached_ = true;
+    }
+    return cachedLayout_ == static_cast<uint8_t>(LayoutMode::Vertical) ? LayoutMode::Vertical
+                                                                      : LayoutMode::Horizontal;
 }
 
 void Board::setLayoutMode(LayoutMode mode) {
     prefs_.putUChar("layoutMode", static_cast<uint8_t>(mode));
+    cachedLayout_ = static_cast<uint8_t>(mode);
+    layoutCached_ = true;
 }
 
+/* Read once per loop iteration by the idle timer -- roughly 50 NVS lookups a
+ * second before this was cached, for a value that changes when a parent taps
+ * a button. */
 uint16_t Board::screenSaverSeconds() {
-    const uint16_t stored = prefs_.getUShort("idleSecs", 300);
-    return stored < 15 ? 15 : stored;
+    if (!idleCached_) {
+        const uint16_t stored = prefs_.getUShort("idleSecs", 300);
+        cachedIdleSecs_ = stored < 15 ? 15 : stored;
+        idleCached_ = true;
+    }
+    return cachedIdleSecs_;
 }
 
 void Board::setScreenSaverSeconds(uint16_t seconds) {
     const uint16_t clamped = seconds < 15 ? 15 : seconds;
     prefs_.putUShort("idleSecs", clamped);
+    cachedIdleSecs_ = clamped;
+    idleCached_ = true;
 }
 
 bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
@@ -747,20 +778,54 @@ void Board::setGameVisible(uint8_t catalogIndex, bool visible) {
     setGameVisibleFor(catalogIndex, activeProfile(), visible);
 }
 
+void Board::visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex) {
+    snprintf(out, cap, "p%u_gv%u", profileIndex, catalogIndex);
+}
+
+/* One pass over the catalog into a bitmask. Costs 32 NVS reads once per
+ * profile instead of two reads and three String allocations per query. */
+void Board::loadVisibility(uint8_t profileIndex, bool fallback) {
+    uint32_t mask = 0;
+    char key[16];
+    for (uint8_t i = 0; i < VISIBILITY_BITS; ++i) {
+        visibilityKey(key, sizeof(key), profileIndex, i);
+        if (prefs_.getBool(key, fallback)) {
+            mask |= (1UL << i);
+        }
+    }
+    visibilityMask_ = mask;
+    visibilityProfile_ = profileIndex;
+    visibilityCached_ = true;
+}
+
+/* The launcher asks this for every catalog entry while laying out every tile
+ * -- up to ~180 calls per repaint. It used to be two NVS reads and three
+ * String allocations each; now it is a shift and a mask.
+ *
+ * `fallback` applies when the mask is first loaded. Every caller uses the same
+ * default, so a per-call override cannot disagree with the cached answer in
+ * practice; if that ever changes, drop the cache rather than the fallback. */
 bool Board::gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback) {
     if (profileIndex == GUEST_INDEX) return true;
-    char suffix[6];
-    snprintf(suffix, sizeof(suffix), "gv%u", catalogIndex);
-    String key = String("p") + static_cast<int>(profileIndex) + "_" + suffix;
-    return prefs_.getBool(key.c_str(), fallback);
+    if (catalogIndex >= VISIBILITY_BITS) return fallback;
+    if (!visibilityCached_ || visibilityProfile_ != profileIndex) {
+        loadVisibility(profileIndex, fallback);
+    }
+    return ((visibilityMask_ >> catalogIndex) & 1UL) != 0;
 }
 
 void Board::setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible) {
-    if (profileIndex == GUEST_INDEX) return;
-    char suffix[6];
-    snprintf(suffix, sizeof(suffix), "gv%u", catalogIndex);
-    String key = String("p") + static_cast<int>(profileIndex) + "_" + suffix;
-    prefs_.putBool(key.c_str(), visible);
+    if (profileIndex == GUEST_INDEX || catalogIndex >= VISIBILITY_BITS) return;
+    char key[16];
+    visibilityKey(key, sizeof(key), profileIndex, catalogIndex);
+    prefs_.putBool(key, visible);
+    if (visibilityCached_ && visibilityProfile_ == profileIndex) {
+        if (visible) {
+            visibilityMask_ |= (1UL << catalogIndex);
+        } else {
+            visibilityMask_ &= ~(1UL << catalogIndex);
+        }
+    }
 }
 
 void Board::loadWifiCache() {

@@ -37,6 +37,38 @@ Do not wait to be asked, and do not leave it for "a docs pass later". A stale
 `README.md` that claims the wrong game count or the wrong flash figure is a
 defect, and it is your defect if you shipped the change that made it wrong.
 
+## Responsiveness rule — know what a frame costs
+
+The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it
+sleeps only the remainder, so a slow frame is not punished twice. That budget is
+the whole allowance for touch, logic and drawing. Three things have each eaten
+most of it at some point in this codebase, and all three look harmless at the
+call site:
+
+1. **NVS reads.** `Preferences` is flash-backed — every getter is a hash lookup,
+   not a variable read. `screenSaverSeconds()` ran once per loop iteration and
+   `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
+   than once per screen change gets a write-through RAM mirror in `Board`**:
+   the setter updates the mirror and NVS together, so a stale read is not
+   possible. Theme, layout, brightness, idle timeout, active profile, game
+   visibility and the Wi-Fi credentials all work this way now. Add to that list
+   rather than reaching for `prefs_` in a hot path.
+2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
+   and `Ui::drawTopBar()` calls two battery getters, so every top bar cost
+   ~20ms — a whole frame — before anything was drawn. **No `delay()` in
+   anything a render path can reach.** Sample on a cadence and cache.
+3. **Rebuilding content that did not change.** System Info reassembled every
+   row on every frame while scrolling. Scrolling changes an offset, not
+   content. Gate rebuilds behind a stale flag.
+
+Before claiming a screen is fast: System Info's Memory tab shows loop load,
+worst work and worst frame, and the watchdog logs a stall past
+`STALL_WARN_MS`. A worst frame above ~40ms is a bug, not a heavy screen.
+
+Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
+which is why `Game` has two levels of invalidation. Guard static chrome behind
+`needsFullRender()` and repaint only what moved.
+
 ## Memory rule — there is no garbage collector
 
 C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.

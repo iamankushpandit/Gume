@@ -15,6 +15,38 @@ build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
 A README claiming the wrong game count or a stale flash figure is a defect
 belonging to whoever last changed the thing it describes.
 
+## Responsiveness rule — know what a frame costs
+
+The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it
+sleeps only the remainder, so a slow frame is not punished twice. That budget is
+the whole allowance for touch, logic and drawing. Three things have each eaten
+most of it at some point in this codebase, and all three look harmless at the
+call site:
+
+1. **NVS reads.** `Preferences` is flash-backed — every getter is a hash lookup,
+   not a variable read. `screenSaverSeconds()` ran once per loop iteration and
+   `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
+   than once per screen change gets a write-through RAM mirror in `Board`**:
+   the setter updates the mirror and NVS together, so a stale read is not
+   possible. Theme, layout, brightness, idle timeout, active profile, game
+   visibility and the Wi-Fi credentials all work this way now. Add to that list
+   rather than reaching for `prefs_` in a hot path.
+2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
+   and `Ui::drawTopBar()` calls two battery getters, so every top bar cost
+   ~20ms — a whole frame — before anything was drawn. **No `delay()` in
+   anything a render path can reach.** Sample on a cadence and cache.
+3. **Rebuilding content that did not change.** System Info reassembled every
+   row on every frame while scrolling. Scrolling changes an offset, not
+   content. Gate rebuilds behind a stale flag.
+
+Before claiming a screen is fast: System Info's Memory tab shows loop load,
+worst work and worst frame, and the watchdog logs a stall past
+`STALL_WARN_MS`. A worst frame above ~40ms is a bug, not a heavy screen.
+
+Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
+which is why `Game` has two levels of invalidation. Guard static chrome behind
+`needsFullRender()` and repaint only what moved.
+
 ## Memory rule — there is no garbage collector
 
 C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.
@@ -172,9 +204,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,251,709 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,251,793 / 3,145,728 bytes,
 **71.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 64,924 / 327,680 (19.8%) -- higher than it was, deliberately: RowList traded
+at 64,940 / 327,680 (19.8%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 

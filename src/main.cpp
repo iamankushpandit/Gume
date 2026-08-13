@@ -200,6 +200,11 @@ public:
         openProfiles();
     }
 
+    /* Target frame period. 20ms is 50Hz, comfortably above what the panel and
+     * a child's finger can distinguish, and it leaves headroom for the frames
+     * that legitimately cost more (a full repaint pushes ~150KB over SPI). */
+    static constexpr uint32_t FRAME_BUDGET_MS = 20;
+
     void loop() {
         Watchdog::feed();
         const TouchPoint rawTouch = board_.pollTouch();
@@ -274,8 +279,23 @@ public:
                 activeGame_->clearDirty();
             }
         }
-        Watchdog::recordFrameWork(millis() - nowMs);
-        delay(18);
+        const uint32_t workMs = millis() - nowMs;
+        Watchdog::recordFrameWork(workMs);
+        /* Pace to a deadline, not a fixed nap.
+         *
+         * This used to be an unconditional delay(18), so the frame period was
+         * work + 18ms and a heavy frame was punished twice -- once for being
+         * slow, then again by a full extra sleep on top. Sleeping only the
+         * remainder of the budget makes touch latency depend on how long the
+         * work actually took.
+         *
+         * Always yield at least a tick: the idle task on this core has to run
+         * or its own watchdog trips. */
+        if (workMs < FRAME_BUDGET_MS) {
+            delay(FRAME_BUDGET_MS - workMs);
+        } else {
+            delay(1);
+        }
     }
 
     /* Board::setDisplayRotation() clears lastTouch_. If a finger is still down
