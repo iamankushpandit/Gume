@@ -1,4 +1,5 @@
 #include "Board.h"
+#include "BleBeacon.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiUdp.h>
@@ -107,6 +108,8 @@ void Board::begin() {
     applyBrightness();      // needs prefs, so it runs after begin()
     loadTouchCalibration();
     mountSd();
+    // Builds the advertisement either way; only powers the radio when opted in.
+    BleBeacon::begin(bleBeaconEnabled());
 }
 
 TFT_eSPI& Board::display() {
@@ -1225,6 +1228,18 @@ void Board::setRgbEnabled(bool on) {
 
 bool Board::rgbEnabled() {
     return prefs_.getBool("rgbOn", true);
+}
+
+/* Off by default. A device that starts broadcasting the moment it is unboxed,
+ * without anyone asking it to, is not the bargain we want to make with a
+ * parent -- the beacon is opt-in from Settings. */
+bool Board::bleBeaconEnabled() {
+    return prefs_.getBool("bleOn", false);
+}
+
+void Board::setBleBeaconEnabled(bool on) {
+    prefs_.putBool("bleOn", on);
+    BleBeacon::setEnabled(on);
 }
 
 void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {

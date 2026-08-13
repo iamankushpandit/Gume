@@ -106,7 +106,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (~73% of the 3 MB partition). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
+Flash is global and nearly the binding constraint (71.7% of the 3 MB partition
+as of the BLE beacon landing; NimBLE plus the BT controller account for ~192 KB
+of that). Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
 ### Modularity rule
 
@@ -135,6 +137,7 @@ Views: **Profiles** (shown at boot, picks whose scores are being written) → **
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | `GameCatalog` | `src/engine/GameCatalog.h` | Single source of truth for the game list |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
+| `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload |
 
 ### Invariants worth knowing before editing
 
@@ -145,6 +148,10 @@ Views: **Profiles** (shown at boot, picks whose scores are being written) → **
 - **`GameCatalogEntry::id` is a persisted NVS visibility key.** Renaming one silently resets that game's visibility on existing devices.
 - **`GAME_CATALOG` holds the 26 playable games only.** Scores / Settings / Wi-Fi / Profiles / About are appended by `KidsPlatformApp::allEntry()` at raw indices `>= GAME_CATALOG_COUNT`, are always visible, and always sort to the end of the launcher.
 - **`CATALOG_KINDS[]` in `main.cpp` must stay index-aligned with `GAME_CATALOG[]`.** Nothing enforces this; a misalignment launches the wrong game from the right tile.
+- **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
+  is compiled into a raw AD buffer that is handed to the controller verbatim,
+  and the System Info BLE tab reads that same buffer back. Never add a
+  hand-written UI description of the payload -- see `docs/BLE_BEACON_SPEC.md`.
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `KidsPlatformApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose — a calibration wizard, a network round trip — must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game

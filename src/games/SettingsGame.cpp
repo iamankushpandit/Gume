@@ -9,13 +9,20 @@ void SettingsGame::begin(GameHost& host) {
     markDirty();
 }
 
-Rect SettingsGame::themeRect()  const { return Rect{8,   68, 144, 36}; }
-Rect SettingsGame::layoutRect() const { return Rect{164, 68, 144, 36}; }
-Rect SettingsGame::saverRect()  const { return Rect{8,  110, 144, 36}; }
-Rect SettingsGame::ntpRect()    const { return Rect{164, 110, 144, 36}; }
-Rect SettingsGame::brightRect() const { return Rect{8,  200, 304, 32}; }
-Rect SettingsGame::wifiRect()   const { return Rect{8,  152, 148, 36}; }
-Rect SettingsGame::resetRect()  const { return Rect{164, 152, 144, 36}; }
+/* Four rows of 30px starting just under the top bar. The grid used to be
+ * three rows of 36 beginning at y=68; adding the beacon toggle needed a
+ * seventh slot, and reclaiming the dead band above the first row was cheaper
+ * than shrinking the brightness slider. Reset spans both columns on the last
+ * row -- it is the one destructive control here, so it reads as its own thing
+ * rather than as the right-hand partner of a harmless toggle. */
+Rect SettingsGame::themeRect()  const { return Rect{8,    40, 144, 30}; }
+Rect SettingsGame::layoutRect() const { return Rect{164,  40, 144, 30}; }
+Rect SettingsGame::saverRect()  const { return Rect{8,    74, 144, 30}; }
+Rect SettingsGame::ntpRect()    const { return Rect{164,  74, 144, 30}; }
+Rect SettingsGame::bleRect()    const { return Rect{8,   108, 144, 30}; }
+Rect SettingsGame::wifiRect()   const { return Rect{164, 108, 144, 30}; }
+Rect SettingsGame::resetRect()  const { return Rect{8,   142, 300, 30}; }
+Rect SettingsGame::brightRect() const { return Rect{8,   190, 304, 32}; }
 
 void SettingsGame::cycleScreenSaver(Board& board) {
     const uint16_t current = board.screenSaverSeconds();
@@ -45,6 +52,10 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
     if (ntpRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setRgbEnabled(!board.rgbEnabled()); markDirty(); return;
+    }
+    if (bleRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        board.setBleBeaconEnabled(!board.bleBeaconEnabled());
+        markDirty(); return;
     }
     if (resetRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (confirmReset_) {
@@ -80,6 +91,9 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     Ui::drawButton(tft, ntpRect(),
         String("Light: ") + (board.rgbEnabled() ? "On" : "Off"),
         Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    Ui::drawButton(tft, bleRect(),
+        String("Beacon: ") + (board.bleBeaconEnabled() ? "On" : "Off"),
+        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
     Ui::drawButton(tft, wifiRect(), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
     Ui::drawButton(tft, resetRect(),
                    confirmReset_ ? "Tap to ERASE" : "Reset device",
@@ -89,9 +103,9 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
     tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
-                             : "Brightness", 8, 190, 1);
+                             : "Brightness", 8, 180, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String(board.brightness()) + "%", SCREEN_WIDTH - 8, 190, 1);
+    tft.drawString(String(board.brightness()) + "%", SCREEN_WIDTH - 8, 180, 1);
     tft.setTextDatum(TL_DATUM);
     Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
 }

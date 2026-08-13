@@ -1,5 +1,6 @@
 #include "SystemInfoGame.h"
 #include "AppVersion.h"
+#include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -120,7 +121,7 @@ String wifiPhyText() {
 }
 
 const char* const SystemInfoGame::TAB_LABELS[TAB_COUNT] = {
-    "Board", "Memory", "Network", "App"
+    "Board", "Memory", "Network", "BLE", "App"
 };
 
 const char* SystemInfoGame::title() const {
@@ -142,6 +143,8 @@ void SystemInfoGame::begin(GameHost& host) {
     scrolling_ = false;
     scrollAnchorY_ = 0;
     scrollStartOffset_ = 0;
+    bleAdvanced_ = false;
+    actionRect_ = Rect{};
     for (uint8_t i = 0; i < TAB_COUNT; ++i) {
         scrollOffset_[i] = 0;
     }
@@ -236,6 +239,18 @@ void SystemInfoGame::addRow(const String& label, const String& value, uint16_t v
     rowCount_++;
 }
 
+void SystemInfoGame::addAction(const String& label) {
+    if (rowCount_ >= MAX_ROWS) return;
+    rows_[rowCount_].kind = RowKind::Action;
+    rows_[rowCount_].label = label;
+    rows_[rowCount_].value = "";
+    rows_[rowCount_].valueColor = Ui::text();
+    rows_[rowCount_].meterPct = 0;
+    rows_[rowCount_].meterColor = 0;
+    rows_[rowCount_].height = 22;
+    rowCount_++;
+}
+
 void SystemInfoGame::addMeter(uint8_t pct, uint16_t color) {
     if (rowCount_ >= MAX_ROWS) return;
     rows_[rowCount_].kind = RowKind::Meter;
@@ -292,6 +307,7 @@ void SystemInfoGame::drawRows(TFT_eSPI& tft, const Rect& r) {
     int16_t y = static_cast<int16_t>(r.y + CONTENT_PAD_Y - scrollOffset_[tab_]);
 
     tft.fillRect(r.x, r.y, r.w, r.h, Ui::surface());
+    actionRect_ = Rect{};   // repopulated below if an Action row is on screen
 
     for (uint8_t i = 0; i < rowCount_; ++i) {
         const Row& row = rows_[i];
@@ -316,6 +332,10 @@ void SystemInfoGame::drawRows(TFT_eSPI& tft, const Rect& r) {
             tft.setTextColor(row.valueColor, Ui::surface());
             tft.drawString(fittedText(tft, row.value, static_cast<int16_t>(right - valueX), 1),
                            valueX, y, 1);
+        } else if (row.kind == RowKind::Action) {
+            const Rect chip{labelX, y, static_cast<int16_t>(min<int16_t>(150, right - labelX)), 18};
+            Ui::drawButton(tft, chip, row.label, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+            actionRect_ = chip;
         } else {
             drawMeter(tft, Rect{labelX, y, static_cast<int16_t>(right - labelX), 8},
                       row.meterPct, row.meterColor);
@@ -354,6 +374,15 @@ void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
                 }
                 return;
             }
+        }
+
+        /* The chip position comes from the previous frame's draw, which is
+         * the frame the user was looking at when they touched it. */
+        if (actionRect_.w > 0 && actionRect_.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            bleAdvanced_ = !bleAdvanced_;
+            host.board().beepOk();
+            markDirty();
+            return;
         }
 
         if (content.contains(touch.x, touch.y) && rowsHeight() > content.h) {
@@ -491,6 +520,100 @@ void SystemInfoGame::buildNetworkRows(GameHost& host) {
     }
 }
 
+/* What the device is putting on the air, read back from the one structure the
+ * radio was configured from (hal/BleBeacon.h). Nothing here is a hand-written
+ * description of the payload -- every value, including the raw hex, comes from
+ * BleBeacon::configured()/broadcasting(), so the screen cannot drift away from
+ * what the controller is actually transmitting.
+ *
+ * The distinction the screen has to keep honest: `live` is non-null only while
+ * the controller is advertising. When it is null nothing is on air, and the
+ * configured identity is labelled as configuration, never as broadcast. */
+void SystemInfoGame::buildBleRows(GameHost& host) {
+    Board& board = host.board();
+    const BleBeacon::Advertisement& cfg = BleBeacon::configured();
+    const BleBeacon::Advertisement* live = BleBeacon::broadcasting();
+    const bool onAir = (live != nullptr);
+    const BleBeacon::Advertisement& src = onAir ? *live : cfg;
+
+    beginRows();
+
+    addSection("Beacon");
+    if (onAir) {
+        addRow("Status", "Advertising", Ui::success());
+        addRow("Mode", BleBeacon::modeText());
+    } else {
+        addRow("BLE Beacon", board.bleBeaconEnabled() ? "On (radio down)" : "Off",
+               board.bleBeaconEnabled() ? Ui::warning() : Ui::muted());
+        addRow("Broadcasting", "Nothing", Ui::success());
+        addRow("Turn on in", "Settings > Beacon", Ui::muted());
+    }
+
+    /* Section title doubles as the configured/broadcast label, so no row below
+     * it can be misread as being on air when it is not. */
+    addSection(onAir ? "On Air" : "Config");
+    addRow("Name", src.deviceName);
+    addRow("Family ID", src.familyId);
+    addRow("Device ID", src.deviceId);
+
+    addSection(onAir ? "Mfr Data" : "Mfr (cfg)");
+    addRow("Company", "0x" + String(src.companyId, HEX) + " unassigned");
+    addRow("Family", String(src.familyId) + " (" + BleBeacon::FAMILY_TAG + ")");
+    addRow("Version", String(BleBeacon::PAYLOAD_VERSION));
+    addRow("Device ID", src.deviceId);
+    addRow("Raw", BleBeacon::toHex(src.manufacturerData, src.manufacturerLen));
+
+    if (src.serviceUuid16 != 0) {
+        addRow("Service UUID", "0x" + String(src.serviceUuid16, HEX));
+        if (src.serviceDataLen > 0) {
+            addRow("Service Data", BleBeacon::toHex(src.serviceData, src.serviceDataLen));
+        }
+    }
+
+    /* The privacy list is not a promise typed into the UI -- it is the direct
+     * consequence of BleBeacon::buildPayload(), which emits a name AD and a
+     * manufacturer AD and nothing else. Anything a game or profile stores is
+     * structurally unreachable from there. */
+    addSection("Privacy");
+    const uint16_t safe = Ui::success();
+    addRow("Child info", "Not Broadcast", safe);
+    addRow("Child name", "Not Broadcast", safe);
+    addRow("Location", "Not Broadcast", safe);
+    addRow("Wi-Fi password", "Not Broadcast", safe);
+    addRow("Wi-Fi SSID", "Not Broadcast", safe);
+    addRow("IP address", "Not Broadcast", safe);
+    addRow("Game progress", "Not Broadcast", safe);
+    addRow("Scores", "Not Broadcast", safe);
+    addRow("Usage history", "Not Broadcast", safe);
+
+    addAction(bleAdvanced_ ? "Hide advanced" : "Show advanced");
+
+    if (!bleAdvanced_) {
+        return;
+    }
+
+    addSection("Advanced");
+    addRow("Interval", String(src.advIntervalMs) + " ms");
+    addRow("TX power", src.txPowerConfigured ? (String(src.txPowerDbm) + " dBm")
+                                             : String("Controller default"));
+    addRow("Adv type", src.connectable ? "Connectable undirected"
+                                       : "Non-connectable");
+    const String addr = BleBeacon::address();
+    addRow("BLE address", addr.length() ? addr : "Stack down");
+    addRow("Payload", String(src.payloadLen) + " of " +
+                      String(BleBeacon::PAYLOAD_MAX) + " bytes");
+
+    /* The full AD-structure dump, chunked so each line fits the value column
+     * rather than being truncated to an ellipsis. Byte offsets are labelled so
+     * a reader can line them up against a scanner capture. */
+    constexpr uint8_t PER_ROW = 7;
+    for (uint8_t off = 0; off < src.payloadLen; off = static_cast<uint8_t>(off + PER_ROW)) {
+        const uint8_t n = static_cast<uint8_t>(min<int>(PER_ROW, src.payloadLen - off));
+        addRow(String(off) + "-" + String(off + n - 1),
+               BleBeacon::toHex(src.payload + off, n));
+    }
+}
+
 void SystemInfoGame::buildAppStateRows(GameHost& host) {
     Board& board = host.board();
     const Watchdog::Stats stats = Watchdog::stats();
@@ -514,7 +637,8 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
 
     addSection("Claims");
     addRow("Internet use", board.tzZoneChosen() ? "NTP only" : "NTP + ip-api.com");
-    addRow("Bluetooth", "Hardware capable; firmware off");
+    addRow("BLE beacon", BleBeacon::active() ? "Advertising -- see BLE tab"
+                                             : "Off; nothing broadcast");
     addRow("Temp", "Not shown; ESP32 reading not trusted");
 }
 
@@ -528,7 +652,8 @@ void SystemInfoGame::drawContent(GameHost& host) {
         case 0: buildBoardRows(host); break;
         case 1: buildMemoryRows(); break;
         case 2: buildNetworkRows(host); break;
-        case 3: buildAppStateRows(host); break;
+        case 3: buildBleRows(host); break;
+        case 4: buildAppStateRows(host); break;
     }
     drawRows(tft, cr);
 }

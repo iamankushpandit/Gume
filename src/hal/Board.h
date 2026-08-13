@@ -205,6 +205,13 @@ public:
     void tickRgb();
     void setRgbEnabled(bool on);
     bool rgbEnabled();
+
+    /* BLE presence beacon. A global device setting like theme and layout, not
+     * a per-profile one -- the radio broadcasts the same thing whoever is
+     * playing, and nothing profile-scoped ever reaches it. The advertisement
+     * itself lives in hal/BleBeacon.h; this is only the on/off switch. */
+    bool bleBeaconEnabled();
+    void setBleBeaconEnabled(bool on);
     bool drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_t maxH);
     uint8_t networkActivityCount() const;
     NetworkActivity networkActivity(uint8_t newestFirstIndex) const;

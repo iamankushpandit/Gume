@@ -15,6 +15,7 @@ private:
     Rect layoutRect() const;
     Rect saverRect() const;
     Rect ntpRect() const;
+    Rect bleRect() const;
     Rect wifiRect() const;
     Rect resetRect() const;
     Rect brightRect() const;
