@@ -1,11 +1,12 @@
 # Changelog
 
-## 2.1.0 — 2026-08-13
+## 3.0.0 — 2026-08-13
 
-BLE beacon with full on-device transparency, a System Info app, and a pass
-over everything that was making the UI feel slow.
+BLE beacon with full on-device transparency, a System Info app, an About
+app that reports what the radios are actually doing, and a pass over
+everything that was making the UI feel slow.
 
-Flash 2,251,793 / 3,145,728 (71.6%), RAM 64,940 / 327,680 (19.8%).
+Flash 2,254,141 / 3,145,728 (71.7%), RAM 64,940 / 327,680 (19.8%).
 
 ### Added
 
@@ -40,6 +41,18 @@ Flash 2,251,793 / 3,145,728 (71.6%), RAM 64,940 / 327,680 (19.8%).
 
 - **System Info screen** (five tabs: board, memory, network, BLE, app state)
   with live telemetry, scrolling rows and a scroll bar.
+
+- **About gained a "What the radios do" page**, and every fact on it is read
+  from the running system rather than typed in: Wi-Fi status from
+  `Board::hasWifiCredentials()` / `isWifiConnected()`, beacon status and the
+  advertised name from `BleBeacon::active()` / `configured()`. A privacy
+  claim that has drifted from the hardware is worse than none at all, because
+  it is believed -- so About now cannot drift. It also points at
+  *System Info > BLE* for the exact bytes on air.
+
+  About is also now orientation-aware, as the system-app rule already
+  required: it laid out against `SCREEN_WIDTH` and would have overflowed a
+  240px portrait screen.
 
 ### Performance
 

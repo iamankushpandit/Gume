@@ -16,7 +16,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 26 |
-| Flash | 2,251,793 / 3,145,728 bytes (**71.6%**) |
+| Flash | 2,254,141 / 3,145,728 bytes (**71.7%**) |
 | RAM | 64,940 / 327,680 bytes (**19.8%**) |
 | Country artwork | 195 flags + 191 outlines, 1.11 MiB (49% of the image) |
 
@@ -345,7 +345,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **2.1.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **3.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 

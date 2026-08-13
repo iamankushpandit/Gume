@@ -37,6 +37,35 @@ Do not wait to be asked, and do not leave it for "a docs pass later". A stale
 `README.md` that claims the wrong game count or the wrong flash figure is a
 defect, and it is your defect if you shipped the change that made it wrong.
 
+## The About app is user-facing documentation — keep it true
+
+`AboutGame` is the only documentation most owners will ever read, and the only
+one they read *while holding the device*. It is part of the deliverable, not a
+credits screen. **Update it in the same commit as the change it describes.**
+
+It was already six games out of date once, because it kept a hand-written list.
+The fix, and the standing rule, is to **derive rather than restate**:
+
+| About shows | Derived from |
+|---|---|
+| Version | `GOODTIME_KIDS_VERSION` |
+| Game count and every game name/blurb | `GAME_CATALOG` |
+| Board name | `BOARD_NAME` |
+| Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
+| Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
+
+If you are about to type a fact into About that the firmware already knows, read
+it from the firmware instead. Anything genuinely static — the credits, the
+privacy statements — must be re-read whenever the thing it describes changes.
+
+**A privacy claim that has drifted from the hardware is worse than none at all,
+because it is believed.** If you add or change anything that transmits, stores
+or shares data, the About radio page and the README Privacy section are part of
+that change. Not a follow-up.
+
+About is also a system app, so it follows the orientation rule: lay out against
+`tft.width()` / `tft.height()`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`.
+
 ## Responsiveness rule — know what a frame costs
 
 The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it

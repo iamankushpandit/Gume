@@ -11,9 +11,14 @@ public:
     void render(GameHost& host) override;
 
 private:
-    Rect prevRect() const;
-    Rect nextRect() const;
+    Rect panelRect(int16_t w, int16_t h) const;
+    Rect prevRect(int16_t w, int16_t h) const;
+    Rect nextRect(int16_t w, int16_t h) const;
     void drawLine(TFT_eSPI& tft, int16_t y, const String& text, uint8_t font = 2) const;
+    void renderIntro(TFT_eSPI& tft);
+    void renderGames(TFT_eSPI& tft, int16_t w);
+    void renderRadios(TFT_eSPI& tft, Board& board);
+    void renderCredits(TFT_eSPI& tft);
 
     uint8_t page_ = 0;
 };

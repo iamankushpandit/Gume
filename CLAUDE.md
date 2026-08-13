@@ -15,6 +15,35 @@ build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
 A README claiming the wrong game count or a stale flash figure is a defect
 belonging to whoever last changed the thing it describes.
 
+## The About app is user-facing documentation — keep it true
+
+`AboutGame` is the only documentation most owners will ever read, and the only
+one they read *while holding the device*. It is part of the deliverable, not a
+credits screen. **Update it in the same commit as the change it describes.**
+
+It was already six games out of date once, because it kept a hand-written list.
+The fix, and the standing rule, is to **derive rather than restate**:
+
+| About shows | Derived from |
+|---|---|
+| Version | `GOODTIME_KIDS_VERSION` |
+| Game count and every game name/blurb | `GAME_CATALOG` |
+| Board name | `BOARD_NAME` |
+| Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
+| Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
+
+If you are about to type a fact into About that the firmware already knows, read
+it from the firmware instead. Anything genuinely static — the credits, the
+privacy statements — must be re-read whenever the thing it describes changes.
+
+**A privacy claim that has drifted from the hardware is worse than none at all,
+because it is believed.** If you add or change anything that transmits, stores
+or shares data, the About radio page and the README Privacy section are part of
+that change. Not a follow-up.
+
+About is also a system app, so it follows the orientation rule: lay out against
+`tft.width()` / `tft.height()`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`.
+
 ## Responsiveness rule — know what a frame costs
 
 The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it
@@ -204,8 +233,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,251,793 / 3,145,728 bytes,
-**71.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,254,141 / 3,145,728 bytes,
+**71.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 64,940 / 327,680 (19.8%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
