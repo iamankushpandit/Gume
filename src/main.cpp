@@ -248,6 +248,19 @@ public:
         delay(18);
     }
 
+    /* Board::setDisplayRotation() clears lastTouch_. If a finger is still down
+     * when that happens, the next poll sees down && !lastTouch_.down and
+     * reports a fresh justPressed at the same coordinates -- a phantom tap on
+     * whatever the new screen put there. Selecting a profile landed straight on
+     * a launcher tile that way. Every rotation change goes through here so the
+     * events are swallowed until the finger actually lifts. */
+    void applyRotation(uint8_t rotation) {
+        if (board_.displayRotation() != rotation) {
+            board_.setDisplayRotation(rotation);
+        }
+        swallowTouch_ = true;
+    }
+
     uint8_t effectiveRotation(bool landscape) {
         return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
     }
@@ -257,7 +270,7 @@ public:
         view_ = View::Launcher;
         clampLauncherPage();
         // Rotate display based on chosen layout mode
-        board_.setDisplayRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
+        applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         content_.scan();
         launcherDirty_ = true;
     }
@@ -278,7 +291,7 @@ public:
 
     void openProfiles() override {
         // Always landscape: the picker is authored for the 320x240 canvas.
-        board_.setDisplayRotation(effectiveRotation(true));
+        applyRotation(effectiveRotation(true));
         view_ = View::Profiles;
         activeGame_ = &profile_;
         profile_.begin(*this);
@@ -292,7 +305,7 @@ public:
         // launcher. Losing the open Settings screen was disorienting.
         ssavPrevView_ = view_;
         // Follow the chosen layout so the company mark is upright either way.
-        board_.setDisplayRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
+        applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
         view_ = View::ScreenSaver;
         screenSaverStartMs_ = millis();
         ssav_initialized_ = false;
@@ -303,16 +316,10 @@ public:
 
         const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
 
-        // Games always run landscape; only the launcher follows the Tall/Wide
-        // setting. Restore whichever the destination view needs.
-        board_.setDisplayRotation(
+        // Games always run landscape; only the launcher follows the layout
+        // setting. applyRotation() also swallows the in-flight touch.
+        applyRotation(
             effectiveRotation(backToGame || board_.layoutMode() != Board::LayoutMode::Vertical));
-
-        /* setDisplayRotation() clears lastTouch_. With the finger still on the
-         * glass the next poll then reports justPressed again, and that phantom
-         * press landed on whatever was under the wake-up tap -- launching a
-         * random game. Swallow input until the finger actually lifts. */
-        swallowTouch_ = true;
 
         lastActivityMs_ = millis();
 
@@ -358,6 +365,7 @@ private:
         NumberLine,
         States,
         Scores,
+        Profiles,
         Flag,
         Settings,
         WiFi,
@@ -377,7 +385,7 @@ private:
     static constexpr uint8_t GAME_COUNT_TOTAL = GAME_CATALOG_COUNT;
 
     uint8_t launcherEntryCount() {
-        uint8_t count = 4; // Scores, Settings, WiFi, About always shown
+        uint8_t count = 5; // Scores, Settings, WiFi, Profiles, About always shown
         for (uint8_t i = 0; i < GAME_COUNT_TOTAL; ++i) {
             if (board_.gameVisible(GAME_CATALOG[i].id)) ++count;
         }
@@ -418,8 +426,10 @@ private:
         }
         switch (static_cast<uint8_t>(raw - GAME_CATALOG_COUNT)) {
             case 0:  return LauncherEntry{EntryKind::Scores,   0, "Scores",   "best & worst"};
+            case 3:  return LauncherEntry{EntryKind::Profiles, 0, "Profiles", "switch kid"};
             case 1:  return LauncherEntry{EntryKind::Settings, 0, "Settings", "device prefs"};
             case 2:  return LauncherEntry{EntryKind::WiFi,     0, "Wi-Fi",    "network & time"};
+            case 4:  return LauncherEntry{EntryKind::About,    0, "About",    "company info"};
             default: return LauncherEntry{EntryKind::About,    0, "About",    "company info"};
         }
     }
@@ -554,6 +564,9 @@ private:
             case EntryKind::Scores:
                 activeGame_ = &scores_;
                 break;
+            case EntryKind::Profiles:
+                openProfiles();
+                return;
             case EntryKind::Flag:
                 activeGame_ = &flag_;
                 break;
@@ -565,7 +578,7 @@ private:
         // Every game is authored against the fixed 320x240 landscape canvas
         // (SCREEN_WIDTH/SCREEN_HEIGHT), so the Tall/Wide menu setting
         // deliberately does not apply here.
-        board_.setDisplayRotation(effectiveRotation(true));
+        applyRotation(effectiveRotation(true));
         activeGame_->begin(*this);
         activeGame_->render(*this);
         activeGame_->clearDirty();
@@ -741,6 +754,14 @@ private:
                 tft.fillRect(cx - 16, cy - 11, 14, 10, Ui::rgb(232, 232, 242));
                 tft.drawRoundRect(cx - 16, cy - 11, 32, 22, 3, TFT_WHITE);
                 break;
+            case EntryKind::Profiles:
+                tft.fillCircle(cx - 6, cy - 5, 6, TFT_WHITE);
+                tft.fillCircle(cx - 6, cy + 9, 10, TFT_WHITE);
+                tft.fillRect(cx - 18, cy + 10, 24, 8, fill);
+                tft.fillCircle(cx + 9, cy - 3, 5, Ui::rgb(255, 226, 90));
+                tft.fillCircle(cx + 9, cy + 9, 8, Ui::rgb(255, 226, 90));
+                tft.fillRect(cx + 1, cy + 10, 18, 8, fill);
+                break;
             case EntryKind::Scores:
                 for (uint8_t b = 0; b < 3; ++b) {
                     const int16_t h = static_cast<int16_t>(8 + b * 7);
@@ -781,7 +802,7 @@ private:
             tft.drawString("GoodTime Kids!", static_cast<int16_t>(lW / 2), 17, 4);
             tft.setTextColor(Ui::muted(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("(C) GoodTime Micro", 8, 40, 1);
+            tft.drawString(board_.profileName(board_.activeProfile()), 8, 40, 1);
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(Clock::timeText(), 8, 60, 2);
@@ -799,7 +820,8 @@ private:
              * status items form a tidy block on the right. */
             tft.drawString("GoodTime Kids!", 10, 16, 4);
             tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.drawString("(C) GoodTime Micro", 10, 38, 1);
+            tft.drawString(String("(C) GoodTime Micro  -  ") +
+                           board_.profileName(board_.activeProfile()), 10, 38, 1);
 
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(MR_DATUM);

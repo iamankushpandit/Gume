@@ -354,17 +354,23 @@ void Board::beepError() {
 }
 
 uint8_t Board::activeProfile() {
-    const uint8_t v = prefs_.getUChar("profile", 0);
-    return v < PROFILE_COUNT ? v : 0;
+    const uint8_t v = prefs_.getUChar("profile", GUEST_INDEX);
+    if (v == GUEST_INDEX) return GUEST_INDEX;
+    return v < kidCount() ? v : GUEST_INDEX;
 }
 
 void Board::setActiveProfile(uint8_t index) {
-    if (index >= PROFILE_COUNT) index = 0;
+    if (index != GUEST_INDEX && index >= kidCount()) index = GUEST_INDEX;
     prefs_.putUChar("profile", index);
 }
 
+uint8_t Board::kidCount() {
+    const uint8_t n = prefs_.getUChar("kids", 0);
+    return n > MAX_KIDS ? MAX_KIDS : n;
+}
+
 String Board::profileName(uint8_t index) {
-    if (index >= PROFILE_COUNT) index = 0;
+    if (index == GUEST_INDEX) return String("Guest");
     char key[8];
     snprintf(key, sizeof(key), "pname%u", index);
     const String stored = prefs_.isKey(key) ? prefs_.getString(key, "") : String();
@@ -373,10 +379,36 @@ String Board::profileName(uint8_t index) {
 }
 
 void Board::setProfileName(uint8_t index, const String& name) {
-    if (index >= PROFILE_COUNT) return;
+    if (index >= MAX_KIDS) return;      // Guest cannot be renamed
     char key[8];
     snprintf(key, sizeof(key), "pname%u", index);
     prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
+}
+
+uint8_t Board::addKid(const String& name) {
+    const uint8_t n = kidCount();
+    if (n >= MAX_KIDS) return 0xFF;
+    prefs_.putUChar("kids", static_cast<uint8_t>(n + 1));
+    setProfileName(n, name.length() ? name : String("Kid ") + static_cast<int>(n + 1));
+    return n;
+}
+
+void Board::removeKid(uint8_t index) {
+    const uint8_t n = kidCount();
+    if (index >= n) return;
+
+    /* Shift the later names down so the slots stay contiguous. Their scores are
+     * keyed by slot, so they shift with the names -- deliberately: leaving gaps
+     * would mean a new child silently inheriting a deleted one's records. */
+    for (uint8_t i = index; i + 1 < n; ++i) {
+        setProfileName(i, profileName(static_cast<uint8_t>(i + 1)));
+    }
+    char key[8];
+    snprintf(key, sizeof(key), "pname%u", static_cast<unsigned>(n - 1));
+    prefs_.remove(key);
+    prefs_.putUChar("kids", static_cast<uint8_t>(n - 1));
+
+    if (activeProfile() >= kidCount()) setActiveProfile(GUEST_INDEX);
 }
 
 String Board::scopedKey(const char* key) {
@@ -397,10 +429,12 @@ uint32_t Board::getScore(const char* key, uint32_t fallback) {
 }
 
 void Board::setScore(const char* key, uint32_t value) {
+    if (isGuest()) return;          // guest sessions leave no trace
     prefs_.putUInt(scopedKey(key).c_str(), value);
 }
 
 bool Board::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
+    if (isGuest()) return false;
     const String k = scopedKey(key);
     const uint32_t missing = lowerIsBetter ? UINT32_MAX : 0;
     const uint32_t current = prefs_.getUInt(k.c_str(), missing);
@@ -438,6 +472,7 @@ void Board::loadBlob(const char* key, void* dst, size_t len) {
 }
 
 void Board::saveBlob(const char* key, const void* src, size_t len) {
+    if (isGuest()) return;
     prefs_.putBytes(scopedKey(key).c_str(), src, len);
 }
 

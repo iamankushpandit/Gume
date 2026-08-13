@@ -59,13 +59,29 @@ public:
      * loadBlob/saveBlob is transparently prefixed with the active profile, so
      * all 22 games became per-profile without touching a single game file.
      * Device settings (theme, layout, Wi-Fi, brightness) stay global. */
-    static constexpr uint8_t PROFILE_COUNT = 3;
-    static constexpr uint8_t PROFILE_NAME_MAX = 9;   // NAME_MAX is a POSIX macro, do not reuse it
+    /* Up to five children plus a permanent Guest slot.
+     *
+     * Guest deliberately does NOT persist anything: every write through
+     * setScore/saveBestScore/saveBlob is dropped while it is active. That is
+     * what makes it a guest rather than a sixth child -- a visitor can play
+     * without leaving results behind or disturbing anyone's records. */
+    static constexpr uint8_t MAX_KIDS      = 5;
+    static constexpr uint8_t GUEST_INDEX   = MAX_KIDS;   // 5
+    static constexpr uint8_t PROFILE_SLOTS = MAX_KIDS + 1;
+    static constexpr uint8_t PROFILE_NAME_MAX = 9;   // NAME_MAX is a POSIX macro
 
     uint8_t activeProfile();
     void setActiveProfile(uint8_t index);
     String profileName(uint8_t index);
     void setProfileName(uint8_t index, const String& name);
+
+    /** How many child profiles exist (0..MAX_KIDS). Guest is always extra. */
+    uint8_t kidCount();
+    /** Append a child. Returns its index, or 0xFF when full. */
+    uint8_t addKid(const String& name);
+    /** Delete a child, shifting the ones after it down. */
+    void removeKid(uint8_t index);
+    bool isGuest() { return activeProfile() == GUEST_INDEX; }
 
     /** Wipe every stored setting, score and credential, then reboot. */
     void factoryReset();
