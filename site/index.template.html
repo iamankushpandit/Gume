@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GoodTime Kids &mdash; {{GAME_COUNT}}-game console firmware for the ESP32</title>
+<meta name="description" content="GoodTime Kids is open ESP32 firmware: {{GAME_COUNT}} educational games for young children on a {{BOARD}} touchscreen board. Flash it from this page.">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #14181d;
+  --muted: #5c6672; --accent: #0b6bcb; --accent-ink: #ffffff;
+  --warn-bg: #fff6e5; --warn-line: #e0b355;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116; --panel: #161b22; --line: #2b323b; --ink: #e6edf3;
+    --muted: #9aa5b1; --accent: #4c9aff; --accent-ink: #0b1220;
+    --warn-bg: #241d0c; --warn-line: #6b5320;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--accent); }
+.wrap { max-width: 940px; margin: 0 auto; padding: 0 20px 72px; }
+header.hero { text-align: center; padding: 56px 20px 28px; }
+header.hero h1 { font-size: 2.4rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+header.hero p.tag { color: var(--muted); margin: 0 auto; max-width: 640px; }
+.badges { margin-top: 18px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.badge {
+  font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 12px; background: var(--panel);
+}
+.shots { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 28px 0 8px; }
+.shots img { max-width: 100%; border: 1px solid var(--line); border-radius: 10px; }
+figure { margin: 0; text-align: center; }
+figcaption { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
+section { margin-top: 44px; }
+h2 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+h3 { font-size: 1.05rem; margin: 26px 0 6px; }
+.lede { color: var(--muted); margin-top: 0; }
+.card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 22px;
+}
+.flash-grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
+@media (min-width: 720px) { .flash-grid { grid-template-columns: 1fr 1fr; } }
+label.field { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; }
+select {
+  width: 100%; padding: 10px 12px; border-radius: 10px; font: inherit;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+#variant-note { color: var(--muted); font-size: 0.9rem; margin: 12px 0 0; }
+.install-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; }
+button.install {
+  background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px;
+  padding: 12px 22px; font: inherit; font-weight: 600; cursor: pointer;
+}
+.note { font-size: 0.9rem; color: var(--muted); }
+.warn {
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; margin-top: 18px;
+}
+table { border-collapse: collapse; width: 100%; font-size: 0.94rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.games { column-count: 1; }
+@media (min-width: 620px) { .games { column-count: 2; } }
+.games div { break-inside: avoid; padding: 5px 0; }
+.games b { font-weight: 600; }
+.games span { color: var(--muted); }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; overflow-x: auto; font-size: 0.85rem;
+}
+code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+ul.tight { padding-left: 20px; }
+ul.tight li { margin: 4px 0; }
+footer {
+  border-top: 1px solid var(--line); margin-top: 56px; padding-top: 18px;
+  color: var(--muted); font-size: 0.85rem; text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>GoodTime Kids</h1>
+  <p class="tag">
+    A {{GAME_COUNT}}-game educational console for young children, running as open
+    firmware on a {{BOARD}} touchscreen board. No accounts, no telemetry, no SD
+    card &mdash; every game is baked into flash.
+  </p>
+  <div class="badges">
+    <span class="badge">v{{VERSION}}</span>
+    <span class="badge">{{GAME_COUNT}} games</span>
+    <span class="badge">ESP32 &middot; {{BOARD}}</span>
+    <span class="badge">Flash {{FLASH}}</span>
+    <span class="badge">RAM {{RAM}}</span>
+  </div>
+</header>
+
+<div class="shots">
+  <figure>
+    <img src="screens/launcher-wide.png" width="420" alt="Home screen, wide layout">
+    <figcaption>Home screen, Wide layout</figcaption>
+  </figure>
+  <figure>
+    <img src="screens/launcher-tall.png" width="300" alt="Home screen, tall layout">
+    <figcaption>Tall layout</figcaption>
+  </figure>
+</div>
+<p class="note" style="text-align:center">
+  These are rendered mock-ups, redrawn on a PC from the exact rectangles, fonts
+  and colours in the C++ source &mdash; the board does not wire the panel's MISO
+  line, so true screenshots are not possible. The flag artwork is the real pixel
+  data the device draws from.
+</p>
+
+<section id="install">
+  <h2>Install it from this page</h2>
+  <p class="lede">
+    Plug the board into a USB port and flash it here: no toolchain, no
+    PlatformIO, nothing to download by hand.
+  </p>
+
+  <div class="card">
+    <div class="flash-grid">
+      <div>
+        <label class="field" for="board">Board</label>
+        <select id="board">
+{{BOARD_OPTIONS}}
+        </select>
+      </div>
+      <div>
+        <label class="field" for="variant">Firmware</label>
+        <select id="variant">
+{{VARIANT_OPTIONS}}
+        </select>
+      </div>
+    </div>
+
+    <p id="variant-note"></p>
+
+    <div class="install-row">
+      <esp-web-install-button id="installer">
+        <button class="install" slot="activate">Connect and flash</button>
+        <span slot="unsupported" class="note">
+          Web flashing needs Web Serial, so it wants desktop <b>Chrome</b>,
+          <b>Edge</b> or <b>Opera</b>. Firefox and Safari cannot do it &mdash; the
+          manual instructions below work everywhere.
+        </span>
+        <span slot="not-allowed" class="note">
+          This page has to be served over HTTPS to reach a serial port.
+        </span>
+      </esp-web-install-button>
+      <span class="note">Takes about a minute over USB.</span>
+    </div>
+
+    <div class="warn">
+      <b>Flashing replaces the firmware; erasing wipes the child data.</b> The
+      touch calibration, the five profiles, their scores and their mastery data
+      all live in the ESP32's NVS partition. A plain install leaves NVS alone; if
+      the installer offers <i>Erase device</i>, that is what throws it away.
+    </div>
+  </div>
+
+  <h3>If your browser cannot, or you would rather use a terminal</h3>
+  <p class="note">
+    Every build here is also a plain set of <code>.bin</code> files. With
+    <a href="https://github.com/espressif/esptool">esptool</a> installed:
+  </p>
+  <pre><code>esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash \
+  0x1000  bootloader.bin \
+  0x8000  partitions.bin \
+  0xe000  boot_app0.bin \
+  0x10000 firmware.bin</code></pre>
+  <p class="note" id="download-links"></p>
+</section>
+
+<section id="hardware">
+  <h2>What you need</h2>
+  <div class="card">
+    <table>
+      <tr>
+        <th style="width:26%">Board</th>
+        <td>
+          <b>{{BOARD}}</b> (ESP32-32E, sold as a 2.8-inch "cheap yellow display"):
+          ILI9341 320&times;240 panel, XPT2046 <b>resistive</b> touch, 4 MB flash,
+          no PSRAM, onboard single-cell Li-ion charging.
+        </td>
+      </tr>
+      <tr>
+        <th>Cable</th>
+        <td>A USB <i>data</i> cable. Charge-only cables are common and look exactly like a dead board.</td>
+      </tr>
+      <tr>
+        <th>Driver</th>
+        <td>A CH340 or CP210x USB-serial driver, if your OS does not already have one.</td>
+      </tr>
+      <tr>
+        <th>Power</th>
+        <td>Optional 3.7&nbsp;V LiPo on the board's battery connector; the firmware reports the charge level.</td>
+      </tr>
+    </table>
+    <p class="note" style="margin-bottom:0">
+      Other ESP32 boards will accept the binary, but the pin map, the screen
+      rotation and the touch controller are compiled in for this one, so a
+      different board most likely gives you a blank screen. Build from source
+      with your own pins in <code>include/BoardConfig.h</code> instead.
+    </p>
+  </div>
+</section>
+
+<section id="first-run">
+  <h2>First run</h2>
+  <ol class="tight">
+    <li>The device boots into <b>Profiles</b>. Pick a child, or Guest &mdash; Guest deliberately saves nothing.</li>
+    <li>Resistive touch needs calibrating once: <b>Settings &rarr; Calibrate</b>, then tap the three targets.</li>
+    <li>Wi-Fi is optional and used for one thing, the clock: <b>Settings &rarr; Wi-Fi</b>.</li>
+    <li>Pare the launcher down to what one child needs in <b>Settings &rarr; Games</b>.</li>
+  </ol>
+</section>
+
+<section id="games">
+  <h2>The {{GAME_COUNT}} games</h2>
+  <p class="lede">
+    Every one can be hidden per child. Flags and the three US States games use
+    spaced repetition, so a missed item comes back sooner and a mastered one
+    fades into the background.
+  </p>
+  <div class="card games">
+{{GAME_ROWS}}
+  </div>
+</section>
+
+<section id="privacy">
+  <h2>Privacy</h2>
+  <div class="card">
+    <p style="margin-top:0">
+      The device collects nothing and sends nothing anywhere. No accounts, no
+      telemetry, no analytics. Scores and mastery data live in the ESP32's own
+      flash and never leave it.
+    </p>
+    <ul class="tight">
+      <li><b>Wi-Fi</b> connects only to reach an NTP server, plus one lookup to
+        <code>ip-api.com</code> to guess the time zone on first connect. You can
+        skip Wi-Fi entirely.</li>
+      <li><b>Bluetooth LE</b> is off by default. Switched on, it advertises a
+        device name and two bytes of the factory Bluetooth MAC &mdash; and the
+        device shows you a hex dump of the exact bytes on air, read back from the
+        same buffer that was handed to the radio.</li>
+      <li><b>This page</b> talks to your board over Web Serial, inside your
+        browser. The firmware is fetched from GitHub Pages; nothing about your
+        device is sent anywhere.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  GoodTime Kids v{{VERSION}} &middot; page generated {{BUILT}} &middot;
+  <a href="{{REPO}}">source on GitHub</a> &middot;
+  <a href="{{REPO}}/blob/main/CHANGELOG.md">changelog</a>
+</footer>
+
+</div>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<script>
+  /* One entry per (board, firmware) pair. tools/gen_site.py writes this list
+   * and the manifest beside it; CI drops the .bin files into build.dir. */
+  var BUILDS = {{BUILDS_JSON}};
+
+  var boardSel  = document.getElementById('board');
+  var variantSel = document.getElementById('variant');
+  var note      = document.getElementById('variant-note');
+  var links     = document.getElementById('download-links');
+  var installer = document.getElementById('installer');
+
+  function apply() {
+    var build = null;
+    for (var i = 0; i < BUILDS.length; i++) {
+      if (BUILDS[i].board === boardSel.value && BUILDS[i].env === variantSel.value) {
+        build = BUILDS[i];
+        break;
+      }
+    }
+    if (!build) return;
+    note.textContent = build.note;
+    installer.setAttribute('manifest', build.manifest);
+    links.innerHTML = 'Files for this build: ' + build.parts.map(function (part) {
+      return '<a href="' + build.dir + '/' + part + '" download>' + part + '</a>';
+    }).join(' &middot; ');
+  }
+
+  boardSel.addEventListener('change', apply);
+  variantSel.addEventListener('change', apply);
+  apply();
+</script>
+</body>
+</html>

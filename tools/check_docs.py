@@ -227,6 +227,41 @@ def check_screens(problems):
                            "docs/screens/%s.png)" % (game_id, name))
 
 
+def check_site(problems):
+    """The Pages site must stay derived, and its firmware list must be real.
+
+    `tools/gen_site.py` fills the landing page from AppVersion.h, GAME_CATALOG
+    and README, for the same reason About derives its list. Two ways that can
+    rot: someone types a fact into the template that the generator already
+    supplies, or someone adds a PlatformIO environment to the page that the
+    Pages workflow never builds -- which produces a picker entry whose manifest
+    404s halfway through erasing somebody's board.
+    """
+    template = read("site", "index.template.html")
+    generator = read("tools", "gen_site.py")
+
+    for placeholder in sorted(set(re.findall(r'\("(\{\{[A-Z_]+\}\})"', generator))):
+        if placeholder not in template:
+            fail(problems, "gen_site.py substitutes %s but site/"
+                           "index.template.html no longer contains it" % placeholder)
+
+    if re.search(r"\d+\.\d+\.\d+", template):
+        fail(problems, "site/index.template.html hardcodes a version number -- "
+                       "it is supposed to use the {{VERSION}} placeholder")
+
+    envs = re.findall(r'"env":\s*"(\w+)"', generator)
+    ini = read("platformio.ini")
+    workflow = read(".github", "workflows", "pages.yml")
+    for env in envs:
+        if not re.search(r"^\[env:%s\]" % re.escape(env), ini, re.M):
+            fail(problems, "gen_site.py offers firmware '%s', which is not a "
+                           "platformio.ini environment" % env)
+        if not re.search(r"\b%s\b" % re.escape(env), workflow):
+            fail(problems, "gen_site.py offers firmware '%s', but the Pages "
+                           "workflow never builds it -- its manifest would "
+                           "point at binaries that do not exist" % env)
+
+
 def main():
     problems = []
     check_version(problems)
@@ -237,6 +272,7 @@ def main():
     check_credits_match_artwork(problems)
     check_games_are_documented(problems)
     check_screens(problems)
+    check_site(problems)
 
     if problems:
         print("Docs are out of sync with the code:\n")

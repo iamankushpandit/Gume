@@ -1,0 +1,125 @@
+name: Pages
+
+# Builds every firmware environment, generates the site around them with
+# tools/gen_site.py, and publishes the result to GitHub Pages. The flash button
+# on the page is only as fresh as this run, so it runs on every push to main.
+#
+# Enable it once, in Settings -> Pages -> Build and deployment -> GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      # `main` deliberately carries a machine-local path for map-n-flag (see
+      # the build gotchas in CLAUDE.md). Any other checkout has to swap it for
+      # the public URL, and CI is another checkout. The edit is to the runner's
+      # working copy only and is never committed.
+      - name: Point map-n-flag at its public repository
+        run: |
+          sed -i 's|file://C:/Users/Ankus/CppEsp32Lib|https://github.com/iamankushpandit/map-n-flag.git|' platformio.ini
+          grep -n 'map-n-flag' platformio.ini
+
+      - name: Build firmware
+        run: pio run -e app -e bringup -e wifidiag
+
+      # Flash is the scarce resource here (3 MB partition), so put the image
+      # size where a reviewer sees it without opening the build log.
+      - name: Report image sizes
+        run: |
+          {
+            echo '### Firmware image sizes'
+            echo
+            echo '| Environment | firmware.bin | of 3,145,728 |'
+            echo '|---|---:|---:|'
+            for env in app bringup wifidiag; do
+              bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
+              printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
+                "$(python -c "print($bytes / 3145728 * 100)")"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate the site
+        run: python tools/gen_site.py --out _site --repo "${{ github.server_url }}/${{ github.repository }}"
+
+      - name: Collect the binaries next to their manifests
+        run: |
+          set -euo pipefail
+          boot_app0=$(find ~/.platformio/packages -name boot_app0.bin -path '*partitions*' | head -n 1)
+          test -n "$boot_app0"
+          for env in app bringup wifidiag; do
+            dest="_site/firmware/e32r28t1/$env"
+            test -d "$dest"
+            cp ".pio/build/$env/firmware.bin"   "$dest/"
+            cp ".pio/build/$env/bootloader.bin" "$dest/"
+            cp ".pio/build/$env/partitions.bin" "$dest/"
+            cp "$boot_app0"                     "$dest/"
+            ls -l "$dest"
+          done
+
+      # A manifest that points at a missing .bin fails only at flash time, in
+      # the user's browser, halfway through erasing their board. Check here.
+      - name: Verify every manifest resolves
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          missing = []
+          for root, _, files in os.walk("_site/firmware"):
+              if "manifest.json" not in files:
+                  continue
+              with open(os.path.join(root, "manifest.json")) as handle:
+                  manifest = json.load(handle)
+              for build in manifest["builds"]:
+                  for part in build["parts"]:
+                      path = os.path.join(root, part["path"])
+                      if not os.path.isfile(path):
+                          missing.append(path)
+          if missing:
+              sys.exit("missing firmware parts:\n  " + "\n  ".join(missing))
+          print("all manifests resolve")
+          PY
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

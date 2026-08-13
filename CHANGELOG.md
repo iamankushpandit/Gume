@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **A GitHub Pages site with a browser-based flasher.**
+  <https://iamankushpandit.github.io/Gume/> describes the firmware and installs
+  it over Web Serial: pick the board and the firmware, plug in the USB cable,
+  press the button. No PlatformIO, no toolchain, nothing to download by hand.
+  Desktop Chrome, Edge and Opera only -- Firefox and Safari do not implement
+  Web Serial, so the page falls back to `esptool` instructions and direct
+  `.bin` links.
+
+  The firmware picker offers all three environments: the console itself, the
+  bring-up diagnostic for a board that shows nothing, and the isolated Wi-Fi
+  radio test. Each one gets its own esp-web-tools manifest.
+
+- **`tools/gen_site.py`.** The page is generated, not written: version from
+  `AppVersion.h`, the game list and blurbs from `GAME_CATALOG`, the build
+  figures from `README.md`, the board name from `platformio.ini`. Same reason
+  About derives its list -- a hand-written copy of the game list has fallen six
+  games behind before. `site/index.template.html` holds wording and layout
+  only.
+
+- **`.github/workflows/pages.yml`.** Builds `app`, `bringup` and `wifidiag` on
+  every push to `main`, generates the site around them, and copies the four
+  flash images beside each manifest. It rewrites the machine-local `map-n-flag`
+  path in its own working copy, because CI is just another checkout. A final
+  step refuses to publish a manifest whose binaries are missing -- that failure
+  would otherwise land in a user's browser, halfway through writing their
+  board.
+
+- **`check_docs.py` now checks the site.** It fails if a version number is
+  typed into the template, if the template loses a placeholder the generator
+  fills, or if the page offers a firmware that platformio.ini does not define
+  or the workflow does not build.
+
+
 ## 3.0.0 — 2026-08-13
 
 BLE beacon with full on-device transparency, a System Info app, an About

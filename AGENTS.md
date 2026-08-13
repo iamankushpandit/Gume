@@ -216,6 +216,11 @@ how About fell six games behind in the first place:
 - the **About** app's game list, count and blurbs
 - the **Settings → Games** visibility list
 - the **launcher** tiles and paging
+- the **GitHub Pages site** — `tools/gen_site.py` reads the version from
+  `AppVersion.h`, the game list and blurbs from `GAME_CATALOG`, the build
+  figures from `README.md` and the board name from `platformio.ini`. Edit
+  `site/index.template.html` for wording and layout only; `check_docs.py`
+  fails if a version number is typed into it
 
 ### If it is a system app rather than a game
 
@@ -227,6 +232,31 @@ Everything above still applies, plus:
 - If it touches a radio, stores data, or changes what leaves the device, the
   **About radios page** and the **README privacy section** are part of the same
   change — and About must *read* the state, not restate it.
+
+## The web installer is part of the deliverable
+
+`https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
+Web Serial. `.github/workflows/pages.yml` builds all three PlatformIO
+environments on every push to `main`, runs `tools/gen_site.py`, and drops the
+resulting `.bin` files beside the manifest that points at them. Nobody
+regenerates it by hand, so it cannot go stale on its own — but three things
+break it, and all three fail in someone else's browser rather than here:
+
+1. **Adding or renaming a PlatformIO environment.** The page offers one
+   firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
+   build that env, its manifest points at binaries that do not exist and the
+   flash fails partway. `check_docs.py` cross-checks `VARIANTS` against
+   `platformio.ini` and the workflow.
+2. **Changing what the firmware transmits or stores.** The page carries a
+   privacy section, and the same rule applies to it as to the About radio page
+   and the README: a privacy claim that has drifted from the hardware is worse
+   than none, because it is believed.
+3. **Making CI unable to build.** `main` deliberately points `map-n-flag` at a
+   machine-local path; the workflow rewrites that line in its own working copy.
+   If `lib_deps` changes shape, fix the `sed` in the same commit.
+
+`python tools/gen_site.py` writes `site/_build/` locally so you can look at the
+page. The flash button will 404 there — the binaries only exist in CI.
 
 Four things that cause real damage here if you skip them:
 
