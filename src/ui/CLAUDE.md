@@ -18,6 +18,16 @@ Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI
 
 `drawBleBadge()` has **no "off" variant on purpose.** An icon that is always present but sometimes greyed turns "is it transmitting?" into a question of shade, and that is the one question the badge exists to answer at a glance — so callers draw it only while `BleBeacon::active()`. It is 10x16 centred on the given point; the launcher header has almost no slack in landscape, so position anything near it off measured text widths rather than fixed offsets.
 
+## RowList
+
+`RowList` is the scrolling label/value widget System Info is built from — sections, text rows, meters and a tappable action chip, with scrollbar and clamping.
+
+It holds **fixed `char` buffers, not `String`**, and that is the whole point. It was 48 rows x 2 Arduino `String`s rebuilt on every frame: ~96 long-lived allocations freed and re-made at frame rate, interleaved with every transient `String` the row builders create — close to the worst thing you can do to a heap that cannot be compacted. It now allocates nothing, ever, so there is nothing for a caller to release and nothing to fragment. The cost is `LABEL_MAX` / `VALUE_MAX` caps, which is the right trade: the value column is ~140px and was truncating anyway.
+
+`draw()` clips to the given rect with `setViewport(..., false)`. That is not optional — skipping rows wholly outside the rect still lets the row straddling the top edge draw in full, which smears text into whatever chrome sits above.
+
+Callers keep their own scroll offset and pass it in, so one list can serve several tabs.
+
 `Rect` is defined here — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
 
 ## Country and state artwork
