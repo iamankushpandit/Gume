@@ -8,7 +8,7 @@ This project keeps its guidance in **`CLAUDE.md`** files, which apply to every a
 - [`src/hal/CLAUDE.md`](src/hal/CLAUDE.md) — hardware, persistence, profiles, watchdog
 - [`src/ui/CLAUDE.md`](src/ui/CLAUDE.md) — theming and drawing helpers
 
-Four things that cause real damage here if you skip them:
+Five things that cause real damage here if you skip them:
 
 1. **Branch into your own worktree before you start.** New requirement → `git worktree add ../GUme-<slug> -b feat/<slug>`, then work there. Do **not** `git switch` inside the main checkout: it holds other agents' uncommitted work and switching under them strands it. A worktree also gives you a private `.pio/` build dir.
 2. **Multiple agents share this repo.** Read `git status` first; uncommitted work that isn't yours is normal. Stage explicit paths, never `git add -A`. Don't merge to `main` or push unless asked.

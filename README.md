@@ -1,6 +1,6 @@
 # GoodTime Kids
 
-A 23-game educational console for young children, running on a **$12 ESP32
+A 26-game educational console for young children, running on a **$12 ESP32
 "Cheap Yellow Display"** (ESP32-2432S028R — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -10,7 +10,7 @@ from an NTP server.
 
 | | |
 |---|---|
-| Games | 23 |
+| Games | 26 |
 | Flash | 2,304,761 / 3,145,728 bytes (**73.3%**) |
 | RAM | 50,312 / 327,680 bytes (**15.4%**) |
 | Country artwork | 195 flags + 191 outlines, 1.11 MiB (49% of the image) |
@@ -53,11 +53,13 @@ Ages are a guide, not a gate. Every game can be hidden from the launcher in
 | Game | What it is | What it builds | Age |
 |---|---|---|---|
 | **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus** | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore | 5–12 |
-| **Countries** | A real country outline, alternating *"which country?"* and *"which continent is it in?"* | Map-shape recognition, plus where countries sit in the world | 6–12 |
+| **US States** | "Capital of Texas?" and "Austin is the capital of?" — alternates both directions | US states and capitals, with adaptive difficulty tiers (9 / 27 / 50) | 6–12 |
+| **State Flags** | A real US state flag, name the state. Correct answers unlock a capital bonus | State flag recognition with a reward loop | 6–12 |
+| **State Maps** | A US state outline, name the state. Correct answers unlock a capital bonus | State shape recognition with a reward loop | 6–12 |
 | **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time | 4–7 |
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
 
-Flags and Countries both use **spaced repetition** and **adaptive difficulty** —
+Flags uses **spaced repetition** and **adaptive difficulty** —
 see below.
 
 ### Logic, memory and attention
@@ -74,6 +76,7 @@ see below.
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
+| **Trace** | Trace letters A–Z and numbers 0–9 on the touchscreen | Letter and number formation, fine motor control | 3–6 |
 
 ---
 
@@ -84,15 +87,12 @@ see below.
 Questions used to be drawn uniformly at random, so a child saw Brazil exactly as
 often as Bhutan and got no extra practice on the ones they missed.
 
-Flags and Countries now keep a mastery score per country
+Flags now keeps a mastery score per country
 (`src/engine/Progress.cpp`). A miss costs **twice** what a correct answer earns,
 so a missed country returns quickly and only leaves the rotation after repeated
-success. Weighting runs from **8×** for a recently-missed country down to **1×**
+success. Weighting runs from **8×** for a recently-missed item down to **1×**
 for a mastered one — mastered items still appear, just rarely, so the mix stays
 varied.
-
-The two games track **separately**: recognising Italy's flag says little about
-recognising its outline.
 
 ### Adaptive difficulty
 
@@ -144,11 +144,9 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/flags-country.png" width="300" alt="Flags: name the country">
   <img src="docs/screens/flags-capital.png" width="300" alt="Flags: capital bonus">
-  <img src="docs/screens/countries-outline.png" width="300" alt="Countries: name the outline">
+  <img src="docs/screens/calendar.png" width="300" alt="Calendar">
 </p>
 <p align="center">
-  <img src="docs/screens/countries-continent.png" width="300" alt="Countries: which continent">
-  <img src="docs/screens/calendar.png" width="300" alt="Calendar">
   <img src="docs/screens/time.png" width="300" alt="Time">
 </p>
 

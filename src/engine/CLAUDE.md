@@ -30,7 +30,7 @@ System screens (Scores, Settings, Wi-Fi, Profiles, About) are **not** in this ca
 
 ## Progress.{h,cpp}
 
-Per-item spaced repetition, one signed byte per item (−6…+6) in a single NVS blob. Correct `+1`, miss `−2`. Selection weights: heavily missed 8×, unseen 3×, mastered 1×. `pickWeighted()` takes a filter callback; `masteryPercent()` feeds auto-difficulty. Used by the flag/state games, which track recognition and capitals separately.
+Per-item spaced repetition, one signed byte per item (−6…+6) in a single NVS blob. Correct `+1`, miss `−2`. Selection weights: heavily missed 8×, weakly missed 6×, unseen 3×, barely known 2×, mastered 1×. `pickWeighted()` takes a filter callback; `masteryPercent()` feeds auto-difficulty. Used by the flag/state games, which track recognition and capitals separately.
 
 ## ScoreCatalog.{h,cpp}
 

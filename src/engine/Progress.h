@@ -39,7 +39,8 @@ public:
     /**
      * Weight for random selection. Weak and unseen items get picked more often
      * without ever starving the well-known ones, which keeps things varied.
-     *   missed heavily -> 8, unseen -> 3, mastered -> 1
+     *   missed heavily -> 8, missed weakly -> 6, unseen -> 3,
+     *   barely known -> 2, mastered -> 1
      */
     uint8_t weight(uint16_t index) const;
 
