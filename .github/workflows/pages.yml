@@ -26,6 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `enablement: true` turns Pages on for the repository the first time
+      # this runs, so the site does not need a visit to Settings -> Pages to go
+      # live. It is a no-op on every run after that.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
