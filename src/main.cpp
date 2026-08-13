@@ -299,11 +299,22 @@ public:
      * transition goes through here so a screen's end() cannot be skipped by
      * one path and honoured by another. */
     void leaveActiveGame() {
-        if (activeGame_ != nullptr) {
-            activeGame_->end(*this);
-            activeGame_ = nullptr;
+        if (activeGame_ == nullptr) {
+            return;
         }
+        const char* leaving = Watchdog::context();
+        activeGame_->end(*this);
+        activeGame_ = nullptr;
+        /* A screen that does not hand back what it borrowed is the only way
+         * heap can march downwards on a device with no garbage collector, and
+         * on a 27Hz UI it is invisible until something fails to allocate hours
+         * later. Comparing free heap across the screen's whole lifetime turns
+         * that into a line in the log the first time it happens. */
+        Watchdog::noteScreenLeft(leaving, heapAtLaunch_);
     }
+
+    /** Free heap immediately before the active screen's begin(). */
+    uint32_t heapAtLaunch_ = 0;
 
     void goHome() override {
         Watchdog::setContext("Launcher");
@@ -336,6 +347,7 @@ public:
         view_ = View::Profiles;
         leaveActiveGame();
         activeGame_ = &profile_;
+        heapAtLaunch_ = ESP.getFreeHeap();
         profile_.begin(*this);
         profile_.render(*this);
         profile_.clearDirty();
@@ -668,6 +680,7 @@ private:
         const bool followsLayout = (kind == EntryKind::SystemInfo);
         applyRotation(effectiveRotation(!followsLayout ||
                                         board_.layoutMode() != Board::LayoutMode::Vertical));
+        heapAtLaunch_ = ESP.getFreeHeap();
         activeGame_->begin(*this);
         activeGame_->render(*this);
         activeGame_->clearDirty();

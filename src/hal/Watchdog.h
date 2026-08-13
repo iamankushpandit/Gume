@@ -32,6 +32,12 @@ constexpr uint32_t TIMEOUT_SECONDS = 12;
 constexpr uint32_t STALL_WARN_MS = 3000;
 /** Free heap below this is logged as a warning every monitor tick. */
 constexpr uint32_t HEAP_WARN_BYTES = 24 * 1024;
+/* A screen may end up this far below where it started without comment --
+ * lazily filled caches elsewhere are normal. Beyond it, say so. */
+constexpr uint32_t SCREEN_LEAK_WARN_BYTES = 2048;
+/* Free space this shattered is worth a warning even when the total looks
+ * healthy: the next big allocation is the one that fails. */
+constexpr uint8_t FRAGMENTATION_WARN_PCT = 60;
 
 constexpr size_t CONTEXT_MAX = 24;
 
@@ -83,6 +89,22 @@ struct Pause {
     Pause(const Pause&) = delete;
     Pause& operator=(const Pause&) = delete;
 };
+
+/* Heap accounting for a screen that has just been left.
+ *
+ * `heapAtEntry` is free heap captured immediately before that screen's
+ * begin(). Anything materially below it after end() means the screen kept
+ * something, and on a device with no garbage collector and no way to compact
+ * the heap, "kept something" repeated a few hundred times is a device that
+ * stops allocating. Logged, not fatal -- a one-off dip can be a cache another
+ * subsystem filled while the screen happened to be up.
+ *
+ * Also tracks the worst fragmentation seen, which is the failure free heap
+ * alone will not show you: plenty free, no single block big enough. */
+void noteScreenLeft(const char* screen, uint32_t heapAtEntry);
+
+/** 0 = one contiguous free block, 100 = free space entirely shattered. */
+uint8_t heapFragmentation();
 
 Stats stats();
 const LastRun& lastRun();

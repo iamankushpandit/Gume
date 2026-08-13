@@ -38,6 +38,23 @@
 
 ### Fixed
 
+- **The System Info row list no longer churns the heap.** It held 48 rows of
+  two Arduino `String`s each and rebuilt every one on every frame -- roughly
+  96 long-lived allocations freed and re-made at frame rate, interleaved with
+  every transient `String` the row builders create. On a heap that cannot be
+  compacted that is a fragmentation engine: free heap looks healthy right up
+  to the allocation that fails.
+
+  Extracted to `src/ui/RowList` with fixed `char` buffers, so it now allocates
+  nothing at all, and rebuilds are gated on a stale flag rather than running
+  per frame. Costs 864 bytes of static RAM and *saves* 5.5 KB of flash.
+
+- **Heap accounting per screen.** Every transition compares free heap against
+  the value captured before that screen's `begin()` and logs
+  `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
+  Fragmentation is logged past 60% and shown on the System Info memory tab,
+  since free heap alone will not reveal it.
+
 - **Battery sensing made ~20-30ms cheaper per frame, and more honest.**
   `getBatteryPercent()` and `getPowerSource()` each ran their own 10-sample
   ADC conversion with a `delay(1)` between samples, and `Ui::drawTopBar()`

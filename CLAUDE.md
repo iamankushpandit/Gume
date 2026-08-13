@@ -15,6 +15,53 @@ build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
 A README claiming the wrong game count or a stale flash figure is a defect
 belonging to whoever last changed the thing it describes.
 
+## Memory rule — there is no garbage collector
+
+C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.
+So the thing that kills this device is not the leak you are picturing. There is
+not one `new`, `delete`, `malloc` or `free` in this firmware — every screen is a
+`static` instance and everything else is stack or a fixed member. **Keep it that
+way**, and the classic leak is impossible by construction.
+
+What actually kills it is **fragmentation**: many small allocations of differing
+sizes, made and freed over and over, chop the free space into pieces too small
+to satisfy a later request. Free heap looks fine right up to the allocation that
+fails, hours in. The only visible symptom beforehand is the fragmentation
+percentage, which is why System Info shows it.
+
+The offender is almost always Arduino `String`. Every concatenation allocates,
+every assignment may reallocate, and a `String` member that is rewritten each
+frame is a long-lived block being freed and re-made 27 times a second.
+
+Rules, in the order they bite:
+
+1. **No raw owning allocation.** No `new`/`delete`, no `malloc`/`free`, no
+   owning raw pointers. If something genuinely must be dynamic, justify it in a
+   comment and give it an owner with a destructor.
+2. **No `String` in anything that runs per frame.** Build text with `snprintf`
+   into a stack buffer, or store it in a fixed `char[]`. `RowList` (`src/ui/`)
+   is the worked example: it was 48 rows × 2 `String`s rebuilt every frame —
+   about 96 long-lived allocations churning at frame rate — and is now flat
+   char buffers that allocate nothing, ever.
+3. **Don't rebuild content on every frame.** Rebuild when the data changed and
+   keep a `stale` flag. Scrolling changes an offset, not the content.
+4. **A `String` member on a screen is a smell.** A few exist for genuinely
+   user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) — that is
+   the bar. Anything derived from state belongs in a fixed buffer.
+5. **Give back what you borrowed, in `end()`.** Every screen transition goes
+   through `KidsPlatformApp::leaveActiveGame()`, which compares free heap
+   against the value captured before that screen's `begin()` and logs
+   `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
+   Watch the serial log after adding a screen.
+6. **Prefer fixed-size members over growth.** A statically sized array that is
+   occasionally half empty is cheaper and safer here than anything that grows.
+   Trading a few hundred bytes of static RAM for zero heap traffic is nearly
+   always the right call on this device — `RowList` cost 864 bytes of RAM and
+   *saved* 5.5 KB of flash.
+7. **Check the numbers before you claim it is fine.** `pio run` reports RAM and
+   flash; System Info's Memory tab reports free heap, minimum free heap,
+   largest allocatable block and fragmentation. Read them.
+
 ---
 
 ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 26 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240×320 resistive-touch board): ILI9341 320×240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
