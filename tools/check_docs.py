@@ -165,6 +165,47 @@ def check_credits_match_artwork(problems):
                            "the country outlines are no longer compiled in" % doc)
 
 
+def check_screens(problems):
+    """Screenshots must exist, be referenced, and not outlive their feature.
+
+    docs/screens/ kept countries-outline.png and countries-continent.png long
+    after the Countries game was deleted, and had nothing for the four games
+    added since. A mock-up of a screen that no longer exists is a worse lie
+    than a missing one.
+    """
+    screens_dir = os.path.join(ROOT, "docs", "screens")
+    on_disk = {n[:-4] for n in os.listdir(screens_dir) if n.endswith(".png")}
+
+    generator = read("tools", "gen_screens.py")
+    generated = set(re.findall(r'\(\s*"([a-z0-9-]+)"\s*,\s*\w+\s*,', generator))
+
+    readme = read("README.md")
+    referenced = set(re.findall(r"docs/screens/([a-z0-9-]+)\.png", readme))
+
+    for name in sorted(generated - on_disk):
+        fail(problems, "gen_screens.py builds '%s' but docs/screens/%s.png is "
+                       "missing -- run python tools/gen_screens.py" % (name, name))
+    for name in sorted(on_disk - generated):
+        fail(problems, "docs/screens/%s.png has no generator entry -- it is "
+                       "left over from a removed screen" % name)
+    for name in sorted(referenced - on_disk):
+        fail(problems, "README.md references docs/screens/%s.png, which does "
+                       "not exist" % name)
+
+    # Every playable game should be picturable. Catalog ids mostly match the
+    # screen names; list the deliberate exceptions rather than skipping the check.
+    alias = {"shapecolor": "shapes", "sort": "sorting", "fingers": "fingers-count",
+             "flags": "flags-country", "states": "states", "stateflags": "stateflags",
+             "statemaps": "statemaps", "tictactoe": "tictactoe"}
+    catalog = read("src", "engine", "GameCatalog.cpp")
+    ids = re.findall(r'^\s*\{\s*"([a-z0-9]+)"', catalog, re.M)
+    for game_id in ids:
+        name = alias.get(game_id, game_id)
+        if name not in on_disk:
+            fail(problems, "game '%s' has no screenshot (expected "
+                           "docs/screens/%s.png)" % (game_id, name))
+
+
 def main():
     problems = []
     check_version(problems)
@@ -173,6 +214,7 @@ def main():
     check_size_agreement(problems)
     check_about_is_derived(problems)
     check_credits_match_artwork(problems)
+    check_screens(problems)
 
     if problems:
         print("Docs are out of sync with the code:\n")

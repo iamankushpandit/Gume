@@ -167,14 +167,16 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/flags-country.png" width="300" alt="Flags: name the country">
   <img src="docs/screens/flags-capital.png" width="300" alt="Flags: capital bonus">
+  <img src="docs/screens/states.png" width="300" alt="US States: name the capital">
+</p>
+<p align="center">
+  <img src="docs/screens/stateflags.png" width="300" alt="State Flags: name the state">
+  <img src="docs/screens/statemaps.png" width="300" alt="State Maps: name the outline">
   <img src="docs/screens/calendar.png" width="300" alt="Calendar">
 </p>
 <p align="center">
   <img src="docs/screens/time.png" width="300" alt="Time">
 </p>
-
-> The **US States**, **State Flags**, **State Maps** and **Trace** screens have
-> no mock-ups yet -- `tools/gen_screens.py` has not been extended to cover them.
 
 ### Logic, memory and attention
 
@@ -195,6 +197,7 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/tictactoe.png" width="300" alt="Tic-Tac-Toe">
+  <img src="docs/screens/trace.png" width="300" alt="Trace: letters and numbers">
 </p>
 
 ---
@@ -216,9 +219,6 @@ child**, so one child's launcher can be pared down without touching another's.
 Brightness floors at **25%, not 0**, deliberately: at lower duty the panel is
 unreadable and a child who dragged the slider to the bottom could not see the
 control needed to undo it.
-
-> The Settings mock-up above predates the beacon toggle and the brightness
-> slider; the live screen is a four-row grid with Reset spanning both columns.
 
 **Menu layout is launcher-only.** Every game is authored against the fixed
 320×240 landscape canvas, so Tall changes the home screen and nothing else.
@@ -259,6 +259,11 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
 - **System Info** -- five tabs of live telemetry: board, memory, network, BLE
   and app state. This is a diagnostics screen, not a toy: chip and reset
   reason, heap with a fragmentation meter, Wi-Fi throughput, watchdog stalls.
+
+<p align="center">
+  <img src="docs/screens/about-radios.png" width="360" alt="About: what the radios do">
+  <img src="docs/screens/systeminfo-memory.png" width="360" alt="System Info: heap and CPU">
+</p>
 
 ### Battery
 
@@ -327,6 +332,10 @@ and a manufacturer AD and nothing else, and nothing profile-scoped is reachable
 from the radio path at all.
 
 ### You can check all of this on the device
+
+<p align="center">
+  <img src="docs/screens/systeminfo-ble.png" width="420" alt="System Info: what BLE is broadcasting">
+</p>
 
 *System Info -> BLE* shows whether advertising is currently active, the actual
 name being advertised, every decoded field of the manufacturer data, the privacy

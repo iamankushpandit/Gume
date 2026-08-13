@@ -99,6 +99,22 @@ def topbar(d, title, synced=True, bars=3):
     d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
 
 
+def battery_badge(d, cx, cy, pct=72):
+    d.rectangle([cx - 7, cy - 4, cx + 5, cy + 4], outline=MUTED)
+    d.rectangle([cx + 6, cy - 2, cx + 7, cy + 2], fill=MUTED)
+    w = int(10 * pct / 100)
+    d.rectangle([cx - 6, cy - 3, cx - 6 + w, cy + 3], fill=SUCCESS)
+
+
+def ble_badge(d, cx, cy):
+    """Mirrors Ui::drawBleBadge -- one polyline through six points, 10x16."""
+    x0, y0 = cx - 5, cy - 8
+    px = [0, 10, 5, 5, 10, 0]
+    py = [4, 11, 16, 0, 5, 12]
+    for off in (0, 1):
+        d.line([(x0 + px[i] + off, y0 + py[i]) for i in range(6)], fill=BLUE)
+
+
 def art(sym):
     if sym not in IMAGES:
         return None
@@ -153,33 +169,74 @@ def flags_capital():
     return im
 
 
-def geo_country():
-    im, d = blank(); topbar(d, "Guess the Country")
-    d.text((8, 32), "2/4", font=F2, fill=TEXT)
+# The Countries game was removed, and with it the djaiss/mapsicon country
+# outlines -- there is no mnf_map_* artwork in the library any more, so the
+# two screens that used it are gone rather than rendering blank.
+
+
+def states():
+    im, d = blank(); topbar(d, "US States")
+    d.text((8, 32), "3/6", font=F2, fill=TEXT)
     button(d, (132, 31, 56, 16), "Easy", f=F1)
-    d.rectangle([110, 46, 209, 169], fill=WHITE, outline=OUTLINE)
-    m = tinted("mnf_map_it", INK)
-    if m: im.paste(m, (110 + (100 - m.width) // 2, 46 + (124 - m.height) // 2), m)
-    q = "Which country is this?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 169), q, font=F2, fill=TEXT)
-    for i, lab in enumerate(["Italy", "Greece", "Spain", "Turkey"]):
-        button(d, (6 + (i % 2) * 158, 186 + (i // 2) * 27, 150, 25), lab)
+    q = "What is the capital of Texas?"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
+    for i, lab in enumerate(["Austin", "Houston", "Dallas", "El Paso"]):
+        button(d, (6 + (i % 2) * 158, 150 + (i // 2) * 40, 150, 36), lab,
+               SUCCESS if i == 0 else PANEL, (0, 0, 0) if i == 0 else TEXT)
     return im
 
 
-def geo_continent():
-    im, d = blank(); topbar(d, "Guess the Country")
-    d.text((8, 32), "5/7", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Hard", f=F1)
-    d.text((W - 8 - d.textlength("Kenya", font=F2), 32), "Kenya", font=F2, fill=MUTED)
-    d.rectangle([110, 46, 209, 169], fill=WHITE, outline=OUTLINE)
-    m = tinted("mnf_map_ke", INK)
-    if m: im.paste(m, (110 + (100 - m.width) // 2, 46 + (124 - m.height) // 2), m)
-    q = "Which continent is it in?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 169), q, font=F2, fill=TEXT)
-    for i, lab in enumerate(["Africa", "Asia", "Europe", "N. America", "S. America", "Oceania"]):
-        button(d, (6 + (i % 3) * 104, 186 + (i // 3) * 27, 100, 25), lab,
+def stateflags():
+    im, d = blank(); topbar(d, "State Flags")
+    d.text((8, 32), "2/6", font=F2, fill=TEXT)
+    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    d.rectangle([78, 46, 241, 169], fill=WHITE, outline=OUTLINE)
+    f = art("mnf_state_flag_ca")
+    if f:
+        f2 = f.resize((f.width * 2, f.height * 2), Image.NEAREST)
+        im.paste(f2, (80 + (160 - f2.width) // 2, 48 + (120 - f2.height) // 2), f2)
+    for i, lab in enumerate(["California", "Nevada", "Oregon", "Arizona"]):
+        button(d, (6 + (i % 2) * 158, 150 + (i // 2) * 40, 150, 36), lab,
                SUCCESS if i == 0 else PANEL, (0, 0, 0) if i == 0 else TEXT)
+    return im
+
+
+def statemaps():
+    im, d = blank(); topbar(d, "State Maps")
+    d.text((8, 32), "4/6", font=F2, fill=TEXT)
+    button(d, (132, 31, 56, 16), "Medium", f=F1)
+    d.rectangle([110, 42, 209, 141], fill=WHITE, outline=OUTLINE)
+    m = tinted("mnf_state_map_fl", INK)
+    if m: im.paste(m, (112 + (96 - m.width) // 2, 44 + (96 - m.height) // 2), m)
+    for i, lab in enumerate(["Florida", "Georgia", "Alabama", "Louisiana"]):
+        button(d, (6 + (i % 2) * 158, 150 + (i // 2) * 40, 150, 36), lab,
+               SUCCESS if i == 0 else PANEL, (0, 0, 0) if i == 0 else TEXT)
+    return im
+
+
+def trace():
+    im, d = blank(); topbar(d, "Trace")
+    # Canvas is DRAW_X/Y/W/H = 80,36,160,180 in TraceGame.cpp.
+    d.rectangle([78, 34, 241, 217], fill=SURFACE, outline=OUTLINE)
+    # Guide dots for a letter 'A', with the first two strokes already traced.
+    left, right, apex = (112, 200), (208, 200), (160, 58)
+    bar_l, bar_r = (132, 143), (188, 143)
+    d.line([apex, left], fill=BLUE, width=7)
+    d.line([apex, right], fill=BLUE, width=7)
+    for a, b in ((apex, left), (apex, right)):
+        for t in range(0, 11):
+            x = a[0] + (b[0] - a[0]) * t / 10
+            y = a[1] + (b[1] - a[1]) * t / 10
+            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=SUCCESS)
+    for t in range(0, 11):
+        x = bar_l[0] + (bar_r[0] - bar_l[0]) * t / 10
+        d.ellipse([x - 3, 140, x + 3, 146], outline=MUTED)
+    d.text((10, 60), "Trace", font=F2, fill=MUTED)
+    d.text((10, 78), "the", font=F2, fill=MUTED)
+    d.text((10, 96), "letter", font=F2, fill=MUTED)
+    d.text((14, 122), "A", font=F4, fill=TEXT)
+    button(d, (250, 60, 60, 30), "Skip", f=F1)
+    button(d, (250, 100, 60, 30), "Clear", f=F1)
     return im
 
 
@@ -256,14 +313,18 @@ def launcher_wide():
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
     d.text((10, 5), "GoodTime Kids!", font=F4, fill=TEXT)
     d.text((10, 34), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    # Profile name: plain text on the byline row, no button chrome.
+    d.text((124, 34), "Ava", font=F1, fill=TEXT)
     t = "12:41 AM"
     d.text((W - 40 - d.textlength(t, font=F1), 9), t, font=F1, fill=TEXT)
-    sync_badge(d, W - 68, 34); wifi_badge(d, W - 46, 34)
-    d.line([(W - 88, 8), (W - 88, 40)], fill=OUTLINE)
+    # Beacon badge sits left of the clock, off its measured width.
+    ble_badge(d, int(W - 40 - d.textlength(t, font=F1)) - 14, 14)
+    sync_badge(d, W - 92, 34); wifi_badge(d, W - 68, 34); battery_badge(d, W - 44, 34)
+    d.line([(W - 110, 8), (W - 110, 40)], fill=OUTLINE)
     d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
-    tiles = [("Number Line", "jump to number"), ("Countries", "maps & continents"),
+    tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
              ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
-             ("Fingers", "count on hands"), ("Calendar", "days & months")]
+             ("Trace", "A-Z & 0-9"), ("Calendar", "days & months")]
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub) in enumerate(tiles):
         x, y = 10 + (slot % 2) * 155, 52 + (slot // 2) * 53
@@ -285,10 +346,13 @@ def launcher_tall():
     t = "GoodTime Kids!"
     d.text((120 - d.textlength(t, font=F4) / 2, 6), t, font=F4, fill=TEXT)
     d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
-    d.text((8, 36), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    d.text((8, 36), "Ava", font=F2, fill=TEXT)
     d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
+    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
+    sync_badge(d, bx, 60); wifi_badge(d, bx + 22, 60); battery_badge(d, bx + 46, 60)
+    ble_badge(d, bx + 70, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
-    tiles = [("Number Line", "jump to number", BLUE), ("Countries", "maps & continents", GREEN),
+    tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
              ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]
     for slot, (title, sub, fill) in enumerate(tiles):
         x, y = 8 + (slot % 2) * 116, 86 + (slot // 2) * 104
@@ -327,17 +391,18 @@ def tabs(d, active_device):
 
 def settings_device():
     im, d = blank(); topbar(d, "Settings")
-    tabs(d, True)
-    button(d, (8, 68, 144, 36), "Theme: Dark")
-    button(d, (164, 68, 144, 36), "Menu: Tall")
-    button(d, (8, 110, 144, 36), "Saver: 60s")
-    button(d, (164, 110, 144, 36), "Light: On")
-    button(d, (8, 152, 148, 36), "Network", BLUE, WHITE)
-    button(d, (164, 152, 144, 36), "Flip: Off")
-    d.text((8, 190), "Brightness", font=F1, fill=MUTED)
-    d.text((312 - d.textlength("80%", font=F1), 190), "80%", font=F1, fill=MUTED)
+    # Four rows of 30px from y=40; Reset spans both columns on the last row.
+    button(d, (8, 40, 144, 30), "Theme: Dark")
+    button(d, (164, 40, 144, 30), "Menu: Tall")
+    button(d, (8, 74, 144, 30), "Saver: 60s")
+    button(d, (164, 74, 144, 30), "Light: On")
+    button(d, (8, 108, 144, 30), "Beacon: On")
+    button(d, (164, 108, 144, 30), "Network", BLUE, WHITE)
+    button(d, (8, 142, 300, 30), "Reset device", (120, 58, 58), WHITE)
+    d.text((8, 180), "Brightness", font=F1, fill=MUTED)
+    d.text((312 - d.textlength("80%", font=F1), 180), "80%", font=F1, fill=MUTED)
     # slider: track, filled portion, handle -- mirrors Ui::drawSlider
-    r = (8, 200, 304, 32)
+    r = (8, 190, 304, 32)
     cy = r[1] + r[3] // 2
     pad, span = 11, r[2] - 22
     fill = int((80 - 25) / 75 * span)
@@ -419,8 +484,10 @@ SCREENS = [
     ("launcher-tall", launcher_tall, "Home screen, Tall layout"),
     ("flags-country", flags_country, "Flags: name the country"),
     ("flags-capital", flags_capital, "Flags: capital-city bonus"),
-    ("countries-outline", geo_country, "Countries: name the outline"),
-    ("countries-continent", geo_continent, "Countries: which continent"),
+    ("states", states, "US States: name the capital"),
+    ("stateflags", stateflags, "State Flags: name the state"),
+    ("statemaps", statemaps, "State Maps: name the outline"),
+    ("trace", trace, "Trace: letters and numbers"),
     ("fingers-count", fingers_count, "Finger Counting: count them"),
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("simon", simon, "Simon Says"),
@@ -764,7 +831,114 @@ def numberline():
     return im
 
 
+def _si_tabs(d, active):
+    """Mirrors SystemInfoGame: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
+    labels = ["Board", "Memory", "Network", "BLE", "App"]
+    y, tw = 32, W // 5
+    d.rectangle([0, y, W - 1, y + 27], fill=PANEL)
+    for i, lab in enumerate(labels):
+        x = i * tw
+        w = (W - x) if i == 4 else tw
+        on = i == active
+        top = y if on else y + 4
+        h = 28 if on else 24
+        fill = SURFACE if on else PANEL
+        d.rounded_rectangle([x, top, x + w - 1, top + h], 6, fill=fill, outline=OUTLINE)
+        d.rectangle([x, top + h - 7, x + w - 1, top + h], fill=fill)
+        d.text((x + w / 2 - d.textlength(lab, font=F1) / 2, top + h / 2 - 6), lab,
+               font=F1, fill=TEXT if on else MUTED)
+    d.line([(0, y + 28), (W, y + 28)], fill=OUTLINE)
+
+
+def _si_rows(d, rows, top=66):
+    """RowList geometry: labels at x+6, values at max(92, w/2), 16px rows."""
+    y = top
+    for kind, label, value, colour in rows:
+        if kind == "s":
+            d.text((6, y), label, font=F2, fill=MUTED)
+            d.line([(60, y + 8), (300, y + 8)], fill=OUTLINE)
+            y += 18
+        else:
+            d.text((6, y), label, font=F1, fill=MUTED)
+            d.text((160, y), value, font=F1, fill=colour or TEXT)
+            y += 16
+    return y
+
+
+def systeminfo_ble():
+    im, d = blank(); topbar(d, "System Info")
+    _si_tabs(d, 3)
+    _si_rows(d, [
+        ("s", "Beacon", "", None),
+        ("r", "Status", "Advertising", SUCCESS),
+        ("r", "Mode", "BLE Advertise Only", None),
+        ("s", "On Air", "", None),
+        ("r", "Name", "LearnKey-A4F2", None),
+        ("r", "Family ID", "LearnKey", None),
+        ("r", "Device ID", "A4F2", None),
+        ("s", "Mfr Data", "", None),
+        ("r", "Company", "0xffff unassigned", None),
+        ("r", "Family", "LearnKey (LK)", None),
+        ("r", "Raw", "FF FF 4C 4B 01 A4 F2", None),
+        ("s", "Privacy", "", None),
+        ("r", "Child info", "Not Broadcast", SUCCESS),
+        ("r", "Location", "Not Broadcast", SUCCESS),
+        ("r", "Wi-Fi SSID", "Not Broadcast", SUCCESS),
+        ("r", "Scores", "Not Broadcast", SUCCESS),
+    ])
+    d.rounded_rectangle([306, 63, 312, 236], 3, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([307, 66, 311, 130], 2, fill=(88, 164, 224))
+    return im
+
+
+def systeminfo_memory():
+    im, d = blank(); topbar(d, "System Info")
+    _si_tabs(d, 1)
+    y = _si_rows(d, [
+        ("s", "Heap", "", None),
+        ("r", "Used", "63.4 KB / 320 KB", None),
+    ])
+    d.rounded_rectangle([6, y, 300, y + 8], 3, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([7, y + 1, 66, y + 7], 2, fill=SUCCESS)
+    y += 12
+    _si_rows(d, [
+        ("r", "Free", "256.6 KB", None),
+        ("r", "Min free", "124.7 KB", None),
+        ("r", "Largest", "110.2 KB", None),
+        ("r", "Fragmented", "13%", SUCCESS),
+    ], top=y)
+    y += 64
+    d.rounded_rectangle([6, y, 300, y + 8], 3, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([7, y + 1, 45, y + 7], 2, fill=SUCCESS)
+    _si_rows(d, [
+        ("s", "CPU", "", None),
+        ("r", "Loop load", "18% (3/17 ms)", None),
+        ("r", "Worst frame", "31 ms", None),
+    ], top=y + 14)
+    return im
+
+
+def about_radios():
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "What the radios do", font=F2, fill=TEXT)
+    d.text((14, 70), "Wi-Fi: the clock only (NTP), plus", font=F1, fill=MUTED)
+    d.text((14, 84), "a one-off time zone lookup.", font=F1, fill=MUTED)
+    d.text((14, 100), "Now: connected", font=F1, fill=TEXT)
+    d.text((14, 120), "Bluetooth beacon", font=F2, fill=TEXT)
+    d.text((14, 146), "Now: off, broadcasting nothing", font=F1, fill=SUCCESS)
+    d.text((14, 164), "Never sent: names, scores,", font=F1, fill=MUTED)
+    d.text((14, 178), "progress, location, Wi-Fi details.", font=F1, fill=MUTED)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "6/8", font=F2, fill=MUTED)
+    return im
+
+
 EXTRA_SCREENS = [
+    ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
+    ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
+    ("about-radios", about_radios, "About: what the radios do"),
     ("tictactoe", tictactoe, "Tic-Tac-Toe"),
     ("memory", memory, "Memory Match"),
     ("math", math_game, "Math"),

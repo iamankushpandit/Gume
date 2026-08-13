@@ -87,6 +87,22 @@ harmless at the call site and each was eating most of a 20ms frame.
 
 ### Fixed
 
+- **Regenerated the README mock-ups, which had drifted badly.**
+  `docs/screens/` still held `countries-outline.png` and
+  `countries-continent.png` for a game deleted two releases ago; the launcher
+  images showed a profile chip that no longer exists, no battery or beacon
+  badge, and a Countries tile; and the Settings picture showed a three-row
+  grid that had become four rows with a beacon toggle.
+
+  Added screens for the four games that had none -- US States, State Flags,
+  State Maps and Trace -- plus System Info's BLE and memory tabs and the About
+  radios page. State flags and outlines render from the real `map-n-flag`
+  pixel data, so those are the actual pixels the device draws.
+
+  `check_docs.py` now fails if a generated screen is missing, if a PNG has no
+  generator entry (i.e. it outlived its screen), if README references an image
+  that does not exist, or if a catalogued game has no screenshot at all.
+
 - **Corrected the artwork licensing, which had been wrong since the Countries
   game was removed.** README carried a warning that the country outlines came
   from `djaiss/mapsicon` -- whose terms are *"don't resell them - I forbid

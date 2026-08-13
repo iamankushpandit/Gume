@@ -46,6 +46,12 @@ been added. Asking for vigilance does not work at the end of a long change; the
 check does. It is not a substitute for reading the prose, only for the parts a
 machine can catch.
 
+If your change alters a screen's layout, or adds or removes one, regenerate the
+mock-ups in the same commit: `python tools/gen_screens.py`. `docs/screens/` kept
+images of the deleted Countries game for two releases, and the Settings picture
+showed a grid that no longer existed. A mock-up of a screen that is not there
+any more is a worse lie than a missing one.
+
 ## The About app is user-facing documentation — keep it true
 
 `AboutGame` is the only documentation most owners will ever read, and the only
