@@ -1,5 +1,6 @@
 #include "DiceGame.h"
 #include "engine/AppRegistry.h"
+#include "engine/Entropy.h"
 
 namespace {
 constexpr AppMetadata DICE_METADATA = {
@@ -73,9 +74,12 @@ Rect DiceGame::activeBand() const {
     return Rect{0, 84, SCREEN_WIDTH, 112};
 }
 
+/* Hardware entropy, not Arduino random(): on a dice game the draw is the
+ * product, and Entropy::inRange cannot be switched to a software PRNG from
+ * elsewhere in the tree the way random() could. */
 void DiceGame::reroll() {
     for (uint8_t i = 0; i < count_; ++i) {
-        faces_[i] = static_cast<uint8_t>(random(1, 7));
+        faces_[i] = static_cast<uint8_t>(Entropy::inRange(1, 6));
     }
 }
 

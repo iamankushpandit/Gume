@@ -1,5 +1,6 @@
 #include "CoinFlipGame.h"
 #include "engine/AppRegistry.h"
+#include "engine/Entropy.h"
 
 #include <math.h>
 
@@ -81,7 +82,8 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
             if (now >= phaseUntilMs_) {
                 // Settle this coin. Only this draw decides the result; the
                 // spin frames before it carry no state.
-                heads_[revealed_] = (random(2) == 0);
+                // A fair coin from hardware entropy -- see engine/Entropy.h.
+                heads_[revealed_] = Entropy::coin();
                 ++revealed_;
                 spinning_ = false;
                 phaseUntilMs_ = now + HOLD_MS;

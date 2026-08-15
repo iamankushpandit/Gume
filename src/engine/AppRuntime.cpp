@@ -1,6 +1,5 @@
 #include "AppRuntime.h"
 
-#include <esp_system.h>
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
@@ -80,7 +79,13 @@ void KidsPlatformApp::begin() {
     if (!board_.hasTouchCalibration()) {
         board_.runTouchCalibration();
     }
-    randomSeed(static_cast<uint32_t>(esp_random()));
+    /* Deliberately not seeded. randomSeed() reads like it improves things and
+     * does the reverse on this core: arduino-esp32 defaults random() to the
+     * hardware RNG, and randomSeed() switches it to newlib rand() for the rest
+     * of the boot. Seeding it from esp_random() -- which is what used to happen
+     * here -- bought one good number and then spent the next thirty games on a
+     * software PRNG. Leaving it alone keeps every draw hardware-backed. See
+     * engine/Entropy.h. */
     content_.begin(board_);
     Clock::begin();
     Serial.printf("[boot] rot=%d layout=%s (CYD_SCREEN_ROTATION=%d)\n",

@@ -37,6 +37,14 @@
 
 ### Fixed
 
+- **Every game was drawing from a software PRNG, not the hardware RNG.**
+  `AppRuntime::begin()` called `randomSeed(esp_random())`, which reads like an
+  improvement and is the opposite on this core: arduino-esp32 defaults
+  `random()` to `esp_random()`, and `randomSeed()` switches it to newlib `rand()`
+  for the rest of the boot. One good number bought, then 123 draws across 25
+  games spent on a once-seeded LCG. The call is gone. Dice and Coin Flip
+  additionally draw through `engine/Entropy.h`, straight from `esp_random()`
+  with the modulo bias rejected, because for those two the draw is the product.
 - **The device could stop waking from a long sleep.** `applyTimeConfig()` handed
   lwIP's SNTP client `ntpServer().c_str()` -- the buffer of a `String` temporary
   destroyed at the end of that statement. `sntp_setservername()` keeps the
