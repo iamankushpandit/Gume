@@ -911,7 +911,10 @@ private:
                 break;
             case EntryKind::Percent:
                 tft.fillCircle(cx, cy, 16, TFT_WHITE);
-                tft.fillWedge(cx, cy, 16, 0, 90, Ui::rgb(255, 202, 84));
+                // A quarter wedge, drawn as two triangles from the centre --
+                // TFT_eSPI has no fillWedge, and drawArc is overkill at 32px.
+                tft.fillTriangle(cx, cy, cx, cy - 16, cx + 16, cy - 16, Ui::rgb(255, 202, 84));
+                tft.fillTriangle(cx, cy, cx + 16, cy - 16, cx + 16, cy, Ui::rgb(255, 202, 84));
                 tft.drawCircle(cx, cy, 16, Ui::rgb(36, 132, 204));
                 tft.setTextColor(Ui::rgb(36, 132, 204), fill);
                 tft.setTextDatum(MC_DATUM);
