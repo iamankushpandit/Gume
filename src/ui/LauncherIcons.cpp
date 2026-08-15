@@ -210,6 +210,32 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.drawString("Aa", cx - 2, cy - 2, 2);
             tft.setTextDatum(TL_DATUM);
             break;
+        case LauncherIcon::Dice: {
+            // Two dice, the back one offset, so the tile reads as "dice" at a
+            // glance rather than as a single blank square.
+            tft.fillRoundRect(cx - 4, cy - 16, 20, 20, 4, Ui::rgb(200, 208, 214));
+            tft.drawRoundRect(cx - 4, cy - 16, 20, 20, 4, Ui::rgb(120, 128, 134));
+            tft.fillCircle(cx + 6, cy - 6, 2, TFT_BLACK);
+            tft.fillRoundRect(cx - 16, cy - 4, 24, 24, 4, TFT_WHITE);
+            tft.drawRoundRect(cx - 16, cy - 4, 24, 24, 4, Ui::rgb(120, 128, 134));
+            tft.fillCircle(cx - 11, cy + 1, 2, TFT_BLACK);
+            tft.fillCircle(cx - 4, cy + 8, 2, TFT_BLACK);
+            tft.fillCircle(cx + 3, cy + 15, 2, TFT_BLACK);
+            break;
+        }
+        case LauncherIcon::CoinFlip: {
+            // A coin caught mid-spin: the full face behind, the edge-on
+            // sliver in front, which is exactly what the game draws.
+            tft.fillCircle(cx + 4, cy - 2, 13, Ui::rgb(226, 182, 72));
+            tft.drawCircle(cx + 4, cy - 2, 13, Ui::rgb(150, 116, 34));
+            tft.setTextColor(Ui::rgb(150, 116, 34), Ui::rgb(226, 182, 72));
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString("H", cx + 4, cy - 2, 2);
+            tft.setTextDatum(TL_DATUM);
+            tft.fillRoundRect(cx - 13, cy + 4, 6, 20, 3, Ui::rgb(240, 206, 120));
+            tft.drawRoundRect(cx - 13, cy + 4, 6, 20, 3, Ui::rgb(150, 116, 34));
+            break;
+        }
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 6, cy - 5, 6, TFT_WHITE);
             tft.fillCircle(cx - 6, cy + 9, 10, TFT_WHITE);

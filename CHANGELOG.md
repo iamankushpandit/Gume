@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- **Dice.** Pick one, two or three dice and throw them; the faces tumble for a
+  second before they settle. No score is kept -- a best total here would be
+  luck, reachable in a few taps and then frozen at 18 forever, so it would only
+  add a dead row to the Scores app.
+- **Coin Flip.** Best of one, three or five spins. Each coin squashes edge-on
+  and back as it spins, then lands, and a pip row fills in as the round goes on.
+  No score, for the same reason as Dice.
+
 ### Fixed
 
 - **The device could stop waking from a long sleep.** `applyTimeConfig()` handed

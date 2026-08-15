@@ -1259,6 +1259,73 @@ def profiles_pick():
     return im
 
 
+# Geometry below comes from DiceGame's and CoinFlipGame's own Rect helpers:
+# the count buttons at (86 + i*52, 46, 44, 26), the action button at
+# (85, 198, 150, 34), dice at 68px on a 14px gap, coin at r=34 centred on
+# (160, 116). Change either game and change these to match.
+DIE_PIPS = {
+    2: (0, 8),
+    5: (0, 2, 4, 6, 8),
+    6: (0, 2, 3, 5, 6, 8),
+}
+
+
+def dice():
+    im, d = blank(); topbar(d, "Dice")
+    d.text((W / 2 - d.textlength("How many dice?", font=F1) / 2, 34),
+           "How many dice?", font=F1, fill=MUTED)
+    for i, label in enumerate("123"):
+        on = label == "3"
+        button(d, (86 + i * 52, 46, 44, 26), label,
+               BLUE if on else PANEL, WHITE if on else TEXT)
+
+    faces = (5, 2, 6)
+    span = 3 * 68 + 2 * 14
+    x0 = (W - span) // 2
+    for i, face in enumerate(faces):
+        x = x0 + i * 82
+        d.rounded_rectangle([x, 88, x + 67, 155], 10, fill=WHITE, outline=OUTLINE)
+        step = 68 // 4
+        for cell in DIE_PIPS[face]:
+            cx = x + step + (cell % 3) * step
+            cy = 88 + step + (cell // 3) * step
+            d.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=(0, 0, 0))
+
+    total = "Total %d" % sum(faces)
+    d.text((W / 2 - d.textlength(total, font=F4) / 2, 178 - 9), total, font=F4, fill=TEXT)
+    button(d, (85, 198, 150, 34), "Roll", GREEN, WHITE, F4)
+    return im
+
+
+COIN_FACE, COIN_EDGE = (226, 182, 72), (150, 116, 34)
+
+
+def coinflip():
+    im, d = blank(); topbar(d, "Coin Flip")
+    d.text((W / 2 - d.textlength("Best of how many?", font=F1) / 2, 34),
+           "Best of how many?", font=F1, fill=MUTED)
+    for i, label in enumerate("135"):
+        on = label == "5"
+        button(d, (86 + i * 52, 46, 44, 26), label,
+               BLUE if on else PANEL, WHITE if on else TEXT)
+
+    # The settled coin: full width, so it carries a readable face.
+    d.ellipse([126, 82, 194, 150], fill=COIN_FACE, outline=COIN_EDGE)
+    d.text((160 - d.textlength("H", font=F4) / 2, 116 - 9), "H", font=F4, fill=COIN_EDGE)
+
+    results = "HTHTH"
+    px0 = (W - (len(results) - 1) * 28) // 2
+    for i, side in enumerate(results):
+        px = px0 + i * 28
+        d.ellipse([px - 10, 156, px + 10, 176], fill=COIN_FACE, outline=COIN_EDGE)
+        d.text((px - d.textlength(side, font=F1) / 2, 166 - 5), side, font=F1, fill=COIN_EDGE)
+
+    verdict = "Heads wins 3-2"
+    d.text((W / 2 - d.textlength(verdict, font=F2) / 2, 187 - 7), verdict, font=F2, fill=TEXT)
+    button(d, (85, 198, 150, 34), "Flip", GREEN, WHITE, F4)
+    return im
+
+
 EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
@@ -1288,6 +1355,8 @@ EXTRA_SCREENS = [
     ("percent", percent, "Percent: read the circle"),
     ("grewords", grewords, "GRE Words: pick the meaning"),
     ("grewords-study", grewords_study, "GRE Words: study card"),
+    ("dice", dice, "Dice: three dice thrown"),
+    ("coinflip", coinflip, "Coin Flip: best of five"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 
