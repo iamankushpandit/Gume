@@ -29,7 +29,7 @@ import re
 import shutil
 import sys
 
-from app_registry_parser import playable_apps
+from app_registry_parser import playable_apps, system_apps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -82,6 +82,142 @@ BOARDS = (
         "chip": "ESP32",
         "envs": ("app", "bringup", "wifidiag"),
     },
+)
+
+BOARD_BUY_URL = (
+    "https://www.amazon.com/dp/B0D92C9MMH"
+    "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1"
+)
+
+SCREEN_CAPTIONS = {
+    "about-radios": "About: what the radios do",
+    "calendar": "Calendar",
+    "cinnamon": "Cinnamon Says",
+    "colormix": "Color Mix",
+    "counting": "Counting",
+    "fingers-count": "Fingers: count them",
+    "fingers-show": "Fingers: show me N",
+    "flags-capital": "Flags: capital bonus",
+    "flags-country": "Flags: name the country",
+    "fractions": "Fractions",
+    "grewords": "GRE Words: quiz",
+    "grewords-study": "GRE Words: study",
+    "launcher-tall": "Launcher: Tall layout",
+    "launcher-wide": "Launcher: Wide layout",
+    "math": "Math",
+    "maze": "Maze",
+    "memory": "Memory",
+    "microku": "Microku",
+    "money": "Money",
+    "multiply": "Multiply",
+    "network-time": "Wi-Fi and clock",
+    "numberline": "Number Line",
+    "oddone": "Odd One",
+    "percent": "Percent Circle",
+    "profiles": "Profiles",
+    "scores-device": "Scores: device best",
+    "scores-mine": "Scores: this player",
+    "screensaver": "Screen saver",
+    "settings-device": "Settings: device",
+    "settings-games": "Settings: games",
+    "settings-power": "Settings: power",
+    "shapearith": "Shape Arith",
+    "shapes": "Shapes",
+    "slide": "Slide",
+    "sorting": "Sorting",
+    "stateflags": "State Flags",
+    "statemaps": "State Maps",
+    "states": "US States",
+    "systeminfo-ble": "System Info: BLE",
+    "systeminfo-memory": "System Info: memory",
+    "tictactoe": "Tic-Tac-Toe",
+    "time": "Time",
+    "timezone": "Time zone picker",
+    "trace": "Trace: uppercase and digits",
+    "trace-lower": "Trace: lowercase",
+    "whack": "Whack",
+}
+
+PLAYABLE_STILLS = {
+    "tictactoe": ("tictactoe",),
+    "memory": ("memory",),
+    "math": ("math",),
+    "multiply": ("multiply",),
+    "time": ("time",),
+    "whack": ("whack",),
+    "cinnamon": ("cinnamon",),
+    "microku": ("microku",),
+    "shapecolor": ("shapes",),
+    "counting": ("counting",),
+    "money": ("money",),
+    "fractions": ("fractions",),
+    "maze": ("maze",),
+    "sort": ("sorting",),
+    "colormix": ("colormix",),
+    "slide": ("slide",),
+    "oddone": ("oddone",),
+    "shapearith": ("shapearith",),
+    "fingers": ("fingers-count", "fingers-show"),
+    "calendar": ("calendar",),
+    "numberline": ("numberline",),
+    "flags": ("flags-country", "flags-capital"),
+    "states": ("states",),
+    "trace": ("trace", "trace-lower"),
+    "stateflags": ("stateflags",),
+    "statemaps": ("statemaps",),
+    "percent": ("percent",),
+    "grewords": ("grewords", "grewords-study"),
+}
+
+SYSTEM_SHOWCASE = (
+    {
+        "id": "launcher",
+        "title": "Launcher",
+        "subtitle": "Wide and Tall home layouts with live profile, clock, Wi-Fi, BLE and battery status.",
+        "stills": ("launcher-wide", "launcher-tall"),
+    },
+    {
+        "id": "profiles",
+        "subtitle": "Boot-time player choice, five children, and Guest mode that deliberately saves nothing.",
+        "stills": ("profiles",),
+    },
+    {
+        "id": "settings",
+        "subtitle": "Device controls, per-child game visibility, brightness, screen saver and sleep policy.",
+        "stills": ("settings-device", "settings-games", "settings-power"),
+    },
+    {
+        "id": "wifi",
+        "subtitle": "Optional Wi-Fi for NTP time only, with a timezone picker for daylight-saving rules.",
+        "stills": ("network-time", "timezone"),
+    },
+    {
+        "id": "scores",
+        "subtitle": "Per-player best and worst scores, plus device-wide records and record holders.",
+        "stills": ("scores-mine", "scores-device"),
+    },
+    {
+        "id": "systeminfo",
+        "subtitle": "Live board, memory, network, BLE, NVS and watchdog diagnostics for hardware triage.",
+        "stills": ("systeminfo-memory", "systeminfo-ble"),
+    },
+    {
+        "id": "about",
+        "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
+        "stills": ("about-radios",),
+    },
+    {
+        "id": "screensaver",
+        "title": "Screen Saver",
+        "subtitle": "Self-playing Pong before panel sleep, with rally colour mirrored on the case LED.",
+        "stills": ("screensaver",),
+    },
+)
+
+HERO_STILLS = (
+    "launcher-wide", "counting", "flags-country", "shapearith", "trace",
+    "grewords", "maze", "settings-power", "profiles", "scores-device",
+    "systeminfo-memory", "screensaver",
 )
 
 
@@ -142,6 +278,142 @@ def escape(text):
                 .replace(">", "&gt;").replace('"', "&quot;"))
 
 
+def screen_file(name):
+    return "screens/%s.png" % name
+
+
+def available_screen_names():
+    directory = os.path.join(ROOT, "docs", "screens")
+    return {
+        name[:-4]
+        for name in os.listdir(directory)
+        if name.endswith(".png") and os.path.isfile(os.path.join(directory, name))
+    }
+
+
+def still_figure(name, class_name="still", loading="eager"):
+    caption = SCREEN_CAPTIONS.get(name, name.replace("-", " ").title())
+    return (
+        '<figure class="%s">'
+        '<img src="%s" alt="%s" loading="%s">'
+        '<figcaption>%s</figcaption>'
+        '</figure>'
+    ) % (
+        class_name,
+        screen_file(name),
+        escape(caption),
+        loading,
+        escape(caption),
+    )
+
+
+def media_grid(stills, loading="eager"):
+    count = len(stills)
+    classes = "media-grid media-count-%d" % count
+    return '<div class="%s">\n%s\n      </div>' % (
+        classes,
+        "\n".join(
+            "        " + still_figure(name, "screen-shot", loading)
+            for name in stills
+        ),
+    )
+
+
+def render_still_wall():
+    return "\n".join(
+        "    " + still_figure(name, "wall-still", "eager")
+        for name in HERO_STILLS
+    )
+
+
+def render_game_cards(apps):
+    cards = []
+    for app in apps:
+        if app.id not in PLAYABLE_STILLS:
+            die("no site still mapping for playable app '%s'" % app.id)
+        score = ""
+        if app.score is not None:
+            direction = (
+                "lower score is better"
+                if app.score.lower_is_better else
+                "higher score is better"
+            )
+            score = '<span>%s</span>' % direction
+        meta = "".join((
+            '<span>Game %02d</span>' % (app.index + 1),
+            '<span>%s</span>' % escape(app.subtitle),
+            score,
+        ))
+        cards.append(
+            '<article class="show-card game-card" id="game-%s">\n'
+            '      %s\n'
+            '      <div class="show-copy">\n'
+            '        <p class="eyebrow">%s</p>\n'
+            '        <h3>%s</h3>\n'
+            '        <p>%s</p>\n'
+            '        <p class="meta-row">%s</p>\n'
+            '      </div>\n'
+            '    </article>'
+            % (
+                escape(app.id),
+                media_grid(PLAYABLE_STILLS[app.id]),
+                escape(app.label),
+                escape(app.title),
+                escape(app.blurb),
+                meta,
+            )
+        )
+    return "\n".join("    " + card for card in cards)
+
+
+def render_system_cards():
+    registry = {app.id: app for app in system_apps()}
+    cards = []
+    for item in SYSTEM_SHOWCASE:
+        entry = registry.get(item["id"])
+        title = item.get("title") or (entry.title if entry else item["id"].title())
+        subtitle = item.get("subtitle") or (entry.subtitle if entry else "")
+        kind = "System app" if entry else "Runtime screen"
+        cards.append(
+            '<article class="show-card system-card" id="screen-%s">\n'
+            '      %s\n'
+            '      <div class="show-copy">\n'
+            '        <p class="eyebrow">%s</p>\n'
+            '        <h3>%s</h3>\n'
+            '        <p>%s</p>\n'
+            '      </div>\n'
+            '    </article>'
+            % (
+                escape(item["id"]),
+                media_grid(item["stills"]),
+                kind,
+                escape(title),
+                escape(subtitle),
+            )
+        )
+    return "\n".join("    " + card for card in cards)
+
+
+def referenced_site_screens(apps):
+    names = set(HERO_STILLS)
+    for app in apps:
+        names.update(PLAYABLE_STILLS.get(app.id, ()))
+    for item in SYSTEM_SHOWCASE:
+        names.update(item["stills"])
+    return names
+
+
+def validate_site_screens(apps):
+    available = available_screen_names()
+    referenced = referenced_site_screens(apps)
+    missing = referenced - available
+    if missing:
+        die("site references missing screen still(s): %s" % ", ".join(sorted(missing)))
+    unused = available - referenced
+    if unused:
+        die("docs/screens still(s) not represented on the site: %s" % ", ".join(sorted(unused)))
+
+
 def manifest_for(board, variant, release):
     return {
         "name": variant["name"],
@@ -164,7 +436,8 @@ def main():
 
     release = version()
     board = board_name()
-    catalog = games()
+    catalog = playable_apps()
+    validate_site_screens(catalog)
     flash, ram = build_figures()
 
     out = args.out
@@ -200,9 +473,10 @@ def main():
     variant_options = "\n".join(
         '          <option value="%s">%s</option>' % (v["env"], escape(v["label"]))
         for v in VARIANTS)
-    game_rows = "\n".join(
-        "    <div><b>%s</b> &mdash; <span>%s</span></div>"
-        % (escape(title), escape(blurb)) for title, blurb in catalog)
+    game_cards = render_game_cards(catalog)
+    system_cards = render_system_cards()
+    still_wall = render_still_wall()
+    screen_count = len(referenced_site_screens(catalog))
 
     page = read("site", "index.template.html")
     for key, value in (
@@ -211,9 +485,13 @@ def main():
         ("{{BOARD}}", escape(board)),
         ("{{FLASH}}", escape(flash)),
         ("{{RAM}}", escape(ram)),
+        ("{{BOARD_BUY_URL}}", BOARD_BUY_URL),
         ("{{BOARD_OPTIONS}}", board_options),
         ("{{VARIANT_OPTIONS}}", variant_options),
-        ("{{GAME_ROWS}}", game_rows),
+        ("{{SCREEN_COUNT}}", str(screen_count)),
+        ("{{STILL_WALL}}", still_wall),
+        ("{{GAME_CARDS}}", game_cards),
+        ("{{SYSTEM_CARDS}}", system_cards),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),

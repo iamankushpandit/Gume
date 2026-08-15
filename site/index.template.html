@@ -9,13 +9,17 @@
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #14181d;
   --muted: #5c6672; --accent: #0b6bcb; --accent-ink: #ffffff;
-  --warn-bg: #fff6e5; --warn-line: #e0b355;
+  --warn-bg: #fff6e5; --warn-line: #e0b355; --success: #178a52;
+  --hero-panel: #101721; --hero-ink: #f4f7fb; --hero-muted: #b9c3cf;
+  --shadow: 0 18px 42px rgba(18, 28, 45, 0.14);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0e1116; --panel: #161b22; --line: #2b323b; --ink: #e6edf3;
     --muted: #9aa5b1; --accent: #4c9aff; --accent-ink: #0b1220;
-    --warn-bg: #241d0c; --warn-line: #6b5320;
+    --warn-bg: #241d0c; --warn-line: #6b5320; --success: #43c582;
+    --hero-panel: #0c121a; --hero-ink: #f5f8ff; --hero-muted: #b9c3cf;
+    --shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
   }
 }
 * { box-sizing: border-box; }
@@ -24,17 +28,33 @@ body {
   font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 a { color: var(--accent); }
-.wrap { max-width: 940px; margin: 0 auto; padding: 0 20px 72px; }
-header.hero { text-align: center; padding: 56px 20px 28px; }
-header.hero h1 { font-size: 2.4rem; margin: 0 0 6px; letter-spacing: -0.02em; }
-header.hero p.tag { color: var(--muted); margin: 0 auto; max-width: 640px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 72px; }
+header.hero {
+  margin: 20px -8px 0; padding: 52px 20px 28px; text-align: center;
+  border-radius: 18px; background: var(--hero-panel); color: var(--hero-ink);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+header.hero h1 { font-size: clamp(2.5rem, 6vw, 5.8rem); line-height: 0.95; margin: 0 0 14px; letter-spacing: 0; }
+header.hero p.tag { color: var(--hero-muted); margin: 0 auto; max-width: 760px; font-size: 1.08rem; }
 .badges { margin-top: 18px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .badge {
   font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line);
   border-radius: 999px; padding: 3px 12px; background: var(--panel);
 }
-.shots { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 28px 0 8px; }
-.shots img { max-width: 100%; border: 1px solid var(--line); border-radius: 10px; }
+.hero .badge { color: var(--hero-ink); background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.18); }
+.hardware-pill {
+  display: inline-block; margin: 18px auto 0; padding: 8px 14px;
+  border-radius: 999px; background: rgba(255, 255, 255, 0.1);
+  color: var(--hero-ink); border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.92rem;
+}
+.hardware-pill a { color: #9bd0ff; font-weight: 700; }
+.screen-wall {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px; margin: 30px auto 6px; max-width: 1080px;
+}
+@media (max-width: 980px) { .screen-wall { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .screen-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 figure { margin: 0; text-align: center; }
 figcaption { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
 section { margin-top: 44px; }
@@ -63,14 +83,59 @@ button.install {
   background: var(--warn-bg); border: 1px solid var(--warn-line);
   border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; margin-top: 18px;
 }
+.hardware-callout {
+  background: #eef7ff; border: 1px solid #a9d2f3; border-radius: 12px;
+  padding: 12px 14px; font-size: 0.95rem; margin: 0 0 18px;
+}
+@media (prefers-color-scheme: dark) {
+  .hardware-callout { background: #102033; border-color: #24496d; }
+}
 table { border-collapse: collapse; width: 100%; font-size: 0.94rem; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-.games { column-count: 1; }
-@media (min-width: 620px) { .games { column-count: 2; } }
-.games div { break-inside: avoid; padding: 5px 0; }
-.games b { font-weight: 600; }
-.games span { color: var(--muted); }
+.show-grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .show-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1120px) { .show-grid.games-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.show-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 10px 24px rgba(18, 28, 45, 0.08);
+}
+.wall-still,
+.screen-shot {
+  background: #0b0f15; border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px; overflow: hidden;
+}
+.wall-still img,
+.screen-shot img {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain;
+  background: #0b0f15; image-rendering: pixelated;
+}
+.wall-still figcaption,
+.screen-shot figcaption {
+  margin: 0; padding: 6px 8px; color: #dbe6f2; background: #101721;
+  font-size: 0.72rem; line-height: 1.25; min-height: 30px;
+}
+.wall-still { box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28); }
+.media-grid { display: grid; gap: 7px; padding: 8px; background: #0b0f15; }
+.media-count-1 { grid-template-columns: 1fr; }
+.media-count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.media-count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 520px) {
+  .media-count-2,
+  .media-count-3 { grid-template-columns: 1fr; }
+}
+.show-copy { padding: 15px 16px 17px; }
+.show-copy h3 { margin: 3px 0 7px; font-size: 1.16rem; }
+.show-copy p { margin: 0; }
+.eyebrow {
+  color: var(--success); font-size: 0.72rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px !important; }
+.meta-row span {
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
+  color: var(--muted); font-size: 0.74rem;
+}
 pre {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 14px; overflow-x: auto; font-size: 0.85rem;
@@ -97,27 +162,25 @@ footer {
   <div class="badges">
     <span class="badge">v{{VERSION}}</span>
     <span class="badge">{{GAME_COUNT}} games</span>
+    <span class="badge">{{SCREEN_COUNT}} generated stills</span>
     <span class="badge">ESP32 &middot; {{BOARD}}</span>
     <span class="badge">Flash {{FLASH}}</span>
     <span class="badge">RAM {{RAM}}</span>
   </div>
+  <p class="hardware-pill">
+    Ready-made flashing is for the target board:
+    <a href="{{BOARD_BUY_URL}}">use this E32R28T-1 / ESP32-32E board</a>.
+  </p>
 </header>
 
-<div class="shots">
-  <figure>
-    <img src="screens/launcher-wide.png" width="420" alt="Home screen, wide layout">
-    <figcaption>Home screen, Wide layout</figcaption>
-  </figure>
-  <figure>
-    <img src="screens/launcher-tall.png" width="300" alt="Home screen, tall layout">
-    <figcaption>Tall layout</figcaption>
-  </figure>
+<div class="screen-wall" aria-label="Selected generated stills">
+{{STILL_WALL}}
 </div>
 <p class="note" style="text-align:center">
-  These are rendered mock-ups, redrawn on a PC from the exact rectangles, fonts
-  and colours in the C++ source &mdash; the board does not wire the panel's MISO
-  line, so true screenshots are not possible. The flag artwork is the real pixel
-  data the device draws from.
+  These {{SCREEN_COUNT}} stills are rendered mock-ups, redrawn on a PC from the
+  exact rectangles, fonts and colours in the C++ source &mdash; the board does
+  not wire the panel's MISO line, so true screenshots are not possible. The
+  flag artwork is the real pixel data the device draws from.
 </p>
 
 <section id="install">
@@ -125,6 +188,12 @@ footer {
   <p class="lede">
     Plug the board into a USB port and flash it here: no toolchain, no
     PlatformIO, nothing to download by hand.
+  </p>
+  <p class="hardware-callout">
+    <b>Use the exact target board for the ready-made image.</b> The web flasher
+    below is built for the {{BOARD}} board. Buy or use
+    <a href="{{BOARD_BUY_URL}}">this Amazon listing</a>; other ESP32 boards may
+    flash, but the display and touch pins will not match this firmware.
   </p>
 
   <div class="card">
@@ -190,7 +259,9 @@ footer {
         <td>
           <b>{{BOARD}}</b> (ESP32-32E, sold as a 2.8-inch "cheap yellow display"):
           ILI9341 320&times;240 panel, XPT2046 <b>resistive</b> touch, 4 MB flash,
-          no PSRAM, onboard single-cell Li-ion charging.
+          no PSRAM, onboard single-cell Li-ion charging. For the ready-made
+          browser flash image, use
+          <a href="{{BOARD_BUY_URL}}">this board on Amazon</a>.
         </td>
       </tr>
       <tr>
@@ -232,8 +303,19 @@ footer {
     spaced repetition, so a missed item comes back sooner and a mastered one
     fades into the background.
   </p>
-  <div class="card games">
-{{GAME_ROWS}}
+  <div class="show-grid games-grid">
+{{GAME_CARDS}}
+  </div>
+</section>
+
+<section id="system-screens">
+  <h2>Apps, settings and sleep</h2>
+  <p class="lede">
+    The launcher, profiles, settings, Wi-Fi, scores, About, System Info and the
+    screen saver are shown with the same generated stills as the games.
+  </p>
+  <div class="show-grid">
+{{SYSTEM_CARDS}}
   </div>
 </section>
 

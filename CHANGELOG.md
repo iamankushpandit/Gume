@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-Nothing yet.
+- The GitHub Pages installer now showcases every generated still for the games,
+  launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the
+  screen saver instead of showing only the launcher mock-ups.
+- The installer page and README now call out the exact E32R28T-1 / ESP32-32E
+  Amazon board needed for the ready-made flash image.
 
 ## 4.0.0 — 2026-08-15
 
