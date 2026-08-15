@@ -197,6 +197,25 @@ uint8_t KidsPlatformApp::effectiveRotation(bool landscape) {
     return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
 }
 
+/* One place that decides orientation, because it used to be three and one of
+ * them was wrong.
+ *
+ * Playable games are authored against a fixed 320x240 landscape canvas and are
+ * always landscape. The launcher (activeApp_ == nullptr) and the system apps
+ * that opted into followsLayout honour the user's layout setting.
+ *
+ * launch() had this right. wakeFromSleep() and exitScreenSaver() both tested
+ * `activeApp_ != nullptr` instead -- true for *every* launched app, including
+ * Profiles and System Info, which both follow layout -- so returning from the
+ * screen saver or from sleep forced those two screens to landscape and left
+ * them there. Boot into Profiles in Vertical layout was correct; idle until the
+ * saver came on, then touch, and it came back landscape. */
+uint8_t KidsPlatformApp::rotationForActiveScreen() {
+    const bool followsLayout = (activeApp_ == nullptr) || activeApp_->followsLayout;
+    return effectiveRotation(!followsLayout ||
+                             board_.layoutMode() != Board::LayoutMode::Vertical);
+}
+
 void KidsPlatformApp::leaveActiveGame() {
     if (activeGame_ == nullptr) {
         return;
@@ -214,7 +233,7 @@ void KidsPlatformApp::goHome() {
     activeGame_ = &launcher_;
     activeApp_ = nullptr;
     view_ = View::Game;
-    applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
+    applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
     activeGame_->render(*this);

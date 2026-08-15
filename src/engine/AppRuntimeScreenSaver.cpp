@@ -30,33 +30,25 @@ void KidsPlatformApp::wakeFromSleep() {
         board_.displayWake();
     }
 
-    const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
-    const bool backToApp = backToGame && activeApp_ != nullptr;
-    applyRotation(
-        effectiveRotation(backToApp || board_.layoutMode() != Board::LayoutMode::Vertical));
-
     lastActivityMs_ = millis();
 
-    if (backToGame) {
+    if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
+        applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;
         activeGame_->requestRender();
     } else {
-        goHome();
+        goHome();   // applies its own rotation
     }
 }
 
 void KidsPlatformApp::exitScreenSaver() {
     board_.setRgbColor(0, 0, 0);
 
-    const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
-    const bool backToApp = backToGame && activeApp_ != nullptr;
-    applyRotation(
-        effectiveRotation(backToApp || board_.layoutMode() != Board::LayoutMode::Vertical));
-
     lastActivityMs_ = millis();
 
-    if (backToGame) {
+    if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
+        applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;
         activeGame_->requestRender();

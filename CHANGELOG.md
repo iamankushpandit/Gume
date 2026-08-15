@@ -64,6 +64,18 @@
 - The Coin Flip tile had the same overflow, from its edge-on sliver.
 - Several icons set the text datum to `MC_DATUM` and returned without restoring
   it, re-aligning whatever the launcher drew next.
+- **Profiles and System Info came back from the screen saver in the wrong
+  orientation.** Both opt into `followsLayout`, and both were laid out correctly
+  when opened -- but `wakeFromSleep()` and `exitScreenSaver()` tested
+  `activeApp_ != nullptr`, which is true for *every* launched app, and forced
+  landscape. Boot into Profiles in Vertical layout looked right; idle until the
+  saver came on, touch to dismiss, and it came back landscape and stayed there.
+  All three call sites now share one `rotationForActiveScreen()`; the rule was
+  written out three times and one copy was wrong.
+- **The launcher never drew the copyright in Vertical layout.** The landscape
+  branch drew it and the portrait branch did not, so owners running the device
+  in portrait never saw it on the home screen. It now sits in the one gap the
+  portrait header has left, below the clock and badge row.
 - **Profiles.** "Who is playing?" and the guest hint overlapped each other in
   both orientations, and in portrait the hint ran straight through the first
   profile row. In portrait the copyright line also collided with the title,

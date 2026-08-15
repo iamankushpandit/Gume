@@ -413,6 +413,10 @@ def launcher_tall():
     t = PRODUCT
     d.text((120 - d.textlength(t, font=F4) / 2, 6), t, font=F4, fill=TEXT)
     d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
+    # Copyright in the 68..78 gap at the bottom of the header -- the only room
+    # portrait has for it. See AppRuntimeLauncher.cpp.
+    d.text((120 - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, 69), COPYRIGHT_SHORT,
+           font=F1, fill=MUTED)
     d.text((8, 36), "Ava", font=F2, fill=TEXT)
     d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
     bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)

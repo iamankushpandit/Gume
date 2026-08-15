@@ -44,8 +44,7 @@ void KidsPlatformApp::launch(const AppDefinition& app) {
     view_ = View::Game;
     activeApp_ = &app;
     Watchdog::setContext(app.title());
-    applyRotation(effectiveRotation(!app.followsLayout ||
-                                    board_.layoutMode() != Board::LayoutMode::Vertical));
+    applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
     activeGame_->render(*this);
@@ -162,6 +161,22 @@ void LauncherGame::render(GameHost& host) {
             Ui::drawBleBadge(tft, static_cast<int16_t>(bx + 70), 60, Ui::surface());
         }
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
+
+        /* The copyright, which portrait simply never drew -- landscape had it
+         * and this branch did not, so half the owners never saw it on the home
+         * screen at all.
+         *
+         * It goes in the only gap left. The portrait header is 78 tall and
+         * every other row is spoken for: title 4..30, divider 30, profile
+         * 36..52, clock and badges 52..68, gear 48..72. That leaves 68..78, and
+         * font 1 is 8 tall, so centred on y=73 it occupies 69..77 with a pixel
+         * either side. The header cannot simply grow: portrait tiles end at 286
+         * and the pager starts at 292. Re-measure all of that before adding
+         * anything else to this header. */
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(BRAINO_COPYRIGHT_SHORT, static_cast<int16_t>(lW / 2), 73, 1);
+        tft.setTextDatum(ML_DATUM);
     } else {
         tft.drawString(BRAINO_PRODUCT_NAME, 10, 16, 4);
         tft.setTextColor(Ui::muted(), Ui::surface());
