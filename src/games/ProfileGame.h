@@ -13,7 +13,7 @@ public:
 private:
     enum class Phase : uint8_t { Pick, Menu, Rename, Games };
 
-    Rect headerRect(int16_t screenW) const;
+    Rect headerRect(int16_t screenW, int16_t screenH) const;
     Rect slotRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect menuRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect addRect(int16_t screenW, int16_t screenH) const;

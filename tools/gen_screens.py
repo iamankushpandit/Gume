@@ -1233,23 +1233,24 @@ def profiles_pick():
     d.rectangle([0, 0, W, 30], fill=SURFACE)
     d.text((10, 15 - 9), "GoodTime Kids!", font=F4, fill=TEXT)
     d.text((W - 8 - d.textlength("(C) GoodTime Micro", font=F1), 15 - 5), "(C) GoodTime Micro", font=F1, fill=MUTED)
-    # "Who is playing?" and guest hint
-    d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 35), "Who is playing?", font=F2, fill=TEXT)
-    d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 43),
+    # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
+    # promptY = 32 in landscape, and the hint sits 18px below it.
+    d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
+    d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
-    # Profile rows: 6 rows (5 children + Guest) at y=46, pitch=27, height=25
+    # Six rows (five children + Guest) from ProfileGame's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
-        y = 46 + i * 27
+        y = 60 + i * 25
         slot_w = W - 22 - 62
         # Profile slot
-        d.rounded_rectangle([8, y, 8 + slot_w, y + 25], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
-        d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 25 / 2 - 6),
+        d.rounded_rectangle([8, y, 8 + slot_w, y + 23], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
+        d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 23 / 2 - 6),
                prof, font=F2, fill=WHITE if prof == "Alice" else TEXT)
         # Edit button for non-Guest
         if prof != "Guest":
-            d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 25], 4, fill=SURFACE, outline=OUTLINE)
-            d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 25 / 2 - 6),
+            d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 23], 4, fill=SURFACE, outline=OUTLINE)
+            d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 23 / 2 - 6),
                    "Edit", font=F2, fill=MUTED)
     # Add Player and Done buttons
     btn_w = (W - 24) // 2

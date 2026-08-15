@@ -21,27 +21,40 @@ void ProfileGame::begin(GameHost& host) {
     markFullDirty();
 }
 
-Rect ProfileGame::headerRect(int16_t screenW) const {
-    return Rect{0, 0, screenW, 30};
+/* The picker header, and the reason it is two different heights.
+ *
+ * Landscape has room to set the copyright against the right edge of the title
+ * bar. Portrait does not: at 240px the title alone is most of the width, so the
+ * two collided. Portrait therefore gets a taller bar and stacks the copyright
+ * under the title, left-aligned with it, which reads as deliberate rather than
+ * as a stray line floating on the background below the bar. */
+Rect ProfileGame::headerRect(int16_t screenW, int16_t screenH) const {
+    const bool tall = screenH > screenW;
+    return Rect{0, 0, screenW, static_cast<int16_t>(tall ? 40 : 30)};
 }
+
+/* Rows are packed against both ends: the header plus its two lines of prompt
+ * text above, and the Add / Done buttons at screenH - 30 below. Six rows (five
+ * children and the guest) have to fit between them, so the pitch here and the
+ * prompt baselines in render() are one budget -- move either and re-check the
+ * last row against the buttons. */
+namespace {
+constexpr int16_t rowsTop(bool tall)   { return tall ? 72 : 60; }
+constexpr int16_t rowsPitch(bool tall) { return tall ? 36 : 25; }
+constexpr int16_t rowsHeight(bool tall){ return tall ? 33 : 23; }
+constexpr int16_t rowsMenuW(bool tall) { return tall ? 54 : 62; }
+}   // namespace
 
 Rect ProfileGame::slotRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
-    const int16_t menuW = tall ? 54 : 62;
-    const int16_t rowH = tall ? 33 : 23;
-    const int16_t pitch = tall ? 38 : 25;
-    const int16_t y0 = tall ? 62 : 58;
-    return Rect{8, static_cast<int16_t>(y0 + i * pitch),
-                static_cast<int16_t>(screenW - 22 - menuW), rowH};
+    return Rect{8, static_cast<int16_t>(rowsTop(tall) + i * rowsPitch(tall)),
+                static_cast<int16_t>(screenW - 22 - rowsMenuW(tall)), rowsHeight(tall)};
 }
 Rect ProfileGame::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
-    const int16_t menuW = tall ? 54 : 62;
-    const int16_t rowH = tall ? 33 : 23;
-    const int16_t pitch = tall ? 38 : 25;
-    const int16_t y0 = tall ? 62 : 58;
-    return Rect{static_cast<int16_t>(screenW - 8 - menuW),
-                static_cast<int16_t>(y0 + i * pitch), menuW, rowH};
+    return Rect{static_cast<int16_t>(screenW - 8 - rowsMenuW(tall)),
+                static_cast<int16_t>(rowsTop(tall) + i * rowsPitch(tall)),
+                rowsMenuW(tall), rowsHeight(tall)};
 }
 Rect ProfileGame::addRect(int16_t screenW, int16_t screenH) const {
     const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
@@ -236,34 +249,36 @@ void ProfileGame::render(GameHost& host) {
     tft.setTextDatum(TC_DATUM);
 
     if (phase_ == Phase::Pick) {
-        const Rect header = headerRect(W);
+        const Rect header = headerRect(W, H);
         tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
 
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
         tft.drawString("GoodTime Kids!", 10, 15, 4);
 
+        /* Both lines below sit on the background between the header and the
+         * first row. They used to overlap each other by a pixel, and in
+         * portrait the guest hint ran straight through the top row -- font 2 is
+         * 16px tall and font 1 is 8, so the baselines have to be spaced for the
+         * font, not eyeballed. Keep the last line clear of rowsTop(). */
+        tft.setTextColor(Ui::muted(), Ui::surface());
         if (tall) {
-            tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.setTextDatum(TL_DATUM);
-            tft.drawString("(C) GoodTime Micro", 10, 32, 1);
-            tft.setTextColor(Ui::text(), Ui::bg());
-            tft.setTextDatum(TC_DATUM);
-            tft.drawString("Who is playing?", W / 2, 48, 2);
-            tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.setTextDatum(TC_DATUM);
-            tft.drawString("Guest plays without saving scores", W / 2, 62, 1);
+            // Portrait: stacked under the title, inside the taller header bar.
+            tft.setTextDatum(ML_DATUM);
+            tft.drawString("(C) GoodTime Micro", 10, 34, 1);
         } else {
-            tft.setTextColor(Ui::muted(), Ui::surface());
+            // Landscape: the title leaves the right end of the bar free.
             tft.setTextDatum(MR_DATUM);
             tft.drawString("(C) GoodTime Micro", W - 8, 15, 1);
-            tft.setTextColor(Ui::text(), Ui::bg());
-            tft.setTextDatum(TC_DATUM);
-            tft.drawString("Who is playing?", W / 2, 34, 2);
-            tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.setTextDatum(TC_DATUM);
-            tft.drawString("Guest plays without saving scores", W / 2, 49, 1);
         }
+
+        const int16_t promptY = static_cast<int16_t>(tall ? 44 : 32);
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TC_DATUM);
+        tft.drawString("Who is playing?", W / 2, promptY, 2);
+        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.drawString("Guest plays without saving scores",
+                       W / 2, static_cast<int16_t>(promptY + 18), 1);
 
         const uint8_t active = board.activeProfile();
         const uint8_t rows = rowCount(board);

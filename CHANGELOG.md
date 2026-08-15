@@ -16,6 +16,12 @@
 - The ILI9341 ignores Sleep Out within 120ms of a Sleep In. `displayWake()` now
   waits out the remainder, which a tap arriving just after the saver handed over
   to sleep could otherwise land inside.
+- **Profiles.** "Who is playing?" and the guest hint overlapped each other in
+  both orientations, and in portrait the hint ran straight through the first
+  profile row. In portrait the copyright line also collided with the title,
+  which is too wide at 240px to share that line; it now sits under the title
+  inside a taller header bar. The row pitch moved with it, so six rows still
+  clear the Add / Done buttons.
 
 - The GitHub Pages installer now showcases every generated still for the games,
   launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the
