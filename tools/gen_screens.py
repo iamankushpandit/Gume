@@ -216,16 +216,15 @@ def statemaps():
 
 def trace():
     im, d = blank(); topbar(d, "Trace")
-    # Mode tabs at top
-    for i, (label, col) in enumerate([("ABC", WARN), ("abc", PANEL), ("123", PANEL)]):
-        x = 72 + i * 58
-        d.rounded_rectangle([x, 32, x + 54, 54], 4, fill=col, outline=OUTLINE)
-        d.text((x + 27 - d.textlength(label, font=F1) / 2, 37), label, font=F1, fill=PANEL if col == WARN else TEXT)
-    # Canvas is DRAW_X/Y/W/H = 80,36,160,180 in TraceGame.cpp.
-    d.rectangle([78, 60, 241, 217], fill=SURFACE, outline=OUTLINE)
+    for label, x, w, col in [["ABC", 38, 50, WARN], ["abc", 92, 50, PANEL], ["123", 146, 50, PANEL],
+                             ["Again", 204, 52, PANEL], ["Next", 260, 52, PANEL]]:
+        d.rounded_rectangle([x, 32, x + w, 54], 4, fill=col, outline=OUTLINE)
+        d.text((x + w / 2 - d.textlength(label, font=F1) / 2, 37),
+               label, font=F1, fill=PANEL if col == WARN else TEXT)
+    d.rectangle([78, 56, 241, 192], fill=SURFACE, outline=OUTLINE)
     # Show uppercase 'A' with waypoints - first stroke partially traced, second stroke next
     # First stroke: apex to left, already completed
-    apex, left, bar = (160, 58), (112, 200), (160, 143)
+    apex, left, bar = (160, 64), (96, 190), (160, 137)
     for t in range(0, 11):
         x = apex[0] + (left[0] - apex[0]) * t / 10
         y = apex[1] + (left[1] - apex[1]) * t / 10
@@ -235,7 +234,7 @@ def trace():
     d.ellipse([apex[0] - 7, apex[1] - 7, apex[0] + 7, apex[1] + 7], fill=WARN)
     d.text((apex[0] - 3, apex[1] - 4), "1", font=F1, fill=PANEL)
     # Second stroke: right side, with dots showing waypoints, pulsing on first unclaimed
-    right = (208, 200)
+    right = (224, 190)
     for t in range(0, 11):
         x = apex[0] + (right[0] - apex[0]) * t / 10
         y = apex[1] + (right[1] - apex[1]) * t / 10
@@ -246,61 +245,60 @@ def trace():
             # Unclaimed dots
             d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=MUTED)
     # Bar stroke dots
-    bar_l, bar_r = (132, 143), (188, 143)
+    bar_l, bar_r = (124, 137), (196, 137)
     for t in range(0, 11):
         x = bar_l[0] + (bar_r[0] - bar_l[0]) * t / 10
         d.ellipse([x - 2, 141, x + 2, 145], fill=MUTED)
     # Watermark letter
-    d.text((110, 130), "A", font=F4, fill=PANEL)
+    d.text((110, 116), "A", font=F4, fill=PANEL)
     # Progress bar
     bar_x, bar_y = 90, 222
     d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
     d.rounded_rectangle([bar_x, bar_y, 130, bar_y + 10], 4, fill=SUCCESS)
     # Prev/Next buttons
-    button(d, (8, 200, 60, 32), "Prev", f=F1)
-    button(d, (252, 200, 60, 32), "Next", f=F1)
+    button(d, (8, 202, 60, 30), "Prev", f=F1)
+    button(d, (252, 202, 60, 30), "Next", f=F1)
     return im
 
 
 def trace_lower():
     im, d = blank(); topbar(d, "Trace")
-    # Mode tabs at top
-    for i, (label, col) in enumerate([("ABC", PANEL), ("abc", WARN), ("123", PANEL)]):
-        x = 72 + i * 58
-        d.rounded_rectangle([x, 32, x + 54, 54], 4, fill=col, outline=OUTLINE)
-        d.text((x + 27 - d.textlength(label, font=F1) / 2, 37), label, font=F1, fill=PANEL if col == WARN else TEXT)
-    # Canvas
-    d.rectangle([78, 60, 241, 217], fill=SURFACE, outline=OUTLINE)
+    for label, x, w, col in [["ABC", 38, 50, PANEL], ["abc", 92, 50, WARN], ["123", 146, 50, PANEL],
+                             ["Again", 204, 52, PANEL], ["Next", 260, 52, PANEL]]:
+        d.rounded_rectangle([x, 32, x + w, 54], 4, fill=col, outline=OUTLINE)
+        d.text((x + w / 2 - d.textlength(label, font=F1) / 2, 37),
+               label, font=F1, fill=PANEL if col == WARN else TEXT)
+    d.rectangle([78, 56, 241, 192], fill=SURFACE, outline=OUTLINE)
     # Show lowercase 'g' with descender - two strokes
     # First stroke: main bowl, completed
-    x0, y0 = 150, 60
-    for pt in [(150, 60), (120, 80), (70, 80), (40, 110), (40, 155), (70, 180), (120, 180), (150, 155)]:
+    pts_main = [(190, 108), (169, 94), (137, 98), (118, 121), (120, 147),
+                (144, 163), (177, 158), (193, 135), (190, 108)]
+    for pt in pts_main:
         d.ellipse([pt[0] - 3, pt[1] - 3, pt[0] + 3, pt[1] + 3], fill=SUCCESS)
     # Draw connecting lines for first stroke
-    pts_main = [(150, 60), (120, 80), (70, 80), (40, 110), (40, 155), (70, 180), (120, 180), (150, 155)]
     for i in range(len(pts_main) - 1):
         d.line([pts_main[i], pts_main[i+1]], fill=SUCCESS, width=3)
     # Badge on first point
-    d.ellipse([150 - 7, 60 - 7, 150 + 7, 60 + 7], fill=WARN)
-    d.text((147, 57), "1", font=F1, fill=PANEL)
+    d.ellipse([190 - 7, 108 - 7, 190 + 7, 108 + 7], fill=WARN)
+    d.text((187, 105), "1", font=F1, fill=PANEL)
     # Second stroke: descender, with dots
-    d.ellipse([40 - 7, 180 - 7, 40 + 7, 180 + 7], fill=WARN)
-    d.text((37, 177), "2", font=F1, fill=PANEL)
-    descender_pts = [(40, 180), (50, 190), (100, 200), (140, 190)]
+    d.ellipse([194 - 7, 109 - 7, 194 + 7, 109 + 7], fill=WARN)
+    d.text((191, 106), "2", font=F1, fill=PANEL)
+    descender_pts = [(194, 109), (194, 166), (181, 186), (149, 188), (124, 175)]
     for i, pt in enumerate(descender_pts):
         if i == 0:
             d.ellipse([pt[0] - 6, pt[1] - 6, pt[0] + 6, pt[1] + 6], fill=WARN)
         else:
             d.ellipse([pt[0] - 3, pt[1] - 3, pt[0] + 3, pt[1] + 3], fill=MUTED)
     # Watermark
-    d.text((105, 125), "g", font=F4, fill=PANEL)
+    d.text((118, 112), "g", font=F4, fill=PANEL)
     # Progress bar (90% full)
     bar_x, bar_y = 90, 222
     d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
     d.rounded_rectangle([bar_x, bar_y, 215, bar_y + 10], 4, fill=SUCCESS)
     # Buttons
-    button(d, (8, 200, 60, 32), "Prev", f=F1)
-    button(d, (252, 200, 60, 32), "Next", f=F1)
+    button(d, (8, 202, 60, 30), "Prev", f=F1)
+    button(d, (252, 202, 60, 30), "Next", f=F1)
     return im
 
 
@@ -870,20 +868,28 @@ def oddone():
 
 def shapearith():
     im, d = blank(); topbar(d, "Shape Arith")
-    d.text((8, 34), "5 - 2 circles", font=F2, fill=TEXT)
+    d.text((8, 34), "5 take away 2 circles", font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength("3/6", font=F2), 34), "3/6", font=F2, fill=TEXT)
     lp = (8, 50, 132, 110)
     d.rounded_rectangle([lp[0], lp[1], lp[0] + lp[2], lp[1] + lp[3]], 6, fill=PANEL, outline=OUTLINE)
-    for i in range(5):
-        cx = lp[0] + 34 + (i % 2) * 60
-        cy = lp[1] + 30 + (i // 2) * 34
-        removed = i >= 3
-        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13],
-                  fill=(249, 158, 158) if removed else (110, 190, 255))
-    d.text((153, 92), "-", font=F4, fill=TEXT)
+    d.text((lp[0] + lp[2] / 2 - d.textlength("left", font=F1) / 2, lp[1] + 7),
+           "left", font=F1, fill=MUTED)
+    for i in range(3):
+        cx = lp[0] + 18 + (i % 4) * 28
+        cy = lp[1] + 34 + (i // 4) * 32
+        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(110, 190, 255), outline=OUTLINE)
+    d.line([(148, 106), (172, 106)], fill=(249, 158, 158), width=2)
+    d.polygon([(172, 106), (164, 101), (164, 111)], fill=(249, 158, 158))
     rp = (180, 50, 132, 110)
     d.rounded_rectangle([rp[0], rp[1], rp[0] + rp[2], rp[1] + rp[3]], 6, fill=PANEL, outline=OUTLINE)
-    d.text((rp[0] + rp[2] / 2 - 6, rp[1] + rp[3] / 2 - 12), "?", font=F4, fill=MUTED)
+    d.text((rp[0] + rp[2] / 2 - d.textlength("take away", font=F1) / 2, rp[1] + 7),
+           "take away", font=F1, fill=MUTED)
+    for i in range(2):
+        cx = rp[0] + 18 + i * 28
+        cy = rp[1] + 34
+        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(249, 158, 158), outline=OUTLINE)
+    d.text((W / 2 - d.textlength("How many are left?", font=F1) / 2, 162),
+           "How many are left?", font=F1, fill=MUTED)
     for i, v in enumerate(["2", "3", "4", "1"]):
         button(d, (15 + i * 76, 172, 62, 42), v,
                SUCCESS if v == "3" else PANEL, (0, 0, 0) if v == "3" else TEXT, F4)

@@ -16,9 +16,11 @@ constexpr uint32_t PULSE_PERIOD_MS = 500;
 constexpr Rect PREV_BTN{8,   202, 60, 30};
 constexpr Rect NEXT_BTN{252, 202, 60, 30};
 
-constexpr Rect MODE_ABC{72,  32, 54, 22};
-constexpr Rect MODE_abc{130, 32, 54, 22};
-constexpr Rect MODE_123{188, 32, 54, 22};
+constexpr Rect MODE_ABC{38,  32, 50, 22};
+constexpr Rect MODE_abc{92,  32, 50, 22};
+constexpr Rect MODE_123{146, 32, 50, 22};
+constexpr Rect RETRY_BTN{204, 32, 52, 22};
+constexpr Rect TOP_NEXT_BTN{260, 32, 52, 22};
 
 constexpr AppMetadata TRACE_METADATA = {
     "trace",
@@ -80,6 +82,20 @@ void TraceGame::loadGlyph() {
     pulseState_ = false;
     resampleWaypoints();
     markFullDirty();
+}
+
+void TraceGame::previousGlyph() {
+    glyphIndex_ = (glyphIndex_ == getSetFirstIndex())
+        ? getSetLastIndex()
+        : glyphIndex_ - 1;
+    loadGlyph();
+}
+
+void TraceGame::nextGlyph() {
+    glyphIndex_ = (glyphIndex_ == getSetLastIndex())
+        ? getSetFirstIndex()
+        : glyphIndex_ + 1;
+    loadGlyph();
 }
 
 void TraceGame::resampleWaypoints() {
@@ -156,16 +172,6 @@ void TraceGame::updatePulsePhase() {
 }
 
 void TraceGame::update(AppContext& host, const TouchPoint& touch) {
-    if (complete_) {
-        if (touch.justPressed && millis() - completeAt_ > 600) {
-            glyphIndex_ = (glyphIndex_ + 1) % GLYPH_COUNT_TOTAL;
-            loadGlyph();
-        }
-        return;
-    }
-
-    updatePulsePhase();
-
     if (touch.justPressed) {
         if (MODE_ABC.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             glyphSet_ = GlyphSet::Upper;
@@ -185,21 +191,29 @@ void TraceGame::update(AppContext& host, const TouchPoint& touch) {
             loadGlyph();
             return;
         }
-        if (PREV_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            glyphIndex_ = (glyphIndex_ == getSetFirstIndex())
-                ? getSetLastIndex()
-                : glyphIndex_ - 1;
+        if (RETRY_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             loadGlyph();
+            return;
+        }
+        if (TOP_NEXT_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            nextGlyph();
+            return;
+        }
+        if (PREV_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            previousGlyph();
             return;
         }
         if (NEXT_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            glyphIndex_ = (glyphIndex_ == getSetLastIndex())
-                ? getSetFirstIndex()
-                : glyphIndex_ + 1;
-            loadGlyph();
+            nextGlyph();
             return;
         }
     }
+
+    if (complete_) {
+        return;
+    }
+
+    updatePulsePhase();
 
     if (!touch.down) {
         lastPulseChange_ = millis();
@@ -253,6 +267,8 @@ void TraceGame::drawModeTabs(Ui::Renderer& tft) {
     drawTab(MODE_ABC, "ABC", glyphSet_ == TraceGame::GlyphSet::Upper);
     drawTab(MODE_abc, "abc", glyphSet_ == TraceGame::GlyphSet::Lower);
     drawTab(MODE_123, "123", glyphSet_ == TraceGame::GlyphSet::Digit);
+    drawTab(RETRY_BTN, "Again", false);
+    drawTab(TOP_NEXT_BTN, "Next", false);
 }
 
 void TraceGame::drawGuide(Ui::Renderer& tft) {
@@ -351,6 +367,16 @@ void TraceGame::drawProgress(Ui::Renderer& tft) {
     }
 }
 
+void TraceGame::drawCompleteStatus(Ui::Renderer& tft) {
+    constexpr Rect STATUS{82, 196, 156, 21};
+    tft.fillRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::success());
+    tft.drawRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::outline());
+    tft.setTextColor(TFT_BLACK, Ui::success());
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("Great job", STATUS.x + STATUS.w / 2,
+                   STATUS.y + STATUS.h / 2, 2);
+}
+
 void TraceGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
     const Glyph& g = TRACE_GLYPHS[glyphIndex_];
@@ -363,7 +389,7 @@ void TraceGame::render(AppContext& host) {
         Ui::drawPagerButton(tft, PREV_BTN, "Prev", true);
         Ui::drawPagerButton(tft, NEXT_BTN, "Next", true);
     } else {
-        tft.fillRect(76, 218, 168, 20, Ui::bg());
+        tft.fillRect(76, 194, 168, 44, Ui::bg());
     }
 
     tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());
@@ -376,12 +402,7 @@ void TraceGame::render(AppContext& host) {
     drawProgress(tft);
 
     if (complete_) {
-        tft.fillRoundRect(60, 90, 200, 55, 8, Ui::panel());
-        tft.drawRoundRect(60, 90, 200, 55, 8, Ui::success());
-        tft.setTextColor(Ui::success(), Ui::panel());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Great job!", SCREEN_WIDTH / 2, 108, 4);
-        tft.drawString("Tap for next", SCREEN_WIDTH / 2, 132, 2);
+        drawCompleteStatus(tft);
     }
 
     tft.setTextDatum(TL_DATUM);

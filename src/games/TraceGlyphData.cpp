@@ -113,13 +113,13 @@ static const TraceGame::Stroke d_strokes[] = {{d_s0,9}};
 static const int16_t e_s0[] = {50,100, 130,100, 140,80, 130,50, 80,50, 50,70, 60,160, 100,160, 150,140};
 static const TraceGame::Stroke e_strokes[] = {{e_s0,9}};
 
-static const int16_t f_s0[] = {130,10, 130,160};
-static const int16_t f_s1[] = {60,40, 140,40};
-static const TraceGame::Stroke f_strokes[] = {{f_s0,2},{f_s1,2}};
+static const int16_t f_s0[] = {140,18, 118,10, 98,22, 92,50, 92,160};
+static const int16_t f_s1[] = {62,78, 132,78};
+static const TraceGame::Stroke f_strokes[] = {{f_s0,5},{f_s1,2}};
 
-static const int16_t g_s0[] = {150,50, 150,160, 120,200, 70,200, 40,160, 40,90, 70,50, 120,50, 150,90};
-static const int16_t g_s1[] = {40,200, 50,210, 100,220, 140,210};
-static const TraceGame::Stroke g_strokes[] = {{g_s0,9},{g_s1,4}};
+static const int16_t g_s0[] = {138,76, 112,56, 72,62, 48,96, 50,136, 80,160, 122,152, 142,118, 138,76};
+static const int16_t g_s1[] = {142,78, 142,165, 126,194, 86,198, 55,178};
+static const TraceGame::Stroke g_strokes[] = {{g_s0,9},{g_s1,5}};
 
 static const int16_t h_s0[] = {50,10, 50,160};
 static const int16_t h_s1[] = {50,100, 80,50, 130,50, 150,80, 150,160};

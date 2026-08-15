@@ -43,7 +43,7 @@ void ObjectAddGame::objPos(const Rect& p, uint8_t idx, int16_t& cx, int16_t& cy)
     const uint8_t col = idx % 4;
     const uint8_t row = idx / 4;
     cx = static_cast<int16_t>(p.x + 18 + col * 28);
-    cy = static_cast<int16_t>(p.y + 26 + row * 32);
+    cy = static_cast<int16_t>(p.y + 34 + row * 32);
 }
 
 void ObjectAddGame::drawObject(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t color) const {
@@ -192,18 +192,35 @@ void ObjectAddGame::render(AppContext& host) {
     // Score + problem text
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String(score_) + "/" + rounds_, SCREEN_WIDTH - 8, 34, 2);
+    char scoreText[16];
+    snprintf(scoreText, sizeof(scoreText), "%u/%u",
+             static_cast<unsigned>(score_), static_cast<unsigned>(rounds_));
+    tft.drawString(scoreText, SCREEN_WIDTH - 8, 34, 2);
 
     const char* shapeName = (shape_ % 4 == 0) ? "circles" :
                             (shape_ % 4 == 1) ? "squares" :
                             (shape_ % 4 == 2) ? "triangles" : "stars";
+    char problemText[40];
+    if (op_ == OpType::Add) {
+        snprintf(problemText, sizeof(problemText), "%u + %u %s",
+                 static_cast<unsigned>(n1_), static_cast<unsigned>(n2_), shapeName);
+    } else {
+        snprintf(problemText, sizeof(problemText), "%u take away %u %s",
+                 static_cast<unsigned>(n1_), static_cast<unsigned>(n2_), shapeName);
+    }
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String(n1_) + (op_ == OpType::Add ? " + " : " - ") + n2_ + " " + shapeName, 8, 34, 2);
+    tft.drawString(problemText, 8, 34, 2);
 
-    // Left panel (first group - always shown fully)
+    // Left panel: the first group, or the count left after subtraction.
     const Rect lp = leftPanel();
     tft.fillRoundRect(lp.x, lp.y, lp.w, lp.h, 6, Ui::panel());
     tft.drawRoundRect(lp.x, lp.y, lp.w, lp.h, 6, Ui::outline());
+    tft.setTextColor(Ui::muted(), Ui::panel());
+    tft.setTextDatum(TC_DATUM);
+    const bool subtractAnswerVisible = op_ == OpType::Subtract &&
+        (phase_ == Phase::Question || phase_ == Phase::Feedback);
+    tft.drawString(subtractAnswerVisible ? "left" : "start",
+                   lp.x + lp.w / 2, lp.y + 7, 1);
     for (uint8_t i = 0; i < n1_; ++i) {
         int16_t cx, cy; objPos(lp, i, cx, cy);
         // For subtraction: shapes that will be removed flash red/surface, others blue
@@ -222,15 +239,23 @@ void ObjectAddGame::render(AppContext& host) {
         }
     }
 
-    // Operator symbol
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(op_ == OpType::Add ? "+" : "-", 160, 106, 4);
+    if (op_ == OpType::Add) {
+        tft.drawString("+", 160, 106, 4);
+    } else {
+        tft.drawLine(148, 106, 172, 106, COL_REMOVED);
+        tft.fillTriangle(172, 106, 164, 101, 164, 111, COL_REMOVED);
+    }
 
     // Right panel: the second addend, or the group being taken away.
     const Rect rp = rightPanel();
     tft.fillRoundRect(rp.x, rp.y, rp.w, rp.h, 6, Ui::panel());
     tft.drawRoundRect(rp.x, rp.y, rp.w, rp.h, 6, Ui::outline());
+    tft.setTextColor(Ui::muted(), Ui::panel());
+    tft.setTextDatum(TC_DATUM);
+    tft.drawString(op_ == OpType::Add ? "add" : "take away",
+                   rp.x + rp.w / 2, rp.y + 7, 1);
     if (op_ == OpType::Add) {
         const uint8_t showN2 = (phase_ == Phase::Showing) ? 0 :
                                (phase_ == Phase::AnimIn)   ? animCount_ : n2_;
@@ -239,15 +264,9 @@ void ObjectAddGame::render(AppContext& host) {
             drawObject(tft, cx, cy, COL_SECOND);
         }
     } else {
-        if (phase_ != Phase::Showing) {
-            for (uint8_t i = 0; i < n2_; ++i) {
-                int16_t cx, cy; objPos(rp, i, cx, cy);
-                drawObject(tft, cx, cy, COL_REMOVED);
-            }
-            tft.setTextDatum(MC_DATUM);
-            tft.setTextColor(Ui::muted(), Ui::panel());
-            tft.drawString("take away", rp.x + rp.w / 2,
-                           static_cast<int16_t>(rp.y + rp.h - 12), 1);
+        for (uint8_t i = 0; i < n2_; ++i) {
+            int16_t cx, cy; objPos(rp, i, cx, cy);
+            drawObject(tft, cx, cy, COL_REMOVED);
         }
     }
 
@@ -257,6 +276,11 @@ void ObjectAddGame::render(AppContext& host) {
         tft.drawString("= ?", SCREEN_WIDTH / 2, 162, 4);
     }
     if (phase_ == Phase::Question || phase_ == Phase::Feedback) {
+        if (op_ == OpType::Subtract) {
+            tft.setTextColor(Ui::muted(), Ui::bg());
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString("How many are left?", SCREEN_WIDTH / 2, 162, 1);
+        }
         for (uint8_t i = 0; i < 4; ++i) {
             uint16_t fill = OBJ_BTN;
             uint16_t tc   = TFT_WHITE;
@@ -264,7 +288,10 @@ void ObjectAddGame::render(AppContext& host) {
                 if (i == correctBtn_)                 { fill = OBJ_CORRECT; tc = TFT_BLACK; }
                 else if (i == static_cast<uint8_t>(selected_)) { fill = OBJ_WRONG;   tc = TFT_BLACK; }
             }
-            Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, TFT_DARKGREY, tc, false, 4);
+            char optionText[4];
+            snprintf(optionText, sizeof(optionText), "%u",
+                     static_cast<unsigned>(options_[i]));
+            Ui::drawButton(tft, answerRect(i), optionText, fill, TFT_DARKGREY, tc, false, 4);
         }
     }
     tft.setTextDatum(TL_DATUM);

@@ -16,7 +16,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 28 |
-| Flash | 2,307,365 / 3,145,728 bytes (**73.3%**) |
+| Flash | 2,307,681 / 3,145,728 bytes (**73.4%**) |
 | RAM | 68,036 / 327,680 bytes (**20.8%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -65,7 +65,7 @@ Ages are a guide, not a gate. Every game can be hidden from the launcher in
 |---|---|---|---|
 | **Counting** | "How many objects?" — tap the matching number | One-to-one correspondence: the idea that counting means one number per object | 3–5 |
 | **Fingers** | Alternates *"How many fingers?"* (count what's raised) and *"Show me 7 fingers"* (raise that many) | Counting on hands in **both** directions — recognising a quantity and producing one | 3–6 |
-| **Shape Arith** | Objects appear one by one to add; for subtraction they flash and vanish | Makes arithmetic concrete before it's symbolic. The subtraction blink **loops**, so a child who looks away can re-watch | 4–6 |
+| **Shape Arith** | Objects appear one by one to add; subtraction splits left vs. take-away boxes | Makes arithmetic concrete before it's symbolic. The subtraction display keeps the removed group visible while the child counts what is left | 4–6 |
 | **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic | 5–7 |
 | **Math** | "Tap the answer" — addition and subtraction, difficulty rises with level | Recall speed once the concept is solid | 5–8 |
 | **Multiply** | "Tap the product" — times tables | Multiplication facts | 7–10 |
@@ -102,7 +102,7 @@ uses **adaptive difficulty** — see below.
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
-| **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, guided by numbered start dots | 3–6 |
+| **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, with Again and Next controls so a child can repeat any character | 3–6 |
 | **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older student, not a preschooler | 15+ |
 
 ---

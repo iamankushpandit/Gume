@@ -45,8 +45,11 @@ private:
     int16_t scaleY(int16_t ny) const;
     void drawGuide(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
+    void drawCompleteStatus(Ui::Renderer& tft);
     void drawModeTabs(Ui::Renderer& tft);
     void updatePulsePhase();
+    void previousGlyph();
+    void nextGlyph();
     uint8_t getSetFirstIndex() const;
     uint8_t getSetLastIndex() const;
 
