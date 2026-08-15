@@ -4,6 +4,12 @@
 
 ### Added
 
+- **Device-wide best scores on the Scores screen.** A new **Device** tab shows
+  the best score across every child on the device for each game, and who holds
+  it. The holder's name appears in gold when it is the current player. Scores
+  are computed once at screen entry and cached, so scrolling and paging add no
+  NVS reads. Ties go to the lowest profile index.
+
 - **A GitHub Pages site with a browser-based flasher.**
   <https://iamankushpandit.github.io/Gume/> describes the firmware and installs
   it over Web Serial: pick the board and the firmware, plug in the USB cable,
