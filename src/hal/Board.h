@@ -292,8 +292,13 @@ private:
     String wifiSsidCache_;
     String wifiPassCache_;
     bool wifiCacheLoaded_ = false;
+    static constexpr uint16_t STORAGE_SCHEMA_VERSION = 2;
+    static constexpr size_t STORAGE_KEY_CAP = 16;   // NVS keys cap at 15 chars + NUL
     void loadWifiCache();
-    String scopedKey(const char* key);   // "p0_" + key, per active profile
+    void migrateStorageSchema();
+    void scopedKey(char* out, size_t cap, const char* key);
+    static void scopedKeyForProfile(char* out, size_t cap, uint8_t profileIndex, const char* key);
+    static void legacyScopedKeyForProfile(char* out, size_t cap, uint8_t profileIndex, const char* key);
     void logNetworkActivity(const char* fmt, ...);
     void noteTimeSyncSuccess();
 

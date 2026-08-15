@@ -13,10 +13,10 @@ const char* TimeGame::title() const {
     return "Time";
 }
 
-void TimeGame::begin(GameHost& host) {
+void TimeGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("timeBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("timeBest", 0));
     newQuestion();
     markDirty();
 }
@@ -122,7 +122,7 @@ void TimeGame::makeOptions() {
     }
 }
 
-void TimeGame::update(GameHost& host, const TouchPoint& touch) {
+void TimeGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -140,13 +140,13 @@ void TimeGame::update(GameHost& host, const TouchPoint& touch) {
             if (i == correctButton_) {
                 ++score_;
                 ++streak_;
-                if (host.board().saveBestScore("timeBest", streak_, false)) {
+                if (host.saveBestScore("timeBest", streak_, false)) {
                     bestStreak_ = streak_;
                 }
-                host.board().beepOk();
+                host.beepOk();
             } else {
                 streak_ = 0;
-                host.board().beepError();
+                host.beepError();
             }
             markDirty();
             return;
@@ -194,18 +194,24 @@ void TimeGame::drawClock(TFT_eSPI& tft) const {
     tft.setTextDatum(TL_DATUM);
 }
 
-void TimeGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void TimeGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Level ") + level(), 10, 35, 2);
-    tft.drawString(String("Score ") + score_, 10, 52, 2);
+    char leftBuf[20];
+    snprintf(leftBuf, sizeof(leftBuf), "Level %u", level());
+    tft.drawString(leftBuf, 10, 35, 2);
+    snprintf(leftBuf, sizeof(leftBuf), "Score %u", score_);
+    tft.drawString(leftBuf, 10, 52, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 10, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 10, 52, 2);
+    char rightBuf[20];
+    snprintf(rightBuf, sizeof(rightBuf), "Streak %u", streak_);
+    tft.drawString(rightBuf, SCREEN_WIDTH - 10, 35, 2);
+    snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestStreak_);
+    tft.drawString(rightBuf, SCREEN_WIDTH - 10, 52, 2);
 
     drawClock(tft);
     Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?", Ui::text(), 2, Align::Center);

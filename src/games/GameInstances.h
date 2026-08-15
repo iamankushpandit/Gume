@@ -1,0 +1,73 @@
+#pragma once
+
+#include "games/AboutGame.h"
+#include "games/CinnamonGame.h"
+#include "games/ColorMixGame.h"
+#include "games/CountingGame.h"
+#include "games/FingerCountGame.h"
+#include "games/FlagGame.h"
+#include "games/FractionGame.h"
+#include "games/GreWordsGame.h"
+#include "games/MathGame.h"
+#include "games/MazeGame.h"
+#include "games/MemoryGame.h"
+#include "games/MicrokuGame.h"
+#include "games/MoneyGame.h"
+#include "games/MultiplicationGame.h"
+#include "games/NumberLineGame.h"
+#include "games/ObjectAddGame.h"
+#include "games/OddOneOutGame.h"
+#include "games/PercentCircleGame.h"
+#include "games/ProfileGame.h"
+#include "games/ScoresGame.h"
+#include "games/SequenceGame.h"
+#include "games/SettingsGame.h"
+#include "games/ShapeColorGame.h"
+#include "games/SlidingPuzzleGame.h"
+#include "games/SortGame.h"
+#include "games/StateFlagGame.h"
+#include "games/StateMapGame.h"
+#include "games/StatesGame.h"
+#include "games/SystemInfoGame.h"
+#include "games/TicTacToeGame.h"
+#include "games/TimeGame.h"
+#include "games/TraceGame.h"
+#include "games/WifiGame.h"
+#include "games/WhackAMoleGame.h"
+
+struct GameInstances {
+    TicTacToeGame ticTacToe;
+    MemoryGame memory;
+    MathGame math;
+    MultiplicationGame multiplication;
+    TimeGame time;
+    WhackAMoleGame whackAMole;
+    CinnamonGame cinnamon;
+    MicrokuGame microku;
+    ShapeColorGame shapeColor;
+    CountingGame counting;
+    MoneyGame money;
+    FractionGame fractions;
+    MazeGame maze;
+    SortGame sort;
+    ColorMixGame colorMix;
+    SlidingPuzzleGame slidingPuzzle;
+    OddOneOutGame oddOneOut;
+    SettingsGame settings;
+    WifiGame wifi;
+    ObjectAddGame objectAdd;
+    FingerCountGame fingerCount;
+    SequenceGame sequence;
+    NumberLineGame numberLine;
+    FlagGame flag;
+    StatesGame states;
+    TraceGame trace;
+    StateFlagGame stateFlag;
+    StateMapGame stateMap;
+    PercentCircleGame percent;
+    GreWordsGame greWords;
+    ProfileGame profile;
+    ScoresGame scores;
+    AboutGame about;
+    SystemInfoGame systemInfo;
+};

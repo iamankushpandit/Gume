@@ -27,8 +27,8 @@ Rect GreWordsGame::knewRect()   const { return Rect{12,  192, 92, 30}; }
 Rect GreWordsGame::missedRect() const { return Rect{114, 192, 92, 30}; }
 Rect GreWordsGame::nextRect()   const { return Rect{216, 192, 92, 30}; }
 
-void GreWordsGame::begin(GameHost& host) {
-    progress_.begin(host.board(), "greProg", GRE_WORD_COUNT);
+void GreWordsGame::begin(AppContext& host) {
+    progress_.begin(host, "greProg", GRE_WORD_COUNT);
     score_  = 0;
     streak_ = 0;
     mode_   = Mode::Flip;
@@ -36,7 +36,7 @@ void GreWordsGame::begin(GameHost& host) {
     markFullDirty();
 }
 
-void GreWordsGame::end(GameHost& host) {
+void GreWordsGame::end(AppContext& host) {
     (void)host;
     // Mastery data is written lazily; hand it back on the way out.
     progress_.flush();
@@ -109,21 +109,22 @@ void GreWordsGame::rewrapIfStale() {
     wrapStale_ = false;
 }
 
-void GreWordsGame::answer(GameHost& host, bool correct) {
+void GreWordsGame::answer(AppContext& host, bool correct) {
     if (correct) {
-        host.board().beepOk();
+        host.beepOk();
         score_ += 10;
         ++streak_;
     } else {
-        host.board().beepError();
+        host.beepError();
         streak_ = 0;
     }
     progress_.record(currentWord_, correct);
-    host.board().saveBestScore("greBest", score_, false);
+    progress_.maybeFlush();
+    host.saveBestScore("greBest", score_, false);
 }
 
-void GreWordsGame::update(GameHost& host, const TouchPoint& touch) {
-    const int16_t w = static_cast<int16_t>(host.board().display().width());
+void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
+    const int16_t w = static_cast<int16_t>(host.display().width());
 
     // A wrong answer holds the correct option highlighted for a moment before
     // moving on, so the round still teaches rather than just scoring.
@@ -156,10 +157,12 @@ void GreWordsGame::update(GameHost& host, const TouchPoint& touch) {
         // mode is not wasted effort -- it just does not score.
         if (knewRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             progress_.record(currentWord_, true);
+            progress_.maybeFlush();
             nextWord(); markFullDirty(); return;
         }
         if (missedRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             progress_.record(currentWord_, false);
+            progress_.maybeFlush();
             nextWord(); markFullDirty(); return;
         }
         if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -179,8 +182,8 @@ void GreWordsGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void GreWordsGame::renderFlip(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void GreWordsGame::renderFlip(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     const GreWord& word = GRE_WORDS[currentWord_];
     const Rect card = cardRect();
 
@@ -219,8 +222,8 @@ void GreWordsGame::renderFlip(GameHost& host) {
                    Ui::outline(), Ui::text(), false, 2);
 }
 
-void GreWordsGame::renderQuiz(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void GreWordsGame::renderQuiz(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     const GreWord& word = GRE_WORDS[currentWord_];
 
     tft.setTextDatum(MC_DATUM);
@@ -251,15 +254,15 @@ void GreWordsGame::renderQuiz(GameHost& host) {
     tft.setTextDatum(TL_DATUM);
 }
 
-void GreWordsGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void GreWordsGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());
 
     rewrapIfStale();
 
     if (needsFullRender()) {
         Ui::clear(tft);
-        Ui::drawTopBar(host.board(), title());
+        host.drawTopBar(title());
         const Rect fTab = flipTabRect(w);
         const Rect qTab = quizTabRect(w);
         Ui::drawTab(tft, fTab, "Study", mode_ == Mode::Flip);

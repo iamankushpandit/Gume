@@ -9,6 +9,16 @@
     "python tools/check_frame_rules.py --update-baseline"
   ],
   "files": {
+    "src/engine/AppRuntime.cpp": {
+      "String": 0,
+      "delay": 2,
+      "heap": 0
+    },
+    "src/engine/AppRuntimeLauncher.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
     "src/engine/ContentLoader.cpp": {
       "String": 5,
       "delay": 0,
@@ -149,38 +159,13 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/SequenceGame.cpp": {
-      "String": 4,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/SettingsGame.cpp": {
       "String": 5,
       "delay": 0,
       "heap": 0
     },
-    "src/games/ShapeColorGame.cpp": {
-      "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/SlidingPuzzleGame.cpp": {
-      "String": 3,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/SortGame.cpp": {
-      "String": 3,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/StateFlagGame.cpp": {
-      "String": 6,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/StateMapGame.cpp": {
-      "String": 5,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },
@@ -195,7 +180,7 @@
       "heap": 0
     },
     "src/games/TicTacToeGame.cpp": {
-      "String": 3,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },
@@ -205,17 +190,12 @@
       "heap": 0
     },
     "src/games/TimeGame.cpp": {
-      "String": 6,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },
     "src/games/TimeGame.h": {
       "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/WhackAMoleGame.cpp": {
-      "String": 4,
       "delay": 0,
       "heap": 0
     },
@@ -240,13 +220,28 @@
       "heap": 0
     },
     "src/hal/Board.cpp": {
-      "String": 27,
-      "delay": 10,
+      "String": 7,
+      "delay": 1,
       "heap": 0
     },
     "src/hal/Board.h": {
-      "String": 11,
+      "String": 10,
       "delay": 0,
+      "heap": 0
+    },
+    "src/hal/BoardNetwork.cpp": {
+      "String": 14,
+      "delay": 1,
+      "heap": 0
+    },
+    "src/hal/BoardPower.cpp": {
+      "String": 0,
+      "delay": 1,
+      "heap": 0
+    },
+    "src/hal/BoardTouch.cpp": {
+      "String": 1,
+      "delay": 6,
       "heap": 0
     },
     "src/hal/Clock.cpp": {

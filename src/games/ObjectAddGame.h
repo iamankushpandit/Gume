@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class ObjectAddGame : public Game {
+class ObjectAddGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     enum class Phase : uint8_t { Showing, AnimIn, Flashing, Question, Feedback };

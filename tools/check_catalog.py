@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Check the index-coupled catalog arrays still line up.
+"""Check the catalog and app registry still line up.
 
-`GAME_CATALOG[]` (src/engine/GameCatalog.cpp) and `CATALOG_KINDS[]`
-(src/main.cpp) are parallel arrays coupled **by index**, in two different
-files, with nothing in the build enforcing agreement. CLAUDE.md says so three
-separate times, because it is the one failure here that is completely silent:
-a merge that appends both entries in a different order, or a "keep both
-changes" conflict resolution, still compiles, still links, and the only symptom
-is a launcher tile opening the wrong game.
+`GAME_CATALOG[]` (src/engine/GameCatalog.cpp) is the single source of truth for
+playable-game metadata, and `APP_REGISTRY[]` (src/engine/AppRegistry.cpp)
+binds each catalog slot to its concrete game instance and launcher icon. The
+registry is much safer than the old `CATALOG_KINDS[]` + `launchKind()` pair
+because every catalog binding now names its source slot explicitly
+(`catalogApp(17, ...)`) and the system apps are in the same table.
+
+It is still possible to drift: a merge can append a new `GAME_CATALOG` entry
+and a new `catalogApp()` line in a different order, or point the wrong catalog
+index at a game instance. This check keeps that from shipping silently.
 
 `ScoreCatalog.cpp` is keyed off the same ids, so it is checked too.
 
@@ -17,14 +20,14 @@ Exit 0 = aligned, 1 = something has drifted.
 
 What this can and cannot know
 -----------------------------
-There is no derivable rule mapping a catalog id to an EntryKind name -- the
-pairing is a human decision ("slide" launches `SlidingPuzzle`). So the check
-normalises both sides and accepts an exact match or a common prefix, which
-covers every pair added since the project started naming them consistently.
-The handful of older pairs that do not match are listed in EXCEPTIONS below,
-explicitly, one line each. That is the point: a *new* mismatch is a bug, an
-*old* one is a documented fact, and the two are told apart by this table
-rather than by whoever is reading the diff.
+There is no derivable rule mapping a catalog id to a launcher icon name -- the
+pairing is still a human decision ("slide" uses `LauncherIcon::SlidingPuzzle`).
+So the check normalises both sides and accepts an exact match or a common
+prefix, which covers every pair added since the project started naming them
+consistently. The handful of older pairs that do not match are listed in
+EXCEPTIONS below, explicitly, one line each. That is the point: a *new*
+mismatch is a bug, an *old* one is a documented fact, and the two are told
+apart by this table rather than by whoever is reading the diff.
 """
 
 import os
@@ -33,7 +36,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Catalog id -> EntryKind enumerator, for pairs whose names genuinely differ.
+# Catalog id -> LauncherIcon enumerator, for pairs whose names genuinely differ.
 # Every entry here is a deliberate historical naming choice, not a bug. Adding
 # a line is a decision; do not add one to silence a real misalignment.
 EXCEPTIONS = {
@@ -64,7 +67,7 @@ def pair_ok(game_id, kind):
 def check(problems):
     catalog_h = read("src", "engine", "GameCatalog.h")
     catalog = read("src", "engine", "GameCatalog.cpp")
-    main = read("src", "main.cpp")
+    registry = read("src", "engine", "AppRegistry.cpp")
     scores = read("src", "engine", "ScoreCatalog.cpp")
 
     declared = re.search(r"GAME_CATALOG_COUNT\s*=\s*(\d+)", catalog_h)
@@ -78,57 +81,61 @@ def check(problems):
         problems.append("GameCatalog.cpp: could not parse any entries")
         return
 
-    block = re.search(r"CATALOG_KINDS\[GAME_CATALOG_COUNT\]\s*=\s*\{(.*?)\};",
-                      main, re.S)
-    if not block:
-        problems.append("main.cpp: CATALOG_KINDS[] not found")
+    bound = re.findall(r"catalogApp\((\d+),\s*LauncherIcon::(\w+)", registry)
+    if not bound:
+        problems.append("AppRegistry.cpp: no catalogApp() entries found")
         return
-    kinds = re.findall(r"EntryKind::(\w+)", block.group(1))
+    system_ids = re.findall(r'systemApp\("([a-z0-9]+)"', registry)
 
-    # 1. Lengths. A short CATALOG_KINDS zero-fills the tail rather than failing
-    #    to compile, so the last tiles would launch whatever kind is 0.
+    # 1. Lengths.
     if len(ids) != declared:
         problems.append(
             "GAME_CATALOG has %d entries but GAME_CATALOG_COUNT is %d"
             % (len(ids), declared))
-    if len(kinds) != declared:
+    if len(bound) != declared:
         problems.append(
-            "CATALOG_KINDS has %d entries but GAME_CATALOG_COUNT is %d"
-            % (len(kinds), declared))
+            "APP_REGISTRY has %d catalogApp() entries but GAME_CATALOG_COUNT is %d"
+            % (len(bound), declared))
 
     # 2. Duplicates. Two tiles pointing at one game is the classic merge result.
-    for label, seq in (("GAME_CATALOG id", ids), ("CATALOG_KINDS entry", kinds)):
+    icon_names = [icon for _, icon in bound]
+    registry_indices = [int(index) for index, _ in bound]
+    for label, seq in (("GAME_CATALOG id", ids), ("APP_REGISTRY catalog index", registry_indices)):
         seen = set()
         for i, item in enumerate(seq):
             if item in seen:
                 problems.append("%s '%s' appears twice (index %d)" % (label, item, i))
             seen.add(item)
+    seen = set()
+    for i, item in enumerate(system_ids):
+        if item in seen:
+            problems.append("system app id '%s' appears twice (index %d)" % (item, i))
+        seen.add(item)
 
     # 3. The alignment itself, index by index.
-    for i, (game_id, kind) in enumerate(zip(ids, kinds)):
-        if not pair_ok(game_id, kind):
+    for i, (game_id, binding) in enumerate(zip(ids, bound)):
+        registry_index, icon = int(binding[0]), binding[1]
+        if registry_index != i:
             problems.append(
-                "index %d: GAME_CATALOG '%s' is paired with EntryKind::%s -- "
+                "index %d: GAME_CATALOG '%s' is bound as catalogApp(%d, ...) -- "
+                "the registry order or index has drifted" % (i, game_id, registry_index))
+        if not pair_ok(game_id, icon):
+            problems.append(
+                "index %d: GAME_CATALOG '%s' is paired with LauncherIcon::%s -- "
                 "if that pairing is intended, add it to EXCEPTIONS in "
-                "tools/check_catalog.py; otherwise the arrays have drifted and "
-                "this tile launches the wrong game" % (i, game_id, kind))
+                "tools/check_catalog.py; otherwise the registry has drifted and "
+                "this tile launches the wrong game" % (i, game_id, icon))
 
-    # 4. Every kind used must be declared, and must be wired in launchKind().
-    enum_block = re.search(r"enum class EntryKind\s*:\s*uint8_t\s*\{(.*?)\};",
-                           main, re.S)
-    if enum_block:
-        declared_kinds = set(re.findall(r"^\s*(\w+),", enum_block.group(1), re.M))
-        for kind in kinds:
-            if kind not in declared_kinds:
-                problems.append(
-                    "CATALOG_KINDS uses EntryKind::%s, which is not in the enum"
-                    % kind)
-    launched = set(re.findall(r"case EntryKind::(\w+):", main))
-    for kind in kinds:
-        if kind not in launched:
+    # 4. APP_REGISTRY count should match its declared total.
+    total = re.search(r"APP_REGISTRY_COUNT\s*=\s*GAME_CATALOG_COUNT\s*\+\s*(\d+)",
+                      read("src", "engine", "AppRegistry.h"))
+    if total:
+        expected_total = declared + int(total.group(1))
+        actual_total = len(bound) + len(system_ids)
+        if actual_total != expected_total:
             problems.append(
-                "EntryKind::%s has no case in launchKind() -- its tile would "
-                "fall through and open nothing" % kind)
+                "APP_REGISTRY declares %d total entries but AppRegistry.cpp has %d"
+                % (expected_total, actual_total))
 
     # 5. ScoreCatalog is keyed off the same ids.
     score_ids = re.findall(r'^\s*\{\s*"([a-z0-9]+)"', scores, re.M)
@@ -144,10 +151,10 @@ def main():
     problems = []
     check(problems)
     if problems:
-        print("Catalog arrays have drifted:\n")
+        print("Catalog or registry has drifted:\n")
         for problem in problems:
             print("  - %s" % problem)
-        print("\n%d problem(s). Re-verify GAME_CATALOG[], CATALOG_KINDS[] and "
+        print("\n%d problem(s). Re-verify GAME_CATALOG[], APP_REGISTRY[] and "
               "ScoreCatalog entry-for-entry before doing anything else."
               % len(problems))
         return 1

@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class FractionGame : public Game {
+class FractionGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     enum class Mode : uint8_t {
@@ -32,7 +32,7 @@ private:
     bool optionExists(const Fraction& fraction, uint8_t upTo) const;
     void newRound();
     void makeOptions(const Fraction& correct);
-    void markCorrect(GameHost& host);
+    void markCorrect(AppContext& host);
     void markWrong(int8_t index);
 
     Rect optionRect(uint8_t index) const;

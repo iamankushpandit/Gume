@@ -88,13 +88,13 @@ void ObjectAddGame::newQuestion() {
     makeOptions();
 }
 
-void ObjectAddGame::begin(GameHost&) {
+void ObjectAddGame::begin(AppContext&) {
     score_ = 0; rounds_ = 0; shape_ = 0;
     newQuestion();
     markDirty();
 }
 
-void ObjectAddGame::update(GameHost& host, const TouchPoint& touch) {
+void ObjectAddGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if (phase_ == Phase::Showing && now >= animNextAt_) {
@@ -151,8 +151,8 @@ void ObjectAddGame::update(GameHost& host, const TouchPoint& touch) {
             if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selected_ = static_cast<int8_t>(i);
                 ++rounds_;
-                if (i == correctBtn_) { ++score_; host.board().beepOk(); }
-                else { host.board().beepError(); }
+                if (i == correctBtn_) { ++score_; host.beepOk(); }
+                else { host.beepError(); }
                 feedbackUntil_ = now + 1400UL;
                 phase_ = Phase::Feedback;
                 markDirty();
@@ -162,10 +162,10 @@ void ObjectAddGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void ObjectAddGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void ObjectAddGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     // Score + problem text
     tft.setTextColor(Ui::text(), Ui::bg());

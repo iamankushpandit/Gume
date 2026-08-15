@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class MathGame : public Game {
+class MathGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     enum class Operation : uint8_t {
@@ -23,7 +23,7 @@ private:
     bool optionExists(int16_t value, uint8_t upTo) const;
     uint16_t elapsedSeconds() const;
     String formatSeconds(uint16_t seconds) const;
-    void updateBest(GameHost& host);
+    void updateBest(AppContext& host);
 
     int16_t left_ = 0;
     int16_t right_ = 0;

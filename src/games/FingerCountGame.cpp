@@ -101,12 +101,12 @@ void FingerCountGame::newQuestion() {
     markDirty();
 }
 
-void FingerCountGame::begin(GameHost&) {
+void FingerCountGame::begin(AppContext&) {
     score_ = 0; rounds_ = 0;
     newQuestion();
 }
 
-void FingerCountGame::update(GameHost& host, const TouchPoint& touch) {
+void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if (phase_ == Phase::Feedback && now >= feedbackUntil_) {
@@ -121,8 +121,8 @@ void FingerCountGame::update(GameHost& host, const TouchPoint& touch) {
             selected_ = static_cast<int8_t>(i);
             lastCorrect_ = (i == correctBtn_);
             ++rounds_;
-            if (lastCorrect_) { ++score_; host.board().beepOk(); }
-            else              { host.board().beepError(); }
+            if (lastCorrect_) { ++score_; host.beepOk(); }
+            else              { host.beepError(); }
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::Feedback;
             markDirty();
@@ -139,7 +139,7 @@ void FingerCountGame::update(GameHost& host, const TouchPoint& touch) {
         if (raisedCount() == target_) {
             ++rounds_; ++score_;
             lastCorrect_ = true;
-            host.board().beepOk();
+            host.beepOk();
             feedbackUntil_ = now + 1300UL;
             phase_ = Phase::Feedback;
         }
@@ -174,10 +174,10 @@ void FingerCountGame::drawHand(TFT_eSPI& tft, uint8_t hand) const {
     }
 }
 
-void FingerCountGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void FingerCountGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);

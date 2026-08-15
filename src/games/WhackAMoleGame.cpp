@@ -16,9 +16,9 @@ const char* WhackAMoleGame::title() const {
     return "Whack A Mole";
 }
 
-void WhackAMoleGame::begin(GameHost& host) {
+void WhackAMoleGame::begin(AppContext& host) {
     score_ = 0;
-    bestScore_ = static_cast<uint16_t>(host.board().getScore("whackBest", 0));
+    bestScore_ = static_cast<uint16_t>(host.getScore("whackBest", 0));
     activeCell_ = -1;
     flashCell_ = -1;
     missStreak_ = 0;
@@ -77,7 +77,7 @@ void WhackAMoleGame::recordMiss() {
     }
 }
 
-void WhackAMoleGame::update(GameHost& host, const TouchPoint& touch) {
+void WhackAMoleGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     if (flashCell_ >= 0 && now >= flashUntil_) {
         flashCell_ = -1;
@@ -114,7 +114,7 @@ void WhackAMoleGame::update(GameHost& host, const TouchPoint& touch) {
     if (cell == activeCell_) {
         ++score_;
         missStreak_ = 0;
-        if (host.board().saveBestScore("whackBest", score_, false)) {
+        if (host.saveBestScore("whackBest", score_, false)) {
             bestScore_ = score_;
         }
         flashCell_ = cell;
@@ -122,13 +122,13 @@ void WhackAMoleGame::update(GameHost& host, const TouchPoint& touch) {
         flashUntil_ = millis() + 160UL;
         activeCell_ = -1;
         nextSpawnAt_ = millis() + 180UL;
-        host.board().beepOk();
+        host.beepOk();
     } else {
         flashCell_ = cell;
         flashSuccess_ = false;
         flashUntil_ = millis() + 180UL;
         recordMiss();
-        host.board().beepError();
+        host.beepError();
     }
     markDirty();
 }
@@ -145,18 +145,24 @@ void WhackAMoleGame::drawSmile(TFT_eSPI& tft, const Rect& r) const {
     tft.drawLine(cx + 2, cy + 5, cx + 4, cy + 3, SMILE_FACE);
 }
 
-void WhackAMoleGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void WhackAMoleGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Score ") + score_, 8, 35, 2);
-    tft.drawString(String("Level ") + level() + " Miss " + missStreak_ + "/10", 8, 51, 1);
+    char leftBuf[28];
+    snprintf(leftBuf, sizeof(leftBuf), "Score %u", score_);
+    tft.drawString(leftBuf, 8, 35, 2);
+    snprintf(leftBuf, sizeof(leftBuf), "Level %u Miss %u/10", level(), missStreak_);
+    tft.drawString(leftBuf, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestScore_, SCREEN_WIDTH - 8, 35, 2);
-    tft.drawString(String("Speed ") + visibleMs() + "ms", SCREEN_WIDTH - 8, 51, 1);
+    char rightBuf[24];
+    snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestScore_);
+    tft.drawString(rightBuf, SCREEN_WIDTH - 8, 35, 2);
+    snprintf(rightBuf, sizeof(rightBuf), "Speed %ums", visibleMs());
+    tft.drawString(rightBuf, SCREEN_WIDTH - 8, 51, 1);
 
     for (uint8_t i = 0; i < GRID * GRID; ++i) {
         const Rect r = cellRect(i);

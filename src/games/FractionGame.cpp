@@ -16,10 +16,10 @@ const char* FractionGame::title() const {
     return "Fractions";
 }
 
-void FractionGame::begin(GameHost& host) {
+void FractionGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("fracBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("fracBest", 0));
     newRound();
     markDirty();
 }
@@ -141,15 +141,15 @@ void FractionGame::newRound() {
     }
 }
 
-void FractionGame::markCorrect(GameHost& host) {
+void FractionGame::markCorrect(AppContext& host) {
     ++score_;
     ++streak_;
-    if (host.board().saveBestScore("fracBest", streak_, false)) {
+    if (host.saveBestScore("fracBest", streak_, false)) {
         bestStreak_ = streak_;
     }
     roundComplete_ = true;
     flashIndex_ = -1;
-    host.board().beepOk();
+    host.beepOk();
 }
 
 void FractionGame::markWrong(int8_t index) {
@@ -174,7 +174,7 @@ Rect FractionGame::compareRect(uint8_t index) const {
     return index == 0 ? Rect{34, 176, 104, 34} : Rect{182, 176, 104, 34};
 }
 
-void FractionGame::update(GameHost& host, const TouchPoint& touch) {
+void FractionGame::update(AppContext& host, const TouchPoint& touch) {
     if (flashIndex_ >= 0 && millis() > flashUntil_) {
         flashIndex_ = -1;
         markDirty();
@@ -197,7 +197,7 @@ void FractionGame::update(GameHost& host, const TouchPoint& touch) {
                     markCorrect(host);
                 } else {
                     markWrong(i);
-                    host.board().beepError();
+                    host.beepError();
                 }
                 markDirty();
                 return;
@@ -211,7 +211,7 @@ void FractionGame::update(GameHost& host, const TouchPoint& touch) {
                     markCorrect(host);
                 } else {
                     markWrong(i);
-                    host.board().beepError();
+                    host.beepError();
                 }
                 markDirty();
                 return;
@@ -225,7 +225,7 @@ void FractionGame::update(GameHost& host, const TouchPoint& touch) {
                     markCorrect(host);
                 } else {
                     markWrong(i);
-                    host.board().beepError();
+                    host.beepError();
                 }
                 markDirty();
                 return;
@@ -318,10 +318,10 @@ void FractionGame::drawCompare(TFT_eSPI& tft) const {
     }
 }
 
-void FractionGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void FractionGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

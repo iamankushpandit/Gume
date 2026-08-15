@@ -1,10 +1,17 @@
 #include "Progress.h"
 
-void Progress::begin(Board& board, const char* key, uint16_t count) {
+namespace {
+constexpr uint32_t AUTO_FLUSH_MS = 15000UL;
+constexpr uint8_t AUTO_FLUSH_RECORDS = 8;
+}
+
+void Progress::begin(AppContext& board, const char* key, uint16_t count) {
     board_ = &board;
     key_ = key;
     count_ = count > MAX_ITEMS ? MAX_ITEMS : count;
     dirty_ = false;
+    pendingRecords_ = 0;
+    lastFlushMs_ = millis();
     memset(scores_, 0, sizeof(scores_));
     board.loadBlob(key_, scores_, count_);
 }
@@ -19,12 +26,26 @@ void Progress::record(uint16_t index, bool correct) {
     if (v < SCORE_MIN) v = SCORE_MIN;
     scores_[index] = static_cast<int8_t>(v);
     dirty_ = true;
+    if (pendingRecords_ < 0xFF) {
+        ++pendingRecords_;
+    }
 }
 
 void Progress::flush() {
     if (!dirty_ || board_ == nullptr || key_ == nullptr) return;
     board_->saveBlob(key_, scores_, count_);
     dirty_ = false;
+    pendingRecords_ = 0;
+    lastFlushMs_ = millis();
+}
+
+void Progress::maybeFlush() {
+    if (!dirty_) return;
+    const uint32_t now = millis();
+    if (pendingRecords_ >= AUTO_FLUSH_RECORDS ||
+        now - lastFlushMs_ >= AUTO_FLUSH_MS) {
+        flush();
+    }
 }
 
 int8_t Progress::score(uint16_t index) const {

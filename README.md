@@ -16,8 +16,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 28 |
-| Flash | 2,291,689 / 3,145,728 bytes (**72.9%**) |
-| RAM | 65,972 / 327,680 bytes (**20.1%**) |
+| Flash | 2,294,217 / 3,145,728 bytes (**72.9%**) |
+| RAM | 66,804 / 327,680 bytes (**20.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 <p align="center">
@@ -444,10 +444,6 @@ Dependencies resolve automatically:
 | `h2zero/NimBLE-Arduino` | BLE beacon -- ~192 KB for host plus controller, against several times that for the core's Bluedroid stack |
 | [`map-n-flag`](https://github.com/iamankushpandit/map-n-flag) | Flag and outline artwork |
 
-> **Building from a fresh clone:** `lib_deps` currently points `map-n-flag` at a
-> local path on the author's machine (`file://C:/Users/Ankus/CppEsp32Lib`).
-> Swap it back to the Git URL above to build anywhere else.
-
 Both diagnostic builds below, and the app itself, are also on the
 [web installer](#install-it-without-a-toolchain) — useful when the board is not
 on the machine that has PlatformIO.
@@ -491,11 +487,15 @@ The main firmware also traces the clock over serial at 115200:
 
 ```
 src/
-  main.cpp              launcher, screen saver, game dispatch
+  main.cpp              bringup entrypoint + normal app setup/loop
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   engine/
+    AppRegistry.cpp     authoritative launcher/app registry
+    AppRuntime.cpp      runtime loop, transitions, view state
+    AppRuntimeLauncher.cpp  launcher paging, tiles, header UI
+    AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     Game.h              base class; lifecycle + full vs partial invalidation
-    GameCatalog.cpp     the single source of truth for the game list
+    GameCatalog.cpp     playable-game metadata: id, title, subtitle, blurb
     ScoreCatalog.cpp    which games report a score, and how to label it
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
@@ -504,11 +504,19 @@ src/
     CountryDataTable.cpp  generated -- see tools/gen_country_facts.py
     StateData.cpp       50 US states: code, name, capital, tier
   hal/
-    Board.cpp           display, touch, NVS, Wi-Fi/NTP, RGB LED, profiles
+    Board.cpp           board bring-up, profiles, layout/idle settings
+    BoardDisplay.cpp    TFT access, rotation, BMP blitting
+    BoardTouch.cpp      touch ADC, calibration, coordinate mapping
+    BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
+    BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
+    BoardFeedback.cpp   RGB LED, semantic beeps, BLE toggle
+    BoardStorage.cpp    schema migration + app-scoped NVS keys
     BleBeacon.cpp       the one authoritative BLE advertisement payload
     Clock.cpp           time and date formatting
     Watchdog.cpp        loop supervisor, stall logging, crash breadcrumb
   ui/
+    LauncherIcons.cpp   launcher tile icon drawing
+    LauncherLayout.cpp  launcher header, profile and tile geometry
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
 tools/
@@ -519,15 +527,17 @@ tools/
 site/
   index.template.html   the landing page, with {{PLACEHOLDERS}} gen_site fills
 .github/workflows/
-  pages.yml             builds every firmware, publishes the site with it
+  ci.yml                runs checks and builds every firmware on a clean runner
+  pages.yml             publishes the site with the same built firmware
 docs/
   BLE_BEACON_SPEC.md    what the beacon broadcasts, and why that is checkable
   SD_CONTENT_SPEC.md    optional SD content format
 ```
 
-`GameCatalog` matters more than it looks: the game ids, launcher titles and
-Settings labels used to live in **two arrays coupled by index**, with nothing
-enforcing agreement. A silent mismatch would hide the wrong game.
+`AppRegistry` matters more than it looks: it binds each catalog slot to its
+concrete game instance and launcher icon in one table, alongside the system
+apps. That replaced the old split between `CATALOG_KINDS[]`, `launchKind()` and
+the icon switch in `main.cpp`, which could drift silently.
 
 ---
 

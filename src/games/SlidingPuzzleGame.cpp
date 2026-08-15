@@ -10,7 +10,7 @@ const char* SlidingPuzzleGame::title() const {
     return "Slide Puzzle";
 }
 
-void SlidingPuzzleGame::begin(GameHost& host) {
+void SlidingPuzzleGame::begin(AppContext& host) {
     size_ = 2;
     loadBest(host);
     setupSolved(size_);
@@ -18,12 +18,12 @@ void SlidingPuzzleGame::begin(GameHost& host) {
     markDirty();
 }
 
-void SlidingPuzzleGame::loadBest(GameHost& host) {
-    bestMoves_ = static_cast<uint16_t>(host.board().getScore(size_ == 2 ? "slideB2" : "slideB3", 0));
+void SlidingPuzzleGame::loadBest(AppContext& host) {
+    bestMoves_ = static_cast<uint16_t>(host.getScore(size_ == 2 ? "slideB2" : "slideB3", 0));
 }
 
-void SlidingPuzzleGame::saveBest(GameHost& host) {
-    if (host.board().saveBestScore(size_ == 2 ? "slideB2" : "slideB3", moves_, true)) {
+void SlidingPuzzleGame::saveBest(AppContext& host) {
+    if (host.saveBestScore(size_ == 2 ? "slideB2" : "slideB3", moves_, true)) {
         bestMoves_ = moves_;
     }
 }
@@ -107,7 +107,7 @@ bool SlidingPuzzleGame::solved() const {
     return tiles_[total - 1] == 0;
 }
 
-void SlidingPuzzleGame::update(GameHost& host, const TouchPoint& touch) {
+void SlidingPuzzleGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -132,21 +132,29 @@ void SlidingPuzzleGame::update(GameHost& host, const TouchPoint& touch) {
     if (solved()) {
         won_ = true;
         saveBest(host);
-        host.board().beepOk();
+        host.beepOk();
     }
     markDirty();
 }
 
-void SlidingPuzzleGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void SlidingPuzzleGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String(size_) + "x" + size_ + "  Moves " + moves_, 8, 36, 2);
+    char movesBuf[24];
+    snprintf(movesBuf, sizeof(movesBuf), "%ux%u  Moves %u", size_, size_, moves_);
+    tft.drawString(movesBuf, 8, 36, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(bestMoves_ > 0 ? String("Best ") + bestMoves_ : "Best --", SCREEN_WIDTH - 8, 36, 2);
+    char bestBuf[24];
+    if (bestMoves_ > 0) {
+        snprintf(bestBuf, sizeof(bestBuf), "Best %u", bestMoves_);
+    } else {
+        snprintf(bestBuf, sizeof(bestBuf), "Best --");
+    }
+    tft.drawString(bestBuf, SCREEN_WIDTH - 8, 36, 2);
     Ui::drawLabel(tft, Rect{8, 54, 304, 16}, "Slide tiles into order", Ui::muted(), 1, Align::Center);
 
     const uint8_t total = size_ * size_;
@@ -156,7 +164,9 @@ void SlidingPuzzleGame::render(GameHost& host) {
             tft.fillRoundRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6, 6, EMPTY);
             continue;
         }
-        Ui::drawButton(tft, Rect{static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2), static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4)}, String(tiles_[i]), TILE, Ui::outline(), TFT_WHITE, false, 4);
+        char tileLabel[4];
+        snprintf(tileLabel, sizeof(tileLabel), "%u", tiles_[i]);
+        Ui::drawButton(tft, Rect{static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2), static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4)}, tileLabel, TILE, Ui::outline(), TFT_WHITE, false, 4);
     }
 
     if (won_) {

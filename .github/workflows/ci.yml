@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Run repository checks
+        run: |
+          python tools/check_docs.py
+          python tools/check_catalog.py
+          python tools/check_frame_rules.py
+
+      - name: Build firmware
+        run: pio run -e app -e bringup -e wifidiag

@@ -3,15 +3,15 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class MemoryGame : public Game {
+class MemoryGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
-    void newRound(GameHost& host);
+    void newRound(AppContext& host);
     int8_t cardAt(int16_t x, int16_t y) const;
     Rect cardRect(uint8_t index) const;
     bool allMatched() const;

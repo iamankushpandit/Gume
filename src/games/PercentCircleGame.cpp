@@ -13,7 +13,7 @@ const char* PercentCircleGame::title() const {
     return "Percent";
 }
 
-void PercentCircleGame::begin(GameHost& host) {
+void PercentCircleGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
     newRound(host);
@@ -89,7 +89,8 @@ void PercentCircleGame::generateOptions() {
     }
 }
 
-void PercentCircleGame::newRound(GameHost& host) {
+void PercentCircleGame::newRound(AppContext& host) {
+    (void)host;
     roundType_ = nextRoundType();
     correctButton_ = -1;
     flashIndex_ = -1;
@@ -137,13 +138,13 @@ void PercentCircleGame::newRound(GameHost& host) {
     }
 }
 
-void PercentCircleGame::markCorrect(GameHost& host) {
+void PercentCircleGame::markCorrect(AppContext& host) {
     ++score_;
     ++streak_;
-    host.board().saveBestScore("pctBest", score_, false);
+    host.saveBestScore("pctBest", score_, false);
     roundComplete_ = true;
     flashIndex_ = -1;
-    host.board().beepOk();
+    host.beepOk();
 }
 
 void PercentCircleGame::markWrong() {
@@ -261,7 +262,7 @@ void PercentCircleGame::drawPercentOfNumberMode(TFT_eSPI& tft) const {
     tft.setTextDatum(TL_DATUM);
 }
 
-void PercentCircleGame::update(GameHost& host, const TouchPoint& touch) {
+void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
     if (flashIndex_ >= 0 && millis() > flashUntil_) {
         flashIndex_ = -1;
         markDirty();
@@ -284,7 +285,7 @@ void PercentCircleGame::update(GameHost& host, const TouchPoint& touch) {
                     markCorrect(host);
                 } else {
                     markWrong();
-                    host.board().beepError();
+                    host.beepError();
                 }
                 markDirty();
                 return;
@@ -312,7 +313,7 @@ void PercentCircleGame::update(GameHost& host, const TouchPoint& touch) {
                 markCorrect(host);
             } else {
                 markWrong();
-                host.board().beepError();
+                host.beepError();
             }
             markDirty();
             return;
@@ -320,12 +321,12 @@ void PercentCircleGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void PercentCircleGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void PercentCircleGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
 
     if (needsFullRender()) {
         Ui::clear(tft);
-        Ui::drawTopBar(host.board(), title());
+        host.drawTopBar(title());
 
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(MC_DATUM);

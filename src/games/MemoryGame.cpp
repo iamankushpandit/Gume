@@ -13,14 +13,14 @@ const char* MemoryGame::title() const {
     return "Memory Match";
 }
 
-void MemoryGame::begin(GameHost& host) {
+void MemoryGame::begin(AppContext& host) {
     newRound(host);
     markDirty();
 }
 
-void MemoryGame::newRound(GameHost& host) {
+void MemoryGame::newRound(AppContext& host) {
     host.content().loadMemoryConfig(config_);
-    bestMoves_ = static_cast<uint16_t>(host.board().getScore("memBest", 0));
+    bestMoves_ = static_cast<uint16_t>(host.getScore("memBest", 0));
     const uint8_t total = config_.rows * config_.cols;
     config_.pairCount = min<uint8_t>(MAX_MEMORY_PAIRS, total / 2);
 
@@ -77,7 +77,7 @@ bool MemoryGame::allMatched() const {
     return true;
 }
 
-void MemoryGame::update(GameHost& host, const TouchPoint& touch) {
+void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
     if (resolving_ && millis() >= resolveAt_) {
         visible_[first_] = false;
         visible_[second_] = false;
@@ -93,7 +93,7 @@ void MemoryGame::update(GameHost& host, const TouchPoint& touch) {
 
     if (allMatched()) {
         newRound(host);
-        host.board().beepOk();
+        host.beepOk();
         markDirty();
         return;
     }
@@ -114,25 +114,25 @@ void MemoryGame::update(GameHost& host, const TouchPoint& touch) {
             matched_[second_] = true;
             first_ = -1;
             second_ = -1;
-            host.board().beepOk();
+            host.beepOk();
             if (allMatched()) {
-                if (host.board().saveBestScore("memBest", moves_, true)) {
+                if (host.saveBestScore("memBest", moves_, true)) {
                     bestMoves_ = moves_;
                 }
             }
         } else {
             resolving_ = true;
             resolveAt_ = millis() + 900UL;
-            host.board().beepError();
+            host.beepError();
         }
     }
     markDirty();
 }
 
-void MemoryGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void MemoryGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     const uint8_t total = config_.rows * config_.cols;
     for (uint8_t i = 0; i < total; ++i) {

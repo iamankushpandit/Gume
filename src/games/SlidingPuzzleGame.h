@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class SlidingPuzzleGame : public Game {
+class SlidingPuzzleGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     Rect tileRect(uint8_t index) const;
@@ -18,8 +18,8 @@ private:
     bool adjacentToGap(uint8_t index) const;
     void slide(uint8_t index);
     int8_t touchedTile(int16_t x, int16_t y) const;
-    void loadBest(GameHost& host);
-    void saveBest(GameHost& host);
+    void loadBest(AppContext& host);
+    void saveBest(AppContext& host);
 
     uint8_t size_ = 2;
     uint8_t tiles_[9] = {};

@@ -11,12 +11,12 @@ const char* CountingGame::title() const {
     return "Counting";
 }
 
-void CountingGame::begin(GameHost& host) {
+void CountingGame::begin(AppContext& host) {
     host.content().loadCountingConfig(config_);
     score_ = 0;
     rounds_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("countBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("countBest", 0));
     newQuestion();
     markDirty();
 }
@@ -60,7 +60,7 @@ void CountingGame::makeOptions() {
     }
 }
 
-void CountingGame::update(GameHost& host, const TouchPoint& touch) {
+void CountingGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -77,13 +77,13 @@ void CountingGame::update(GameHost& host, const TouchPoint& touch) {
             if (i == correctButton_) {
                 ++score_;
                 ++streak_;
-                if (streak_ > bestStreak_ && host.board().saveBestScore("countBest", streak_, false)) {
+                if (streak_ > bestStreak_ && host.saveBestScore("countBest", streak_, false)) {
                     bestStreak_ = streak_;
                 }
-                host.board().beepOk();
+                host.beepOk();
             } else {
                 streak_ = 0;
-                host.board().beepError();
+                host.beepError();
             }
             markDirty();
             return;
@@ -91,10 +91,10 @@ void CountingGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void CountingGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void CountingGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
     tft.setTextColor(Ui::text(), Ui::bg());
     /* The font-4 question spans roughly 60..260px when centred, and a
      * right-aligned "Score n/m" at the same y started around 213 -- they

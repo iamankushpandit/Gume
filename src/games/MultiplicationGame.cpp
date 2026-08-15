@@ -17,10 +17,10 @@ const char* MultiplicationGame::title() const {
     return "Multiplication";
 }
 
-void MultiplicationGame::begin(GameHost& host) {
+void MultiplicationGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("multBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("multBest", 0));
     newQuestion();
     markDirty();
 }
@@ -59,10 +59,10 @@ bool MultiplicationGame::optionExists(int16_t value, uint8_t upTo) const {
     return false;
 }
 
-void MultiplicationGame::updateBest(GameHost& host) {
+void MultiplicationGame::updateBest(AppContext& host) {
     if (streak_ > bestStreak_) {
         bestStreak_ = streak_;
-        host.board().setScore("multBest", bestStreak_);
+        host.setScore("multBest", bestStreak_);
     }
 }
 
@@ -119,7 +119,7 @@ void MultiplicationGame::makeOptions() {
     }
 }
 
-void MultiplicationGame::update(GameHost& host, const TouchPoint& touch) {
+void MultiplicationGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -138,10 +138,10 @@ void MultiplicationGame::update(GameHost& host, const TouchPoint& touch) {
                 ++score_;
                 ++streak_;
                 updateBest(host);
-                host.board().beepOk();
+                host.beepOk();
             } else {
                 streak_ = 0;
-                host.board().beepError();
+                host.beepError();
             }
             markDirty();
             return;
@@ -149,10 +149,10 @@ void MultiplicationGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void MultiplicationGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void MultiplicationGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

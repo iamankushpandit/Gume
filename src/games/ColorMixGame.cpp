@@ -20,11 +20,11 @@ const char* ColorMixGame::title() const {
     return "Color Mix";
 }
 
-void ColorMixGame::begin(GameHost& host) {
+void ColorMixGame::begin(AppContext& host) {
     score_ = 0;
     attempts_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("mixBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("mixBest", 0));
     newQuestion();
     markDirty();
 }
@@ -76,7 +76,7 @@ int8_t ColorMixGame::touchedAnswer(int16_t x, int16_t y) const {
     return -1;
 }
 
-void ColorMixGame::update(GameHost& host, const TouchPoint& touch) {
+void ColorMixGame::update(AppContext& host, const TouchPoint& touch) {
     if (correctFlash_ && millis() > flashUntil_) {
         newQuestion();
         markDirty();
@@ -100,7 +100,7 @@ void ColorMixGame::update(GameHost& host, const TouchPoint& touch) {
     if (answer == correct_) {
         ++score_;
         ++streak_;
-        if (host.board().saveBestScore("mixBest", streak_, false)) {
+        if (host.saveBestScore("mixBest", streak_, false)) {
             bestStreak_ = streak_;
         }
         correctFlash_ = true;
@@ -114,10 +114,10 @@ void ColorMixGame::update(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void ColorMixGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void ColorMixGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

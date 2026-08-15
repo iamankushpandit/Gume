@@ -11,10 +11,10 @@ const char* OddOneOutGame::title() const {
     return "Odd One Out";
 }
 
-void OddOneOutGame::begin(GameHost& host) {
+void OddOneOutGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("oddBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("oddBest", 0));
     newRound();
     markDirty();
 }
@@ -115,7 +115,7 @@ void OddOneOutGame::drawItem(TFT_eSPI& tft, const Rect& r, bool odd) const {
         odd ? oddInverted_ : baseInverted_);
 }
 
-void OddOneOutGame::update(GameHost& host, const TouchPoint& touch) {
+void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
     if ((flashCorrect_ || flashError_) && millis() > flashUntil_) {
         if (flashCorrect_) {
             newRound();
@@ -137,7 +137,7 @@ void OddOneOutGame::update(GameHost& host, const TouchPoint& touch) {
     if (item == oddIndex_) {
         ++score_;
         ++streak_;
-        if (host.board().saveBestScore("oddBest", streak_, false)) {
+        if (host.saveBestScore("oddBest", streak_, false)) {
             bestStreak_ = streak_;
         }
         flashCorrect_ = true;
@@ -151,10 +151,10 @@ void OddOneOutGame::update(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void OddOneOutGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void OddOneOutGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

@@ -14,12 +14,12 @@
  * Difficulty tiers reuse the StateData tiers:
  *   1 = 9 most familiar, 2 = 27, 3 = all 50.
  */
-class StateFlagGame : public Game {
+class StateFlagGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     enum class Phase : uint8_t {

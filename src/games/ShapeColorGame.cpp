@@ -9,12 +9,12 @@ const char* ShapeColorGame::title() const {
     return "Shape & Color";
 }
 
-void ShapeColorGame::begin(GameHost& host) {
+void ShapeColorGame::begin(AppContext& host) {
     items_[0] = Item{Shape::Circle, Ui::rgb(225, 60, 80), "red circle"};
     items_[1] = Item{Shape::Square, Ui::rgb(42, 117, 213), "blue square"};
     items_[2] = Item{Shape::Triangle, Ui::rgb(39, 157, 112), "green triangle"};
     items_[3] = Item{Shape::Star, Ui::rgb(244, 188, 48), "yellow star"};
-    bestTaps_ = static_cast<uint16_t>(host.board().getScore("shapeBest", 0));
+    bestTaps_ = static_cast<uint16_t>(host.getScore("shapeBest", 0));
     newRound();
     markDirty();
 }
@@ -78,14 +78,14 @@ void ShapeColorGame::drawShape(TFT_eSPI& tft, Shape shape, int16_t cx, int16_t c
     }
 }
 
-void ShapeColorGame::update(GameHost& host, const TouchPoint& touch) {
+void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
 
     if (allMatched()) {
         newRound();
-        host.board().beepOk();
+        host.beepOk();
         markDirty();
         return;
     }
@@ -94,7 +94,7 @@ void ShapeColorGame::update(GameHost& host, const TouchPoint& touch) {
         if (!matched_[i] && choiceRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             ++taps_;
             selected_ = i;
-            host.board().beepOk();
+            host.beepOk();
             markDirty();
             return;
         }
@@ -110,12 +110,12 @@ void ShapeColorGame::update(GameHost& host, const TouchPoint& touch) {
             if (targetOrder_[target] == selected_) {
                 matched_[selected_] = true;
                 selected_ = -1;
-                host.board().beepOk();
-                if (allMatched() && host.board().saveBestScore("shapeBest", taps_, true)) {
+                host.beepOk();
+                if (allMatched() && host.saveBestScore("shapeBest", taps_, true)) {
                     bestTaps_ = taps_;
                 }
             } else {
-                host.board().beepError();
+                host.beepError();
             }
             markDirty();
             return;
@@ -123,14 +123,20 @@ void ShapeColorGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void ShapeColorGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void ShapeColorGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
     Ui::drawLabel(tft, Rect{10, 32, 300, 18}, "Tap a shape, then its matching outline", Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(bestTaps_ > 0 ? String("Taps ") + taps_ + " Best " + bestTaps_ : String("Taps ") + taps_, SCREEN_WIDTH - 8, 50, 1);
+    char stats[32];
+    if (bestTaps_ > 0) {
+        snprintf(stats, sizeof(stats), "Taps %u Best %u", taps_, bestTaps_);
+    } else {
+        snprintf(stats, sizeof(stats), "Taps %u", taps_);
+    }
+    tft.drawString(stats, SCREEN_WIDTH - 8, 50, 1);
 
     for (uint8_t i = 0; i < 4; ++i) {
         const Rect choice = choiceRect(i);

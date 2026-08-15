@@ -3,23 +3,23 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class MazeGame : public Game {
+class MazeGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     void chooseMaze();
     void reset();
     bool canMoveTo(int8_t col, int8_t row) const;
-    void tryMove(GameHost& host, int8_t targetCol, int8_t targetRow);
+    void tryMove(AppContext& host, int8_t targetCol, int8_t targetRow);
     bool touchToCell(int16_t x, int16_t y, int8_t& col, int8_t& row) const;
     bool findCell(char target, int8_t& col, int8_t& row) const;
     bool isActiveMazeSolvable() const;
-    void loadBestForLevel(GameHost& host);
-    void saveProgress(GameHost& host);
+    void loadBestForLevel(AppContext& host);
+    void saveProgress(AppContext& host);
 
     const char* const* maze_ = nullptr;
     uint8_t levelIndex_ = 0;

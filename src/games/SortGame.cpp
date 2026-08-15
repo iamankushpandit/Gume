@@ -10,10 +10,10 @@ const char* SortGame::title() const {
     return "Sorting";
 }
 
-void SortGame::begin(GameHost& host) {
+void SortGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("sortBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("sortBest", 0));
     newRound();
     markDirty();
 }
@@ -75,7 +75,7 @@ int8_t SortGame::touchedTile(int16_t x, int16_t y) const {
     return -1;
 }
 
-void SortGame::update(GameHost& host, const TouchPoint& touch) {
+void SortGame::update(AppContext& host, const TouchPoint& touch) {
     if (flashUntil_ > 0 && millis() > flashUntil_) {
         flashUntil_ = 0;
         flashTile_ = -1;
@@ -89,7 +89,7 @@ void SortGame::update(GameHost& host, const TouchPoint& touch) {
     if (allLocked()) {
         ++score_;
         ++streak_;
-        if (host.board().saveBestScore("sortBest", streak_, false)) {
+        if (host.saveBestScore("sortBest", streak_, false)) {
             bestStreak_ = streak_;
         }
         newRound();
@@ -117,16 +117,20 @@ void SortGame::update(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void SortGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void SortGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Rounds ") + score_, 10, 35, 2);
+    char roundsBuf[20];
+    snprintf(roundsBuf, sizeof(roundsBuf), "Rounds %u", score_);
+    tft.drawString(roundsBuf, 10, 35, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best streak ") + bestStreak_, SCREEN_WIDTH - 8, 35, 2);
+    char bestBuf[24];
+    snprintf(bestBuf, sizeof(bestBuf), "Best streak %u", bestStreak_);
+    tft.drawString(bestBuf, SCREEN_WIDTH - 8, 35, 2);
     Ui::drawLabel(tft, Rect{10, 55, 300, 18}, ascending_ ? "Tap smallest to largest" : "Tap largest to smallest", Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < count_; ++i) {
@@ -136,7 +140,9 @@ void SortGame::render(GameHost& host) {
             fill = flashError_ ? WRONG : LOCKED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, tileRect(i), String(numbers_[i]), fill, Ui::outline(), text, false, 4);
+        char label[8];
+        snprintf(label, sizeof(label), "%d", numbers_[i]);
+        Ui::drawButton(tft, tileRect(i), label, fill, Ui::outline(), text, false, 4);
     }
 
     if (allLocked()) {

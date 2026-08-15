@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class PercentCircleGame : public Game {
+class PercentCircleGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     enum class RoundType : uint8_t {
@@ -35,8 +35,8 @@ private:
     }
 
     RoundType nextRoundType() const;
-    void newRound(GameHost& host);
-    void markCorrect(GameHost& host);
+    void newRound(AppContext& host);
+    void markCorrect(AppContext& host);
     void markWrong();
     void generateOptions();
 

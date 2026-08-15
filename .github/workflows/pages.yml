@@ -53,15 +53,6 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      # `main` deliberately carries a machine-local path for map-n-flag (see
-      # the build gotchas in CLAUDE.md). Any other checkout has to swap it for
-      # the public URL, and CI is another checkout. The edit is to the runner's
-      # working copy only and is never committed.
-      - name: Point map-n-flag at its public repository
-        run: |
-          sed -i 's|file://C:/Users/Ankus/CppEsp32Lib|https://github.com/iamankushpandit/map-n-flag.git|' platformio.ini
-          grep -n 'map-n-flag' platformio.ini
-
       - name: Build firmware
         run: pio run -e app -e bringup -e wifidiag
 

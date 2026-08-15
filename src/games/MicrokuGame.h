@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class MicrokuGame : public Game {
+class MicrokuGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     void loadStage(uint8_t stageIndex);
@@ -17,7 +17,7 @@ private:
     int8_t touchedCell(int16_t x, int16_t y) const;
     int8_t touchedNumber(int16_t x, int16_t y) const;
     bool complete() const;
-    void advanceAfterSolve(GameHost& host);
+    void advanceAfterSolve(AppContext& host);
 
     uint8_t stageIndex_ = 0;
     uint8_t size_ = 2;

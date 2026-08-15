@@ -15,13 +15,13 @@
  * Word selection is weighted by engine/Progress, so a word that was missed
  * comes back soon and one that is known fades out.
  */
-class GreWordsGame : public Game {
+class GreWordsGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
-    void end(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
+    void end(AppContext& host) override;
 
 private:
     enum class Mode : uint8_t { Flip, Quiz };
@@ -47,10 +47,10 @@ private:
     static void wrapInto(const char* src, char dst[WRAP_LINES][WRAP_COLS + 1],
                          uint8_t& lineCount);
 
-    void answer(GameHost& host, bool correct);
+    void answer(AppContext& host, bool correct);
 
-    void renderFlip(GameHost& host);
-    void renderQuiz(GameHost& host);
+    void renderFlip(AppContext& host);
+    void renderQuiz(AppContext& host);
 
     Progress progress_;
     Mode     mode_        = Mode::Flip;

@@ -96,10 +96,10 @@ void StatesGame::newQuestion() {
     markFullDirty();
 }
 
-void StatesGame::begin(GameHost& host) {
-    tier_ = static_cast<uint8_t>(host.board().getScore("stateTier", 1));
+void StatesGame::begin(AppContext& host) {
+    tier_ = static_cast<uint8_t>(host.getScore("stateTier", 1));
     if (tier_ < 1 || tier_ > 3) tier_ = 1;
-    progress_.begin(host.board(), "stateSrs", STATE_COUNT);
+    progress_.begin(host, "stateSrs", STATE_COUNT);
     recent_.reset();
     correctStreak_ = 0;
     score_ = 0;
@@ -108,7 +108,12 @@ void StatesGame::begin(GameHost& host) {
     newQuestion();
 }
 
-void StatesGame::update(GameHost& host, const TouchPoint& touch) {
+void StatesGame::end(AppContext& host) {
+    (void)host;
+    progress_.flush();
+}
+
+void StatesGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if (phase_ == Phase::Feedback && now >= feedbackUntil_) {
@@ -119,7 +124,7 @@ void StatesGame::update(GameHost& host, const TouchPoint& touch) {
 
     if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
-        host.board().setScore("stateTier", tier_);
+        host.setScore("stateTier", tier_);
         recent_.reset();
         newQuestion();
         return;
@@ -133,23 +138,23 @@ void StatesGame::update(GameHost& host, const TouchPoint& touch) {
         lastCorrect_ = (i == correctBtn_);
         ++rounds_;
         progress_.record(static_cast<uint16_t>(current_ - STATE_FACTS), lastCorrect_);
-        progress_.flush();
+        progress_.maybeFlush();
 
         if (lastCorrect_) {
             ++score_;
             ++correctStreak_;
-            host.board().beepOk();
+            host.beepOk();
             // Six in a row means the pool is too easy; the tier button still wins.
             if (correctStreak_ >= 6 && tier_ < 3) {
                 ++tier_;
                 correctStreak_ = 0;
-                host.board().setScore("stateTier", tier_);
+                host.setScore("stateTier", tier_);
             }
         } else {
             correctStreak_ = 0;
-            host.board().beepError();
+            host.beepError();
         }
-        host.board().saveBestScore("stateBest", score_, false);
+        host.saveBestScore("stateBest", score_, false);
         feedbackUntil_ = now + 1600UL;
         phase_ = Phase::Feedback;
         markFullDirty();
@@ -157,10 +162,10 @@ void StatesGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void StatesGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void StatesGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());

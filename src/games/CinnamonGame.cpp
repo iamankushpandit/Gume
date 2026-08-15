@@ -15,10 +15,10 @@ const char* CinnamonGame::title() const {
     return "Cinnamon Says";
 }
 
-void CinnamonGame::begin(GameHost& host) {
+void CinnamonGame::begin(AppContext& host) {
     fullRedraw_ = true;
     statusDrawn_ = "";
-    bestScore_ = static_cast<uint16_t>(host.board().getScore("cinnamonBest", 0));
+    bestScore_ = static_cast<uint16_t>(host.getScore("cinnamonBest", 0));
     length_ = 0;
     score_ = 0;
     appendStep();
@@ -61,7 +61,7 @@ uint16_t CinnamonGame::padColor(uint8_t index, bool lit) const {
     return lit ? bright[index] : dark[index];
 }
 
-void CinnamonGame::update(GameHost& host, const TouchPoint& touch) {
+void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if (phase_ == Phase::Showing && now >= nextAt_) {
@@ -81,7 +81,7 @@ void CinnamonGame::update(GameHost& host, const TouchPoint& touch) {
                 {255, 40, 40}, {40, 90, 255}, {40, 255, 90}, {255, 220, 40}
             };
             const uint8_t* c = PAD_RGB[litPad_ % 4];
-            host.board().pulseRgb(c[0], c[1], c[2], 600);
+            host.pulseRgb(c[0], c[1], c[2], 600);
         }
         markDirty();
         return;
@@ -127,7 +127,7 @@ void CinnamonGame::update(GameHost& host, const TouchPoint& touch) {
         ++inputIndex_;
         if (inputIndex_ >= length_) {
             score_ = length_;
-            if (host.board().saveBestScore("cinnamonBest", score_, false)) {
+            if (host.saveBestScore("cinnamonBest", score_, false)) {
                 bestScore_ = score_;
             }
             phase_ = Phase::Good;
@@ -162,14 +162,14 @@ void CinnamonGame::drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const {
     }
 }
 
-void CinnamonGame::render(GameHost& host) {
+void CinnamonGame::render(AppContext& host) {
     const Ui::Theme savedTheme = Ui::currentTheme();
     Ui::setTheme(Ui::Theme::Light);          // Cinnamon always renders light
-    TFT_eSPI& tft = host.board().display();
+    TFT_eSPI& tft = host.display();
 
     if (fullRedraw_) {
         Ui::clear(tft);
-        Ui::drawTopBar(host.board(), title());
+        host.drawTopBar(title());
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
         tft.drawString(String("Score ") + score_, 10, 36, 2);

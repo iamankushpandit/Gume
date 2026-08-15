@@ -68,10 +68,10 @@ const char* MicrokuGame::title() const {
     return "Microku";
 }
 
-void MicrokuGame::begin(GameHost& host) {
+void MicrokuGame::begin(AppContext& host) {
     stageIndex_ = 0;
     solvedThisRun_ = 0;
-    bestSize_ = static_cast<uint8_t>(host.board().getScore("microkuBest", 0));
+    bestSize_ = static_cast<uint8_t>(host.getScore("microkuBest", 0));
     loadStage(stageIndex_);
     markDirty();
 }
@@ -138,7 +138,7 @@ bool MicrokuGame::complete() const {
     return true;
 }
 
-void MicrokuGame::advanceAfterSolve(GameHost& host) {
+void MicrokuGame::advanceAfterSolve(AppContext& host) {
     if (stageIndex_ + 1 < STAGE_COUNT) {
         ++stageIndex_;
         loadStage(stageIndex_);
@@ -147,10 +147,10 @@ void MicrokuGame::advanceAfterSolve(GameHost& host) {
         solvedThisRun_ = 0;
         loadStage(stageIndex_);
     }
-    host.board().beepOk();
+    host.beepOk();
 }
 
-void MicrokuGame::update(GameHost& host, const TouchPoint& touch) {
+void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
     if (messageUntil_ > 0 && millis() > messageUntil_) {
         messageUntil_ = 0;
         markDirty();
@@ -188,7 +188,7 @@ void MicrokuGame::update(GameHost& host, const TouchPoint& touch) {
         if (complete()) {
             solved_ = true;
             ++solvedThisRun_;
-            if (host.board().saveBestScore("microkuBest", size_, false)) {
+            if (host.saveBestScore("microkuBest", size_, false)) {
                 bestSize_ = size_;
             }
             message_ = stageIndex_ + 1 < STAGE_COUNT ? "Solved - tap next" : "All solved - tap restart";
@@ -197,19 +197,19 @@ void MicrokuGame::update(GameHost& host, const TouchPoint& touch) {
             message_ = "Correct";
             messageUntil_ = millis() + 800UL;
         }
-        host.board().beepOk();
+        host.beepOk();
     } else {
         message_ = "Try again";
         messageUntil_ = millis() + 900UL;
-        host.board().beepError();
+        host.beepError();
     }
     markDirty();
 }
 
-void MicrokuGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void MicrokuGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

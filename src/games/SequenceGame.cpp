@@ -58,14 +58,14 @@ void SequenceGame::newQuestion() {
     feedbackUntil_ = 0;
 }
 
-void SequenceGame::begin(GameHost&) {
+void SequenceGame::begin(AppContext&) {
     score_ = 0; rounds_ = 0;
     mode_ = Mode::Days;
     newQuestion();
     markDirty();
 }
 
-void SequenceGame::update(GameHost& host, const TouchPoint& touch) {
+void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if (answered_ && now >= feedbackUntil_) {
@@ -94,8 +94,8 @@ void SequenceGame::update(GameHost& host, const TouchPoint& touch) {
             selected_ = static_cast<int8_t>(i);
             answered_ = true;
             ++rounds_;
-            if (i == correctPos_) { ++score_; host.board().beepOk(); }
-            else { host.board().beepError(); }
+            if (i == correctPos_) { ++score_; host.beepOk(); }
+            else { host.beepError(); }
             feedbackUntil_ = millis() + 1400UL;
             markDirty();
             return;
@@ -103,10 +103,10 @@ void SequenceGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void SequenceGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void SequenceGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     // Mode toggle buttons
     for (uint8_t m = 0; m < 2; ++m) {
@@ -120,19 +120,23 @@ void SequenceGame::render(GameHost& host) {
     // Score
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String(score_) + "/" + rounds_, SCREEN_WIDTH - 8, 34, 2);
+    char scoreBuf[16];
+    snprintf(scoreBuf, sizeof(scoreBuf), "%u/%u", score_, rounds_);
+    tft.drawString(scoreBuf, SCREEN_WIDTH - 8, 34, 2);
 
     // Question text
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
     const char* qtypeStr = qtype_ == QType::After ? "AFTER" : "BEFORE";
-    tft.drawString(String("What comes ") + qtypeStr + ":", SCREEN_WIDTH / 2, 70, 2);
+    char prompt[32];
+    snprintf(prompt, sizeof(prompt), "What comes %s:", qtypeStr);
+    tft.drawString(prompt, SCREEN_WIDTH / 2, 70, 2);
 
     // Subject highlight box
     tft.fillRoundRect(60, 84, 200, 52, 8, Ui::surface());
     tft.drawRoundRect(60, 84, 200, 52, 8, Ui::rgb(36, 132, 204));
     tft.setTextColor(Ui::text(), Ui::surface());
-    String subj = itemName(subject_);
+    const char* subj = itemName(subject_);
     // Fit long names
     uint8_t subjectFont = 4;
     if (tft.textWidth(subj, 4) > 180) subjectFont = 2;
@@ -151,10 +155,7 @@ void SequenceGame::render(GameHost& host) {
             else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error();   tc = TFT_BLACK; }
         }
         const Rect tile = answerTile(i);
-        String name = itemName(options_[i]);
-        // Truncate if needed
-        while (name.length() > 2 && tft.textWidth(name, 2) > tile.w - 14) name.remove(name.length() - 1);
-        Ui::drawButton(tft, tile, name, fill, Ui::outline(), tc, false, 2);
+        Ui::drawButton(tft, tile, itemName(options_[i]), fill, Ui::outline(), tc, false, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

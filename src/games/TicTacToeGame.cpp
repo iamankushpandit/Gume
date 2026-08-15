@@ -12,16 +12,16 @@ const char* TicTacToeGame::title() const {
     return "Tic-Tac-Toe";
 }
 
-void TicTacToeGame::begin(GameHost& host) {
+void TicTacToeGame::begin(AppContext& host) {
     loadScores(host);
     resetBoard();
     markDirty();
 }
 
-void TicTacToeGame::loadScores(GameHost& host) {
-    xWins_ = host.board().getScore("tttX", 0);
-    oWins_ = host.board().getScore("tttO", 0);
-    draws_ = host.board().getScore("tttDraw", 0);
+void TicTacToeGame::loadScores(AppContext& host) {
+    xWins_ = host.getScore("tttX", 0);
+    oWins_ = host.getScore("tttO", 0);
+    draws_ = host.getScore("tttDraw", 0);
 }
 
 void TicTacToeGame::resetBoard() {
@@ -57,7 +57,7 @@ bool TicTacToeGame::boardFull() const {
     return true;
 }
 
-void TicTacToeGame::handleCell(GameHost& host, uint8_t cell) {
+void TicTacToeGame::handleCell(AppContext& host, uint8_t cell) {
     if (cell >= 9 || cells_[cell] != ' ') {
         return;
     }
@@ -71,20 +71,20 @@ void TicTacToeGame::handleCell(GameHost& host, uint8_t cell) {
     if (win != ' ') {
         message_ = String(win) + " wins";
         if (win == 'X') {
-            host.board().setScore("tttX", ++xWins_);
+            host.setScore("tttX", ++xWins_);
         } else {
-            host.board().setScore("tttO", ++oWins_);
+            host.setScore("tttO", ++oWins_);
         }
         gameOver_ = true;
-        host.board().beepOk();
+        host.beepOk();
         markDirty();
         return;
     }
     if (boardFull()) {
         message_ = "Draw game";
-        host.board().setScore("tttDraw", ++draws_);
+        host.setScore("tttDraw", ++draws_);
         gameOver_ = true;
-        host.board().beepOk();
+        host.beepOk();
         markDirty();
         return;
     }
@@ -94,13 +94,13 @@ void TicTacToeGame::handleCell(GameHost& host, uint8_t cell) {
     markDirty();
 }
 
-void TicTacToeGame::update(GameHost& host, const TouchPoint& touch) {
+void TicTacToeGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
     if (RESET_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         resetBoard();
-        host.board().beepOk();
+        host.beepOk();
         markDirty();
         return;
     }
@@ -132,15 +132,17 @@ void TicTacToeGame::drawMark(TFT_eSPI& tft, uint8_t cell, char mark) {
     }
 }
 
-void TicTacToeGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void TicTacToeGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
     Ui::drawButton(tft, RESET_BUTTON, "Reset", YELLOW, Ui::outline(), TFT_BLACK);
     Ui::drawLabel(tft, Rect{94, 36, 72, 24}, message_, Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("X ") + xWins_ + "  O " + oWins_ + "  D " + draws_, SCREEN_WIDTH - 8, 40, 1);
+    char scoreBuf[32];
+    snprintf(scoreBuf, sizeof(scoreBuf), "X %u  O %u  D %u", xWins_, oWins_, draws_);
+    tft.drawString(scoreBuf, SCREEN_WIDTH - 8, 40, 1);
     tft.setTextDatum(TL_DATUM);
 
     tft.fillRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8, BOARD_RECT.h + 8, 8, Ui::panel());

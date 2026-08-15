@@ -46,13 +46,13 @@ void NumberLineGame::newQuestion() {
     makeOptions();
 }
 
-void NumberLineGame::begin(GameHost&) {
+void NumberLineGame::begin(AppContext&) {
     score_ = 0; rounds_ = 0;
     newQuestion();
     markDirty();
 }
 
-void NumberLineGame::update(GameHost& host, const TouchPoint& touch) {
+void NumberLineGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     if (phase_ == Phase::Pause && now >= nextAt_) {
         phase_ = Phase::Jumping;
@@ -75,8 +75,8 @@ void NumberLineGame::update(GameHost& host, const TouchPoint& touch) {
             selected_ = static_cast<int8_t>(i);
             ++rounds_;
             lastCorrect_ = (i == correctBtn_);
-            if (lastCorrect_) { ++score_; host.board().beepOk(); }
-            else host.board().beepError();
+            if (lastCorrect_) { ++score_; host.beepOk(); }
+            else host.beepError();
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::Feedback;
             markDirty(); return;
@@ -84,10 +84,10 @@ void NumberLineGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void NumberLineGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void NumberLineGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());

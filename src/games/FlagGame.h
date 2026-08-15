@@ -15,12 +15,13 @@
  * Difficulty tier is shared with GeoGame and persisted as "geoTier":
  *   1 = ~30 most familiar countries, 2 = ~62, 3 = all 195.
  */
-class FlagGame : public Game {
+class FlagGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
+    void end(AppContext& host) override;
 
 private:
     enum class Phase : uint8_t {

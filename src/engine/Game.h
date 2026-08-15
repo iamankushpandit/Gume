@@ -4,13 +4,29 @@
 #include "engine/ContentLoader.h"
 #include "hal/Board.h"
 
-class GameHost {
+class AppContext {
 public:
-    virtual ~GameHost() = default;
-    virtual Board& board() = 0;
+    virtual ~AppContext() = default;
+    virtual TFT_eSPI& display() = 0;
     virtual ContentLoader& content() = 0;
+    virtual uint32_t getScore(const char* key, uint32_t fallback = 0) = 0;
+    virtual void setScore(const char* key, uint32_t value) = 0;
+    virtual bool saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) = 0;
+    virtual void loadBlob(const char* key, void* dst, size_t len) = 0;
+    virtual void saveBlob(const char* key, const void* src, size_t len) = 0;
+    virtual void beepOk() = 0;
+    virtual void beepError() = 0;
+    virtual void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) = 0;
+    virtual void drawTopBar(const char* title) = 0;
     virtual void goHome() = 0;
     virtual void relaunchActiveGame() = 0;
+};
+
+class GameHost : public AppContext {
+public:
+    virtual ~GameHost() = default;
+    // Reserved for system screens that genuinely need full device authority.
+    virtual Board& board() = 0;
     virtual void openSettings() = 0;
     virtual void openWifi() = 0;
     virtual void openProfiles() = 0;
@@ -77,4 +93,28 @@ protected:
 private:
     bool dirty_ = true;
     bool fullRedraw_ = true;   // first paint is always a full one
+};
+
+class AppGame : public Game {
+public:
+    virtual void begin(AppContext& host) = 0;
+    virtual void update(AppContext& host, const TouchPoint& touch) = 0;
+    virtual void render(AppContext& host) = 0;
+    virtual void end(AppContext& host) { (void)host; }
+
+    void begin(GameHost& host) final {
+        begin(static_cast<AppContext&>(host));
+    }
+
+    void update(GameHost& host, const TouchPoint& touch) final {
+        update(static_cast<AppContext&>(host), touch);
+    }
+
+    void render(GameHost& host) final {
+        render(static_cast<AppContext&>(host));
+    }
+
+    void end(GameHost& host) final {
+        end(static_cast<AppContext&>(host));
+    }
 };

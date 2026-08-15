@@ -271,29 +271,14 @@ static const TraceGame::Glyph GLYPHS[] = {
 
 static_assert(sizeof(GLYPHS) / sizeof(GLYPHS[0]) == 62, "GLYPHS must have 62 entries");
 
-float dist2(float ax, float ay, float bx, float by) {
-    float dx = bx - ax;
-    float dy = by - ay;
-    return dx * dx + dy * dy;
-}
-
-float pathLength(const int16_t* pts, uint8_t count) {
-    float len = 0.0f;
-    for (uint8_t i = 0; i + 1 < count; ++i) {
-        float dx = pts[(i+1)*2] - pts[i*2];
-        float dy = pts[(i+1)*2+1] - pts[i*2+1];
-        len += sqrtf(dx*dx + dy*dy);
-    }
-    return len;
-}
-
 }
 
 const char* TraceGame::title() const {
     return "Trace";
 }
 
-void TraceGame::begin(GameHost& host) {
+void TraceGame::begin(AppContext& host) {
+    (void)host;
     glyphIndex_ = 0;
     glyphSet_ = GlyphSet::Upper;
     loadGlyph();
@@ -401,7 +386,7 @@ void TraceGame::updatePulsePhase() {
     }
 }
 
-void TraceGame::update(GameHost& host, const TouchPoint& touch) {
+void TraceGame::update(AppContext& host, const TouchPoint& touch) {
     if (complete_) {
         if (touch.justPressed && millis() - completeAt_ > 600) {
             glyphIndex_ = (glyphIndex_ + 1) % GLYPH_COUNT_TOTAL;
@@ -466,14 +451,14 @@ void TraceGame::update(GameHost& host, const TouchPoint& touch) {
                 markDirty();
 
                 if (nextPoint_ >= strokeLen_[activeStroke_]) {
-                    host.board().beepOk();
+                    host.beepOk();
                     activeStroke_++;
                     nextPoint_ = 0;
 
                     if (activeStroke_ >= strokeCount_) {
                         complete_ = true;
                         completeAt_ = millis();
-                        host.board().beepOk();
+                        host.beepOk();
                         markFullDirty();
                     }
                 }
@@ -597,13 +582,13 @@ void TraceGame::drawProgress(TFT_eSPI& tft) {
     }
 }
 
-void TraceGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void TraceGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     const Glyph& g = GLYPHS[glyphIndex_];
 
     if (needsFullRender()) {
         Ui::clear(tft);
-        Ui::drawTopBar(host.board(), title());
+        host.drawTopBar(title());
         drawModeTabs(tft);
 
         tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());

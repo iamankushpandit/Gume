@@ -3,12 +3,12 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class MoneyGame : public Game {
+class MoneyGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
 
 private:
     enum class Mode : uint8_t {
@@ -34,7 +34,7 @@ private:
     void makeOptions(uint16_t correct);
     bool optionExists(uint16_t value, uint8_t upTo) const;
     uint16_t groupValue(const uint8_t* coins, uint8_t count) const;
-    void markCorrect(GameHost& host);
+    void markCorrect(AppContext& host);
     void markWrong(int8_t flashIndex);
 
     Rect optionRect(uint8_t index) const;

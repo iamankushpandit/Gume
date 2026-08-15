@@ -11,11 +11,11 @@ const char* MathGame::title() const {
     return "Math";
 }
 
-void MathGame::begin(GameHost& host) {
+void MathGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestCorrect_ = static_cast<uint16_t>(host.board().getScore("mathBest", 0));
-    bestSeconds_ = static_cast<uint16_t>(host.board().getScore("mathTime", 0));
+    bestCorrect_ = static_cast<uint16_t>(host.getScore("mathBest", 0));
+    bestSeconds_ = static_cast<uint16_t>(host.getScore("mathTime", 0));
     startedAt_ = millis();
     newQuestion();
     markDirty();
@@ -50,13 +50,13 @@ String MathGame::formatSeconds(uint16_t seconds) const {
     return String(buffer);
 }
 
-void MathGame::updateBest(GameHost& host) {
+void MathGame::updateBest(AppContext& host) {
     const uint16_t elapsed = elapsedSeconds();
     if (score_ > bestCorrect_ || (score_ == bestCorrect_ && (bestSeconds_ == 0 || elapsed < bestSeconds_))) {
         bestCorrect_ = score_;
         bestSeconds_ = elapsed;
-        host.board().setScore("mathBest", bestCorrect_);
-        host.board().setScore("mathTime", bestSeconds_);
+        host.setScore("mathBest", bestCorrect_);
+        host.setScore("mathTime", bestSeconds_);
     }
 }
 
@@ -130,7 +130,7 @@ void MathGame::makeOptions() {
     }
 }
 
-void MathGame::update(GameHost& host, const TouchPoint& touch) {
+void MathGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -149,10 +149,10 @@ void MathGame::update(GameHost& host, const TouchPoint& touch) {
                 ++score_;
                 ++streak_;
                 updateBest(host);
-                host.board().beepOk();
+                host.beepOk();
             } else {
                 streak_ = 0;
-                host.board().beepError();
+                host.beepError();
             }
             markDirty();
             return;
@@ -160,10 +160,10 @@ void MathGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void MathGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void MathGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

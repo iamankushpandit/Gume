@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "hal/Board.h"
+#include "engine/Game.h"
 
 /*
  * Per-item mastery tracking, used for spaced repetition.
@@ -26,13 +26,15 @@ public:
     static constexpr int8_t SCORE_MIN = -6;
 
     /** `key` is the NVS blob name, `count` the number of items tracked. */
-    void begin(Board& board, const char* key, uint16_t count);
+    void begin(AppContext& board, const char* key, uint16_t count);
 
     /** Record an answer for item `index`. Persisted lazily -- call flush(). */
     void record(uint16_t index, bool correct);
 
     /** Write pending changes to NVS. Cheap when nothing changed. */
     void flush();
+    /** Write pending changes when enough time or answers have accumulated. */
+    void maybeFlush();
 
     int8_t score(uint16_t index) const;
 
@@ -56,9 +58,11 @@ public:
 private:
     static constexpr uint16_t MAX_ITEMS = 256;
 
-    Board* board_ = nullptr;
+    AppContext* board_ = nullptr;
     const char* key_ = nullptr;
     uint16_t count_ = 0;
     bool dirty_ = false;
+    uint8_t pendingRecords_ = 0;
+    uint32_t lastFlushMs_ = 0;
     int8_t scores_[MAX_ITEMS] = {};
 };

@@ -3,15 +3,6 @@
 
 namespace {
 constexpr uint16_t FLAG_BG = 0xFFFF;
-
-String fitLabel(TFT_eSPI& tft, const String& in, int16_t maxW, uint8_t font) {
-    if (tft.textWidth(in, font) <= maxW) return in;
-    String s = in;
-    while (s.length() > 1 && tft.textWidth(s + ".", font) > maxW) {
-        s.remove(s.length() - 1);
-    }
-    return s + ".";
-}
 }
 
 const char* StateFlagGame::title() const { return "State Flags"; }
@@ -92,8 +83,8 @@ void StateFlagGame::newQuestion() {
     markFullDirty();
 }
 
-void StateFlagGame::begin(GameHost& host) {
-    tier_ = static_cast<uint8_t>(host.board().getScore("sflagTier", 1));
+void StateFlagGame::begin(AppContext& host) {
+    tier_ = static_cast<uint8_t>(host.getScore("sflagTier", 1));
     if (tier_ < 1 || tier_ > 3) tier_ = 1;
     recent_.reset();
     correctStreak_ = 0;
@@ -101,7 +92,7 @@ void StateFlagGame::begin(GameHost& host) {
     newQuestion();
 }
 
-void StateFlagGame::update(GameHost& host, const TouchPoint& touch) {
+void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if ((phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital) &&
@@ -121,7 +112,7 @@ void StateFlagGame::update(GameHost& host, const TouchPoint& touch) {
 
     if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
-        host.board().setScore("sflagTier", tier_);
+        host.setScore("sflagTier", tier_);
         recent_.reset();
         newQuestion();
         return;
@@ -141,22 +132,22 @@ void StateFlagGame::update(GameHost& host, const TouchPoint& touch) {
             if (lastCorrect_) {
                 ++score_;
                 ++correctStreak_;
-                host.board().beepOk();
+                host.beepOk();
                 if (correctStreak_ >= 6 && tier_ < 3) {
                     ++tier_;
                     correctStreak_ = 0;
-                    host.board().setScore("sflagTier", tier_);
+                    host.setScore("sflagTier", tier_);
                 }
             } else {
                 correctStreak_ = 0;
-                host.board().beepError();
+                host.beepError();
             }
-            host.board().saveBestScore("sflagBest", score_, false);
+            host.saveBestScore("sflagBest", score_, false);
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::FeedbackState;
         } else {
-            if (lastCorrect_) { ++capBonus_; host.board().beepOk(); }
-            else              { host.board().beepError(); }
+            if (lastCorrect_) { ++capBonus_; host.beepOk(); }
+            else              { host.beepError(); }
             feedbackUntil_ = now + 1600UL;
             phase_ = Phase::FeedbackCapital;
         }
@@ -165,18 +156,22 @@ void StateFlagGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void StateFlagGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void StateFlagGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(String(score_) + "/" + rounds_, 8, 33, 2);
+    char scoreBuf[16];
+    snprintf(scoreBuf, sizeof(scoreBuf), "%u/%u", score_, rounds_);
+    tft.drawString(scoreBuf, 8, 33, 2);
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
-    tft.drawString(String("+") + capBonus_, SCREEN_WIDTH - 8, 33, 2);
+    char bonusBuf[8];
+    snprintf(bonusBuf, sizeof(bonusBuf), "+%u", capBonus_);
+    tft.drawString(bonusBuf, SCREEN_WIDTH - 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
     Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
@@ -216,8 +211,7 @@ void StateFlagGame::render(GameHost& host) {
 
         const char* label = capitalRound ? opt->capital : opt->name;
         const Rect r = answerRect(i);
-        Ui::drawButton(tft, r, fitLabel(tft, label, r.w - 10, 2),
-                       fill, Ui::outline(), tc, false, 2);
+        Ui::drawButton(tft, r, label, fill, Ui::outline(), tc, false, 2);
     }
 
     tft.setTextDatum(TL_DATUM);

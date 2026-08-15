@@ -14,12 +14,13 @@
  *
  * Difficulty tiers mirror the flag game: Easy 9, Medium 27, Hard all 50.
  */
-class StatesGame : public Game {
+class StatesGame : public AppGame {
 public:
     const char* title() const override;
-    void begin(GameHost& host) override;
-    void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    void begin(AppContext& host) override;
+    void update(AppContext& host, const TouchPoint& touch) override;
+    void render(AppContext& host) override;
+    void end(AppContext& host) override;
 
 private:
     enum class Mode  : uint8_t { CapitalOf, WhichState };

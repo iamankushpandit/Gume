@@ -332,8 +332,8 @@ const char* MazeGame::title() const {
     return "Maze";
 }
 
-void MazeGame::begin(GameHost& host) {
-    levelIndex_ = static_cast<uint8_t>(min<uint32_t>(host.board().getScore("mazeLevel", 0), MAZE_COUNT - 1));
+void MazeGame::begin(AppContext& host) {
+    levelIndex_ = static_cast<uint8_t>(min<uint32_t>(host.getScore("mazeLevel", 0), MAZE_COUNT - 1));
     loadBestForLevel(host);
     chooseMaze();
     reset();
@@ -347,16 +347,16 @@ void MazeGame::chooseMaze() {
     }
 }
 
-void MazeGame::loadBestForLevel(GameHost& host) {
+void MazeGame::loadBestForLevel(AppContext& host) {
     char key[12];
     snprintf(key, sizeof(key), "mazeB%u", levelIndex_);
-    bestMoves_ = static_cast<uint16_t>(host.board().getScore(key, 0));
+    bestMoves_ = static_cast<uint16_t>(host.getScore(key, 0));
 }
 
-void MazeGame::saveProgress(GameHost& host) {
+void MazeGame::saveProgress(AppContext& host) {
     char key[12];
     snprintf(key, sizeof(key), "mazeB%u", levelIndex_);
-    if (host.board().saveBestScore(key, moves_, true)) {
+    if (host.saveBestScore(key, moves_, true)) {
         bestMoves_ = moves_;
     }
 }
@@ -454,7 +454,7 @@ bool MazeGame::touchToCell(int16_t x, int16_t y, int8_t& col, int8_t& row) const
     return true;
 }
 
-void MazeGame::tryMove(GameHost& host, int8_t targetCol, int8_t targetRow) {
+void MazeGame::tryMove(AppContext& host, int8_t targetCol, int8_t targetRow) {
     if (won_ || millis() - lastMoveAt_ < 90) {
         return;
     }
@@ -474,7 +474,7 @@ void MazeGame::tryMove(GameHost& host, int8_t targetCol, int8_t targetRow) {
     }
 
     if (!canMoveTo(nextCol, nextRow)) {
-        host.board().beepError();
+        host.beepError();
         lastMoveAt_ = millis();
         return;
     }
@@ -487,18 +487,18 @@ void MazeGame::tryMove(GameHost& host, int8_t targetCol, int8_t targetRow) {
         won_ = true;
         saveProgress(host);
         if (levelIndex_ + 1 < MAZE_COUNT) {
-            host.board().setScore("mazeLevel", levelIndex_ + 1);
+            host.setScore("mazeLevel", levelIndex_ + 1);
         }
-        host.board().beepOk();
+        host.beepOk();
     }
     markDirty();
 }
 
-void MazeGame::update(GameHost& host, const TouchPoint& touch) {
+void MazeGame::update(AppContext& host, const TouchPoint& touch) {
     if (won_ && touch.justPressed) {
         if (levelIndex_ + 1 < MAZE_COUNT) {
             ++levelIndex_;
-            host.board().setScore("mazeLevel", levelIndex_);
+            host.setScore("mazeLevel", levelIndex_);
             loadBestForLevel(host);
             chooseMaze();
         }
@@ -516,10 +516,10 @@ void MazeGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void MazeGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void MazeGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
     Ui::drawLabel(tft, Rect{12, 32, 296, 16}, "Drag the red dot to the green exit", Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);

@@ -118,10 +118,10 @@ void FlagGame::newQuestion() {
     makeOptions();
 }
 
-void FlagGame::begin(GameHost& host) {
-    tier_ = static_cast<uint8_t>(host.board().getScore("geoTier", 1));
+void FlagGame::begin(AppContext& host) {
+    tier_ = static_cast<uint8_t>(host.getScore("geoTier", 1));
     if (tier_ < 1 || tier_ > 3) tier_ = 1;
-    progress_.begin(host.board(), "flagSrs", COUNTRY_FACT_COUNT);
+    progress_.begin(host, "flagSrs", COUNTRY_FACT_COUNT);
     correctStreak_ = 0;
     score_ = 0; rounds_ = 0; capBonus_ = 0;
     for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
@@ -130,7 +130,12 @@ void FlagGame::begin(GameHost& host) {
     markDirty();
 }
 
-void FlagGame::update(GameHost& host, const TouchPoint& touch) {
+void FlagGame::end(AppContext& host) {
+    (void)host;
+    progress_.flush();
+}
+
+void FlagGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 
     if ((phase_ == Phase::FeedbackCountry || phase_ == Phase::FeedbackCapital) &&
@@ -151,7 +156,7 @@ void FlagGame::update(GameHost& host, const TouchPoint& touch) {
     // Difficulty cycles Easy -> Medium -> Hard and restarts the round.
     if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
-        host.board().setScore("geoTier", tier_);
+        host.setScore("geoTier", tier_);
         for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
         newQuestion();
         markDirty();
@@ -170,27 +175,27 @@ void FlagGame::update(GameHost& host, const TouchPoint& touch) {
         if (phase_ == Phase::Country) {
             ++rounds_;
             progress_.record(countryIndex(current_), lastCorrect_);
-            progress_.flush();
+            progress_.maybeFlush();
             if (lastCorrect_) {
                 ++score_;
                 ++correctStreak_;
-                host.board().beepOk();
+                host.beepOk();
                 /* Auto-promote: six in a row means the current pool is too easy.
                  * The tier button still overrides this by hand. */
                 if (correctStreak_ >= 6 && tier_ < 3) {
                     ++tier_;
                     correctStreak_ = 0;
-                    host.board().setScore("geoTier", tier_);
+                    host.setScore("geoTier", tier_);
                 }
             } else {
                 correctStreak_ = 0;
-                host.board().beepError();
+                host.beepError();
             }
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::FeedbackCountry;
         } else {
-            if (lastCorrect_) { ++capBonus_; host.board().beepOk(); }
-            else              { host.board().beepError(); }
+            if (lastCorrect_) { ++capBonus_; host.beepOk(); }
+            else              { host.beepError(); }
             feedbackUntil_ = now + 1600UL;
             phase_ = Phase::FeedbackCapital;
         }
@@ -199,10 +204,10 @@ void FlagGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void FlagGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void FlagGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     // --- status row ------------------------------------------------------
     tft.setTextDatum(TL_DATUM);

@@ -31,10 +31,10 @@ const char* MoneyGame::title() const {
     return "Money";
 }
 
-void MoneyGame::begin(GameHost& host) {
+void MoneyGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.board().getScore("moneyBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore("moneyBest", 0));
     newRound();
     markDirty();
 }
@@ -238,10 +238,10 @@ void MoneyGame::newRound() {
     }
 }
 
-void MoneyGame::markCorrect(GameHost& host) {
+void MoneyGame::markCorrect(AppContext& host) {
     ++score_;
     ++streak_;
-    if (host.board().saveBestScore("moneyBest", streak_, false)) {
+    if (host.saveBestScore("moneyBest", streak_, false)) {
         bestStreak_ = streak_;
     }
     roundComplete_ = true;
@@ -276,7 +276,7 @@ Rect MoneyGame::moreRect(uint8_t index) const {
     return index == 0 ? Rect{32, 176, 110, 34} : Rect{178, 176, 110, 34};
 }
 
-void MoneyGame::update(GameHost& host, const TouchPoint& touch) {
+void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
     if (flashIndex_ >= 0 && millis() > flashUntil_) {
         flashIndex_ = -1;
         markDirty();
@@ -421,10 +421,10 @@ void MoneyGame::drawMore(TFT_eSPI& tft) const {
     }
 }
 
-void MoneyGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+void MoneyGame::render(AppContext& host) {
+    TFT_eSPI& tft = host.display();
     Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
+    host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);

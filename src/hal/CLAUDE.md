@@ -2,13 +2,23 @@
 
 The only place that talks to hardware. Game code reaches all of this through `GameHost::board()`.
 
-## Board.{h,cpp}
+## Board.* + BoardStorage.cpp
+
+`Board.h` stays the one public HAL interface. The implementation is now split by concern:
+
+- `Board.cpp` - bring-up, profiles, layout/idle settings, visibility cache
+- `BoardDisplay.cpp` - TFT access, rotation, BMP blitting
+- `BoardTouch.cpp` - touch ADC, calibration, coordinate mapping
+- `BoardPower.cpp` - battery telemetry, backlight brightness, panel sleep/wake
+- `BoardNetwork.cpp` - Wi-Fi credentials, timezone, NTP sync, network activity log
+- `BoardFeedback.cpp` - semantic beeps, RGB LED, BLE enable switch
+- `BoardStorage.cpp` - scoped persistence, schema versioning, migration
 
 ### Persistence and profiles
 
 NVS via `Preferences`, namespace `cydkids`.
 
-`scopedKey()` is **private**. It prefixes `p{N}_` inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`, so callers pass a plain key and get per-profile storage for free — that is how all games became per-profile without touching a single game file. Never construct a prefixed key by hand.
+`BoardStorage.cpp` owns profile-scoped persistence, the storage schema version and the legacy-key migrator. `scopedKey()` is **private**. It prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`, so callers pass a plain key and get per-profile storage for free. Never construct a prefixed key by hand.
 
 Five child slots plus a permanent Guest (`MAX_KIDS = 5`, `GUEST_INDEX = 5`, names capped at `PROFILE_NAME_MAX = 9` — `NAME_MAX` is a POSIX macro, hence the odd name). **Guest drops every write** through the scoped setters; that is deliberate, not a bug to fix.
 
