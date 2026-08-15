@@ -273,7 +273,7 @@ up and advances the colour, mirrored on the case LED. Touching it returns you to
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
-- **Profiles** -- shown at boot; picks whose scores are being written.
+- **Profiles** -- shown at boot; picks whose scores are being written. Carries the GoodTime Kids product mark in a branded header.
 - **Scores** -- bests and worsts for the active child, per game.
 - **About** -- what each game is for, in a parent's words, plus a **What the
   radios do** page. Every fact on that page is read from the running system
@@ -285,6 +285,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   reason, heap with a fragmentation meter, Wi-Fi throughput, watchdog stalls.
 
 <p align="center">
+  <img src="docs/screens/profiles.png" width="360" alt="Profiles: who is playing">
   <img src="docs/screens/about-radios.png" width="360" alt="About: what the radios do">
   <img src="docs/screens/systeminfo-memory.png" width="360" alt="System Info: heap and CPU">
 </p>
