@@ -74,8 +74,9 @@
   written out three times and one copy was wrong.
 - **The launcher never drew the copyright in Vertical layout.** The landscape
   branch drew it and the portrait branch did not, so owners running the device
-  in portrait never saw it on the home screen. It now sits in the one gap the
-  portrait header has left, below the clock and badge row.
+  in portrait never saw it on the home screen. It now shares the top row with
+  the title, right-aligned, which costs portrait its centred title and makes the
+  launcher and Profiles headers agree.
 - **Profiles.** "Who is playing?" and the guest hint overlapped each other in
   both orientations, and in portrait the hint ran straight through the first
   profile row. In portrait the copyright line also collided with the title,

@@ -410,13 +410,11 @@ def launcher_wide():
 def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
-    t = PRODUCT
-    d.text((120 - d.textlength(t, font=F4) / 2, 6), t, font=F4, fill=TEXT)
-    d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
-    # Copyright in the 68..78 gap at the bottom of the header -- the only room
-    # portrait has for it. See AppRuntimeLauncher.cpp.
-    d.text((120 - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, 69), COPYRIGHT_SHORT,
+    # Title left, copyright right, sharing the top row. See AppRuntimeLauncher.
+    d.text((10, 6), PRODUCT, font=F4, fill=TEXT)
+    d.text((232 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
            font=F1, fill=MUTED)
+    d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
     d.text((8, 36), "Ava", font=F2, fill=TEXT)
     d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
     bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)

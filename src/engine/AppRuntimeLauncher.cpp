@@ -139,8 +139,26 @@ void LauncherGame::render(GameHost& host) {
     tft.setTextDatum(ML_DATUM);
 
     if (tall) {
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(BRAINO_PRODUCT_NAME, static_cast<int16_t>(lW / 2), 17, 4);
+        /* Title left, copyright right, on one row.
+         *
+         * The title used to be centred and the copyright was not drawn at all;
+         * squeezed into the 68..78 gap under the badges it was legible but
+         * cramped. Sharing the title row is the only placement with real air
+         * around it, and it costs the centred title -- worth it, and it now
+         * matches both the landscape launcher and the Profiles header.
+         *
+         * At 240px: "Braino!" at font 4 runs from x=10 to about x=80, the
+         * copyright at font 1 is ~108px right-aligned to x=232, so it starts
+         * near x=124. Roughly 44px of air between them. That slack is the whole
+         * budget -- a longer product name eats it, so re-measure this row before
+         * changing BRAINO_PRODUCT_NAME. Nothing else uses y=4..30 in portrait;
+         * the gear sits at y=48..72. */
+        tft.setTextDatum(ML_DATUM);
+        tft.drawString(BRAINO_PRODUCT_NAME, 10, 17, 4);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.setTextDatum(MR_DATUM);
+        tft.drawString(BRAINO_COPYRIGHT_SHORT, static_cast<int16_t>(lW - 8), 17, 1);
+        tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.drawString(Ui::fitted(tft, board.profileName(board.activeProfile()),
@@ -162,21 +180,6 @@ void LauncherGame::render(GameHost& host) {
         }
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
 
-        /* The copyright, which portrait simply never drew -- landscape had it
-         * and this branch did not, so half the owners never saw it on the home
-         * screen at all.
-         *
-         * It goes in the only gap left. The portrait header is 78 tall and
-         * every other row is spoken for: title 4..30, divider 30, profile
-         * 36..52, clock and badges 52..68, gear 48..72. That leaves 68..78, and
-         * font 1 is 8 tall, so centred on y=73 it occupies 69..77 with a pixel
-         * either side. The header cannot simply grow: portrait tiles end at 286
-         * and the pager starts at 292. Re-measure all of that before adding
-         * anything else to this header. */
-        tft.setTextColor(Ui::muted(), Ui::surface());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(BRAINO_COPYRIGHT_SHORT, static_cast<int16_t>(lW / 2), 73, 1);
-        tft.setTextDatum(ML_DATUM);
     } else {
         tft.drawString(BRAINO_PRODUCT_NAME, 10, 16, 4);
         tft.setTextColor(Ui::muted(), Ui::surface());
