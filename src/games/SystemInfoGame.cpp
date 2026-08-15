@@ -288,8 +288,10 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("Free app", formatBytes(ESP.getFreeSketchSpace()));
 }
 
-void SystemInfoGame::buildMemoryRows() {
+void SystemInfoGame::buildMemoryRows(GameHost& host) {
+    Board& board = host.board();
     const Watchdog::Stats stats = Watchdog::stats();
+    const Board::StorageTelemetry storage = board.storageTelemetry();
     const uint32_t heapTotal = ESP.getHeapSize();
     const uint32_t heapFree = ESP.getFreeHeap();
     const uint32_t heapUsed = heapTotal > heapFree ? heapTotal - heapFree : 0;
@@ -313,6 +315,46 @@ void SystemInfoGame::buildMemoryRows() {
                  frag >= 60 ? Ui::error() : (frag >= 35 ? Ui::warning() : Ui::success()));
     rows_.addMeter(frag, frag >= 60 ? Ui::error() : (frag >= 35 ? Ui::warning() : Ui::success()));
     rows_.addRow("PSRAM", psramTotal > 0 ? formatBytes(psramFree) + " free" : "Not present");
+
+    rows_.addSection("NVS");
+    if (storage.available) {
+        const uint8_t nvsPct = percentOf(storage.usedEntries, storage.totalEntries);
+        const uint16_t nvsColor = nvsPct >= Board::STORAGE_CRITICAL_PERCENT
+            ? Ui::error()
+            : (nvsPct >= Board::STORAGE_WARN_PERCENT ? Ui::warning() : Ui::success());
+        char value[40];
+        snprintf(value, sizeof(value), "%lu / %lu entries",
+                 static_cast<unsigned long>(storage.usedEntries),
+                 static_cast<unsigned long>(storage.totalEntries));
+        rows_.addRow("Used", value, nvsColor);
+        rows_.addMeter(nvsPct, nvsColor);
+        snprintf(value, sizeof(value), "%lu entries",
+                 static_cast<unsigned long>(storage.freeEntries));
+        rows_.addRow("Free", value);
+        snprintf(value, sizeof(value), "%lu", static_cast<unsigned long>(storage.namespaceCount));
+        rows_.addRow("Namespaces", value);
+        snprintf(value, sizeof(value), "%u%% warn, %u%% critical",
+                 static_cast<unsigned>(Board::STORAGE_WARN_PERCENT),
+                 static_cast<unsigned>(Board::STORAGE_CRITICAL_PERCENT));
+        rows_.addRow("Quota", value);
+    } else {
+        rows_.addRow("Partition", "Stats unavailable", Ui::warning());
+    }
+    char namespaceValue[32];
+    if (storage.appNamespaceAvailable) {
+        snprintf(namespaceValue, sizeof(namespaceValue), "%lu data entries",
+                 static_cast<unsigned long>(storage.appEntries));
+    } else {
+        snprintf(namespaceValue, sizeof(namespaceValue), "No namespace");
+    }
+    rows_.addRow("cydkids", namespaceValue);
+    if (storage.watchdogNamespaceAvailable) {
+        snprintf(namespaceValue, sizeof(namespaceValue), "%lu data entries",
+                 static_cast<unsigned long>(storage.watchdogEntries));
+    } else {
+        snprintf(namespaceValue, sizeof(namespaceValue), "No namespace");
+    }
+    rows_.addRow("cydwdt", namespaceValue);
 
     rows_.addSection("CPU");
     rows_.addRow("Loop load", String(loopPct) + "% (" + stats.lastWorkMs + "/" + stats.lastFrameMs + " ms)");
@@ -523,7 +565,7 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
 void SystemInfoGame::rebuildRows(GameHost& host) {
     switch (tab_) {
         case 0: buildBoardRows(host); break;
-        case 1: buildMemoryRows(); break;
+        case 1: buildMemoryRows(host); break;
         case 2: buildNetworkRows(host); break;
         case 3: buildBleRows(host); break;
         case 4: buildAppStateRows(host); break;

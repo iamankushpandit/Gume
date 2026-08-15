@@ -2,7 +2,7 @@
 
 The only place that talks to hardware. Ordinary games should not reach this directly; system screens use `GameHost::board()` and should prefer the narrow access facets when they only need one concern.
 
-## Board.* + BoardAccess.h + BoardStorage.cpp
+## Board.* + BoardAccess.h + BoardStorage.cpp + BoardStorageMaintenance.cpp
 
 `Board.h` remains the legacy aggregate for existing call sites, but it also exposes no-vtable concern facades: `displayAccess()`, `touchAccess()`, `storageAccess()`, `powerAccess()`, `networkAccess()` and `feedbackAccess()`. New subsystem code should take the narrowest facade it can. The implementation is split by concern:
 
@@ -14,17 +14,22 @@ The only place that talks to hardware. Ordinary games should not reach this dire
 - `BoardNetwork.cpp` - Wi-Fi credentials, timezone, NTP sync, network activity log
 - `BoardFeedback.cpp` - semantic beeps, RGB LED, BLE enable switch
 - `BoardStorage.cpp` - scoped persistence, schema versioning, migration
+- `BoardStorageMaintenance.cpp` - profile-slot moves, NVS usage telemetry
 - `TouchTypes.h` - `TouchPoint` shared with app code without pulling in `Board.h` or the TFT driver
 
 ### Persistence and profiles
 
 NVS via `Preferences`, namespace `cydkids`.
 
-`BoardStorage.cpp` owns profile-scoped persistence, the storage schema version and the legacy-key migrator. `scopedKey()` is **private**. It prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`, so callers pass a plain key and get per-profile storage for free. Never construct a prefixed key by hand.
+`BoardStorage.cpp` owns profile-scoped persistence, the storage schema version and the legacy-key migrator. `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile-slot moves. `scopedKey()` is **private**. It prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`, so callers pass a plain key and get per-profile storage for free. Never construct a prefixed key by hand.
 
 Five child slots plus a permanent Guest (`MAX_KIDS = 5`, `GUEST_INDEX = 5`, names capped at `PROFILE_NAME_MAX = 9` — `NAME_MAX` is a POSIX macro, hence the odd name). **Guest drops every write** through the scoped setters; that is deliberate, not a bug to fix.
 
 Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Global: theme, layout, brightness, Wi-Fi credentials, NTP, timezone.
+
+Deleting a child is a storage operation, not a name-list edit. `removeKid()` clears the deleted slot's `pN_` keys, moves every later slot down by enumerating NVS entries in the `cydkids` namespace, copies supported NVS types with fixed static scratch buffers, and clears the old last slot. Deleting the active child switches to Guest; deleting a lower slot shifts the active index down so the same real child stays active.
+
+`storageTelemetry()` reports default-partition NVS entries plus the `cydkids` and watchdog `cydwdt` namespace entry counts. System Info -> Memory shows that data with 80% warning and 92% critical soft quota thresholds. Do not call it from per-frame render paths; it enumerates flash-backed metadata.
 
 `factoryReset()` wipes everything in the `cydkids` namespace and reboots. The watchdog crash namespace is deliberately separate.
 

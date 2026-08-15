@@ -84,11 +84,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/MazeGame.cpp": {
-      "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/MemoryGame.cpp": {
       "String": 3,
       "delay": 0,

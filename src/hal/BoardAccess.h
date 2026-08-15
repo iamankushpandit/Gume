@@ -50,6 +50,7 @@ public:
     uint8_t kidCount() { return board_.kidCount(); }
     void removeKid(uint8_t index) { board_.removeKid(index); }
     bool isGuest() { return board_.isGuest(); }
+    Board::StorageTelemetry storageTelemetry() { return board_.storageTelemetry(); }
     void factoryReset() { board_.factoryReset(); }
     uint32_t getScore(const char* key, uint32_t fallback = 0) {
         return board_.getScore(key, fallback);

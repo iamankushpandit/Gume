@@ -21,6 +21,30 @@ constexpr AppMetadata SHAPE_COLOR_METADATA = {
     8,
     true,
 };
+
+void drawMatchStar(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius,
+                   uint16_t color, bool filled) {
+    const int16_t inner = static_cast<int16_t>(max<int16_t>(3, radius / 2));
+    int16_t px[10];
+    int16_t py[10];
+    for (uint8_t i = 0; i < 10; ++i) {
+        const float angle = -PI / 2.0f + i * PI / 5.0f;
+        const int16_t rr = (i % 2 == 0) ? radius : inner;
+        px[i] = static_cast<int16_t>(cx + cosf(angle) * rr);
+        py[i] = static_cast<int16_t>(cy + sinf(angle) * rr);
+    }
+
+    if (filled) {
+        for (uint8_t i = 0; i < 10; ++i) {
+            const uint8_t next = static_cast<uint8_t>((i + 1) % 10);
+            tft.fillTriangle(cx, cy, px[i], py[i], px[next], py[next], color);
+        }
+    }
+    for (uint8_t i = 0; i < 10; ++i) {
+        const uint8_t next = static_cast<uint8_t>((i + 1) % 10);
+        tft.drawLine(px[i], py[i], px[next], py[next], color);
+    }
+}
 }
 
 const AppMetadata& shapeColorAppMetadata() {
@@ -97,7 +121,7 @@ void ShapeColorGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16
             Ui::drawTriangleShape(tft, cx, cy, size, color, filled);
             break;
         case Shape::Star:
-            Ui::drawStarShape(tft, cx, cy, size, color, filled);
+            drawMatchStar(tft, cx, cy, size, color, filled);
             break;
     }
 }

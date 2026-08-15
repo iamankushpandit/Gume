@@ -16,9 +16,11 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 28 |
-| Flash | 2,301,457 / 3,145,728 bytes (**73.2%**) |
-| RAM | 66,980 / 327,680 bytes (**20.4%**) |
+| Flash | 2,307,365 / 3,145,728 bytes (**73.3%**) |
+| RAM | 68,036 / 327,680 bytes (**20.8%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
+
+Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <p align="center">
   <img src="docs/screens/launcher-wide.png" width="420" alt="Home screen, Wide layout">
@@ -139,6 +141,10 @@ data and per-game visibility are all scoped to the active profile automatically
 dropped while Guest is active. That is what makes it a guest rather than a sixth
 child: a visitor can play without leaving results behind or disturbing anyone
 else's records.
+
+Deleting a child deletes that child's profile-scoped NVS data and shifts later
+children down with their own scores, mastery and visibility intact; deleting the
+active child switches the device back to Guest.
 
 Device settings — theme, layout, brightness, Wi-Fi, time zone, the BLE beacon —
 stay global.
@@ -314,7 +320,8 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   state and the advertised name from `BleBeacon`. It cannot drift out of date.
 - **System Info** -- five tabs of live telemetry: board, memory, network, BLE
   and app state. This is a diagnostics screen, not a toy: chip and reset
-  reason, heap with a fragmentation meter, Wi-Fi throughput, watchdog stalls.
+  reason, heap with a fragmentation meter, NVS usage and namespace counts,
+  Wi-Fi throughput, watchdog stalls.
 
 <p align="center">
   <img src="docs/screens/scores-mine.png" width="360" alt="Scores: this player">
@@ -504,7 +511,9 @@ src/
   games/                one .cpp/.h pair per game and per system app
     CountryData.cpp     capitals, continents, difficulty tiers
     CountryDataTable.cpp  generated -- see tools/gen_country_facts.py
+    MazeData.cpp        maze layouts kept out of the redraw logic
     StateData.cpp       50 US states: code, name, capital, tier
+    TraceGlyphData.cpp  letter/number stroke guides
   hal/
     Board.cpp           board bring-up, profiles, layout/idle settings
     BoardAccess.h       narrow display/touch/storage/power/network/feedback facades
@@ -514,6 +523,7 @@ src/
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardFeedback.cpp   RGB LED, semantic beeps, BLE toggle
     BoardStorage.cpp    schema migration + app-scoped NVS keys
+    BoardStorageMaintenance.cpp  profile moves + NVS telemetry
     TouchTypes.h        TouchPoint event type shared without display deps
     BleBeacon.cpp       the one authoritative BLE advertisement payload
     Clock.cpp           time and date formatting

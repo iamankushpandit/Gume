@@ -24,13 +24,20 @@ private:
     bool isActiveMazeSolvable() const;
     void loadBestForLevel(AppContext& host);
     void saveProgress(AppContext& host);
+    void drawHud(Ui::Renderer& tft) const;
+    void drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const;
+    void drawMaze(Ui::Renderer& tft) const;
+    void drawPlayer(Ui::Renderer& tft) const;
 
     const char* const* maze_ = nullptr;
     uint8_t levelIndex_ = 0;
     int8_t playerCol_ = 1;
     int8_t playerRow_ = 1;
+    int8_t prevPlayerCol_ = 1;
+    int8_t prevPlayerRow_ = 1;
     uint16_t moves_ = 0;
     uint16_t bestMoves_ = 0;
     bool won_ = false;
+    bool playerMoved_ = false;
     uint32_t lastMoveAt_ = 0;
 };

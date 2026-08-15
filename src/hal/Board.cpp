@@ -38,6 +38,7 @@ void Board::begin() {
 
     prefs_.begin("cydkids", false);
     migrateStorageSchema();
+    logStorageUsage("boot");
     applyBrightness();
     loadTouchCalibration();
     mountSd();
@@ -84,17 +85,23 @@ void Board::removeKid(uint8_t index) {
     const uint8_t n = kidCount();
     if (index >= n) return;
 
+    const uint8_t oldActive = activeProfile();
     for (uint8_t i = index; i + 1 < n; ++i) {
-        setProfileName(i, profileName(static_cast<uint8_t>(i + 1)));
+        moveProfileSlot(static_cast<uint8_t>(i + 1), i);
     }
-    char key[8];
-    snprintf(key, sizeof(key), "pname%u", static_cast<unsigned>(n - 1));
-    prefs_.remove(key);
+    clearProfileSlot(static_cast<uint8_t>(n - 1));
     prefs_.putUChar("kids", static_cast<uint8_t>(n - 1));
 
     visibilityCached_ = false;
 
-    if (activeProfile() >= kidCount()) setActiveProfile(GUEST_INDEX);
+    if (oldActive == index) {
+        setActiveProfile(GUEST_INDEX);
+    } else if (oldActive > index && oldActive < n) {
+        setActiveProfile(static_cast<uint8_t>(oldActive - 1));
+    } else if (oldActive != GUEST_INDEX && oldActive >= kidCount()) {
+        setActiveProfile(GUEST_INDEX);
+    }
+    logStorageUsage("profile delete");
 }
 
 Board::ThemeMode Board::themeMode() {

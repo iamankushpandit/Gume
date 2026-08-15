@@ -84,7 +84,7 @@ call site:
    content. Gate rebuilds behind a stale flag.
 
 Before claiming a screen is fast: System Info's Memory tab shows loop load,
-worst work and worst frame, and the watchdog logs a stall past
+worst work, worst frame and NVS usage, and the watchdog logs a stall past
 `STALL_WARN_MS`. A worst frame above ~40ms is a bug, not a heavy screen.
 
 Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
@@ -136,7 +136,7 @@ Rules, in the order they bite:
    *saved* 5.5 KB of flash.
 7. **Check the numbers before you claim it is fine.** `pio run` reports RAM and
    flash; System Info's Memory tab reports free heap, minimum free heap,
-   largest allocatable block and fragmentation. Read them.
+   largest allocatable block, fragmentation and NVS pressure. Read them.
 
 ---
 
@@ -247,10 +247,11 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,301,457 / 3,145,728 bytes,
-**73.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 66,980 / 327,680 (20.4%) -- higher than it was, deliberately: RowList traded
-864 bytes of static RAM for zero heap traffic. On this device that is a good
+Flash is global and nearly the binding constraint (2,307,365 / 3,145,728 bytes,
+**73.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 68,036 / 327,680 (20.8%) -- higher than it was, deliberately: RowList traded
+864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
+profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
 ### Modularity rule
@@ -299,7 +300,7 @@ call site sits inside a `Watchdog::Pause` guard.
 - **`end()` is called on every screen change** via `KidsPlatformApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
-- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` also owns the schema-versioned migrator from the older key format. Just call those with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
+- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a child clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
 - **`APP_REGISTRY` holds the 28 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
@@ -412,9 +413,10 @@ src/engine/               Game, LauncherGame, GameCatalog, AppRegistry,
                           AppRuntime, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
-                          Country/State data
+                          Country/State, Maze and Trace data
 src/hal/                  Board bring-up, BoardAccess facades,
-                          per-concern HAL units, BoardStorage, TouchTypes,
+                          per-concern HAL units, BoardStorage, storage
+                          maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
                           LauncherLayout

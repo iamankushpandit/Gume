@@ -56,6 +56,8 @@ Pick an `id` that nobody else is likely to be using concurrently, and re-read th
 
 - `CountryData.{h,cpp}`: 195 countries: ISO2, capital, continent, difficulty tier.
 - `CountryDataTable.cpp`: generated; edit `tools/gen_country_facts.py` and regenerate rather than hand-editing.
+- `MazeData.{h,cpp}`: static maze layouts used by Maze; keep path data out of the redraw logic.
 - `StateData.{h,cpp}`: 50 US states: code, name, capital, tier.
+- `TraceGlyphData.{h,cpp}`: static trace stroke geometry used by Trace; keep glyph data out of the touch/render logic.
 
 Flag and outline artwork comes from the `map-n-flag` library and is blitted via `Ui::drawCountryImage*()`, which streams 4-bit indexed rows straight out of flash.

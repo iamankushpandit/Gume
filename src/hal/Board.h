@@ -37,6 +37,18 @@ public:
         uint32_t lastWakeDelayMs = 0;
     };
 
+    struct StorageTelemetry {
+        bool available = false;
+        uint32_t usedEntries = 0;
+        uint32_t freeEntries = 0;
+        uint32_t totalEntries = 0;
+        uint32_t namespaceCount = 0;
+        bool appNamespaceAvailable = false;
+        uint32_t appEntries = 0;
+        bool watchdogNamespaceAvailable = false;
+        uint32_t watchdogEntries = 0;
+    };
+
     struct TouchCalibration {
         uint32_t magic = 0;
         float ax = 0.0f;
@@ -104,7 +116,7 @@ public:
      * Scores, best/worst records and spaced-repetition data are stored per
      * child. Every key that goes through getScore/setScore/saveBestScore and
      * loadBlob/saveBlob is transparently prefixed with the active profile, so
-     * all 22 games became per-profile without touching a single game file.
+     * catalog games get per-profile storage without touching their own files.
      * Device settings (theme, layout, Wi-Fi, brightness) stay global. */
     /* Up to five children plus a permanent Guest slot.
      *
@@ -116,6 +128,8 @@ public:
     static constexpr uint8_t GUEST_INDEX   = MAX_KIDS;   // 5
     static constexpr uint8_t PROFILE_SLOTS = MAX_KIDS + 1;
     static constexpr uint8_t PROFILE_NAME_MAX = 9;   // NAME_MAX is a POSIX macro
+    static constexpr uint8_t STORAGE_WARN_PERCENT = 80;
+    static constexpr uint8_t STORAGE_CRITICAL_PERCENT = 92;
 
     uint8_t activeProfile();
     void setActiveProfile(uint8_t index);
@@ -126,9 +140,10 @@ public:
     uint8_t kidCount();
     /** Append a child. Returns its index, or 0xFF when full. */
     uint8_t addKid(const String& name);
-    /** Delete a child, shifting the ones after it down. */
+    /** Delete a child, shifting later names and persisted profile data down. */
     void removeKid(uint8_t index);
     bool isGuest() { return activeProfile() == GUEST_INDEX; }
+    StorageTelemetry storageTelemetry();
 
     /** Wipe every stored setting, score and credential, then reboot. */
     void factoryReset();
@@ -312,6 +327,9 @@ private:
     static constexpr size_t STORAGE_KEY_CAP = 16;   // NVS keys cap at 15 chars + NUL
     void loadWifiCache();
     void migrateStorageSchema();
+    void logStorageUsage(const char* context);
+    void clearProfileSlot(uint8_t slot);
+    void moveProfileSlot(uint8_t fromSlot, uint8_t toSlot);
     void scopedKey(char* out, size_t cap, const char* key);
     static void scopedKeyForProfile(char* out, size_t cap, uint8_t profileIndex, const char* key);
     static void legacyScopedKeyForProfile(char* out, size_t cap, uint8_t profileIndex, const char* key);

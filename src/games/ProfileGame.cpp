@@ -28,18 +28,18 @@ Rect ProfileGame::headerRect(int16_t screenW) const {
 Rect ProfileGame::slotRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t menuW = tall ? 54 : 62;
-    const int16_t rowH = tall ? 33 : 25;
-    const int16_t pitch = tall ? 38 : 27;
-    const int16_t y0 = tall ? 62 : 46;
+    const int16_t rowH = tall ? 33 : 23;
+    const int16_t pitch = tall ? 38 : 25;
+    const int16_t y0 = tall ? 62 : 58;
     return Rect{8, static_cast<int16_t>(y0 + i * pitch),
                 static_cast<int16_t>(screenW - 22 - menuW), rowH};
 }
 Rect ProfileGame::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t menuW = tall ? 54 : 62;
-    const int16_t rowH = tall ? 33 : 25;
-    const int16_t pitch = tall ? 38 : 27;
-    const int16_t y0 = tall ? 62 : 46;
+    const int16_t rowH = tall ? 33 : 23;
+    const int16_t pitch = tall ? 38 : 25;
+    const int16_t y0 = tall ? 62 : 58;
     return Rect{static_cast<int16_t>(screenW - 8 - menuW),
                 static_cast<int16_t>(y0 + i * pitch), menuW, rowH};
 }
@@ -259,10 +259,10 @@ void ProfileGame::render(GameHost& host) {
             tft.drawString("(C) GoodTime Micro", W - 8, 15, 1);
             tft.setTextColor(Ui::text(), Ui::bg());
             tft.setTextDatum(TC_DATUM);
-            tft.drawString("Who is playing?", W / 2, 35, 2);
+            tft.drawString("Who is playing?", W / 2, 34, 2);
             tft.setTextColor(Ui::muted(), Ui::bg());
             tft.setTextDatum(TC_DATUM);
-            tft.drawString("Guest plays without saving scores", W / 2, 43, 1);
+            tft.drawString("Guest plays without saving scores", W / 2, 49, 1);
         }
 
         const uint8_t active = board.activeProfile();

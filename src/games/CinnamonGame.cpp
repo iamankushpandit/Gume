@@ -155,8 +155,9 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
                 bestScore_ = score_;
             }
             phase_ = Phase::Good;
-            litPad_ = -1;
+            litPad_ = pad;
             nextAt_ = now + 520UL;
+            host.beepOk();
         }
     } else {
         phase_ = Phase::Failed;

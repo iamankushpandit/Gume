@@ -36,7 +36,7 @@ private:
     void drawTabStrip(Ui::Renderer& tft, int16_t screenW);
     void drawContent(GameHost& host);
     void buildBoardRows(GameHost& host);
-    void buildMemoryRows();
+    void buildMemoryRows(GameHost& host);
     void buildNetworkRows(GameHost& host);
     void buildBleRows(GameHost& host);
     void buildAppStateRows(GameHost& host);

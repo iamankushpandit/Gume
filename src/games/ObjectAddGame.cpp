@@ -208,16 +208,18 @@ void ObjectAddGame::render(AppContext& host) {
         int16_t cx, cy; objPos(lp, i, cx, cy);
         // For subtraction: shapes that will be removed flash red/surface, others blue
         uint16_t col = COL_FIRST;
+        bool draw = true;
         if (op_ == OpType::Subtract) {
             const bool isRemoved = (i >= n1_ - n2_);
-            if (isRemoved && (phase_ == Phase::Flashing || phase_ == Phase::Question)) {
-                // Gone by default; blinks red briefly on the reminder loop.
+            if (isRemoved && phase_ == Phase::Flashing) {
                 col = flashOn_ ? COL_REMOVED : Ui::surface();
-            } else if (isRemoved) {
-                col = Ui::surface(); // already gone
+            } else if (isRemoved && (phase_ == Phase::Question || phase_ == Phase::Feedback)) {
+                draw = false;
             }
         }
-        drawObject(tft, cx, cy, col);
+        if (draw) {
+            drawObject(tft, cx, cy, col);
+        }
     }
 
     // Operator symbol
@@ -225,7 +227,7 @@ void ObjectAddGame::render(AppContext& host) {
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.drawString(op_ == OpType::Add ? "+" : "-", 160, 106, 4);
 
-    // Right panel (for addition: animated second group; for subtraction: just = ?)
+    // Right panel: the second addend, or the group being taken away.
     const Rect rp = rightPanel();
     tft.fillRoundRect(rp.x, rp.y, rp.w, rp.h, 6, Ui::panel());
     tft.drawRoundRect(rp.x, rp.y, rp.w, rp.h, 6, Ui::outline());
@@ -237,11 +239,15 @@ void ObjectAddGame::render(AppContext& host) {
             drawObject(tft, cx, cy, COL_SECOND);
         }
     } else {
-        // For subtraction the right panel shows the expected result count
-        if (phase_ == Phase::Question || phase_ == Phase::Feedback) {
+        if (phase_ != Phase::Showing) {
+            for (uint8_t i = 0; i < n2_; ++i) {
+                int16_t cx, cy; objPos(rp, i, cx, cy);
+                drawObject(tft, cx, cy, COL_REMOVED);
+            }
             tft.setTextDatum(MC_DATUM);
             tft.setTextColor(Ui::muted(), Ui::panel());
-            tft.drawString("?", rp.x + rp.w/2, rp.y + rp.h/2, 4);
+            tft.drawString("take away", rp.x + rp.w / 2,
+                           static_cast<int16_t>(rp.y + rp.h - 12), 1);
         }
     }
 
