@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Launcher game tiles now use a more polished, consistent icon style, with
+  clearer Percent and Fingers artwork and refreshed symbols across the catalog.
 - The GitHub Pages installer now showcases every generated still for the games,
   launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the
   screen saver instead of showing only the launcher mock-ups.
@@ -14,7 +16,7 @@ Browser flashing, screen sleep, GRE Words, Percent Circle, Scores device bests,
 app/runtime refactors, storage telemetry, safer profile deletion, and a pass
 over touch/redraw bugs found on the physical board.
 
-Flash 2,307,681 / 3,145,728 (73.4%), RAM 68,036 / 327,680 (20.8%).
+Flash 2,310,577 / 3,145,728 (73.5%), RAM 68,036 / 327,680 (20.8%).
 
 ### Added
 

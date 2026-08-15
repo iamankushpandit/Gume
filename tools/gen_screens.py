@@ -40,6 +40,8 @@ TEXT, MUTED, OUTLINE = (232, 236, 242), (140, 148, 162), (86, 94, 110)
 SUCCESS, ERROR, WARN = (52, 254, 128), (247, 61, 82), (255, 230, 110)
 BLUE, GREEN, RED, SHADOW = (36, 132, 204), (45, 154, 96), (222, 83, 83), (10, 11, 15)
 GOLD, INK, WHITE = (255, 200, 0), (24, 60, 136), (255, 255, 255)
+ICON_PAPER, ICON_INK, ICON_SOFT = (248, 252, 255), (34, 69, 116), (88, 123, 166)
+SKY, MINT, SUN, CORAL, SKIN = (115, 204, 255), (106, 224, 159), (255, 213, 84), (247, 112, 110), (255, 222, 184)
 
 
 def font(size, bold=False):
@@ -113,6 +115,61 @@ def ble_badge(d, cx, cy):
     py = [4, 11, 16, 0, 5, 12]
     for off in (0, 1):
         d.line([(x0 + px[i] + off, y0 + py[i]) for i in range(6)], fill=BLUE)
+
+
+def launcher_plate(d, cx, cy, fill):
+    d.ellipse([cx - 16, cy - 15, cx + 18, cy + 19], fill=shade(fill, 70))
+    d.ellipse([cx - 17, cy - 17, cx + 17, cy + 17], fill=ICON_PAPER, outline=(214, 232, 248))
+    d.ellipse([cx - 9, cy - 11, cx - 3, cy - 5], fill=WHITE)
+
+
+def launcher_icon(d, title, cx, cy, fill):
+    launcher_plate(d, cx, cy, fill)
+    if title == "Fingers":
+        shade_skin = (245, 190, 146)
+        for i in range(4):
+            x = cx - 12 + i * 6
+            h = 20 if i == 1 else 17
+            d.rounded_rectangle([x, cy - 15, x + 4, cy - 15 + h], 3, fill=SKIN)
+            d.line([(x + 4, cy - 11), (x + 4, cy - 15 + h - 5)], fill=shade_skin)
+        d.rounded_rectangle([cx - 13, cy - 2, cx + 12, cy + 14], 5, fill=SKIN)
+        d.rounded_rectangle([cx + 7, cy + 1, cx + 19, cy + 8], 4, fill=SKIN)
+        d.line([(cx + 9, cy + 7), (cx + 17, cy + 4)], fill=shade_skin)
+        d.rounded_rectangle([cx - 10, cy + 10, cx + 14, cy + 16], 3, fill=(93, 151, 223))
+        d.line([(cx - 8, cy + 3), (cx + 5, cy + 3)], fill=shade_skin)
+        d.line([(cx - 7, cy + 8), (cx + 4, cy + 8)], fill=shade_skin)
+    elif title == "Percent":
+        d.pieslice([cx - 17, cy - 17, cx + 17, cy + 17], -90, 0, fill=SUN)
+        d.pieslice([cx - 17, cy - 17, cx + 17, cy + 17], 0, 55, fill=MINT)
+        d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=ICON_PAPER, outline=ICON_SOFT)
+        d.ellipse([cx - 9, cy - 9, cx - 3, cy - 3], fill=ICON_INK)
+        d.ellipse([cx + 4, cy + 4, cx + 10, cy + 10], fill=ICON_INK)
+        d.line([(cx - 9, cy + 10), (cx + 10, cy - 9)], fill=ICON_INK, width=2)
+    elif title == "Shape Arith":
+        d.ellipse([cx - 14, cy - 10, cx - 2, cy + 2], fill=SKY, outline=ICON_INK)
+        d.ellipse([cx - 2, cy - 10, cx + 10, cy + 2], fill=MINT, outline=ICON_INK)
+        d.ellipse([cx - 8, cy + 4, cx + 4, cy + 16], fill=SUN, outline=ICON_INK)
+        d.line([(cx + 11, cy + 2), (cx + 18, cy + 2)], fill=ICON_INK, width=2)
+        d.line([(cx + 15, cy - 2), (cx + 15, cy + 6)], fill=ICON_INK, width=2)
+    elif title == "Trace":
+        d.text((cx - 14, cy - 21), "A", font=F4, fill=ICON_INK)
+        for i in range(5):
+            d.ellipse([cx + 10, cy - 13 + i * 6, cx + 12, cy - 11 + i * 6], fill=MINT)
+        d.line([(cx + 9, cy + 11), (cx + 16, cy + 4)], fill=SUN, width=2)
+        d.polygon([(cx + 16, cy + 4), (cx + 14, cy + 9), (cx + 11, cy + 6)], fill=ICON_INK)
+    elif title == "Number Line":
+        d.line([(cx - 15, cy + 6), (cx + 15, cy + 6)], fill=ICON_INK, width=2)
+        for tick in range(5):
+            x = cx - 15 + tick * 7
+            d.line([(x, cy + 2), (x, cy + 9)], fill=ICON_INK)
+        d.arc([cx - 10, cy - 18, cx + 7, cy + 8], 190, 350, fill=CORAL, width=2)
+        d.ellipse([cx + 4, cy + 3, cx + 10, cy + 9], fill=SUN)
+    elif title == "Flags":
+        d.line([(cx - 13, cy - 14), (cx - 13, cy + 15)], fill=ICON_INK, width=2)
+        d.polygon([(cx - 12, cy - 13), (cx + 13, cy - 9), (cx - 12, cy - 4)], fill=CORAL, outline=ICON_INK)
+        d.polygon([(cx - 12, cy - 4), (cx + 13, cy - 9), (cx + 12, cy)], fill=SUN, outline=ICON_INK)
+    else:
+        d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=SKY, outline=ICON_INK)
 
 
 def art(sym):
@@ -384,9 +441,9 @@ def launcher_wide():
     sync_badge(d, W - 92, 34); wifi_badge(d, W - 68, 34); battery_badge(d, W - 44, 34)
     d.line([(W - 110, 8), (W - 110, 40)], fill=OUTLINE)
     d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
-    tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
-             ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
-             ("Trace", "A-Z & 0-9"), ("Calendar", "days & months")]
+    tiles = [("Fingers", "count on hands"), ("Percent", "circle parts"),
+             ("Shape Arith", "add & subtract"), ("Trace", "A-Z & 0-9"),
+             ("Number Line", "jump to number"), ("Flags", "guess the flag")]
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub) in enumerate(tiles):
         x, y = 10 + (slot % 2) * 155, 52 + (slot // 2) * 53
@@ -394,7 +451,7 @@ def launcher_wide():
         d.rounded_rectangle([x + 2, y + 3, x + 146, y + 48], 6, fill=SHADOW)
         d.rounded_rectangle([x, y, x + 144, y + 45], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 140, y + 1)], fill=shade(fill, 138))
-        d.ellipse([x + 10, y + 8, x + 36, y + 34], fill=(120, 200, 255), outline=WHITE)
+        launcher_icon(d, title, x + 24, y + 22, fill)
         d.text((x + 46, y + 9), title, font=F2, fill=WHITE)
         d.text((x + 46, y + 28), sub, font=F1, fill=(235, 245, 255))
     button(d, (8, 212, 74, 24), "Prev"); button(d, (W - 82, 212, 74, 24), "Next")
@@ -414,14 +471,14 @@ def launcher_tall():
     sync_badge(d, bx, 60); wifi_badge(d, bx + 22, 60); battery_badge(d, bx + 46, 60)
     ble_badge(d, bx + 70, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
-    tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
-             ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]
+    tiles = [("Fingers", "count on hands", BLUE), ("Percent", "circle parts", GREEN),
+             ("Shape Arith", "add & subtract", RED), ("Trace", "A-Z & 0-9", BLUE)]
     for slot, (title, sub, fill) in enumerate(tiles):
         x, y = 8 + (slot % 2) * 116, 86 + (slot // 2) * 104
         d.rounded_rectangle([x + 2, y + 3, x + 109, y + 98], 6, fill=SHADOW)
         d.rounded_rectangle([x, y, x + 107, y + 95], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 103, y + 1)], fill=shade(fill, 138))
-        d.ellipse([x + 39, y + 15, x + 69, y + 45], fill=(120, 200, 255), outline=WHITE)
+        launcher_icon(d, title, x + 54, y + 30, fill)
         for s, f, yy in ((title, F2, 58), (sub, F1, 78)):
             s2 = s
             while d.textlength(s2, font=f) > 100 and len(s2) > 2:
