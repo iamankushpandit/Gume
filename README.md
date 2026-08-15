@@ -428,7 +428,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **3.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **4.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 

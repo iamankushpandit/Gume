@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## 4.0.0 — 2026-08-15
+
+Browser flashing, screen sleep, GRE Words, Percent Circle, Scores device bests,
+app/runtime refactors, storage telemetry, safer profile deletion, and a pass
+over touch/redraw bugs found on the physical board.
+
+Flash 2,307,681 / 3,145,728 (73.4%), RAM 68,036 / 327,680 (20.8%).
+
 ### Added
 
 - **Device-wide best scores on the Scores screen.** A new **Device** tab shows
@@ -23,7 +33,7 @@
   radio test. Each one gets its own esp-web-tools manifest.
 
 - **`tools/gen_site.py`.** The page is generated, not written: version from
-  `AppVersion.h`, the game list and blurbs from `GAME_CATALOG`, the build
+  `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md`, the board name from `platformio.ini`. Same reason
   About derives its list -- a hand-written copy of the game list has fallen six
   games behind before. `site/index.template.html` holds wording and layout
@@ -67,6 +77,14 @@
   fills, or if the page offers a firmware that platformio.ini does not define
   or the workflow does not build.
 
+- **NVS storage telemetry.** System Info now reports NVS entry use, free
+  entries and namespace counts, with soft warning/critical thresholds so future
+  apps cannot quietly exhaust the shared partition.
+
+- **`CONTRIBUTING.md`.** Contributor workflow is now written down for humans
+  and agents: branch/worktree use, board locking, adding games/apps, fixing
+  bugs, checks, docs and flashing.
+
 ### Changed
 
 - **Trace game completely redesigned.** The old version let a single tap
@@ -78,7 +96,42 @@
   with a three-way mode selector (ABC / abc / 123) at the top. Waypoints are
   now calculated at glyph load and displayed as pulsing dots that guide the
   child through the correct path, teaching both letter formation and stroke
-  order before a pencil is involved.
+  order before a pencil is involved. The final device-tested pass improved
+  lowercase `f` and `g`, added Again/Next controls, and moved completion
+  feedback out of the drawing field so the child can see the finished
+  character.
+
+- **Apps and games now launch through one registry.** Playable games declare
+  their id, title, subtitle, blurb, score info, icon, launcher index and
+  default visibility in one metadata block, while `AppRegistry` binds that
+  metadata to the concrete instance.
+
+- **Rendering now goes through `Ui::Renderer`.** Normal games draw against a
+  driver-free RGB565 interface instead of directly taking `TFT_eSPI`, while the
+  firmware runtime adapts it back to the panel.
+
+- **`main.cpp`, runtime and `Board` were split by concern.** The app runtime,
+  launcher, screen saver/sleep path, HAL access facades, display, touch,
+  storage, power, network and feedback implementations now live in smaller
+  units.
+
+- **Shape Arith subtraction is clearer.** Subtraction now shows a `left` box and
+  a `take away` box, keeps the removed group visible, and asks the child to
+  count what remains instead of showing an unused mystery box.
+
+### Fixed
+
+- **Profile deletion now moves persisted data, not only names.** Removing a
+  child clears that slot's `pN_` keys, shifts later profile data down with the
+  child, clears the old last slot and keeps the active child pointing at the
+  same real profile where possible.
+
+- **Percent, Maze, Trace, Shape & Color, Cinnamon and Profiles redraw bugs.**
+  Percent clears the previous question before the next round, Maze now redraws
+  only moved cells instead of flashing the whole screen, filled stars match
+  their outline geometry, Cinnamon shows feedback for the final correct input,
+  and the wide Profile picker no longer squeezes the helper text into the
+  player rows.
 
 
 ## 3.0.0 — 2026-08-13
