@@ -275,7 +275,11 @@ up and advances the colour, mirrored on the case LED. Touching it returns you to
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
 - **Profiles** -- shown at boot; picks whose scores are being written.
-- **Scores** -- bests and worsts for the active child, per game.
+- **Scores** -- two tabs:
+  - **Mine** shows bests and worsts for the active child, per game.
+  - **Device** shows the device-wide best and its holder across every child on
+    the device. The holder's name appears in gold when it is the current player
+    — a small recognition for being on top.
 - **About** -- what each game is for, in a parent's words, plus a **What the
   radios do** page. Every fact on that page is read from the running system
   rather than typed in: the game list comes from `GAME_CATALOG`, the version
@@ -284,6 +288,11 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
 - **System Info** -- five tabs of live telemetry: board, memory, network, BLE
   and app state. This is a diagnostics screen, not a toy: chip and reset
   reason, heap with a fragmentation meter, Wi-Fi throughput, watchdog stalls.
+
+<p align="center">
+  <img src="docs/screens/scores-mine.png" width="360" alt="Scores: this player">
+  <img src="docs/screens/scores-device.png" width="360" alt="Scores: device best">
+</p>
 
 <p align="center">
   <img src="docs/screens/about-radios.png" width="360" alt="About: what the radios do">

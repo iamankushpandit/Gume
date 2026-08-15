@@ -1055,7 +1055,94 @@ def grewords():
     return im
 
 
+def scores_mine():
+    """Scores tab: this player's best and worst per game."""
+    im, d = blank(); topbar(d, "Scores")
+    # Tab strip at y=32-50
+    for i, (lab, x) in enumerate([("Mine", 8), ("Device", 80)]):
+        active = (i == 0)
+        top = 34 if active else 38
+        h = 18 if active else 14
+        fill = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 64, top + h], 4, fill=fill, outline=OUTLINE)
+        if active:
+            d.line([(x + 6, top + 1), (x + 58, top + 1)], fill=shade(fill, 150))
+        d.text((x + 32 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(8, 52), (312, 52)], fill=OUTLINE)
+
+    # Profile name and column headings
+    d.text((8, 60), "Ava", font=F2, fill=TEXT)
+    d.text((244 - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
+    d.text((306 - d.textlength("worst", font=F1), 64), "worst", font=F1, fill=MUTED)
+
+    # Sample score rows
+    rows = [
+        ("Multiply", "250pts", "240pts"),
+        ("Math", "120pts", "80pts"),
+        ("Memory", "35s", "45s"),
+        ("Maze", "9lvl", "7lvl"),
+        ("Slide", "18moves", "25moves"),
+    ]
+    for i, (name, best, worst) in enumerate(rows):
+        y = 56 + (i + 1) * 30
+        d.rounded_rectangle([8, y, 312, y + 28], 4, fill=SURFACE, outline=OUTLINE)
+        d.text((16, y + 14 - 6), name, font=F2, fill=TEXT)
+        d.text((244 - d.textlength(best, font=F2) / 2, y + 14 - 6), best, font=F2, fill=SUCCESS)
+        d.text((306 - d.textlength(worst, font=F2) / 2, y + 14 - 6), worst, font=F2, fill=MUTED)
+        if i >= 2:  # Show "lower is better" on Memory
+            if i == 2:
+                d.text((100, y + 14 - 6), "lower is better", font=F1, fill=MUTED)
+
+    # Pager buttons
+    button(d, (8, 208, 88, 26), "Prev")
+    button(d, (104, 208, 112, 26), "Switch player", BLUE, WHITE, F2)
+    button(d, (224, 208, 88, 26), "Next")
+    return im
+
+
+def scores_device():
+    """Scores tab: device-wide best and holder per game."""
+    im, d = blank(); topbar(d, "Scores")
+    # Tab strip at y=32-50
+    for i, (lab, x) in enumerate([("Mine", 8), ("Device", 80)]):
+        active = (i == 1)
+        top = 34 if active else 38
+        h = 18 if active else 14
+        fill = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 80, top + h], 4, fill=fill, outline=OUTLINE)
+        if active:
+            d.line([(x + 6, top + 1), (x + 74, top + 1)], fill=shade(fill, 150))
+        d.text((x + 40 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(8, 52), (312, 52)], fill=OUTLINE)
+
+    # Sample device best rows
+    rows = [
+        ("Multiply", "250pts", "Priya"),    # Priya is current player (gold)
+        ("Math", "150pts", "Kai"),
+        ("Memory", "30s", "Liam"),
+        ("Maze", "12lvl", "Ava"),
+        ("Slide", "10moves", "Priya"),
+    ]
+    for i, (name, best, holder) in enumerate(rows):
+        y = 56 + (i + 1) * 30
+        d.rounded_rectangle([8, y, 312, y + 28], 4, fill=SURFACE, outline=OUTLINE)
+        d.text((16, y + 14 - 6), name, font=F2, fill=TEXT)
+        d.text((244 - d.textlength(best, font=F2) / 2, y + 14 - 6), best, font=F2, fill=SUCCESS)
+        holder_color = GOLD if holder == "Priya" else MUTED
+        d.text((312 - d.textlength(holder, font=F2) / 2, y + 14 - 6), holder, font=F2, fill=holder_color)
+
+    # Pager buttons
+    button(d, (8, 208, 88, 26), "Prev")
+    button(d, (104, 208, 112, 26), "Switch player", BLUE, WHITE, F2)
+    button(d, (224, 208, 88, 26), "Next")
+    return im
+
+
 EXTRA_SCREENS = [
+    ("scores-mine", scores_mine, "Scores: this player"),
+    ("scores-device", scores_device, "Scores: device best"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-radios", about_radios, "About: what the radios do"),
