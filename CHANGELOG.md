@@ -11,6 +11,12 @@
   live only in `include/AppVersion.h` -- they had been typed out in five places,
   which is the same shape of drift that once left About six games behind.
   `GOODTIME_KIDS_VERSION` is now `BRAINO_VERSION`.
+- **Every launcher icon was reworked.** Three pairs of tiles were effectively
+  the same picture -- Fractions and Percent were both a white circle with a
+  yellow wedge, Flags and State Flags the same flag in two colours, Tic-Tac-Toe
+  and Whack A Mole both a white grid -- and six more drew font 1 text that is a
+  smudge at tile size. Icons now have a documented 36x36 budget, since the
+  landscape tile is only 46px tall.
 
 ### Added
 
@@ -43,6 +49,13 @@
 - The ILI9341 ignores Sleep Out within 120ms of a Sleep In. `displayWake()` now
   waits out the remainder, which a tap arriving just after the saver handed over
   to sleep could otherwise land inside.
+- The Wi-Fi tile drew outside its own tile. It painted the bottom halves of two
+  full circles out with a rectangle in the tile colour, and the mask was three
+  pixels short, so the base of the outer ring survived at `cy + 24` -- past the
+  bottom edge of a 46px landscape tile. It is drawn as real arcs now.
+- The Coin Flip tile had the same overflow, from its edge-on sliver.
+- Several icons set the text datum to `MC_DATUM` and returned without restoring
+  it, re-aligning whatever the launcher drew next.
 - **Profiles.** "Who is playing?" and the guest hint overlapped each other in
   both orientations, and in portrait the hint ran straight through the first
   profile row. In portrait the copyright line also collided with the title,
