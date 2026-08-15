@@ -244,6 +244,11 @@ harmless at the call site and each was eating most of a 20ms frame.
 
 ### Changed
 
+- **Profiles screen now carries the GoodTime Kids product mark.** A branded
+  header at the top shows "GoodTime Kids!" and "(C) GoodTime Micro" in the same
+  visual language as the launcher and screen saver. The Pick phase geometry is
+  recalculated to accommodate the header without collision.
+
 - **Screens now have an `end()` lifecycle hook**, called on every transition
   through a single `leaveActiveGame()` funnel so no path can skip it. Nothing
   in the firmware runs off a task or timer, so no screen keeps consuming

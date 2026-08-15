@@ -18,21 +18,25 @@ void ProfileGame::begin(GameHost&) {
     markFullDirty();
 }
 
+Rect ProfileGame::headerRect(int16_t screenW) const {
+    return Rect{0, 0, screenW, 30};
+}
+
 Rect ProfileGame::slotRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t menuW = tall ? 54 : 62;
-    const int16_t rowH = tall ? 33 : 27;
-    const int16_t pitch = tall ? 38 : 29;
-    const int16_t y0 = tall ? 48 : 34;
+    const int16_t rowH = tall ? 33 : 25;
+    const int16_t pitch = tall ? 38 : 27;
+    const int16_t y0 = tall ? 62 : 46;
     return Rect{8, static_cast<int16_t>(y0 + i * pitch),
                 static_cast<int16_t>(screenW - 22 - menuW), rowH};
 }
 Rect ProfileGame::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t menuW = tall ? 54 : 62;
-    const int16_t rowH = tall ? 33 : 27;
-    const int16_t pitch = tall ? 38 : 29;
-    const int16_t y0 = tall ? 48 : 34;
+    const int16_t rowH = tall ? 33 : 25;
+    const int16_t pitch = tall ? 38 : 27;
+    const int16_t y0 = tall ? 62 : 46;
     return Rect{static_cast<int16_t>(screenW - 8 - menuW),
                 static_cast<int16_t>(y0 + i * pitch), menuW, rowH};
 }
@@ -225,7 +229,34 @@ void ProfileGame::render(GameHost& host) {
     tft.setTextDatum(TC_DATUM);
 
     if (phase_ == Phase::Pick) {
-        tft.drawString("Who is playing?", W / 2, 8, 2);
+        const Rect header = headerRect(W);
+        tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
+
+        tft.setTextColor(Ui::text(), Ui::surface());
+        tft.setTextDatum(ML_DATUM);
+        tft.drawString("GoodTime Kids!", 10, 15, 4);
+
+        if (tall) {
+            tft.setTextColor(Ui::muted(), Ui::bg());
+            tft.setTextDatum(TL_DATUM);
+            tft.drawString("(C) GoodTime Micro", 10, 32, 1);
+            tft.setTextColor(Ui::text(), Ui::bg());
+            tft.setTextDatum(TC_DATUM);
+            tft.drawString("Who is playing?", W / 2, 48, 2);
+            tft.setTextColor(Ui::muted(), Ui::bg());
+            tft.setTextDatum(TC_DATUM);
+            tft.drawString("Guest plays without saving scores", W / 2, 62, 1);
+        } else {
+            tft.setTextColor(Ui::muted(), Ui::surface());
+            tft.setTextDatum(MR_DATUM);
+            tft.drawString("(C) GoodTime Micro", W - 8, 15, 1);
+            tft.setTextColor(Ui::text(), Ui::bg());
+            tft.setTextDatum(TC_DATUM);
+            tft.drawString("Who is playing?", W / 2, 35, 2);
+            tft.setTextColor(Ui::muted(), Ui::bg());
+            tft.setTextDatum(TC_DATUM);
+            tft.drawString("Guest plays without saving scores", W / 2, 43, 1);
+        }
 
         const uint8_t active = board.activeProfile();
         const uint8_t rows = rowCount(board);
@@ -249,9 +280,6 @@ void ProfileGame::render(GameHost& host) {
                        Ui::outline(), canAdd ? TFT_WHITE : Ui::muted(), false, 2);
         Ui::drawButton(tft, doneRect(W, H), "Done", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
-        tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.setTextDatum(TC_DATUM);
-        tft.drawString("Guest plays without saving scores", W / 2, tall ? 30 : 24, 1);
         tft.setTextDatum(TL_DATUM);
         return;
     }

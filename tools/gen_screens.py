@@ -1140,9 +1140,41 @@ def scores_device():
     return im
 
 
+def profiles_pick():
+    im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
+    # Header band
+    d.rectangle([0, 0, W, 30], fill=SURFACE)
+    d.text((10, 15 - 9), "GoodTime Kids!", font=F4, fill=TEXT)
+    d.text((W - 8 - d.textlength("(C) GoodTime Micro", font=F1), 15 - 5), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    # "Who is playing?" and guest hint
+    d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 35), "Who is playing?", font=F2, fill=TEXT)
+    d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 43),
+           "Guest plays without saving scores", font=F1, fill=MUTED)
+    # Profile rows: 6 rows (5 children + Guest) at y=46, pitch=27, height=25
+    profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
+    for i, prof in enumerate(profiles):
+        y = 46 + i * 27
+        slot_w = W - 22 - 62
+        # Profile slot
+        d.rounded_rectangle([8, y, 8 + slot_w, y + 25], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
+        d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 25 / 2 - 6),
+               prof, font=F2, fill=WHITE if prof == "Alice" else TEXT)
+        # Edit button for non-Guest
+        if prof != "Guest":
+            d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 25], 4, fill=SURFACE, outline=OUTLINE)
+            d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 25 / 2 - 6),
+                   "Edit", font=F2, fill=MUTED)
+    # Add Player and Done buttons
+    btn_w = (W - 24) // 2
+    button(d, (8, H - 30, btn_w, 26), "Add Player", GREEN, WHITE)
+    button(d, (16 + btn_w, H - 30, btn_w, 26), "Done")
+    return im
+
+
 EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
+    ("profiles", profiles_pick, "Profiles: who is playing"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-radios", about_radios, "About: what the radios do"),
