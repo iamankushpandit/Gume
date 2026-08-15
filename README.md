@@ -100,7 +100,7 @@ uses **adaptive difficulty** — see below.
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
-| **Trace** | Trace letters A–Z and digits 0–9 with a finger | Letter formation and pen control, before a pencil is involved | 3–6 |
+| **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, guided by numbered start dots | 3–6 |
 | **GRE Words** | Flash card + quiz vocabulary trainer | 200 GRE-level words with spaced repetition | adult |
 
 ---
@@ -220,7 +220,8 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/tictactoe.png" width="300" alt="Tic-Tac-Toe">
-  <img src="docs/screens/trace.png" width="300" alt="Trace: letters and numbers">
+  <img src="docs/screens/trace.png" width="300" alt="Trace: uppercase and digits">
+  <img src="docs/screens/trace-lower.png" width="300" alt="Trace: lowercase letters">
   <img src="docs/screens/grewords.png" width="300" alt="GRE Words">
 </p>
 

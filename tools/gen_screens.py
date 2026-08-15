@@ -216,27 +216,91 @@ def statemaps():
 
 def trace():
     im, d = blank(); topbar(d, "Trace")
+    # Mode tabs at top
+    for i, (label, col) in enumerate([("ABC", WARN), ("abc", PANEL), ("123", PANEL)]):
+        x = 72 + i * 58
+        d.rounded_rectangle([x, 32, x + 54, 54], 4, fill=col, outline=OUTLINE)
+        d.text((x + 27 - d.textlength(label, font=F1) / 2, 37), label, font=F1, fill=PANEL if col == WARN else TEXT)
     # Canvas is DRAW_X/Y/W/H = 80,36,160,180 in TraceGame.cpp.
-    d.rectangle([78, 34, 241, 217], fill=SURFACE, outline=OUTLINE)
-    # Guide dots for a letter 'A', with the first two strokes already traced.
-    left, right, apex = (112, 200), (208, 200), (160, 58)
+    d.rectangle([78, 60, 241, 217], fill=SURFACE, outline=OUTLINE)
+    # Show uppercase 'A' with waypoints - first stroke partially traced, second stroke next
+    # First stroke: apex to left, already completed
+    apex, left, bar = (160, 58), (112, 200), (160, 143)
+    for t in range(0, 11):
+        x = apex[0] + (left[0] - apex[0]) * t / 10
+        y = apex[1] + (left[1] - apex[1]) * t / 10
+        d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=SUCCESS)
+    d.line([apex, left], fill=SUCCESS, width=3)
+    # Add numbered badge on first dot of first stroke
+    d.ellipse([apex[0] - 7, apex[1] - 7, apex[0] + 7, apex[1] + 7], fill=WARN)
+    d.text((apex[0] - 3, apex[1] - 4), "1", font=F1, fill=PANEL)
+    # Second stroke: right side, with dots showing waypoints, pulsing on first unclaimed
+    right = (208, 200)
+    for t in range(0, 11):
+        x = apex[0] + (right[0] - apex[0]) * t / 10
+        y = apex[1] + (right[1] - apex[1]) * t / 10
+        if t == 0:
+            # Next dot, pulsing
+            d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=WARN)
+        else:
+            # Unclaimed dots
+            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=MUTED)
+    # Bar stroke dots
     bar_l, bar_r = (132, 143), (188, 143)
-    d.line([apex, left], fill=BLUE, width=7)
-    d.line([apex, right], fill=BLUE, width=7)
-    for a, b in ((apex, left), (apex, right)):
-        for t in range(0, 11):
-            x = a[0] + (b[0] - a[0]) * t / 10
-            y = a[1] + (b[1] - a[1]) * t / 10
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=SUCCESS)
     for t in range(0, 11):
         x = bar_l[0] + (bar_r[0] - bar_l[0]) * t / 10
-        d.ellipse([x - 3, 140, x + 3, 146], outline=MUTED)
-    d.text((10, 60), "Trace", font=F2, fill=MUTED)
-    d.text((10, 78), "the", font=F2, fill=MUTED)
-    d.text((10, 96), "letter", font=F2, fill=MUTED)
-    d.text((14, 122), "A", font=F4, fill=TEXT)
-    button(d, (250, 60, 60, 30), "Skip", f=F1)
-    button(d, (250, 100, 60, 30), "Clear", f=F1)
+        d.ellipse([x - 2, 141, x + 2, 145], fill=MUTED)
+    # Watermark letter
+    d.text((110, 130), "A", font=F4, fill=PANEL)
+    # Progress bar
+    bar_x, bar_y = 90, 222
+    d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([bar_x, bar_y, 130, bar_y + 10], 4, fill=SUCCESS)
+    # Prev/Next buttons
+    button(d, (8, 200, 60, 32), "Prev", f=F1)
+    button(d, (252, 200, 60, 32), "Next", f=F1)
+    return im
+
+
+def trace_lower():
+    im, d = blank(); topbar(d, "Trace")
+    # Mode tabs at top
+    for i, (label, col) in enumerate([("ABC", PANEL), ("abc", WARN), ("123", PANEL)]):
+        x = 72 + i * 58
+        d.rounded_rectangle([x, 32, x + 54, 54], 4, fill=col, outline=OUTLINE)
+        d.text((x + 27 - d.textlength(label, font=F1) / 2, 37), label, font=F1, fill=PANEL if col == WARN else TEXT)
+    # Canvas
+    d.rectangle([78, 60, 241, 217], fill=SURFACE, outline=OUTLINE)
+    # Show lowercase 'g' with descender - two strokes
+    # First stroke: main bowl, completed
+    x0, y0 = 150, 60
+    for pt in [(150, 60), (120, 80), (70, 80), (40, 110), (40, 155), (70, 180), (120, 180), (150, 155)]:
+        d.ellipse([pt[0] - 3, pt[1] - 3, pt[0] + 3, pt[1] + 3], fill=SUCCESS)
+    # Draw connecting lines for first stroke
+    pts_main = [(150, 60), (120, 80), (70, 80), (40, 110), (40, 155), (70, 180), (120, 180), (150, 155)]
+    for i in range(len(pts_main) - 1):
+        d.line([pts_main[i], pts_main[i+1]], fill=SUCCESS, width=3)
+    # Badge on first point
+    d.ellipse([150 - 7, 60 - 7, 150 + 7, 60 + 7], fill=WARN)
+    d.text((147, 57), "1", font=F1, fill=PANEL)
+    # Second stroke: descender, with dots
+    d.ellipse([40 - 7, 180 - 7, 40 + 7, 180 + 7], fill=WARN)
+    d.text((37, 177), "2", font=F1, fill=PANEL)
+    descender_pts = [(40, 180), (50, 190), (100, 200), (140, 190)]
+    for i, pt in enumerate(descender_pts):
+        if i == 0:
+            d.ellipse([pt[0] - 6, pt[1] - 6, pt[0] + 6, pt[1] + 6], fill=WARN)
+        else:
+            d.ellipse([pt[0] - 3, pt[1] - 3, pt[0] + 3, pt[1] + 3], fill=MUTED)
+    # Watermark
+    d.text((105, 125), "g", font=F4, fill=PANEL)
+    # Progress bar (90% full)
+    bar_x, bar_y = 90, 222
+    d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([bar_x, bar_y, 215, bar_y + 10], 4, fill=SUCCESS)
+    # Buttons
+    button(d, (8, 200, 60, 32), "Prev", f=F1)
+    button(d, (252, 200, 60, 32), "Next", f=F1)
     return im
 
 
@@ -487,7 +551,8 @@ SCREENS = [
     ("states", states, "US States: name the capital"),
     ("stateflags", stateflags, "State Flags: name the state"),
     ("statemaps", statemaps, "State Maps: name the outline"),
-    ("trace", trace, "Trace: letters and numbers"),
+    ("trace", trace, "Trace: uppercase and digits"),
+    ("trace-lower", trace_lower, "Trace: lowercase letters"),
     ("fingers-count", fingers_count, "Finger Counting: count them"),
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("cinnamon", cinnamon, "Cinnamon Says"),
