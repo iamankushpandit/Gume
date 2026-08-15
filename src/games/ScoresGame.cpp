@@ -153,8 +153,9 @@ void ScoresGame::render(GameHost& host) {
     if (needsFullRender()) {
         Ui::drawTab(tft, mineTabRect(), "Mine", activeTab_ == Tab::Mine);
         Ui::drawTab(tft, deviceTabRect(), "Device", activeTab_ == Tab::Device);
+        const Rect& activeTab = (activeTab_ == Tab::Mine) ? mineTabRect() : deviceTabRect();
         Ui::drawTabBaseline(tft, mineTabRect().y + mineTabRect().h,
-                            mineTabRect().x, deviceTabRect().x + deviceTabRect().w);
+                            mineTabRect().x, deviceTabRect().x + deviceTabRect().w, activeTab);
     }
 
     if (activeTab_ == Tab::Mine) {
@@ -253,7 +254,7 @@ void ScoresGame::render(GameHost& host) {
 
                 // Device best value, right-aligned at x = 236
                 char scoreStr[32];
-                snprintf(scoreStr, sizeof(scoreStr), "%ld%s", db.value, e.unit);
+                snprintf(scoreStr, sizeof(scoreStr), "%lu%s", db.value, e.unit);
                 tft.setTextDatum(MR_DATUM);
                 tft.setTextColor(Ui::success(), Ui::surface());
                 tft.drawString(scoreStr, 236, r.y + r.h / 2, 2);
