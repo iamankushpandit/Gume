@@ -2,55 +2,104 @@
 
 /* Launcher tile artwork.
  *
- * Four rules, all of them learned from tiles that were wrong on the device and
- * looked fine in the source:
+ * These sit on saturated blue, green and red tiles that rotate per slot, so an
+ * icon has to hold up against all three. What follows is a small design system
+ * rather than thirty-four independent drawings, because what made the earlier
+ * set look homemade was not any single icon -- it was that they disagreed with
+ * each other. Some were outlines and some solids; strokes ran from one to three
+ * pixels; several sat timidly in the middle of a tile while others filled it;
+ * and a few spent four colours where one would do.
  *
- * 1. **Stay inside ICON_HALF of (cx, cy).** Landscape tiles are 145x46 and the
- *    icon is centred at (r.x + 24, r.y + 22), so the vertical budget is the
- *    binding one: anything past cy +/- 22 leaves the tile entirely, and past
- *    +/- 18 it crowds the rounded border. Portrait is roomier; design for
- *    landscape and portrait comes free. The Coin Flip icon shipped reaching
- *    cy + 24 and drew over the tile edge.
+ * The rules, in the order they matter:
  *
- * 2. **No font 1 text.** Six by eight pixels of antialiased-nothing on a
- *    saturated tile is a smudge, not a glyph. Microku's "1"/"4", Money's
- *    "5"/"1", Multiplication's "12", Percent's "%" and Calendar's stacked
- *    "Mon"/"Tue"/"Wed" were all unreadable at arm's length. Font 2 is the
- *    smallest thing worth drawing, and only for one or two characters; past
- *    that, draw the shape.
+ * 1. **Silhouette first, in SNOW.** Every icon's main mass is one solid light
+ *    shape. Solid reads at arm's length where a one-pixel outline dissolves,
+ *    and a single near-white against all three tile colours gives the set one
+ *    voice. Outlines are for detail *inside* a silhouette, never for the shape.
  *
- * 3. **The failure is two tiles that look alike, not one tile that looks
- *    plain.** A child navigates this grid by silhouette. Fractions and Percent
- *    were both a white circle with a yellow wedge and a blue rim; Flags and
- *    State Flags were the same flag in two colours; Tic-Tac-Toe and Whack were
- *    both a white grid. Those pairs are now a quartered pie against a ring, a
- *    tricolour against a star field, and a grid against a mole.
+ * 2. **Detail in INK, accent in exactly one hue.** INK is the near-black for
+ *    anything drawn on top of SNOW; each icon then gets at most one colour from
+ *    the accent palette. Five games are exempt because colour *is* their
+ *    subject -- Cinnamon, Color Mix, Shape & Color and the two flags -- and
+ *    each says so at the case.
  *
- * 4. **Leave the text datum where you found it.** Several cases set MC_DATUM
- *    and returned without restoring TL_DATUM, which quietly re-aligned whatever
- *    the launcher drew next. Every case that touches the datum resets it. */
+ * 3. **Fill the box.** ICON_HALF is 18 and the main mass should approach it.
+ *    Landscape tiles are 145x46 with the icon centred at (r.x + 24, r.y + 22),
+ *    so the vertical budget binds: past cy +/- 22 the art leaves the tile, and
+ *    past +/- 18 it crowds the rounded border.
+ *
+ * 4. **Two pixels minimum for a stroke, radius 4 for a rounded corner.** A
+ *    single-pixel line on this panel breaks up and reads as an artefact. Use
+ *    the stroke helpers rather than drawLine or drawFastHLine directly.
+ *
+ * 5. **Distinct silhouettes.** A child navigates this grid by shape. Three
+ *    pairs were once the same picture: Fractions and Percent were both a white
+ *    circle with a yellow wedge, Flags and State Flags the same flag in two
+ *    colours, Tic-Tac-Toe and Whack A Mole both a white grid.
+ *
+ * 6. **Leave the text datum where you found it.** Cases that set MC_DATUM and
+ *    returned without restoring TL_DATUM used to re-align whatever the launcher
+ *    drew next. */
 
 namespace {
 
-/* Half-width of the box every icon must fit inside. See rule 1. */
+/* Half-width of the box every icon must fit inside. See rule 3. */
 constexpr int16_t ICON_HALF = 18;
+/* The landscape tile is 46 tall and the icon is centred 22 down from its top,
+ * so anything past 22 is off the tile outright; 18 keeps a margin inside the
+ * rounded border. Stated as an assertion so the relationship is checked rather
+ * than remembered. */
+static_assert(ICON_HALF <= 22, "icon box would overrun the landscape tile");
+/* Every rounded corner in this file. See rule 4. */
+constexpr int16_t RADIUS = 4;
 
-constexpr uint16_t PIP_BLACK = TFT_BLACK;
+/* Through Ui::rgb rather than hand-written RGB565 literals: an earlier draft
+ * carried 0x2418 in a comment claiming to be rgb(36, 132, 204), and it was not
+ * -- the real value is 0x2439. Let the packer do it. */
+uint16_t snow()  { return Ui::rgb(247, 250, 253); }   // the silhouette
+uint16_t ink()   { return Ui::rgb(26, 34, 48); }      // detail on top of snow
+uint16_t steel() { return Ui::rgb(158, 172, 188); }   // a second, quieter solid
+uint16_t amber() { return Ui::rgb(255, 196, 64); }
+uint16_t coral() { return Ui::rgb(255, 110, 100); }
+uint16_t mint()  { return Ui::rgb(88, 220, 158); }
+uint16_t sky()   { return Ui::rgb(96, 190, 255); }
 
-/* Through Ui::rgb rather than a hand-written RGB565 literal: the first draft of
- * this file carried 0x2418 in a comment claiming to be rgb(36, 132, 204), and
- * it was not -- the real value is 0x2439. Let the packer do it. */
-uint16_t ink()    { return Ui::rgb(36, 132, 204); }
-uint16_t gold()   { return Ui::rgb(255, 202, 84); }
-uint16_t cream()  { return Ui::rgb(255, 246, 178); }
-uint16_t leaf()   { return Ui::rgb(108, 232, 148); }
-uint16_t rose()   { return Ui::rgb(255, 112, 112); }
-uint16_t sky()    { return Ui::rgb(94, 190, 255); }
-uint16_t slate()  { return Ui::rgb(120, 128, 134); }
-uint16_t silver() { return Ui::rgb(196, 204, 212); }
+// ---- stroke helpers: nothing in this file draws a one-pixel line ----
+
+void strokeH(Ui::Renderer& tft, int16_t x, int16_t y, int16_t w, uint16_t color) {
+    tft.fillRect(x, y, w, 2, color);
+}
+
+void strokeV(Ui::Renderer& tft, int16_t x, int16_t y, int16_t h, uint16_t color) {
+    tft.fillRect(x, y, 2, h, color);
+}
+
+/* A diagonal with body. drawLine is one pixel wide, and a one-pixel diagonal is
+ * the worst case on this panel, so every diagonal here is drawn as a small
+ * bundle of offset lines. */
+void strokeDiag(Ui::Renderer& tft, int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                uint16_t color) {
+    for (int16_t t = -1; t <= 1; ++t) {
+        tft.drawLine(x0, static_cast<int16_t>(y0 + t), x1, static_cast<int16_t>(y1 + t), color);
+        tft.drawLine(static_cast<int16_t>(x0 + t), y0, static_cast<int16_t>(x1 + t), y1, color);
+    }
+}
+
+/** The workhorse silhouette: a rounded slab centred on (cx, cy). */
+void plate(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t w, int16_t h,
+           uint16_t color) {
+    tft.fillRoundRect(static_cast<int16_t>(cx - w / 2), static_cast<int16_t>(cy - h / 2),
+                      w, h, RADIUS, color);
+}
+
+/** A two-pixel ring, so circles match the stroke weight of everything else. */
+void ring(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color) {
+    tft.drawCircle(cx, cy, radius, color);
+    tft.drawCircle(cx, cy, static_cast<int16_t>(radius - 1), color);
+}
 
 /* Unit five-point star, x100, interleaved outer/inner from twelve o'clock.
- * Kept as a table so the icons cost no runtime trigonometry. */
+ * A table, so the icons cost no runtime trigonometry. */
 constexpr int16_t STAR_XY[10][2] = {
     {   0, -100}, {  22,  -31}, {  95,  -31}, {  36,   12}, {  59,   81},
     {   0,   38}, { -59,   81}, { -36,   12}, { -95,  -31}, { -22,  -31},
@@ -68,30 +117,14 @@ void fillStar(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_
     }
 }
 
-/* A die face on the usual 3x3 grid, bit 8 = top-left, used by Dice. */
-void drawDieFace(Ui::Renderer& tft, int16_t x, int16_t y, int16_t size,
-                 uint16_t face, uint16_t body, uint16_t edge) {
-    tft.fillRoundRect(x, y, size, size, 3, body);
-    tft.drawRoundRect(x, y, size, size, 3, edge);
-    const int16_t step = static_cast<int16_t>(size / 4);
-    for (uint8_t cell = 0; cell < 9; ++cell) {
-        if ((face & (1u << (8 - cell))) == 0) continue;
-        tft.fillCircle(static_cast<int16_t>(x + step + (cell % 3) * step),
-                       static_cast<int16_t>(y + step + (cell / 3) * step),
-                       2, PIP_BLACK);
-    }
-}
-
-/* Upper half of a circle, plotted straight from the circle equation.
+/* Upper half of a circle, from the circle equation.
  *
- * The Wi-Fi tile used to draw whole circles and paint the lower halves out with
- * a rectangle in the tile colour. The mask was three pixels short, so the very
- * bottom of the outer ring survived -- and at cy + 24 that landed outside a
- * 46px landscape tile. Explicit geometry cannot spill the way a mask can miss.
- * Integer square root, because there is no reason to pull in floating point for
- * a seventeen-pixel radius. */
-void drawArcTop(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius,
-                uint16_t color) {
+ * The Wi-Fi tile used to draw whole circles and paint their lower halves out
+ * with a rectangle in the tile colour. The mask was three pixels short, so the
+ * base of the outer ring survived at cy + 24 -- outside a 46px landscape tile.
+ * Explicit geometry cannot spill the way a mask can miss. Integer square root,
+ * because there is no reason to pull floating point in for a 16px radius. */
+void arcTop(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color) {
     for (int16_t dx = -radius; dx <= radius; ++dx) {
         const int32_t inside = static_cast<int32_t>(radius) * radius -
                                static_cast<int32_t>(dx) * dx;
@@ -100,15 +133,26 @@ void drawArcTop(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius,
             ++dy;
         }
         tft.drawPixel(cx + dx, static_cast<int16_t>(cy - dy), color);
+        tft.drawPixel(cx + dx, static_cast<int16_t>(cy - dy + 1), color);
     }
 }
 
-void drawBoldCross(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t reach,
-                   uint16_t color) {
-    for (int16_t t = -1; t <= 1; ++t) {
-        tft.drawLine(cx - reach, cy - reach + t, cx + reach, cy + reach + t, color);
-        tft.drawLine(cx + reach, cy - reach + t, cx - reach, cy + reach + t, color);
+/** A die face on the usual 3x3 grid, bit 8 = top-left. */
+void dieFace(Ui::Renderer& tft, int16_t x, int16_t y, int16_t size, uint16_t face,
+             uint16_t body) {
+    tft.fillRoundRect(x, y, size, size, RADIUS, body);
+    const int16_t step = static_cast<int16_t>(size / 4);
+    for (uint8_t cell = 0; cell < 9; ++cell) {
+        if ((face & (1u << (8 - cell))) == 0) continue;
+        tft.fillCircle(static_cast<int16_t>(x + step + (cell % 3) * step),
+                       static_cast<int16_t>(y + step + (cell / 3) * step),
+                       2, ink());
     }
+}
+
+/** Pole only; the field is the caller's, and is what tells the two flags apart. */
+void flagPole(Ui::Renderer& tft, int16_t cx, int16_t cy) {
+    strokeV(tft, static_cast<int16_t>(cx - 15), static_cast<int16_t>(cy - 16), 33, steel());
 }
 
 }   // namespace
@@ -117,338 +161,312 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
                       uint16_t fill, int16_t cx, int16_t cy) {
     (void)r;
     switch (icon) {
-        case LauncherIcon::TicTacToe: {
-            // A grid that has been *played in*: the marks are what stop this
-            // reading as the same white lattice as Whack A Mole.
-            const int16_t g = ICON_HALF - 2;
-            tft.drawLine(cx - 5, cy - g, cx - 5, cy + g, TFT_WHITE);
-            tft.drawLine(cx + 6, cy - g, cx + 6, cy + g, TFT_WHITE);
-            tft.drawLine(cx - g, cy - 5, cx + g, cy - 5, TFT_WHITE);
-            tft.drawLine(cx - g, cy + 6, cx + g, cy + 6, TFT_WHITE);
-            drawBoldCross(tft, cx - 11, cy - 11, 4, sky());
-            tft.drawCircle(cx, cy, 4, gold());
-            tft.drawCircle(cx, cy, 3, gold());
+        case LauncherIcon::TicTacToe:
+            // A grid that has been played in. An empty lattice was Whack.
+            plate(tft, cx, cy, 34, 34, snow());
+            strokeV(tft, static_cast<int16_t>(cx - 6), static_cast<int16_t>(cy - 15), 30, ink());
+            strokeV(tft, static_cast<int16_t>(cx + 5), static_cast<int16_t>(cy - 15), 30, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 15), static_cast<int16_t>(cy - 6), 30, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 15), static_cast<int16_t>(cy + 5), 30, ink());
+            strokeDiag(tft, cx - 13, cy - 13, cx - 9, cy - 9, coral());
+            strokeDiag(tft, cx - 9, cy - 13, cx - 13, cy - 9, coral());
+            ring(tft, cx, cy, 4, ink());
             break;
-        }
         case LauncherIcon::Memory:
-            // One card face-down, one turned over showing its pip.
-            tft.fillRoundRect(cx - 16, cy - 13, 17, 25, 3, silver());
-            tft.drawRoundRect(cx - 16, cy - 13, 17, 25, 3, slate());
-            tft.drawLine(cx - 13, cy - 8, cx - 5, cy + 6, slate());
-            tft.drawLine(cx - 13, cy + 6, cx - 5, cy - 8, slate());
-            tft.fillRoundRect(cx + 1, cy - 11, 17, 25, 3, TFT_WHITE);
-            tft.drawRoundRect(cx + 1, cy - 11, 17, 25, 3, slate());
-            tft.fillCircle(cx + 9, cy + 1, 5, rose());
+            // One card face-down, one turned over.
+            tft.fillRoundRect(cx - 17, cy - 13, 16, 26, RADIUS, steel());
+            strokeDiag(tft, cx - 14, cy - 7, cx - 5, cy + 6, snow());
+            tft.fillRoundRect(cx + 1, cy - 15, 16, 26, RADIUS, snow());
+            tft.fillCircle(cx + 9, cy - 2, 5, coral());
             break;
         case LauncherIcon::Math:
-            // Plus over minus: the two operations the game actually asks for.
-            tft.fillRoundRect(cx - 17, cy - 15, 34, 30, 4, TFT_WHITE);
-            tft.fillRect(cx - 11, cy - 9, 12, 3, ink());
-            tft.fillRect(cx - 6, cy - 14, 3, 13, ink());
-            tft.fillRect(cx + 1, cy + 7, 12, 3, ink());
+            // Plus over minus, the two operations the game asks for.
+            plate(tft, cx, cy, 34, 32, snow());
+            strokeH(tft, static_cast<int16_t>(cx - 12), static_cast<int16_t>(cy - 9), 12, ink());
+            strokeV(tft, static_cast<int16_t>(cx - 7), static_cast<int16_t>(cy - 14), 12, ink());
+            strokeH(tft, static_cast<int16_t>(cx), static_cast<int16_t>(cy + 7), 12, ink());
             break;
         case LauncherIcon::Multiplication:
-            // A drawn cross rather than the letter x, which at font 2 on a
-            // white card was indistinguishable from the Math plus.
-            tft.fillRoundRect(cx - 17, cy - 15, 34, 30, 4, TFT_WHITE);
-            drawBoldCross(tft, cx, cy, 9, ink());
+            // A drawn cross, not the letter x, which blurred into Math's plus.
+            plate(tft, cx, cy, 34, 32, snow());
+            strokeDiag(tft, cx - 9, cy - 9, cx + 9, cy + 9, ink());
+            strokeDiag(tft, cx + 9, cy - 9, cx - 9, cy + 9, ink());
             break;
         case LauncherIcon::Time:
-            tft.fillCircle(cx, cy, 16, TFT_WHITE);
-            tft.drawCircle(cx, cy, 16, ink());
+            tft.fillCircle(cx, cy, 17, snow());
             for (uint8_t q = 0; q < 4; ++q) {
                 const int16_t dx = (q == 1) ? 13 : (q == 3 ? -13 : 0);
                 const int16_t dy = (q == 2) ? 13 : (q == 0 ? -13 : 0);
-                tft.fillCircle(cx + dx, cy + dy, 1, ink());
+                tft.fillCircle(cx + dx, cy + dy, 2, ink());
             }
-            tft.drawLine(cx, cy, cx, cy - 9, ink());
-            tft.drawLine(cx + 1, cy, cx + 1, cy - 9, ink());
-            tft.drawLine(cx, cy, cx + 8, cy + 4, Ui::rgb(222, 83, 83));
+            strokeV(tft, cx, static_cast<int16_t>(cy - 10), 11, ink());
+            strokeDiag(tft, cx, cy, cx + 8, cy + 5, coral());
             tft.fillCircle(cx, cy, 2, ink());
             break;
         case LauncherIcon::WhackAMole:
-            // A mole in its hole, not a grid. This tile and Tic-Tac-Toe were
-            // the same white lattice with a dot added.
-            tft.fillRoundRect(cx - 17, cy + 4, 34, 14, 6, Ui::rgb(92, 66, 44));
-            tft.fillCircle(cx - 2, cy - 1, 11, Ui::rgb(168, 134, 96));
-            tft.fillCircle(cx - 6, cy - 4, 2, PIP_BLACK);
-            tft.fillCircle(cx + 2, cy - 4, 2, PIP_BLACK);
-            tft.fillCircle(cx - 2, cy + 2, 3, Ui::rgb(232, 150, 150));
-            tft.fillRoundRect(cx + 6, cy - 17, 12, 7, 2, silver());
-            tft.fillRect(cx + 10, cy - 10, 4, 8, Ui::rgb(150, 116, 34));
+            // A mole in its hole. This and Tic-Tac-Toe were the same lattice.
+            tft.fillCircle(cx - 2, cy - 2, 12, snow());
+            tft.fillCircle(cx - 6, cy - 5, 2, ink());
+            tft.fillCircle(cx + 3, cy - 5, 2, ink());
+            tft.fillCircle(cx - 2, cy + 1, 3, coral());
+            tft.fillRoundRect(cx - 18, cy + 5, 36, 12, RADIUS, ink());
+            tft.fillRoundRect(cx + 6, cy - 18, 12, 7, 3, steel());
+            strokeV(tft, static_cast<int16_t>(cx + 10), static_cast<int16_t>(cy - 12), 8, steel());
             break;
-        case LauncherIcon::Cinnamon: {
-            // Four pads with one lit, which is the whole of the game.
-            tft.fillCircle(cx - 10, cy - 9, 7, rose());
-            tft.fillCircle(cx + 10, cy - 9, 7, Ui::rgb(30, 90, 130));
-            tft.fillCircle(cx - 10, cy + 9, 7, Ui::rgb(28, 110, 70));
-            tft.fillCircle(cx + 10, cy + 9, 7, gold());
-            tft.drawCircle(cx + 10, cy - 9, 8, sky());
-            tft.fillCircle(cx + 10, cy - 9, 7, sky());
+        case LauncherIcon::Cinnamon:
+            /* Colour exemption (rule 2): four lit pads *are* the game. Three
+             * sit back in a muted tint so the fourth reads as the flashing one. */
+            tft.fillCircle(cx - 10, cy - 10, 8, Ui::shade(coral(), 55));
+            tft.fillCircle(cx + 10, cy - 10, 8, Ui::shade(sky(), 55));
+            tft.fillCircle(cx - 10, cy + 10, 8, Ui::shade(mint(), 55));
+            tft.fillCircle(cx + 10, cy + 10, 8, amber());
+            ring(tft, cx + 10, cy + 10, 10, snow());
             break;
-        }
         case LauncherIcon::Microku: {
-            // Coloured cells in a 2x2 block. The digits it used to draw were
-            // font 1 and unreadable, and a bare grid reads as Tic-Tac-Toe.
-            tft.fillRoundRect(cx - 16, cy - 16, 32, 32, 2, TFT_WHITE);
-            const uint16_t cell[4] = {sky(), gold(), leaf(), rose()};
+            // One empty square left to solve. Its digits used to be font 1.
+            plate(tft, cx, cy, 34, 34, snow());
+            const int16_t cell[4][2] = {{-8, -8}, {8, -8}, {-8, 8}, {8, 8}};
             for (uint8_t i = 0; i < 4; ++i) {
-                if (i == 2) continue;   // one blank square: the one to solve
-                tft.fillRect(static_cast<int16_t>(cx - 14 + (i % 2) * 15),
-                             static_cast<int16_t>(cy - 14 + (i / 2) * 15), 13, 13,
-                             cell[i]);
+                if (i == 2) continue;
+                tft.fillRoundRect(static_cast<int16_t>(cx + cell[i][0] - 6),
+                                  static_cast<int16_t>(cy + cell[i][1] - 6), 13, 13, 2,
+                                  i == 1 ? amber() : ink());
             }
-            tft.drawLine(cx, cy - 16, cx, cy + 16, ink());
-            tft.drawLine(cx - 16, cy, cx + 16, cy, ink());
+            strokeV(tft, static_cast<int16_t>(cx - 1), static_cast<int16_t>(cy - 15), 30, steel());
+            strokeH(tft, static_cast<int16_t>(cx - 15), static_cast<int16_t>(cy - 1), 30, steel());
             break;
         }
         case LauncherIcon::ShapeColor:
-            // Three shapes in three colours: both halves of "red circle".
-            tft.fillCircle(cx - 9, cy - 6, 9, TFT_WHITE);
-            tft.fillRect(cx + 3, cy - 14, 15, 15, cream());
-            Ui::drawTriangleShape(tft, cx, cy + 10, 9, leaf(), true);
+            /* Colour exemption (rule 2): the game asks for "red circle", so the
+             * tile has to carry shape and colour at once. */
+            tft.fillCircle(cx - 9, cy - 7, 9, snow());
+            tft.fillRoundRect(cx + 2, cy - 16, 16, 16, RADIUS, amber());
+            Ui::drawTriangleShape(tft, cx, cy + 10, 9, coral(), true);
             break;
         case LauncherIcon::Counting:
-            // Five dots as a countable group -- three over two -- rather than
-            // the zig-zag scatter, which read as noise.
+            // A countable group, three over two, rather than a scatter.
             for (uint8_t i = 0; i < 3; ++i) {
-                tft.fillCircle(static_cast<int16_t>(cx - 12 + i * 12), cy - 8, 5, TFT_WHITE);
+                tft.fillCircle(static_cast<int16_t>(cx - 12 + i * 12), cy - 8, 5, snow());
             }
             for (uint8_t i = 0; i < 2; ++i) {
-                tft.fillCircle(static_cast<int16_t>(cx - 6 + i * 12), cy + 6, 5, cream());
+                tft.fillCircle(static_cast<int16_t>(cx - 6 + i * 12), cy + 6, 5,
+                               i == 1 ? amber() : snow());
             }
             break;
         case LauncherIcon::Money:
-            // Copper behind silver, milled edges, no font 1 denominations.
-            tft.fillCircle(cx - 7, cy - 5, 11, Ui::rgb(198, 116, 62));
-            tft.drawCircle(cx - 7, cy - 5, 11, Ui::rgb(140, 78, 40));
-            tft.drawCircle(cx - 7, cy - 5, 7, Ui::rgb(140, 78, 40));
-            tft.fillCircle(cx + 6, cy + 6, 11, silver());
-            tft.drawCircle(cx + 6, cy + 6, 11, slate());
-            tft.drawCircle(cx + 6, cy + 6, 7, slate());
+            // Gold behind silver, milled rims, no font 1 denominations.
+            tft.fillCircle(cx - 7, cy - 6, 11, amber());
+            ring(tft, cx - 7, cy - 6, 7, Ui::shade(amber(), 65));
+            tft.fillCircle(cx + 6, cy + 6, 11, snow());
+            ring(tft, cx + 6, cy + 6, 7, steel());
             break;
         case LauncherIcon::Fractions:
-            // A pie cut into quarters with one taken. Percent is a ring, so
-            // the two no longer collapse into the same white-circle-and-wedge.
-            tft.fillCircle(cx, cy, 16, TFT_WHITE);
-            tft.fillTriangle(cx, cy, cx, cy - 16, cx + 16, cy - 16, gold());
-            tft.fillTriangle(cx, cy, cx + 16, cy - 16, cx + 16, cy, gold());
-            tft.drawCircle(cx, cy, 16, ink());
-            tft.drawLine(cx, cy - 16, cx, cy + 16, ink());
-            tft.drawLine(cx - 16, cy, cx + 16, cy, ink());
+            // A cut pie. Percent is the ring; the two used to be one picture.
+            tft.fillCircle(cx, cy, 17, snow());
+            tft.fillTriangle(cx, cy, cx, cy - 17, cx + 17, cy - 17, amber());
+            tft.fillTriangle(cx, cy, cx + 17, cy - 17, cx + 17, cy, amber());
+            strokeV(tft, cx, static_cast<int16_t>(cy - 17), 34, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 17), cy, 34, ink());
             break;
         case LauncherIcon::Maze:
-            tft.drawRect(cx - 17, cy - 15, 34, 30, TFT_WHITE);
-            tft.drawLine(cx - 7, cy - 15, cx - 7, cy + 6, TFT_WHITE);
-            tft.drawLine(cx + 5, cy - 6, cx + 5, cy + 15, TFT_WHITE);
-            tft.drawLine(cx + 5, cy - 6, cx + 17, cy - 6, TFT_WHITE);
-            tft.drawLine(cx - 17, cy + 6, cx - 7, cy + 6, TFT_WHITE);
-            tft.fillCircle(cx - 12, cy - 10, 3, cream());
-            tft.fillCircle(cx + 11, cy + 10, 3, leaf());
+            plate(tft, cx, cy, 36, 32, snow());
+            strokeV(tft, static_cast<int16_t>(cx - 7), static_cast<int16_t>(cy - 16), 22, ink());
+            strokeV(tft, static_cast<int16_t>(cx + 5), static_cast<int16_t>(cy - 6), 22, ink());
+            strokeH(tft, static_cast<int16_t>(cx + 5), static_cast<int16_t>(cy - 6), 13, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 18), static_cast<int16_t>(cy + 5), 11, ink());
+            tft.fillCircle(cx - 13, cy - 10, 3, coral());
             break;
         case LauncherIcon::Sort:
-            /* Bars sorted short-to-long, laid out horizontally. Scores is also
-             * bars, so the axis is what separates them: Sort reads as a list,
-             * Scores as a chart. */
+            /* Bars sorted short to long, horizontal. Scores is bars too, so the
+             * axis is what separates them: a list against a chart. */
             for (uint8_t b = 0; b < 3; ++b) {
                 tft.fillRoundRect(cx - 16, static_cast<int16_t>(cy - 14 + b * 11),
-                                  static_cast<int16_t>(12 + b * 10), 8, 2,
-                                  b == 2 ? cream() : TFT_WHITE);
+                                  static_cast<int16_t>(13 + b * 9), 8, 3,
+                                  b == 2 ? amber() : snow());
             }
             break;
         case LauncherIcon::ColorMix:
-            tft.fillCircle(cx - 8, cy - 6, 10, 0xF800);
-            tft.fillCircle(cx + 8, cy - 6, 10, 0x041F);
-            tft.fillCircle(cx, cy + 7, 10, 0x9813);
+            // Colour exemption (rule 2): the primaries are the subject.
+            tft.fillCircle(cx - 8, cy - 6, 10, coral());
+            tft.fillCircle(cx + 8, cy - 6, 10, sky());
+            tft.fillCircle(cx, cy + 7, 10, amber());
             break;
         case LauncherIcon::SlidingPuzzle:
-            /* Three tiles and the gap that makes it a sliding puzzle. The old
-             * loop ran a fourth time to draw nothing. */
+            // Three tiles and the gap that makes it slide.
             for (uint8_t i = 0; i < 3; ++i) {
-                tft.fillRoundRect(static_cast<int16_t>(cx - 16 + (i % 2) * 17),
-                                  static_cast<int16_t>(cy - 16 + (i / 2) * 17),
-                                  15, 15, 2, TFT_WHITE);
+                tft.fillRoundRect(static_cast<int16_t>(cx - 17 + (i % 2) * 18),
+                                  static_cast<int16_t>(cy - 17 + (i / 2) * 18),
+                                  16, 16, RADIUS, i == 0 ? amber() : snow());
             }
-            tft.drawRoundRect(cx + 1, cy + 1, 15, 15, 2, silver());
+            tft.drawRoundRect(cx + 1, cy + 1, 16, 16, RADIUS, Ui::shade(snow(), 45));
             break;
         case LauncherIcon::OddOneOut:
             /* The odd one differs in shape as well as colour -- that is the
-             * game, and colour alone is the weaker cue on a coloured tile. */
+             * game, and shape survives on a red tile where colour does not. */
             for (uint8_t i = 0; i < 4; ++i) {
                 const int16_t x = static_cast<int16_t>(cx - 12 + i * 8);
                 if (i == 2) {
-                    tft.fillRect(x - 5, cy - 5, 11, 11, cream());
+                    tft.fillRoundRect(x - 6, cy - 6, 13, 13, 3, amber());
                 } else {
-                    tft.fillCircle(x, cy, 5, TFT_WHITE);
+                    tft.fillCircle(x, cy, 5, snow());
                 }
             }
             break;
         case LauncherIcon::Settings:
-            Ui::drawGearIcon(tft, Rect{static_cast<int16_t>(cx - 13),
-                                       static_cast<int16_t>(cy - 13), 26, 26});
+            Ui::drawGearIcon(tft, Rect{static_cast<int16_t>(cx - 17),
+                                       static_cast<int16_t>(cy - 17), 34, 34}, snow());
             break;
         case LauncherIcon::WiFi:
-            // Two fan arcs over the source dot. Drawn as arcs, not as circles
-            // with their bottoms painted out -- see drawArcTop.
-            drawArcTop(tft, cx, cy + 8, 14, TFT_WHITE);
-            drawArcTop(tft, cx, cy + 8, 13, TFT_WHITE);
-            drawArcTop(tft, cx, cy + 8, 8, TFT_WHITE);
-            drawArcTop(tft, cx, cy + 8, 7, TFT_WHITE);
-            tft.fillCircle(cx, cy + 8, 3, TFT_WHITE);
+            // Real arcs, not circles with their bottoms painted out.
+            arcTop(tft, cx, cy + 9, 16, snow());
+            arcTop(tft, cx, cy + 9, 10, snow());
+            tft.fillCircle(cx, cy + 9, 4, snow());
             break;
         case LauncherIcon::ObjectAdd:
-            tft.fillCircle(cx - 11, cy - 7, 7, TFT_WHITE);
-            tft.fillCircle(cx - 11, cy + 8, 7, leaf());
-            tft.fillCircle(cx + 3, cy + 8, 7, cream());
-            tft.fillRect(cx + 6, cy - 9, 12, 3, TFT_WHITE);
-            tft.fillRect(cx + 10, cy - 13, 3, 12, TFT_WHITE);
+            tft.fillCircle(cx - 11, cy - 7, 7, snow());
+            tft.fillCircle(cx - 11, cy + 8, 7, snow());
+            tft.fillCircle(cx + 3, cy + 8, 7, amber());
+            strokeH(tft, static_cast<int16_t>(cx + 5), static_cast<int16_t>(cy - 8), 13, snow());
+            strokeV(tft, static_cast<int16_t>(cx + 10), static_cast<int16_t>(cy - 13), 13, snow());
             break;
         case LauncherIcon::FingerCount:
-            // Three fingers up, thumb across: a hand, not a bar chart.
+            // A hand with three up and a thumb across, not a bar chart.
             for (uint8_t f = 0; f < 4; ++f) {
                 const bool up = f < 3;
                 tft.fillRoundRect(static_cast<int16_t>(cx - 13 + f * 7),
-                                  static_cast<int16_t>(up ? cy - 15 : cy - 4),
-                                  5, static_cast<int16_t>(up ? 17 : 6), 2,
-                                  up ? TFT_WHITE : silver());
+                                  static_cast<int16_t>(up ? cy - 16 : cy - 5),
+                                  6, static_cast<int16_t>(up ? 18 : 7), 3,
+                                  up ? snow() : steel());
             }
-            tft.fillRoundRect(cx - 14, cy + 2, 27, 12, 3, TFT_WHITE);
-            tft.fillRoundRect(cx + 11, cy - 1, 7, 7, 3, TFT_WHITE);
+            tft.fillRoundRect(cx - 14, cy + 1, 28, 13, RADIUS, snow());
+            tft.fillRoundRect(cx + 10, cy - 2, 8, 8, RADIUS, snow());
             break;
         case LauncherIcon::Sequence:
-            /* A calendar page. It used to stack "Mon"/"Tue"/"Wed" at font 1,
-             * three lines of six-pixel text on a saturated tile. */
-            tft.fillRoundRect(cx - 16, cy - 14, 32, 29, 3, TFT_WHITE);
-            tft.fillRect(cx - 16, cy - 14, 32, 8, Ui::rgb(222, 83, 83));
-            tft.fillRect(cx - 10, cy - 17, 3, 6, silver());
-            tft.fillRect(cx + 7, cy - 17, 3, 6, silver());
+            // A calendar page. It used to stack three font 1 day names.
+            plate(tft, cx, cy + 1, 34, 30, snow());
+            tft.fillRect(cx - 17, cy - 14, 34, 8, coral());
+            strokeV(tft, static_cast<int16_t>(cx - 10), static_cast<int16_t>(cy - 18), 7, steel());
+            strokeV(tft, static_cast<int16_t>(cx + 8), static_cast<int16_t>(cy - 18), 7, steel());
             for (uint8_t row = 0; row < 2; ++row) {
                 for (uint8_t col = 0; col < 4; ++col) {
-                    tft.fillRect(static_cast<int16_t>(cx - 12 + col * 7),
-                                 static_cast<int16_t>(cy - 3 + row * 7), 4, 4,
-                                 (row == 1 && col == 2) ? ink() : silver());
+                    const bool today = (row == 1 && col == 2);
+                    tft.fillRect(static_cast<int16_t>(cx - 13 + col * 7),
+                                 static_cast<int16_t>(cy - 2 + row * 7), 5, 5,
+                                 today ? amber() : ink());
                 }
             }
             break;
         case LauncherIcon::NumberLine:
-            tft.drawFastHLine(cx - 17, cy + 6, 34, TFT_WHITE);
-            tft.drawFastHLine(cx - 17, cy + 7, 34, TFT_WHITE);
+            strokeH(tft, static_cast<int16_t>(cx - 17), static_cast<int16_t>(cy + 6), 34, snow());
             for (uint8_t t = 0; t < 5; ++t) {
-                tft.drawFastVLine(static_cast<int16_t>(cx - 16 + t * 8), cy + 1, 5, TFT_WHITE);
+                strokeV(tft, static_cast<int16_t>(cx - 16 + t * 8),
+                        static_cast<int16_t>(cy + 1), 6, snow());
             }
-            tft.fillTriangle(cx + 8, cy - 1, cx + 3, cy - 9, cx + 13, cy - 9, cream());
+            tft.fillTriangle(cx + 8, cy + 2, cx + 2, cy - 8, cx + 14, cy - 8, amber());
             break;
         case LauncherIcon::Flag:
-            // World flags: a tricolour, so it cannot be mistaken for the
-            // star-field used by State Flags.
-            tft.drawFastVLine(cx - 14, cy - 16, 33, silver());
-            tft.drawFastVLine(cx - 13, cy - 16, 33, silver());
-            tft.fillRect(cx - 12, cy - 15, 9, 19, Ui::rgb(60, 120, 220));
-            tft.fillRect(cx - 3, cy - 15, 9, 19, TFT_WHITE);
-            tft.fillRect(cx + 6, cy - 15, 9, 19, Ui::rgb(222, 83, 83));
-            tft.drawRect(cx - 12, cy - 15, 27, 19, TFT_WHITE);
+            /* Colour exemption (rule 2). A tricolour, so it cannot be taken for
+             * the star field State Flags uses. */
+            flagPole(tft, cx, cy);
+            tft.fillRect(cx - 13, cy - 15, 9, 19, sky());
+            tft.fillRect(cx - 4, cy - 15, 9, 19, snow());
+            tft.fillRect(cx + 5, cy - 15, 9, 19, coral());
             break;
         case LauncherIcon::States:
-            // Name the capital: a capital star on its marker.
-            tft.fillCircle(cx, cy - 2, 15, TFT_WHITE);
-            fillStar(tft, cx, cy - 2, 12, ink());
-            tft.fillTriangle(cx - 6, cy + 8, cx + 6, cy + 8, cx, cy + 17, TFT_WHITE);
+            // Name the capital: a capital star on its map pin.
+            tft.fillCircle(cx, cy - 3, 14, snow());
+            tft.fillTriangle(cx - 7, cy + 7, cx + 7, cy + 7, cx, cy + 17, snow());
+            fillStar(tft, cx, cy - 3, 11, amber());
             break;
         case LauncherIcon::Trace:
-            tft.setTextColor(TFT_WHITE, fill);
+            // The letter, plus the guide dots the game makes a child follow.
+            tft.setTextColor(snow(), fill);
             tft.setTextDatum(MC_DATUM);
             tft.drawString("A", cx - 6, cy - 1, 4);
             tft.setTextDatum(TL_DATUM);
-            for (int16_t d = 0; d < 16; d += 4) {
-                tft.fillCircle(cx + 12, static_cast<int16_t>(cy - 13 + d), 2, leaf());
+            for (int16_t d = 0; d < 16; d += 5) {
+                tft.fillCircle(cx + 12, static_cast<int16_t>(cy - 13 + d), 2, amber());
             }
             break;
         case LauncherIcon::StateFlag:
-            // A state flag: canton of stars, not the world tricolour.
-            tft.drawFastVLine(cx - 14, cy - 16, 33, silver());
-            tft.drawFastVLine(cx - 13, cy - 16, 33, silver());
-            tft.fillRect(cx - 12, cy - 15, 27, 19, Ui::rgb(40, 70, 150));
-            fillStar(tft, cx - 4, cy - 9, 6, TFT_WHITE);
-            fillStar(tft, cx + 8, cy - 2, 5, TFT_WHITE);
-            tft.drawRect(cx - 12, cy - 15, 27, 19, TFT_WHITE);
+            // Colour exemption (rule 2): a canton of stars, not the tricolour.
+            flagPole(tft, cx, cy);
+            tft.fillRect(cx - 13, cy - 15, 27, 19, sky());
+            fillStar(tft, cx - 5, cy - 9, 6, snow());
+            fillStar(tft, cx + 7, cy - 2, 5, snow());
             break;
         case LauncherIcon::StateMap:
-            // An outline to identify, with no flag and no star to confuse it
-            // with the other two state games.
-            tft.fillTriangle(cx - 16, cy - 12, cx + 6, cy - 14, cx + 2, cy + 2, TFT_WHITE);
-            tft.fillTriangle(cx - 16, cy - 12, cx + 2, cy + 2, cx - 10, cy + 10, TFT_WHITE);
-            tft.fillTriangle(cx + 2, cy + 2, cx + 16, cy - 4, cx + 8, cy + 15, TFT_WHITE);
-            tft.fillTriangle(cx - 10, cy + 10, cx + 2, cy + 2, cx + 8, cy + 15, TFT_WHITE);
+            // An outline to identify: no flag, no pin, no star.
+            tft.fillTriangle(cx - 17, cy - 12, cx + 6, cy - 15, cx + 2, cy + 2, snow());
+            tft.fillTriangle(cx - 17, cy - 12, cx + 2, cy + 2, cx - 10, cy + 11, snow());
+            tft.fillTriangle(cx + 2, cy + 2, cx + 17, cy - 5, cx + 8, cy + 16, snow());
+            tft.fillTriangle(cx - 10, cy + 11, cx + 2, cy + 2, cx + 8, cy + 16, snow());
             break;
         case LauncherIcon::Percent:
-            /* A progress ring reading about three quarters round. Fractions is
-             * the cut pie; these two used to be the same picture. */
-            tft.fillCircle(cx, cy, 16, TFT_WHITE);
-            tft.fillTriangle(cx, cy, cx, cy - 17, cx + 17, cy - 17, gold());
-            tft.fillTriangle(cx, cy, cx + 17, cy - 17, cx + 17, cy + 17, gold());
-            tft.fillTriangle(cx, cy, cx + 17, cy + 17, cx - 17, cy + 17, gold());
+            /* A progress ring, about three quarters round. Fractions is the cut
+             * pie; these two used to be the same picture. */
+            tft.fillCircle(cx, cy, 17, snow());
+            tft.fillTriangle(cx, cy, cx, cy - 18, cx + 18, cy - 18, amber());
+            tft.fillTriangle(cx, cy, cx + 18, cy - 18, cx + 18, cy + 18, amber());
+            tft.fillTriangle(cx, cy, cx + 18, cy + 18, cx - 18, cy + 18, amber());
             tft.fillCircle(cx, cy, 9, fill);
-            tft.drawCircle(cx, cy, 16, ink());
-            tft.drawCircle(cx, cy, 9, ink());
             break;
         case LauncherIcon::GreWords:
-            tft.fillRoundRect(cx - 11, cy - 10, 26, 24, 3, silver());
-            tft.fillRoundRect(cx - 15, cy - 14, 26, 24, 3, TFT_WHITE);
-            tft.setTextColor(ink(), TFT_WHITE);
+            tft.fillRoundRect(cx - 10, cy - 9, 26, 24, RADIUS, steel());
+            tft.fillRoundRect(cx - 16, cy - 15, 26, 24, RADIUS, snow());
+            tft.setTextColor(ink(), snow());
             tft.setTextDatum(MC_DATUM);
-            tft.drawString("Aa", cx - 2, cy - 2, 2);
+            tft.drawString("Aa", cx - 3, cy - 3, 2);
             tft.setTextDatum(TL_DATUM);
             break;
         case LauncherIcon::Dice:
-            /* Two dice, the far one tucked behind. Both faces are real: a
-             * blank square is the one thing a die never shows. */
-            drawDieFace(tft, cx - 2, cy - 17, 19, 0b100000001, silver(), slate());
-            drawDieFace(tft, cx - 17, cy - 3, 21, 0b101010101, TFT_WHITE, slate());
+            /* Two dice, the far one tucked behind. Both faces are real: a blank
+             * square is the one thing a die never shows. */
+            dieFace(tft, cx - 2, cy - 17, 19, 0b100000001, steel());
+            dieFace(tft, cx - 17, cy - 3, 21, 0b101010101, snow());
             break;
         case LauncherIcon::CoinFlip:
             /* One coin face-on and one caught edge-on, which is what the game
-             * draws mid-spin. The edge-on sliver used to run 24px below cy and
-             * over the bottom of the landscape tile. */
-            tft.fillCircle(cx + 4, cy - 1, 14, Ui::rgb(226, 182, 72));
-            tft.drawCircle(cx + 4, cy - 1, 14, Ui::rgb(150, 116, 34));
-            tft.drawCircle(cx + 4, cy - 1, 10, Ui::rgb(150, 116, 34));
-            tft.fillRoundRect(cx - 16, cy - 9, 7, 18, 3, Ui::rgb(240, 206, 120));
-            tft.drawRoundRect(cx - 16, cy - 9, 7, 18, 3, Ui::rgb(150, 116, 34));
+             * draws mid-spin. The sliver used to reach cy + 24 and run over the
+             * bottom of a landscape tile. */
+            tft.fillCircle(cx + 4, cy - 1, 14, amber());
+            ring(tft, cx + 4, cy - 1, 10, Ui::shade(amber(), 65));
+            tft.fillRoundRect(cx - 16, cy - 9, 8, 18, RADIUS, Ui::shade(amber(), 130));
             break;
         case LauncherIcon::Profiles:
-            tft.fillCircle(cx - 6, cy - 6, 6, TFT_WHITE);
-            tft.fillCircle(cx - 6, cy + 8, 10, TFT_WHITE);
-            tft.fillRect(cx - 18, cy + 9, 24, 9, fill);
-            tft.fillCircle(cx + 9, cy - 4, 5, Ui::rgb(255, 226, 90));
-            tft.fillCircle(cx + 9, cy + 8, 8, Ui::rgb(255, 226, 90));
-            tft.fillRect(cx + 1, cy + 9, 17, 9, fill);
+            tft.fillCircle(cx - 7, cy - 6, 6, snow());
+            tft.fillCircle(cx - 7, cy + 8, 10, snow());
+            tft.fillRect(cx - 18, cy + 9, 23, 9, fill);
+            tft.fillCircle(cx + 8, cy - 4, 5, amber());
+            tft.fillCircle(cx + 8, cy + 8, 9, amber());
+            tft.fillRect(cx, cy + 9, 18, 9, fill);
             break;
         case LauncherIcon::Scores:
-            // Vertical chart with a gold leader. Sort is the horizontal list.
+            // A vertical chart with a gold leader. Sort is the horizontal list.
             for (uint8_t b = 0; b < 3; ++b) {
-                const int16_t h = static_cast<int16_t>(9 + b * 8);
-                tft.fillRect(static_cast<int16_t>(cx - 15 + b * 11),
-                             static_cast<int16_t>(cy + 14 - h), 9, h,
-                             b == 2 ? Ui::rgb(255, 226, 90) : TFT_WHITE);
+                const int16_t h = static_cast<int16_t>(10 + b * 8);
+                tft.fillRoundRect(static_cast<int16_t>(cx - 16 + b * 11),
+                                  static_cast<int16_t>(cy + 14 - h), 10, h, 3,
+                                  b == 2 ? amber() : snow());
             }
             break;
         case LauncherIcon::About:
-            tft.fillCircle(cx, cy, 16, TFT_WHITE);
-            tft.setTextColor(ink(), TFT_WHITE);
+            tft.fillCircle(cx, cy, 17, snow());
+            tft.setTextColor(ink(), snow());
             tft.setTextDatum(MC_DATUM);
             tft.drawString("i", cx, cy + 1, 4);
             tft.setTextDatum(TL_DATUM);
             break;
         case LauncherIcon::SystemInfo:
             // A screen with a heartbeat on it: diagnostics, not a slideshow.
-            tft.fillRoundRect(cx - 17, cy - 13, 34, 24, 2, TFT_WHITE);
-            tft.fillRect(cx - 4, cy + 11, 8, 4, silver());
-            tft.fillRect(cx - 11, cy + 15, 22, 3, silver());
-            tft.drawLine(cx - 13, cy - 1, cx - 6, cy - 1, Ui::rgb(222, 83, 83));
-            tft.drawLine(cx - 6, cy - 1, cx - 3, cy - 8, Ui::rgb(222, 83, 83));
-            tft.drawLine(cx - 3, cy - 8, cx + 1, cy + 5, Ui::rgb(222, 83, 83));
-            tft.drawLine(cx + 1, cy + 5, cx + 4, cy - 1, Ui::rgb(222, 83, 83));
-            tft.drawLine(cx + 4, cy - 1, cx + 13, cy - 1, Ui::rgb(222, 83, 83));
+            plate(tft, cx, cy - 2, 36, 26, snow());
+            tft.fillRect(cx - 4, cy + 11, 8, 4, steel());
+            tft.fillRoundRect(cx - 11, cy + 14, 22, 4, 2, steel());
+            strokeH(tft, static_cast<int16_t>(cx - 14), static_cast<int16_t>(cy - 2), 6, coral());
+            strokeDiag(tft, cx - 8, cy - 2, cx - 5, cy - 9, coral());
+            strokeDiag(tft, cx - 5, cy - 9, cx - 1, cy + 5, coral());
+            strokeDiag(tft, cx - 1, cy + 5, cx + 3, cy - 2, coral());
+            strokeH(tft, static_cast<int16_t>(cx + 3), static_cast<int16_t>(cy - 2), 11, coral());
             break;
     }
 }

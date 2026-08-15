@@ -11,6 +11,14 @@
   live only in `include/AppVersion.h` -- they had been typed out in five places,
   which is the same shape of drift that once left About six games behind.
   `GOODTIME_KIDS_VERSION` is now `BRAINO_VERSION`.
+- **The launcher icons are drawn to a design system now.** What made the old
+  set look homemade was not any single icon but that they disagreed: some were
+  outlines and some solids, strokes ran from one to three pixels, several sat
+  timidly in the middle of a tile while others filled it, and a few spent four
+  colours where one would do. Every icon is now a solid light silhouette with
+  detail in one near-black and at most one accent hue, filling a 36x36 box, with
+  a two-pixel minimum stroke and a single corner radius. Five games are exempt
+  from the one-accent rule because colour is their subject.
 - **Every launcher icon was reworked.** Three pairs of tiles were effectively
   the same picture -- Fractions and Percent were both a white circle with a
   yellow wedge, Flags and State Flags the same flag in two colours, Tic-Tac-Toe
