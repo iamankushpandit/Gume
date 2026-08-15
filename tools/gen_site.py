@@ -45,31 +45,25 @@ PARTS = (
 # One entry per PlatformIO environment offered on the page. `label` is what the
 # picker shows; `note` is the sentence under it, and has to be honest about
 # what the diagnostic builds do -- they replace the games entirely.
+# Only the console is offered here.
+#
+# The bringup and wifidiag environments still exist, and CI still builds them --
+# they are how you tell a wiring fault from a software one on a fresh board.
+# They are not on this page. Everyone arriving at it wants the games, and a
+# picker whose other two entries erase the console and replace it with a serial
+# test is a trap for exactly the audience least able to recover from it.
+# Diagnostics belong with the people who build from source; README covers them.
+#
+# Adding an entry here is a commitment that .github/workflows/pages.yml builds
+# that environment -- check_docs.py enforces it, because a manifest pointing at
+# binaries CI never produced fails halfway through erasing somebody's board.
 VARIANTS = (
     {
         "env": "app",
         "label": "GoodTime Kids (the games)",
         "name": "GoodTime Kids",
         "note": "The full console: {count} games, profiles, scores, settings, "
-                "Wi-Fi clock and the BLE beacon. This is the one you want.",
-    },
-    {
-        "env": "bringup",
-        "label": "Bring-up diagnostic (display + touch check)",
-        "name": "GoodTime Kids bring-up diagnostic",
-        "note": "Diagnostic build, not the console. Draws a display and touch "
-                "test instead of the app -- flash it when a fresh board shows "
-                "nothing, or touch lands in the wrong place, to tell a wiring "
-                "fault from a software one.",
-    },
-    {
-        "env": "wifidiag",
-        "label": "Wi-Fi radio diagnostic",
-        "name": "GoodTime Kids Wi-Fi diagnostic",
-        "note": "Diagnostic build, not the console. The radio test compiled "
-                "alone, with no display, touch or game code that could "
-                "interfere; it scans for networks and reports over serial at "
-                "115200 baud.",
+                "Wi-Fi clock and the BLE beacon.",
     },
 )
 
@@ -80,7 +74,7 @@ BOARDS = (
         "id": "e32r28t1",
         "label": "E32R28T-1 / ESP32-32E -- 2.8 inch ILI9341 + XPT2046 (resistive)",
         "chip": "ESP32",
-        "envs": ("app", "bringup", "wifidiag"),
+        "envs": ("app",),
     },
 )
 
@@ -167,6 +161,8 @@ PLAYABLE_STILLS = {
     "statemaps": ("statemaps",),
     "percent": ("percent",),
     "grewords": ("grewords", "grewords-study"),
+    "dice": ("dice",),
+    "coinflip": ("coinflip",),
 }
 
 SYSTEM_SHOWCASE = (

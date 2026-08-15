@@ -12,6 +12,13 @@
   and back as it spins, then lands, and a pip row fills in as the round goes on.
   No score, for the same reason as Dice.
 
+### Changed
+
+- The web installer offers only the console firmware. The bring-up and Wi-Fi
+  diagnostics are still built by CI and still documented in the README, but they
+  are no longer in the browser flasher's picker, where choosing one replaces a
+  working console with a serial test.
+
 ### Fixed
 
 - **The device could stop waking from a long sleep.** `applyTimeConfig()` handed
