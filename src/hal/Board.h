@@ -208,6 +208,8 @@ public:
      * a hang. */
     void displaySleep();
     void displayWake();
+    /** ILI9341 Sleep In / Sleep Out guard time, both directions. */
+    static constexpr uint32_t PANEL_SLEEP_SETTLE_MS = 120;
     bool displayAsleep() const { return displayAsleep_; }
     DisplaySleepTelemetry displaySleepTelemetry() const { return displaySleepTelemetry_; }
     bool gameVisible(uint8_t catalogIndex, bool fallback = true);
@@ -362,9 +364,31 @@ private:
     bool displayAsleep_ = false;
     DisplaySleepTelemetry displaySleepTelemetry_{};
 
+    /* The NTP server name handed to lwIP, owned for the lifetime of the board.
+     *
+     * lwIP's sntp_setservername() keeps the pointer it is given; it does not
+     * copy the string. applyTimeConfig() used to pass ntpServer().c_str() --
+     * the buffer of a String temporary destroyed at the end of that statement
+     * -- leaving the SNTP daemon holding freed heap that it dereferences on
+     * its own schedule, hours later. See applyTimeConfig().
+     *
+     * appliedTz_ records what was last programmed so applyTimeConfig() can be
+     * idempotent, rather than tearing SNTP down and back up every resync. */
+    static constexpr size_t NTP_NAME_CAP = 64;
+    static constexpr size_t TZ_SPEC_CAP = 64;
+    char ntpServerName_[NTP_NAME_CAP] = {0};
+    char appliedTz_[TZ_SPEC_CAP] = {0};
+    bool sntpConfigured_ = false;
+
     /* Game visibility as a bitmask for one profile: bit i = catalog index i.
-     * 32 bits covers the 26-game catalog with room to grow. Loaded in one
-     * pass, then answered from RAM. */
+     * Loaded in one pass, then answered from RAM.
+     *
+     * 32 bits is now a real ceiling rather than headroom: the catalog is at 30.
+     * gameVisibleFor() and setGameVisibleFor() both bound-check against
+     * VISIBILITY_BITS, so a 33rd game would not corrupt anything -- it would
+     * silently pin itself to its default and refuse to be hidden from Settings,
+     * which is worse, because it looks like a Settings bug. Widen this to
+     * uint64_t before adding the 33rd. */
     static constexpr uint8_t VISIBILITY_BITS = 32;
     bool visibilityCached_ = false;
     uint8_t visibilityProfile_ = 0xFF;

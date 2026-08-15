@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The device could stop waking from a long sleep.** `applyTimeConfig()` handed
+  lwIP's SNTP client `ntpServer().c_str()` -- the buffer of a `String` temporary
+  destroyed at the end of that statement. `sntp_setservername()` keeps the
+  pointer rather than copying the string, so the daemon was left holding freed
+  heap and dereferenced it on its own poll cadence. That block survives while
+  nothing reuses it, which is why the fault needed hours of idling to appear.
+  The name now lives in a `Board` member. The same call was also being re-issued
+  every five minutes forever, stopping and restarting the daemon each time for
+  no benefit; it is idempotent now.
+- The ILI9341 ignores Sleep Out within 120ms of a Sleep In. `displayWake()` now
+  waits out the remainder, which a tap arriving just after the saver handed over
+  to sleep could otherwise land inside.
+
 - The GitHub Pages installer now showcases every generated still for the games,
   launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the
   screen saver instead of showing only the launcher mock-ups.
