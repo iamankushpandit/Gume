@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include <string.h>
+#include "AppVersion.h"
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -140,7 +141,7 @@ void LauncherGame::render(GameHost& host) {
 
     if (tall) {
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("GoodTime Kids!", static_cast<int16_t>(lW / 2), 17, 4);
+        tft.drawString(BRAINO_PRODUCT_NAME, static_cast<int16_t>(lW / 2), 17, 4);
         tft.setTextDatum(ML_DATUM);
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.drawString(Ui::fitted(tft, board.profileName(board.activeProfile()),
@@ -162,9 +163,9 @@ void LauncherGame::render(GameHost& host) {
         }
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
     } else {
-        tft.drawString("GoodTime Kids!", 10, 16, 4);
+        tft.drawString(BRAINO_PRODUCT_NAME, 10, 16, 4);
         tft.setTextColor(Ui::muted(), Ui::surface());
-        tft.drawString("(C) GoodTime Micro", 10, 38, 1);
+        tft.drawString(BRAINO_COPYRIGHT_SHORT, 10, 38, 1);
         tft.setTextDatum(ML_DATUM);
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.drawString(Ui::fitted(tft, board.profileName(board.activeProfile()),

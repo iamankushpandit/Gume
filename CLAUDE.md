@@ -1,4 +1,4 @@
-﻿# GUme â€” GoodTime Kids
+﻿# GUme â€” Braino!
 
 ## Two standing rules â€” do these without being asked
 

@@ -34,6 +34,11 @@ if HAVE_ART:
 else:
     IMAGES = {}
 
+# Product identity, mirroring include/AppVersion.h. The mock-ups are the
+# fifth place the name used to be typed out; keep it in one name here too.
+PRODUCT = "Braino!"
+COPYRIGHT_SHORT = "(C) GoodTime Micro"
+
 W, H = 320, 240
 BG, SURFACE, PANEL = (18, 20, 26), (32, 36, 46), (52, 58, 72)
 TEXT, MUTED, OUTLINE = (232, 236, 242), (140, 148, 162), (86, 94, 110)
@@ -373,8 +378,8 @@ def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
-    d.text((10, 5), "GoodTime Kids!", font=F4, fill=TEXT)
-    d.text((10, 34), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    d.text((10, 5), PRODUCT, font=F4, fill=TEXT)
+    d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # Profile name: plain text on the byline row, no button chrome.
     d.text((124, 34), "Ava", font=F1, fill=TEXT)
     t = "12:41 AM"
@@ -405,7 +410,7 @@ def launcher_wide():
 def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
-    t = "GoodTime Kids!"
+    t = PRODUCT
     d.text((120 - d.textlength(t, font=F4) / 2, 6), t, font=F4, fill=TEXT)
     d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
     d.text((8, 36), "Ava", font=F2, fill=TEXT)
@@ -1231,8 +1236,8 @@ def profiles_pick():
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     # Header band
     d.rectangle([0, 0, W, 30], fill=SURFACE)
-    d.text((10, 15 - 9), "GoodTime Kids!", font=F4, fill=TEXT)
-    d.text((W - 8 - d.textlength("(C) GoodTime Micro", font=F1), 15 - 5), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    d.text((10, 15 - 9), PRODUCT, font=F4, fill=TEXT)
+    d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
     # promptY = 32 in landscape, and the hint sits 18px below it.
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)

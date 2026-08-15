@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- **The console is now Braino!** The product was GoodTime Kids; it is Braino!
+  from this release. The owner did not change: every copyright line still reads
+  GoodTime Micro Company, and the trademark notice records the old name so the
+  two facts cannot be conflated later. The name and both copyright forms now
+  live only in `include/AppVersion.h` -- they had been typed out in five places,
+  which is the same shape of drift that once left About six games behind.
+  `GOODTIME_KIDS_VERSION` is now `BRAINO_VERSION`.
+
 ### Added
 
 - **Dice.** Pick one, two or three dice and throw them; the faces tumble for a
@@ -36,9 +46,8 @@
 - **Profiles.** "Who is playing?" and the guest hint overlapped each other in
   both orientations, and in portrait the hint ran straight through the first
   profile row. In portrait the copyright line also collided with the title,
-  which is too wide at 240px to share that line; it now sits under the title
-  inside a taller header bar. The row pitch moved with it, so six rows still
-  clear the Add / Done buttons.
+  which is too wide at 240px to share that line. "Braino!" is half the width, so
+  both orientations went back to sharing one 30px header bar.
 
 - The GitHub Pages installer now showcases every generated still for the games,
   launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the

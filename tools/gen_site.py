@@ -60,8 +60,8 @@ PARTS = (
 VARIANTS = (
     {
         "env": "app",
-        "label": "GoodTime Kids (the games)",
-        "name": "GoodTime Kids",
+        "label": "Braino! (the games)",
+        "name": "Braino!",
         "note": "The full console: {count} games, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon.",
     },
@@ -235,7 +235,7 @@ def find(pattern, text, what, flags=0):
 
 
 def version():
-    return find(r'GOODTIME_KIDS_VERSION\s+"([^"]+)"',
+    return find(r'BRAINO_VERSION\s+"([^"]+)"',
                 read("include", "AppVersion.h"), "the version").group(1)
 
 

@@ -1,4 +1,5 @@
 #include "ProfileGame.h"
+#include "AppVersion.h"
 #include "engine/AppRegistry.h"
 #include "hal/Board.h"
 
@@ -21,16 +22,18 @@ void ProfileGame::begin(GameHost& host) {
     markFullDirty();
 }
 
-/* The picker header, and the reason it is two different heights.
+/* One header bar, both orientations.
  *
- * Landscape has room to set the copyright against the right edge of the title
- * bar. Portrait does not: at 240px the title alone is most of the width, so the
- * two collided. Portrait therefore gets a taller bar and stacks the copyright
- * under the title, left-aligned with it, which reads as deliberate rather than
- * as a stray line floating on the background below the bar. */
+ * This briefly needed a taller portrait bar with the copyright stacked under
+ * the title, because "GoodTime Kids!" at font 4 was most of a 240px screen and
+ * the two collided. "Braino!" is half the width and the collision is gone: the
+ * title runs to about x=80 in portrait and the copyright right-aligns from
+ * x=124, so a single 30px bar carries both. Rename the product to something
+ * long again and this is the first thing to re-measure -- portrait is the tight
+ * one, and the row pitch below depends on the bar staying 30px. */
 Rect ProfileGame::headerRect(int16_t screenW, int16_t screenH) const {
-    const bool tall = screenH > screenW;
-    return Rect{0, 0, screenW, static_cast<int16_t>(tall ? 40 : 30)};
+    (void)screenH;
+    return Rect{0, 0, screenW, 30};
 }
 
 /* Rows are packed against both ends: the header plus its two lines of prompt
@@ -39,8 +42,8 @@ Rect ProfileGame::headerRect(int16_t screenW, int16_t screenH) const {
  * prompt baselines in render() are one budget -- move either and re-check the
  * last row against the buttons. */
 namespace {
-constexpr int16_t rowsTop(bool tall)   { return tall ? 72 : 60; }
-constexpr int16_t rowsPitch(bool tall) { return tall ? 36 : 25; }
+constexpr int16_t rowsTop(bool tall)   { return tall ? 62 : 60; }
+constexpr int16_t rowsPitch(bool tall) { return tall ? 38 : 25; }
 constexpr int16_t rowsHeight(bool tall){ return tall ? 33 : 23; }
 constexpr int16_t rowsMenuW(bool tall) { return tall ? 54 : 62; }
 }   // namespace
@@ -254,25 +257,19 @@ void ProfileGame::render(GameHost& host) {
 
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
-        tft.drawString("GoodTime Kids!", 10, 15, 4);
+        tft.drawString(BRAINO_PRODUCT_NAME, 10, 15, 4);
+
+        // The product renamed, the owner did not: the copyright stays theirs.
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.setTextDatum(MR_DATUM);
+        tft.drawString(BRAINO_COPYRIGHT_SHORT, W - 8, 15, 1);
 
         /* Both lines below sit on the background between the header and the
          * first row. They used to overlap each other by a pixel, and in
          * portrait the guest hint ran straight through the top row -- font 2 is
          * 16px tall and font 1 is 8, so the baselines have to be spaced for the
          * font, not eyeballed. Keep the last line clear of rowsTop(). */
-        tft.setTextColor(Ui::muted(), Ui::surface());
-        if (tall) {
-            // Portrait: stacked under the title, inside the taller header bar.
-            tft.setTextDatum(ML_DATUM);
-            tft.drawString("(C) GoodTime Micro", 10, 34, 1);
-        } else {
-            // Landscape: the title leaves the right end of the bar free.
-            tft.setTextDatum(MR_DATUM);
-            tft.drawString("(C) GoodTime Micro", W - 8, 15, 1);
-        }
-
-        const int16_t promptY = static_cast<int16_t>(tall ? 44 : 32);
+        const int16_t promptY = 32;
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
         tft.drawString("Who is playing?", W / 2, promptY, 2);

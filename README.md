@@ -1,4 +1,4 @@
-# GoodTime Kids
+# Braino!
 
 A 30-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
@@ -317,7 +317,8 @@ just far more slowly than with the backlight on.
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
 - **Profiles** -- shown at boot; picks whose scores are being written. Carries
-  the GoodTime Kids product mark in a branded header.
+  the Braino! product mark in a branded header, with the GoodTime Micro
+  copyright beside it.
 - **Scores** -- two tabs:
   - **Mine** shows bests and worsts for the active child, per game.
   - **Device** shows the device-wide best and its holder across every child on
