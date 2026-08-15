@@ -937,7 +937,50 @@ def about_radios():
 
 def percent():
     im, d = blank(); topbar(d, "Percent")
-    d.text((10, 60), "Placeholder", font=F2, fill=MUTED)
+    q = "What percent?"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
+
+    # Draw circle at (96, 130) with radius 62
+    cx, cy, r = 96, 130, 62
+
+    # Draw the circle background and outline
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(81, 113, 147), outline=BLUE)
+
+    # Draw shaded portion (60%)
+    import math
+    for angle in range(-90, -90 + 216, 3):  # 60% of 360 = 216 degrees
+        rad = math.radians(angle)
+        x = cx + int(r * math.cos(rad))
+        y = cy + int(r * math.sin(rad))
+        next_angle = angle + 3
+        next_rad = math.radians(next_angle)
+        next_x = cx + int(r * math.cos(next_rad))
+        next_y = cy + int(r * math.sin(next_rad))
+        d.polygon([
+            (cx, cy),
+            (x, y),
+            (next_x, next_y)
+        ], fill=(255, 202, 84))
+
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=BLUE, width=2)
+
+    # Draw spokes every 10%
+    for i in range(10):
+        angle = -90 + i * 36
+        rad = math.radians(angle)
+        x = cx + int(r * math.cos(rad))
+        y = cy + int(r * math.sin(rad))
+        d.line([(cx, cy), (x, y)], fill=(100, 150, 200), width=1)
+
+    # Four option buttons
+    for i, pct in enumerate(["25%", "50%", "60%", "75%"]):
+        rr = (164 + (i % 2) * 76, 96 + (i // 2) * 44, 70, 38)
+        button(d, rr, pct, SUCCESS if pct == "60%" else PANEL,
+               (0, 0, 0) if pct == "60%" else TEXT)
+
+    # Score line
+    d.text((8, 226), "Score: 15  Streak: 2  Lvl: 1", font=F1, fill=TEXT)
+
     return im
 
 
