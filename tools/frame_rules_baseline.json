@@ -1,0 +1,278 @@
+{
+  "_comment": [
+    "Per-file counts of the CLAUDE.md memory/frame-rule patterns.",
+    "This is a RATCHET: check_frame_rules.py fails when a count rises.",
+    "Existing entries are pre-existing debt, deliberately frozen rather",
+    "than fixed, because CLAUDE.md says not to opportunistically",
+    "refactor files you are not otherwise changing.",
+    "Lower a number only by actually removing violations, then re-run",
+    "python tools/check_frame_rules.py --update-baseline"
+  ],
+  "files": {
+    "src/engine/ContentLoader.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/engine/ContentLoader.h": {
+      "String": 2,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/AboutGame.cpp": {
+      "String": 7,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/AboutGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/CinnamonGame.cpp": {
+      "String": 4,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/CinnamonGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/ColorMixGame.cpp": {
+      "String": 2,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/CountingGame.cpp": {
+      "String": 2,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/FingerCountGame.cpp": {
+      "String": 6,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/FlagGame.cpp": {
+      "String": 6,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/FractionGame.cpp": {
+      "String": 6,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/FractionGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/GreWordTable.cpp": {
+      "String": 0,
+      "delay": 0,
+      "heap": 1
+    },
+    "src/games/MathGame.cpp": {
+      "String": 8,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MathGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MazeGame.cpp": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MemoryGame.cpp": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MicrokuGame.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MicrokuGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MoneyGame.cpp": {
+      "String": 10,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MoneyGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/MultiplicationGame.cpp": {
+      "String": 6,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/NumberLineGame.cpp": {
+      "String": 7,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/ObjectAddGame.cpp": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/OddOneOutGame.cpp": {
+      "String": 2,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/ProfileGame.cpp": {
+      "String": 4,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/ProfileGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/ScoresGame.cpp": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/SequenceGame.cpp": {
+      "String": 4,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/SettingsGame.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/ShapeColorGame.cpp": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/SlidingPuzzleGame.cpp": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/SortGame.cpp": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/StateFlagGame.cpp": {
+      "String": 6,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/StateMapGame.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/StatesGame.cpp": {
+      "String": 7,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/SystemInfoGame.cpp": {
+      "String": 45,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/TicTacToeGame.cpp": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/TicTacToeGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/TimeGame.cpp": {
+      "String": 6,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/TimeGame.h": {
+      "String": 1,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/WhackAMoleGame.cpp": {
+      "String": 4,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/WifiGame.cpp": {
+      "String": 19,
+      "delay": 2,
+      "heap": 0
+    },
+    "src/games/WifiGame.h": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/hal/BleBeacon.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/hal/BleBeacon.h": {
+      "String": 2,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/hal/Board.cpp": {
+      "String": 27,
+      "delay": 10,
+      "heap": 0
+    },
+    "src/hal/Board.h": {
+      "String": 11,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/hal/Clock.cpp": {
+      "String": 5,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/hal/Clock.h": {
+      "String": 2,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/ui/RowList.h": {
+      "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/ui/Ui.cpp": {
+      "String": 14,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/ui/Ui.h": {
+      "String": 7,
+      "delay": 0,
+      "heap": 0
+    }
+  }
+}
