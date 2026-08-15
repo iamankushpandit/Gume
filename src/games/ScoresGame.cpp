@@ -254,7 +254,7 @@ void ScoresGame::render(GameHost& host) {
 
                 // Device best value, right-aligned at x = 236
                 char scoreStr[32];
-                snprintf(scoreStr, sizeof(scoreStr), "%lu%s", db.value, e.unit);
+                snprintf(scoreStr, sizeof(scoreStr), "%u%s", db.value, e.unit);
                 tft.setTextDatum(MR_DATUM);
                 tft.setTextColor(Ui::success(), Ui::surface());
                 tft.drawString(scoreStr, 236, r.y + r.h / 2, 2);
