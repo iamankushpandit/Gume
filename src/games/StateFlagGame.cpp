@@ -1,11 +1,37 @@
 #include "StateFlagGame.h"
 #include "map_n_flag.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t FLAG_BG = 0xFFFF;
+
+constexpr AppScoreInfo STATE_FLAG_SCORE = {
+    "stateflags", "State Flags", "sflagBest", "pts", false
+};
+
+constexpr AppMetadata STATE_FLAG_METADATA = {
+    "stateflags",
+    "State Flags",
+    nullptr,
+    "name the flag",
+    "State Flags",
+    "Name the state flag, then capital.",
+    &STATE_FLAG_SCORE,
+    LauncherIcon::StateFlag,
+    24,
+    true,
+};
 }
 
-const char* StateFlagGame::title() const { return "State Flags"; }
+const AppMetadata& stateFlagAppMetadata() {
+    return STATE_FLAG_METADATA;
+}
+
+const char* StateFlagGame::title() const {
+    return stateFlagAppMetadata().screenTitle != nullptr
+        ? stateFlagAppMetadata().screenTitle
+        : stateFlagAppMetadata().title;
+}
 
 Rect StateFlagGame::imageRect() const { return Rect{80, 48, 160, 120}; }
 Rect StateFlagGame::tierRect() const  { return Rect{132, 31, 56, 16}; }
@@ -142,7 +168,7 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
                 correctStreak_ = 0;
                 host.beepError();
             }
-            host.saveBestScore("sflagBest", score_, false);
+            host.saveBestScore(stateFlagAppMetadata().score->bestKey, score_, false);
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::FeedbackState;
         } else {
@@ -157,7 +183,7 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void StateFlagGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

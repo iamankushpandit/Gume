@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& objectAddAppMetadata();
+
 class ObjectAddGame : public AppGame {
 public:
     const char* title() const override;
@@ -18,7 +22,7 @@ private:
     Rect rightPanel() const;
     Rect answerRect(uint8_t i) const;
     void objPos(const Rect& panel, uint8_t idx, int16_t& cx, int16_t& cy) const;
-    void drawObject(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t color) const;
+    void drawObject(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t color) const;
     void newQuestion();
     void makeOptions();
 

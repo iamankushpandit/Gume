@@ -1,4 +1,5 @@
 #include "PercentCircleGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t PERCENT_FILL = 0xFCA8;     // Ui::rgb(255, 202, 84) - golden/orange
@@ -7,10 +8,33 @@ constexpr uint16_t PERCENT_OUTLINE = 0x2478;  // Ui::rgb(36, 132, 204) - blue
 constexpr int16_t CIRCLE_CX = 96;
 constexpr int16_t CIRCLE_CY = 130;
 constexpr int16_t CIRCLE_RADIUS = 62;
+
+constexpr AppScoreInfo PERCENT_SCORE = {
+    "percent", "Percent", "pctBest", "pts", false
+};
+
+constexpr AppMetadata PERCENT_METADATA = {
+    "percent",
+    "Percent",
+    nullptr,
+    "circle parts",
+    "Percent",
+    "Percentages on a circle.",
+    &PERCENT_SCORE,
+    LauncherIcon::Percent,
+    26,
+    true,
+};
+}
+
+const AppMetadata& percentCircleAppMetadata() {
+    return PERCENT_METADATA;
 }
 
 const char* PercentCircleGame::title() const {
-    return "Percent";
+    return percentCircleAppMetadata().screenTitle != nullptr
+        ? percentCircleAppMetadata().screenTitle
+        : percentCircleAppMetadata().title;
 }
 
 void PercentCircleGame::begin(AppContext& host) {
@@ -141,7 +165,7 @@ void PercentCircleGame::newRound(AppContext& host) {
 void PercentCircleGame::markCorrect(AppContext& host) {
     ++score_;
     ++streak_;
-    host.saveBestScore("pctBest", score_, false);
+    host.saveBestScore(percentCircleAppMetadata().score->bestKey, score_, false);
     roundComplete_ = true;
     flashIndex_ = -1;
     host.beepOk();
@@ -153,7 +177,7 @@ void PercentCircleGame::markWrong() {
     flashUntil_ = millis() + 500UL;
 }
 
-void PercentCircleGame::fillSlice(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
+void PercentCircleGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
     const float step = PI / 24.0f;
     float angle = startAngle;
     while (angle < endAngle) {
@@ -167,7 +191,7 @@ void PercentCircleGame::fillSlice(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t
     }
 }
 
-void PercentCircleGame::drawCircle(TFT_eSPI& tft, uint8_t percent, bool highlight) const {
+void PercentCircleGame::drawCircle(Ui::Renderer& tft, uint8_t percent, bool highlight) const {
     tft.fillCircle(CIRCLE_CX, CIRCLE_CY, CIRCLE_RADIUS + 3, highlight ? Ui::warning() : Ui::surface());
     tft.fillCircle(CIRCLE_CX, CIRCLE_CY, CIRCLE_RADIUS, PERCENT_EMPTY);
 
@@ -186,7 +210,7 @@ void PercentCircleGame::drawCircle(TFT_eSPI& tft, uint8_t percent, bool highligh
     }
 }
 
-void PercentCircleGame::drawReadCircleMode(TFT_eSPI& tft) const {
+void PercentCircleGame::drawReadCircleMode(Ui::Renderer& tft) const {
     drawCircle(tft, targetPercent_, false);
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -210,7 +234,7 @@ void PercentCircleGame::drawReadCircleMode(TFT_eSPI& tft) const {
     }
 }
 
-void PercentCircleGame::drawMakeCircleMode(TFT_eSPI& tft) const {
+void PercentCircleGame::drawMakeCircleMode(Ui::Renderer& tft) const {
     drawCircle(tft, currentPercent_, false);
 
     tft.fillRoundRect(200, 152, 38, 34, 4, Ui::panel());
@@ -221,17 +245,17 @@ void PercentCircleGame::drawMakeCircleMode(TFT_eSPI& tft) const {
     snprintf(valueStr, sizeof(valueStr), "%u%%", currentPercent_);
     tft.drawString(valueStr, 219, 169, 1);
 
-    Ui::drawPagerButton(tft, minusRect(), "−", currentPercent_ > 0);
+    Ui::drawPagerButton(tft, minusRect(), "âˆ’", currentPercent_ > 0);
     Ui::drawPagerButton(tft, plusRect(), "+", currentPercent_ < 100);
 
     uint16_t okFill = currentPercent_ == targetPercent_ ? Ui::success() : Ui::panel();
     uint16_t okText = currentPercent_ == targetPercent_ ? TFT_BLACK : Ui::text();
-    Ui::drawButton(tft, okRect(), "✓", okFill, Ui::outline(), okText, false, 2);
+    Ui::drawButton(tft, okRect(), "âœ“", okFill, Ui::outline(), okText, false, 2);
 
     tft.setTextDatum(TL_DATUM);
 }
 
-void PercentCircleGame::drawPercentOfNumberMode(TFT_eSPI& tft) const {
+void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft) const {
     drawCircle(tft, targetPercent_, false);
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -322,7 +346,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void PercentCircleGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
 
     if (needsFullRender()) {
         Ui::clear(tft);

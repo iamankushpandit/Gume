@@ -14,11 +14,6 @@
       "delay": 2,
       "heap": 0
     },
-    "src/engine/AppRuntimeLauncher.cpp": {
-      "String": 5,
-      "delay": 0,
-      "heap": 0
-    },
     "src/engine/ContentLoader.cpp": {
       "String": 5,
       "delay": 0,
@@ -50,11 +45,6 @@
       "heap": 0
     },
     "src/games/ColorMixGame.cpp": {
-      "String": 2,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/CountingGame.cpp": {
       "String": 2,
       "delay": 0,
       "heap": 0
@@ -144,23 +134,13 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/ProfileGame.cpp": {
-      "String": 4,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/ProfileGame.h": {
       "String": 1,
       "delay": 0,
       "heap": 0
     },
     "src/games/ScoresGame.cpp": {
-      "String": 3,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/SettingsGame.cpp": {
-      "String": 5,
+      "String": 1,
       "delay": 0,
       "heap": 0
     },

@@ -1,4 +1,5 @@
 #include "MazeGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint8_t MAZE_COLS = 12;
@@ -326,14 +327,38 @@ const char* const FALLBACK_MAZE[MAZE_ROWS] = {
     "#.####...#.#",
     "############",
 };
+
+constexpr AppScoreInfo MAZE_SCORE = {
+    "maze", "Maze", "mazeLevel", "lvl", false
+};
+
+constexpr AppMetadata MAZE_METADATA = {
+    "maze",
+    "Maze",
+    nullptr,
+    "drag dot",
+    "Maze",
+    "Drag the dot to the exit.",
+    &MAZE_SCORE,
+    LauncherIcon::Maze,
+    12,
+    true,
+};
+}
+
+const AppMetadata& mazeAppMetadata() {
+    return MAZE_METADATA;
 }
 
 const char* MazeGame::title() const {
-    return "Maze";
+    return mazeAppMetadata().screenTitle != nullptr
+        ? mazeAppMetadata().screenTitle
+        : mazeAppMetadata().title;
 }
 
 void MazeGame::begin(AppContext& host) {
-    levelIndex_ = static_cast<uint8_t>(min<uint32_t>(host.getScore("mazeLevel", 0), MAZE_COUNT - 1));
+    levelIndex_ = static_cast<uint8_t>(min<uint32_t>(
+        host.getScore(mazeAppMetadata().score->bestKey, 0), MAZE_COUNT - 1));
     loadBestForLevel(host);
     chooseMaze();
     reset();
@@ -487,7 +512,7 @@ void MazeGame::tryMove(AppContext& host, int8_t targetCol, int8_t targetRow) {
         won_ = true;
         saveProgress(host);
         if (levelIndex_ + 1 < MAZE_COUNT) {
-            host.setScore("mazeLevel", levelIndex_ + 1);
+            host.setScore(mazeAppMetadata().score->bestKey, levelIndex_ + 1);
         }
         host.beepOk();
     }
@@ -498,7 +523,7 @@ void MazeGame::update(AppContext& host, const TouchPoint& touch) {
     if (won_ && touch.justPressed) {
         if (levelIndex_ + 1 < MAZE_COUNT) {
             ++levelIndex_;
-            host.setScore("mazeLevel", levelIndex_);
+            host.setScore(mazeAppMetadata().score->bestKey, levelIndex_);
             loadBestForLevel(host);
             chooseMaze();
         }
@@ -517,7 +542,7 @@ void MazeGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void MazeGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
     Ui::drawLabel(tft, Rect{12, 32, 296, 16}, "Drag the red dot to the green exit", Ui::text(), 2, Align::Center);

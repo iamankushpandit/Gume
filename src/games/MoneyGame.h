@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& moneyAppMetadata();
+
 class MoneyGame : public AppGame {
 public:
     const char* title() const override;
@@ -43,11 +47,11 @@ private:
     Rect doneRect() const;
     Rect moreRect(uint8_t index) const;
 
-    void drawCoin(TFT_eSPI& tft, int16_t cx, int16_t cy, uint8_t value) const;
-    void drawCoinGroup(TFT_eSPI& tft, const Rect& r, const uint8_t* coins, uint8_t count) const;
-    void drawOptions(TFT_eSPI& tft) const;
-    void drawMake(TFT_eSPI& tft) const;
-    void drawMore(TFT_eSPI& tft) const;
+    void drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy, uint8_t value) const;
+    void drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* coins, uint8_t count) const;
+    void drawOptions(Ui::Renderer& tft) const;
+    void drawMake(Ui::Renderer& tft) const;
+    void drawMore(Ui::Renderer& tft) const;
 
     Mode mode_ = Mode::Total;
     uint8_t groupA_[12] = {};

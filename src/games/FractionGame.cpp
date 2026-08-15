@@ -1,4 +1,5 @@
 #include "FractionGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
@@ -10,16 +11,39 @@ constexpr uint16_t PIE_LINE = 0x0843;
 constexpr uint8_t DENOMS_L1[] = {2, 4};
 constexpr uint8_t DENOMS_L3[] = {2, 3, 4, 8};
 constexpr uint8_t DENOMS_L5[] = {2, 3, 4, 5, 6, 8};
+
+constexpr AppScoreInfo FRACTION_SCORE = {
+    "fractions", "Fractions", "fracBest", "pts", false
+};
+
+constexpr AppMetadata FRACTION_METADATA = {
+    "fractions",
+    "Fractions",
+    nullptr,
+    "pie slices",
+    "Fractions",
+    "Match the pie chart.",
+    &FRACTION_SCORE,
+    LauncherIcon::Fractions,
+    11,
+    true,
+};
+}
+
+const AppMetadata& fractionAppMetadata() {
+    return FRACTION_METADATA;
 }
 
 const char* FractionGame::title() const {
-    return "Fractions";
+    return fractionAppMetadata().screenTitle != nullptr
+        ? fractionAppMetadata().screenTitle
+        : fractionAppMetadata().title;
 }
 
 void FractionGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("fracBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(fractionAppMetadata().score->bestKey, 0));
     newRound();
     markDirty();
 }
@@ -144,7 +168,7 @@ void FractionGame::newRound() {
 void FractionGame::markCorrect(AppContext& host) {
     ++score_;
     ++streak_;
-    if (host.saveBestScore("fracBest", streak_, false)) {
+    if (host.saveBestScore(fractionAppMetadata().score->bestKey, streak_, false)) {
         bestStreak_ = streak_;
     }
     roundComplete_ = true;
@@ -234,7 +258,7 @@ void FractionGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void FractionGame::fillSlice(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
+void FractionGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
     const float step = PI / 24.0f;
     float angle = startAngle;
     while (angle < endAngle) {
@@ -248,7 +272,7 @@ void FractionGame::fillSlice(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radi
     }
 }
 
-void FractionGame::drawPie(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, const Fraction& fraction, bool selected) const {
+void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, const Fraction& fraction, bool selected) const {
     tft.fillCircle(cx, cy, radius + 3, selected ? Ui::warning() : Ui::surface());
     tft.fillCircle(cx, cy, radius, PIE_EMPTY);
     for (uint8_t i = 0; i < fraction.numerator; ++i) {
@@ -265,7 +289,7 @@ void FractionGame::drawPie(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius
     }
 }
 
-void FractionGame::drawTextOptions(TFT_eSPI& tft) const {
+void FractionGame::drawTextOptions(Ui::Renderer& tft) const {
     drawPie(tft, SCREEN_WIDTH / 2, 115, 38, target_);
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
@@ -281,7 +305,7 @@ void FractionGame::drawTextOptions(TFT_eSPI& tft) const {
     }
 }
 
-void FractionGame::drawPieOptions(TFT_eSPI& tft) const {
+void FractionGame::drawPieOptions(Ui::Renderer& tft) const {
     tft.fillRoundRect(96, 74, 128, 30, 6, Ui::panel());
     tft.drawRoundRect(96, 74, 128, 30, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
@@ -297,7 +321,7 @@ void FractionGame::drawPieOptions(TFT_eSPI& tft) const {
     }
 }
 
-void FractionGame::drawCompare(TFT_eSPI& tft) const {
+void FractionGame::drawCompare(Ui::Renderer& tft) const {
     drawPie(tft, 92, 112, 38, target_, roundComplete_ && correctButton_ == 0);
     drawPie(tft, 228, 112, 38, other_, roundComplete_ && correctButton_ == 1);
     tft.setTextColor(Ui::muted(), Ui::bg());
@@ -319,7 +343,7 @@ void FractionGame::drawCompare(TFT_eSPI& tft) const {
 }
 
 void FractionGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

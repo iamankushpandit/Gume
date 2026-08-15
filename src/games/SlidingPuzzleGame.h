@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& slidingPuzzleAppMetadata();
+
 class SlidingPuzzleGame : public AppGame {
 public:
     const char* title() const override;

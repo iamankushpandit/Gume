@@ -1,6 +1,6 @@
 #include "ui/LauncherIcons.h"
 
-void drawLauncherIcon(TFT_eSPI& tft, LauncherIcon icon, const Rect& r,
+void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
                       uint16_t fill, int16_t cx, int16_t cy) {
     (void)r;
     switch (icon) {

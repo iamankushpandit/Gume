@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& cinnamonAppMetadata();
+
 class CinnamonGame : public AppGame {
 public:
     const char* title() const override;
@@ -19,7 +23,7 @@ private:
     };
 
     Rect padRect(uint8_t index) const;
-    void drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const;
+    void drawPad(Ui::Renderer& tft, uint8_t index, bool lit) const;
 
     /* Cinnamon used to repaint the whole screen on every step, so each colour in
      * the sequence produced a full-screen flash -- uncomfortable generally and

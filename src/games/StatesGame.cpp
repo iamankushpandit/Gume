@@ -1,7 +1,8 @@
 #include "StatesGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
-String fitLabel(TFT_eSPI& tft, const String& in, int16_t maxW, uint8_t font) {
+String fitLabel(Ui::Renderer& tft, const String& in, int16_t maxW, uint8_t font) {
     if (tft.textWidth(in, font) <= maxW) return in;
     String s = in;
     while (s.length() > 1 && tft.textWidth(s + ".", font) > maxW) {
@@ -9,9 +10,34 @@ String fitLabel(TFT_eSPI& tft, const String& in, int16_t maxW, uint8_t font) {
     }
     return s + ".";
 }
+
+constexpr AppScoreInfo STATES_SCORE = {
+    "states", "US States", "stateBest", "pts", false
+};
+
+constexpr AppMetadata STATES_METADATA = {
+    "states",
+    "US States",
+    nullptr,
+    "states & capitals",
+    "US States",
+    "US states and their capitals.",
+    &STATES_SCORE,
+    LauncherIcon::States,
+    22,
+    true,
+};
 }
 
-const char* StatesGame::title() const { return "US States"; }
+const AppMetadata& statesAppMetadata() {
+    return STATES_METADATA;
+}
+
+const char* StatesGame::title() const {
+    return statesAppMetadata().screenTitle != nullptr
+        ? statesAppMetadata().screenTitle
+        : statesAppMetadata().title;
+}
 
 Rect StatesGame::tierRect() const { return Rect{132, 31, 56, 16}; }
 
@@ -154,7 +180,7 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
             correctStreak_ = 0;
             host.beepError();
         }
-        host.saveBestScore("stateBest", score_, false);
+        host.saveBestScore(statesAppMetadata().score->bestKey, score_, false);
         feedbackUntil_ = now + 1600UL;
         phase_ = Phase::Feedback;
         markFullDirty();
@@ -163,7 +189,7 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void StatesGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

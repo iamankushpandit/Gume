@@ -1,10 +1,11 @@
 #include "AboutGame.h"
 #include "AppVersion.h"
-#include "engine/GameCatalog.h"
+#include "engine/AppRegistry.h"
+#include "hal/Board.h"
 #include "hal/BleBeacon.h"
 
 namespace {
-/* The game list is paged straight out of GAME_CATALOG. An earlier version kept
+/* The game list is paged straight out of the playable app registry. An earlier version kept
  * its own hand-written list and had quietly fallen six games behind, so nothing
  * here names a game directly.
  *
@@ -14,7 +15,7 @@ namespace {
  * than no statement at all, because it is believed. */
 constexpr uint8_t GAMES_PER_PAGE = 7;
 constexpr uint8_t GAME_PAGES =
-    (GAME_CATALOG_COUNT + GAMES_PER_PAGE - 1) / GAMES_PER_PAGE;
+    (playableAppCount() + GAMES_PER_PAGE - 1) / GAMES_PER_PAGE;
 constexpr uint8_t PAGE_INTRO = 0;
 constexpr uint8_t PAGE_FIRST_GAME = 1;
 constexpr uint8_t PAGE_RADIOS = PAGE_FIRST_GAME + GAME_PAGES;
@@ -29,7 +30,8 @@ const char* AboutGame::title() const {
     return "About";
 }
 
-void AboutGame::begin(GameHost&) {
+void AboutGame::begin(GameHost& host) {
+    (void)host.requireCapability(APP_CAP_DEVICE_STATUS, "open about");
     page_ = 0;
     markFullDirty();
 }
@@ -50,7 +52,7 @@ Rect AboutGame::nextRect(int16_t w, int16_t h) const {
     return Rect{static_cast<int16_t>(w - 104), static_cast<int16_t>(h - 34), 92, 28};
 }
 
-void AboutGame::drawLine(TFT_eSPI& tft, int16_t y, const String& text, uint8_t font) const {
+void AboutGame::drawLine(Ui::Renderer& tft, int16_t y, const String& text, uint8_t font) const {
     tft.drawString(Ui::fitted(tft, text, static_cast<int16_t>(tft.width() - 28), font),
                    14, y, font);
 }
@@ -59,8 +61,8 @@ void AboutGame::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
-    const int16_t w = static_cast<int16_t>(host.board().display().width());
-    const int16_t h = static_cast<int16_t>(host.board().display().height());
+    const int16_t w = host.display().width();
+    const int16_t h = host.display().height();
     if (prevRect(w, h).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
         --page_;
         markFullDirty();
@@ -72,21 +74,21 @@ void AboutGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void AboutGame::renderIntro(TFT_eSPI& tft) {
+void AboutGame::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 48, "(C) GoodTime Micro Company", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 72, String("Educational games for the ") + BOARD_NAME + ".", 1);
     drawLine(tft, 86, "Copyright 2026.", 1);
     tft.setTextColor(Ui::text(), Ui::surface());
     drawLine(tft, 108, String("Version ") + GOODTIME_KIDS_VERSION, 2);
-    drawLine(tft, 134, String(GAME_CATALOG_COUNT) + " games built in", 2);
+    drawLine(tft, 134, String(playableAppCount()) + " games built in", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 158, "195 flags and 50 US states,", 1);
     drawLine(tft, 172, "all stored on the device.", 1);
     drawLine(tft, 190, "Up to 5 children, plus a Guest.", 1);
 }
 
-void AboutGame::renderGames(TFT_eSPI& tft, int16_t w) {
+void AboutGame::renderGames(Ui::Renderer& tft, int16_t w) {
     const uint8_t start = static_cast<uint8_t>((page_ - PAGE_FIRST_GAME) * GAMES_PER_PAGE);
     /* Blurbs start at a fraction of the width, not a fixed 118px, so the column
      * does not run off the edge of a 240px portrait screen. */
@@ -95,21 +97,22 @@ void AboutGame::renderGames(TFT_eSPI& tft, int16_t w) {
 
     for (uint8_t i = 0; i < GAMES_PER_PAGE; ++i) {
         const uint8_t idx = static_cast<uint8_t>(start + i);
-        if (idx >= GAME_CATALOG_COUNT) break;
+        if (idx >= playableAppCount()) break;
         const int16_t y = static_cast<int16_t>(48 + i * 21);
+        const AppDefinition& app = playableAppAt(idx);
 
         tft.setTextColor(Ui::text(), Ui::surface());
-        tft.drawString(Ui::fitted(tft, GAME_CATALOG[idx].title,
+        tft.drawString(Ui::fitted(tft, app.title(),
                                   static_cast<int16_t>(blurbX - 20), 2), 14, y, 2);
         tft.setTextColor(Ui::muted(), Ui::surface());
-        tft.drawString(Ui::fitted(tft, GAME_CATALOG[idx].blurb, blurbMaxW, 1),
+        tft.drawString(Ui::fitted(tft, app.blurb(), blurbMaxW, 1),
                        blurbX, static_cast<int16_t>(y + 4), 1);
     }
 }
 
 /* Everything on this page is read from the running system. Nothing here is a
  * claim that can quietly stop being true. */
-void AboutGame::renderRadios(TFT_eSPI& tft, Board& board) {
+void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
     drawLine(tft, 48, "What the radios do", 2);
 
     const bool wifiCreds = board.hasWifiCredentials();
@@ -137,7 +140,7 @@ void AboutGame::renderRadios(TFT_eSPI& tft, Board& board) {
     drawLine(tft, 214, "bytes being transmitted.", 1);
 }
 
-void AboutGame::renderCredits(TFT_eSPI& tft) {
+void AboutGame::renderCredits(Ui::Renderer& tft) {
     drawLine(tft, 48, "Artwork credits", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 74, "Flags: lipis/flag-icons (MIT).", 1);
@@ -154,7 +157,7 @@ void AboutGame::renderCredits(TFT_eSPI& tft) {
 
 void AboutGame::render(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());
     const int16_t h = static_cast<int16_t>(tft.height());
     const Rect panel = panelRect(w, h);

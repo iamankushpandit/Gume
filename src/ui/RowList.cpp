@@ -2,7 +2,7 @@
 
 namespace {
 
-void drawMeterBar(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint16_t fill) {
+void drawMeterBar(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint16_t fill) {
     if (pct > 100) pct = 100;
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 3, Ui::panel());
     tft.drawRoundRect(r.x, r.y, r.w, r.h, 3, Ui::outline());
@@ -87,7 +87,7 @@ void RowList::clampScroll(int16_t& offset, int16_t viewportH) const {
     if (offset > maxScroll) offset = maxScroll;
 }
 
-void RowList::drawScrollBar(TFT_eSPI& tft, const Rect& r, int16_t totalH, int16_t offset) const {
+void RowList::drawScrollBar(Ui::Renderer& tft, const Rect& r, int16_t totalH, int16_t offset) const {
     if (totalH <= r.h) return;
     const int16_t trackX = static_cast<int16_t>(r.x + r.w - SCROLLBAR_W - 2);
     const int16_t trackY = static_cast<int16_t>(r.y + 3);
@@ -105,7 +105,7 @@ void RowList::drawScrollBar(TFT_eSPI& tft, const Rect& r, int16_t totalH, int16_
                       2, Ui::rgb(88, 164, 224));
 }
 
-void RowList::draw(TFT_eSPI& tft, const Rect& r, int16_t offset) {
+void RowList::draw(Ui::Renderer& tft, const Rect& r, int16_t offset) {
     const int16_t totalH = totalHeight();
     const bool needsScrollBar = totalH > r.h;
     const int16_t rightPad = needsScrollBar

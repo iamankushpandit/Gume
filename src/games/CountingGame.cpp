@@ -1,14 +1,37 @@
 #include "CountingGame.h"
+#include "engine/AppRegistry.h"
+#include "engine/ContentLoader.h"
 
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
 constexpr uint16_t DOT_COLORS[5] = {0xE8E4, 0x24BD, 0x05D1, 0xFEC0, 0xAA9F};
+
+constexpr AppScoreInfo COUNTING_SCORE = {
+    "counting", "Counting", "countBest", "streak", false
+};
+
+constexpr AppMetadata COUNTING_METADATA = {
+    "counting",
+    "Counting",
+    nullptr,
+    "tap number",
+    "Counting",
+    "Count objects, tap the number.",
+    &COUNTING_SCORE,
+    LauncherIcon::Counting,
+    9,
+    true,
+};
+}
+
+const AppMetadata& countingAppMetadata() {
+    return COUNTING_METADATA;
 }
 
 const char* CountingGame::title() const {
-    return "Counting";
+    return countingAppMetadata().title;
 }
 
 void CountingGame::begin(AppContext& host) {
@@ -16,7 +39,7 @@ void CountingGame::begin(AppContext& host) {
     score_ = 0;
     rounds_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("countBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(countingAppMetadata().score->bestKey, 0));
     newQuestion();
     markDirty();
 }
@@ -77,7 +100,8 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
             if (i == correctButton_) {
                 ++score_;
                 ++streak_;
-                if (streak_ > bestStreak_ && host.saveBestScore("countBest", streak_, false)) {
+                if (streak_ > bestStreak_ &&
+                    host.saveBestScore(countingAppMetadata().score->bestKey, streak_, false)) {
                     bestStreak_ = streak_;
                 }
                 host.beepOk();
@@ -92,7 +116,7 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void CountingGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
     tft.setTextColor(Ui::text(), Ui::bg());
@@ -102,9 +126,10 @@ void CountingGame::render(AppContext& host) {
     tft.setTextDatum(TC_DATUM);
     tft.drawString("How many objects?", SCREEN_WIDTH / 2, 32, 4);
     tft.setTextColor(Ui::muted(), Ui::bg());
-    tft.drawString(String("Score ") + score_ + "/" + rounds_ +
-                   "   Streak " + streak_ + "   Best " + bestStreak_,
-                   SCREEN_WIDTH / 2, 60, 1);
+    char stats[48];
+    snprintf(stats, sizeof(stats), "Score %u/%u   Streak %u   Best %u",
+             score_, rounds_, streak_, bestStreak_);
+    tft.drawString(stats, SCREEN_WIDTH / 2, 60, 1);
     tft.setTextColor(Ui::text(), Ui::bg());
 
     const Rect area{18, 76, 284, 98};
@@ -131,7 +156,9 @@ void CountingGame::render(AppContext& host) {
                 text = TFT_BLACK;
             }
         }
-        Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, TFT_DARKGREY, text, false, 4);
+        char label[4];
+        snprintf(label, sizeof(label), "%u", options_[i]);
+        Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
     }
 
     if (answered_) {

@@ -1,20 +1,44 @@
 #include "OddOneOutGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t COLORS[] = {
     0xF9EA, 0x5D9F, 0x37F0, 0xFFE6, 0xF81F, 0xFC00
 };
 constexpr uint8_t COLOR_COUNT = sizeof(COLORS) / sizeof(COLORS[0]);
+
+constexpr AppScoreInfo ODD_ONE_OUT_SCORE = {
+    "oddone", "Odd One", "oddBest", "pts", false
+};
+
+constexpr AppMetadata ODD_ONE_OUT_METADATA = {
+    "oddone",
+    "Odd One",
+    "Odd One Out",
+    "find different",
+    "Odd One",
+    "Find the one that differs.",
+    &ODD_ONE_OUT_SCORE,
+    LauncherIcon::OddOneOut,
+    16,
+    true,
+};
+}
+
+const AppMetadata& oddOneOutAppMetadata() {
+    return ODD_ONE_OUT_METADATA;
 }
 
 const char* OddOneOutGame::title() const {
-    return "Odd One Out";
+    return oddOneOutAppMetadata().screenTitle != nullptr
+        ? oddOneOutAppMetadata().screenTitle
+        : oddOneOutAppMetadata().title;
 }
 
 void OddOneOutGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("oddBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(oddOneOutAppMetadata().score->bestKey, 0));
     newRound();
     markDirty();
 }
@@ -80,7 +104,7 @@ int8_t OddOneOutGame::touchedItem(int16_t x, int16_t y) const {
     return -1;
 }
 
-void OddOneOutGame::drawShape(TFT_eSPI& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool inverted) const {
+void OddOneOutGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool inverted) const {
     switch (shape) {
         case Shape::Circle:
             tft.fillCircle(cx, cy, size, color);
@@ -102,7 +126,7 @@ void OddOneOutGame::drawShape(TFT_eSPI& tft, Shape shape, int16_t cx, int16_t cy
     }
 }
 
-void OddOneOutGame::drawItem(TFT_eSPI& tft, const Rect& r, bool odd) const {
+void OddOneOutGame::drawItem(Ui::Renderer& tft, const Rect& r, bool odd) const {
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
     tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
     drawShape(
@@ -137,7 +161,7 @@ void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
     if (item == oddIndex_) {
         ++score_;
         ++streak_;
-        if (host.saveBestScore("oddBest", streak_, false)) {
+        if (host.saveBestScore(oddOneOutAppMetadata().score->bestKey, streak_, false)) {
             bestStreak_ = streak_;
         }
         flashCorrect_ = true;
@@ -152,7 +176,7 @@ void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void OddOneOutGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& multiplicationAppMetadata();
+
 class MultiplicationGame : public AppGame {
 public:
     const char* title() const override;

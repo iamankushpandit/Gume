@@ -1,4 +1,5 @@
 #include "FingerCountGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t SKIN_UP   = 0xFDB6;   // warm skin tone, raised
@@ -10,9 +11,30 @@ constexpr uint16_t NAIL      = 0xFEDA;
  * old flat row of circles ever did. */
 constexpr int16_t FINGER_LEN[5] = {34, 46, 52, 46, 36};
 constexpr int16_t STUB_LEN = 12;         // folded-down finger
+
+constexpr AppMetadata FINGER_COUNT_METADATA = {
+    "fingers",
+    "Fingers",
+    "Finger Counting",
+    "count on hands",
+    "Fingers",
+    "Count on two hands.",
+    nullptr,
+    LauncherIcon::FingerCount,
+    18,
+    true,
+};
 }
 
-const char* FingerCountGame::title() const { return "Finger Counting"; }
+const AppMetadata& fingerCountAppMetadata() {
+    return FINGER_COUNT_METADATA;
+}
+
+const char* FingerCountGame::title() const {
+    return fingerCountAppMetadata().screenTitle != nullptr
+        ? fingerCountAppMetadata().screenTitle
+        : fingerCountAppMetadata().title;
+}
 
 int16_t FingerCountGame::fingerTop(uint8_t idx) const {
     const uint8_t hand = idx / 5;
@@ -147,7 +169,7 @@ void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void FingerCountGame::drawHand(TFT_eSPI& tft, uint8_t hand) const {
+void FingerCountGame::drawHand(Ui::Renderer& tft, uint8_t hand) const {
     const int16_t x0 = (hand == 0) ? LEFT_X0 : RIGHT_X0;
 
     // Palm first, so the fingers sit on top of it.
@@ -175,7 +197,7 @@ void FingerCountGame::drawHand(TFT_eSPI& tft, uint8_t hand) const {
 }
 
 void FingerCountGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/GameCatalog.h"
 #include "ui/Ui.h"
 
 class ProfileGame : public Game {

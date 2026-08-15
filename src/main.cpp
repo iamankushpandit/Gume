@@ -3,6 +3,7 @@
 #include "hal/Board.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
+#include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
 #ifdef CYD_BRINGUP_ONLY
@@ -11,7 +12,7 @@ Board board;
 bool redraw = true;
 
 void drawBringup(const TouchPoint& touch = TouchPoint{}) {
-    TFT_eSPI& tft = board.display();
+    Ui::TftRenderer tft(board.display());
     Ui::clear(tft);
     tft.fillRect(0, 0, SCREEN_WIDTH, TOP_BAR_HEIGHT, Ui::surface());
     tft.setTextColor(TFT_WHITE, Ui::surface());

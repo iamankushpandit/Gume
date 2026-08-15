@@ -12,6 +12,10 @@ struct ColorMixDefinition {
     uint16_t resultColor;
 };
 
+struct AppMetadata;
+
+const AppMetadata& colorMixAppMetadata();
+
 class ColorMixGame : public AppGame {
 public:
     const char* title() const override;

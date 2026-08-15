@@ -4,15 +4,15 @@ Framework shared by every screen. No hardware access lives here except through `
 
 ## Game.h
 
-Defines `Game` (the screen base class), `AppContext` (the narrowed surface for ordinary launchable games), `AppGame` (a bridge from `Game` to `AppContext`) and `GameHost` (the privileged host for system screens: `board()`, `openSettings()`, `openWifi()`, `openProfiles()`).
+Defines `Game` (the screen base class), `AppContext` (the narrowed surface for ordinary launchable games), `AppGame` (a bridge from `Game` to `AppContext`) and `GameHost` (the privileged host for system screens: `board()`, capability checks, launcher entry access, `openSettings()`, `openWifi()`, `openProfiles()`).
 
-All catalog games now run through `AppGame` and only get drawing, content, scoped persistence, feedback and basic navigation. The only screens still on full `GameHost` are Settings, Wi-Fi, Profiles, Scores, About and System Info.
+All catalog games run through `AppGame` and only get `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. `Game.h` does not include `Board.h` or `TFT_eSPI.h`; `Board` and `ContentLoader` are forward-declared there so ordinary game headers do not inherit hardware dependencies. The only screens still on full `GameHost` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must call `requireCapability()` before protected device/profile/network/score actions.
 
 Lifecycle is `begin()` -> `update()`/`render()` per frame -> `end()`. `end()` is called exactly once when the screen is replaced, before the next screen's `begin()`, and every transition in the `KidsPlatformApp` runtime funnels through `leaveActiveGame()` so no path can skip it.
 
-`KidsPlatformApp` now lives in `AppRuntime.cpp` plus `AppRuntimeLauncher.cpp` and `AppRuntimeScreenSaver.cpp`, rather than keeping launcher/runtime/saver logic embedded in `main.cpp`.
+`KidsPlatformApp` lives in `AppRuntime.cpp` plus `AppRuntimeLauncher.cpp` and `AppRuntimeScreenSaver.cpp`, rather than keeping launcher/runtime/saver logic embedded in `main.cpp`. `AppRuntimeLauncher.cpp` implements `LauncherGame`, so home screen touch/render goes through the same lifecycle as the app screens; only ScreenSaver and Asleep remain runtime views.
 
-The default `end()` does nothing, which is right for the games: they hold only their own members and `begin()` resets those. Override it if a screen acquires anything that outlives a frame: a cached buffer, a sampling cadence, a radio or a file handle. Nothing runs off a task or timer today, so no screen keeps burning cycles once you leave it; the hook exists so that stays true as screens grow. `SystemInfoGame` uses it to release its row list, which holds up to 48 pairs of Arduino `String`s.
+The default `end()` does nothing, which is right for the games: they hold only their own members and `begin()` resets those. Override it if a screen acquires anything that outlives a frame: a cached buffer, a sampling cadence, a radio or a file handle. Nothing runs off a task or timer today, so no screen keeps burning cycles once you leave it; the hook exists so that stays true as screens grow. `SystemInfoGame` uses it to clear its fixed-buffer row list.
 
 Invalidation is two-level because a full 320x240 wipe is ~150 KB over SPI / ~30 ms of blanking:
 
@@ -28,19 +28,17 @@ Both flags start true, so the first paint is always full.
 
 ## GameCatalog.{h,cpp}
 
-Single source of truth for the 28 playable games. `AppRegistry`, `SettingsGame` and `AboutGame` all read from it, which is what stops the three lists drifting (About had silently fallen six games behind before this existed).
+Derived compatibility view over the playable slice of `AppRegistry`. Keep it that way: the authored source is each game's local `AppMetadata`.
 
-Fields: `id`, `title`, `subtitle`, `label`, `blurb`. Array order defines both launcher order and Settings order.
+Fields: `id`, `title`, `subtitle`, `label`, `blurb`. The wrapper exists for code that still wants a lightweight catalog-shaped record without carrying a second hand-maintained table.
 
-Two constraints: `id` is a persisted NVS visibility key and must never be renamed, and `blurb` renders at font 1 across ~292 px so it must stay under ~46 chars.
-
-System screens are not in this catalog. `AppRegistry.cpp` appends them after the catalog entries and keeps them always visible.
+The same constraints still apply to the underlying metadata: keep `id` stable, and `blurb` renders at font 1 across ~292 px so it must stay under ~46 chars.
 
 ## AppRegistry.{h,cpp}
 
-Single source of truth for the launchable app list. Each playable game binds one `GAME_CATALOG` slot to its concrete `GameInstances` member and launcher icon via `catalogApp(index, LauncherIcon::..., ...)`; the system screens live in the same table via `systemApp(...)`.
+Single source of truth for the launchable app list. Each playable game declares one local `AppMetadata` (and optional `AppScoreInfo`) in its own `.cpp`; that metadata owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `AppRegistry.cpp` binds that metadata to its concrete `GameInstances` member via `metadataCatalogApp(...)`. The launchable system screens live in the same table via `systemApp(...)` with explicit capability flags.
 
-If you add a playable game, the registry line must use the same catalog index as the entry you appended in `GameCatalog.cpp`. `tools/check_catalog.py` checks that the two still line up and that `ScoreCatalog.cpp` only names real catalog ids.
+If you add a playable game, update `PLAYABLE_APP_COUNT`, put the launcher index/icon/default visibility in the game's own `AppMetadata`, and add the new `metadataCatalogApp(...AppMetadata(), instance)` line at the matching registry position. `tools/check_catalog.py` checks that indices stay contiguous, icon pairing still matches the app id, playable apps subclass `AppGame`, and system apps declare capabilities.
 
 ## Progress.{h,cpp}
 
@@ -48,7 +46,7 @@ Per-item spaced repetition, one signed byte per item (-6..+6) in a single NVS bl
 
 ## ScoreCatalog.{h,cpp}
 
-Maps a game to its NVS score key, unit label, and sort direction (`lowerIsBetter`). Lets `ScoresGame` render best/worst without knowing anything about game internals. Add an entry here whenever a new game records a score.
+Derived compatibility view over the playable apps that actually expose score metadata. `ScoresGame` reads scores directly from `AppRegistry`; keep this wrapper derived for any helper code that still wants a score-catalog-shaped accessor.
 
 ## RecentQuestions.h
 

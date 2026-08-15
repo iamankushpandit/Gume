@@ -26,7 +26,7 @@ private:
     };
 
     static constexpr uint8_t ROWS_PER_PAGE = 5;
-    static constexpr uint8_t MAX_DEVICE_ROWS = 32;  // >= SCORE_CATALOG_COUNT
+    static constexpr uint8_t MAX_DEVICE_ROWS = 32;  // >= scored playable apps
 
     struct DeviceBest {
         uint8_t catalogIndex;

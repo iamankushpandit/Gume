@@ -2,6 +2,10 @@
 
 `Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so Dark/Light both work.
 
+## Renderer
+
+`Renderer.h` is the app-facing drawing interface. It declares the small RGB565 primitive set used by games and UI helpers without including `TFT_eSPI.h`, so host renderers can implement the same surface later. `TftRenderer.h` is the firmware adapter around the real panel driver and is owned by `KidsPlatformApp`; ordinary games get only `Ui::Renderer&` from `AppContext::display()`.
+
 ## Theme
 
 Dark and Light palettes of RGB565 colours — `bg`, `surface`, `panel`, `text`, `muted`, `outline`, `success`, `error`, `warning` — swapped by `Ui::setTheme()`. Helpers read the active palette automatically. `Ui::rgb(r, g, b)` packs a literal colour for icon art, which is the one place fixed colours are expected.

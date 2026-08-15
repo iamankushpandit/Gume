@@ -33,7 +33,7 @@ private:
      * depend on actually changed -- not once per frame. */
     void rebuildRows(GameHost& host);
 
-    void drawTabStrip(TFT_eSPI& tft, int16_t screenW);
+    void drawTabStrip(Ui::Renderer& tft, int16_t screenW);
     void drawContent(GameHost& host);
     void buildBoardRows(GameHost& host);
     void buildMemoryRows();

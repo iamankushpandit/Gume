@@ -6,6 +6,10 @@
 #include "ui/Ui.h"
 #include "StateData.h"
 
+struct AppMetadata;
+
+const AppMetadata& statesAppMetadata();
+
 /*
  * US States and capitals.
  *

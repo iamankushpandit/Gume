@@ -1,5 +1,6 @@
 #include "GreWordsGame.h"
 #include "GreWordTable.h"
+#include "engine/AppRegistry.h"
 
 #include <cstdio>
 #include <cstring>
@@ -8,9 +9,34 @@ namespace {
 /* Progress::pickWeighted takes a plain function pointer, not a closure. */
 bool allowAny(uint16_t, void*) { return true; }
 constexpr uint32_t REVEAL_MS = 900;
+
+constexpr AppScoreInfo GRE_WORDS_SCORE = {
+    "grewords", "GRE Words", "greBest", "pts", false
+};
+
+constexpr AppMetadata GRE_WORDS_METADATA = {
+    "grewords",
+    "GRE Words",
+    nullptr,
+    "vocabulary",
+    "GRE Words",
+    "Learn GRE vocabulary.",
+    &GRE_WORDS_SCORE,
+    LauncherIcon::GreWords,
+    27,
+    true,
+};
 }
 
-const char* GreWordsGame::title() const { return "GRE Words"; }
+const AppMetadata& greWordsAppMetadata() {
+    return GRE_WORDS_METADATA;
+}
+
+const char* GreWordsGame::title() const {
+    return greWordsAppMetadata().screenTitle != nullptr
+        ? greWordsAppMetadata().screenTitle
+        : greWordsAppMetadata().title;
+}
 
 Rect GreWordsGame::flipTabRect(int16_t w) const {
     return Rect{0, 30, static_cast<int16_t>(w / 2), 22};
@@ -120,7 +146,7 @@ void GreWordsGame::answer(AppContext& host, bool correct) {
     }
     progress_.record(currentWord_, correct);
     progress_.maybeFlush();
-    host.saveBestScore("greBest", score_, false);
+    host.saveBestScore(greWordsAppMetadata().score->bestKey, score_, false);
 }
 
 void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
@@ -183,7 +209,7 @@ void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void GreWordsGame::renderFlip(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     const GreWord& word = GRE_WORDS[currentWord_];
     const Rect card = cardRect();
 
@@ -223,7 +249,7 @@ void GreWordsGame::renderFlip(AppContext& host) {
 }
 
 void GreWordsGame::renderQuiz(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     const GreWord& word = GRE_WORDS[currentWord_];
 
     tft.setTextDatum(MC_DATUM);
@@ -255,7 +281,7 @@ void GreWordsGame::renderQuiz(AppContext& host) {
 }
 
 void GreWordsGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());
 
     rewrapIfStale();

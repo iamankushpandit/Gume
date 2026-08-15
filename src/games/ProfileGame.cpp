@@ -1,4 +1,6 @@
 #include "ProfileGame.h"
+#include "engine/AppRegistry.h"
+#include "hal/Board.h"
 
 namespace {
 constexpr uint8_t KEY_COLS = 6;
@@ -10,7 +12,8 @@ const char* const KEYS[KEY_ROWS] = {
 
 const char* ProfileGame::title() const { return "Profiles"; }
 
-void ProfileGame::begin(GameHost&) {
+void ProfileGame::begin(GameHost& host) {
+    (void)host.requireCapability(APP_CAP_PROFILES, "open profiles");
     phase_ = Phase::Pick;
     draft_ = "";
     menuFor_ = 0;
@@ -100,8 +103,11 @@ uint8_t ProfileGame::profileForRow(Board& board, uint8_t row) const {
 
 void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
+    if (!host.requireCapability(APP_CAP_PROFILES, "manage profiles")) {
+        return;
+    }
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
 
@@ -176,16 +182,17 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             markDirty(); return;
         }
         if (gamesNextRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
-            gameScroll_ + visible < GAME_CATALOG_COUNT) {
+            gameScroll_ + visible < playableAppCount()) {
             gameScroll_ = static_cast<uint8_t>(gameScroll_ + visible);
             markDirty(); return;
         }
         for (uint8_t row = 0; row < visible; ++row) {
             const uint8_t gi = gameScroll_ + row;
-            if (gi >= GAME_CATALOG_COUNT) break;
+            if (gi >= playableAppCount()) break;
             if (gameCheckRect(row, W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                board.setGameVisibleFor(gi, menuFor_,
-                    !board.gameVisibleFor(gi, menuFor_));
+                const AppDefinition& app = playableAppAt(gi);
+                board.setGameVisibleFor(app.launcherIndex(), menuFor_,
+                    !board.gameVisibleFor(app.launcherIndex(), menuFor_, app.defaultVisible()));
                 markDirty(); return;
             }
         }
@@ -219,7 +226,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
 
 void ProfileGame::render(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
     const bool tall = H > W;
@@ -274,8 +281,10 @@ void ProfileGame::render(GameHost& host) {
         }
 
         const bool canAdd = board.kidCount() < Board::MAX_KIDS;
-        Ui::drawButton(tft, addRect(W, H),
-                       canAdd ? String("Add Player") : String("Max ") + Board::MAX_KIDS,
+        char label[16];
+        snprintf(label, sizeof(label), canAdd ? "Add Player" : "Max %u",
+                 static_cast<unsigned>(Board::MAX_KIDS));
+        Ui::drawButton(tft, addRect(W, H), label,
                        canAdd ? Ui::rgb(45, 154, 96) : Ui::surface(),
                        Ui::outline(), canAdd ? TFT_WHITE : Ui::muted(), false, 2);
         Ui::drawButton(tft, doneRect(W, H), "Done", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
@@ -309,9 +318,11 @@ void ProfileGame::render(GameHost& host) {
         const uint8_t visible = visibleGameRows(H);
         for (uint8_t row = 0; row < visible; ++row) {
             const uint8_t gi = gameScroll_ + row;
-            if (gi >= GAME_CATALOG_COUNT) break;
+            if (gi >= playableAppCount()) break;
+            const AppDefinition& app = playableAppAt(gi);
             const Rect r = gameCheckRect(row, W);
-            const bool on = board.gameVisibleFor(gi, menuFor_);
+            const bool on = board.gameVisibleFor(app.launcherIndex(), menuFor_,
+                                                 app.defaultVisible());
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
             tft.fillRoundRect(r.x + 4, r.y + 6, 16, 16, 3, on ? Ui::success() : Ui::panel());
@@ -323,19 +334,21 @@ void ProfileGame::render(GameHost& host) {
             }
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
-            tft.drawString(GAME_CATALOG[gi].label, r.x + 28, r.y + r.h / 2, 2);
+            tft.drawString(app.label(), r.x + 28, r.y + r.h / 2, 2);
         }
 
         const bool canPrev = gameScroll_ > 0;
-        const bool canNext = gameScroll_ + visible < GAME_CATALOG_COUNT;
+        const bool canNext = gameScroll_ + visible < playableAppCount();
         Ui::drawPagerButton(tft, gamesPrevRect(H), "Prev", canPrev);
         Ui::drawPagerButton(tft, gamesNextRect(W, H), "Next", canNext);
 
         const uint8_t page  = static_cast<uint8_t>(gameScroll_ / visible + 1);
-        const uint8_t pages = static_cast<uint8_t>((GAME_CATALOG_COUNT + visible - 1) / visible);
+        const uint8_t pages = static_cast<uint8_t>((playableAppCount() + visible - 1) / visible);
+        char pager[8];
+        snprintf(pager, sizeof(pager), "%u/%u", page, pages);
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(String(page) + "/" + pages, W / 2, static_cast<int16_t>(H - 18), 2);
+        tft.drawString(pager, W / 2, static_cast<int16_t>(H - 18), 2);
         tft.setTextDatum(TL_DATUM);
         return;
     }
@@ -348,13 +361,14 @@ void ProfileGame::render(GameHost& host) {
     tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::surface());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(draft_.length() ? draft_ : String("..."),
+    tft.drawString(draft_.length() ? draft_.c_str() : "...",
                    W / 2, static_cast<int16_t>(field.y + field.h / 2), 4);
 
     for (uint8_t r = 0; r < KEY_ROWS; ++r) {
         for (uint8_t c = 0; c < KEY_COLS; ++c) {
             const char ch = KEYS[r][c];
-            String label(ch);
+            char keyLabel[2] = {ch, 0};
+            const char* label = keyLabel;
             uint16_t fill = Ui::panel();
             if (ch == '<') { label = "DEL"; fill = Ui::rgb(150, 60, 60); }
             if (ch == '>') { label = "OK";  fill = Ui::rgb(45, 154, 96); }

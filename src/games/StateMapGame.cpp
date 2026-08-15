@@ -1,7 +1,35 @@
 #include "StateMapGame.h"
 #include "map_n_flag.h"
+#include "engine/AppRegistry.h"
 
-const char* StateMapGame::title() const { return "State Maps"; }
+namespace {
+constexpr AppScoreInfo STATE_MAP_SCORE = {
+    "statemaps", "State Maps", "smapBest", "pts", false
+};
+
+constexpr AppMetadata STATE_MAP_METADATA = {
+    "statemaps",
+    "State Maps",
+    nullptr,
+    "name the outline",
+    "State Maps",
+    "Name the state outline, then capital.",
+    &STATE_MAP_SCORE,
+    LauncherIcon::StateMap,
+    25,
+    true,
+};
+}
+
+const AppMetadata& stateMapAppMetadata() {
+    return STATE_MAP_METADATA;
+}
+
+const char* StateMapGame::title() const {
+    return stateMapAppMetadata().screenTitle != nullptr
+        ? stateMapAppMetadata().screenTitle
+        : stateMapAppMetadata().title;
+}
 
 Rect StateMapGame::imageRect() const { return Rect{112, 44, 96, 96}; }
 Rect StateMapGame::tierRect() const  { return Rect{132, 31, 56, 16}; }
@@ -138,7 +166,7 @@ void StateMapGame::update(AppContext& host, const TouchPoint& touch) {
                 correctStreak_ = 0;
                 host.beepError();
             }
-            host.saveBestScore("smapBest", score_, false);
+            host.saveBestScore(stateMapAppMetadata().score->bestKey, score_, false);
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::FeedbackState;
         } else {
@@ -153,7 +181,7 @@ void StateMapGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void StateMapGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

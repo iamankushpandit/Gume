@@ -1,4 +1,6 @@
 #include "MemoryGame.h"
+#include "engine/AppRegistry.h"
+#include "engine/ContentLoader.h"
 
 namespace {
 constexpr uint16_t CARD_BACK = 0x24BD;
@@ -7,10 +9,33 @@ constexpr uint16_t MATCHED = 0x07F3;
 constexpr uint16_t ACCENT = 0xE8E4;
 constexpr int16_t GRID_TOP = TOP_BAR_HEIGHT + 30;
 constexpr int16_t GRID_GAP = 4;
+
+constexpr AppScoreInfo MEMORY_SCORE = {
+    "memory", "Memory", "memBest", "moves", true
+};
+
+constexpr AppMetadata MEMORY_METADATA = {
+    "memory",
+    "Memory",
+    "Memory Match",
+    "match pairs",
+    "Memory",
+    "Flip cards to find matching pairs.",
+    &MEMORY_SCORE,
+    LauncherIcon::Memory,
+    1,
+    true,
+};
+}
+
+const AppMetadata& memoryAppMetadata() {
+    return MEMORY_METADATA;
 }
 
 const char* MemoryGame::title() const {
-    return "Memory Match";
+    return memoryAppMetadata().screenTitle != nullptr
+        ? memoryAppMetadata().screenTitle
+        : memoryAppMetadata().title;
 }
 
 void MemoryGame::begin(AppContext& host) {
@@ -20,7 +45,7 @@ void MemoryGame::begin(AppContext& host) {
 
 void MemoryGame::newRound(AppContext& host) {
     host.content().loadMemoryConfig(config_);
-    bestMoves_ = static_cast<uint16_t>(host.getScore("memBest", 0));
+    bestMoves_ = static_cast<uint16_t>(host.getScore(memoryAppMetadata().score->bestKey, 0));
     const uint8_t total = config_.rows * config_.cols;
     config_.pairCount = min<uint8_t>(MAX_MEMORY_PAIRS, total / 2);
 
@@ -116,7 +141,7 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
             second_ = -1;
             host.beepOk();
             if (allMatched()) {
-                if (host.saveBestScore("memBest", moves_, true)) {
+                if (host.saveBestScore(memoryAppMetadata().score->bestKey, moves_, true)) {
                     bestMoves_ = moves_;
                 }
             }
@@ -130,7 +155,7 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void MemoryGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

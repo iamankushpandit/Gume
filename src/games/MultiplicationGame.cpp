@@ -1,4 +1,5 @@
 #include "MultiplicationGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
@@ -11,16 +12,39 @@ constexpr uint8_t LEVEL2_TABLES[] = {1, 2, 3, 4, 5, 10};
 constexpr uint8_t LEVEL3_TABLES[] = {1, 2, 3, 4, 5, 6, 10};
 constexpr uint8_t LEVEL4_TABLES[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 constexpr uint8_t LEVEL5_TABLES[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+constexpr AppScoreInfo MULTIPLICATION_SCORE = {
+    "multiply", "Multiply", "multBest", "pts", false
+};
+
+constexpr AppMetadata MULTIPLICATION_METADATA = {
+    "multiply",
+    "Multiply",
+    "Multiplication",
+    "times tables",
+    "Multiply",
+    "Practice multiplication facts.",
+    &MULTIPLICATION_SCORE,
+    LauncherIcon::Multiplication,
+    3,
+    true,
+};
+}
+
+const AppMetadata& multiplicationAppMetadata() {
+    return MULTIPLICATION_METADATA;
 }
 
 const char* MultiplicationGame::title() const {
-    return "Multiplication";
+    return multiplicationAppMetadata().screenTitle != nullptr
+        ? multiplicationAppMetadata().screenTitle
+        : multiplicationAppMetadata().title;
 }
 
 void MultiplicationGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("multBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(multiplicationAppMetadata().score->bestKey, 0));
     newQuestion();
     markDirty();
 }
@@ -62,7 +86,7 @@ bool MultiplicationGame::optionExists(int16_t value, uint8_t upTo) const {
 void MultiplicationGame::updateBest(AppContext& host) {
     if (streak_ > bestStreak_) {
         bestStreak_ = streak_;
-        host.setScore("multBest", bestStreak_);
+        host.setScore(multiplicationAppMetadata().score->bestKey, bestStreak_);
     }
 }
 
@@ -150,7 +174,7 @@ void MultiplicationGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void MultiplicationGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

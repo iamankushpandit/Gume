@@ -2,6 +2,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& numberLineAppMetadata();
+
 class NumberLineGame : public AppGame {
 public:
     const char* title() const override;

@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& shapeColorAppMetadata();
+
 class ShapeColorGame : public AppGame {
 public:
     const char* title() const override;
@@ -28,7 +32,7 @@ private:
     Rect targetRect(uint8_t index) const;
     void newRound();
     bool allMatched() const;
-    void drawShape(TFT_eSPI& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const;
+    void drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const;
 
     Item items_[4];
     uint8_t targetOrder_[4] = {};

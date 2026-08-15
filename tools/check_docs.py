@@ -19,6 +19,8 @@ import os
 import re
 import sys
 
+from app_registry_parser import playable_apps
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -55,19 +57,14 @@ def check_version(problems):
 
 def check_game_count(problems):
     """The headline game count is the fact that has gone stale most often."""
-    catalog = read("src", "engine", "GameCatalog.h")
-    match = re.search(r"GAME_CATALOG_COUNT\s*=\s*(\d+)", catalog)
-    if not match:
-        fail(problems, "GameCatalog.h: GAME_CATALOG_COUNT not found")
-        return
-    count = match.group(1)
+    count = str(len(playable_apps()))
 
     readme = read("README.md")
     stated = re.search(r"\|\s*Games\s*\|\s*(\d+)\s*\|", readme)
     if not stated:
         fail(problems, "README.md: no '| Games | N |' row")
     elif stated.group(1) != count:
-        fail(problems, "README.md says %s games, GAME_CATALOG_COUNT is %s"
+        fail(problems, "README.md says %s games, playable app count is %s"
              % (stated.group(1), count))
 
     if not re.search(r"\b%s-game\b" % count, readme):
@@ -128,8 +125,8 @@ def check_about_is_derived(problems):
     CLAUDE.md; this catches the specific regression of hardcoding again.
     """
     about = read("src", "games", "AboutGame.cpp")
-    for symbol in ("GAME_CATALOG", "GOODTIME_KIDS_VERSION", "BOARD_NAME",
-                   "BleBeacon::active"):
+    for symbol in ("playableAppAt", "playableAppCount", "GOODTIME_KIDS_VERSION",
+                   "BOARD_NAME", "BleBeacon::active"):
         if symbol not in about:
             fail(problems, "AboutGame.cpp no longer reads %s -- About is "
                            "supposed to derive facts, not restate them" % symbol)
@@ -173,16 +170,15 @@ def check_games_are_documented(problems):
     finished -- US States, State Flags, State Maps and Trace all shipped that
     way, listed in the catalog and absent from the README.
     """
-    catalog = read("src", "engine", "GameCatalog.cpp")
-    titles = re.findall(r'^\s*\{\s*"[a-z0-9]+",\s*"([^"]+)"', catalog, re.M)
+    titles = [app.title for app in playable_apps()]
     if not titles:
-        fail(problems, "GameCatalog.cpp: could not parse any game titles")
+        fail(problems, "AppRegistry metadata: could not parse any game titles")
         return
 
     readme = read("README.md")
     for title in titles:
         if title not in readme:
-            fail(problems, "game '%s' is in GAME_CATALOG but never named in "
+            fail(problems, "game '%s' is in the playable app registry but never named in "
                            "README.md" % title)
 
 
@@ -218,9 +214,8 @@ def check_screens(problems):
     alias = {"shapecolor": "shapes", "sort": "sorting", "fingers": "fingers-count",
              "flags": "flags-country", "states": "states", "stateflags": "stateflags",
              "statemaps": "statemaps", "tictactoe": "tictactoe"}
-    catalog = read("src", "engine", "GameCatalog.cpp")
-    ids = re.findall(r'^\s*\{\s*"([a-z0-9]+)"', catalog, re.M)
-    for game_id in ids:
+    for app in playable_apps():
+        game_id = app.id
         name = alias.get(game_id, game_id)
         if name not in on_disk:
             fail(problems, "game '%s' has no screenshot (expected "
@@ -230,7 +225,7 @@ def check_screens(problems):
 def check_site(problems):
     """The Pages site must stay derived, and its firmware list must be real.
 
-    `tools/gen_site.py` fills the landing page from AppVersion.h, GAME_CATALOG
+    `tools/gen_site.py` fills the landing page from AppVersion.h, AppRegistry
     and README, for the same reason About derives its list. Two ways that can
     rot: someone types a fact into the template that the generator already
     supplies, or someone adds a PlatformIO environment to the page that the

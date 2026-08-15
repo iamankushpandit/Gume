@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& traceAppMetadata();
+
 class TraceGame : public AppGame {
 public:
     const char* title() const override;
@@ -39,9 +43,9 @@ private:
     void resampleWaypoints();
     int16_t scaleX(int16_t nx) const;
     int16_t scaleY(int16_t ny) const;
-    void drawGuide(TFT_eSPI& tft);
-    void drawProgress(TFT_eSPI& tft);
-    void drawModeTabs(TFT_eSPI& tft);
+    void drawGuide(Ui::Renderer& tft);
+    void drawProgress(Ui::Renderer& tft);
+    void drawModeTabs(Ui::Renderer& tft);
     void updatePulsePhase();
     uint8_t getSetFirstIndex() const;
     uint8_t getSetLastIndex() const;

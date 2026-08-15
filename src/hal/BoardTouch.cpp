@@ -172,14 +172,14 @@ void Board::runTouchCalibration() {
     const char* labels[3] = {"top-left target", "right target", "bottom target"};
 
     for (uint8_t i = 0; i < 3; ++i) {
-        Ui::clear(tft_);
+        tft_.fillScreen(Ui::bg());
         tft_.setTextColor(Ui::text(), Ui::bg());
         tft_.setTextDatum(TC_DATUM);
         tft_.drawString("Touch Calibration", SCREEN_WIDTH / 2, 12, 4);
         tft_.drawString(String("Tap and hold the ") + labels[i], SCREEN_WIDTH / 2, 48, 2);
         drawCrosshair(tft_, screenPts[i][0], screenPts[i][1], Ui::warning());
         if (!waitForStableRaw(rawPts[i][0], rawPts[i][1])) {
-            Ui::clear(tft_);
+            tft_.fillScreen(Ui::bg());
             tft_.setTextDatum(MC_DATUM);
             tft_.setTextColor(Ui::error(), Ui::bg());
             tft_.drawString("Calibration timed out", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
@@ -194,13 +194,13 @@ void Board::runTouchCalibration() {
     if (computeAffine(rawPts, screenPts, next)) {
         cal_ = next;
         saveTouchCalibration();
-        Ui::clear(tft_);
+        tft_.fillScreen(Ui::bg());
         tft_.setTextDatum(MC_DATUM);
         tft_.setTextColor(Ui::success(), Ui::bg());
         tft_.drawString("Calibration saved", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
         delay(1200);
     } else {
-        Ui::clear(tft_);
+        tft_.fillScreen(Ui::bg());
         tft_.setTextDatum(MC_DATUM);
         tft_.setTextColor(Ui::error(), Ui::bg());
         tft_.drawString("Calibration failed", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);

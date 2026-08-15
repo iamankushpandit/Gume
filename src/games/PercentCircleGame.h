@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& percentCircleAppMetadata();
+
 class PercentCircleGame : public AppGame {
 public:
     const char* title() const override;
@@ -62,9 +66,9 @@ private:
         return Rect{276, 152, 34, 34};
     }
 
-    void fillSlice(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
-    void drawCircle(TFT_eSPI& tft, uint8_t percent, bool highlight) const;
-    void drawReadCircleMode(TFT_eSPI& tft) const;
-    void drawMakeCircleMode(TFT_eSPI& tft) const;
-    void drawPercentOfNumberMode(TFT_eSPI& tft) const;
+    void fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
+    void drawCircle(Ui::Renderer& tft, uint8_t percent, bool highlight) const;
+    void drawReadCircleMode(Ui::Renderer& tft) const;
+    void drawMakeCircleMode(Ui::Renderer& tft) const;
+    void drawPercentOfNumberMode(Ui::Renderer& tft) const;
 };

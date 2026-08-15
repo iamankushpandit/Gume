@@ -1,12 +1,13 @@
 #include "FlagGame.h"
 #include "map_n_flag.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t FLAG_BG = 0xFFFF;   // white card behind the flag
 
 /* Shrink a label until it fits the given width, adding an ellipsis. Country
  * names like "United Arab Emirates" do not fit a half-width button at font 2. */
-String fitLabel(TFT_eSPI& tft, const String& in, int16_t maxW, uint8_t font) {
+String fitLabel(Ui::Renderer& tft, const String& in, int16_t maxW, uint8_t font) {
     if (tft.textWidth(in, font) <= maxW) return in;
     String s = in;
     while (s.length() > 1 && tft.textWidth(s + ".", font) > maxW) {
@@ -14,9 +15,30 @@ String fitLabel(TFT_eSPI& tft, const String& in, int16_t maxW, uint8_t font) {
     }
     return s + ".";
 }
+
+constexpr AppMetadata FLAG_METADATA = {
+    "flags",
+    "Flags",
+    "Guess the Flag",
+    "guess the flag",
+    "Flags",
+    "Name the flag, then its capital.",
+    nullptr,
+    LauncherIcon::Flag,
+    21,
+    true,
+};
 }
 
-const char* FlagGame::title() const { return "Guess the Flag"; }
+const AppMetadata& flagAppMetadata() {
+    return FLAG_METADATA;
+}
+
+const char* FlagGame::title() const {
+    return flagAppMetadata().screenTitle != nullptr
+        ? flagAppMetadata().screenTitle
+        : flagAppMetadata().title;
+}
 
 Rect FlagGame::flagRect() const  { return Rect{80, 48, 160, 120}; }
 Rect FlagGame::tierRect() const  { return Rect{132, 31, 56, 16}; }
@@ -205,7 +227,7 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void FlagGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

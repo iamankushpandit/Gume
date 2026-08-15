@@ -1,6 +1,7 @@
 #include "Ui.h"
 #include "hal/Clock.h"
 #include "hal/Board.h"
+#include "ui/TftRenderer.h"
 #include <WiFi.h>
 #include "map_n_flag.h"
 
@@ -125,11 +126,11 @@ uint16_t shade(uint16_t color, uint8_t percent) {
     return static_cast<uint16_t>((r << 11) | (g << 5) | b);
 }
 
-void clear(TFT_eSPI& tft) {
+void clear(Ui::Renderer& tft) {
     tft.fillScreen(COLOR_BG);
 }
 
-void drawHomeIcon(TFT_eSPI& tft, const Rect& r) {
+void drawHomeIcon(Ui::Renderer& tft, const Rect& r) {
     const int16_t cx = r.x + r.w / 2;
     const int16_t roofY = r.y + 6;
     tft.fillTriangle(cx, roofY, r.x + 8, r.y + 16, r.x + r.w - 8, r.y + 16, TFT_WHITE);
@@ -137,7 +138,7 @@ void drawHomeIcon(TFT_eSPI& tft, const Rect& r) {
     tft.fillRect(cx - 4, r.y + r.h - 12, 8, 7, COLOR_BAR);
 }
 
-void drawGearIcon(TFT_eSPI& tft, const Rect& r, uint16_t color) {
+void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
     const int16_t cx = r.x + r.w / 2;
     const int16_t cy = r.y + r.h / 2;
     const int16_t outer = static_cast<int16_t>(min<int16_t>(r.w, r.h) / 2 - 3);
@@ -173,7 +174,7 @@ void drawGearIcon(TFT_eSPI& tft, const Rect& r, uint16_t color) {
 }
 
 void drawTopBar(Board& board, const String& title) {
-    TFT_eSPI& tft = board.display();
+    TftRenderer tft(board.display());
     const int16_t w = static_cast<int16_t>(tft.width());
     tft.fillRect(0, 0, w, TOP_BAR_HEIGHT, COLOR_BAR);
     // Raised edge: highlight along the top, shadow along the bottom seam.
@@ -205,7 +206,7 @@ void drawTopBar(Board& board, const String& title) {
     tft.setTextDatum(TL_DATUM);
 }
 
-void drawSyncBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg) {
+void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg) {
     const uint16_t col = synced ? COLOR_SUCCESS : COLOR_WARNING;
     // Light theme uses dark fills, so the glyph flips to white to stay legible.
     const uint16_t glyph = (s_theme == Theme::Light) ? TFT_WHITE : TFT_BLACK;
@@ -230,7 +231,7 @@ bool wifiUp() {
     return WiFi.status() == WL_CONNECTED;
 }
 
-void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
+void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
     const bool up = wifiUp();
 
     /* Bars track the real RSSI rather than always showing full strength.
@@ -258,7 +259,7 @@ void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
     (void)bg;
 }
 
-String fitted(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font) {
+String fitted(Ui::Renderer& tft, const String& text, int16_t maxW, uint8_t font) {
     String out = text;
     while (out.length() > 2 && tft.textWidth(out, font) > maxW) {
         out.remove(out.length() - 1);
@@ -269,7 +270,7 @@ String fitted(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font) {
     return out;
 }
 
-void drawBleBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
+void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
     (void)bg;
     /* The Bluetooth rune is one continuous stroke through six points on a
      * 10x16 box -- (0,4) (10,11) (5,16) (5,0) (10,5) (0,12). Drawing it as a
@@ -292,7 +293,7 @@ void drawBleBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg) {
     }
 }
 
-void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg) {
+void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg) {
     const uint16_t outClr = (s_theme == Theme::Light) ? rgb(120, 126, 138) : rgb(160, 164, 180);
     const int16_t bx = static_cast<int16_t>(cx - 7);
     const int16_t by = static_cast<int16_t>(cy - 4);
@@ -347,7 +348,7 @@ void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, boo
     }
 }
 
-void drawSlider(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint8_t minPct) {
+void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct) {
     if (pct < minPct) pct = minPct;
     if (pct > 100) pct = 100;
 
@@ -386,7 +387,7 @@ uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct) {
     return static_cast<uint8_t>(minPct + (rel * (100 - minPct)) / span);
 }
 
-void drawPagerButton(TFT_eSPI& tft, const Rect& r, const String& label, bool enabled) {
+void drawPagerButton(Ui::Renderer& tft, const Rect& r, const String& label, bool enabled) {
     drawButton(tft, r, label,
                enabled ? COLOR_PANEL : COLOR_SURFACE,
                COLOR_OUTLINE,
@@ -394,7 +395,7 @@ void drawPagerButton(TFT_eSPI& tft, const Rect& r, const String& label, bool ena
                false, 2);
 }
 
-void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active) {
+void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active) {
     /* Active tab: full height, page-coloured, rounded top corners only -- the
      * square bottom is what lets it merge into the content area. Inactive:
      * inset from the top so it reads as sitting behind, and darker. */
@@ -427,7 +428,7 @@ void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active) {
     tft.setTextDatum(TL_DATUM);
 }
 
-void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
+void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,
                      const Rect& activeTab) {
     // Draw the rule under the strip, but skip the active tab so it joins the
     // page below -- the detail that makes it read as a tab rather than a button.
@@ -436,7 +437,7 @@ void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
     tft.drawFastHLine(rightStart, y, static_cast<int16_t>(x1 - rightStart), COLOR_OUTLINE);
 }
 
-void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed, uint8_t font) {
+void drawButton(Ui::Renderer& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed, uint8_t font) {
     const int16_t yOffset = pressed ? 1 : 0;
     if (!pressed) {
         tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 6, COLOR_SHADOW);
@@ -468,7 +469,7 @@ void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill
     tft.setTextDatum(TL_DATUM);
 }
 
-void drawLabel(TFT_eSPI& tft, const Rect& r, const String& text, uint16_t color, uint8_t font, Align align) {
+void drawLabel(Ui::Renderer& tft, const Rect& r, const String& text, uint16_t color, uint8_t font, Align align) {
     tft.setTextColor(color, COLOR_BG);
     if (align == Align::Center) {
         tft.setTextDatum(MC_DATUM);
@@ -480,7 +481,7 @@ void drawLabel(TFT_eSPI& tft, const Rect& r, const String& text, uint16_t color,
     tft.setTextDatum(TL_DATUM);
 }
 
-int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16_t color, uint8_t font, Align align) {
+int16_t drawWrappedText(Ui::Renderer& tft, const String& text, const Rect& r, uint16_t color, uint8_t font, Align align) {
     tft.setTextColor(color, COLOR_BG);
     const int16_t lineHeight = font == 4 ? 26 : 18;
     int16_t y = r.y;
@@ -523,7 +524,7 @@ int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16
     return y;
 }
 
-void drawHopArc(TFT_eSPI& tft, int16_t x1, int16_t x2, int16_t baseY,
+void drawHopArc(Ui::Renderer& tft, int16_t x1, int16_t x2, int16_t baseY,
                 int16_t height, uint16_t color, bool arrowAtEnd) {
     const float cx = (x1 + x2) * 0.5f;
     const float rx = fabsf(static_cast<float>(x2 - x1)) * 0.5f;
@@ -558,7 +559,7 @@ void drawHopArc(TFT_eSPI& tft, int16_t x1, int16_t x2, int16_t baseY,
     }
 }
 
-void drawTriangleShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled) {
+void drawTriangleShape(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled) {
     const int16_t x0 = cx;
     const int16_t y0 = cy - radius;
     const int16_t x1 = cx - radius;
@@ -573,7 +574,7 @@ void drawTriangleShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, ui
     }
 }
 
-void drawStarShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled) {
+void drawStarShape(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled) {
     const int16_t inner = radius / 2;
     int16_t px[10];
     int16_t py[10];
@@ -612,7 +613,7 @@ constexpr int16_t MNF_MAX_ROW = (MNF_FLAG_WIDTH > MNF_MAP_BOX) ? MNF_FLAG_WIDTH 
  * Save/restore rather than setting it globally, so we do not disturb any other
  * drawing code that relies on the current setting.
  */
-void drawCountryImage(TFT_eSPI& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor) {
+void drawCountryImage(Ui::Renderer& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor) {
     const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
     if (im == nullptr) return;
 
@@ -629,7 +630,7 @@ void drawCountryImage(TFT_eSPI& tft, const void* img, int16_t x, int16_t y, uint
     tft.setSwapBytes(prevSwap);
 }
 
-bool drawCountryImageCentred(TFT_eSPI& tft, const void* img, const Rect& r, uint16_t bgColor) {
+bool drawCountryImageCentred(Ui::Renderer& tft, const void* img, const Rect& r, uint16_t bgColor) {
     const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
     if (im == nullptr) return false;
     drawCountryImage(tft, im,
@@ -638,7 +639,7 @@ bool drawCountryImageCentred(TFT_eSPI& tft, const void* img, const Rect& r, uint
     return true;
 }
 
-bool drawCountryImageTinted(TFT_eSPI& tft, const void* img, const Rect& r,
+bool drawCountryImageTinted(Ui::Renderer& tft, const void* img, const Rect& r,
                             uint16_t bgColor, uint16_t inkColor) {
     const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
     if (im == nullptr) return false;
@@ -660,7 +661,7 @@ bool drawCountryImageTinted(TFT_eSPI& tft, const void* img, const Rect& r,
     return true;
 }
 
-bool drawCountryImageScaled(TFT_eSPI& tft, const void* img, const Rect& r,
+bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
                             uint16_t bgColor, uint8_t scale) {
     const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
     if (im == nullptr) return false;

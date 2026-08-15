@@ -1,4 +1,24 @@
 #include "SequenceGame.h"
+#include "engine/AppRegistry.h"
+
+namespace {
+constexpr AppMetadata SEQUENCE_METADATA = {
+    "calendar",
+    "Calendar",
+    nullptr,
+    "days & months",
+    "Calendar",
+    "Days and months in order.",
+    nullptr,
+    LauncherIcon::Sequence,
+    19,
+    true,
+};
+}
+
+const AppMetadata& sequenceAppMetadata() {
+    return SEQUENCE_METADATA;
+}
 
 const char* SequenceGame::DAY_NAMES[7] = {
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
@@ -9,7 +29,11 @@ const char* SequenceGame::MONTH_NAMES[12] = {
     "July", "August", "September", "October", "November", "December"
 };
 
-const char* SequenceGame::title() const { return "Calendar"; }
+const char* SequenceGame::title() const {
+    return sequenceAppMetadata().screenTitle != nullptr
+        ? sequenceAppMetadata().screenTitle
+        : sequenceAppMetadata().title;
+}
 
 Rect SequenceGame::modeBtn(uint8_t m) const {
     return Rect{static_cast<int16_t>(8 + m * 124), 32, 120, 26};
@@ -104,7 +128,7 @@ void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void SequenceGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

@@ -1,7 +1,12 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "engine/ContentLoader.h"
 #include "ui/Ui.h"
+
+struct AppMetadata;
+
+const AppMetadata& countingAppMetadata();
 
 class CountingGame : public AppGame {
 public:

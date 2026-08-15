@@ -5,6 +5,10 @@
 #include "CountryData.h"
 #include "engine/Progress.h"
 
+struct AppMetadata;
+
+const AppMetadata& flagAppMetadata();
+
 /*
  * Guess the Flag.
  *

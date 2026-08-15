@@ -1,4 +1,5 @@
 #include "TicTacToeGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr Rect RESET_BUTTON{8, 34, 74, 28};
@@ -6,10 +7,27 @@ constexpr Rect BOARD_RECT{76, 68, 168, 168};
 constexpr uint16_t BLUE = 0x049F;
 constexpr uint16_t RED = 0xD8A7;
 constexpr uint16_t YELLOW = 0xFEC0;
+
+constexpr AppMetadata TIC_TAC_TOE_METADATA = {
+    "tictactoe",
+    "Tic-Tac-Toe",
+    nullptr,
+    "classic grid",
+    "Tic-Tac-Toe",
+    "Play Xs and Os on a 3x3 board.",
+    nullptr,
+    LauncherIcon::TicTacToe,
+    0,
+    true,
+};
+}
+
+const AppMetadata& ticTacToeAppMetadata() {
+    return TIC_TAC_TOE_METADATA;
 }
 
 const char* TicTacToeGame::title() const {
-    return "Tic-Tac-Toe";
+    return ticTacToeAppMetadata().title;
 }
 
 void TicTacToeGame::begin(AppContext& host) {
@@ -113,7 +131,7 @@ void TicTacToeGame::update(AppContext& host, const TouchPoint& touch) {
     handleCell(host, static_cast<uint8_t>(row * 3 + col));
 }
 
-void TicTacToeGame::drawMark(TFT_eSPI& tft, uint8_t cell, char mark) {
+void TicTacToeGame::drawMark(Ui::Renderer& tft, uint8_t cell, char mark) {
     if (mark == ' ') {
         return;
     }
@@ -133,7 +151,7 @@ void TicTacToeGame::drawMark(TFT_eSPI& tft, uint8_t cell, char mark) {
 }
 
 void TicTacToeGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
     Ui::drawButton(tft, RESET_BUTTON, "Reset", YELLOW, Ui::outline(), TFT_BLACK);

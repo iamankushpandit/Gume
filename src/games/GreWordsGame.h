@@ -4,6 +4,10 @@
 #include "engine/Progress.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& greWordsAppMetadata();
+
 /*
  * GRE vocabulary trainer: a study mode and a scored quiz.
  *

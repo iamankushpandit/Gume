@@ -1,6 +1,7 @@
 #include "WifiGame.h"
 #include <WiFi.h>
 #include <esp_sntp.h>
+#include "hal/Board.h"
 #include "hal/Clock.h"
 
 const char WifiGame::KEYS_LOWER[4][11] = {
@@ -26,7 +27,8 @@ const char WifiGame::KEYS_SYMBOL[4][11] = {
 
 const char* WifiGame::title() const { return "Wi-Fi"; }
 
-void WifiGame::begin(GameHost&) {
+void WifiGame::begin(GameHost& host) {
+    (void)host.requireCapability(APP_CAP_NETWORK, "open wifi");
     phase_ = Phase::Idle;
     password_ = "";
     capsLock_ = false;
@@ -54,7 +56,10 @@ Rect WifiGame::keyRect(uint8_t row, uint8_t col) const {
     };
 }
 
-void WifiGame::startScan() {
+void WifiGame::startScan(GameHost& host) {
+    if (!host.requireCapability(APP_CAP_NETWORK, "scan wifi")) {
+        return;
+    }
     /* Two-step: flip to the Scanning phase and let the host render the
      * "Scanning..." screen, then run the actual scan on the NEXT update tick.
      * The scan itself BLOCKS for a few seconds.
@@ -131,6 +136,9 @@ void WifiGame::checkScan() {
 }
 
 void WifiGame::startConnect(GameHost& host) {
+    if (!host.requireCapability(APP_CAP_NETWORK, "join wifi")) {
+        return;
+    }
     Board& board = host.board();
 
     String ssid = selectedSsid_;
@@ -156,6 +164,11 @@ void WifiGame::startConnect(GameHost& host) {
 }
 
 void WifiGame::checkConnect(GameHost& host) {
+    if (!host.requireCapability(APP_CAP_NETWORK, "finish wifi join")) {
+        phase_ = Phase::Idle;
+        markDirty();
+        return;
+    }
     const wl_status_t st = WiFi.status();
     if (st == WL_CONNECTED) {
         connectOk_ = true;
@@ -186,16 +199,27 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
             markDirty();
         }
     }
-    if (phase_ == Phase::Scanning) { checkScan(); return; }
+    if (phase_ == Phase::Scanning) {
+        if (!host.requireCapability(APP_CAP_NETWORK, "run wifi scan")) {
+            phase_ = Phase::Idle;
+            markDirty();
+            return;
+        }
+        checkScan();
+        return;
+    }
     if (phase_ == Phase::Connecting) { checkConnect(host); return; }
 
     if (!touch.justPressed) return;
+    if (!host.requireCapability(APP_CAP_NETWORK, "change wifi settings")) {
+        return;
+    }
 
     Board& board = host.board();
 
     if (phase_ == Phase::Idle) {
         // --- Wi-Fi section ---
-        if (Rect{14, 64, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startScan(); return; }
+        if (Rect{14, 64, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startScan(host); return; }
         if (Rect{166, 64, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && board.hasWifiCredentials()) {
             board.clearWifiCredentials(); markDirty(); return;
         }
@@ -297,7 +321,7 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
 
 void WifiGame::render(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 

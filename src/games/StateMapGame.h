@@ -5,6 +5,10 @@
 #include "ui/Ui.h"
 #include "StateData.h"
 
+struct AppMetadata;
+
+const AppMetadata& stateMapAppMetadata();
+
 /*
  * Guess the US state from its outline.
  *

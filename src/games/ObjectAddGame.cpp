@@ -1,4 +1,5 @@
 #include "ObjectAddGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t COL_FIRST   = 0x24BD; // blue
@@ -7,9 +8,30 @@ constexpr uint16_t COL_REMOVED = 0xF9EA; // red/orange for subtraction
 constexpr uint16_t OBJ_BTN     = 0x24BD;
 constexpr uint16_t OBJ_CORRECT = 0x37F0;
 constexpr uint16_t OBJ_WRONG   = 0xF9EA;
+
+constexpr AppMetadata OBJECT_ADD_METADATA = {
+    "shapearith",
+    "Shape Arith",
+    nullptr,
+    "add & subtract",
+    "Shape Arith",
+    "Add and take away shapes.",
+    nullptr,
+    LauncherIcon::ObjectAdd,
+    17,
+    true,
+};
 }
 
-const char* ObjectAddGame::title() const { return "Shape Arith"; }
+const AppMetadata& objectAddAppMetadata() {
+    return OBJECT_ADD_METADATA;
+}
+
+const char* ObjectAddGame::title() const {
+    return objectAddAppMetadata().screenTitle != nullptr
+        ? objectAddAppMetadata().screenTitle
+        : objectAddAppMetadata().title;
+}
 
 Rect ObjectAddGame::leftPanel()  const { return Rect{8,   50, 132, 110}; }
 Rect ObjectAddGame::rightPanel() const { return Rect{180, 50, 132, 110}; }
@@ -24,7 +46,7 @@ void ObjectAddGame::objPos(const Rect& p, uint8_t idx, int16_t& cx, int16_t& cy)
     cy = static_cast<int16_t>(p.y + 26 + row * 32);
 }
 
-void ObjectAddGame::drawObject(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t color) const {
+void ObjectAddGame::drawObject(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t color) const {
     switch (shape_ % 4) {
         case 0:
             tft.fillCircle(cx, cy, 12, color);
@@ -163,7 +185,7 @@ void ObjectAddGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void ObjectAddGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

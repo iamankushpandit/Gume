@@ -34,7 +34,7 @@ void Board::begin() {
     tft_.setRotation(CYD_SCREEN_ROTATION);
     displayRotation_ = CYD_SCREEN_ROTATION;
     tft_.setTextWrap(false, false);
-    Ui::clear(tft_);
+    tft_.fillScreen(Ui::bg());
 
     prefs_.begin("cydkids", false);
     migrateStorageSchema();

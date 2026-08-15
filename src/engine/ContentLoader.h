@@ -1,7 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include "hal/Board.h"
+
+class Board;
 
 constexpr uint8_t MAX_MEMORY_ROWS = 4;
 constexpr uint8_t MAX_MEMORY_COLS = 6;

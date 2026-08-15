@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "ui/Renderer.h"
 
 struct Rect {
     int16_t x = 0;
@@ -37,30 +37,30 @@ uint16_t outline();
 uint16_t success();
 uint16_t error();
 uint16_t warning();
-void clear(TFT_eSPI& tft);
+void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
-void drawHomeIcon(TFT_eSPI& tft, const Rect& r);
-void drawGearIcon(TFT_eSPI& tft, const Rect& r, uint16_t color = TFT_WHITE);
+void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
+void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
  * warning dot when it is still the free-running build-time estimate. Drawn at
  * (cx, cy) as a centre point; about 12px across. */
-void drawSyncBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg);
+void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg);
 
 /* Wi-Fi state beside the clock: signal arcs when associated, greyed with a red
  * slash when not. Centred on (cx, cy), about 16px across. */
-void drawWifiBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg);
+void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
 /* Battery state beside Wi-Fi. Shows battery outline holding a percentage fill,
  * or a plug icon if external power is supplied. */
-void drawBatteryBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg);
+void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg);
 
 /* BLE beacon indicator: the Bluetooth rune, drawn only while the radio is
  * actually advertising. There is no "off" variant on purpose -- an icon that is
  * always present but sometimes greyed makes "is it transmitting?" a question of
  * shade, and that is the one question this icon exists to answer at a glance.
  * Centred on (cx, cy), 10x16. */
-void drawBleBadge(TFT_eSPI& tft, int16_t cx, int16_t cy, uint16_t bg);
+void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
 /** True when the station interface is associated. */
 bool wifiUp();
@@ -71,33 +71,33 @@ bool wifiUp();
 /* Web-style slider: rounded track, filled portion, round handle.
  * `pct` and the returned value are both in [minPct, 100] -- the full travel
  * maps to that range, so the value can never fall below the floor. */
-void drawSlider(TFT_eSPI& tft, const Rect& r, uint8_t pct, uint8_t minPct);
+void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct);
 uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct);
 
-void drawTab(TFT_eSPI& tft, const Rect& r, const String& label, bool active);
-void drawTabBaseline(TFT_eSPI& tft, int16_t y, int16_t x0, int16_t x1,
+void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active);
+void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,
                      const Rect& activeTab);
 
 /* Prev/Next style button that visibly disables. Several screens greyed only
  * the fill and left the label at full strength, so a dead button still looked
  * live; routing them all through here keeps that consistent. */
-void drawPagerButton(TFT_eSPI& tft, const Rect& r, const String& label, bool enabled);
+void drawPagerButton(Ui::Renderer& tft, const Rect& r, const String& label, bool enabled);
 
-void drawButton(TFT_eSPI& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed = false, uint8_t font = 2);
+void drawButton(Ui::Renderer& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed = false, uint8_t font = 2);
 /* Truncate `text` to fit `maxW` at `font`, ending in '.' when it was cut.
  * Header and row values both need this; System Info had its own copy. */
-String fitted(TFT_eSPI& tft, const String& text, int16_t maxW, uint8_t font);
+String fitted(Ui::Renderer& tft, const String& text, int16_t maxW, uint8_t font);
 
-void drawLabel(TFT_eSPI& tft, const Rect& r, const String& text, uint16_t color, uint8_t font = 2, Align align = Align::Left);
-int16_t drawWrappedText(TFT_eSPI& tft, const String& text, const Rect& r, uint16_t color, uint8_t font = 2, Align align = Align::Left);
+void drawLabel(Ui::Renderer& tft, const Rect& r, const String& text, uint16_t color, uint8_t font = 2, Align align = Align::Left);
+int16_t drawWrappedText(Ui::Renderer& tft, const String& text, const Rect& r, uint16_t color, uint8_t font = 2, Align align = Align::Left);
 /* Smooth semicircular hop from x1 to x2, peaking `height` above baseY.
  * Plotted as short chords around a half ellipse -- drawing two straight lines
  * to a midpoint (as the number line game did) renders a triangle, not an arc. */
-void drawHopArc(TFT_eSPI& tft, int16_t x1, int16_t x2, int16_t baseY,
+void drawHopArc(Ui::Renderer& tft, int16_t x1, int16_t x2, int16_t baseY,
                 int16_t height, uint16_t color, bool arrowAtEnd = true);
 
-void drawTriangleShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled);
-void drawStarShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled);
+void drawTriangleShape(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled);
+void drawStarShape(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, uint16_t color, bool filled);
 
 /*
  * map-n-flag image blitting.
@@ -112,20 +112,20 @@ void drawStarShape(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, uint16
  */
 
 /** Draw at native size with the top-left corner at (x, y). */
-void drawCountryImage(TFT_eSPI& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor);
+void drawCountryImage(Ui::Renderer& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor);
 
 /** Draw centred inside `r`, at native size. Returns false if img was null. */
-bool drawCountryImageCentred(TFT_eSPI& tft, const void* img, const Rect& r, uint16_t bgColor);
+bool drawCountryImageCentred(Ui::Renderer& tft, const void* img, const Rect& r, uint16_t bgColor);
 
 /**
  * Draw centred inside `r` using only the image's alpha, painted in `inkColor`.
  * Map outlines store a 16-step alpha ramp, so this recolours them at draw time.
  */
-bool drawCountryImageTinted(TFT_eSPI& tft, const void* img, const Rect& r,
+bool drawCountryImageTinted(Ui::Renderer& tft, const void* img, const Rect& r,
                             uint16_t bgColor, uint16_t inkColor);
 
 /** Integer-scaled draw (2x, 3x...) centred in `r`, nearest-neighbour. */
-bool drawCountryImageScaled(TFT_eSPI& tft, const void* img, const Rect& r,
+bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
                             uint16_t bgColor, uint8_t scale);
 
 enum class Theme { Dark, Light };

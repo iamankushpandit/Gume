@@ -42,7 +42,7 @@ private:
     static constexpr uint8_t MAX_NETS = 20;
     int8_t netIdx_[MAX_NETS] = {}; // indices into the scan result, deduped
 
-    void startScan();
+    void startScan(GameHost& host);
     void checkScan();
     void runScan();
     void startConnect(GameHost& host);

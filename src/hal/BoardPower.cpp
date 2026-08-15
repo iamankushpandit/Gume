@@ -126,12 +126,29 @@ void Board::displaySleep() {
     ledcWrite(BL_CHANNEL, 0);
     tft_.writecommand(0x10);
     displayAsleep_ = true;
+    displaySleepTelemetry_.sleepCount++;
+    displaySleepTelemetry_.lastSleepMs = millis();
+    Serial.printf("[display] sleep #%lu at %lums\n",
+                  static_cast<unsigned long>(displaySleepTelemetry_.sleepCount),
+                  static_cast<unsigned long>(displaySleepTelemetry_.lastSleepMs));
 }
 
 void Board::displayWake() {
     if (!displayAsleep_) return;
+    const uint32_t wakeStartMs = millis();
     tft_.writecommand(0x11);
     delay(120);
     applyBrightness();
     displayAsleep_ = false;
+    const uint32_t wakeEndMs = millis();
+    displaySleepTelemetry_.wakeCount++;
+    displaySleepTelemetry_.lastWakeMs = wakeEndMs;
+    displaySleepTelemetry_.lastWakeDelayMs = wakeEndMs - wakeStartMs;
+    displaySleepTelemetry_.lastSleepDurationMs =
+        displaySleepTelemetry_.lastSleepMs > 0 ? wakeEndMs - displaySleepTelemetry_.lastSleepMs : 0;
+    Serial.printf("[display] wake #%lu at %lums after %lums, panel delay %lums\n",
+                  static_cast<unsigned long>(displaySleepTelemetry_.wakeCount),
+                  static_cast<unsigned long>(displaySleepTelemetry_.lastWakeMs),
+                  static_cast<unsigned long>(displaySleepTelemetry_.lastSleepDurationMs),
+                  static_cast<unsigned long>(displaySleepTelemetry_.lastWakeDelayMs));
 }

@@ -6,15 +6,14 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "hal/TouchTypes.h"
 
-struct TouchPoint {
-    bool down = false;
-    bool justPressed = false;
-    bool justReleased = false;
-    int16_t x = 0;
-    int16_t y = 0;
-    uint16_t pressure = 0;
-};
+class BoardDisplayAccess;
+class BoardTouchAccess;
+class BoardStorageAccess;
+class BoardPowerAccess;
+class BoardNetworkAccess;
+class BoardFeedbackAccess;
 
 class Board {
 public:
@@ -27,6 +26,15 @@ public:
     struct NetworkActivity {
         uint32_t atMs = 0;
         char detail[40] = {0};
+    };
+
+    struct DisplaySleepTelemetry {
+        uint32_t sleepCount = 0;
+        uint32_t wakeCount = 0;
+        uint32_t lastSleepMs = 0;
+        uint32_t lastWakeMs = 0;
+        uint32_t lastSleepDurationMs = 0;
+        uint32_t lastWakeDelayMs = 0;
     };
 
     struct TouchCalibration {
@@ -66,6 +74,13 @@ public:
     Board();
 
     void begin();
+    BoardDisplayAccess displayAccess();
+    BoardTouchAccess touchAccess();
+    BoardStorageAccess storageAccess();
+    BoardPowerAccess powerAccess();
+    BoardNetworkAccess networkAccess();
+    BoardFeedbackAccess feedbackAccess();
+
     TFT_eSPI& display();
 
     PowerState getPowerSource();
@@ -179,6 +194,7 @@ public:
     void displaySleep();
     void displayWake();
     bool displayAsleep() const { return displayAsleep_; }
+    DisplaySleepTelemetry displaySleepTelemetry() const { return displaySleepTelemetry_; }
     bool gameVisible(uint8_t catalogIndex, bool fallback = true);
     void setGameVisible(uint8_t catalogIndex, bool visible);
     bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true);
@@ -326,6 +342,7 @@ private:
     bool sleepSecsCached_ = false;
     uint16_t cachedSleepSecs_ = 0;
     bool displayAsleep_ = false;
+    DisplaySleepTelemetry displaySleepTelemetry_{};
 
     /* Game visibility as a bitmask for one profile: bit i = catalog index i.
      * 32 bits covers the 26-game catalog with room to grow. Loaded in one
@@ -356,3 +373,5 @@ private:
     uint8_t networkActivityNext_ = 0;
     uint8_t networkActivityUsed_ = 0;
 };
+
+#include "BoardAccess.h"

@@ -9,12 +9,29 @@ namespace {
 constexpr Rect HOME_BUTTON{0, 0, 44, TOP_BAR_HEIGHT};
 }
 
-TFT_eSPI& KidsPlatformApp::display() {
-    return board_.display();
+Ui::Renderer& KidsPlatformApp::display() {
+    return renderer_;
 }
 
 Board& KidsPlatformApp::board() {
     return board_;
+}
+
+bool KidsPlatformApp::hasCapability(uint32_t capability) const {
+    return activeApp_ != nullptr && activeApp_->hasCapability(capability);
+}
+
+bool KidsPlatformApp::requireCapability(uint32_t capability, const char* action) {
+    if (hasCapability(capability)) {
+        return true;
+    }
+    Serial.printf("[auth] denied '%s' for app '%s' (need 0x%08lx, has 0x%08lx)\n",
+                  action != nullptr ? action : "?",
+                  activeApp_ != nullptr ? activeApp_->id() : "none",
+                  static_cast<unsigned long>(capability),
+                  static_cast<unsigned long>(activeApp_ != nullptr ? activeApp_->capabilities : 0));
+    board_.beepError();
+    return false;
 }
 
 ContentLoader& KidsPlatformApp::content() {
@@ -120,20 +137,12 @@ void KidsPlatformApp::loop() {
     const uint32_t minuteNow = Clock::minuteKey();
     if (minuteNow != lastClockMinute_) {
         lastClockMinute_ = minuteNow;
-        if (view_ == View::Launcher) {
-            launcherDirty_ = true;
-        } else if (view_ == View::Game && activeGame_ != nullptr) {
+        if (view_ == View::Game && activeGame_ != nullptr) {
             activeGame_->requestRender();
         }
     }
 
-    if (view_ == View::Profiles) {
-        games_.profile.update(*this, touch);
-        if (view_ == View::Profiles && games_.profile.needsRender()) {
-            games_.profile.render(*this);
-            games_.profile.clearDirty();
-        }
-    } else if (view_ == View::Asleep) {
+    if (view_ == View::Asleep) {
         if (rawTouch.justPressed || rawTouch.down) {
             wakeFromSleep();
         }
@@ -144,18 +153,13 @@ void KidsPlatformApp::loop() {
             ssav_lastFrameMs_ = nowMs;
             renderScreenSaver();
         }
-    } else if (view_ == View::Launcher) {
-        handleLauncherTouch(touch);
-        if (launcherDirty_) {
-            renderLauncher();
-            launcherDirty_ = false;
-        }
     } else if (activeGame_ != nullptr) {
-        const Rect settingsButton =
-            LauncherLayout::topBarSettingsRect(static_cast<int16_t>(board_.display().width()));
-        if (touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        const Rect settingsButton = LauncherLayout::topBarSettingsRect(display().width());
+        if (activeGame_ != &launcher_ &&
+            touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
-        } else if (touch.justPressed && HOME_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        } else if (activeGame_ != &launcher_ &&
+                   touch.justPressed && HOME_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             goHome();
         } else {
             activeGame_->update(*this, touch);
@@ -200,13 +204,16 @@ void KidsPlatformApp::leaveActiveGame() {
 }
 
 void KidsPlatformApp::goHome() {
-    Watchdog::setContext("Launcher");
     leaveActiveGame();
-    view_ = View::Launcher;
-    clampLauncherPage();
+    Watchdog::setContext("Launcher");
+    activeGame_ = &launcher_;
+    activeApp_ = nullptr;
+    view_ = View::Game;
     applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
-    content_.scan();
-    launcherDirty_ = true;
+    heapAtLaunch_ = ESP.getFreeHeap();
+    activeGame_->begin(*this);
+    activeGame_->render(*this);
+    activeGame_->clearDirty();
 }
 
 void KidsPlatformApp::relaunchActiveGame() {
@@ -224,19 +231,13 @@ void KidsPlatformApp::openWifi() {
 }
 
 void KidsPlatformApp::openProfiles() {
-    applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
-    Watchdog::setContext("Profiles");
-    view_ = View::Profiles;
-    leaveActiveGame();
-    activeApp_ = &appById("profiles");
-    activeGame_ = &games_.profile;
-    heapAtLaunch_ = ESP.getFreeHeap();
-    games_.profile.begin(*this);
-    games_.profile.render(*this);
-    games_.profile.clearDirty();
+    launch(appById("profiles"));
 }
 
 const char* KidsPlatformApp::activeAppTitle() const {
+    if (activeGame_ == &launcher_) {
+        return "Launcher";
+    }
     return activeApp_ != nullptr ? activeApp_->title() : "Game";
 }
 

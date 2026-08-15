@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <TFT_eSPI.h>
 #include "ui/Ui.h"
 
 enum class LauncherIcon : uint8_t {
@@ -41,5 +40,5 @@ enum class LauncherIcon : uint8_t {
     SystemInfo,
 };
 
-void drawLauncherIcon(TFT_eSPI& tft, LauncherIcon icon, const Rect& r,
+void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
                       uint16_t fill, int16_t cx, int16_t cy);

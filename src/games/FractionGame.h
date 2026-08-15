@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& fractionAppMetadata();
+
 class FractionGame : public AppGame {
 public:
     const char* title() const override;
@@ -39,11 +43,11 @@ private:
     Rect pieOptionRect(uint8_t index) const;
     Rect compareRect(uint8_t index) const;
 
-    void drawPie(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, const Fraction& fraction, bool selected = false) const;
-    void fillSlice(TFT_eSPI& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
-    void drawTextOptions(TFT_eSPI& tft) const;
-    void drawPieOptions(TFT_eSPI& tft) const;
-    void drawCompare(TFT_eSPI& tft) const;
+    void drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, const Fraction& fraction, bool selected = false) const;
+    void fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
+    void drawTextOptions(Ui::Renderer& tft) const;
+    void drawPieOptions(Ui::Renderer& tft) const;
+    void drawCompare(Ui::Renderer& tft) const;
 
     Mode mode_ = Mode::PickText;
     Fraction target_;

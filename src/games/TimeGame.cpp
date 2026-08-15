@@ -1,4 +1,5 @@
 #include "TimeGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
@@ -7,16 +8,37 @@ constexpr uint16_t RED = 0xE8E4;
 constexpr uint16_t CLOCK_FACE = 0xF7BE;
 constexpr uint16_t HAND = 0x0843;
 constexpr uint16_t MINUTE_HAND = 0xE8E4;
+
+constexpr AppScoreInfo TIME_GAME_SCORE = {
+    "time", "Time", "timeBest", "pts", false
+};
+
+constexpr AppMetadata TIME_GAME_METADATA = {
+    "time",
+    "Time",
+    nullptr,
+    "read clocks",
+    "Time",
+    "Read the clock and pick the time.",
+    &TIME_GAME_SCORE,
+    LauncherIcon::Time,
+    4,
+    true,
+};
+}
+
+const AppMetadata& timeGameAppMetadata() {
+    return TIME_GAME_METADATA;
 }
 
 const char* TimeGame::title() const {
-    return "Time";
+    return timeGameAppMetadata().title;
 }
 
 void TimeGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("timeBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(timeGameAppMetadata().score->bestKey, 0));
     newQuestion();
     markDirty();
 }
@@ -140,7 +162,7 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
             if (i == correctButton_) {
                 ++score_;
                 ++streak_;
-                if (host.saveBestScore("timeBest", streak_, false)) {
+                if (host.saveBestScore(timeGameAppMetadata().score->bestKey, streak_, false)) {
                     bestStreak_ = streak_;
                 }
                 host.beepOk();
@@ -154,7 +176,7 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void TimeGame::drawClock(TFT_eSPI& tft) const {
+void TimeGame::drawClock(Ui::Renderer& tft) const {
     constexpr int16_t cx = SCREEN_WIDTH / 2;
     constexpr int16_t cy = 91;
     constexpr int16_t radius = 49;
@@ -195,7 +217,7 @@ void TimeGame::drawClock(TFT_eSPI& tft) const {
 }
 
 void TimeGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

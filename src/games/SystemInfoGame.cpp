@@ -103,7 +103,7 @@ const char* SystemInfoGame::title() const {
 }
 
 void SystemInfoGame::begin(GameHost& host) {
-    (void)host;
+    (void)host.requireCapability(APP_CAP_DIAGNOSTICS, "open diagnostics");
     tab_ = 0;
     lastRefreshMs_ = 0;
     lastTrafficSampleMs_ = 0;
@@ -201,8 +201,7 @@ void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
         markDirty();
     }
 
-    const Rect content = contentRect(static_cast<int16_t>(host.board().display().width()),
-                                     static_cast<int16_t>(host.board().display().height()));
+    const Rect content = contentRect(host.display().width(), host.display().height());
 
     if (touch.justReleased) {
         scrolling_ = false;
@@ -214,7 +213,7 @@ void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
             return;
         }
 
-        const int16_t W = static_cast<int16_t>(host.board().display().width());
+        const int16_t W = host.display().width();
         for (uint8_t i = 0; i < TAB_COUNT; ++i) {
             if (tabRect(i, W, tabStripY()).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 if (tab_ != i) {
@@ -250,7 +249,7 @@ void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void SystemInfoGame::drawTabStrip(TFT_eSPI& tft, int16_t screenW) {
+void SystemInfoGame::drawTabStrip(Ui::Renderer& tft, int16_t screenW) {
     tft.fillRect(0, tabStripY(), screenW, TAB_STRIP_H, Ui::panel());
     for (uint8_t i = 0; i < TAB_COUNT; ++i) {
         Ui::drawTab(tft, tabRect(i, screenW, tabStripY()), TAB_LABELS[i], i == tab_);
@@ -489,6 +488,26 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
     rows_.addRow("Wi-Fi creds", board.hasWifiCredentials() ? "Stored" : "Not set");
     rows_.addRow("NTP enabled", board.ntpEnabled() ? "Yes" : "No");
 
+    const Board::DisplaySleepTelemetry sleep = board.displaySleepTelemetry();
+    rows_.addSection("Display sleep");
+    rows_.addRow("Panel", board.displayAsleep() ? "Asleep" : "Awake",
+                 board.displayAsleep() ? Ui::warning() : Ui::success());
+    char value[24];
+    snprintf(value, sizeof(value), "%lu", static_cast<unsigned long>(sleep.sleepCount));
+    rows_.addRow("Sleeps", value);
+    snprintf(value, sizeof(value), "%lu", static_cast<unsigned long>(sleep.wakeCount));
+    rows_.addRow("Wakes", value);
+    rows_.addRow("Last sleep", sleep.lastSleepMs ? uptimeText(sleep.lastSleepMs / 1000UL) : "Never");
+    rows_.addRow("Last wake", sleep.lastWakeMs ? uptimeText(sleep.lastWakeMs / 1000UL) : "Never");
+    rows_.addRow("Last slept", sleep.lastSleepDurationMs
+                 ? uptimeText(sleep.lastSleepDurationMs / 1000UL) : "-");
+    if (sleep.lastWakeDelayMs) {
+        snprintf(value, sizeof(value), "%lu ms", static_cast<unsigned long>(sleep.lastWakeDelayMs));
+        rows_.addRow("Wake delay", value);
+    } else {
+        rows_.addRow("Wake delay", "-");
+    }
+
     rows_.addSection("Watchdog");
     rows_.addRow("State", stats.armed ? "Armed" : "Not armed");
     rows_.addRow("Stalls", String(stats.stalls));
@@ -513,7 +532,7 @@ void SystemInfoGame::rebuildRows(GameHost& host) {
 }
 
 void SystemInfoGame::drawContent(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+    Ui::Renderer& tft = host.display();
     const Rect cr = contentRect(static_cast<int16_t>(tft.width()),
                                 static_cast<int16_t>(tft.height()));
 
@@ -531,7 +550,7 @@ void SystemInfoGame::drawContent(GameHost& host) {
 
 void SystemInfoGame::render(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
 
     if (needsFullRender()) {

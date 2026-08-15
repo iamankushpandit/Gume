@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& ticTacToeAppMetadata();
+
 class TicTacToeGame : public AppGame {
 public:
     const char* title() const override;
@@ -15,7 +19,7 @@ private:
     char winner() const;
     bool boardFull() const;
     void handleCell(AppContext& host, uint8_t cell);
-    void drawMark(TFT_eSPI& tft, uint8_t cell, char mark);
+    void drawMark(Ui::Renderer& tft, uint8_t cell, char mark);
     void loadScores(AppContext& host);
 
     char cells_[9] = {};

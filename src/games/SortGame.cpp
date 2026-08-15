@@ -1,19 +1,43 @@
 #include "SortGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t TILE = 0x24BD;
 constexpr uint16_t LOCKED = 0x37F0;
 constexpr uint16_t WRONG = 0xF9EA;
+
+constexpr AppScoreInfo SORT_SCORE = {
+    "sort", "Sorting", "sortBest", "pts", false
+};
+
+constexpr AppMetadata SORT_METADATA = {
+    "sort",
+    "Sorting",
+    nullptr,
+    "order nums",
+    "Sorting",
+    "Order numbers up or down.",
+    &SORT_SCORE,
+    LauncherIcon::Sort,
+    13,
+    true,
+};
+}
+
+const AppMetadata& sortAppMetadata() {
+    return SORT_METADATA;
 }
 
 const char* SortGame::title() const {
-    return "Sorting";
+    return sortAppMetadata().screenTitle != nullptr
+        ? sortAppMetadata().screenTitle
+        : sortAppMetadata().title;
 }
 
 void SortGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("sortBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(sortAppMetadata().score->bestKey, 0));
     newRound();
     markDirty();
 }
@@ -89,7 +113,7 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
     if (allLocked()) {
         ++score_;
         ++streak_;
-        if (host.saveBestScore("sortBest", streak_, false)) {
+        if (host.saveBestScore(sortAppMetadata().score->bestKey, streak_, false)) {
             bestStreak_ = streak_;
         }
         newRound();
@@ -118,7 +142,7 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void SortGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

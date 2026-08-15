@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& whackAMoleAppMetadata();
+
 class WhackAMoleGame : public AppGame {
 public:
     const char* title() const override;
@@ -17,7 +21,7 @@ private:
     void recordMiss();
     uint8_t level() const;
     uint16_t visibleMs() const;
-    void drawSmile(TFT_eSPI& tft, const Rect& r) const;
+    void drawSmile(Ui::Renderer& tft, const Rect& r) const;
 
     int8_t activeCell_ = -1;
     int8_t flashCell_ = -1;

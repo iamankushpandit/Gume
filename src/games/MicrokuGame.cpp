@@ -1,4 +1,5 @@
 #include "MicrokuGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t GIVEN_FILL = 0x294D;
@@ -62,16 +63,37 @@ constexpr StageDef STAGES[] = {
     {6, 2, 3, PUZZLE_6, SOLUTION_6},
 };
 constexpr uint8_t STAGE_COUNT = sizeof(STAGES) / sizeof(STAGES[0]);
+
+constexpr AppScoreInfo MICROKU_SCORE = {
+    "microku", "Microku", "microkuBest", "size", false
+};
+
+constexpr AppMetadata MICROKU_METADATA = {
+    "microku",
+    "Microku",
+    nullptr,
+    "mini sudoku",
+    "Microku",
+    "Solve tiny Sudoku-style boards.",
+    &MICROKU_SCORE,
+    LauncherIcon::Microku,
+    7,
+    true,
+};
+}
+
+const AppMetadata& microkuAppMetadata() {
+    return MICROKU_METADATA;
 }
 
 const char* MicrokuGame::title() const {
-    return "Microku";
+    return microkuAppMetadata().title;
 }
 
 void MicrokuGame::begin(AppContext& host) {
     stageIndex_ = 0;
     solvedThisRun_ = 0;
-    bestSize_ = static_cast<uint8_t>(host.getScore("microkuBest", 0));
+    bestSize_ = static_cast<uint8_t>(host.getScore(microkuAppMetadata().score->bestKey, 0));
     loadStage(stageIndex_);
     markDirty();
 }
@@ -188,7 +210,7 @@ void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
         if (complete()) {
             solved_ = true;
             ++solvedThisRun_;
-            if (host.saveBestScore("microkuBest", size_, false)) {
+            if (host.saveBestScore(microkuAppMetadata().score->bestKey, size_, false)) {
                 bestSize_ = size_;
             }
             message_ = stageIndex_ + 1 < STAGE_COUNT ? "Solved - tap next" : "All solved - tap restart";
@@ -207,7 +229,7 @@ void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void MicrokuGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

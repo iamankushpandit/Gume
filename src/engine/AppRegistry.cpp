@@ -40,76 +40,123 @@ Game& wifi(GameInstances& games) { return games.wifi; }
 Game& about(GameInstances& games) { return games.about; }
 Game& systemInfo(GameInstances& games) { return games.systemInfo; }
 
-AppDefinition catalogApp(uint8_t index, LauncherIcon icon, Game& (*instance)(GameInstances&),
-                         bool followsLayout = false) {
-    return AppDefinition{&GAME_CATALOG[index], nullptr, nullptr, nullptr,
-                         index, false, followsLayout, icon, instance};
+AppDefinition metadataCatalogApp(const AppMetadata& metadata, Game& (*instance)(GameInstances&),
+                                 bool followsLayout = false) {
+    return AppDefinition{&metadata, nullptr, nullptr, nullptr,
+                         false, followsLayout, LauncherIcon::About, APP_CAP_NONE, instance};
 }
 
 AppDefinition systemApp(const char* id, const char* title, const char* subtitle,
                         LauncherIcon icon, Game& (*instance)(GameInstances&),
-                        bool followsLayout = false) {
-    return AppDefinition{nullptr, id, title, subtitle, 0xFF,
-                         true, followsLayout, icon, instance};
+                        uint32_t capabilities, bool followsLayout = false) {
+    return AppDefinition{nullptr, id, title, subtitle,
+                         true, followsLayout, icon, capabilities, instance};
 }
 
 }
 
 const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
-    catalogApp(0, LauncherIcon::TicTacToe, ticTacToe),
-    catalogApp(1, LauncherIcon::Memory, memory),
-    catalogApp(2, LauncherIcon::Math, math),
-    catalogApp(3, LauncherIcon::Multiplication, multiplication),
-    catalogApp(4, LauncherIcon::Time, time),
-    catalogApp(5, LauncherIcon::WhackAMole, whackAMole),
-    catalogApp(6, LauncherIcon::Cinnamon, cinnamon),
-    catalogApp(7, LauncherIcon::Microku, microku),
-    catalogApp(8, LauncherIcon::ShapeColor, shapeColor),
-    catalogApp(9, LauncherIcon::Counting, counting),
-    catalogApp(10, LauncherIcon::Money, money),
-    catalogApp(11, LauncherIcon::Fractions, fractions),
-    catalogApp(12, LauncherIcon::Maze, maze),
-    catalogApp(13, LauncherIcon::Sort, sort),
-    catalogApp(14, LauncherIcon::ColorMix, colorMix),
-    catalogApp(15, LauncherIcon::SlidingPuzzle, slidingPuzzle),
-    catalogApp(16, LauncherIcon::OddOneOut, oddOneOut),
-    catalogApp(17, LauncherIcon::ObjectAdd, objectAdd),
-    catalogApp(18, LauncherIcon::FingerCount, fingerCount),
-    catalogApp(19, LauncherIcon::Sequence, sequence),
-    catalogApp(20, LauncherIcon::NumberLine, numberLine),
-    catalogApp(21, LauncherIcon::Flag, flag),
-    catalogApp(22, LauncherIcon::States, states),
-    catalogApp(23, LauncherIcon::Trace, trace),
-    catalogApp(24, LauncherIcon::StateFlag, stateFlag),
-    catalogApp(25, LauncherIcon::StateMap, stateMap),
-    catalogApp(26, LauncherIcon::Percent, percent),
-    catalogApp(27, LauncherIcon::GreWords, greWords),
-    systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores),
-    systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings),
-    systemApp("wifi", "Wi-Fi", "network & time", LauncherIcon::WiFi, wifi),
-    systemApp("profiles", "Profiles", "switch player", LauncherIcon::Profiles, profiles, true),
-    systemApp("systeminfo", "System Info", "device status", LauncherIcon::SystemInfo, systemInfo, true),
-    systemApp("about", "About", "company info", LauncherIcon::About, about),
+    metadataCatalogApp(ticTacToeAppMetadata(), ticTacToe),
+    metadataCatalogApp(memoryAppMetadata(), memory),
+    metadataCatalogApp(mathAppMetadata(), math),
+    metadataCatalogApp(multiplicationAppMetadata(), multiplication),
+    metadataCatalogApp(timeGameAppMetadata(), time),
+    metadataCatalogApp(whackAMoleAppMetadata(), whackAMole),
+    metadataCatalogApp(cinnamonAppMetadata(), cinnamon),
+    metadataCatalogApp(microkuAppMetadata(), microku),
+    metadataCatalogApp(shapeColorAppMetadata(), shapeColor),
+    metadataCatalogApp(countingAppMetadata(), counting),
+    metadataCatalogApp(moneyAppMetadata(), money),
+    metadataCatalogApp(fractionAppMetadata(), fractions),
+    metadataCatalogApp(mazeAppMetadata(), maze),
+    metadataCatalogApp(sortAppMetadata(), sort),
+    metadataCatalogApp(colorMixAppMetadata(), colorMix),
+    metadataCatalogApp(slidingPuzzleAppMetadata(), slidingPuzzle),
+    metadataCatalogApp(oddOneOutAppMetadata(), oddOneOut),
+    metadataCatalogApp(objectAddAppMetadata(), objectAdd),
+    metadataCatalogApp(fingerCountAppMetadata(), fingerCount),
+    metadataCatalogApp(sequenceAppMetadata(), sequence),
+    metadataCatalogApp(numberLineAppMetadata(), numberLine),
+    metadataCatalogApp(flagAppMetadata(), flag),
+    metadataCatalogApp(statesAppMetadata(), states),
+    metadataCatalogApp(traceAppMetadata(), trace),
+    metadataCatalogApp(stateFlagAppMetadata(), stateFlag),
+    metadataCatalogApp(stateMapAppMetadata(), stateMap),
+    metadataCatalogApp(percentCircleAppMetadata(), percent),
+    metadataCatalogApp(greWordsAppMetadata(), greWords),
+    systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
+              APP_CAP_SCORES),
+    systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
+              APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS | APP_CAP_FACTORY_RESET),
+    systemApp("wifi", "Wi-Fi", "network & time", LauncherIcon::WiFi, wifi,
+              APP_CAP_DEVICE_STATUS | APP_CAP_NETWORK),
+    systemApp("profiles", "Profiles", "switch player", LauncherIcon::Profiles, profiles,
+              APP_CAP_PROFILES, true),
+    systemApp("systeminfo", "System Info", "device status", LauncherIcon::SystemInfo, systemInfo,
+              APP_CAP_DEVICE_STATUS | APP_CAP_DIAGNOSTICS, true),
+    systemApp("about", "About", "company info", LauncherIcon::About, about,
+              APP_CAP_DEVICE_STATUS),
 };
 
 const char* AppDefinition::id() const {
-    return catalog != nullptr ? catalog->id : systemId;
+    if (metadata != nullptr) {
+        return metadata->id;
+    }
+    return metadata != nullptr ? metadata->id : systemId;
 }
 
 const char* AppDefinition::title() const {
-    return catalog != nullptr ? catalog->title : systemTitle;
+    return metadata != nullptr ? metadata->title : systemTitle;
 }
 
 const char* AppDefinition::subtitle() const {
-    return catalog != nullptr ? catalog->subtitle : systemSubtitle;
+    return metadata != nullptr ? metadata->subtitle : systemSubtitle;
+}
+
+const char* AppDefinition::label() const {
+    return metadata != nullptr ? metadata->label : systemTitle;
+}
+
+const char* AppDefinition::blurb() const {
+    return metadata != nullptr ? metadata->blurb : systemSubtitle;
+}
+
+const AppScoreInfo* AppDefinition::score() const {
+    return metadata != nullptr ? metadata->score : nullptr;
+}
+
+LauncherIcon AppDefinition::icon() const {
+    return metadata != nullptr ? metadata->icon : systemIcon;
+}
+
+uint8_t AppDefinition::launcherIndex() const {
+    return metadata != nullptr ? metadata->launcherIndex : 0xFF;
+}
+
+bool AppDefinition::defaultVisible() const {
+    return metadata == nullptr || metadata->defaultVisible;
+}
+
+bool AppDefinition::hasCapability(uint32_t capability) const {
+    return capability == APP_CAP_NONE || (capabilities & capability) == capability;
+}
+
+bool AppDefinition::isCatalogApp() const {
+    return metadata != nullptr;
 }
 
 bool AppDefinition::visible(Board& board) const {
-    return alwaysVisible || board.gameVisible(catalogIndex);
+    return alwaysVisible ||
+           (metadata != nullptr && board.gameVisible(metadata->launcherIndex,
+                                                     defaultVisible()));
 }
 
 Game& AppDefinition::game(GameInstances& games) const {
     return instance(games);
+}
+
+const AppDefinition& playableAppAt(uint8_t index) {
+    return APP_REGISTRY[index];
 }
 
 uint8_t appVisibleCount(Board& board) {

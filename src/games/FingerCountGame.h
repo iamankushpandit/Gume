@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& fingerCountAppMetadata();
+
 /*
  * Finger Counting.
  *
@@ -43,7 +47,7 @@ private:
     int16_t fingerTop(uint8_t idx) const;
 
     uint8_t raisedCount() const;
-    void drawHand(TFT_eSPI& tft, uint8_t hand) const;
+    void drawHand(Ui::Renderer& tft, uint8_t hand) const;
     void newQuestion();
     void makeOptions();
 

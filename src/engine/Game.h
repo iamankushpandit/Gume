@@ -1,13 +1,18 @@
 #pragma once
 
 #include <Arduino.h>
-#include "engine/ContentLoader.h"
-#include "hal/Board.h"
+#include "engine/AppCapabilities.h"
+#include "hal/TouchTypes.h"
+#include "ui/Renderer.h"
+
+struct AppDefinition;
+class Board;
+class ContentLoader;
 
 class AppContext {
 public:
     virtual ~AppContext() = default;
-    virtual TFT_eSPI& display() = 0;
+    virtual Ui::Renderer& display() = 0;
     virtual ContentLoader& content() = 0;
     virtual uint32_t getScore(const char* key, uint32_t fallback = 0) = 0;
     virtual void setScore(const char* key, uint32_t value) = 0;
@@ -27,6 +32,12 @@ public:
     virtual ~GameHost() = default;
     // Reserved for system screens that genuinely need full device authority.
     virtual Board& board() = 0;
+    virtual bool hasCapability(uint32_t capability) const = 0;
+    virtual bool requireCapability(uint32_t capability, const char* action) = 0;
+    virtual uint8_t launcherEntryCount() = 0;
+    virtual uint8_t launcherPageSize() = 0;
+    virtual const AppDefinition& launcherEntry(uint8_t filteredIndex) = 0;
+    virtual void openApp(const AppDefinition& app) = 0;
     virtual void openSettings() = 0;
     virtual void openWifi() = 0;
     virtual void openProfiles() = 0;

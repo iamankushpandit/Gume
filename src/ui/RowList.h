@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <TFT_eSPI.h>
 #include "ui/Ui.h"
 
 /* Scrolling label/value list, as used by System Info.
@@ -77,14 +76,14 @@ public:
     /* Draw clipped to `r`. Clipping is not optional: skipping rows that fall
      * wholly outside still lets the row straddling the top edge draw in full,
      * which smears text into whatever chrome sits above. */
-    void draw(TFT_eSPI& tft, const Rect& r, int16_t offset);
+    void draw(Ui::Renderer& tft, const Rect& r, int16_t offset);
 
     /** Where the Action chip was last drawn; w == 0 when it is off screen. */
     const Rect& actionRect() const { return actionRect_; }
 
 private:
     Row* next();
-    void drawScrollBar(TFT_eSPI& tft, const Rect& r, int16_t totalH, int16_t offset) const;
+    void drawScrollBar(Ui::Renderer& tft, const Rect& r, int16_t totalH, int16_t offset) const;
 
     Row rows_[MAX_ROWS];
     uint8_t count_ = 0;

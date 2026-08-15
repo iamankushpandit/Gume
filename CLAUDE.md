@@ -42,7 +42,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 | About shows | Derived from |
 |---|---|
 | Version | `GOODTIME_KIDS_VERSION` |
-| Game count and every game name/blurb | `GAME_CATALOG` |
+| Game count and every game name/blurb | `AppRegistry` playable apps |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
 | Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
@@ -188,14 +188,14 @@ Keep branches short-lived and rebase onto `main` often â€” a branch that si
 
 ### The one that bites silently
 
-`GAME_CATALOG[]` (`src/engine/GameCatalog.cpp`) and the `catalogApp(...)` bindings in `src/engine/AppRegistry.cpp` are coupled by catalog index. The registry is safer than the old `CATALOG_KINDS[]` array because every binding names its source slot explicitly, but a bad merge can still append a new catalog entry and a new registry binding in different orders. The result still compiles; the symptom is a tile launching the wrong game.
+`APP_REGISTRY[]` (`src/engine/AppRegistry.cpp`) is the launcher spine. Each playable game's own `AppMetadata` now carries its launcher index, icon and default visibility, while the registry binds that metadata to a concrete `GameInstances` member. A bad merge can still duplicate or skip an index inside those metadata blocks, and the result still compiles; the symptom is a tile launching the wrong game or appearing in the wrong place.
 
-After any merge, rebase, or conflict resolution touching either file, re-run `python tools/check_catalog.py` before doing anything else. Same applies to `ScoreCatalog.cpp`, which is keyed off the same list.
+After any merge, rebase, or conflict resolution touching `AppRegistry.cpp` or a game's local `AppMetadata`, re-run `python tools/check_catalog.py` before doing anything else.
 
 ### Serialise on the spine, parallelise on the leaves
 
 - **Leaves â€” safe in parallel:** a game's own `src/games/*.{h,cpp}` pair. One agent per game is fine.
-- **Spine â€” expect collisions:** `src/main.cpp`, `src/engine/GameCatalog.*`, `src/engine/ScoreCatalog.cpp`, `src/hal/Board.*`, `src/ui/Ui.*`. Adding a single game touches five sites across three of these. Make spine edits tight and land them quickly rather than holding them open across a long task.
+- **Spine â€” expect collisions:** `src/main.cpp`, `src/engine/AppRegistry.*`, `src/hal/Board.*`, `src/ui/Ui.*`. Adding a single game still touches the registry and `PLAYABLE_APP_COUNT`, even though title/icon/index/visibility metadata now lives with the game. Make spine edits tight and land them quickly rather than holding them open across a long task.
 
 ### The board is a singleton
 
@@ -247,9 +247,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,294,217 / 3,145,728 bytes,
-**72.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 66,804 / 327,680 (20.4%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,301,457 / 3,145,728 bytes,
+**73.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 66,980 / 327,680 (20.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
 
@@ -271,7 +271,7 @@ This keeps diffs reviewable, conflicts locatable, and prevents any single file f
 
 `setup()`/`loop()` in `src/main.cpp` delegate to a `KidsPlatformApp` singleton defined in `src/engine/AppRuntime.*`, which owns every screen as a `static` instance and implements `GameHost`.
 
-Views: **Profiles** (shown at boot, picks whose scores are being written) â†’ **Launcher** (paginated tile grid) â†’ **Game** â†’ **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED) â†’ **Asleep** (backlight off, panel in low-power state).
+Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED) and **Asleep** (backlight off, panel in low-power state). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherGame` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
 
 The idle path is driven by `Board::idleAction()`: `SaverThenSleep` runs the
 saver and then blanks after `sleepSeconds()`, `SleepOnly` blanks straight away
@@ -285,24 +285,25 @@ call site sits inside a `Watchdog::Pause` guard.
 | Layer | Where | Responsibility |
 |---|---|---|
 | `Game` / `AppGame` / `GameHost` | `src/engine/Game.h` | Screen lifecycle plus the split between ordinary app context and privileged system host |
-| `Board` | `src/hal/Board.h` | All hardware: TFT, touch, NVS, Wi-Fi/NTP, RGB LED, profiles, settings |
+| `Board` | `src/hal/Board.h` / `BoardAccess.h` | Hardware aggregate plus narrow display/touch/storage/power/network/feedback facades |
+| `Ui::Renderer` | `src/ui/Renderer.h` / `TftRenderer.h` | Driver-free RGB565 drawing interface plus the firmware TFT adapter |
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
-| GameCatalog | src/engine/GameCatalog.h | Single source of truth for playable-game metadata |
-| AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps, icons and bindings |
+| GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
+| AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload |
 
 ### Invariants worth knowing before editing
 
-- **Every screen is a `Game`.** Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
+- **Every screen is a `Game`.** Launcher, Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
 - **`end()` is called on every screen change** via `KidsPlatformApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
-- **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Settings, Wi-Fi, Profiles, Scores, About and System Info.
+- **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` also owns the schema-versioned migrator from the older key format. Just call those with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
-- **`GameCatalogEntry::id` is a persisted NVS visibility key.** Renaming one silently resets that game's visibility on existing devices.
-- **`GAME_CATALOG` holds the 28 playable games only.** Scores / Settings / Wi-Fi / Profiles / About / System Info are appended by `APP_REGISTRY`, are always visible, and always sort to the end of the launcher.
-- **`catalogApp(N, ...)` in `AppRegistry.cpp` must stay index-aligned with `GAME_CATALOG[]`.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
+- **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
+- **`APP_REGISTRY` holds the 28 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
@@ -323,50 +324,46 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 
 ### 1. Code â€” miss one and it fails silently or won't link
 
-1. `src/games/NewGame.{h,cpp}` â€” subclass `Game`.
-2. `src/engine/GameCatalog.cpp` â€” append an entry. Blurbs render at font 1
-   across ~292 px, so keep them under ~46 chars. **`id` is a persisted NVS
-   visibility key**: renaming it later resets that game's visibility on every
-   existing device.
-3. `src/engine/AppRegistry.cpp` — add a `catalogApp(N, LauncherIcon::..., ...)`
-   entry **at the same index as the catalog entry**. `check_catalog.py`
-   enforces this, but the wrong index still launches the wrong game.
-   `drawLauncherIcon()` (draws the tile icon).
-6. `src/engine/ScoreCatalog.cpp` â€” only if it records a score, so the Scores
-   screen can show it.
+1. `src/games/NewGame.{h,cpp}` â€” subclass `AppGame` unless it is a privileged system screen.
+2. In the game's `.cpp`, declare one `AppMetadata` block. Blurbs render at font 1
+   across ~292 px, so keep them under ~46 chars. Put the launcher icon,
+   launcher index and default visibility in that metadata block, not in the registry.
+3. If it records a score, declare one local `AppScoreInfo` and point the metadata at it.
+4. `src/engine/AppRegistry.cpp` — add a `metadataCatalogApp(...AppMetadata(), instance)` entry at the intended playable position.
+5. `src/engine/AppRegistry.h` — update `PLAYABLE_APP_COUNT`.
 
 ### 2. Docs â€” the part that actually gets forgotten
 
-7. `README.md` â€” a row in the right game table (what it is, what it builds,
+6. `README.md` â€” a row in the right game table (what it is, what it builds,
    age), or a bullet under the system screens if it is an app.
-8. `README.md` â€” an `<img>` in the matching screenshot gallery.
-9. `CHANGELOG.md` â€” an entry under the unreleased heading.
+7. `README.md` â€” an `<img>` in the matching screenshot gallery.
+8. `CHANGELOG.md` â€” an entry under the unreleased heading.
 
 ### 3. Screens
 
-10. `tools/gen_screens.py` â€” a render function plus an entry in `SCREENS` or
+9. `tools/gen_screens.py` â€” a render function plus an entry in `SCREENS` or
     `EXTRA_SCREENS`. Take the geometry from the game's own `Rect` helpers so
     the mock-up matches the device rather than approximating it.
-11. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
+10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
 
 ### 4. Verify
 
-12. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
+11. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
     `CLAUDE.md`. They are the two places that disagree.
-13. `python tools/check_docs.py` â€” must be clean.
-14. Flash it and actually play it. Take the board lock first.
+12. `python tools/check_docs.py` â€” must be clean.
+13. Flash it and actually play it. Take the board lock first.
 
 ### What you do NOT hand-edit
 
-These derive from `GAME_CATALOG` and update themselves. Editing them by hand is
+These derive from `AppRegistry` and update themselves. Editing them by hand is
 how About fell six games behind in the first place:
 
 - the **About** app's game list, count and blurbs
 - the **Settings â†’ Games** visibility list
 - the **launcher** tiles and paging
 - the **GitHub Pages site** â€” `tools/gen_site.py` reads the version from
-  `AppVersion.h`, the game list and blurbs from `GAME_CATALOG`, the build
+  `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
   fails if a version number is typed into it
@@ -384,7 +381,12 @@ Everything above still applies, plus:
 
 ## Rendering model
 
-Direct TFT_eSPI primitives, RGB565, no framebuffer. A full 320Ã—240 wipe pushes ~150 KB over SPI â€” roughly 30 ms of visible blanking â€” which is why `Game` carries two levels of invalidation:
+App-facing rendering uses `Ui::Renderer`: a driver-free RGB565 primitive
+interface implemented on hardware by `Ui::TftRenderer` over `TFT_eSPI`. HAL
+bring-up, calibration and BMP blitting may still use the raw panel driver, but
+games and shared UI helpers should not. There is still no framebuffer. A full
+320Ã—240 wipe pushes ~150 KB over SPI â€” roughly 30 ms of visible blanking â€”
+which is why `Game` carries two levels of invalidation:
 
 - `markDirty()` â€” content changed; repaint moving parts only.
 - `markFullDirty()` â€” layout changed; repaint background/chrome too.
@@ -396,7 +398,7 @@ These three are `protected`; the public surface is `needsRender()`, `clearDirty(
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
-Games are authored against a fixed 320Ã—240 landscape canvas. Only the launcher supports portrait (`LayoutMode::Vertical`, 4 tiles/page vs 6 in landscape).
+Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape).
 
 **System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
@@ -406,14 +408,16 @@ Games are authored against a fixed 320Ã—240 landscape canvas. Only the launch
 include/BoardConfig.h     pins + screen constants   include/AppVersion.h
 src/main.cpp              bringup entrypoint + normal app setup/loop
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
-src/engine/               Game, GameCatalog, AppRegistry, AppRuntime,
-                          ScoreCatalog, Progress, RecentQuestions,
-                          ContentLoader
+src/engine/               Game, LauncherGame, GameCatalog, AppRegistry,
+                          AppRuntime, ScoreCatalog, Progress,
+                          RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Country/State data
-src/hal/                  Board bring-up + per-concern HAL units,
-                          BoardStorage, Clock, Watchdog
-src/ui/                   Ui, LauncherIcons, LauncherLayout
+src/hal/                  Board bring-up, BoardAccess facades,
+                          per-concern HAL units, BoardStorage, TouchTypes,
+                          Clock, Watchdog
+src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
+                          LauncherLayout
                           gen_site.py, check_docs.py
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
@@ -459,7 +463,7 @@ Pins live in `include/BoardConfig.h`; read it rather than trusting generic ESP32
 
 ## Conventions
 
-- Hit testing: `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`. `Rect` is in `Ui.h`, `TouchPoint` in `Board.h`.
+- Hit testing: `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`. `Rect` is in `Ui.h`, `TouchPoint` in `hal/TouchTypes.h`.
 - Feedback: `board.beepOk()` / `board.beepError()`.
 - Draw through `Ui::` helpers so the Dark/Light theme is respected; avoid hardcoded colours outside icon art.
 - `src/games/CountryDataTable.cpp` is generated â€” edit `tools/gen_country_facts.py` and regenerate.

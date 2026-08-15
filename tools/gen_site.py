@@ -5,8 +5,8 @@ The page is *derived*, for the same reason the About app is: a hand-written
 copy of the game list fell six games behind once already, and a landing page is
 even easier to forget than a screen you look at while holding the device. So
 nothing here is typed twice -- the version comes from AppVersion.h, the games
-and their blurbs from GAME_CATALOG, the build figures from README.md, the board
-name and the firmware environments from platformio.ini.
+and their blurbs from the playable app registry, the build figures from
+README.md, the board name and the firmware environments from platformio.ini.
 
     python tools/gen_site.py [--out DIR] [--repo URL]
 
@@ -28,6 +28,8 @@ import os
 import re
 import shutil
 import sys
+
+from app_registry_parser import playable_apps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -111,21 +113,11 @@ def board_name():
 
 
 def games():
-    """(title, blurb) for every catalogued game, in launcher order."""
-    catalog = read("src", "engine", "GameCatalog.cpp")
-    entries = re.findall(
-        r'^\s*\{\s*"[a-z0-9]+",\s*"([^"]+)",\s*"[^"]*",\s*"[^"]*",\s*"([^"]+)"',
-        catalog, re.M)
-    if not entries:
-        die("parsed no games out of GameCatalog.cpp")
-
-    declared = int(find(r"GAME_CATALOG_COUNT\s*=\s*(\d+)",
-                        read("src", "engine", "GameCatalog.h"),
-                        "GAME_CATALOG_COUNT").group(1))
-    if len(entries) != declared:
-        die("parsed %d games but GAME_CATALOG_COUNT is %d"
-            % (len(entries), declared))
-    return entries
+    """(title, blurb) for every playable game, in launcher order."""
+    apps = playable_apps()
+    if not apps:
+        die("parsed no playable apps out of AppRegistry.cpp")
+    return [(app.title, app.blurb) for app in apps]
 
 
 def build_figures():

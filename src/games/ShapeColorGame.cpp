@@ -1,12 +1,36 @@
 #include "ShapeColorGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t SELECTED = 0xFEC0;
 constexpr uint16_t EMPTY_TARGET = 0xD6BA;
+
+constexpr AppScoreInfo SHAPE_COLOR_SCORE = {
+    "shapecolor", "Shapes", "shapeBest", "taps", true
+};
+
+constexpr AppMetadata SHAPE_COLOR_METADATA = {
+    "shapecolor",
+    "Shapes",
+    "Shape & Color",
+    "match outlines",
+    "Shapes",
+    "Match each shape to its outline.",
+    &SHAPE_COLOR_SCORE,
+    LauncherIcon::ShapeColor,
+    8,
+    true,
+};
+}
+
+const AppMetadata& shapeColorAppMetadata() {
+    return SHAPE_COLOR_METADATA;
 }
 
 const char* ShapeColorGame::title() const {
-    return "Shape & Color";
+    return shapeColorAppMetadata().screenTitle != nullptr
+        ? shapeColorAppMetadata().screenTitle
+        : shapeColorAppMetadata().title;
 }
 
 void ShapeColorGame::begin(AppContext& host) {
@@ -14,7 +38,7 @@ void ShapeColorGame::begin(AppContext& host) {
     items_[1] = Item{Shape::Square, Ui::rgb(42, 117, 213), "blue square"};
     items_[2] = Item{Shape::Triangle, Ui::rgb(39, 157, 112), "green triangle"};
     items_[3] = Item{Shape::Star, Ui::rgb(244, 188, 48), "yellow star"};
-    bestTaps_ = static_cast<uint16_t>(host.getScore("shapeBest", 0));
+    bestTaps_ = static_cast<uint16_t>(host.getScore(shapeColorAppMetadata().score->bestKey, 0));
     newRound();
     markDirty();
 }
@@ -51,7 +75,7 @@ Rect ShapeColorGame::targetRect(uint8_t index) const {
     return Rect{168, static_cast<int16_t>(58 + index * 43), 136, 38};
 }
 
-void ShapeColorGame::drawShape(TFT_eSPI& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const {
+void ShapeColorGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const {
     switch (shape) {
         case Shape::Circle:
             if (filled) {
@@ -111,7 +135,7 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
                 matched_[selected_] = true;
                 selected_ = -1;
                 host.beepOk();
-                if (allMatched() && host.saveBestScore("shapeBest", taps_, true)) {
+                if (allMatched() && host.saveBestScore(shapeColorAppMetadata().score->bestKey, taps_, true)) {
                     bestTaps_ = taps_;
                 }
             } else {
@@ -124,7 +148,7 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void ShapeColorGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
     Ui::drawLabel(tft, Rect{10, 32, 300, 18}, "Tap a shape, then its matching outline", Ui::text(), 2, Align::Center);

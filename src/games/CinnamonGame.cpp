@@ -1,4 +1,5 @@
 #include "CinnamonGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t DARK_RED    = 0x6000;
@@ -9,16 +10,39 @@ constexpr uint16_t LIT_RED     = 0xF800;
 constexpr uint16_t LIT_BLUE    = 0x041F;
 constexpr uint16_t LIT_GREEN   = 0x07E0;
 constexpr uint16_t LIT_YELLOW  = 0xFFE0;
+
+constexpr AppScoreInfo CINNAMON_SCORE = {
+    "cinnamon", "Cinnamon", "cinnamonBest", "steps", false
+};
+
+constexpr AppMetadata CINNAMON_METADATA = {
+    "cinnamon",
+    "Cinnamon",
+    "Cinnamon Says",
+    "repeat pattern",
+    "Cinnamon",
+    "Watch the pattern, then repeat it.",
+    &CINNAMON_SCORE,
+    LauncherIcon::Cinnamon,
+    6,
+    true,
+};
+}
+
+const AppMetadata& cinnamonAppMetadata() {
+    return CINNAMON_METADATA;
 }
 
 const char* CinnamonGame::title() const {
-    return "Cinnamon Says";
+    return cinnamonAppMetadata().screenTitle != nullptr
+        ? cinnamonAppMetadata().screenTitle
+        : cinnamonAppMetadata().title;
 }
 
 void CinnamonGame::begin(AppContext& host) {
     fullRedraw_ = true;
     statusDrawn_ = "";
-    bestScore_ = static_cast<uint16_t>(host.getScore("cinnamonBest", 0));
+    bestScore_ = static_cast<uint16_t>(host.getScore(cinnamonAppMetadata().score->bestKey, 0));
     length_ = 0;
     score_ = 0;
     appendStep();
@@ -127,7 +151,7 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
         ++inputIndex_;
         if (inputIndex_ >= length_) {
             score_ = length_;
-            if (host.saveBestScore("cinnamonBest", score_, false)) {
+            if (host.saveBestScore(cinnamonAppMetadata().score->bestKey, score_, false)) {
                 bestScore_ = score_;
             }
             phase_ = Phase::Good;
@@ -142,7 +166,7 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void CinnamonGame::drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const {
+void CinnamonGame::drawPad(Ui::Renderer& tft, uint8_t index, bool lit) const {
     const Rect r = padRect(index);
     tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 8, Ui::surface());
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, padColor(index, lit));
@@ -165,7 +189,7 @@ void CinnamonGame::drawPad(TFT_eSPI& tft, uint8_t index, bool lit) const {
 void CinnamonGame::render(AppContext& host) {
     const Ui::Theme savedTheme = Ui::currentTheme();
     Ui::setTheme(Ui::Theme::Light);          // Cinnamon always renders light
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
 
     if (fullRedraw_) {
         Ui::clear(tft);

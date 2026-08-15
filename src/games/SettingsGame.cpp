@@ -1,9 +1,11 @@
 #include "SettingsGame.h"
 
+#include "hal/Board.h"
 
 const char* SettingsGame::title() const { return "Settings"; }
 
 void SettingsGame::begin(GameHost& host) {
+    (void)host.requireCapability(APP_CAP_DEVICE_SETTINGS, "open settings");
     confirmReset_ = false;
     tab_ = Tab::Device;
     Ui::setTheme(host.board().themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
@@ -74,6 +76,10 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
 
+    if (!host.requireCapability(APP_CAP_DEVICE_SETTINGS, "change settings")) {
+        return;
+    }
+
     if (tab_ == Tab::Power) {
         if (idleActionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             cycleIdleAction(board); markFullDirty(); return;
@@ -110,7 +116,9 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
     if (resetRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (confirmReset_) {
-            board.factoryReset();
+            if (host.requireCapability(APP_CAP_FACTORY_RESET, "factory reset")) {
+                board.factoryReset();
+            }
         }
         confirmReset_ = true;
         markDirty(); return;
@@ -127,21 +135,23 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
 
 void SettingsGame::renderDeviceTab(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
 
-    Ui::drawButton(tft, themeRect(),
-        String("Theme: ") + (board.themeMode() == Board::ThemeMode::Dark ? "Dark" : "Light"),
-        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, layoutRect(),
-        String("Menu: ") + (board.layoutMode() == Board::LayoutMode::Horizontal
-                            ? "Horizontal" : "Vertical"),
-        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, ntpRect(),
-        String("Light: ") + (board.rgbEnabled() ? "On" : "Off"),
-        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, bleRect(),
-        String("Beacon: ") + (board.bleBeaconEnabled() ? "On" : "Off"),
-        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    char label[28];
+    snprintf(label, sizeof(label), "Theme: %s",
+             board.themeMode() == Board::ThemeMode::Dark ? "Dark" : "Light");
+    Ui::drawButton(tft, themeRect(), label,
+                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    snprintf(label, sizeof(label), "Menu: %s",
+             board.layoutMode() == Board::LayoutMode::Horizontal ? "Horizontal" : "Vertical");
+    Ui::drawButton(tft, layoutRect(), label,
+                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, ntpRect(), label,
+                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, bleRect(), label,
+                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
     Ui::drawButton(tft, wifiRect(), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
     Ui::drawButton(tft, resetRect(),
                    confirmReset_ ? "Tap to ERASE" : "Reset device",
@@ -153,14 +163,15 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
                              : "Brightness", 8, 180, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String(board.brightness()) + "%", SCREEN_WIDTH - 8, 180, 1);
+    snprintf(label, sizeof(label), "%u%%", board.brightness());
+    tft.drawString(label, SCREEN_WIDTH - 8, 180, 1);
     tft.setTextDatum(TL_DATUM);
     Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
 }
 
 void SettingsGame::renderPowerTab(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
 
     const Board::IdleAction action = board.idleAction();
     const uint16_t idleSecs  = board.screenSaverSeconds();
@@ -221,7 +232,7 @@ void SettingsGame::renderPowerTab(GameHost& host) {
 }
 
 void SettingsGame::render(GameHost& host) {
-    TFT_eSPI& tft = host.board().display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 

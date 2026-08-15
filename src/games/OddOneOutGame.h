@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& oddOneOutAppMetadata();
+
 class OddOneOutGame : public AppGame {
 public:
     const char* title() const override;
@@ -27,8 +31,8 @@ private:
     Rect itemRect(uint8_t index) const;
     int8_t touchedItem(int16_t x, int16_t y) const;
     void newRound();
-    void drawItem(TFT_eSPI& tft, const Rect& r, bool odd) const;
-    void drawShape(TFT_eSPI& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool inverted) const;
+    void drawItem(Ui::Renderer& tft, const Rect& r, bool odd) const;
+    void drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool inverted) const;
 
     Shape baseShape_ = Shape::Circle;
     Shape oddShape_ = Shape::Square;

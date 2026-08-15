@@ -1,20 +1,42 @@
 #include "MathGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
 constexpr uint16_t YELLOW = 0xFEC0;
+
+constexpr AppScoreInfo MATH_SCORE = {
+    "math", "Math", "mathBest", "pts", false
+};
+
+constexpr AppMetadata MATH_METADATA = {
+    "math",
+    "Math",
+    nullptr,
+    "addition & subtraction",
+    "Math",
+    "Practice arithmetic with timed rounds.",
+    &MATH_SCORE,
+    LauncherIcon::Math,
+    2,
+    true,
+};
+}
+
+const AppMetadata& mathAppMetadata() {
+    return MATH_METADATA;
 }
 
 const char* MathGame::title() const {
-    return "Math";
+    return mathAppMetadata().title;
 }
 
 void MathGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestCorrect_ = static_cast<uint16_t>(host.getScore("mathBest", 0));
+    bestCorrect_ = static_cast<uint16_t>(host.getScore(mathAppMetadata().score->bestKey, 0));
     bestSeconds_ = static_cast<uint16_t>(host.getScore("mathTime", 0));
     startedAt_ = millis();
     newQuestion();
@@ -55,7 +77,7 @@ void MathGame::updateBest(AppContext& host) {
     if (score_ > bestCorrect_ || (score_ == bestCorrect_ && (bestSeconds_ == 0 || elapsed < bestSeconds_))) {
         bestCorrect_ = score_;
         bestSeconds_ = elapsed;
-        host.setScore("mathBest", bestCorrect_);
+        host.setScore(mathAppMetadata().score->bestKey, bestCorrect_);
         host.setScore("mathTime", bestSeconds_);
     }
 }
@@ -161,7 +183,7 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void MathGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

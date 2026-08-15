@@ -1,4 +1,5 @@
 #include "MoneyGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint8_t COIN_VALUES[] = {1, 5, 10, 25, 50};
@@ -25,16 +26,39 @@ uint16_t coinFill(uint8_t value) {
 uint16_t coinText(uint8_t value) {
     return value == 1 || value == 25 ? TFT_WHITE : TFT_BLACK;
 }
+
+constexpr AppScoreInfo MONEY_SCORE = {
+    "money", "Money", "moneyBest", "pts", false
+};
+
+constexpr AppMetadata MONEY_METADATA = {
+    "money",
+    "Money",
+    nullptr,
+    "count coins",
+    "Money",
+    "Count coins and make change.",
+    &MONEY_SCORE,
+    LauncherIcon::Money,
+    10,
+    true,
+};
+}
+
+const AppMetadata& moneyAppMetadata() {
+    return MONEY_METADATA;
 }
 
 const char* MoneyGame::title() const {
-    return "Money";
+    return moneyAppMetadata().screenTitle != nullptr
+        ? moneyAppMetadata().screenTitle
+        : moneyAppMetadata().title;
 }
 
 void MoneyGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("moneyBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(moneyAppMetadata().score->bestKey, 0));
     newRound();
     markDirty();
 }
@@ -241,7 +265,7 @@ void MoneyGame::newRound() {
 void MoneyGame::markCorrect(AppContext& host) {
     ++score_;
     ++streak_;
-    if (host.saveBestScore("moneyBest", streak_, false)) {
+    if (host.saveBestScore(moneyAppMetadata().score->bestKey, streak_, false)) {
         bestStreak_ = streak_;
     }
     roundComplete_ = true;
@@ -351,7 +375,7 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void MoneyGame::drawCoin(TFT_eSPI& tft, int16_t cx, int16_t cy, uint8_t value) const {
+void MoneyGame::drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy, uint8_t value) const {
     tft.fillCircle(cx, cy, 12, coinFill(value));
     tft.drawCircle(cx, cy, 12, COIN_OUTLINE);
     tft.setTextColor(coinText(value), coinFill(value));
@@ -360,7 +384,7 @@ void MoneyGame::drawCoin(TFT_eSPI& tft, int16_t cx, int16_t cy, uint8_t value) c
     tft.setTextDatum(TL_DATUM);
 }
 
-void MoneyGame::drawCoinGroup(TFT_eSPI& tft, const Rect& r, const uint8_t* coins, uint8_t count) const {
+void MoneyGame::drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* coins, uint8_t count) const {
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
     tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
     const uint8_t cols = max<uint8_t>(1, r.w / 34);
@@ -373,7 +397,7 @@ void MoneyGame::drawCoinGroup(TFT_eSPI& tft, const Rect& r, const uint8_t* coins
     }
 }
 
-void MoneyGame::drawOptions(TFT_eSPI& tft) const {
+void MoneyGame::drawOptions(Ui::Renderer& tft) const {
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
@@ -388,7 +412,7 @@ void MoneyGame::drawOptions(TFT_eSPI& tft) const {
     }
 }
 
-void MoneyGame::drawMake(TFT_eSPI& tft) const {
+void MoneyGame::drawMake(Ui::Renderer& tft) const {
     drawCoinGroup(tft, Rect{18, 82, 284, 54}, makeCoins_, makeCount_);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
@@ -404,7 +428,7 @@ void MoneyGame::drawMake(TFT_eSPI& tft) const {
     Ui::drawButton(tft, doneRect(), "Done", flashIndex_ == 6 ? RED : BLUE, Ui::outline(), flashIndex_ == 6 ? TFT_BLACK : TFT_WHITE, false, 2);
 }
 
-void MoneyGame::drawMore(TFT_eSPI& tft) const {
+void MoneyGame::drawMore(Ui::Renderer& tft) const {
     drawCoinGroup(tft, Rect{14, 72, 140, 88}, groupA_, groupACount_);
     drawCoinGroup(tft, Rect{166, 72, 140, 88}, groupB_, groupBCount_);
     for (uint8_t i = 0; i < 2; ++i) {
@@ -422,7 +446,7 @@ void MoneyGame::drawMore(TFT_eSPI& tft) const {
 }
 
 void MoneyGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

@@ -1,13 +1,33 @@
 #include "SlidingPuzzleGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint16_t TILE = 0x24BD;
 constexpr uint16_t EMPTY = 0x1085;
 constexpr uint16_t WIN = 0x37F0;
+
+constexpr AppMetadata SLIDING_PUZZLE_METADATA = {
+    "slide",
+    "Slide",
+    "Slide Puzzle",
+    "number puzzle",
+    "Slide",
+    "Slide tiles into order.",
+    nullptr,
+    LauncherIcon::SlidingPuzzle,
+    15,
+    true,
+};
+}
+
+const AppMetadata& slidingPuzzleAppMetadata() {
+    return SLIDING_PUZZLE_METADATA;
 }
 
 const char* SlidingPuzzleGame::title() const {
-    return "Slide Puzzle";
+    return slidingPuzzleAppMetadata().screenTitle != nullptr
+        ? slidingPuzzleAppMetadata().screenTitle
+        : slidingPuzzleAppMetadata().title;
 }
 
 void SlidingPuzzleGame::begin(AppContext& host) {
@@ -138,7 +158,7 @@ void SlidingPuzzleGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void SlidingPuzzleGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

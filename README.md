@@ -16,8 +16,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 28 |
-| Flash | 2,294,217 / 3,145,728 bytes (**72.9%**) |
-| RAM | 66,804 / 327,680 bytes (**20.4%**) |
+| Flash | 2,301,457 / 3,145,728 bytes (**73.2%**) |
+| RAM | 66,980 / 327,680 bytes (**20.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 <p align="center">
@@ -309,9 +309,9 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
     — a small recognition for being on top.
 - **About** -- what each game is for, in a parent's words, plus a **What the
   radios do** page. Every fact on that page is read from the running system
-  rather than typed in: the game list comes from `GAME_CATALOG`, the version
-  from the firmware constant, Wi-Fi state from `Board`, and beacon state and
-  the advertised name from `BleBeacon`. It cannot drift out of date.
+  rather than typed in: the playable app list comes from `AppRegistry`, the
+  version from the firmware constant, Wi-Fi state from `Board`, and beacon
+  state and the advertised name from `BleBeacon`. It cannot drift out of date.
 - **System Info** -- five tabs of live telemetry: board, memory, network, BLE
   and app state. This is a diagnostics screen, not a toy: chip and reset
   reason, heap with a fragmentation meter, Wi-Fi throughput, watchdog stalls.
@@ -490,13 +490,15 @@ src/
   main.cpp              bringup entrypoint + normal app setup/loop
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   engine/
-    AppRegistry.cpp     authoritative launcher/app registry
+    AppCapabilities.h   system-app capability flags
+    AppRegistry.cpp     authoritative app registry + instance bindings
     AppRuntime.cpp      runtime loop, transitions, view state
-    AppRuntimeLauncher.cpp  launcher paging, tiles, header UI
+    AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     Game.h              base class; lifecycle + full vs partial invalidation
-    GameCatalog.cpp     playable-game metadata: id, title, subtitle, blurb
-    ScoreCatalog.cpp    which games report a score, and how to label it
+    LauncherGame.h      home screen lifecycle object
+    GameCatalog.cpp     derived playable-game catalog view
+    ScoreCatalog.cpp    derived scored-app catalog view
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
@@ -505,16 +507,20 @@ src/
     StateData.cpp       50 US states: code, name, capital, tier
   hal/
     Board.cpp           board bring-up, profiles, layout/idle settings
+    BoardAccess.h       narrow display/touch/storage/power/network/feedback facades
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardFeedback.cpp   RGB LED, semantic beeps, BLE toggle
     BoardStorage.cpp    schema migration + app-scoped NVS keys
+    TouchTypes.h        TouchPoint event type shared without display deps
     BleBeacon.cpp       the one authoritative BLE advertisement payload
     Clock.cpp           time and date formatting
     Watchdog.cpp        loop supervisor, stall logging, crash breadcrumb
   ui/
+    Renderer.h          app-facing drawing interface, no TFT driver include
+    TftRenderer.h       TFT_eSPI adapter used by firmware runtime
     LauncherIcons.cpp   launcher tile icon drawing
     LauncherLayout.cpp  launcher header, profile and tile geometry
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
@@ -534,10 +540,11 @@ docs/
   SD_CONTENT_SPEC.md    optional SD content format
 ```
 
-`AppRegistry` matters more than it looks: it binds each catalog slot to its
-concrete game instance and launcher icon in one table, alongside the system
-apps. That replaced the old split between `CATALOG_KINDS[]`, `launchKind()` and
-the icon switch in `main.cpp`, which could drift silently.
+`AppRegistry` matters more than it looks: each playable game declares its own
+metadata once, including launcher icon, order and default visibility, and the
+registry binds that metadata to its concrete game instance alongside the
+launchable system apps. That replaced the old split between `CATALOG_KINDS[]`,
+`launchKind()` and the icon switch in `main.cpp`, which could drift silently.
 
 ---
 

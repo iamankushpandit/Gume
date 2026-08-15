@@ -1,4 +1,5 @@
 #include "ColorMixGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr ColorMixDefinition MIXES[] = {
@@ -14,17 +15,40 @@ constexpr uint8_t MIX_COUNT = sizeof(MIXES) / sizeof(MIXES[0]);
 constexpr const char* DECOY_LABELS[] = {"purple", "green", "orange", "pink", "light blue", "gray", "brown"};
 constexpr uint16_t DECOY_COLORS[] = {0x9813, 0x07E0, 0xFC00, 0xF81F, 0x867F, 0x8410, 0x8200};
 constexpr uint8_t DECOY_COUNT = sizeof(DECOY_COLORS) / sizeof(DECOY_COLORS[0]);
+
+constexpr AppScoreInfo COLOR_MIX_SCORE = {
+    "colormix", "Color Mix", "mixBest", "pts", false
+};
+
+constexpr AppMetadata COLOR_MIX_METADATA = {
+    "colormix",
+    "Color Mix",
+    nullptr,
+    "mix colors",
+    "Color Mix",
+    "Mix two colours.",
+    &COLOR_MIX_SCORE,
+    LauncherIcon::ColorMix,
+    14,
+    true,
+};
+}
+
+const AppMetadata& colorMixAppMetadata() {
+    return COLOR_MIX_METADATA;
 }
 
 const char* ColorMixGame::title() const {
-    return "Color Mix";
+    return colorMixAppMetadata().screenTitle != nullptr
+        ? colorMixAppMetadata().screenTitle
+        : colorMixAppMetadata().title;
 }
 
 void ColorMixGame::begin(AppContext& host) {
     score_ = 0;
     attempts_ = 0;
     streak_ = 0;
-    bestStreak_ = static_cast<uint16_t>(host.getScore("mixBest", 0));
+    bestStreak_ = static_cast<uint16_t>(host.getScore(colorMixAppMetadata().score->bestKey, 0));
     newQuestion();
     markDirty();
 }
@@ -100,7 +124,7 @@ void ColorMixGame::update(AppContext& host, const TouchPoint& touch) {
     if (answer == correct_) {
         ++score_;
         ++streak_;
-        if (host.saveBestScore("mixBest", streak_, false)) {
+        if (host.saveBestScore(colorMixAppMetadata().score->bestKey, streak_, false)) {
             bestStreak_ = streak_;
         }
         correctFlash_ = true;
@@ -115,7 +139,7 @@ void ColorMixGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void ColorMixGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

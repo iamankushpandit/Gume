@@ -2,9 +2,12 @@
 
 #include <Arduino.h>
 #include "engine/AppRegistry.h"
+#include "engine/ContentLoader.h"
 #include "engine/Game.h"
+#include "engine/LauncherGame.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
+#include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
 class KidsPlatformApp : public GameHost {
@@ -12,8 +15,14 @@ public:
     void begin();
     void loop();
 
-    TFT_eSPI& display() override;
+    Ui::Renderer& display() override;
     Board& board() override;
+    bool hasCapability(uint32_t capability) const override;
+    bool requireCapability(uint32_t capability, const char* action) override;
+    uint8_t launcherEntryCount() override;
+    uint8_t launcherPageSize() override;
+    const AppDefinition& launcherEntry(uint8_t filteredIndex) override;
+    void openApp(const AppDefinition& app) override;
     ContentLoader& content() override;
     uint32_t getScore(const char* key, uint32_t fallback = 0) override;
     void setScore(const char* key, uint32_t value) override;
@@ -35,8 +44,6 @@ public:
 
 private:
     enum class View {
-        Profiles,
-        Launcher,
         Game,
         ScreenSaver,
         Asleep
@@ -50,13 +57,7 @@ private:
     const char* activeAppTitle() const;
 
     const AppDefinition& appById(const char* id) const;
-    uint8_t launcherEntryCount();
-    void clampLauncherPage();
-    uint8_t launcherPageSize();
-    const AppDefinition& launcherEntry(uint8_t filteredIndex);
-    void handleLauncherTouch(const TouchPoint& touch);
     void launch(const AppDefinition& app);
-    void renderLauncher();
 
     void enterScreenSaver();
     void enterSleep();
@@ -67,11 +68,13 @@ private:
     void renderScreenSaver();
 
     Board board_;
+    Ui::TftRenderer renderer_{board_.display()};
     ContentLoader content_;
     GameInstances games_;
+    LauncherGame launcher_;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
-    View view_ = View::Launcher;
+    View view_ = View::Game;
     uint32_t heapAtLaunch_ = 0;
 
     float ssav_bx_ = 160.0f;
@@ -81,16 +84,14 @@ private:
     float ssav_ly_ = 120.0f;
     float ssav_ry_ = 120.0f;
     bool ssav_initialized_ = false;
-    View ssavPrevView_ = View::Launcher;
+    View ssavPrevView_ = View::Game;
     bool swallowTouch_ = false;
     uint8_t ssav_hits_ = 0;
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;
     int16_t ssav_textCy_ = -1;
 
-    uint8_t launcherPage_ = 0;
     uint32_t lastClockMinute_ = 0;
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
-    bool launcherDirty_ = true;
 };

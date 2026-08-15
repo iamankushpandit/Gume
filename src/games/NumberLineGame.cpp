@@ -1,6 +1,30 @@
 #include "NumberLineGame.h"
+#include "engine/AppRegistry.h"
 
-const char* NumberLineGame::title() const { return "Number Line"; }
+namespace {
+constexpr AppMetadata NUMBER_LINE_METADATA = {
+    "numberline",
+    "Number Line",
+    nullptr,
+    "jump to number",
+    "Number Line",
+    "Hop along a number line.",
+    nullptr,
+    LauncherIcon::NumberLine,
+    20,
+    true,
+};
+}
+
+const AppMetadata& numberLineAppMetadata() {
+    return NUMBER_LINE_METADATA;
+}
+
+const char* NumberLineGame::title() const {
+    return numberLineAppMetadata().screenTitle != nullptr
+        ? numberLineAppMetadata().screenTitle
+        : numberLineAppMetadata().title;
+}
 
 int16_t NumberLineGame::numToX(uint8_t n) const {
     return static_cast<int16_t>(22 + (n * 276) / 10);
@@ -85,7 +109,7 @@ void NumberLineGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void NumberLineGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

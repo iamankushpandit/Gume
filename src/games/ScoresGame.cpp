@@ -1,9 +1,10 @@
 #include "ScoresGame.h"
-#include "engine/ScoreCatalog.h"
+#include "engine/AppRegistry.h"
 
 const char* ScoresGame::title() const { return "Scores"; }
 
 void ScoresGame::begin(GameHost& host) {
+    (void)host.requireCapability(APP_CAP_SCORES, "open scores");
     page_ = 0;
     activeTab_ = Tab::Mine;
     buildDeviceTable(host);
@@ -25,8 +26,11 @@ Rect ScoresGame::nextRect()   const { return Rect{224, 208, 88, 26}; }
 
 uint8_t ScoresGame::playedCount(GameHost& host) const {
     uint8_t n = 0;
-    for (uint8_t i = 0; i < SCORE_CATALOG_COUNT; ++i) {
-        if (host.board().hasScore(SCORE_CATALOG[i].bestKey)) ++n;
+    for (uint8_t i = 0; i < playableAppCount(); ++i) {
+        const AppScoreInfo* score = playableAppAt(i).score();
+        if (score != nullptr && host.board().hasScore(score->bestKey)) {
+            ++n;
+        }
     }
     return n;
 }
@@ -46,8 +50,12 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
     }
 
     // Build device best rows: one per game anyone has played
-    for (uint8_t catIdx = 0; catIdx < SCORE_CATALOG_COUNT; ++catIdx) {
-        const ScoreEntry& e = SCORE_CATALOG[catIdx];
+    for (uint8_t appIdx = 0; appIdx < playableAppCount(); ++appIdx) {
+        const AppDefinition& app = playableAppAt(appIdx);
+        const AppScoreInfo* score = app.score();
+        if (score == nullptr) {
+            continue;
+        }
 
         bool anyPlayed = false;
         uint32_t bestValue = 0;
@@ -55,17 +63,17 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
 
         // Check all profiles (0 to kidCount-1, excluding Guest at GUEST_INDEX)
         for (uint8_t profileIdx = 0; profileIdx < board.kidCount(); ++profileIdx) {
-            if (!board.hasScoreFor(profileIdx, e.bestKey)) continue;
+            if (!board.hasScoreFor(profileIdx, score->bestKey)) continue;
 
             anyPlayed = true;
-            uint32_t profileScore = board.scoreFor(profileIdx, e.bestKey, 0);
+            uint32_t profileScore = board.scoreFor(profileIdx, score->bestKey, 0);
 
             // Determine if this is better than the current best
             bool isBetter = false;
             if (bestHolder == 0xFF) {
                 // First score found
                 isBetter = true;
-            } else if (e.lowerIsBetter) {
+            } else if (score->lowerIsBetter) {
                 // Smaller is better
                 isBetter = (profileScore < bestValue);
             } else {
@@ -80,7 +88,7 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
         }
 
         if (anyPlayed && deviceRowCount_ < MAX_DEVICE_ROWS) {
-            deviceRows_[deviceRowCount_].catalogIndex = catIdx;
+            deviceRows_[deviceRowCount_].catalogIndex = appIdx;
             deviceRows_[deviceRowCount_].value = bestValue;
             deviceRows_[deviceRowCount_].holder = bestHolder;
             deviceRowCount_++;
@@ -92,6 +100,9 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
 
 void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
+    if (!host.requireCapability(APP_CAP_SCORES, "view scores")) {
+        return;
+    }
 
     // Tab switching
     if (mineTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -145,7 +156,7 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
 
 void ScoresGame::render(GameHost& host) {
     Board& board = host.board();
-    TFT_eSPI& tft = board.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 
@@ -183,9 +194,10 @@ void ScoresGame::render(GameHost& host) {
         uint8_t seen = 0;
         uint8_t drawn = 0;
         const uint8_t first = static_cast<uint8_t>(page_ * ROWS_PER_PAGE);
-        for (uint8_t i = 0; i < SCORE_CATALOG_COUNT && drawn < ROWS_PER_PAGE; ++i) {
-            const ScoreEntry& e = SCORE_CATALOG[i];
-            if (!board.hasScore(e.bestKey)) continue;
+        for (uint8_t i = 0; i < playableAppCount() && drawn < ROWS_PER_PAGE; ++i) {
+            const AppDefinition& app = playableAppAt(i);
+            const AppScoreInfo* score = app.score();
+            if (score == nullptr || !board.hasScore(score->bestKey)) continue;
             if (seen++ < first) continue;
 
             const Rect r = rowRect(drawn++);
@@ -194,18 +206,21 @@ void ScoresGame::render(GameHost& host) {
 
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
-            tft.drawString(e.label, r.x + 8, r.y + r.h / 2, 2);
+            tft.drawString(score->label, r.x + 8, r.y + r.h / 2, 2);
 
-            const uint32_t best  = board.getScore(e.bestKey, 0);
-            const uint32_t worst = board.worstScore(e.bestKey, best);
+            const uint32_t best  = board.getScore(score->bestKey, 0);
+            const uint32_t worst = board.worstScore(score->bestKey, best);
 
             tft.setTextDatum(MR_DATUM);
             tft.setTextColor(Ui::success(), Ui::surface());
-            tft.drawString(String(best) + e.unit, 244, r.y + r.h / 2, 2);
+            char value[24];
+            snprintf(value, sizeof(value), "%u%s", best, score->unit);
+            tft.drawString(value, 244, r.y + r.h / 2, 2);
             tft.setTextColor(Ui::muted(), Ui::surface());
-            tft.drawString(String(worst) + e.unit, 306, r.y + r.h / 2, 2);
+            snprintf(value, sizeof(value), "%u%s", worst, score->unit);
+            tft.drawString(value, 306, r.y + r.h / 2, 2);
 
-            if (e.lowerIsBetter) {
+            if (score->lowerIsBetter) {
                 tft.setTextColor(Ui::muted(), Ui::surface());
                 tft.setTextDatum(ML_DATUM);
                 tft.drawString("lower is better", r.x + 100, r.y + r.h / 2, 1);
@@ -241,7 +256,10 @@ void ScoresGame::render(GameHost& host) {
             const uint8_t first = static_cast<uint8_t>(page_ * ROWS_PER_PAGE);
             for (uint8_t i = first; i < deviceRowCount_ && drawn < ROWS_PER_PAGE; ++i) {
                 const DeviceBest& db = deviceRows_[i];
-                const ScoreEntry& e = SCORE_CATALOG[db.catalogIndex];
+                const AppScoreInfo* score = playableAppAt(db.catalogIndex).score();
+                if (score == nullptr) {
+                    continue;
+                }
 
                 const Rect r = rowRect(drawn++);
                 tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
@@ -250,11 +268,11 @@ void ScoresGame::render(GameHost& host) {
                 // Game label
                 tft.setTextColor(Ui::text(), Ui::surface());
                 tft.setTextDatum(ML_DATUM);
-                tft.drawString(e.label, r.x + 8, r.y + r.h / 2, 2);
+                tft.drawString(score->label, r.x + 8, r.y + r.h / 2, 2);
 
                 // Device best value, right-aligned at x = 236
                 char scoreStr[32];
-                snprintf(scoreStr, sizeof(scoreStr), "%u%s", db.value, e.unit);
+                snprintf(scoreStr, sizeof(scoreStr), "%u%s", db.value, score->unit);
                 tft.setTextDatum(MR_DATUM);
                 tft.setTextColor(Ui::success(), Ui::surface());
                 tft.drawString(scoreStr, 236, r.y + r.h / 2, 2);

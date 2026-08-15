@@ -1,35 +1,27 @@
 #include "ScoreCatalog.h"
+#include "engine/AppRegistry.h"
 
-/* Keys mirror the ones each game passes to saveBestScore(). Board prefixes
- * them with the active profile, so these are shared across children. */
-const ScoreEntry SCORE_CATALOG[] = {
-    { "tictactoe",  "Tic-Tac-Toe", "tttX",       "wins", false },
-    { "memory",     "Memory",      "memBest",    "s",    true  },
-    { "math",       "Math",        "mathBest",   "pts",  false },
-    { "multiply",   "Multiply",    "multBest",   "pts",  false },
-    { "time",       "Time",        "timeBest",   "pts",  false },
-    { "whack",      "Whack",       "whackBest",  "pts",  false },
-    { "cinnamon",      "Cinnamon",       "cinnamonBest",  "steps",false },
-    { "microku",     "Microku",      "microkuBest", "s",    true  },
-    { "shapecolor", "Shapes",      "shapeBest",  "pts",  false },
-    { "counting",   "Counting",    "countBest",  "streak",false},
-    { "money",      "Money",       "moneyBest",  "pts",  false },
-    { "fractions",  "Fractions",   "fracBest",   "pts",  false },
-    { "maze",       "Maze",        "mazeLevel",  "lvl",  false },
-    { "sort",       "Sorting",     "sortBest",   "pts",  false },
-    { "colormix",   "Color Mix",   "mixBest",    "pts",  false },
-    { "slide",      "Slide",       "slideBest",  "moves",true  },
-    { "oddone",     "Odd One",     "oddBest",    "pts",  false },
-    { "shapearith", "Shape Arith", "shapeaBest", "pts",  false },
-    { "fingers",    "Fingers",     "fingBest",   "pts",  false },
-    { "calendar",   "Calendar",    "calBest",    "pts",  false },
-    { "numberline", "Number Line", "nlineBest",  "pts",  false },
-    { "flags",      "Flags",       "flagBest",   "pts",  false },
-    { "states",     "US States",   "stateBest",  "pts",  false },
-    { "stateflags", "State Flags", "sflagBest",  "pts",  false },
-    { "statemaps",  "State Maps",  "smapBest",   "pts",  false },
-    { "percent",    "Percent",     "pctBest",    "pts",  false },
-    { "grewords",   "GRE Words",   "greBest",    "pts",  false },
-};
+uint8_t scoreCatalogCount() {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < playableAppCount(); ++i) {
+        if (playableAppAt(i).score() != nullptr) {
+            ++count;
+        }
+    }
+    return count;
+}
 
-const uint8_t SCORE_CATALOG_COUNT = sizeof(SCORE_CATALOG) / sizeof(SCORE_CATALOG[0]);
+const ScoreEntry* scoreCatalogAt(uint8_t index) {
+    uint8_t seen = 0;
+    for (uint8_t i = 0; i < playableAppCount(); ++i) {
+        const ScoreEntry* score = playableAppAt(i).score();
+        if (score == nullptr) {
+            continue;
+        }
+        if (seen == index) {
+            return score;
+        }
+        ++seen;
+    }
+    return nullptr;
+}

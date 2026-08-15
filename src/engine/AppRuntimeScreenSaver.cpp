@@ -30,8 +30,9 @@ void KidsPlatformApp::wakeFromSleep() {
     }
 
     const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
+    const bool backToApp = backToGame && activeApp_ != nullptr;
     applyRotation(
-        effectiveRotation(backToGame || board_.layoutMode() != Board::LayoutMode::Vertical));
+        effectiveRotation(backToApp || board_.layoutMode() != Board::LayoutMode::Vertical));
 
     lastActivityMs_ = millis();
 
@@ -39,15 +40,8 @@ void KidsPlatformApp::wakeFromSleep() {
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;
         activeGame_->requestRender();
-    } else if (ssavPrevView_ == View::Profiles) {
-        Watchdog::setContext("Profiles");
-        view_ = View::Profiles;
-        games_.profile.requestRender();
     } else {
-        Watchdog::setContext("Launcher");
-        view_ = View::Launcher;
-        clampLauncherPage();
-        launcherDirty_ = true;
+        goHome();
     }
 }
 
@@ -55,8 +49,9 @@ void KidsPlatformApp::exitScreenSaver() {
     board_.setRgbColor(0, 0, 0);
 
     const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
+    const bool backToApp = backToGame && activeApp_ != nullptr;
     applyRotation(
-        effectiveRotation(backToGame || board_.layoutMode() != Board::LayoutMode::Vertical));
+        effectiveRotation(backToApp || board_.layoutMode() != Board::LayoutMode::Vertical));
 
     lastActivityMs_ = millis();
 
@@ -65,10 +60,7 @@ void KidsPlatformApp::exitScreenSaver() {
         view_ = View::Game;
         activeGame_->requestRender();
     } else {
-        Watchdog::setContext("Launcher");
-        view_ = View::Launcher;
-        clampLauncherPage();
-        launcherDirty_ = true;
+        goHome();
     }
 }
 
@@ -102,7 +94,7 @@ void KidsPlatformApp::resetScreenSaverRally(int16_t effW, int16_t effH) {
 }
 
 void KidsPlatformApp::renderScreenSaver() {
-    TFT_eSPI& tft = board_.display();
+    Ui::Renderer& tft = display();
     const int16_t effW = static_cast<int16_t>(tft.width());
     const int16_t effH = static_cast<int16_t>(tft.height());
 

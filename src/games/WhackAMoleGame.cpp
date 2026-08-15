@@ -1,4 +1,5 @@
 #include "WhackAMoleGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 constexpr uint8_t GRID = 9;
@@ -10,15 +11,38 @@ constexpr uint16_t SMILE = 0xFFE6;
 constexpr uint16_t SMILE_FACE = 0x0843;
 constexpr uint16_t HIT = 0x37F0;
 constexpr uint16_t MISS = 0xF9EA;
+
+constexpr AppScoreInfo WHACK_A_MOLE_SCORE = {
+    "whack", "Whack", "whackBest", "pts", false
+};
+
+constexpr AppMetadata WHACK_A_MOLE_METADATA = {
+    "whack",
+    "Whack",
+    "Whack A Mole",
+    "hit targets",
+    "Whack",
+    "Tap the mole before it escapes.",
+    &WHACK_A_MOLE_SCORE,
+    LauncherIcon::WhackAMole,
+    5,
+    true,
+};
+}
+
+const AppMetadata& whackAMoleAppMetadata() {
+    return WHACK_A_MOLE_METADATA;
 }
 
 const char* WhackAMoleGame::title() const {
-    return "Whack A Mole";
+    return whackAMoleAppMetadata().screenTitle != nullptr
+        ? whackAMoleAppMetadata().screenTitle
+        : whackAMoleAppMetadata().title;
 }
 
 void WhackAMoleGame::begin(AppContext& host) {
     score_ = 0;
-    bestScore_ = static_cast<uint16_t>(host.getScore("whackBest", 0));
+    bestScore_ = static_cast<uint16_t>(host.getScore(whackAMoleAppMetadata().score->bestKey, 0));
     activeCell_ = -1;
     flashCell_ = -1;
     missStreak_ = 0;
@@ -114,7 +138,7 @@ void WhackAMoleGame::update(AppContext& host, const TouchPoint& touch) {
     if (cell == activeCell_) {
         ++score_;
         missStreak_ = 0;
-        if (host.saveBestScore("whackBest", score_, false)) {
+        if (host.saveBestScore(whackAMoleAppMetadata().score->bestKey, score_, false)) {
             bestScore_ = score_;
         }
         flashCell_ = cell;
@@ -133,7 +157,7 @@ void WhackAMoleGame::update(AppContext& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void WhackAMoleGame::drawSmile(TFT_eSPI& tft, const Rect& r) const {
+void WhackAMoleGame::drawSmile(Ui::Renderer& tft, const Rect& r) const {
     const int16_t cx = r.x + r.w / 2;
     const int16_t cy = r.y + r.h / 2;
     tft.fillCircle(cx, cy, 8, SMILE);
@@ -146,7 +170,7 @@ void WhackAMoleGame::drawSmile(TFT_eSPI& tft, const Rect& r) const {
 }
 
 void WhackAMoleGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 

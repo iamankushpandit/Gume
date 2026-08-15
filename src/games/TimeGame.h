@@ -3,6 +3,10 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
+struct AppMetadata;
+
+const AppMetadata& timeGameAppMetadata();
+
 class TimeGame : public AppGame {
 public:
     const char* title() const override;
@@ -17,7 +21,7 @@ private:
     bool optionExists(uint16_t minutes, uint8_t upTo) const;
     String formatTime(uint16_t minutes) const;
     uint8_t level() const;
-    void drawClock(TFT_eSPI& tft) const;
+    void drawClock(Ui::Renderer& tft) const;
 
     uint16_t answerMinutes_ = 0;
     uint16_t options_[4] = {};

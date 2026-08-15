@@ -1,4 +1,5 @@
 #include "TraceGame.h"
+#include "engine/AppRegistry.h"
 
 namespace {
 
@@ -271,10 +272,28 @@ static const TraceGame::Glyph GLYPHS[] = {
 
 static_assert(sizeof(GLYPHS) / sizeof(GLYPHS[0]) == 62, "GLYPHS must have 62 entries");
 
+constexpr AppMetadata TRACE_METADATA = {
+    "trace",
+    "Trace",
+    nullptr,
+    "ABC abc 123",
+    "Trace",
+    "Trace big and small letters.",
+    nullptr,
+    LauncherIcon::Trace,
+    23,
+    true,
+};
+}
+
+const AppMetadata& traceAppMetadata() {
+    return TRACE_METADATA;
 }
 
 const char* TraceGame::title() const {
-    return "Trace";
+    return traceAppMetadata().screenTitle != nullptr
+        ? traceAppMetadata().screenTitle
+        : traceAppMetadata().title;
 }
 
 void TraceGame::begin(AppContext& host) {
@@ -467,7 +486,7 @@ void TraceGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void TraceGame::drawModeTabs(TFT_eSPI& tft) {
+void TraceGame::drawModeTabs(Ui::Renderer& tft) {
     const uint16_t activeBg = Ui::warning();
     const uint16_t activeTxt = Ui::panel();
     const uint16_t inactiveBg = Ui::panel();
@@ -486,7 +505,7 @@ void TraceGame::drawModeTabs(TFT_eSPI& tft) {
     drawTab(MODE_123, "123", glyphSet_ == TraceGame::GlyphSet::Digit);
 }
 
-void TraceGame::drawGuide(TFT_eSPI& tft) {
+void TraceGame::drawGuide(Ui::Renderer& tft) {
     // Draw completed strokes in success color
     for (uint8_t s = 0; s < activeStroke_ && s < strokeCount_; ++s) {
         uint8_t start = strokeStart_[s];
@@ -555,7 +574,7 @@ void TraceGame::drawGuide(TFT_eSPI& tft) {
     }
 }
 
-void TraceGame::drawProgress(TFT_eSPI& tft) {
+void TraceGame::drawProgress(Ui::Renderer& tft) {
     uint16_t totalPoints = 0;
     uint16_t claimedPoints = 0;
 
@@ -583,7 +602,7 @@ void TraceGame::drawProgress(TFT_eSPI& tft) {
 }
 
 void TraceGame::render(AppContext& host) {
-    TFT_eSPI& tft = host.display();
+    Ui::Renderer& tft = host.display();
     const Glyph& g = GLYPHS[glyphIndex_];
 
     if (needsFullRender()) {

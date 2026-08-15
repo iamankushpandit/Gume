@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <SD.h>
+#include "hal/Board.h"
 
 namespace {
 bool isJsonFile(const String& name) {
