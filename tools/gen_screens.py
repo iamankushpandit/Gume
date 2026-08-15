@@ -455,14 +455,23 @@ def tabs(d, active_device):
 
 def settings_device():
     im, d = blank(); topbar(d, "Settings")
-    # Four rows of 30px from y=40; Reset spans both columns on the last row.
-    button(d, (8, 40, 144, 30), "Theme: Dark")
-    button(d, (164, 40, 144, 30), "Menu: Tall")
-    button(d, (8, 74, 144, 30), "Saver: 60s")
-    button(d, (164, 74, 144, 30), "Light: On")
-    button(d, (8, 108, 144, 30), "Beacon: On")
-    button(d, (164, 108, 144, 30), "Network", BLUE, WHITE)
-    button(d, (8, 142, 300, 30), "Reset device", (120, 58, 58), WHITE)
+    # Tab strip under the top bar; the active tab merges into the page below.
+    for i, (lab, x) in enumerate([("Device", 0), ("Power", 160)]):
+        active = (i == 0)
+        top = 30 if active else 34
+        h = 22 if active else 18
+        fillc = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 159, top + h], 4, fill=fillc, outline=OUTLINE)
+        d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(0, 52), (319, 52)], fill=OUTLINE)
+    # Three rows of 30px from y=58, under the tab baseline.
+    button(d, (8, 58, 144, 30), "Theme: Dark")
+    button(d, (164, 58, 144, 30), "Menu: Tall")
+    button(d, (8, 92, 144, 30), "Light: On")
+    button(d, (164, 92, 144, 30), "Beacon: On")
+    button(d, (8, 126, 144, 30), "Network", BLUE, WHITE)
+    button(d, (164, 126, 144, 30), "Reset device", (120, 58, 58), WHITE)
     d.text((8, 180), "Brightness", font=F1, fill=MUTED)
     d.text((312 - d.textlength("80%", font=F1), 180), "80%", font=F1, fill=MUTED)
     # slider: track, filled portion, handle -- mirrors Ui::drawSlider
@@ -475,6 +484,27 @@ def settings_device():
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
     d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
+    return im
+
+
+def settings_power():
+    """Settings tab: what happens when nobody is touching the device."""
+    im, d = blank(); topbar(d, "Settings")
+    # Tab strip under the top bar; the active tab merges into the page below.
+    for i, (lab, x) in enumerate([("Device", 0), ("Power", 160)]):
+        active = (i == 1)
+        top = 30 if active else 34
+        h = 22 if active else 18
+        fillc = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 159, top + h], 4, fill=fillc, outline=OUTLINE)
+        d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(0, 52), (319, 52)], fill=OUTLINE)
+    button(d, (8, 58, 304, 30), "When idle: Saver then sleep")
+    button(d, (8, 92, 304, 30), "Idle after: 1m")
+    button(d, (8, 126, 304, 30), "Sleep after: 1m")
+    d.text((8, 168), "Saver at 60s, screen off at 120s.", font=F1, fill=MUTED)
+    d.text((8, 184), "Sleep blanks the screen. A touch wakes it.", font=F1, fill=MUTED)
     return im
 
 
@@ -557,6 +587,7 @@ SCREENS = [
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("cinnamon", cinnamon, "Cinnamon Says"),
     ("settings-device", settings_device, "Settings: device"),
+    ("settings-power", settings_power, "Settings: power and sleep"),
     ("settings-games", settings_games, "Settings: which games appear"),
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),
@@ -1050,8 +1081,58 @@ def percent():
 
 
 def grewords():
+    """GRE Words, Quiz tab: the word, four glosses, one right."""
     im, d = blank(); topbar(d, "GRE Words")
-    d.text((10, 60), "Placeholder", font=F2, fill=MUTED)
+    for i, (lab, x) in enumerate([("Study", 0), ("Quiz", 160)]):
+        active = (i == 1)
+        top = 30 if active else 34
+        h = 22 if active else 18
+        fillc = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 159, top + h], 4, fill=fillc, outline=OUTLINE)
+        d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(0, 52), (319, 52)], fill=OUTLINE)
+
+    word = "laconic"
+    d.text((W / 2 - d.textlength(word, font=F4) / 2, 60), word, font=F4, fill=TEXT)
+
+    opts = ["using very few words", "eager to argue or fight",
+            "lasting a very short time", "showing great attention to detail"]
+    for i, o in enumerate(opts):
+        y = 88 + i * 34
+        fillc = SUCCESS if i == 0 else PANEL
+        ink = (0, 0, 0) if i == 0 else TEXT
+        d.rounded_rectangle([10, y, 309, y + 30], 5, fill=fillc, outline=OUTLINE)
+        d.text((18, y + 15 - 5), o, font=F1, fill=ink)
+
+    d.text((8, 226), "40 pts  x4", font=F1, fill=MUTED)
+    lbl = "132 / 250"
+    d.text((312 - d.textlength(lbl, font=F1), 226), lbl, font=F1, fill=MUTED)
+    return im
+
+
+def grewords_study():
+    """GRE Words, Study tab: the card flipped to its meaning."""
+    im, d = blank(); topbar(d, "GRE Words")
+    for i, (lab, x) in enumerate([("Study", 0), ("Quiz", 160)]):
+        active = (i == 0)
+        top = 30 if active else 34
+        h = 22 if active else 18
+        fillc = SURFACE if active else PANEL
+        d.rounded_rectangle([x, top, x + 159, top + h], 4, fill=fillc, outline=OUTLINE)
+        d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(0, 52), (319, 52)], fill=OUTLINE)
+
+    d.rounded_rectangle([12, 58, 307, 187], 8, fill=SURFACE, outline=OUTLINE)
+    d.text((160 - d.textlength("laconic", font=F2) / 2, 70), "laconic", font=F2, fill=TEXT)
+    d.text((22, 94), "using very few words", font=F1, fill=SUCCESS)
+    d.text((22, 140), "His laconic reply was a single word.", font=F1, fill=MUTED)
+
+    button(d, (12, 192, 92, 30), "Knew it", GREEN, WHITE)
+    button(d, (114, 192, 92, 30), "Didn't", (178, 58, 58), WHITE)
+    button(d, (216, 192, 92, 30), "Next")
+    d.text((8, 226), "40 pts  x4", font=F1, fill=MUTED)
     return im
 
 
@@ -1199,6 +1280,7 @@ EXTRA_SCREENS = [
     ("numberline", numberline, "Number Line"),
     ("percent", percent, "Percent: read the circle"),
     ("grewords", grewords, "GRE Words: pick the meaning"),
+    ("grewords-study", grewords_study, "GRE Words: study card"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

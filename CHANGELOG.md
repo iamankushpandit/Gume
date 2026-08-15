@@ -33,9 +33,26 @@
   a number. Teaches percentages as a portion of a whole, with circle-based
   visualization and adaptive difficulty.
 
-- **GRE Words.** Flash card and quiz vocabulary trainer with 200 GRE-level
-  words, spaced repetition, and a weighted random selection that favours weak
-  and unseen words.
+- **GRE Words.** A vocabulary trainer with 250 GRE-level words in two modes:
+  **Study** flips a card from the word to its meaning and an example sentence,
+  and **Quiz** asks for the right gloss out of four. Both feed the same
+  spaced-repetition data (`engine/Progress`), so a missed word comes back soon
+  and a known one fades out. The odd screen out in this catalog -- it is aimed
+  at whoever is sitting the test, not at a small child.
+
+- **Screen sleep.** The device now blanks the panel when it has been left
+  alone, which is what actually conserves the battery: the screen saver was
+  keeping the backlight lit indefinitely. **Settings -> Power** carries three
+  policies -- saver then sleep, sleep only, or saver only -- with both the idle
+  delay and the sleep delay configurable. The main loop drops from 50Hz to 10Hz
+  while asleep and any touch wakes it, returning to whatever screen was open.
+
+  This is panel sleep, not `esp_deep_sleep`: the CPU stays up to poll the touch
+  controller, because no wake source is wired for a true deep sleep on this
+  board.
+
+- **Settings has tabs.** Device and Power. The grid was already seven buttons
+  and a slider, with nowhere to put the three idle controls.
 
 - **`.github/workflows/pages.yml`.** Builds `app`, `bringup` and `wifidiag` on
   every push to `main`, generates the site around them, and copies the four

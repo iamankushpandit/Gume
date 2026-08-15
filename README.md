@@ -16,8 +16,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 28 |
-| Flash | 2,264,721 / 3,145,728 bytes (**72.0%**) |
-| RAM | 65,316 / 327,680 bytes (**19.9%**) |
+| Flash | 2,291,689 / 3,145,728 bytes (**72.9%**) |
+| RAM | 65,972 / 327,680 bytes (**20.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 <p align="center">
@@ -101,7 +101,7 @@ uses **adaptive difficulty** — see below.
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
 | **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, guided by numbered start dots | 3–6 |
-| **GRE Words** | Flash card + quiz vocabulary trainer | 200 GRE-level words with spaced repetition | adult |
+| **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older student, not a preschooler | 15+ |
 
 ---
 
@@ -222,7 +222,8 @@ One screen per game, in launcher order.
   <img src="docs/screens/tictactoe.png" width="300" alt="Tic-Tac-Toe">
   <img src="docs/screens/trace.png" width="300" alt="Trace: uppercase and digits">
   <img src="docs/screens/trace-lower.png" width="300" alt="Trace: lowercase letters">
-  <img src="docs/screens/grewords.png" width="300" alt="GRE Words">
+  <img src="docs/screens/grewords.png" width="300" alt="GRE Words: pick the meaning">
+  <img src="docs/screens/grewords-study.png" width="300" alt="GRE Words: study card">
 </p>
 
 ---
@@ -233,11 +234,14 @@ One screen per game, in launcher order.
 
 <p align="center">
   <img src="docs/screens/settings-device.png" width="360" alt="Settings: device">
-  <img src="docs/screens/settings-games.png" width="360" alt="Settings: game visibility">
+  <img src="docs/screens/settings-power.png" width="360" alt="Settings: power and sleep">
 </p>
 
-Theme, menu layout, screen-saver delay, the case light, screen brightness, the
-BLE beacon, and a factory reset behind a two-tap confirm. The Games tab hides
+Two tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
+screen brightness, and a factory reset behind a two-tap confirm. **Power** holds
+the idle policy and its two delays — see [Screen saver and
+sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
+arrived and there was nowhere left to put them. The Games tab hides
 any game from the launcher, paged five at a time -- and that visibility is **per
 child**, so one child's launcher can be pared down without touching another's.
 
@@ -260,7 +264,7 @@ public IP on first connect; the picker overrides it with named zones carrying
 POSIX rules (`CST6CDT,M3.2.0,M11.1.0`), so daylight saving is handled without
 anyone touching it in March and November.
 
-### Screen saver
+### Screen saver and sleep
 
 <p align="center">
   <img src="docs/screens/screensaver.png" width="360" alt="Pong screen saver">
@@ -269,6 +273,28 @@ anyone touching it in March and November.
 Pong that plays itself. Paddles sweep opposite ways; every rally speeds the ball
 up and advances the colour, mirrored on the case LED. Touching it returns you to
 **whatever you were doing** — not the home screen.
+
+After the saver, the device **sleeps**: the backlight goes off and the panel
+drops into its low-power state, which is what actually saves the battery — a
+lit screen playing Pong to an empty room does not. A touch anywhere wakes it,
+and you land back on the screen you left.
+
+Three policies, set in **Settings → Power**:
+
+| Policy | What happens after the idle delay |
+|---|---|
+| **Saver then sleep** | Pong runs, then the screen blanks after the sleep delay |
+| **Sleep only** | The screen blanks straight away — no Pong |
+| **Saver only** | Pong runs and the screen never blanks |
+
+Both delays are configurable: **Idle after** (30s / 1m / 2m / 5m) is the wait
+from the last touch, and **Sleep after** (15s / 30s / 1m / 2m / 5m) is how long
+the saver runs before the screen goes dark.
+
+**Sleep is not `esp_deep_sleep`.** The CPU stays up so it can poll the touch
+panel — there is no wake source wired for a true deep sleep on this board. The
+main loop drops from 50 Hz to 10 Hz while asleep, and the battery still drains,
+just far more slowly than with the backlight on.
 
 ### Scores, Profiles, About and System Info
 

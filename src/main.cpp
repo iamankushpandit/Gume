@@ -206,6 +206,8 @@ public:
      * a child's finger can distinguish, and it leaves headroom for the frames
      * that legitimately cost more (a full repaint pushes ~150KB over SPI). */
     static constexpr uint32_t FRAME_BUDGET_MS = 20;
+    /* Poll period while the panel is asleep. */
+    static constexpr uint32_t SLEEP_POLL_MS = 100;
 
     void loop() {
         Watchdog::feed();
@@ -228,12 +230,26 @@ public:
             lastActivityMs_ = nowMs;
         }
         
-        // Trigger screen saver after idle timeout
-        if (view_ != View::ScreenSaver) {
+        /* Idle policy. screenSaverSeconds() is the delay from the last touch
+         * to *something* happening; which something depends on idleAction().
+         * SleepOnly skips the saver entirely, which is the setting that
+         * actually conserves the battery. */
+        const Board::IdleAction idlePolicy = board_.idleAction();
+        if (view_ != View::ScreenSaver && view_ != View::Asleep) {
             const uint32_t idleMs = nowMs - lastActivityMs_;
             const uint32_t timeoutMs = static_cast<uint32_t>(board_.screenSaverSeconds()) * 1000UL;
             if (timeoutMs > 0 && idleMs > timeoutMs) {
-                enterScreenSaver();
+                if (idlePolicy == Board::IdleAction::SleepOnly) {
+                    enterSleep();
+                } else {
+                    enterScreenSaver();
+                }
+            }
+        } else if (view_ == View::ScreenSaver &&
+                   idlePolicy == Board::IdleAction::SaverThenSleep) {
+            const uint32_t saverMs = nowMs - screenSaverStartMs_;
+            if (saverMs > static_cast<uint32_t>(board_.sleepSeconds()) * 1000UL) {
+                enterSleep();
             }
         }
         
@@ -253,6 +269,13 @@ public:
             if (view_ == View::Profiles && profile_.needsRender()) {
                 profile_.render(*this);
                 profile_.clearDirty();
+            }
+        } else if (view_ == View::Asleep) {
+            /* rawTouch, not touch: a swallowed event must still be able to
+             * wake the panel, otherwise the first press after going to sleep
+             * is silently eaten and the device looks dead. */
+            if (rawTouch.justPressed || rawTouch.down) {
+                wakeFromSleep();
             }
         } else if (view_ == View::ScreenSaver) {
             if (touch.justPressed) {
@@ -293,8 +316,14 @@ public:
          *
          * Always yield at least a tick: the idle task on this core has to run
          * or its own watchdog trips. */
-        if (workMs < FRAME_BUDGET_MS) {
-            delay(FRAME_BUDGET_MS - workMs);
+        /* Asleep there is nothing to draw, so drop from 50Hz to 10Hz. That is
+         * the point of the feature -- the backlight is off and the CPU should
+         * not be spinning a render loop behind it. Well inside the watchdog's
+         * 12s timeout. */
+        const uint32_t budgetMs = (view_ == View::Asleep) ? SLEEP_POLL_MS
+                                                          : FRAME_BUDGET_MS;
+        if (workMs < budgetMs) {
+            delay(budgetMs - workMs);
         } else {
             delay(1);
         }
@@ -388,6 +417,56 @@ public:
         ssav_initialized_ = false;
     }
     
+    /* Panel sleep. Distinct from the screen saver: the backlight is off and
+     * nothing renders, so the only way out is a touch. Where we came from is
+     * remembered so waking returns there rather than dumping the child on the
+     * launcher -- and when we arrive here from the saver, the saver's own
+     * previous view is what we want, not the saver itself. */
+    void enterSleep() {
+        if (view_ != View::ScreenSaver) {
+            ssavPrevView_ = view_;
+        }
+        board_.setRgbColor(0, 0, 0);   // the case LED is battery too
+        board_.displaySleep();
+        Watchdog::setContext("Asleep");
+        view_ = View::Asleep;
+    }
+
+    void wakeFromSleep() {
+        /* displayWake() blocks ~120ms waiting for the panel to leave its
+         * low-power state. That is deliberate and happens once per wake, but
+         * an unannounced block looks exactly like a hang to the watchdog. */
+        {
+            Watchdog::Pause guard;
+            board_.displayWake();
+        }
+
+        const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
+
+        // Games always run landscape; only the launcher follows the layout
+        // setting. applyRotation() also swallows the touch that woke us, so it
+        // cannot press whatever happens to be under the finger.
+        applyRotation(
+            effectiveRotation(backToGame || board_.layoutMode() != Board::LayoutMode::Vertical));
+
+        lastActivityMs_ = millis();
+
+        if (backToGame) {
+            Watchdog::setContext(kindTitle(activeKind_));
+            view_ = View::Game;
+            activeGame_->requestRender();
+        } else if (ssavPrevView_ == View::Profiles) {
+            Watchdog::setContext("Profiles");
+            view_ = View::Profiles;
+            profile_.requestRender();
+        } else {
+            Watchdog::setContext("Launcher");
+            view_ = View::Launcher;
+            clampLauncherPage();
+            launcherDirty_ = true;
+        }
+    }
+
     void exitScreenSaver() {
         board_.setRgbColor(0, 0, 0);
 
@@ -417,7 +496,8 @@ private:
         Profiles,
         Launcher,
         Game,
-        ScreenSaver
+        ScreenSaver,
+        Asleep
     };
 
     enum class EntryKind : uint8_t {
