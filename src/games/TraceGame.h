@@ -22,24 +22,42 @@ public:
     };
 
 private:
-    static constexpr uint8_t MAX_SEGMENTS = 64;
+    static constexpr uint8_t MAX_POINTS  = 96;
+    static constexpr uint8_t MAX_STROKES = 4;
+    static constexpr uint8_t UPPER_FIRST = 0;
+    static constexpr uint8_t LOWER_FIRST = 26;
+    static constexpr uint8_t DIGIT_FIRST = 52;
+    static constexpr uint8_t GLYPH_COUNT_TOTAL = 62;
+
+    enum class GlyphSet { Upper, Lower, Digit };
+
+    struct Pt {
+        int16_t x, y;
+    };
 
     void loadGlyph();
-    void buildSegments();
+    void resampleWaypoints();
     int16_t scaleX(int16_t nx) const;
     int16_t scaleY(int16_t ny) const;
     void drawGuide(TFT_eSPI& tft);
     void drawProgress(TFT_eSPI& tft);
-    uint8_t tracedCount() const;
+    void drawModeTabs(TFT_eSPI& tft);
+    void updatePulsePhase();
+    uint8_t getSetFirstIndex() const;
+    uint8_t getSetLastIndex() const;
+
+    Pt pts_[MAX_POINTS] = {};
+    uint8_t strokeStart_[MAX_STROKES] = {};
+    uint8_t strokeLen_[MAX_STROKES] = {};
+    uint8_t strokeCount_ = 0;
+    uint8_t activeStroke_ = 0;
+    uint8_t nextPoint_ = 0;
 
     uint8_t glyphIndex_ = 0;
-    bool traced_[MAX_SEGMENTS] = {};
-    uint8_t totalSegments_ = 0;
+    GlyphSet glyphSet_ = GlyphSet::Upper;
     bool complete_ = false;
     uint32_t completeAt_ = 0;
 
-    struct Seg {
-        int16_t x1, y1, x2, y2;
-    };
-    Seg segs_[MAX_SEGMENTS] = {};
+    uint32_t lastPulseChange_ = 0;
+    bool pulseState_ = false;
 };

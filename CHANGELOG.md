@@ -44,6 +44,19 @@
   fills, or if the page offers a firmware that platformio.ini does not define
   or the workflow does not build.
 
+### Changed
+
+- **Trace game completely redesigned.** The old version let a single tap
+  anywhere complete an entire stroke; tap a few times and the letter was done,
+  with no requirement to follow a path. The new version enforces ordered
+  dot-to-dot tracing: strokes must be followed in order from a numbered start
+  dot, with each dot claimed only by dragging through them in sequence. Added
+  26 lowercase letters (a–z) alongside the existing uppercase and digits,
+  with a three-way mode selector (ABC / abc / 123) at the top. Waypoints are
+  now calculated at glyph load and displayed as pulsing dots that guide the
+  child through the correct path, teaching both letter formation and stroke
+  order before a pencil is involved.
+
 
 ## 3.0.0 — 2026-08-13
 
