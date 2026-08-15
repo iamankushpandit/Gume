@@ -1,6 +1,6 @@
 # GoodTime Kids
 
-A 26-game educational console for young children, running on an **ESP32-32E
+A 28-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -15,7 +15,7 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 26 |
+| Games | 28 |
 | Flash | 2,254,157 / 3,145,728 bytes (**71.7%**) |
 | RAM | 64,940 / 327,680 bytes (**19.8%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
@@ -69,6 +69,7 @@ Ages are a guide, not a gate. Every game can be hidden from the launcher in
 | **Multiply** | "Tap the product" — times tables | Multiplication facts | 7–10 |
 | **Fractions** | "Pick the matching fraction" against a pie chart | Connects the written fraction to the amount it represents | 6–9 |
 | **Money** | "How much is this?" — count coins, compare amounts, make change | Coin values and everyday arithmetic | 5–9 |
+| **Percent** | Read, make and calculate percentages on a circle | Percentage as a portion of a whole, before it is an algorithm | 7–11 |
 | **Sorting** | "Tap smallest to largest" (or the reverse) | Ordering and magnitude comparison | 4–7 |
 
 ### World knowledge
@@ -100,6 +101,7 @@ uses **adaptive difficulty** — see below.
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
 | **Trace** | Trace letters A–Z and digits 0–9 with a finger | Letter formation and pen control, before a pencil is involved | 3–6 |
+| **GRE Words** | Flash card + quiz vocabulary trainer | 200 GRE-level words with spaced repetition | adult |
 
 ---
 
@@ -177,6 +179,9 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/fractions.png" width="300" alt="Fractions">
   <img src="docs/screens/money.png" width="300" alt="Money">
+  <img src="docs/screens/percent.png" width="300" alt="Percent">
+</p>
+<p align="center">
   <img src="docs/screens/sorting.png" width="300" alt="Sorting">
 </p>
 
@@ -216,6 +221,7 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/tictactoe.png" width="300" alt="Tic-Tac-Toe">
   <img src="docs/screens/trace.png" width="300" alt="Trace: letters and numbers">
+  <img src="docs/screens/grewords.png" width="300" alt="GRE Words">
 </p>
 
 ---

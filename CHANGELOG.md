@@ -23,6 +23,14 @@
   games behind before. `site/index.template.html` holds wording and layout
   only.
 
+- **Percent Circle.** Three modes: read the circle, make the circle, percent of
+  a number. Teaches percentages as a portion of a whole, with circle-based
+  visualization and adaptive difficulty.
+
+- **GRE Words.** Flash card and quiz vocabulary trainer with 200 GRE-level
+  words, spaced repetition, and a weighted random selection that favours weak
+  and unseen words.
+
 - **`.github/workflows/pages.yml`.** Builds `app`, `bringup` and `wifidiag` on
   every push to `main`, generates the site around them, and copies the four
   flash images beside each manifest. It rewrites the machine-local `map-n-flag`

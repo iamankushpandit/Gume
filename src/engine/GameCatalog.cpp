@@ -33,4 +33,6 @@ const GameCatalogEntry GAME_CATALOG[GAME_CATALOG_COUNT] = {
     { "trace",      "Trace",       "A-Z & 0-9",         "Trace",       "Trace letters and numbers."      },
     { "stateflags", "State Flags", "name the flag",     "State Flags", "Name the state flag, then capital."},
     { "statemaps",  "State Maps",  "name the outline",  "State Maps",  "Name the state outline, then capital."},
+    { "percent",    "Percent",     "circle parts",      "Percent",     "Percentages on a circle."        },
+    { "grewords",   "GRE Words",   "vocabulary",        "GRE Words",   "Learn GRE vocabulary."           },
 };

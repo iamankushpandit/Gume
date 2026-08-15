@@ -935,6 +935,18 @@ def about_radios():
     return im
 
 
+def percent():
+    im, d = blank(); topbar(d, "Percent")
+    d.text((10, 60), "Placeholder", font=F2, fill=MUTED)
+    return im
+
+
+def grewords():
+    im, d = blank(); topbar(d, "GRE Words")
+    d.text((10, 60), "Placeholder", font=F2, fill=MUTED)
+    return im
+
+
 EXTRA_SCREENS = [
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
@@ -958,6 +970,8 @@ EXTRA_SCREENS = [
     ("shapearith", shapearith, "Shape Arith"),
     ("calendar", calendar, "Calendar"),
     ("numberline", numberline, "Number Line"),
+    ("percent", percent, "Percent: read the circle"),
+    ("grewords", grewords, "GRE Words: pick the meaning"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

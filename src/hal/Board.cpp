@@ -768,6 +768,69 @@ void Board::setScreenSaverSeconds(uint16_t seconds) {
     idleCached_ = true;
 }
 
+Board::IdleAction Board::idleAction() {
+    if (!idleActionCached_) {
+        cachedIdleAction_ = prefs_.getUChar("idleAct",
+                                static_cast<uint8_t>(IdleAction::SaverThenSleep));
+        if (cachedIdleAction_ > static_cast<uint8_t>(IdleAction::SaverOnly)) {
+            cachedIdleAction_ = static_cast<uint8_t>(IdleAction::SaverThenSleep);
+        }
+        idleActionCached_ = true;
+    }
+    return static_cast<IdleAction>(cachedIdleAction_);
+}
+
+void Board::setIdleAction(IdleAction action) {
+    prefs_.putUChar("idleAct", static_cast<uint8_t>(action));
+    cachedIdleAction_ = static_cast<uint8_t>(action);
+    idleActionCached_ = true;
+}
+
+uint16_t Board::sleepSeconds() {
+    if (!sleepSecsCached_) {
+        const uint16_t stored = prefs_.getUShort("sleepSecs", 60);
+        cachedSleepSecs_ = stored < 5 ? 5 : stored;
+        sleepSecsCached_ = true;
+    }
+    return cachedSleepSecs_;
+}
+
+void Board::setSleepSeconds(uint16_t seconds) {
+    const uint16_t clamped = seconds < 5 ? 5 : seconds;
+    prefs_.putUShort("sleepSecs", clamped);
+    cachedSleepSecs_ = clamped;
+    sleepSecsCached_ = true;
+}
+
+void Board::displaySleep() {
+    if (displayAsleep_) return;
+    ledcWrite(BL_CHANNEL, 0);
+    tft_.writecommand(0x10);  // ILI9341 SLPIN
+    displayAsleep_ = true;
+}
+
+void Board::displayWake() {
+    if (!displayAsleep_) return;
+    tft_.writecommand(0x11);  // ILI9341 SLPOUT
+    delay(120);
+    applyBrightness();
+    displayAsleep_ = false;
+}
+
+uint32_t Board::scoreFor(uint8_t profileIndex, const char* key, uint32_t fallback) {
+    if (profileIndex >= MAX_KIDS) return fallback;
+    char scopedKey[32];
+    snprintf(scopedKey, sizeof(scopedKey), "p%u_%s", profileIndex, key);
+    return prefs_.getUInt(scopedKey, fallback);
+}
+
+bool Board::hasScoreFor(uint8_t profileIndex, const char* key) {
+    if (profileIndex >= MAX_KIDS) return false;
+    char scopedKey[32];
+    snprintf(scopedKey, sizeof(scopedKey), "p%u_%s", profileIndex, key);
+    return prefs_.isKey(scopedKey);
+}
+
 bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
     if (isGuest()) return true;
     return gameVisibleFor(catalogIndex, activeProfile(), fallback);

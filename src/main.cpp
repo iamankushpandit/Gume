@@ -6,6 +6,7 @@
 #include "games/CountingGame.h"
 #include "games/ColorMixGame.h"
 #include "games/FractionGame.h"
+#include "games/GreWordsGame.h"
 #include "games/MazeGame.h"
 #include "games/MathGame.h"
 #include "games/MemoryGame.h"
@@ -16,6 +17,7 @@
 #include "games/FingerCountGame.h"
 #include "games/FlagGame.h"
 #include "games/NumberLineGame.h"
+#include "games/PercentCircleGame.h"
 #include "games/SequenceGame.h"
 #include "games/ProfileGame.h"
 #include "games/ScoresGame.h"
@@ -444,6 +446,8 @@ private:
         Trace,
         StateFlag,
         StateMap,
+        Percent,
+        GreWords,
         Scores,
         Profiles,
         Flag,
@@ -498,7 +502,8 @@ private:
         EntryKind::SlidingPuzzle, EntryKind::OddOneOut, EntryKind::ObjectAdd,
         EntryKind::FingerCount,   EntryKind::Sequence,  EntryKind::NumberLine,
         EntryKind::Flag,          EntryKind::States,    EntryKind::Trace,
-        EntryKind::StateFlag,     EntryKind::StateMap,
+        EntryKind::StateFlag,     EntryKind::StateMap,   EntryKind::Percent,
+        EntryKind::GreWords,
     };
 
     LauncherEntry allEntry(uint8_t raw) const {
@@ -676,6 +681,12 @@ private:
                 break;
             case EntryKind::StateMap:
                 activeGame_ = &stateMap_;
+                break;
+            case EntryKind::Percent:
+                activeGame_ = &percent_;
+                break;
+            case EntryKind::GreWords:
+                activeGame_ = &greWords_;
                 break;
             case EntryKind::Scores:
                 activeGame_ = &scores_;
@@ -897,6 +908,23 @@ private:
                 tft.drawRoundRect(cx - 14, cy - 14, 28, 28, 2, TFT_WHITE);
                 tft.fillTriangle(cx - 6, cy - 8, cx + 10, cy - 2, cx - 2, cy + 10, Ui::rgb(36, 132, 204));
                 tft.fillCircle(cx + 10, cy + 8, 4, Ui::rgb(255, 200, 0));
+                break;
+            case EntryKind::Percent:
+                tft.fillCircle(cx, cy, 16, TFT_WHITE);
+                tft.fillWedge(cx, cy, 16, 0, 90, Ui::rgb(255, 202, 84));
+                tft.drawCircle(cx, cy, 16, Ui::rgb(36, 132, 204));
+                tft.setTextColor(Ui::rgb(36, 132, 204), fill);
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString("%", cx, cy, 1);
+                tft.setTextDatum(TL_DATUM);
+                break;
+            case EntryKind::GreWords:
+                tft.fillRoundRect(cx - 12, cy - 12, 20, 20, 3, Ui::rgb(160, 170, 176));
+                tft.fillRoundRect(cx - 14, cy - 14, 20, 20, 3, TFT_WHITE);
+                tft.setTextColor(Ui::rgb(36, 132, 204), TFT_WHITE);
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString("Aa", cx - 2, cy - 2, 2);
+                tft.setTextDatum(TL_DATUM);
                 break;
             case EntryKind::Profiles:
                 tft.fillCircle(cx - 6, cy - 5, 6, TFT_WHITE);
@@ -1319,6 +1347,8 @@ private:
     StateFlagGame stateFlag_;
     StateMapGame stateMap_;
     TraceGame trace_;
+    PercentCircleGame percent_;
+    GreWordsGame greWords_;
     ProfileGame profile_;
     ScoresGame scores_;
     NumberLineGame numberLine_;

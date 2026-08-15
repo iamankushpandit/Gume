@@ -124,6 +124,12 @@ public:
     /** The opposite extreme, recorded automatically alongside every best. */
     uint32_t worstScore(const char* key, uint32_t fallback = 0);
     bool hasScore(const char* key);
+    /* Read another profile's record without switching to it. Scores are
+     * normally scoped to whoever is playing; the Scores screen needs to look
+     * across every child to show who holds the device best. Guest
+     * (GUEST_INDEX) never persists anything, so it is never a holder. */
+    uint32_t scoreFor(uint8_t profileIndex, const char* key, uint32_t fallback = 0);
+    bool hasScoreFor(uint8_t profileIndex, const char* key);
 
     /* Small binary blobs, used by engine/Progress for per-item mastery. */
     void loadBlob(const char* key, void* dst, size_t len);
@@ -144,6 +150,35 @@ public:
     void setLayoutMode(LayoutMode mode);
     uint16_t screenSaverSeconds();
     void setScreenSaverSeconds(uint16_t seconds);
+    /* What happens when the device has been idle for screenSaverSeconds().
+     *
+     * SaverThenSleep  the Pong saver runs, then the panel blanks after
+     *                 sleepSeconds() more.
+     * SleepOnly       skip the saver; blank the panel immediately.
+     * SaverOnly       run the saver and never blank. */
+    enum class IdleAction : uint8_t {
+        SaverThenSleep = 0,
+        SleepOnly      = 1,
+        SaverOnly      = 2,
+    };
+    IdleAction idleAction();
+    void setIdleAction(IdleAction action);
+
+    /* Seconds spent in the screen saver before the panel blanks. Ignored when
+     * idleAction() is SleepOnly (the panel blanks at screenSaverSeconds()) or
+     * SaverOnly (it never blanks). */
+    uint16_t sleepSeconds();
+    void setSleepSeconds(uint16_t seconds);
+
+    /* Panel sleep. Backlight to zero and the controller to its low-power
+     * state; the CPU stays up so touch still wakes it. This is NOT
+     * esp_deep_sleep -- there is no wake source wired for that on this board.
+     * displayWake() restores the user's brightness setting. Wrap the call in
+     * a Watchdog::Pause guard so the 120ms panel wake delay does not look like
+     * a hang. */
+    void displaySleep();
+    void displayWake();
+    bool displayAsleep() const { return displayAsleep_; }
     bool gameVisible(uint8_t catalogIndex, bool fallback = true);
     void setGameVisible(uint8_t catalogIndex, bool visible);
     bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true);
@@ -281,6 +316,11 @@ private:
     uint8_t cachedLayout_ = 0;
     bool idleCached_ = false;
     uint16_t cachedIdleSecs_ = 0;
+    bool idleActionCached_ = false;
+    uint8_t cachedIdleAction_ = 0;
+    bool sleepSecsCached_ = false;
+    uint16_t cachedSleepSecs_ = 0;
+    bool displayAsleep_ = false;
 
     /* Game visibility as a bitmask for one profile: bit i = catalog index i.
      * 32 bits covers the 26-game catalog with room to grow. Loaded in one

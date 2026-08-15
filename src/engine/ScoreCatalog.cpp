@@ -28,6 +28,8 @@ const ScoreEntry SCORE_CATALOG[] = {
     { "states",     "US States",   "stateBest",  "pts",  false },
     { "stateflags", "State Flags", "sflagBest",  "pts",  false },
     { "statemaps",  "State Maps",  "smapBest",   "pts",  false },
+    { "percent",    "Percent",     "pctBest",    "pts",  false },
+    { "grewords",   "GRE Words",   "greBest",    "pts",  false },
 };
 
 const uint8_t SCORE_CATALOG_COUNT = sizeof(SCORE_CATALOG) / sizeof(SCORE_CATALOG[0]);
