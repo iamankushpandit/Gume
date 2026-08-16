@@ -6,7 +6,7 @@ A major console refresh with a new product name, redesigned launcher icons,
 two new games (Dice, Coin Flip), the BLE beacon renamed to **Braino**, and an
 opt-in anonymous score exchange with other consoles in the room.
 
-Flash 2,323,185 / 3,145,728 (73.9%), RAM 72,752 / 327,680 (22.2%).
+Flash 2,323,937 / 3,145,728 (73.9%), RAM 71,980 / 327,680 (22.0%).
 
 ### Changed
 
