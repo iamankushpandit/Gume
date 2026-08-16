@@ -1,6 +1,6 @@
-# GoodTime Kids
+# Braino!
 
-A 28-game educational console for young children, running on an **ESP32-32E
+A 30-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -15,9 +15,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 28 |
-| Flash | 2,310,577 / 3,145,728 bytes (**73.5%**) |
-| RAM | 68,036 / 327,680 bytes (**20.8%**) |
+| Games | 30 |
+| Flash | 2,315,149 / 3,145,728 bytes (**73.6%**) |
+| RAM | 68,268 / 327,680 bytes (**20.8%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -110,6 +110,8 @@ uses **adaptive difficulty** — see below.
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
 | **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, with Again and Next controls so a child can repeat any character | 3–6 |
 | **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older student, not a preschooler | 15+ |
+| **Dice** | Pick one, two or three dice and throw them | A physical randomiser to play board games with when the real dice are lost. Keeps no score, because a best total would be luck | 3+ |
+| **Coin Flip** | Spin a coin, best of one, three or five | Settling an argument fairly, and seeing that best-of-five is not the same as one toss. Keeps no score, for the same reason | 4+ |
 
 ---
 
@@ -236,6 +238,8 @@ One screen per game, in launcher order.
   <img src="docs/screens/trace-lower.png" width="300" alt="Trace: lowercase letters">
   <img src="docs/screens/grewords.png" width="300" alt="GRE Words: pick the meaning">
   <img src="docs/screens/grewords-study.png" width="300" alt="GRE Words: study card">
+  <img src="docs/screens/dice.png" width="300" alt="Dice: three dice thrown">
+  <img src="docs/screens/coinflip.png" width="300" alt="Coin Flip: best of five">
 </p>
 
 ---
@@ -313,7 +317,8 @@ just far more slowly than with the backlight on.
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
 - **Profiles** -- shown at boot; picks whose scores are being written. Carries
-  the GoodTime Kids product mark in a branded header.
+  the Braino! product mark in a branded header, with the GoodTime Micro
+  copyright beside it.
 - **Scores** -- two tabs:
   - **Mine** shows bests and worsts for the active child, per game.
   - **Device** shows the device-wide best and its holder across every child on

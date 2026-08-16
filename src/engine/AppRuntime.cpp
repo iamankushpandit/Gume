@@ -1,6 +1,5 @@
 #include "AppRuntime.h"
 
-#include <esp_system.h>
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
@@ -80,7 +79,13 @@ void KidsPlatformApp::begin() {
     if (!board_.hasTouchCalibration()) {
         board_.runTouchCalibration();
     }
-    randomSeed(static_cast<uint32_t>(esp_random()));
+    /* Deliberately not seeded. randomSeed() reads like it improves things and
+     * does the reverse on this core: arduino-esp32 defaults random() to the
+     * hardware RNG, and randomSeed() switches it to newlib rand() for the rest
+     * of the boot. Seeding it from esp_random() -- which is what used to happen
+     * here -- bought one good number and then spent the next thirty games on a
+     * software PRNG. Leaving it alone keeps every draw hardware-backed. See
+     * engine/Entropy.h. */
     content_.begin(board_);
     Clock::begin();
     Serial.printf("[boot] rot=%d layout=%s (CYD_SCREEN_ROTATION=%d)\n",
@@ -192,6 +197,25 @@ uint8_t KidsPlatformApp::effectiveRotation(bool landscape) {
     return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
 }
 
+/* One place that decides orientation, because it used to be three and one of
+ * them was wrong.
+ *
+ * Playable games are authored against a fixed 320x240 landscape canvas and are
+ * always landscape. The launcher (activeApp_ == nullptr) and the system apps
+ * that opted into followsLayout honour the user's layout setting.
+ *
+ * launch() had this right. wakeFromSleep() and exitScreenSaver() both tested
+ * `activeApp_ != nullptr` instead -- true for *every* launched app, including
+ * Profiles and System Info, which both follow layout -- so returning from the
+ * screen saver or from sleep forced those two screens to landscape and left
+ * them there. Boot into Profiles in Vertical layout was correct; idle until the
+ * saver came on, then touch, and it came back landscape. */
+uint8_t KidsPlatformApp::rotationForActiveScreen() {
+    const bool followsLayout = (activeApp_ == nullptr) || activeApp_->followsLayout;
+    return effectiveRotation(!followsLayout ||
+                             board_.layoutMode() != Board::LayoutMode::Vertical);
+}
+
 void KidsPlatformApp::leaveActiveGame() {
     if (activeGame_ == nullptr) {
         return;
@@ -209,7 +233,7 @@ void KidsPlatformApp::goHome() {
     activeGame_ = &launcher_;
     activeApp_ = nullptr;
     view_ = View::Game;
-    applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
+    applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
     activeGame_->render(*this);

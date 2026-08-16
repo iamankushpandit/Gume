@@ -1,4 +1,4 @@
-﻿# GUme â€” GoodTime Kids
+﻿# GUme â€” Braino!
 
 ## Two standing rules â€” do these without being asked
 
@@ -140,7 +140,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 28 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 30 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -247,9 +247,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,310,577 / 3,145,728 bytes,
-**73.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 68,036 / 327,680 (20.8%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,315,149 / 3,145,728 bytes,
+**73.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 68,268 / 327,680 (20.8%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -303,7 +303,7 @@ call site sits inside a `Watchdog::Pause` guard.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a child clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 28 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 30 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.

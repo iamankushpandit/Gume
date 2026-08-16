@@ -52,6 +52,8 @@ private:
     static constexpr uint8_t CYD_PORTRAIT_ROTATION = 0;
 
     uint8_t effectiveRotation(bool landscape);
+    /** The rotation the screen that is up right now asks for. */
+    uint8_t rotationForActiveScreen();
     void applyRotation(uint8_t rotation);
     void leaveActiveGame();
     const char* activeAppTitle() const;

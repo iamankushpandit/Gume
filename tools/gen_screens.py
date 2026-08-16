@@ -34,6 +34,11 @@ if HAVE_ART:
 else:
     IMAGES = {}
 
+# Product identity, mirroring include/AppVersion.h. The mock-ups are the
+# fifth place the name used to be typed out; keep it in one name here too.
+PRODUCT = "Braino!"
+COPYRIGHT_SHORT = "(C) GoodTime Micro"
+
 W, H = 320, 240
 BG, SURFACE, PANEL = (18, 20, 26), (32, 36, 46), (52, 58, 72)
 TEXT, MUTED, OUTLINE = (232, 236, 242), (140, 148, 162), (86, 94, 110)
@@ -430,8 +435,8 @@ def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
-    d.text((10, 5), "GoodTime Kids!", font=F4, fill=TEXT)
-    d.text((10, 34), "(C) GoodTime Micro", font=F1, fill=MUTED)
+    d.text((10, 5), PRODUCT, font=F4, fill=TEXT)
+    d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # Profile name: plain text on the byline row, no button chrome.
     d.text((124, 34), "Ava", font=F1, fill=TEXT)
     t = "12:41 AM"
@@ -462,8 +467,10 @@ def launcher_wide():
 def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
-    t = "GoodTime Kids!"
-    d.text((120 - d.textlength(t, font=F4) / 2, 6), t, font=F4, fill=TEXT)
+    # Title left, copyright right, sharing the top row. See AppRuntimeLauncher.
+    d.text((10, 6), PRODUCT, font=F4, fill=TEXT)
+    d.text((232 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
+           font=F1, fill=MUTED)
     d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
     d.text((8, 36), "Ava", font=F2, fill=TEXT)
     d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
@@ -1288,30 +1295,98 @@ def profiles_pick():
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     # Header band
     d.rectangle([0, 0, W, 30], fill=SURFACE)
-    d.text((10, 15 - 9), "GoodTime Kids!", font=F4, fill=TEXT)
-    d.text((W - 8 - d.textlength("(C) GoodTime Micro", font=F1), 15 - 5), "(C) GoodTime Micro", font=F1, fill=MUTED)
-    # "Who is playing?" and guest hint
-    d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 35), "Who is playing?", font=F2, fill=TEXT)
-    d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 43),
+    d.text((10, 15 - 9), PRODUCT, font=F4, fill=TEXT)
+    d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
+    # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
+    # promptY = 32 in landscape, and the hint sits 18px below it.
+    d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
+    d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
-    # Profile rows: 6 rows (5 children + Guest) at y=46, pitch=27, height=25
+    # Six rows (five children + Guest) from ProfileGame's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
-        y = 46 + i * 27
+        y = 60 + i * 25
         slot_w = W - 22 - 62
         # Profile slot
-        d.rounded_rectangle([8, y, 8 + slot_w, y + 25], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
-        d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 25 / 2 - 6),
+        d.rounded_rectangle([8, y, 8 + slot_w, y + 23], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
+        d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 23 / 2 - 6),
                prof, font=F2, fill=WHITE if prof == "Alice" else TEXT)
         # Edit button for non-Guest
         if prof != "Guest":
-            d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 25], 4, fill=SURFACE, outline=OUTLINE)
-            d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 25 / 2 - 6),
+            d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 23], 4, fill=SURFACE, outline=OUTLINE)
+            d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 23 / 2 - 6),
                    "Edit", font=F2, fill=MUTED)
     # Add Player and Done buttons
     btn_w = (W - 24) // 2
     button(d, (8, H - 30, btn_w, 26), "Add Player", GREEN, WHITE)
     button(d, (16 + btn_w, H - 30, btn_w, 26), "Done")
+    return im
+
+
+# Geometry below comes from DiceGame's and CoinFlipGame's own Rect helpers:
+# the count buttons at (86 + i*52, 46, 44, 26), the action button at
+# (85, 198, 150, 34), dice at 68px on a 14px gap, coin at r=34 centred on
+# (160, 116). Change either game and change these to match.
+DIE_PIPS = {
+    2: (0, 8),
+    5: (0, 2, 4, 6, 8),
+    6: (0, 2, 3, 5, 6, 8),
+}
+
+
+def dice():
+    im, d = blank(); topbar(d, "Dice")
+    d.text((W / 2 - d.textlength("How many dice?", font=F1) / 2, 34),
+           "How many dice?", font=F1, fill=MUTED)
+    for i, label in enumerate("123"):
+        on = label == "3"
+        button(d, (86 + i * 52, 46, 44, 26), label,
+               BLUE if on else PANEL, WHITE if on else TEXT)
+
+    faces = (5, 2, 6)
+    span = 3 * 68 + 2 * 14
+    x0 = (W - span) // 2
+    for i, face in enumerate(faces):
+        x = x0 + i * 82
+        d.rounded_rectangle([x, 88, x + 67, 155], 10, fill=WHITE, outline=OUTLINE)
+        step = 68 // 4
+        for cell in DIE_PIPS[face]:
+            cx = x + step + (cell % 3) * step
+            cy = 88 + step + (cell // 3) * step
+            d.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=(0, 0, 0))
+
+    total = "Total %d" % sum(faces)
+    d.text((W / 2 - d.textlength(total, font=F4) / 2, 178 - 9), total, font=F4, fill=TEXT)
+    button(d, (85, 198, 150, 34), "Roll", GREEN, WHITE, F4)
+    return im
+
+
+COIN_FACE, COIN_EDGE = (226, 182, 72), (150, 116, 34)
+
+
+def coinflip():
+    im, d = blank(); topbar(d, "Coin Flip")
+    d.text((W / 2 - d.textlength("Best of how many?", font=F1) / 2, 34),
+           "Best of how many?", font=F1, fill=MUTED)
+    for i, label in enumerate("135"):
+        on = label == "5"
+        button(d, (86 + i * 52, 46, 44, 26), label,
+               BLUE if on else PANEL, WHITE if on else TEXT)
+
+    # The settled coin: full width, so it carries a readable face.
+    d.ellipse([126, 82, 194, 150], fill=COIN_FACE, outline=COIN_EDGE)
+    d.text((160 - d.textlength("H", font=F4) / 2, 116 - 9), "H", font=F4, fill=COIN_EDGE)
+
+    results = "HTHTH"
+    px0 = (W - (len(results) - 1) * 28) // 2
+    for i, side in enumerate(results):
+        px = px0 + i * 28
+        d.ellipse([px - 10, 156, px + 10, 176], fill=COIN_FACE, outline=COIN_EDGE)
+        d.text((px - d.textlength(side, font=F1) / 2, 166 - 5), side, font=F1, fill=COIN_EDGE)
+
+    verdict = "Heads wins 3-2"
+    d.text((W / 2 - d.textlength(verdict, font=F2) / 2, 187 - 7), verdict, font=F2, fill=TEXT)
+    button(d, (85, 198, 150, 34), "Flip", GREEN, WHITE, F4)
     return im
 
 
@@ -1344,6 +1419,8 @@ EXTRA_SCREENS = [
     ("percent", percent, "Percent: read the circle"),
     ("grewords", grewords, "GRE Words: pick the meaning"),
     ("grewords-study", grewords_study, "GRE Words: study card"),
+    ("dice", dice, "Dice: three dice thrown"),
+    ("coinflip", coinflip, "Coin Flip: best of five"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

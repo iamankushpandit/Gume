@@ -36,9 +36,9 @@ def fail(problems, message):
 def check_version(problems):
     """README's stated release must match the firmware constant."""
     header = read("include", "AppVersion.h")
-    match = re.search(r'GOODTIME_KIDS_VERSION\s+"([^"]+)"', header)
+    match = re.search(r'BRAINO_VERSION\s+"([^"]+)"', header)
     if not match:
-        fail(problems, "AppVersion.h: GOODTIME_KIDS_VERSION not found")
+        fail(problems, "AppVersion.h: BRAINO_VERSION not found")
         return
     version = match.group(1)
 
@@ -125,7 +125,8 @@ def check_about_is_derived(problems):
     CLAUDE.md; this catches the specific regression of hardcoding again.
     """
     about = read("src", "games", "AboutGame.cpp")
-    for symbol in ("playableAppAt", "playableAppCount", "GOODTIME_KIDS_VERSION",
+    for symbol in ("playableAppAt", "playableAppCount", "BRAINO_VERSION",
+                   "BRAINO_PRODUCT_NAME", "BRAINO_COPYRIGHT",
                    "BOARD_NAME", "BleBeacon::active"):
         if symbol not in about:
             fail(problems, "AboutGame.cpp no longer reads %s -- About is "

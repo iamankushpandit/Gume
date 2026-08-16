@@ -2,8 +2,85 @@
 
 ## Unreleased
 
-- Launcher game tiles now use a more polished, consistent icon style, with
-  clearer Percent and Fingers artwork and refreshed symbols across the catalog.
+### Changed
+
+- **The console is now Braino!** The product was GoodTime Kids; it is Braino!
+  from this release. The owner did not change: every copyright line still reads
+  GoodTime Micro Company, and the trademark notice records the old name so the
+  two facts cannot be conflated later. The name and both copyright forms now
+  live only in `include/AppVersion.h` -- they had been typed out in five places,
+  which is the same shape of drift that once left About six games behind.
+  `GOODTIME_KIDS_VERSION` is now `BRAINO_VERSION`.
+- **Launcher game tiles now have a consistent shaded icon system.** Every game
+  and system tile was reworked around a larger circular plate with a soft
+  shadow, stronger outlines and clearer symbols. Percent and Fingers got the
+  most direct cleanup, and Dice and Coin Flip use the same icon treatment.
+
+### Added
+
+- **Dice.** Pick one, two or three dice and throw them; the faces tumble for a
+  second before they settle. No score is kept -- a best total here would be
+  luck, reachable in a few taps and then frozen at 18 forever, so it would only
+  add a dead row to the Scores app.
+- **Coin Flip.** Best of one, three or five spins. Each coin squashes edge-on
+  and back as it spins, then lands, and a pip row fills in as the round goes on.
+  No score, for the same reason as Dice.
+
+### Changed
+
+- The web installer offers only the console firmware. The bring-up and Wi-Fi
+  diagnostics are still built by CI and still documented in the README, but they
+  are no longer in the browser flasher's picker, where choosing one replaces a
+  working console with a serial test.
+
+### Fixed
+
+- **Every game was drawing from a software PRNG, not the hardware RNG.**
+  `AppRuntime::begin()` called `randomSeed(esp_random())`, which reads like an
+  improvement and is the opposite on this core: arduino-esp32 defaults
+  `random()` to `esp_random()`, and `randomSeed()` switches it to newlib `rand()`
+  for the rest of the boot. One good number bought, then 123 draws across 25
+  games spent on a once-seeded LCG. The call is gone. Dice and Coin Flip
+  additionally draw through `engine/Entropy.h`, straight from `esp_random()`
+  with the modulo bias rejected, because for those two the draw is the product.
+- **The device could stop waking from a long sleep.** `applyTimeConfig()` handed
+  lwIP's SNTP client `ntpServer().c_str()` -- the buffer of a `String` temporary
+  destroyed at the end of that statement. `sntp_setservername()` keeps the
+  pointer rather than copying the string, so the daemon was left holding freed
+  heap and dereferenced it on its own poll cadence. That block survives while
+  nothing reuses it, which is why the fault needed hours of idling to appear.
+  The name now lives in a `Board` member. The same call was also being re-issued
+  every five minutes forever, stopping and restarting the daemon each time for
+  no benefit; it is idempotent now.
+- The ILI9341 ignores Sleep Out within 120ms of a Sleep In. `displayWake()` now
+  waits out the remainder, which a tap arriving just after the saver handed over
+  to sleep could otherwise land inside.
+- The Wi-Fi tile drew outside its own tile. It painted the bottom halves of two
+  full circles out with a rectangle in the tile colour, and the mask was three
+  pixels short, so the base of the outer ring survived at `cy + 24` -- past the
+  bottom edge of a 46px landscape tile. It is drawn as real arcs now.
+- The Coin Flip tile had the same overflow, from its edge-on sliver.
+- Several icons set the text datum to `MC_DATUM` and returned without restoring
+  it, re-aligning whatever the launcher drew next.
+- **Profiles and System Info came back from the screen saver in the wrong
+  orientation.** Both opt into `followsLayout`, and both were laid out correctly
+  when opened -- but `wakeFromSleep()` and `exitScreenSaver()` tested
+  `activeApp_ != nullptr`, which is true for *every* launched app, and forced
+  landscape. Boot into Profiles in Vertical layout looked right; idle until the
+  saver came on, touch to dismiss, and it came back landscape and stayed there.
+  All three call sites now share one `rotationForActiveScreen()`; the rule was
+  written out three times and one copy was wrong.
+- **The launcher never drew the copyright in Vertical layout.** The landscape
+  branch drew it and the portrait branch did not, so owners running the device
+  in portrait never saw it on the home screen. It now shares the top row with
+  the title, right-aligned, which costs portrait its centred title and makes the
+  launcher and Profiles headers agree.
+- **Profiles.** "Who is playing?" and the guest hint overlapped each other in
+  both orientations, and in portrait the hint ran straight through the first
+  profile row. In portrait the copyright line also collided with the title,
+  which is too wide at 240px to share that line. "Braino!" is half the width, so
+  both orientations went back to sharing one 30px header bar.
+
 - The GitHub Pages installer now showcases every generated still for the games,
   launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the
   screen saver instead of showing only the launcher mock-ups.

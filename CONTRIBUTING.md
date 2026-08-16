@@ -1,6 +1,7 @@
 # Contributing
 
-GUme is a small firmware project with a large code surface: 28 built-in games,
+GUme is the repository behind **Braino!**, a small firmware project with a
+large code surface: 30 built-in games,
 system apps, hardware drivers, generated screenshots, a web installer and CI.
 The code in this repo has largely been built with Claude or other coding agents
 under human direction, so the repo includes explicit instructions and machine

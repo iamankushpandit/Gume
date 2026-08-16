@@ -269,7 +269,7 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("Chip", String(ESP.getChipModel()) + " r" + ESP.getChipRevision());
     rows_.addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
     rows_.addRow("SDK", ESP.getSdkVersion());
-    rows_.addRow("Firmware", GOODTIME_KIDS_VERSION);
+    rows_.addRow("Firmware", BRAINO_VERSION);
     rows_.addRow("Reset", Watchdog::resetReasonText(static_cast<int>(esp_reset_reason())));
     rows_.addRow("Uptime", uptimeText(millis() / 1000UL));
 

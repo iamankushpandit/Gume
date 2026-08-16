@@ -3,7 +3,9 @@
 #include "games/AboutGame.h"
 #include "games/CinnamonGame.h"
 #include "games/ColorMixGame.h"
+#include "games/CoinFlipGame.h"
 #include "games/CountingGame.h"
+#include "games/DiceGame.h"
 #include "games/FingerCountGame.h"
 #include "games/FlagGame.h"
 #include "games/FractionGame.h"
@@ -66,6 +68,8 @@ struct GameInstances {
     StateMapGame stateMap;
     PercentCircleGame percent;
     GreWordsGame greWords;
+    DiceGame dice;
+    CoinFlipGame coinFlip;
     ProfileGame profile;
     ScoresGame scores;
     AboutGame about;

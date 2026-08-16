@@ -52,6 +52,23 @@ void smallCard(Ui::Renderer& tft, int16_t x, int16_t y, int16_t w, int16_t h,
     tft.drawRoundRect(x, y, w, h, 3, outline);
 }
 
+void drawDieFace(Ui::Renderer& tft, int16_t x, int16_t y, int16_t size,
+                 uint16_t body, uint16_t outline, uint16_t mask) {
+    tft.fillRoundRect(x + 1, y + 2, size, size, 4, Ui::rgb(176, 190, 210));
+    tft.fillRoundRect(x, y, size, size, 4, body);
+    tft.drawRoundRect(x, y, size, size, 4, outline);
+    const int16_t step = static_cast<int16_t>(size / 4);
+    const int16_t pipR = size > 19 ? 2 : 1;
+    for (uint8_t cell = 0; cell < 9; ++cell) {
+        if ((mask & (1u << (8 - cell))) == 0) {
+            continue;
+        }
+        tft.fillCircle(static_cast<int16_t>(x + step + (cell % 3) * step),
+                       static_cast<int16_t>(y + step + (cell / 3) * step),
+                       pipR, ink());
+    }
+}
+
 void drawFlagShape(Ui::Renderer& tft, int16_t cx, int16_t cy,
                    uint16_t mainColor, uint16_t accentColor) {
     thickLine(tft, cx - 13, cy - 14, cx - 13, cy + 15, ink());
@@ -361,6 +378,19 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.fillRoundRect(cx - 10, cy - 10, 7, 19, 2, sky());
             tft.fillRoundRect(cx - 2, cy - 10, 7, 19, 2, sun());
             drawText(tft, "Aa", cx + 2, cy + 1, 2, ink(), paper());
+            break;
+        case LauncherIcon::Dice:
+            drawPlate(tft, cx, cy, fill);
+            drawDieFace(tft, cx - 1, cy - 16, 18, Ui::rgb(226, 235, 244), inkSoft(), 0x101);
+            drawDieFace(tft, cx - 15, cy - 2, 21, paper(), ink(), 0x155);
+            break;
+        case LauncherIcon::CoinFlip:
+            drawPlate(tft, cx, cy, fill);
+            tft.fillCircle(cx + 5, cy - 1, 12, coinGold());
+            tft.drawCircle(cx + 5, cy - 1, 12, ink());
+            tft.drawCircle(cx + 5, cy - 1, 8, Ui::shade(coinGold(), 70));
+            tft.fillRoundRect(cx - 15, cy - 10, 8, 20, 4, Ui::shade(coinGold(), 128));
+            tft.drawRoundRect(cx - 15, cy - 10, 8, 20, 4, ink());
             break;
         case LauncherIcon::Profiles:
             drawPlate(tft, cx, cy, fill);

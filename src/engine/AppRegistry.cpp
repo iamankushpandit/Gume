@@ -33,6 +33,8 @@ Game& stateFlag(GameInstances& games) { return games.stateFlag; }
 Game& stateMap(GameInstances& games) { return games.stateMap; }
 Game& percent(GameInstances& games) { return games.percent; }
 Game& greWords(GameInstances& games) { return games.greWords; }
+Game& dice(GameInstances& games) { return games.dice; }
+Game& coinFlip(GameInstances& games) { return games.coinFlip; }
 Game& scores(GameInstances& games) { return games.scores; }
 Game& profiles(GameInstances& games) { return games.profile; }
 Game& settings(GameInstances& games) { return games.settings; }
@@ -84,6 +86,8 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(stateMapAppMetadata(), stateMap),
     metadataCatalogApp(percentCircleAppMetadata(), percent),
     metadataCatalogApp(greWordsAppMetadata(), greWords),
+    metadataCatalogApp(diceAppMetadata(), dice),
+    metadataCatalogApp(coinFlipAppMetadata(), coinFlip),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
