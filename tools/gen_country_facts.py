@@ -1,5 +1,5 @@
 """
-Generate src/games/CountryData.cpp for GoodTime Kids.
+Generate src/games/CountryData.cpp for Braino!.
 
     python tools/gen_country_facts.py
 

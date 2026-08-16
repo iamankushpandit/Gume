@@ -136,8 +136,16 @@ void Board::displaySleep() {
 void Board::displayWake() {
     if (!displayAsleep_) return;
     const uint32_t wakeStartMs = millis();
+    /* The ILI9341 ignores Sleep Out inside 120ms of a Sleep In, and a touch
+     * arriving that fast is reachable: the saver can hand over to sleep and the
+     * child's next tap lands milliseconds later. Wait out only the remainder --
+     * after a real sleep this is already long past and costs nothing. */
+    const uint32_t sinceSleep = wakeStartMs - displaySleepTelemetry_.lastSleepMs;
+    if (sinceSleep < PANEL_SLEEP_SETTLE_MS) {
+        delay(PANEL_SLEEP_SETTLE_MS - sinceSleep);
+    }
     tft_.writecommand(0x11);
-    delay(120);
+    delay(PANEL_SLEEP_SETTLE_MS);
     applyBrightness();
     displayAsleep_ = false;
     const uint32_t wakeEndMs = millis();

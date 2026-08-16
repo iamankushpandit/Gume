@@ -1,4 +1,4 @@
-﻿# GUme â€” GoodTime Kids
+﻿# GUme â€” Braino!
 
 ## Two standing rules â€” do these without being asked
 
@@ -41,7 +41,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 
 | About shows | Derived from |
 |---|---|
-| Version | `GOODTIME_KIDS_VERSION` |
+| Version | `BRAINO_VERSION` |
 | Game count and every game name/blurb | `AppRegistry` playable apps |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
@@ -140,7 +140,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 28 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 30 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -150,9 +150,36 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Two diagnostic environments exist for hardware triage:
-- `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
-- `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
+Five environments, because the 2.8-inch CYD ships with two different panel
+controllers on an otherwise identical board:
+
+| Env | What it is |
+|---|---|
+| `app` | the console, ILI9341 panel (single-USB board) — the default |
+| `app_st7789` | the console, ST7789 panel (two-USB board, a.k.a. CYD2USB) |
+| `bringup` | `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app, ILI9341 |
+| `bringup_st7789` | the same check for the ST7789 panel |
+| `wifidiag` | builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test. No display code, so one build serves both panels |
+
+### The panel matrix
+
+Only the **2.8-inch ESP32-2432S028R** is supported, in both its revisions. They
+share every GPIO; the difference is `[panel_ili9341]` vs `[panel_st7789]` in
+`platformio.ini` (driver, `TFT_RGB_ORDER`, inversion, `BOARD_NAME`). Adding a
+panel means a `[panel_*]` section, two envs, and an entry in `BOARDS` in
+`tools/gen_site.py` — nothing else, and **no** pin changes.
+
+**Only the ILI9341 board has ever been powered on.** Everything else is
+compiled against a published pin map, and the site labels it untested per
+board. Do not quietly promote a board to tested; that claim is about hardware
+someone else is holding.
+
+`ESP32-2432S024R` (2.4-inch) is deliberately excluded and is not a flag change:
+its XPT2046 **shares the display SPI bus**, which `Board::pollTouch()` cannot
+do — it bit-bangs dedicated pins — plus the backlight moves to GPIO 27 and
+GPIO 34 is a light sensor where this board has its battery divider. The
+3.5-inch boards need the 320×240 canvas letterboxed, and the S3 boards are a
+second HAL port.
 
 ### Build gotchas
 
@@ -247,9 +274,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,307,681 / 3,145,728 bytes,
-**73.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 68,036 / 327,680 (20.8%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,315,149 / 3,145,728 bytes,
+**73.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 68,268 / 327,680 (20.8%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -303,7 +330,7 @@ call site sits inside a `Watchdog::Pause` guard.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a child clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 28 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 30 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
@@ -430,25 +457,29 @@ docs/                     SD_CONTENT_SPEC.md, screens/
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all three PlatformIO
-environments on every push to `main`, runs `tools/gen_site.py`, and drops the
-resulting `.bin` files beside the manifest that points at them. Nobody
-regenerates it by hand, so it cannot go stale on its own â€” but three things
-break it, and all three fail in someone else's browser rather than here:
+Web Serial. `.github/workflows/pages.yml` builds the browser-offered firmware
+environments from `tools/gen_site.py --print-envs` on every push to `main`, then
+drops the resulting `.bin` files beside the manifest that points at them.
+Nobody regenerates it by hand, so it cannot go stale on its own â€” but three
+things break it, and all three fail in someone else's browser rather than here:
 
-1. **Adding or renaming a PlatformIO environment.** The page offers one
-   firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
-   build that env, its manifest points at binaries that do not exist and the
-   flash fails partway. `check_docs.py` cross-checks `VARIANTS` against
-   `platformio.ini` and the workflow.
+1. **Adding a board or browser-offered firmware.** The picker is the cross
+   product of `BOARDS` and `VARIANTS` in `gen_site.py`, and the Pages workflow
+   builds exactly what `gen_site.py --print-envs` reports, so one edit covers
+   page and published binaries. What still bites: an env named there that
+   `platformio.ini` does not define, which `check_docs.py` catches. Every board
+   carries a `tested` flag, and an untested one must say so in the picker --
+   that is checked too, because it is a claim about hardware nobody here is
+   holding.
 2. **Changing what the firmware transmits or stores.** The page carries a
    privacy section, and the same rule applies to it as to the About radio page
    and the README: a privacy claim that has drifted from the hardware is worse
    than none, because it is believed.
 3. **Making CI unable to build.** `platformio.ini` is expected to build on a
-   clean checkout, locally and in GitHub Actions. If `lib_deps` changes shape,
-   keep both `.github/workflows/ci.yml` and `.github/workflows/pages.yml`
-   building all three environments in the same commit.
+   clean checkout, locally and in GitHub Actions. If environments or `lib_deps`
+   change, keep `.github/workflows/ci.yml` building every firmware environment
+   and `.github/workflows/pages.yml` building every browser-offered environment
+   in the same commit.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.

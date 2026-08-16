@@ -1,8 +1,9 @@
 name: Pages
 
-# Builds every firmware environment, generates the site around them with
-# tools/gen_site.py, and publishes the result to GitHub Pages. The flash button
-# on the page is only as fresh as this run, so it runs on every push to main.
+# Builds every browser-offered firmware environment, generates the site around
+# them with tools/gen_site.py, and publishes the result to GitHub Pages. The
+# flash button on the page is only as fresh as this run, so it runs on every
+# push to main.
 #
 # Enable it once, in Settings -> Pages -> Build and deployment -> GitHub Actions.
 
@@ -53,19 +54,31 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      # The board matrix lives in gen_site.py, and the Pages workflow asks it
+      # what to build rather than keeping a second copy. A board offered on the
+      # page can then never go unbuilt -- that is the failure that publishes a
+      # manifest whose binaries do not exist.
       - name: Build firmware
-        run: pio run -e app -e bringup -e wifidiag
+        run: |
+          set -euo pipefail
+          args=""
+          for env in $(python tools/gen_site.py --print-envs); do
+            args="$args -e $env"
+          done
+          echo "building:$args"
+          pio run $args
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
       - name: Report image sizes
         run: |
+          set -euo pipefail
           {
             echo '### Firmware image sizes'
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup wifidiag; do
+            for env in $(python tools/gen_site.py --print-envs); do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"
@@ -75,20 +88,30 @@ jobs:
       - name: Generate the site
         run: python tools/gen_site.py --out _site --repo "${{ github.server_url }}/${{ github.repository }}"
 
+      # builds.json says which environment feeds which published directory, so
+      # this step does not need to know the board list either.
       - name: Collect the binaries next to their manifests
         run: |
           set -euo pipefail
           boot_app0=$(find ~/.platformio/packages -name boot_app0.bin -path '*partitions*' | head -n 1)
           test -n "$boot_app0"
-          for env in app bringup wifidiag; do
-            dest="_site/firmware/e32r28t1/$env"
-            test -d "$dest"
-            cp ".pio/build/$env/firmware.bin"   "$dest/"
-            cp ".pio/build/$env/bootloader.bin" "$dest/"
-            cp ".pio/build/$env/partitions.bin" "$dest/"
-            cp "$boot_app0"                     "$dest/"
-            ls -l "$dest"
-          done
+          python - "$boot_app0" <<'PY'
+          import json, os, shutil, sys
+
+          boot_app0 = sys.argv[1]
+          with open("_site/builds.json") as handle:
+              builds = json.load(handle)
+
+          for build in builds:
+              dest = os.path.join("_site", *build["dir"].split("/"))
+              src = os.path.join(".pio", "build", build["env"])
+              if not os.path.isdir(dest):
+                  sys.exit("no published directory for %s" % build["dir"])
+              for name in ("firmware.bin", "bootloader.bin", "partitions.bin"):
+                  shutil.copy(os.path.join(src, name), os.path.join(dest, name))
+              shutil.copy(boot_app0, os.path.join(dest, "boot_app0.bin"))
+              print("%-34s <- .pio/build/%s" % (build["dir"], build["env"]))
+          PY
 
       # A manifest that points at a missing .bin fails only at flash time, in
       # the user's browser, halfway through erasing their board. Check here.

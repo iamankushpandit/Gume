@@ -206,7 +206,7 @@
     },
     "src/hal/BoardPower.cpp": {
       "String": 0,
-      "delay": 1,
+      "delay": 2,
       "heap": 0
     },
     "src/hal/BoardTouch.cpp": {

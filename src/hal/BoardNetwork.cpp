@@ -277,19 +277,63 @@ void Board::beginTimeSync() {
     timeSyncState_ = TimeSyncState::Connecting;
 }
 
+/* Program lwIP's SNTP client, at most once per real configuration change.
+ *
+ * Two things here are load-bearing, and getting either wrong is invisible for
+ * hours and then fatal.
+ *
+ * First, the server name must outlive this call. lwIP's sntp_setservername()
+ * keeps the pointer rather than copying the string, and the daemon re-reads it
+ * every time it resolves the host -- on its own poll cadence, long after we
+ * have returned. It used to be handed ntpServer().c_str(), the buffer of a
+ * String temporary destroyed at the end of that same statement, so the daemon
+ * was left pointing into freed heap. That survives for as long as the block
+ * happens to go untouched, which is exactly why the device ran fine for
+ * minutes and died after hours, once Wi-Fi buffers had reused the memory. The
+ * name now lives in ntpServerName_, a member of the singleton board.
+ *
+ * Second, this is idempotent. It was re-issued every TIME_RESYNC_MS forever,
+ * and each call stops and restarts the daemon. That is not what keeps the
+ * clock honest -- once started, SNTP re-polls by itself -- it was pure churn,
+ * a dozen teardowns an hour for as long as the device stayed idle. */
 void Board::applyTimeConfig() {
+    /* Copied straight out of the temporary rather than held in a named local:
+     * the point of this whole function is that nothing lwIP keeps may live in
+     * a String. */
+    char wanted[NTP_NAME_CAP];
+    snprintf(wanted, sizeof(wanted), "%s", ntpServer().c_str());
+
     const uint8_t z = prefs_.getUChar("tzZone", 0xFF);
+
+    char tzSpec[TZ_SPEC_CAP];
     if (z != 0xFF && z < tzZoneCount()) {
-        const char* posix = tzZonePosix(z);
-        configTzTime(posix, ntpServer().c_str(), "time.google.com", "time.cloudflare.com");
-        Serial.printf("[time] configTzTime %s (%s)\n", tzZoneName(z), posix);
-        logNetworkActivity("SNTP cfg %s + fallbacks", ntpServer().c_str());
+        snprintf(tzSpec, sizeof(tzSpec), "%s", tzZonePosix(z));
     } else {
-        const long off = static_cast<long>(tzOffsetMinutes()) * 60L;
-        configTime(off, 0, ntpServer().c_str(), "time.google.com", "time.cloudflare.com");
-        Serial.printf("[time] configTime offset=%lds server=%s\n", off, ntpServer().c_str());
-        logNetworkActivity("SNTP cfg %s + fallbacks", ntpServer().c_str());
+        /* The fixed-offset case, written as a POSIX zone so that one code path
+         * programs the daemon and one comparison decides whether it changed.
+         * POSIX TZ counts hours *west* of Greenwich, the opposite sign to the
+         * offset we store. */
+        const long west = -(static_cast<long>(tzOffsetMinutes()) * 60L);
+        const long absMin = (west < 0 ? -west : west) / 60L;
+        snprintf(tzSpec, sizeof(tzSpec), "GMT%c%ld:%02ld",
+                 west < 0 ? '-' : '+', absMin / 60L, absMin % 60L);
     }
+
+    if (sntpConfigured_ && strcmp(tzSpec, appliedTz_) == 0 &&
+        strcmp(wanted, ntpServerName_) == 0) {
+        return;
+    }
+
+    snprintf(ntpServerName_, sizeof(ntpServerName_), "%s", wanted);
+    snprintf(appliedTz_, sizeof(appliedTz_), "%s", tzSpec);
+    sntpConfigured_ = true;
+
+    /* ntpServerName_ and appliedTz_ are board members and the two fallbacks
+     * are string literals, so every pointer handed over here outlives the
+     * daemon that keeps it. Do not inline a String temporary back in. */
+    configTzTime(appliedTz_, ntpServerName_, "time.google.com", "time.cloudflare.com");
+    Serial.printf("[time] configTzTime %s server=%s\n", appliedTz_, ntpServerName_);
+    logNetworkActivity("SNTP cfg %s + fallbacks", ntpServerName_);
 }
 
 bool Board::ntpUdpProbe(const char* host) {

@@ -74,17 +74,22 @@ void AboutGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
+/* The product name and the copyright are two separate facts here, and the
+ * intro page is the one screen an owner reads to learn either. Braino! is the
+ * console; GoodTime Micro Company still owns it. Both come from AppVersion.h --
+ * this page must not be where either gets re-typed. */
 void AboutGame::renderIntro(Ui::Renderer& tft) {
-    drawLine(tft, 48, "(C) GoodTime Micro Company", 2);
+    drawLine(tft, 48, BRAINO_PRODUCT_NAME, 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 72, String("Educational games for the ") + BOARD_NAME + ".", 1);
-    drawLine(tft, 86, "Copyright 2026.", 1);
+    drawLine(tft, 70, BRAINO_COPYRIGHT, 1);
+    drawLine(tft, 84, String("Educational games for the ") + BOARD_NAME + ".", 1);
+    drawLine(tft, 98, "Copyright 2026.", 1);
     tft.setTextColor(Ui::text(), Ui::surface());
-    drawLine(tft, 108, String("Version ") + GOODTIME_KIDS_VERSION, 2);
-    drawLine(tft, 134, String(playableAppCount()) + " games built in", 2);
+    drawLine(tft, 116, String("Version ") + BRAINO_VERSION, 2);
+    drawLine(tft, 140, String(playableAppCount()) + " games built in", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 158, "195 flags and 50 US states,", 1);
-    drawLine(tft, 172, "all stored on the device.", 1);
+    drawLine(tft, 162, "195 flags and 50 US states,", 1);
+    drawLine(tft, 176, "all stored on the device.", 1);
     drawLine(tft, 190, "Up to 5 children, plus a Guest.", 1);
 }
 

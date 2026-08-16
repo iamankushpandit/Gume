@@ -3,7 +3,7 @@
 **Status: proposal. Nothing here is implemented.** This document is the design
 argument and the sequencing plan; it deliberately stops short of code.
 
-The thesis is short. GUme is currently *one program that contains 28 games*. It
+The thesis is short. GUme is currently *one program that contains 30 games*. It
 should be *a framework, plus a product assembled from it*. The framework is what
 other people contribute to; GUme becomes its first and reference distribution —
 and the proof that the framework is good enough to build a real product on.
@@ -83,7 +83,7 @@ renegotiating with 28 call sites.
 The framework needs an identity separate from the product, because the whole
 point is that someone can build a *different* product with it — a different age
 range, a different language, a different board. Working proposal: **`Slate`** for
-the framework, **GUme / GoodTime Kids** for the distribution built on it.
+the framework, **GUme / Braino!** for the distribution built on it.
 Alternatives worth a moment: `Tilekit`, `Handset`, `gume-core`. *Open decision —
 see §11.*
 

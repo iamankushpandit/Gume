@@ -47,7 +47,9 @@ This file tracks the review items that are still intentionally open after finish
 - No long-run test harness or documented soak procedure yet for heap stability, NVS writes, sleep/wake cycles, Wi-Fi sync, and repeated app transitions.
 
 11. Standardize naming
-- Branding still mixes `GUme`, `Gume`, and `GoodTime Kids` in different places.
+- ~~Branding still mixes `GUme`, `Gume`, and `GoodTime Kids` in different
+  places.~~ The product is **Braino!** and is spelled once, in
+  `include/AppVersion.h`; `GUme` remains the repository name only.
 
 12. Host execution SDK follow-through
 - `AppContext` narrowed host capabilities and rendering now goes through `Ui::Renderer`, but there is still no separate input or RNG abstraction and no host runner.

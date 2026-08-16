@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include <math.h>
+#include "AppVersion.h"
 #include "hal/Watchdog.h"
 
 void KidsPlatformApp::enterScreenSaver() {
@@ -29,33 +30,25 @@ void KidsPlatformApp::wakeFromSleep() {
         board_.displayWake();
     }
 
-    const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
-    const bool backToApp = backToGame && activeApp_ != nullptr;
-    applyRotation(
-        effectiveRotation(backToApp || board_.layoutMode() != Board::LayoutMode::Vertical));
-
     lastActivityMs_ = millis();
 
-    if (backToGame) {
+    if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
+        applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;
         activeGame_->requestRender();
     } else {
-        goHome();
+        goHome();   // applies its own rotation
     }
 }
 
 void KidsPlatformApp::exitScreenSaver() {
     board_.setRgbColor(0, 0, 0);
 
-    const bool backToGame = (ssavPrevView_ == View::Game && activeGame_ != nullptr);
-    const bool backToApp = backToGame && activeApp_ != nullptr;
-    applyRotation(
-        effectiveRotation(backToApp || board_.layoutMode() != Board::LayoutMode::Vertical));
-
     lastActivityMs_ = millis();
 
-    if (backToGame) {
+    if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
+        applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;
         activeGame_->requestRender();
@@ -185,9 +178,9 @@ void KidsPlatformApp::renderScreenSaver() {
     }
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::rgb(120, 128, 150), TFT_BLACK);
-    tft.drawString("GoodTime Micro", effW / 2, static_cast<int16_t>(cy - 10), 4);
+    tft.drawString(BRAINO_PRODUCT_NAME, effW / 2, static_cast<int16_t>(cy - 10), 4);
     tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
-    tft.drawString("(C) GoodTime Micro Company", effW / 2, static_cast<int16_t>(cy + 14), 1);
+    tft.drawString(BRAINO_COPYRIGHT, effW / 2, static_cast<int16_t>(cy + 14), 1);
     tft.setTextDatum(TL_DATUM);
     ssav_textCy_ = cy;
 
