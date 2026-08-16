@@ -238,5 +238,20 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.fillTriangle(cx - 2, cy - 8, cx - 6, cy + 1, cx - 1, cy + 1, Ui::rgb(255, 226, 90));
             tft.fillTriangle(cx + 2, cy + 8, cx + 6, cy - 1, cx + 1, cy - 1, Ui::rgb(255, 226, 90));
             break;
+
+        /* Two devices facing each other with a signal arc between them: the
+         * tile is about other consoles in the room, not about this one, so it
+         * is deliberately not another Bluetooth rune -- that glyph already
+         * means "my beacon is on" in the header. */
+        case LauncherIcon::Nearby:
+            tft.drawRoundRect(cx - 17, cy - 8, 10, 17, 2, TFT_WHITE);
+            tft.drawRoundRect(cx + 7, cy - 8, 10, 17, 2, TFT_WHITE);
+            tft.fillRect(cx - 15, cy - 6, 6, 9, Ui::rgb(120, 200, 255));
+            tft.fillRect(cx + 9, cy - 6, 6, 9, Ui::rgb(120, 200, 255));
+            for (int8_t i = 0; i < 3; ++i) {
+                const int16_t r = static_cast<int16_t>(2 + i * 2);
+                tft.drawCircle(cx, cy + 2, r, Ui::rgb(255, 226, 90));
+            }
+            break;
     }
 }

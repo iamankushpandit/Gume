@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include <esp_system.h>
+#include "engine/NearbyPlay.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
@@ -47,7 +48,13 @@ void KidsPlatformApp::setScore(const char* key, uint32_t value) {
 }
 
 bool KidsPlatformApp::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
-    return board_.saveBestScore(key, value, lowerIsBetter);
+    const bool improved = board_.saveBestScore(key, value, lowerIsBetter);
+    if (improved) {
+        /* Peers should see the number that is true now, not the one that was
+         * current when the screen opened. */
+        NearbyPlay::refreshScore(board_);
+    }
+    return improved;
 }
 
 void KidsPlatformApp::loadBlob(const char* key, void* dst, size_t len) {
@@ -91,6 +98,10 @@ void KidsPlatformApp::begin() {
                   (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
                   board_.wifiSsid().c_str(), (int)board_.tzOffsetMinutes());
     board_.beginTimeSync();
+    /* After Board::begin(), which is what brings the beacon up: Nearby play
+     * rides on that radio and must not try to arm itself before it exists. */
+    NearbyPlay::begin(board_);
+    lastBannerGeneration_ = NearbyPlay::bannerGeneration();
     lastClockMinute_ = Clock::minuteKey();
     lastActivityMs_ = millis();
     Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
@@ -110,6 +121,20 @@ void KidsPlatformApp::loop() {
 
     board_.tickTimeSync();
     board_.tickRgb();
+    NearbyPlay::tick(board_);
+
+    /* A notification appearing or expiring changes the header, and the header
+     * belongs to the screen underneath -- so the screen has to repaint before
+     * the strip is painted over it. Doing this here, ahead of the render
+     * below, keeps both in the same frame; events are a handful a minute, so
+     * the full repaint they cost is not worth optimising away. */
+    if (NearbyPlay::bannerGeneration() != lastBannerGeneration_) {
+        lastBannerGeneration_ = NearbyPlay::bannerGeneration();
+        bannerNeedsPaint_ = true;
+        if (view_ == View::Game && activeGame_ != nullptr) {
+            activeGame_->requestRender();
+        }
+    }
 
     if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased) {
         lastActivityMs_ = nowMs;
@@ -164,10 +189,13 @@ void KidsPlatformApp::loop() {
         } else {
             activeGame_->update(*this, touch);
         }
+        bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             activeGame_->render(*this);
             activeGame_->clearDirty();
+            repainted = true;
         }
+        drawNearbyBanner(repainted);
     }
 
     const uint32_t workMs = millis() - nowMs;
@@ -179,6 +207,23 @@ void KidsPlatformApp::loop() {
     } else {
         delay(1);
     }
+}
+
+/* Painted when it first appears and again whenever the screen underneath has
+ * just redrawn over it -- not on every frame. Repainting a 320x30 strip at
+ * 50Hz for five seconds would spend milliseconds a frame redrawing text that
+ * has not changed, and the frame budget is 20ms for everything. */
+void KidsPlatformApp::drawNearbyBanner(bool screenRepainted) {
+    const char* text = NearbyPlay::banner();
+    if (text == nullptr) {
+        bannerNeedsPaint_ = false;
+        return;
+    }
+    if (!bannerNeedsPaint_ && !screenRepainted) {
+        return;
+    }
+    bannerNeedsPaint_ = false;
+    Ui::drawNotification(renderer_, text);
 }
 
 void KidsPlatformApp::applyRotation(uint8_t rotation) {
@@ -205,6 +250,7 @@ void KidsPlatformApp::leaveActiveGame() {
 
 void KidsPlatformApp::goHome() {
     leaveActiveGame();
+    NearbyPlay::setActiveApp(board_, nullptr);
     Watchdog::setContext("Launcher");
     activeGame_ = &launcher_;
     activeApp_ = nullptr;

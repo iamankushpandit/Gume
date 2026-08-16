@@ -65,9 +65,15 @@ void buildPayload(Advertisement& a) {
              static_cast<uint8_t>(strlen(a.deviceName)));
 
     /* Manufacturer data: company id (little endian), family tag, layout
-     * version, device id. Five application-defined bytes, all of which the
-     * System Info screen decodes field by field. */
-    uint8_t mfg[8];
+     * version, device id, flags -- and, only while Nearby play is on, the
+     * open game and this device's best score for it. Every byte here is
+     * decoded field by field by the System Info screen and read back by
+     * decode() below, so there is one layout and not two.
+     *
+     * When sharing is off the block stops at the flag byte. The game and
+     * score fields are absent from the air rather than present-and-zero:
+     * "not transmitted" has to be structural to be worth claiming. */
+    uint8_t mfg[sizeof(a.manufacturerData)];
     uint8_t n = 0;
     mfg[n++] = static_cast<uint8_t>(a.companyId & 0xFF);
     mfg[n++] = static_cast<uint8_t>(a.companyId >> 8);
@@ -76,9 +82,24 @@ void buildPayload(Advertisement& a) {
     mfg[n++] = PAYLOAD_VERSION;
     mfg[n++] = idBytes_[0];
     mfg[n++] = idBytes_[1];
+    mfg[n++] = a.sharesActivity ? FLAG_SHARES_ACTIVITY : 0x00;
+    if (a.sharesActivity) {
+        mfg[n++] = a.gameIndex;
+        mfg[n++] = static_cast<uint8_t>(a.bestScore & 0xFF);
+        mfg[n++] = static_cast<uint8_t>((a.bestScore >> 8) & 0xFF);
+        mfg[n++] = static_cast<uint8_t>((a.bestScore >> 16) & 0xFF);
+        mfg[n++] = static_cast<uint8_t>((a.bestScore >> 24) & 0xFF);
+    }
     a.manufacturerLen = n;
     memcpy(a.manufacturerData, mfg, n);
-    appendAd(a, AD_MANUFACTURER, a.manufacturerData, a.manufacturerLen);
+    /* The sharing payload uses all 31 legal bytes, so a longer device name or
+     * another AD structure would silently push this one off the air. Say so
+     * rather than transmitting an advertisement nobody can decode. */
+    if (!appendAd(a, AD_MANUFACTURER, a.manufacturerData, a.manufacturerLen)) {
+        Serial.printf("[ble] manufacturer data (%u B) does not fit the payload\n",
+                      a.manufacturerLen);
+        a.manufacturerLen = 0;
+    }
 
     /* No service UUID or service data is advertised. Left at zero length so
      * the UI omits the rows entirely rather than showing an empty value. */
@@ -147,6 +168,23 @@ void stopRadio() {
     Serial.println("[ble] advertising stopped");
 }
 
+/* Push a rebuilt payload to a controller that is already advertising. NimBLE
+ * will not swap the data underneath a running advertisement, so this is a
+ * stop/start. It is cheap but not free, which is why setActivity() only calls
+ * it when the bytes actually changed. */
+void restartRadio() {
+    if (!active_) {
+        return;
+    }
+    Watchdog::Pause guard;
+    NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+    advertising->stop();
+    NimBLEAdvertisementData data;
+    data.addData(std::string(reinterpret_cast<const char*>(adv_.payload), adv_.payloadLen));
+    advertising->setAdvertisementData(data);
+    active_ = advertising->start();
+}
+
 }   // namespace
 
 void begin(bool startEnabled) {
@@ -175,6 +213,60 @@ void setEnabled(bool on) {
     } else {
         stopRadio();
     }
+}
+
+void setActivity(bool share, uint8_t gameIndex, uint32_t bestScore) {
+    if (!built_) {
+        deriveIdentity(adv_);
+        built_ = true;
+    }
+    /* Normalise before comparing, so "stop sharing" collapses to one state
+     * rather than leaving whatever game was last open sitting in the struct
+     * where a reader could mistake it for something still on air. */
+    const uint8_t game = share ? gameIndex : GAME_NONE;
+    const uint32_t score = share ? bestScore : 0;
+    if (adv_.sharesActivity == share && adv_.gameIndex == game && adv_.bestScore == score) {
+        return;
+    }
+    adv_.sharesActivity = share;
+    adv_.gameIndex = game;
+    adv_.bestScore = score;
+    buildPayload(adv_);
+    restartRadio();
+}
+
+/* The exact inverse of buildPayload()'s manufacturer block. Anything that does
+ * not match this layout, at this version, is somebody else's advertisement and
+ * is discarded rather than guessed at. */
+bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
+    if (mfg == nullptr || len < MFG_LEN_BASE) {
+        return false;
+    }
+    const uint16_t company = static_cast<uint16_t>(mfg[0] | (static_cast<uint16_t>(mfg[1]) << 8));
+    if (company != COMPANY_ID_NONE) {
+        return false;
+    }
+    if (mfg[2] != static_cast<uint8_t>(FAMILY_TAG[0]) ||
+        mfg[3] != static_cast<uint8_t>(FAMILY_TAG[1])) {
+        return false;
+    }
+    if (mfg[4] != PAYLOAD_VERSION) {
+        return false;
+    }
+    snprintf(out.deviceId, sizeof(out.deviceId), "%02X%02X", mfg[5], mfg[6]);
+    /* The flag bit alone is not enough: a truncated block would otherwise be
+     * read as a game index and score that were never transmitted. */
+    out.sharesActivity = ((mfg[7] & FLAG_SHARES_ACTIVITY) != 0) && len >= MFG_LEN_ACTIVITY;
+    out.gameIndex = GAME_NONE;
+    out.bestScore = 0;
+    if (out.sharesActivity) {
+        out.gameIndex = mfg[8];
+        out.bestScore = static_cast<uint32_t>(mfg[9]) |
+                        (static_cast<uint32_t>(mfg[10]) << 8) |
+                        (static_cast<uint32_t>(mfg[11]) << 16) |
+                        (static_cast<uint32_t>(mfg[12]) << 24);
+    }
+    return true;
 }
 
 bool enabled() { return enabled_; }

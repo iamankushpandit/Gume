@@ -68,6 +68,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
 | Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
+| Whether scores are being shared | `BleBeacon::configured().sharesActivity` |
 
 If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static — the credits, the

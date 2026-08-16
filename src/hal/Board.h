@@ -281,6 +281,14 @@ public:
      * itself lives in hal/BleBeacon.h; this is only the on/off switch. */
     bool bleBeaconEnabled();
     void setBleBeaconEnabled(bool on);
+
+    /* Nearby play -- the anonymous score exchange with other Braino devices.
+     * Also a global device setting: it is a property of the radio, not of the
+     * child, and the beacon is its master switch. Read every frame by
+     * engine/NearbyPlay, so it keeps a RAM mirror like the rest of the hot
+     * settings. The policy lives in engine/NearbyPlay.h; this is the switch. */
+    bool nearbyEnabled();
+    void setNearbyEnabled(bool on);
     bool drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_t maxH);
     uint8_t networkActivityCount() const;
     NetworkActivity networkActivity(uint8_t newestFirstIndex) const;
@@ -359,6 +367,8 @@ private:
     uint8_t cachedIdleAction_ = 0;
     bool sleepSecsCached_ = false;
     uint16_t cachedSleepSecs_ = 0;
+    bool nearbyCached_ = false;
+    bool cachedNearby_ = false;
     bool displayAsleep_ = false;
     DisplaySleepTelemetry displaySleepTelemetry_{};
 

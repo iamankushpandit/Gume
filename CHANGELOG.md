@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+## 4.1.0 — 2026-08-15
+
+The BLE beacon becomes a **Braino** beacon, and gains an opt-in, anonymous
+score exchange with other consoles in the room.
+
+Flash 2,318,101 / 3,145,728 (73.7%), RAM 71,748 / 327,680 (21.9%).
+
+### Changed
+
+- **The beacon now advertises as `Braino-<id>`.** The family id is `Braino` and
+  the two-letter manufacturer tag is `BR`; the device id is unchanged — the last
+  two bytes of the factory Bluetooth MAC, rendered as four hex digits. The
+  manufacturer-data layout version goes to `2`, so a device running the previous
+  firmware is ignored rather than mis-decoded.
+
+### Added
+
+- **Nearby — an anonymous score exchange.** A new system app, **off by
+  default**, that listens for other Braino devices and shows who is in range,
+  which game they have open and their best score for it. When a peer's score
+  beats the record on this device, the header says so.
+
+  - Sharing is opt-in twice over: it does nothing unless the BLE beacon is on,
+    and then only once *Settings → Nearby* (or the switch on the Nearby screen
+    itself) is turned on. Turning the beacon off stands it down.
+  - What travels is a game index and a best score, added to the existing
+    beacon payload. **No child name, no profile name, no progress, nothing
+    profile-scoped.** A peer is four hex digits of its own MAC and nothing
+    else, which is the whole design: a leaderboard with no way to find out who
+    is on it.
+  - The scan is **passive** — it never transmits a scan request, so listening
+    adds nothing to what the device puts on air.
+  - Peers are decoded with the exact inverse of the function that builds our
+    own payload, so there is one description of the wire format rather than a
+    transmit copy and a receive copy that can drift.
+
+- **Header notifications.** Nearby events (a console arriving, changing game,
+  or beating a record) paint a strip over the header for five seconds and are
+  then removed — the screen underneath repaints itself. They are not collected
+  into a list, because a notification nobody clears is furniture.
+
+- **`Settings → Device` gains a Nearby switch.** Network moves to a full-width
+  row to make space; the switch greys out and says *needs Beacon* while the
+  radio is off, rather than flipping and doing nothing.
+
+### Privacy surfaces updated in the same change
+
+- *System Info → BLE* decodes the two new fields and reports **Open game** and
+  **Best score** as `Broadcast` / `Not Broadcast` from `sharesActivity` — read
+  off the same struct the controller was handed, not from UI copy.
+- The **About** radio page and the README/installer privacy sections say what
+  Nearby adds, and say it only while it is actually on.
+- `docs/BLE_BEACON_SPEC.md` records the v2 payload and the anonymity argument.
+
 - The GitHub Pages installer now showcases every generated still for the games,
   launcher, settings, profiles, Wi-Fi/time, scores, About, System Info and the
   screen saver instead of showing only the launcher mock-ups.

@@ -85,11 +85,27 @@ Opt-in, non-connectable BLE presence beacon in namespace `BleBeacon`. Off by def
 
 `broadcasting()` returns `nullptr` unless the controller is actually advertising. UI must key off that rather than off the stored setting, which can read On while the radio failed to come up; nothing may be labelled as on air unless it is.
 
-On air: Flags, Complete Local Name (`LearnKey-<id>`) and manufacturer data (company `0xFFFF`, `"LK"`, version, two MAC bytes) — 27 of the 31 legal bytes. The device id is the last two bytes of the factory BT MAC. Nothing profile-scoped is read by this module at all.
+On air: Flags, Complete Local Name (`Braino-<id>`) and manufacturer data (company `0xFFFF`, `"BR"`, layout version 2, two MAC bytes, a flag byte) — 27 of the 31 legal bytes. The device id is the last two bytes of the factory BT MAC. Nothing profile-scoped is read by this module at all.
+
+With Nearby play on, `setActivity()` appends a game index and a best score, taking the payload to **exactly 31 bytes**. There is no slack left: a longer device name or a third AD structure pushes the manufacturer block off the air, and `buildPayload()` logs and drops it rather than transmitting a half-advertisement. Sharing off removes both fields rather than zeroing them — "not transmitted" has to be structural to be worth claiming.
+
+`decode()` is the exact inverse of the manufacturer block and is what `BleScanner` reads peers with. Do not write a second parser: a transmit copy and a receive copy of a wire format drift, and the symptom is two consoles that silently cannot see each other.
 
 `startRadio()` and `stopRadio()` both take a `Watchdog::Pause` — bringing the controller up blocks for a couple of hundred milliseconds and looks exactly like a hang from the loop task. `pause()` no-ops while the watchdog is unarmed, so calling this from `Board::begin()` is safe.
 
 Stopping deinitialises the whole stack (`NimBLEDevice::deinit(true)`) rather than just halting advertising: leaving it up holds ~30 KB of heap the games would rather have, and "off" should mean off.
+
+## BleScanner.{h,cpp}
+
+Passive observer for other Braino beacons, in namespace `BleScan`. The radio half of Nearby play and nothing else — it holds no opinion about scores or notifications; that policy is `engine/NearbyPlay`, which is where the score catalog lives. The hal never has to know what a game is and the policy never has to know what an AD structure is.
+
+Three properties are contract, not incidental:
+
+- **Passive scan.** Never transmits a scan request, so listening adds nothing to what the device puts on air.
+- **Both tests.** A peer must match the `Braino-` name prefix *and* decode as our manufacturer block at a known version.
+- **Zero allocation.** Fixed eight-entry table; the advertisement is parsed straight out of the controller's buffer rather than through the library's `std::string` accessors, and `setMaxResults(0)` stops NimBLE keeping its own results vector. The callback runs on the NimBLE host task at whatever rate the air is busy — exactly the churn that fragments this heap.
+
+The table is written from the host task and read from the loop task, so every touch of it sits inside a `portMUX` critical section, and `at()` returns **by value**. `startScan()`/`stopScan()` take a `Watchdog::Pause` for the same reason `BleBeacon` does.
 
 ## Watchdog.{h,cpp}
 

@@ -46,6 +46,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
 | Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
+| Whether scores are being shared | `BleBeacon::configured().sharesActivity` |
 
 If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static â€” the credits, the
@@ -247,9 +248,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,307,681 / 3,145,728 bytes,
-**73.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 68,036 / 327,680 (20.8%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,318,101 / 3,145,728 bytes,
+**73.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 71,748 / 327,680 (21.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -292,7 +293,9 @@ call site sits inside a `Watchdog::Pause` guard.
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
-| `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload |
+| `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
+| `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
+| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, header notifications, the sharing switch |
 
 ### Invariants worth knowing before editing
 
@@ -303,14 +306,21 @@ call site sits inside a `Watchdog::Pause` guard.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a child clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 28 playable games plus 6 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 28 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
-  and the System Info BLE tab reads that same buffer back. Never add a
-  hand-written UI description of the payload -- see `docs/BLE_BEACON_SPEC.md`.
+  and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
+  is the exact inverse and is what the scanner reads peers with -- never write a
+  second parser. With Nearby play on the payload is **exactly 31 bytes**, so
+  there is no room for another AD structure or a longer name. See
+  `docs/BLE_BEACON_SPEC.md`.
+- **Nearby play is off by default and gated on the beacon.** `NearbyPlay::tick()`
+  re-derives that gate every frame rather than trusting an ordering contract with
+  Settings, so turning the radio off takes the feature with it. What it shares is
+  a game index and a best score, never a name or anything profile-scoped.
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `KidsPlatformApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game or an app â€” the whole checklist
@@ -409,12 +419,12 @@ Playable games are authored against a fixed 320Ã—240 landscape canvas. Launch
 include/BoardConfig.h     pins + screen constants   include/AppVersion.h
 src/main.cpp              bringup entrypoint + normal app setup/loop
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
-src/engine/               Game, LauncherGame, GameCatalog, AppRegistry,
+src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Country/State, Maze and Trace data
-src/hal/                  Board bring-up, BoardAccess facades,
+src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog

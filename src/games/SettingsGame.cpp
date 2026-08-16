@@ -1,5 +1,6 @@
 #include "SettingsGame.h"
 
+#include "engine/NearbyPlay.h"
 #include "hal/Board.h"
 
 const char* SettingsGame::title() const { return "Settings"; }
@@ -17,16 +18,24 @@ void SettingsGame::begin(GameHost& host) {
 Rect SettingsGame::deviceTabRect() const { return Rect{0,   30, 160, 22}; }
 Rect SettingsGame::powerTabRect()  const { return Rect{160, 30, 160, 22}; }
 
-/* Device tab: four rows of 30px. Reset spans both columns on the last row --
- * it is the one destructive control here, so it reads as its own thing rather
- * than as the right-hand partner of a harmless toggle. */
+/* Device tab: four rows of 30px, then the brightness slider.
+ *
+ * Network takes a whole row because Nearby needed one of the half-width slots
+ * and the row it went into is the one Reset was in. Reset keeps a slot of its
+ * own on the last row rather than sitting beside a harmless toggle -- it is
+ * the one destructive control here.
+ *
+ * Nearby is deliberately next to Beacon's row rather than beside it: it does
+ * nothing unless Beacon is on, and reading downwards is the order you have to
+ * turn them on in. */
 Rect SettingsGame::themeRect()  const { return Rect{8,    58, 144, 30}; }
 Rect SettingsGame::layoutRect() const { return Rect{164,  58, 144, 30}; }
 Rect SettingsGame::ntpRect()    const { return Rect{8,    92, 144, 30}; }
 Rect SettingsGame::bleRect()    const { return Rect{164,  92, 144, 30}; }
-Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 144, 30}; }
-Rect SettingsGame::resetRect()  const { return Rect{164, 126, 144, 30}; }
-Rect SettingsGame::brightRect() const { return Rect{8,   190, 304, 32}; }
+Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 304, 30}; }
+Rect SettingsGame::nearbyRect() const { return Rect{8,   160, 144, 30}; }
+Rect SettingsGame::resetRect()  const { return Rect{164, 160, 144, 30}; }
+Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
 
 /* Power tab: three full-width rows, so the labels have room to say what the
  * setting actually does rather than abbreviating to fit half a screen. */
@@ -112,6 +121,18 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
     if (bleRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setBleBeaconEnabled(!board.bleBeaconEnabled());
+        /* Nearby play rides on this radio. Turning the beacon off stands it
+         * down (NearbyPlay::tick watches for exactly that); turning the beacon
+         * back on re-arms whatever the owner had chosen here. */
+        markDirty(); return;
+    }
+    if (nearbyRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (!board.bleBeaconEnabled()) {
+            /* Refusing out loud beats a switch that flips and does nothing. */
+            board.beepError();
+            markDirty(); return;
+        }
+        NearbyPlay::setEnabled(board, !NearbyPlay::enabled());
         markDirty(); return;
     }
     if (resetRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -153,6 +174,13 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     Ui::drawButton(tft, bleRect(), label,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
     Ui::drawButton(tft, wifiRect(), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+    /* Greyed, not hidden, when the beacon is off: the control is what tells
+     * you the feature exists and what it depends on. */
+    const bool beaconOn = board.bleBeaconEnabled();
+    snprintf(label, sizeof(label), "Nearby: %s",
+             !beaconOn ? "needs Beacon" : (NearbyPlay::enabled() ? "On" : "Off"));
+    Ui::drawButton(tft, nearbyRect(), label,
+                   Ui::panel(), Ui::outline(), beaconOn ? Ui::text() : Ui::muted(), false, 2);
     Ui::drawButton(tft, resetRect(),
                    confirmReset_ ? "Tap to ERASE" : "Reset device",
                    confirmReset_ ? Ui::rgb(220, 40, 40) : Ui::rgb(120, 58, 58),
@@ -161,10 +189,10 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
     tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
-                             : "Brightness", 8, 180, 1);
+                             : "Brightness", 8, 194, 1);
     tft.setTextDatum(TR_DATUM);
     snprintf(label, sizeof(label), "%u%%", board.brightness());
-    tft.drawString(label, SCREEN_WIDTH - 8, 180, 1);
+    tft.drawString(label, SCREEN_WIDTH - 8, 194, 1);
     tft.setTextDatum(TL_DATUM);
     Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
 }

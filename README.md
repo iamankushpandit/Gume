@@ -9,15 +9,17 @@ no data collection.** Two radios exist and both are narrow by design:
 
 - **Wi-Fi** is used for exactly one thing — fetching the time from an NTP
   server (plus a one-off public-IP lookup to guess the time zone).
-- **Bluetooth LE** is **off by default**. If you turn it on, it broadcasts a
-  device name and a hardware id and nothing else, and the device will show you
-  the exact bytes it is transmitting. See [Privacy](#privacy).
+- **Bluetooth LE** is **off by default**. Turned on, it broadcasts a device
+  name (`Braino-<id>`) and a hardware id. Turn on **Nearby** as well and it also
+  broadcasts which game is open and the best score for it — anonymously, with no
+  name or profile attached. The device shows you the exact bytes it is
+  transmitting either way. See [Privacy](#privacy).
 
 | | |
 |---|---|
 | Games | 28 |
-| Flash | 2,307,681 / 3,145,728 bytes (**73.4%**) |
-| RAM | 68,036 / 327,680 bytes (**20.8%**) |
+| Flash | 2,318,101 / 3,145,728 bytes (**73.7%**) |
+| RAM | 71,748 / 327,680 bytes (**21.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -250,7 +252,10 @@ One screen per game, in launcher order.
 </p>
 
 Two tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
-screen brightness, and a factory reset behind a two-tap confirm. **Power** holds
+the Nearby switch, screen brightness, and a factory reset behind a two-tap
+confirm. Nearby greys out and reads *needs Beacon* while the radio is off — it
+rides on that radio, and a switch that flips without doing anything is worse
+than one that says why. **Power** holds
 the idle policy and its two delays — see [Screen saver and
 sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
 arrived and there was nowhere left to put them. The Games tab hides
@@ -263,6 +268,28 @@ control needed to undo it.
 
 **Menu layout is launcher-only.** Every game is authored against the fixed
 320×240 landscape canvas, so Tall changes the home screen and nothing else.
+
+### Nearby
+
+<p align="center">
+  <img src="docs/screens/nearby.png" width="420" alt="Nearby: who else is playing">
+</p>
+
+**Off by default.** Turned on, the console listens for other Brainos in range
+and shows who is there, which game they have open, and their best score for it.
+When somebody's score beats the record on this device, a strip appears over the
+header for a few seconds and is then removed.
+
+It is anonymous by construction. A peer is **four hex digits of its own
+Bluetooth MAC** — the same id already used to name the device — and the only
+other things that travel are a game index and a score. No child name, no
+profile name, nothing profile-scoped is read by the feature at all. Two
+children learn that *someone with a Braino nearby has 9 on Maze* and nothing
+whatever about each other.
+
+Two switches guard it, in this order: the **BLE beacon** must be on, and then
+**Nearby** must be on. Turning the beacon off stands Nearby down with it. The
+scan is passive, so listening never transmits anything.
 
 ### Network & Time
 
@@ -386,25 +413,49 @@ greyed out. It is placed per layout: landscape puts it on the clock's line,
 positioned off the measured width of the clock string, because the badge row
 there has about 8px of slack; portrait simply extends the badge row.
 
-What goes on air is a device name and a hardware id. That is all:
+With Nearby off, what goes on air is a device name and a hardware id. That is
+all:
 
 | AD type | Contents |
 |---|---|
 | Flags | LE General Discoverable, BR/EDR not supported |
-| Complete Local Name | `LearnKey-A4F2` |
-| Manufacturer Data | company `0xFFFF`, `"LK"`, layout version, two MAC bytes |
+| Complete Local Name | `Braino-A4F2` |
+| Manufacturer Data | company `0xFFFF`, `"BR"`, layout version, two MAC bytes, flags |
 
 The id is the last two bytes of the factory Bluetooth MAC -- a hardware serial,
 stable so you can recognise your own device in a scanner. Nobody types it and it
 is not derived from anything a child entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
-**Not broadcast:** child information, child name, location, Wi-Fi credentials,
-Wi-Fi SSID, IP address, game progress, scores, usage history.
+**Not broadcast:** child information, child name, profile name, location, Wi-Fi
+credentials, Wi-Fi SSID, IP address, game progress, usage history.
 
 That list is structural rather than a promise. `buildPayload()` emits a name AD
 and a manufacturer AD and nothing else, and nothing profile-scoped is reachable
 from the radio path at all.
+
+### What Nearby adds, and only while it is on
+
+[Nearby](#nearby) is a second opt-in on top of the beacon. While it is on, two
+more fields join the manufacturer data:
+
+| Field | Contents |
+|---|---|
+| Open game | An index into the playable-game list — `12` is Maze |
+| Best score | This device's best score for that game |
+
+While it is off, those fields are **absent from the payload** rather than
+present and zeroed: the manufacturer block is five bytes shorter and the flag
+bit is clear. "Not transmitted" has to be structural to be worth claiming.
+
+Neither field says who is playing. There is no name, no profile, and no way to
+get from a score back to a child — the exchange is a leaderboard with nobody's
+name on it. Listening is passive, so a console that is only watching transmits
+nothing extra.
+
+*System Info -> BLE* reports **Open game** and **Best score** as `Broadcast` or
+`Not Broadcast` read from the same structure the controller was handed, so that
+row cannot disagree with the radio.
 
 ### You can check all of this on the device
 
@@ -415,7 +466,8 @@ from the radio path at all.
 *System Info -> BLE* shows whether advertising is currently active, the actual
 name being advertised, every decoded field of the manufacturer data, the privacy
 list above, and -- under *Show advanced* -- the interval, TX power, advertising
-type, controller address and a **hex dump of the 27 bytes actually on air**.
+type, controller address and a **hex dump of the bytes actually on air** (27 of
+the 31 legal bytes with Nearby off, all 31 with it on).
 
 Turn the beacon off and the same screen says *Broadcasting: Nothing*, relabelling
 the identity block as configuration so nothing reads as being transmitted when it
@@ -434,7 +486,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **4.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **4.1.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 
@@ -512,6 +564,7 @@ src/
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view
     ScoreCatalog.cpp    derived scored-app catalog view
+    NearbyPlay.cpp      anonymous peer scores, notifications, sharing switch
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
@@ -532,6 +585,7 @@ src/
     BoardStorageMaintenance.cpp  profile moves + NVS telemetry
     TouchTypes.h        TouchPoint event type shared without display deps
     BleBeacon.cpp       the one authoritative BLE advertisement payload
+    BleScanner.cpp      passive observer for other Braino beacons
     Clock.cpp           time and date formatting
     Watchdog.cpp        loop supervisor, stall logging, crash breadcrumb
   ui/
