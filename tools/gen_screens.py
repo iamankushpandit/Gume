@@ -118,9 +118,9 @@ def ble_badge(d, cx, cy):
 
 
 def launcher_plate(d, cx, cy, fill):
-    d.ellipse([cx - 16, cy - 15, cx + 18, cy + 19], fill=shade(fill, 70))
-    d.ellipse([cx - 17, cy - 17, cx + 17, cy + 17], fill=ICON_PAPER, outline=(214, 232, 248))
-    d.ellipse([cx - 9, cy - 11, cx - 3, cy - 5], fill=WHITE)
+    d.ellipse([cx - 20, cy - 19, cx + 22, cy + 23], fill=shade(fill, 70))
+    d.ellipse([cx - 20, cy - 20, cx + 20, cy + 20], fill=ICON_PAPER, outline=(214, 232, 248))
+    d.ellipse([cx - 11, cy - 14, cx - 3, cy - 6], fill=WHITE)
 
 
 def launcher_icon(d, title, cx, cy, fill):
@@ -139,8 +139,8 @@ def launcher_icon(d, title, cx, cy, fill):
         d.line([(cx - 8, cy + 3), (cx + 5, cy + 3)], fill=shade_skin)
         d.line([(cx - 7, cy + 8), (cx + 4, cy + 8)], fill=shade_skin)
     elif title == "Percent":
-        d.pieslice([cx - 17, cy - 17, cx + 17, cy + 17], -90, 0, fill=SUN)
-        d.pieslice([cx - 17, cy - 17, cx + 17, cy + 17], 0, 55, fill=MINT)
+        d.pieslice([cx - 20, cy - 20, cx + 20, cy + 20], -90, 0, fill=SUN)
+        d.pieslice([cx - 20, cy - 20, cx + 20, cy + 20], 0, 55, fill=MINT)
         d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=ICON_PAPER, outline=ICON_SOFT)
         d.ellipse([cx - 9, cy - 9, cx - 3, cy - 3], fill=ICON_INK)
         d.ellipse([cx + 4, cy + 4, cx + 10, cy + 10], fill=ICON_INK)

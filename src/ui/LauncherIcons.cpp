@@ -13,10 +13,10 @@ uint16_t coinGold() { return Ui::rgb(246, 201, 64); }
 uint16_t skin() { return Ui::rgb(255, 222, 184); }
 
 void drawPlate(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t fill) {
-    tft.fillCircle(cx + 1, cy + 2, 18, Ui::shade(fill, 70));
-    tft.fillCircle(cx, cy, 17, paper());
-    tft.drawCircle(cx, cy, 17, Ui::rgb(214, 232, 248));
-    tft.fillCircle(cx - 6, cy - 8, 3, TFT_WHITE);
+    tft.fillCircle(cx + 1, cy + 2, 21, Ui::shade(fill, 70));
+    tft.fillCircle(cx, cy, 20, paper());
+    tft.drawCircle(cx, cy, 20, Ui::rgb(214, 232, 248));
+    tft.fillCircle(cx - 7, cy - 10, 4, TFT_WHITE);
 }
 
 void drawText(Ui::Renderer& tft, const char* text, int16_t x, int16_t y,
@@ -73,14 +73,14 @@ void drawMapSilhouette(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t color
 }
 
 void drawPercentIcon(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t fill) {
-    tft.fillCircle(cx + 1, cy + 2, 18, Ui::shade(fill, 70));
-    tft.fillCircle(cx, cy, 17, paper());
-    tft.fillTriangle(cx, cy, cx, cy - 17, cx + 17, cy - 17, sun());
-    tft.fillTriangle(cx, cy, cx + 17, cy - 17, cx + 17, cy, sun());
-    tft.fillTriangle(cx, cy, cx + 17, cy, cx + 9, cy + 14, mint());
+    tft.fillCircle(cx + 1, cy + 2, 21, Ui::shade(fill, 70));
+    tft.fillCircle(cx, cy, 20, paper());
+    tft.fillTriangle(cx, cy, cx, cy - 20, cx + 20, cy - 20, sun());
+    tft.fillTriangle(cx, cy, cx + 20, cy - 20, cx + 20, cy, sun());
+    tft.fillTriangle(cx, cy, cx + 20, cy, cx + 11, cy + 17, mint());
     tft.fillCircle(cx, cy, 9, paper());
     tft.drawCircle(cx, cy, 9, inkSoft());
-    tft.drawCircle(cx, cy, 17, ink());
+    tft.drawCircle(cx, cy, 20, ink());
     tft.fillCircle(cx - 6, cy - 6, 3, ink());
     tft.fillCircle(cx + 7, cy + 7, 3, ink());
     thickLine(tft, cx - 9, cy + 10, cx + 10, cy - 9, ink());
