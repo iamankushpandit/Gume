@@ -470,17 +470,19 @@ def settings_device():
         d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
                font=F2, fill=TEXT if active else MUTED)
     d.line([(0, 52), (319, 52)], fill=OUTLINE)
-    # Three rows of 30px from y=58, under the tab baseline.
+    # Four rows of 30px from y=58, under the tab baseline. Network takes a
+    # whole row so Nearby can have a half-width slot beside Reset.
     button(d, (8, 58, 144, 30), "Theme: Dark")
     button(d, (164, 58, 144, 30), "Menu: Tall")
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
-    button(d, (8, 126, 144, 30), "Network", BLUE, WHITE)
-    button(d, (164, 126, 144, 30), "Reset device", (120, 58, 58), WHITE)
-    d.text((8, 180), "Brightness", font=F1, fill=MUTED)
-    d.text((312 - d.textlength("80%", font=F1), 180), "80%", font=F1, fill=MUTED)
+    button(d, (8, 126, 304, 30), "Network", BLUE, WHITE)
+    button(d, (8, 160, 144, 30), "Nearby: On")
+    button(d, (164, 160, 144, 30), "Reset device", (120, 58, 58), WHITE)
+    d.text((8, 194), "Brightness", font=F1, fill=MUTED)
+    d.text((312 - d.textlength("80%", font=F1), 194), "80%", font=F1, fill=MUTED)
     # slider: track, filled portion, handle -- mirrors Ui::drawSlider
-    r = (8, 190, 304, 32)
+    r = (8, 204, 304, 32)
     cy = r[1] + r[3] // 2
     pad, span = 11, r[2] - 22
     fill = int((80 - 25) / 75 * span)
@@ -982,18 +984,20 @@ def systeminfo_ble():
         ("r", "Status", "Advertising", SUCCESS),
         ("r", "Mode", "BLE Advertise Only", None),
         ("s", "On Air", "", None),
-        ("r", "Name", "LearnKey-A4F2", None),
-        ("r", "Family ID", "LearnKey", None),
+        ("r", "Name", "Braino-A4F2", None),
+        ("r", "Family ID", "Braino", None),
         ("r", "Device ID", "A4F2", None),
         ("s", "Mfr Data", "", None),
         ("r", "Company", "0xffff unassigned", None),
-        ("r", "Family", "LearnKey (LK)", None),
-        ("r", "Raw", "FF FF 4C 4B 01 A4 F2", None),
+        ("r", "Family", "Braino (BR)", None),
+        ("r", "Nearby play", "Sharing", WARN),
+        ("r", "Game index", "12 Maze", None),
+        ("r", "Best score", "7", None),
         ("s", "Privacy", "", None),
-        ("r", "Child info", "Not Broadcast", SUCCESS),
-        ("r", "Location", "Not Broadcast", SUCCESS),
+        ("r", "Child name", "Not Broadcast", SUCCESS),
         ("r", "Wi-Fi SSID", "Not Broadcast", SUCCESS),
-        ("r", "Scores", "Not Broadcast", SUCCESS),
+        ("r", "Open game", "Broadcast", WARN),
+        ("r", "Best score", "Broadcast", WARN),
     ])
     d.rounded_rectangle([306, 63, 312, 236], 3, fill=PANEL, outline=OUTLINE)
     d.rounded_rectangle([307, 66, 311, 130], 2, fill=(88, 164, 224))
@@ -1027,6 +1031,31 @@ def systeminfo_memory():
     return im
 
 
+def nearby():
+    """Nearby: the anonymous peer list.
+
+    Geometry from NearbyGame: a full-width toggle at y=TOP_BAR_HEIGHT+6 with
+    30px height, then the RowList below it."""
+    im, d = blank(); topbar(d, "Nearby")
+    button(d, (8, 36, 304, 30), "Sharing: On", SUCCESS, (12, 20, 14))
+    _si_rows(d, [
+        ("s", "You", "", None),
+        ("r", "Your tag", "A4F2", None),
+        ("r", "Listening", "Yes", SUCCESS),
+        ("s", "7C1B", "", None),
+        ("r", "Distance", "Near", MUTED),
+        ("r", "Playing", "Maze", None),
+        ("r", "Their best", "9 lvl", WARN),
+        ("r", "Your best", "7 lvl", None),
+        ("r", "", "They are ahead of you", WARN),
+        ("s", "B930", "", None),
+        ("r", "Distance", "Far", MUTED),
+        ("r", "Playing", "Multiplication", None),
+        ("r", "Their best", "12 pts", None),
+    ], top=76)
+    return im
+
+
 def about_radios():
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
@@ -1035,9 +1064,9 @@ def about_radios():
     d.text((14, 84), "a one-off time zone lookup.", font=F1, fill=MUTED)
     d.text((14, 100), "Now: connected", font=F1, fill=TEXT)
     d.text((14, 120), "Bluetooth beacon", font=F2, fill=TEXT)
-    d.text((14, 146), "Now: off, broadcasting nothing", font=F1, fill=SUCCESS)
-    d.text((14, 164), "Never sent: names, scores,", font=F1, fill=MUTED)
-    d.text((14, 178), "progress, location, Wi-Fi details.", font=F1, fill=MUTED)
+    d.text((14, 146), "Now: broadcasting Braino-A4F2", font=F1, fill=WARN)
+    d.text((14, 162), "Nearby on: also the game open and", font=F1, fill=WARN)
+    d.text((14, 176), "its best score. No name, no profile.", font=F1, fill=WARN)
     button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next")
     d.text((W / 2 - 14, 212), "6/8", font=F2, fill=MUTED)
@@ -1337,6 +1366,7 @@ EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
     ("profiles", profiles_pick, "Profiles: who is playing"),
+    ("nearby", nearby, "Nearby: who else is playing"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-radios", about_radios, "About: what the radios do"),

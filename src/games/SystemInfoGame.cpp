@@ -1,5 +1,7 @@
 #include "SystemInfoGame.h"
 #include "AppVersion.h"
+#include "engine/AppRegistry.h"
+#include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
@@ -461,6 +463,20 @@ void SystemInfoGame::buildBleRows(GameHost& host) {
     rows_.addRow("Family", String(src.familyId) + " (" + BleBeacon::FAMILY_TAG + ")");
     rows_.addRow("Version", String(BleBeacon::PAYLOAD_VERSION));
     rows_.addRow("Device ID", src.deviceId);
+    /* Nearby play adds two fields to the manufacturer block. They are listed
+     * from the same struct as everything else, and they are absent from the
+     * list when they are absent from the air -- which is the only way the row
+     * and the radio cannot disagree. */
+    rows_.addRow("Nearby play", src.sharesActivity ? "Sharing" : "Not sharing",
+                 src.sharesActivity ? Ui::warning() : Ui::success());
+    if (src.sharesActivity) {
+        const char* openTitle = src.gameIndex < playableAppCount()
+            ? playableAppAt(src.gameIndex).title() : nullptr;
+        rows_.addRow("Game index", openTitle != nullptr
+                         ? (String(src.gameIndex) + " " + openTitle)
+                         : String(src.gameIndex));
+        rows_.addRow("Best score", String(src.bestScore));
+    }
     rows_.addRow("Raw", BleBeacon::toHex(src.manufacturerData, src.manufacturerLen));
 
     if (src.serviceUuid16 != 0) {
@@ -470,20 +486,26 @@ void SystemInfoGame::buildBleRows(GameHost& host) {
         }
     }
 
-    /* The privacy list is not a promise typed into the UI -- it is the direct
-     * consequence of BleBeacon::buildPayload(), which emits a name AD and a
-     * manufacturer AD and nothing else. Anything a game or profile stores is
-     * structurally unreachable from there. */
+    /* The privacy list is not a promise typed into the UI -- it is read off
+     * the same struct the controller was handed. buildPayload() emits a name
+     * AD and a manufacturer AD and nothing else, so everything below is
+     * structurally unreachable from the radio path; the two rows that Nearby
+     * play does put on air read from src.sharesActivity rather than from a
+     * claim, because a privacy row that has drifted is worse than none. */
     rows_.addSection("Privacy");
     const uint16_t safe = Ui::success();
     rows_.addRow("Child info", "Not Broadcast", safe);
     rows_.addRow("Child name", "Not Broadcast", safe);
+    rows_.addRow("Profile name", "Not Broadcast", safe);
     rows_.addRow("Location", "Not Broadcast", safe);
     rows_.addRow("Wi-Fi password", "Not Broadcast", safe);
     rows_.addRow("Wi-Fi SSID", "Not Broadcast", safe);
     rows_.addRow("IP address", "Not Broadcast", safe);
     rows_.addRow("Game progress", "Not Broadcast", safe);
-    rows_.addRow("Scores", "Not Broadcast", safe);
+    rows_.addRow("Open game", src.sharesActivity ? "Broadcast" : "Not Broadcast",
+                 src.sharesActivity ? Ui::warning() : safe);
+    rows_.addRow("Best score", src.sharesActivity ? "Broadcast" : "Not Broadcast",
+                 src.sharesActivity ? Ui::warning() : safe);
     rows_.addRow("Usage history", "Not Broadcast", safe);
 
     rows_.addAction(bleAdvanced_ ? "Hide advanced" : "Show advanced");
@@ -559,6 +581,9 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
     rows_.addRow("Internet use", board.tzZoneChosen() ? "NTP only" : "NTP + ip-api.com");
     rows_.addRow("BLE beacon", BleBeacon::active() ? "Advertising -- see BLE tab"
                                              : "Off; nothing broadcast");
+    rows_.addRow("Nearby play", NearbyPlay::active()
+                     ? (String(NearbyPlay::peerCount()) + " nearby")
+                     : String(NearbyPlay::enabled() ? "On, radio starting" : "Off"));
     rows_.addRow("Temp", "Not shown; ESP32 reading not trusted");
 }
 

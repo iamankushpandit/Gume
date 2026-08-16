@@ -47,6 +47,26 @@ bool Board::bleBeaconEnabled() {
 void Board::setBleBeaconEnabled(bool on) {
     prefs_.putBool("bleOn", on);
     BleBeacon::setEnabled(on);
+    /* Nearby play rides on this radio, so turning the beacon off must take it
+     * with it. engine/NearbyPlay watches BleBeacon::enabled() every frame and
+     * stands itself down; the stored preference is left alone so that turning
+     * the beacon back on restores whatever the owner had chosen. */
+}
+
+/* Mirrored in RAM: NearbyPlay::tick() consults this once per frame to decide
+ * whether the radio should be listening, and Preferences is flash-backed. */
+bool Board::nearbyEnabled() {
+    if (!nearbyCached_) {
+        cachedNearby_ = prefs_.getBool("nearbyOn", false);
+        nearbyCached_ = true;
+    }
+    return cachedNearby_;
+}
+
+void Board::setNearbyEnabled(bool on) {
+    cachedNearby_ = on;
+    nearbyCached_ = true;
+    prefs_.putBool("nearbyOn", on);
 }
 
 void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {

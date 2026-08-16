@@ -29,6 +29,7 @@ private:
     Rect ntpRect() const;
     Rect bleRect() const;
     Rect wifiRect() const;
+    Rect nearbyRect() const;
     Rect resetRect() const;
     Rect brightRect() const;
 

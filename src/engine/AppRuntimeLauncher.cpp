@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include "AppVersion.h"
+#include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -43,6 +44,9 @@ void KidsPlatformApp::launch(const AppDefinition& app) {
     activeGame_ = &app.game(games_);
     view_ = View::Game;
     activeApp_ = &app;
+    /* Only playable games are announced. Opening Settings or System Info is
+     * nobody else's business, and a system screen has no score to share. */
+    NearbyPlay::setActiveApp(board_, app.isCatalogApp() ? &app : nullptr);
     Watchdog::setContext(app.title());
     applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();

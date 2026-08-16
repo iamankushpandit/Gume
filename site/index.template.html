@@ -332,9 +332,18 @@ footer {
         <code>ip-api.com</code> to guess the time zone on first connect. You can
         skip Wi-Fi entirely.</li>
       <li><b>Bluetooth LE</b> is off by default. Switched on, it advertises a
-        device name and two bytes of the factory Bluetooth MAC &mdash; and the
-        device shows you a hex dump of the exact bytes on air, read back from the
-        same buffer that was handed to the radio.</li>
+        device name (<code>Braino-&lt;id&gt;</code>) and two bytes of the factory
+        Bluetooth MAC &mdash; and the device shows you a hex dump of the exact
+        bytes on air, read back from the same buffer that was handed to the
+        radio.</li>
+      <li><b>Nearby play</b> is a second opt-in on top of that, also off by
+        default. Turned on, the beacon additionally carries which game is open
+        and the best score for it, so consoles in the same room can see each
+        other's records. No child name, no profile name, nothing profile-scoped:
+        a peer is four hex digits of its own hardware id and nothing else, and
+        there is no path from a score back to a child. Listening is passive, so
+        a console that is only watching transmits nothing extra. Turned off, the
+        two fields are absent from the payload rather than sent as zeroes.</li>
       <li><b>This page</b> talks to your board over Web Serial, inside your
         browser. The firmware is fetched from GitHub Pages; nothing about your
         device is sent anywhere.</li>

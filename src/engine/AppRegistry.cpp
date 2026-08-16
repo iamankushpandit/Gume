@@ -41,6 +41,7 @@ Game& settings(GameInstances& games) { return games.settings; }
 Game& wifi(GameInstances& games) { return games.wifi; }
 Game& about(GameInstances& games) { return games.about; }
 Game& systemInfo(GameInstances& games) { return games.systemInfo; }
+Game& nearby(GameInstances& games) { return games.nearby; }
 
 AppDefinition metadataCatalogApp(const AppMetadata& metadata, Game& (*instance)(GameInstances&),
                                  bool followsLayout = false) {
@@ -100,6 +101,8 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
               APP_CAP_DEVICE_STATUS | APP_CAP_DIAGNOSTICS, true),
     systemApp("about", "About", "company info", LauncherIcon::About, about,
               APP_CAP_DEVICE_STATUS),
+    systemApp("nearby", "Nearby", "who else is here", LauncherIcon::Nearby, nearby,
+              APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS, true),
 };
 
 const char* AppDefinition::id() const {

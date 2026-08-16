@@ -56,7 +56,7 @@ struct AppDefinition {
 };
 
 constexpr uint8_t PLAYABLE_APP_COUNT = 30;
-constexpr uint8_t SYSTEM_APP_COUNT = 6;
+constexpr uint8_t SYSTEM_APP_COUNT = 7;
 constexpr uint8_t APP_REGISTRY_COUNT = PLAYABLE_APP_COUNT + SYSTEM_APP_COUNT;
 
 extern const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT];

@@ -22,6 +22,8 @@ Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI
 
 `drawBleBadge()` has **no "off" variant on purpose.** An icon that is always present but sometimes greyed turns "is it transmitting?" into a question of shade, and that is the one question the badge exists to answer at a glance — so callers draw it only while `BleBeacon::active()`. It is 10x16 centred on the given point; the launcher header has almost no slack in landscape, so position anything near it off measured text widths rather than fixed offsets.
 
+`drawNotification()` paints a transient strip over the top of whatever header is already there, full width at `TOP_BAR_HEIGHT`, so it works over the top bar and over the launcher's taller header alike. It is painted by the runtime **after** the screen has drawn itself, and the screen is asked for a full repaint when the notification goes away — that repaint is what actually removes it. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
+
 ## RowList
 
 `RowList` is the scrolling label/value widget System Info is built from — sections, text rows, meters and a tappable action chip, with scrollbar and clamping.

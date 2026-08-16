@@ -106,6 +106,7 @@ SCREEN_CAPTIONS = {
     "multiply": "Multiply",
     "network-time": "Wi-Fi and clock",
     "numberline": "Number Line",
+    "nearby": "Nearby",
     "oddone": "Odd One",
     "percent": "Percent Circle",
     "profiles": "Profiles",
@@ -201,6 +202,11 @@ SYSTEM_SHOWCASE = (
         "id": "about",
         "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
         "stills": ("about-radios",),
+    },
+    {
+        "id": "nearby",
+        "subtitle": "Opt-in, anonymous score sharing with other Brainos in range -- device tags only, never names.",
+        "stills": ("nearby",),
     },
     {
         "id": "screensaver",

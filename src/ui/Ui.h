@@ -62,6 +62,16 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
  * Centred on (cx, cy), 10x16. */
 void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
+/* Transient notification strip, painted over the top of whatever header is
+ * already there. Nearby play raises these when another console arrives or
+ * beats a record; the runtime paints one for a few seconds and then repaints
+ * the header underneath, so the strip is genuinely removed rather than
+ * accumulating into a list nobody clears.
+ *
+ * Takes the full width at TOP_BAR_HEIGHT, so it works over the top bar and
+ * over the launcher's taller header alike. */
+void drawNotification(Ui::Renderer& tft, const char* text);
+
 /** True when the station interface is associated. */
 bool wifiUp();
 /* Browser-style tab. The active one is rounded on top only, filled with the

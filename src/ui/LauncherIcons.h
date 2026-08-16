@@ -40,6 +40,7 @@ enum class LauncherIcon : uint8_t {
     WiFi,
     About,
     SystemInfo,
+    Nearby,
 };
 
 void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,

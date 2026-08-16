@@ -143,6 +143,8 @@ public:
     bool tzAutoDetected() const { return board_.tzAutoDetected(); }
     bool bleBeaconEnabled() { return board_.bleBeaconEnabled(); }
     void setBleBeaconEnabled(bool on) { board_.setBleBeaconEnabled(on); }
+    bool nearbyEnabled() { return board_.nearbyEnabled(); }
+    void setNearbyEnabled(bool on) { board_.setNearbyEnabled(on); }
     uint8_t networkActivityCount() const { return board_.networkActivityCount(); }
     Board::NetworkActivity networkActivity(uint8_t newestFirstIndex) const {
         return board_.networkActivity(newestFirstIndex);

@@ -16,7 +16,7 @@
  * Two copyright forms exist because two of those screens are tight on width.
  * The short one drops "Company" and is for headers measured to the pixel; the
  * full one is for About and the screen saver, which have the room. */
-#define BRAINO_VERSION          "4.0.0"
+#define BRAINO_VERSION          "4.1.0"
 #define BRAINO_PRODUCT_NAME     "Braino!"
 #define BRAINO_COMPANY          "GoodTime Micro Company"
 #define BRAINO_COPYRIGHT        "(C) GoodTime Micro Company"

@@ -40,6 +40,15 @@ Single source of truth for the launchable app list. Each playable game declares 
 
 If you add a playable game, update `PLAYABLE_APP_COUNT`, put the launcher index/icon/default visibility in the game's own `AppMetadata`, and add the new `metadataCatalogApp(...AppMetadata(), instance)` line at the matching registry position. `tools/check_catalog.py` checks that indices stay contiguous, icon pairing still matches the app id, playable apps subclass `AppGame`, and system apps declare capabilities.
 
+## NearbyPlay.{h,cpp}
+
+Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the header notifications. `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
+
+- **Off by default, and gated on the beacon.** `tick()` re-derives `board.nearbyEnabled() && BleBeacon::enabled()` every frame rather than relying on an ordering contract with Settings, so the feature follows the radio in both directions. Both reads are from RAM.
+- **NVS reads are change-driven.** A peer's record is looked up only when its game or score actually changed. A beacon repeats every second; looking a record up at that rate would put a flash lookup inside the frame budget for no new information.
+- **One notification per thing that changed.** `Known[]` remembers what was already announced, so a repeating beacon does not repeat its banner.
+- **Nothing identifying.** Profile names are never read here. A peer is four hex digits of its own MAC; the only numbers that travel are a game index and a best score.
+
 ## Progress.{h,cpp}
 
 Per-item spaced repetition, one signed byte per item (-6..+6) in a single NVS blob. Correct `+1`, miss `-2`. Selection weights: heavily missed 8x, unseen 3x, mastered 1x. `pickWeighted()` takes a filter callback; `masteryPercent()` feeds auto-difficulty. Used by the flag/state games, which track recognition and capitals separately.

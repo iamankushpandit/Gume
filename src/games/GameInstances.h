@@ -16,6 +16,7 @@
 #include "games/MicrokuGame.h"
 #include "games/MoneyGame.h"
 #include "games/MultiplicationGame.h"
+#include "games/NearbyGame.h"
 #include "games/NumberLineGame.h"
 #include "games/ObjectAddGame.h"
 #include "games/OddOneOutGame.h"
@@ -74,4 +75,5 @@ struct GameInstances {
     ScoresGame scores;
     AboutGame about;
     SystemInfoGame systemInfo;
+    NearbyGame nearby;
 };

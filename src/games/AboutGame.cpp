@@ -137,12 +137,24 @@ void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
     drawLine(tft, 150, onAir ? String("Now: broadcasting ") + cfg.deviceName
                              : String("Now: off, broadcasting nothing"), 1);
 
+    /* Nearby play adds two fields to that beacon, so this page reads the
+     * beacon's own flag rather than restating a list that was written before
+     * the feature existed. A privacy claim that has drifted from the hardware
+     * is worse than no claim, because it is believed. */
+    tft.setTextColor(cfg.sharesActivity ? Ui::warning() : Ui::muted(), Ui::surface());
+    drawLine(tft, 166, cfg.sharesActivity
+                 ? "Nearby on: also the game open and"
+                 : "Nearby off: no game, no score.", 1);
+    if (cfg.sharesActivity) {
+        drawLine(tft, 180, "its best score. No name, no profile.", 1);
+    }
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 168, "Never sent: names, scores,", 1);
-    drawLine(tft, 182, "progress, location, Wi-Fi details.", 1);
+    drawLine(tft, 194, cfg.sharesActivity
+                 ? "Never sent: names, progress, location."
+                 : "Never sent: names, scores, progress.", 1);
     tft.setTextColor(Ui::text(), Ui::surface());
-    drawLine(tft, 200, "System Info > BLE shows the exact", 1);
-    drawLine(tft, 214, "bytes being transmitted.", 1);
+    drawLine(tft, 212, "System Info > BLE shows the exact", 1);
+    drawLine(tft, 226, "bytes being transmitted.", 1);
 }
 
 void AboutGame::renderCredits(Ui::Renderer& tft) {

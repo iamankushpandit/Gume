@@ -68,6 +68,9 @@ private:
     void onScreenSaverHit();
     void resetScreenSaverRally(int16_t effW, int16_t effH);
     void renderScreenSaver();
+    /* Paint the current Nearby notification over the header, if there is one.
+     * Called after the screen has drawn itself, so it lands on top. */
+    void drawNearbyBanner(bool screenRepainted);
 
     Board board_;
     Ui::TftRenderer renderer_{board_.display()};
@@ -93,6 +96,8 @@ private:
     uint32_t ssav_lastFrameMs_ = 0;
     int16_t ssav_textCy_ = -1;
 
+    uint32_t lastBannerGeneration_ = 0;
+    bool bannerNeedsPaint_ = false;
     uint32_t lastClockMinute_ = 0;
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
