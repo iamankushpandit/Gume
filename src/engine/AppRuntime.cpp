@@ -129,6 +129,31 @@ void KidsPlatformApp::loop() {
     board_.tickRgb();
     NearbyPlay::tick(board_);
 
+    /* Rotation used to be decided only at screen transitions, which was fine
+     * while nothing could change orientation without causing one. Settings
+     * can: flipping Layout with Settings open has to turn the panel under the
+     * very screen that did it, and before this the change did not land until
+     * you left and came back.
+     *
+     * board_.layoutMode() reads a RAM mirror, not NVS, so re-deriving this
+     * every frame is an integer compare rather than a flash lookup -- see the
+     * responsiveness rule in CLAUDE.md.
+     *
+     * The wipe is deliberate. After a rotation the panel holds pixels laid out
+     * against the other axis, and not every screen's full-render path repaints
+     * all of its own background (Cinnamon draws partially by design). One
+     * extra 150KB wipe on a change the owner made by hand is the cheap side of
+     * that trade. */
+    if (view_ == View::Game && activeGame_ != nullptr) {
+        const uint8_t wantedRotation = rotationForActiveScreen();
+        if (board_.displayRotation() != wantedRotation) {
+            applyRotation(wantedRotation);
+            Ui::clear(renderer_);
+            bannerNeedsPaint_ = true;
+            activeGame_->requestRender();
+        }
+    }
+
     /* A notification appearing or expiring changes the header, and the header
      * belongs to the screen underneath -- so the screen has to repaint before
      * the strip is painted over it. Doing this here, ahead of the render

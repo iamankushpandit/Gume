@@ -429,7 +429,7 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
-                          LauncherLayout
+                          LauncherLayout, GameLayout
                           gen_site.py, check_docs.py
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes

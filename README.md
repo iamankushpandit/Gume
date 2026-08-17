@@ -598,6 +598,7 @@ src/
     TftRenderer.h       TFT_eSPI adapter used by firmware runtime
     LauncherIcons.cpp   launcher tile icon drawing
     LauncherLayout.cpp  launcher header, profile and tile geometry
+    GameLayout.cpp      orientation-aware frame, stacks, grids, square fields
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
 tools/
