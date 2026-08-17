@@ -120,7 +120,7 @@ Legend: `todo` / `wip` / `done`
 | `src/ui/GameLayout.{h,cpp}` | done | responsive primitives |
 | Per-frame rotation re-evaluation | done | rotation is only applied on screen transitions today, so toggling Layout inside Settings does not re-rotate until you leave and come back |
 | README "Layout of the code" block | done | `check_docs.py` fails if `GameLayout.cpp` is not listed |
-| Flash/RAM figures in README + CLAUDE.md | todo | refresh from a real `pio run` |
+| Flash/RAM figures in README + CLAUDE.md | done | 2,331,865 / 74.1% as of the GRE Words commit; refresh again when the last 8 screens land |
 
 ## Budget
 
