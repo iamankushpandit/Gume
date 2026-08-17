@@ -221,8 +221,8 @@ def statemaps():
 
 def trace():
     im, d = blank(); topbar(d, "Trace")
-    for label, x, w, col in [["ABC", 38, 50, WARN], ["abc", 92, 50, PANEL], ["123", 146, 50, PANEL],
-                             ["Again", 204, 52, PANEL], ["Next", 260, 52, PANEL]]:
+    for label, x, w, col in [["ABC", 8, 57, WARN], ["abc", 69, 57, PANEL], ["123", 130, 57, PANEL],
+                             ["Again", 191, 57, PANEL], ["Next", 252, 60, PANEL]]:
         d.rounded_rectangle([x, 32, x + w, 54], 4, fill=col, outline=OUTLINE)
         d.text((x + w / 2 - d.textlength(label, font=F1) / 2, 37),
                label, font=F1, fill=PANEL if col == WARN else TEXT)
@@ -257,9 +257,9 @@ def trace():
     # Watermark letter
     d.text((110, 116), "A", font=F4, fill=PANEL)
     # Progress bar
-    bar_x, bar_y = 90, 222
-    d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([bar_x, bar_y, 130, bar_y + 10], 4, fill=SUCCESS)
+    bar_x, bar_y = 100, 222
+    d.rounded_rectangle([bar_x, bar_y, 220, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([bar_x, bar_y, 136, bar_y + 10], 4, fill=SUCCESS)
     # Prev/Next buttons
     button(d, (8, 202, 60, 30), "Prev", f=F1)
     button(d, (252, 202, 60, 30), "Next", f=F1)
@@ -268,8 +268,8 @@ def trace():
 
 def trace_lower():
     im, d = blank(); topbar(d, "Trace")
-    for label, x, w, col in [["ABC", 38, 50, PANEL], ["abc", 92, 50, WARN], ["123", 146, 50, PANEL],
-                             ["Again", 204, 52, PANEL], ["Next", 260, 52, PANEL]]:
+    for label, x, w, col in [["ABC", 8, 57, PANEL], ["abc", 69, 57, WARN], ["123", 130, 57, PANEL],
+                             ["Again", 191, 57, PANEL], ["Next", 252, 60, PANEL]]:
         d.rounded_rectangle([x, 32, x + w, 54], 4, fill=col, outline=OUTLINE)
         d.text((x + w / 2 - d.textlength(label, font=F1) / 2, 37),
                label, font=F1, fill=PANEL if col == WARN else TEXT)
@@ -765,14 +765,18 @@ def money():
     im, d = blank(); topbar(d, "Money")
     q = "How much is this?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=TEXT)
+    # Total mode draws a coin group in totalCoinRect -- {18, 78, w-36, 70} on a
+    # 320x240 panel -- not the Make-mode tray. drawCoinGroup lays the coins out
+    # at r.x + 18 + (i % cols) * 34, r.y + 18, with cols = r.w / 34.
+    d.rounded_rectangle([18, 78, 301, 148], 6, fill=SURFACE, outline=OUTLINE)
     coins = [("25", (170, 175, 180)), ("10", (170, 175, 180)),
              ("5", (170, 175, 180)), ("1", (190, 130, 90)), ("1", (190, 130, 90))]
     for i, (v, col) in enumerate(coins):
-        x = 14 + i * 59
-        d.ellipse([x + 9, 146, x + 43, 180], fill=col, outline=(90, 90, 96))
-        d.text((x + 20, 156), v, font=F2, fill=(30, 30, 36))
+        cx, cy = 36 + i * 34, 96
+        d.ellipse([cx - 14, cy - 14, cx + 14, cy + 14], fill=col, outline=(90, 90, 96))
+        d.text((cx - d.textlength(v, font=F2) / 2, cy - 8), v, font=F2, fill=(30, 30, 36))
     for i, a in enumerate(["42c", "37c", "45c", "40c"]):
-        r = (18 + (i % 2) * 152, 160 + (i // 2) * 36, 132, 30)
+        r = (14 + (i % 2) * 150, 160 + (i // 2) * 38, 142, 30)
         button(d, r, a,
                SUCCESS if a == "42c" else PANEL, (0, 0, 0) if a == "42c" else TEXT)
     return im
@@ -1059,17 +1063,22 @@ def nearby():
 def about_radios():
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
-    d.text((14, 44), "What the radios do", font=F2, fill=TEXT)
-    d.text((14, 70), "Wi-Fi: the clock only (NTP), plus", font=F1, fill=MUTED)
-    d.text((14, 84), "a one-off time zone lookup.", font=F1, fill=MUTED)
-    d.text((14, 100), "Now: connected", font=F1, fill=TEXT)
-    d.text((14, 120), "Bluetooth beacon", font=F2, fill=TEXT)
-    d.text((14, 146), "Now: broadcasting Braino-A4F2", font=F1, fill=WARN)
-    d.text((14, 162), "Nearby on: also the game open and", font=F1, fill=WARN)
-    d.text((14, 176), "its best score. No name, no profile.", font=F1, fill=WARN)
+    # Eleven lines shared out over the panel: a font-2 line takes half again
+    # the height of a font-1 one, so the pitch here is 16 and 11.
+    d.text((14, 48), "What the radios do", font=F2, fill=TEXT)
+    d.text((14, 64), "Wi-Fi: the clock only (NTP), plus", font=F1, fill=MUTED)
+    d.text((14, 75), "a one-off time zone lookup.", font=F1, fill=MUTED)
+    d.text((14, 86), "Now: connected", font=F1, fill=TEXT)
+    d.text((14, 97), "Bluetooth beacon", font=F2, fill=TEXT)
+    d.text((14, 113), "Now: broadcasting Braino-A4F2", font=F1, fill=WARN)
+    d.text((14, 124), "Nearby on: also the game open and", font=F1, fill=WARN)
+    d.text((14, 135), "its best score. No name, no profile.", font=F1, fill=WARN)
+    d.text((14, 146), "Never sent: names, progress, location.", font=F1, fill=MUTED)
+    d.text((14, 157), "System Info > BLE shows the exact", font=F1, fill=TEXT)
+    d.text((14, 168), "bytes being transmitted.", font=F1, fill=TEXT)
     button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next")
-    d.text((W / 2 - 14, 212), "6/8", font=F2, fill=MUTED)
+    d.text((W / 2 - 14, 212), "7/8", font=F2, fill=MUTED)
     return im
 
 
