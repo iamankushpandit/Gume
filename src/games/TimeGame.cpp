@@ -2,6 +2,13 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t HUD_TOP = TOP_BAR_HEIGHT + 5;
+constexpr int16_t HUD_SECOND = TOP_BAR_HEIGHT + 22;
+constexpr int16_t CLOCK_CY = TOP_BAR_HEIGHT + 61;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 103;
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 122;
+constexpr uint8_t ANSWER_COUNT = 4;
+
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
@@ -47,10 +54,15 @@ uint8_t TimeGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 4);
 }
 
-Rect TimeGame::answerRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(152 + row * 40), 132, 34};
+Rect TimeGame::answerBand(const Ui::Frame& f) const {
+    return Rect{18, ANSWER_TOP, static_cast<int16_t>(f.w - 36),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 16)};
+}
+
+Rect TimeGame::answerRect(const Ui::Frame& f, uint8_t index) const {
+    const uint8_t cols = Ui::answerColumns(f, ANSWER_COUNT);
+    const uint8_t rows = static_cast<uint8_t>(ANSWER_COUNT / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, index, 6);
 }
 
 String TimeGame::formatTime(uint16_t minutes) const {
@@ -156,7 +168,7 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (answerRect(Ui::frame(host.display()), i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = i;
             answered_ = true;
             if (i == correctButton_) {
@@ -176,9 +188,9 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void TimeGame::drawClock(Ui::Renderer& tft) const {
-    constexpr int16_t cx = SCREEN_WIDTH / 2;
-    constexpr int16_t cy = 91;
+void TimeGame::drawClock(Ui::Renderer& tft, const Ui::Frame& f) const {
+    const int16_t cx = f.cx();
+    constexpr int16_t cy = CLOCK_CY;
     constexpr int16_t radius = 49;
 
     tft.fillCircle(cx, cy, radius + 4, Ui::surface());
@@ -218,6 +230,7 @@ void TimeGame::drawClock(Ui::Renderer& tft) const {
 
 void TimeGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -231,12 +244,13 @@ void TimeGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char rightBuf[20];
     snprintf(rightBuf, sizeof(rightBuf), "Streak %u", streak_);
-    tft.drawString(rightBuf, SCREEN_WIDTH - 10, 35, 2);
+    tft.drawString(rightBuf, f.w - 10, HUD_TOP, 2);
     snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestStreak_);
-    tft.drawString(rightBuf, SCREEN_WIDTH - 10, 52, 2);
+    tft.drawString(rightBuf, f.w - 10, HUD_SECOND, 2);
 
-    drawClock(tft);
-    Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?", Ui::text(), 2, Align::Center);
+    drawClock(tft, f);
+    Ui::drawLabel(tft, Rect{8, PROMPT_Y, static_cast<int16_t>(f.w - 16), 16},
+                  "Which time is shown?", Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
@@ -250,13 +264,14 @@ void TimeGame::render(AppContext& host) {
                 text = TFT_BLACK;
             }
         }
-        Ui::drawButton(tft, answerRect(i), formatTime(options_[i]), fill, Ui::outline(), text, false, 2);
+        Ui::drawButton(tft, answerRect(f, i), formatTime(options_[i]), fill, Ui::outline(), text, false, 2);
     }
 
     if (answered_) {
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Try the green time next", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Try the green time next",
+                       f.cx(), static_cast<int16_t>(f.h - 14), 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

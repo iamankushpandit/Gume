@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -39,15 +40,17 @@ private:
     void markCorrect(AppContext& host);
     void markWrong(int8_t index);
 
-    Rect optionRect(uint8_t index) const;
-    Rect pieOptionRect(uint8_t index) const;
-    Rect compareRect(uint8_t index) const;
+    /* Three question shapes, three trays -- all of them two columns wide in
+      * landscape and stacked or paired in portrait. */
+    Rect optionRect(const Ui::Frame& f, uint8_t index) const;
+    Rect pieOptionRect(const Ui::Frame& f, uint8_t index) const;
+    Rect compareRect(const Ui::Frame& f, uint8_t index) const;
 
     void drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, const Fraction& fraction, bool selected = false) const;
     void fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
-    void drawTextOptions(Ui::Renderer& tft) const;
-    void drawPieOptions(Ui::Renderer& tft) const;
-    void drawCompare(Ui::Renderer& tft) const;
+    void drawTextOptions(Ui::Renderer& tft, const Ui::Frame& f) const;
+    void drawPieOptions(Ui::Renderer& tft, const Ui::Frame& f) const;
+    void drawCompare(Ui::Renderer& tft, const Ui::Frame& f) const;
 
     Mode mode_ = Mode::PickText;
     Fraction target_;

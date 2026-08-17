@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -16,8 +17,9 @@ public:
 private:
     enum class Phase : uint8_t { Pause, Jumping, Question, Feedback };
 
-    Rect answerRect(uint8_t i) const;
-    int16_t numToX(uint8_t n) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t i) const;
+    int16_t numToX(const Ui::Frame& f, uint8_t n) const;
     void newQuestion();
     void makeOptions();
 

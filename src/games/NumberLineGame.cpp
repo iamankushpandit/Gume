@@ -2,6 +2,11 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t LINE_MARGIN = 22;
+constexpr int16_t LINE_Y = TOP_BAR_HEIGHT + 132;
+constexpr int16_t EQUATION_Y = TOP_BAR_HEIGHT + 22;
+constexpr int16_t HINT_Y = TOP_BAR_HEIGHT + 48;
+
 constexpr AppMetadata NUMBER_LINE_METADATA = {
     "numberline",
     "Number Line",
@@ -26,12 +31,27 @@ const char* NumberLineGame::title() const {
         : numberLineAppMetadata().title;
 }
 
-int16_t NumberLineGame::numToX(uint8_t n) const {
-    return static_cast<int16_t>(22 + (n * 276) / 10);
+int16_t NumberLineGame::numToX(const Ui::Frame& f, uint8_t n) const {
+    /* The line spans the panel less a margin either end, so 0 and 10 keep
+     * their ticks on screen at 240px as well as 320. */
+    const int16_t span = static_cast<int16_t>(f.w - 2 * LINE_MARGIN);
+    return static_cast<int16_t>(LINE_MARGIN + (static_cast<int32_t>(n) * span) / 10);
 }
 
-Rect NumberLineGame::answerRect(uint8_t i) const {
-    return Rect{static_cast<int16_t>(14 + i * 74), 194, 64, 38};
+Rect NumberLineGame::answerBand(const Ui::Frame& f) const {
+    const uint8_t cols = f.tall() ? 2 : 4;
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    const int16_t h = static_cast<int16_t>(rows * 38 + (rows - 1) * 8);
+    return Rect{14, static_cast<int16_t>(f.h - h - 8),
+                static_cast<int16_t>(f.w - 28), h};
+}
+
+Rect NumberLineGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    /* Four 64px buttons on a 74px pitch need 296px. Landscape has it and
+     * portrait does not, so portrait pairs them instead of shrinking them. */
+    const uint8_t cols = f.tall() ? 2 : 4;
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 8);
 }
 
 void NumberLineGame::makeOptions() {
@@ -95,7 +115,7 @@ void NumberLineGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
     if (phase_ != Phase::Question) return;
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (answerRect(Ui::frame(host.display()), i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = static_cast<int8_t>(i);
             ++rounds_;
             lastCorrect_ = (i == correctBtn_);
@@ -110,12 +130,13 @@ void NumberLineGame::update(AppContext& host, const TouchPoint& touch) {
 
 void NumberLineGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(String(score_) + "/" + rounds_, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(String(score_) + "/" + rounds_, f.w - 8, TOP_BAR_HEIGHT + 4, 2);
 
     // Equation display
     const uint8_t curPos = (phase_ == Phase::Pause) ? n1_
@@ -125,27 +146,28 @@ void NumberLineGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     if (phase_ == Phase::Feedback && lastCorrect_) {
         tft.setTextColor(Ui::success(), Ui::bg());
-        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = " + answer, SCREEN_WIDTH/2, 52, 4);
+        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = " + answer, f.cx(), EQUATION_Y, 4);
     } else {
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = ?", SCREEN_WIDTH/2, 52, 4);
+        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = ?", f.cx(), EQUATION_Y, 4);
     }
 
     // Instruction
     tft.setTextColor(Ui::muted(), Ui::bg());
     if (phase_ == Phase::Pause) {
-        tft.drawString(isAdd_ ? "Watch the frog jump right!" : "Watch the frog jump left!", SCREEN_WIDTH/2, 78, 2);
+        tft.drawString(isAdd_ ? "Watch the frog jump right!" : "Watch the frog jump left!", f.cx(), HINT_Y, 2);
     } else if (phase_ == Phase::Jumping) {
-        tft.drawString(String("Jump ") + animStep_ + " of " + n2_, SCREEN_WIDTH/2, 78, 2);
+        tft.drawString(String("Jump ") + animStep_ + " of " + n2_, f.cx(), HINT_Y, 2);
     }
 
     // Jump arcs (show previous jumps)
-    constexpr int16_t lineY = 162;
+    const int16_t lineY = static_cast<int16_t>(
+        f.tall() ? (TOP_BAR_HEIGHT + (answerBand(f).y - TOP_BAR_HEIGHT) / 2 + 20) : LINE_Y);
     if (phase_ == Phase::Jumping || phase_ == Phase::Question || phase_ == Phase::Feedback) {
         for (uint8_t step = 0; step < animStep_; ++step) {
             const uint8_t from = isAdd_ ? n1_ + step : n1_ - step;
             const uint8_t to   = isAdd_ ? from + 1   : from - 1;
-            const int16_t x1 = numToX(from), x2 = numToX(to);
+            const int16_t x1 = numToX(f, from), x2 = numToX(f, to);
             // Real semicircular hop. This used to be two straight lines meeting
             // at a midpoint, which drew a triangle rather than an arc.
             Ui::drawHopArc(tft, x1, x2, lineY, 20, Ui::rgb(255, 200, 0));
@@ -153,19 +175,20 @@ void NumberLineGame::render(AppContext& host) {
     }
 
     // Number line
-    tft.drawLine(18, lineY, 302, lineY, Ui::text());
-    tft.drawLine(300, static_cast<int16_t>(lineY - 5), 302, lineY, Ui::text());
-    tft.drawLine(300, static_cast<int16_t>(lineY + 5), 302, lineY, Ui::text());
+    const int16_t lineRight = static_cast<int16_t>(f.w - 18);
+    tft.drawLine(18, lineY, lineRight, lineY, Ui::text());
+    tft.drawLine(lineRight - 2, static_cast<int16_t>(lineY - 5), lineRight, lineY, Ui::text());
+    tft.drawLine(lineRight - 2, static_cast<int16_t>(lineY + 5), lineRight, lineY, Ui::text());
     tft.setTextDatum(TC_DATUM);
     for (uint8_t i = 0; i <= 10; ++i) {
-        const int16_t tx = numToX(i);
+        const int16_t tx = numToX(f, i);
         tft.drawLine(tx, static_cast<int16_t>(lineY - 6), tx, static_cast<int16_t>(lineY + 6), Ui::text());
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.drawString(String(i), tx, static_cast<int16_t>(lineY + 9), 1);
     }
     // Dot / frog at current position
     if (curPos <= 10) {
-        const int16_t dx = numToX(curPos);
+        const int16_t dx = numToX(f, curPos);
         tft.fillCircle(dx, static_cast<int16_t>(lineY - 14), 9, Ui::rgb(80, 230, 80));
         tft.drawCircle(dx, static_cast<int16_t>(lineY - 14), 9, Ui::text());
         tft.setTextColor(TFT_BLACK, Ui::rgb(80, 230, 80));
@@ -182,7 +205,7 @@ void NumberLineGame::render(AppContext& host) {
                 if (i == correctBtn_)                            { fill = Ui::success(); tc = TFT_BLACK; }
                 else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error();   tc = TFT_BLACK; }
             }
-            Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, TFT_DARKGREY, tc, false, 4);
+            Ui::drawButton(tft, answerRect(f, i), String(options_[i]), fill, TFT_DARKGREY, tc, false, 4);
         }
     }
     tft.setTextDatum(TL_DATUM);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -15,13 +16,14 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect answerRect(uint8_t index) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t index) const;
     void newQuestion();
     void makeOptions();
     bool optionExists(uint16_t minutes, uint8_t upTo) const;
     String formatTime(uint16_t minutes) const;
     uint8_t level() const;
-    void drawClock(Ui::Renderer& tft) const;
+    void drawClock(Ui::Renderer& tft, const Ui::Frame& f) const;
 
     uint16_t answerMinutes_ = 0;
     uint16_t options_[4] = {};

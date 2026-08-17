@@ -2,6 +2,16 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t HUD_TOP = TOP_BAR_HEIGHT + 5;
+constexpr int16_t HUD_SECOND = TOP_BAR_HEIGHT + 21;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 36;
+constexpr int16_t TEXT_Y = TOP_BAR_HEIGHT + 59;
+constexpr int16_t PIE_CY = TOP_BAR_HEIGHT + 85;
+constexpr int16_t OPTION_TOP = TOP_BAR_HEIGHT + 134;
+constexpr int16_t PIE_OPTION_TOP = TOP_BAR_HEIGHT + 82;
+constexpr int16_t COMPARE_TOP = TOP_BAR_HEIGHT + 146;
+constexpr uint8_t OPTION_COUNT = 4;
+
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
@@ -182,23 +192,32 @@ void FractionGame::markWrong(int8_t index) {
     flashUntil_ = millis() + 420UL;
 }
 
-Rect FractionGame::optionRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(164 + row * 34), 132, 30};
+Rect FractionGame::optionRect(const Ui::Frame& f, uint8_t index) const {
+    const Rect band{18, OPTION_TOP, static_cast<int16_t>(f.w - 36),
+                    static_cast<int16_t>(f.h - OPTION_TOP - 16)};
+    const uint8_t cols = Ui::answerColumns(f, OPTION_COUNT);
+    const uint8_t rows = static_cast<uint8_t>(OPTION_COUNT / cols);
+    return Ui::gridCell(band, cols, rows, index, 6);
 }
 
-Rect FractionGame::pieOptionRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(34 + col * 152), static_cast<int16_t>(112 + row * 48), 100, 42};
+Rect FractionGame::pieOptionRect(const Ui::Frame& f, uint8_t index) const {
+    int16_t h = static_cast<int16_t>(f.h - PIE_OPTION_TOP - 16);
+    if (h > 110) {
+        h = 110;
+    }
+    const Rect band{34, PIE_OPTION_TOP, static_cast<int16_t>(f.w - 68), h};
+    return Ui::gridCell(band, 2, 2, index, 8);
 }
 
-Rect FractionGame::compareRect(uint8_t index) const {
-    return index == 0 ? Rect{34, 176, 104, 34} : Rect{182, 176, 104, 34};
+Rect FractionGame::compareRect(const Ui::Frame& f, uint8_t index) const {
+    /* Two side-by-side choices; portrait has room for both at 104 wide, so
+     * this one keeps its pair rather than stacking. */
+    const Rect band{34, COMPARE_TOP, static_cast<int16_t>(f.w - 68), 34};
+    return Ui::gridCell(band, 2, 1, index, 12);
 }
 
 void FractionGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     if (flashIndex_ >= 0 && millis() > flashUntil_) {
         flashIndex_ = -1;
         markDirty();
@@ -215,7 +234,7 @@ void FractionGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (mode_ == Mode::PickText) {
         for (uint8_t i = 0; i < 4; ++i) {
-            if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (optionRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selected_ = i;
                 if (i == correctButton_) {
                     markCorrect(host);
@@ -229,7 +248,7 @@ void FractionGame::update(AppContext& host, const TouchPoint& touch) {
         }
     } else if (mode_ == Mode::PickPie) {
         for (uint8_t i = 0; i < 4; ++i) {
-            if (pieOptionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (pieOptionRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selected_ = i;
                 if (i == correctButton_) {
                     markCorrect(host);
@@ -243,7 +262,7 @@ void FractionGame::update(AppContext& host, const TouchPoint& touch) {
         }
     } else {
         for (uint8_t i = 0; i < 2; ++i) {
-            if (compareRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (compareRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selected_ = i;
                 if (i == correctButton_) {
                     markCorrect(host);
@@ -289,8 +308,8 @@ void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t ra
     }
 }
 
-void FractionGame::drawTextOptions(Ui::Renderer& tft) const {
-    drawPie(tft, SCREEN_WIDTH / 2, 115, 38, target_);
+void FractionGame::drawTextOptions(Ui::Renderer& tft, const Ui::Frame& f) const {
+    drawPie(tft, f.cx(), PIE_CY, 38, target_);
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
@@ -301,18 +320,18 @@ void FractionGame::drawTextOptions(Ui::Renderer& tft) const {
             fill = RED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, optionRect(i), fractionText(options_[i]), fill, Ui::outline(), text, false, 2);
+        Ui::drawButton(tft, optionRect(f, i), fractionText(options_[i]), fill, Ui::outline(), text, false, 2);
     }
 }
 
-void FractionGame::drawPieOptions(Ui::Renderer& tft) const {
+void FractionGame::drawPieOptions(Ui::Renderer& tft, const Ui::Frame& f) const {
     tft.fillRoundRect(96, 74, 128, 30, 6, Ui::panel());
     tft.drawRoundRect(96, 74, 128, 30, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(fractionText(target_), SCREEN_WIDTH / 2, 89, 4);
+    tft.drawString(fractionText(target_), f.cx(), TEXT_Y, 4);
     for (uint8_t i = 0; i < 4; ++i) {
-        const Rect r = pieOptionRect(i);
+        const Rect r = pieOptionRect(f, i);
         bool selected = roundComplete_ ? i == correctButton_ : flashIndex_ == i;
         if (flashIndex_ == i) {
             tft.fillRoundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 6, RED);
@@ -321,7 +340,7 @@ void FractionGame::drawPieOptions(Ui::Renderer& tft) const {
     }
 }
 
-void FractionGame::drawCompare(Ui::Renderer& tft) const {
+void FractionGame::drawCompare(Ui::Renderer& tft, const Ui::Frame& f) const {
     drawPie(tft, 92, 112, 38, target_, roundComplete_ && correctButton_ == 0);
     drawPie(tft, 228, 112, 38, other_, roundComplete_ && correctButton_ == 1);
     tft.setTextColor(Ui::muted(), Ui::bg());
@@ -338,12 +357,13 @@ void FractionGame::drawCompare(Ui::Renderer& tft) const {
             fill = RED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, compareRect(i), i == 0 ? "Left" : "Right", fill, Ui::outline(), text, false, 2);
+        Ui::drawButton(tft, compareRect(f, i), i == 0 ? "Left" : "Right", fill, Ui::outline(), text, false, 2);
     }
 }
 
 void FractionGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -352,28 +372,30 @@ void FractionGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 8, 35, 2);
     tft.drawString(String("Score ") + score_, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(String("Streak ") + streak_, f.w - 8, HUD_TOP, 2);
+    tft.drawString(String("Best ") + bestStreak_, f.w - 8, HUD_SECOND, 1);
 
     const char* prompt = mode_ == Mode::PickText ? "Pick the matching fraction" : (mode_ == Mode::PickPie ? "Pick the matching pie" : "Which fraction is bigger?");
-    Ui::drawLabel(tft, Rect{8, 66, 304, 12}, prompt, Ui::muted(), 1, Align::Center);
+    Ui::drawLabel(tft, Rect{8, PROMPT_Y, static_cast<int16_t>(f.w - 16), 12},
+                  prompt, Ui::muted(), 1, Align::Center);
 
     if (mode_ == Mode::PickText) {
-        drawTextOptions(tft);
+        drawTextOptions(tft, f);
     } else if (mode_ == Mode::PickPie) {
-        drawPieOptions(tft);
+        drawPieOptions(tft, f);
     } else {
-        drawCompare(tft);
+        drawCompare(tft, f);
     }
 
     if (roundComplete_) {
         tft.fillRoundRect(62, 126, 196, 42, 8, Ui::panel());
         tft.drawRoundRect(62, 126, 196, 42, 8, GREEN);
-        Ui::drawLabel(tft, Rect{64, 132, 192, 28}, "Correct - tap next", GREEN, 2, Align::Center);
+        Ui::drawLabel(tft, Ui::centreIn(Rect{0, static_cast<int16_t>(PIE_CY + 17), f.w, 28}, 192, 28),
+                      "Correct - tap next", GREEN, 2, Align::Center);
     } else if (flashIndex_ >= 0) {
         tft.setTextColor(RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString("Try again", f.cx(), static_cast<int16_t>(f.h - 14), 2);
     }
     tft.setTextDatum(TL_DATUM);
 }
