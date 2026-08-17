@@ -390,6 +390,81 @@ Everything above still applies, plus:
   **About radios page** and the **README privacy section** are part of the same
   change â€” and About must *read* the state, not restate it.
 
+## Supporting another display board -- read this before writing any code
+
+Adding the 4-inch ST7796S board took a full day and about a dozen flash
+cycles. Almost none of that was writing the fix, which is forty lines of build
+flags. It was *finding* it, and the reason it took so long is worth stating
+plainly, because it will happen again on the next board.
+
+**Every board mismatch fails silently, and none of them look like what they
+are.** There is no error message, no failed assertion, no log line naming the
+cause. The firmware runs perfectly and the hardware looks broken:
+
+| What is wrong | What you see | What it looks like |
+|---|---|---|
+| Backlight GPIO | panel dark; Wi-Fi, BLE, NVS, LED, saver all fine | dead board, or "your code broke it" |
+| Display driver | mirrored, partly garbled image | "sort of working" -- ST7796S accepts most ILI9341 commands |
+| Touch on a shared SPI bus | constant reads -> 3 identical calibration points | dead digitiser; surfaces as "Calibration failed" |
+| Touch pins claimed as GPIO in `begin()` | pins torn from the SPI peripheral | touch dies *and* the panel misbehaves |
+| `USE_HSPI_PORT` dropped | SD init reconfigures the bus under the panel | intermittent, blamed on anything but the SD card |
+| Stale touch calibration | touches land in the wrong place | broken touch, not stale data |
+| Fixed tile/icon geometry | content drawn at 320x240 in a corner | "the zoom is missing" |
+
+### The rule: get the vendor's pin table first
+
+**Before writing a single probe, ask for the board's pinout table, its
+datasheet, or a known-working firmware for it.** One of those answers in
+thirty seconds what probing answers in hours. On the 4-inch board the owner
+had a working `platformio.ini` on disk the whole time; it gave all five
+differences at once, including the backlight GPIO that was the actual fault.
+
+Then **check `git branch -a`.** This repo already had `feat/st7796-4inch-board`
+and `feat/cyd-boards` when that day was spent rediscovering the same facts.
+
+Probing is what you do when no reference exists. Confirm one does not before
+you start.
+
+### Board differences are build flags, never constants
+
+The 2.8-inch board was smooth to work with because the firmware *was* that
+board: its pins, driver, resolution and backlight were baked in as constants
+on the assumption there would only ever be one. Every one of those had to be
+found and parameterised the hard way.
+
+So when anything is board-specific, give it an `#ifndef` default in
+`include/BoardConfig.h` and override it per environment in `platformio.ini`.
+`env:app` keeps the E32R28T-1 values; `env:app4` carries the overrides. What
+already works that way: panel geometry (`TFT_WIDTH`/`TFT_HEIGHT`), backlight
+(`TFT_BL`), touch pins, RGB LED pins, launcher icon size, and whether touch
+shares the LCD bus (`TOUCH_SHARES_LCD_BUS`).
+
+### Prove the panel before running the firmware
+
+Write a hello-world first: fill the screen, draw corner markers and text, and
+print raw touch values over serial. It answers "is this the right driver, the
+right rotation, the right touch wiring" without the app's SD card, screen
+saver and calibration state in the way -- all three of which sent this
+investigation down blind alleys. The screen saver in particular draws
+mostly-black Pong, which through a wrong driver is indistinguishable from a
+dead panel.
+
+Corner markers beat text: they show geometry and orientation at a glance.
+
+### Things that are true of every board here
+
+- **Calibration is panel-specific.** A 3-point affine fitted onto 320x240 is
+  meaningless at 480x320. `TOUCH_CAL_MAGIC` folds the geometry in so a
+  calibration from another panel fails to validate and re-runs the wizard.
+- **Layout must come from `tft.width()`/`height()` at render time**, never
+  `SCREEN_WIDTH`/`SCREEN_HEIGHT`. This is what let 28 screens work on a
+  480x320 panel with no changes at all; the six that still hardcode geometry
+  are exactly the six that looked wrong on it.
+- **The web installer offers one firmware per board.** Adding an environment
+  means adding it to `tools/gen_site.py` `VARIANTS` *and* `BOARDS`, and to both
+  workflows -- otherwise the manifest points at a binary CI never built, and it
+  fails in someone else's browser.
+
 ## Rendering model
 
 App-facing rendering uses `Ui::Renderer`: a driver-free RGB565 primitive

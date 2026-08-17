@@ -54,7 +54,7 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build firmware
-        run: pio run -e app -e bringup -e wifidiag
+        run: pio run -e app -e app4 -e bringup -e wifidiag
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -65,7 +65,7 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup wifidiag; do
+            for env in app app4 bringup wifidiag; do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"
@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
           boot_app0=$(find ~/.platformio/packages -name boot_app0.bin -path '*partitions*' | head -n 1)
           test -n "$boot_app0"
-          for env in app bringup wifidiag; do
+          for env in app app4 bringup wifidiag; do
             dest="_site/firmware/e32r28t1/$env"
             test -d "$dest"
             cp ".pio/build/$env/firmware.bin"   "$dest/"

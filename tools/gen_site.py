@@ -65,16 +65,32 @@ VARIANTS = (
         "note": "The full console: {count} games, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon.",
     },
+    {
+        "env": "app4",
+        "label": "Braino! (4 inch board)",
+        "name": "Braino! 4in",
+        "note": "The same {count} games built for the 4-inch ST7796S panel. "
+                "Flashing this to a 2.8-inch board leaves the screen dark.",
+    },
 )
 
-# The pin map, screen rotation and touch controller are compile-time constants,
-# so a build is only meaningful on the board it was compiled for. One entry.
+# The pin map, screen rotation, panel driver and touch wiring are all
+# compile-time constants, so a build is only meaningful on the board it was
+# compiled for -- flashing the wrong one gives a dark screen and dead touch on
+# hardware that is running perfectly. One entry per board, and the label has to
+# be specific enough that an owner can tell which they have.
 BOARDS = (
     {
         "id": "e32r28t1",
         "label": "E32R28T-1 / ESP32-32E -- 2.8 inch ILI9341 + XPT2046 (resistive)",
         "chip": "ESP32",
         "envs": ("app",),
+    },
+    {
+        "id": "st7796-4in",
+        "label": "4 inch ST7796S 320x480 + XPT2046 (resistive, shares the LCD SPI bus)",
+        "chip": "ESP32",
+        "envs": ("app4",),
     },
 )
 
