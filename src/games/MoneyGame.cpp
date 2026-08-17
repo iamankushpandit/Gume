@@ -278,26 +278,83 @@ void MoneyGame::markWrong(int8_t flashIndex) {
     flashUntil_ = millis() + 420UL;
 }
 
-Rect MoneyGame::optionRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(160 + row * 36), 132, 30};
+/* The four answer buttons stay a 2x2 grid in both orientations. The labels
+ * are short money amounts, so two columns read fine even on a 240px panel,
+ * and stacking four of them would eat the height the coins need. */
+Rect MoneyGame::optionsBand(const Ui::Frame& f) const {
+    return Rect{14, static_cast<int16_t>(f.h - 80), static_cast<int16_t>(f.w - 28), 68};
+}
+Rect MoneyGame::optionRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(optionsBand(f), 2, 2, index, 8);
 }
 
-Rect MoneyGame::trayRect(uint8_t index) const {
-    return Rect{static_cast<int16_t>(14 + index * 59), 146, 52, 34};
+/* The coin tray fills whatever is left between the mode label and the
+ * answers, so the coins spread out on a bigger panel instead of crowding
+ * into the top 70px of it. drawCoinGroup already derives its column count
+ * from the width it is given. */
+Rect MoneyGame::totalCoinRect(const Ui::Frame& f) const {
+    return Rect{18, 78, static_cast<int16_t>(f.w - 36),
+                static_cast<int16_t>(optionsBand(f).y - 90)};
 }
 
-Rect MoneyGame::clearRect() const {
-    return Rect{36, 198, 96, 30};
+Rect MoneyGame::makeActionRow(const Ui::Frame& f) const {
+    return Rect{36, static_cast<int16_t>(f.h - 42), static_cast<int16_t>(f.w - 72), 30};
+}
+Rect MoneyGame::clearRect(const Ui::Frame& f) const {
+    return Ui::gridCell(makeActionRow(f), 2, 1, 0, 20);
+}
+Rect MoneyGame::doneRect(const Ui::Frame& f) const {
+    return Ui::gridCell(makeActionRow(f), 2, 1, 1, 20);
 }
 
-Rect MoneyGame::doneRect() const {
-    return Rect{188, 198, 96, 30};
+/* The tray holds between two and five coins depending on level, so it keeps
+ * a fixed coin size and centres the row rather than stretching the coins to
+ * fill the width -- a penny that changes size with the level reads as a
+ * different coin. The pitch only shrinks if the row would not otherwise fit. */
+Rect MoneyGame::trayRect(const Ui::Frame& f, uint8_t index) const {
+    const uint8_t n = max<uint8_t>(1, allowedCoinCount());
+    int16_t pitch = static_cast<int16_t>((f.w - 28) / n);
+    if (pitch > 59) pitch = 59;
+    int16_t w = static_cast<int16_t>(pitch - 7);
+    if (w > 52) w = 52;
+    const int16_t span = static_cast<int16_t>((n - 1) * pitch + w);
+    const int16_t x0 = static_cast<int16_t>(f.cx() - span / 2);
+    return Rect{static_cast<int16_t>(x0 + index * pitch),
+                static_cast<int16_t>(makeActionRow(f).y - 52), w, 34};
 }
 
-Rect MoneyGame::moreRect(uint8_t index) const {
-    return index == 0 ? Rect{32, 176, 110, 34} : Rect{178, 176, 110, 34};
+Rect MoneyGame::makeCoinRect(const Ui::Frame& f) const {
+    const int16_t top = 82;
+    return Rect{18, top, static_cast<int16_t>(f.w - 36),
+                static_cast<int16_t>(trayRect(f, 0).y - top - 10)};
+}
+
+/* On a 320px panel gridCell lands on the authored 32/178 at 110 wide, and
+ * the two coin groups on 14/166 at 140 wide. */
+Rect MoneyGame::moreButtonRow(const Ui::Frame& f) const {
+    return Rect{32, static_cast<int16_t>(f.h - 64), static_cast<int16_t>(f.w - 64), 34};
+}
+Rect MoneyGame::moreRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(moreButtonRow(f), 2, 1, index, 36);
+}
+Rect MoneyGame::moreGroupRect(const Ui::Frame& f, uint8_t index) const {
+    const Rect band{14, 72, static_cast<int16_t>(f.w - 28),
+                    static_cast<int16_t>(moreButtonRow(f).y - 88)};
+    return Ui::gridCell(band, 2, 1, index, 12);
+}
+
+Rect MoneyGame::pricePanelRect(const Ui::Frame& f) const {
+    int16_t w = static_cast<int16_t>(f.w - 64);
+    if (w > 256) w = 256;
+    return Rect{static_cast<int16_t>(f.cx() - w / 2), 82, w, 56};
+}
+
+/* Sits just above the answers, whatever height the panel is. */
+Rect MoneyGame::correctBannerRect(const Ui::Frame& f) const {
+    int16_t w = static_cast<int16_t>(f.w - 40);
+    if (w > 196) w = 196;
+    return Rect{static_cast<int16_t>(f.cx() - w / 2),
+                static_cast<int16_t>(optionsBand(f).y - 34), w, 42};
 }
 
 void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
@@ -316,14 +373,16 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
+    const Ui::Frame f = Ui::frame(host.display());
+
     if (mode_ == Mode::Make) {
-        if (clearRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (clearRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             built_ = 0;
             makeCount_ = 0;
             markDirty();
             return;
         }
-        if (doneRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (doneRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (built_ == target_) {
                 markCorrect(host);
             } else {
@@ -334,7 +393,7 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
         }
         const uint8_t allowed = allowedCoinCount();
         for (uint8_t i = 0; i < allowed; ++i) {
-            if (trayRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && makeCount_ < sizeof(makeCoins_) / sizeof(makeCoins_[0])) {
+            if (trayRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && makeCount_ < sizeof(makeCoins_) / sizeof(makeCoins_[0])) {
                 const uint8_t coin = COIN_VALUES[i];
                 makeCoins_[makeCount_++] = coin;
                 built_ += coin;
@@ -347,7 +406,7 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (mode_ == Mode::More) {
         for (uint8_t i = 0; i < 2; ++i) {
-            if (moreRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (moreRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selected_ = i;
                 if (i == correctButton_) {
                     markCorrect(host);
@@ -362,7 +421,7 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     for (uint8_t i = 0; i < 4; ++i) {
-        if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (optionRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = i;
             if (i == correctButton_) {
                 markCorrect(host);
@@ -397,7 +456,7 @@ void MoneyGame::drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* c
     }
 }
 
-void MoneyGame::drawOptions(Ui::Renderer& tft) const {
+void MoneyGame::drawOptions(Ui::Renderer& tft, const Ui::Frame& f) const {
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
@@ -408,29 +467,29 @@ void MoneyGame::drawOptions(Ui::Renderer& tft) const {
             fill = RED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, optionRect(i), centsText(options_[i]), fill, Ui::outline(), text, false, 2);
+        Ui::drawButton(tft, optionRect(f, i), centsText(options_[i]), fill, Ui::outline(), text, false, 2);
     }
 }
 
-void MoneyGame::drawMake(Ui::Renderer& tft) const {
-    drawCoinGroup(tft, Rect{18, 82, 284, 54}, makeCoins_, makeCount_);
+void MoneyGame::drawMake(Ui::Renderer& tft, const Ui::Frame& f) const {
+    drawCoinGroup(tft, makeCoinRect(f), makeCoins_, makeCount_);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(String("Make ") + centsText(target_) + "   Built " + centsText(built_), SCREEN_WIDTH / 2, 70, 2);
+    tft.drawString(String("Make ") + centsText(target_) + "   Built " + centsText(built_), f.cx(), 70, 2);
 
     const uint8_t allowed = allowedCoinCount();
     for (uint8_t i = 0; i < allowed; ++i) {
-        const Rect r = trayRect(i);
+        const Rect r = trayRect(f, i);
         Ui::drawButton(tft, r, "", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
         drawCoin(tft, r.x + r.w / 2, r.y + r.h / 2, COIN_VALUES[i]);
     }
-    Ui::drawButton(tft, clearRect(), "Clear", Ui::surface(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, doneRect(), "Done", flashIndex_ == 6 ? RED : BLUE, Ui::outline(), flashIndex_ == 6 ? TFT_BLACK : TFT_WHITE, false, 2);
+    Ui::drawButton(tft, clearRect(f), "Clear", Ui::surface(), Ui::outline(), Ui::text(), false, 2);
+    Ui::drawButton(tft, doneRect(f), "Done", flashIndex_ == 6 ? RED : BLUE, Ui::outline(), flashIndex_ == 6 ? TFT_BLACK : TFT_WHITE, false, 2);
 }
 
-void MoneyGame::drawMore(Ui::Renderer& tft) const {
-    drawCoinGroup(tft, Rect{14, 72, 140, 88}, groupA_, groupACount_);
-    drawCoinGroup(tft, Rect{166, 72, 140, 88}, groupB_, groupBCount_);
+void MoneyGame::drawMore(Ui::Renderer& tft, const Ui::Frame& f) const {
+    drawCoinGroup(tft, moreGroupRect(f, 0), groupA_, groupACount_);
+    drawCoinGroup(tft, moreGroupRect(f, 1), groupB_, groupBCount_);
     for (uint8_t i = 0; i < 2; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
@@ -441,12 +500,13 @@ void MoneyGame::drawMore(Ui::Renderer& tft) const {
             fill = RED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, moreRect(i), i == 0 ? "Left" : "Right", fill, Ui::outline(), text, false, 2);
+        Ui::drawButton(tft, moreRect(f, i), i == 0 ? "Left" : "Right", fill, Ui::outline(), text, false, 2);
     }
 }
 
 void MoneyGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -455,37 +515,45 @@ void MoneyGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 8, 35, 2);
     tft.drawString(String("Score ") + score_, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(String("Streak ") + streak_, static_cast<int16_t>(f.w - 8), 35, 2);
+    tft.drawString(String("Best ") + bestStreak_, static_cast<int16_t>(f.w - 8), 51, 1);
 
     if (mode_ != Mode::Make) {
-        Ui::drawLabel(tft, Rect{8, 58, 304, 12}, modeName(), Ui::muted(), 1, Align::Center);
+        Ui::drawLabel(tft, Rect{8, 58, static_cast<int16_t>(f.w - 16), 12},
+                      modeName(), Ui::muted(), 1, Align::Center);
     }
     if (mode_ == Mode::Total) {
-        drawCoinGroup(tft, Rect{18, 78, 284, 70}, groupA_, groupACount_);
-        drawOptions(tft);
+        drawCoinGroup(tft, totalCoinRect(f), groupA_, groupACount_);
+        drawOptions(tft, f);
     } else if (mode_ == Mode::Make) {
-        drawMake(tft);
+        drawMake(tft, f);
     } else if (mode_ == Mode::More) {
-        drawMore(tft);
+        drawMore(tft, f);
     } else {
-        tft.fillRoundRect(32, 82, 256, 56, 6, Ui::surface());
-        tft.drawRoundRect(32, 82, 256, 56, 6, Ui::outline());
+        const Rect price = pricePanelRect(f);
+        tft.fillRoundRect(price.x, price.y, price.w, price.h, 6, Ui::surface());
+        tft.drawRoundRect(price.x, price.y, price.w, price.h, 6, Ui::outline());
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(String("Price ") + centsText(price_), SCREEN_WIDTH / 2, 99, 2);
-        tft.drawString(String("Pay ") + centsText(paid_), SCREEN_WIDTH / 2, 123, 2);
-        drawOptions(tft);
+        tft.drawString(String("Price ") + centsText(price_), f.cx(),
+                       static_cast<int16_t>(price.y + 17), 2);
+        tft.drawString(String("Pay ") + centsText(paid_), f.cx(),
+                       static_cast<int16_t>(price.y + 41), 2);
+        drawOptions(tft, f);
     }
 
     if (roundComplete_) {
-        tft.fillRoundRect(62, 126, 196, 42, 8, Ui::panel());
-        tft.drawRoundRect(62, 126, 196, 42, 8, GREEN);
-        Ui::drawLabel(tft, Rect{64, 132, 192, 28}, "Correct - tap next", GREEN, 2, Align::Center);
+        const Rect banner = correctBannerRect(f);
+        tft.fillRoundRect(banner.x, banner.y, banner.w, banner.h, 8, Ui::panel());
+        tft.drawRoundRect(banner.x, banner.y, banner.w, banner.h, 8, GREEN);
+        Ui::drawLabel(tft, Rect{static_cast<int16_t>(banner.x + 2),
+                                static_cast<int16_t>(banner.y + 6),
+                                static_cast<int16_t>(banner.w - 4), 28},
+                      "Correct - tap next", GREEN, 2, Align::Center);
     } else if (flashIndex_ >= 0) {
         tft.setTextColor(RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString("Try again", f.cx(), static_cast<int16_t>(f.h - 14), 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

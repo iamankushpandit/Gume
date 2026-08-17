@@ -69,7 +69,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(microkuAppMetadata(), microku, true),
     metadataCatalogApp(shapeColorAppMetadata(), shapeColor, true),
     metadataCatalogApp(countingAppMetadata(), counting, true),
-    metadataCatalogApp(moneyAppMetadata(), money),
+    metadataCatalogApp(moneyAppMetadata(), money, true),
     metadataCatalogApp(fractionAppMetadata(), fractions, true),
     metadataCatalogApp(mazeAppMetadata(), maze, true),
     metadataCatalogApp(sortAppMetadata(), sort, true),

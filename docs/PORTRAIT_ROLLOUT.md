@@ -80,7 +80,7 @@ Legend: `todo` / `wip` / `done`
 | 7 | Microku | `MicrokuGame.cpp` | done | grid sized to free space - 3x3 no longer runs under the pad |
 | 8 | Shapes | `ShapeColorGame.cpp` | done | two columns split the width; rows spread down the height |
 | 9 | Counting | `CountingGame.cpp` | done | dots per row derived from panel width; answers 4-up / 2x2 |
-| 10 | Money | `MoneyGame.cpp` | todo | largest game (491 lines); 6 SCREEN_* refs, not yet measured |
+| 10 | Money | `MoneyGame.cpp` | done | four modes share named bands; answers stay 2x2, tray keeps its coin size |
 | 11 | Fractions | `FractionGame.cpp` | done | three trays, all width-derived; compare keeps its pair |
 | 12 | Maze | `MazeGame.cpp` | done | 12x22px is wider than a 240px panel - cell shrinks to 19 |
 | 13 | Sorting | `SortGame.cpp` | done | 3x2 tray, height capped so portrait tiles stay tile-sized |
