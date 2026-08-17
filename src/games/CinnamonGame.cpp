@@ -2,6 +2,9 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t PAD_TOP = TOP_BAR_HEIGHT + 44;
+constexpr int16_t PAD_BAND_MAX_H = 150;
+
 constexpr uint16_t DARK_RED    = 0x6000;
 constexpr uint16_t DARK_BLUE   = 0x0008;
 constexpr uint16_t DARK_GREEN  = 0x0200;
@@ -64,15 +67,23 @@ void CinnamonGame::startShowing() {
     nextAt_ = millis() + 450UL;
 }
 
-Rect CinnamonGame::padRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(30 + col * 150), static_cast<int16_t>(74 + row * 66), 112, 54};
+Rect CinnamonGame::padBand(const Ui::Frame& f) const {
+    /* Capped, because portrait leaves 200px here and four pads that tall stop
+     * reading as a 2x2 pattern to memorise. */
+    int16_t h = static_cast<int16_t>(f.h - 46 - PAD_TOP);
+    if (h > PAD_BAND_MAX_H) {
+        h = PAD_BAND_MAX_H;
+    }
+    return Rect{30, PAD_TOP, static_cast<int16_t>(f.w - 60), h};
 }
 
-int8_t CinnamonGame::touchedPad(int16_t x, int16_t y) const {
+Rect CinnamonGame::padRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(padBand(f), 2, 2, index, 8);
+}
+
+int8_t CinnamonGame::touchedPad(const Ui::Frame& f, int16_t x, int16_t y) const {
     for (uint8_t i = 0; i < 4; ++i) {
-        if (padRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
+        if (padRect(f, i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
     }
@@ -140,7 +151,7 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t pad = touchedPad(touch.x, touch.y);
+    const int8_t pad = touchedPad(Ui::frame(host.display()), touch.x, touch.y);
     if (pad < 0) {
         return;
     }
@@ -167,8 +178,8 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void CinnamonGame::drawPad(Ui::Renderer& tft, uint8_t index, bool lit) const {
-    const Rect r = padRect(index);
+void CinnamonGame::drawPad(Ui::Renderer& tft, const Ui::Frame& f, uint8_t index, bool lit) const {
+    const Rect r = padRect(f, index);
     tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 8, Ui::surface());
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, padColor(index, lit));
     if (lit) {
@@ -191,19 +202,25 @@ void CinnamonGame::render(AppContext& host) {
     const Ui::Theme savedTheme = Ui::currentTheme();
     Ui::setTheme(Ui::Theme::Light);          // Cinnamon always renders light
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
 
-    if (fullRedraw_) {
+    /* needsFullRender() is the base class's flag, set by requestRender() when
+     * the runtime turns the panel or comes back to this screen. Cinnamon
+     * keeps its own fullRedraw_ for its partial-repaint logic, and without
+     * this the chrome would survive a rotation laid out against the old
+     * axis. */
+    if (fullRedraw_ || needsFullRender()) {
         Ui::clear(tft);
         host.drawTopBar(title());
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
         tft.drawString(String("Score ") + score_, 10, 36, 2);
         tft.setTextDatum(TR_DATUM);
-        tft.drawString(String("Best ") + bestScore_, SCREEN_WIDTH - 10, 36, 2);
+        tft.drawString(String("Best ") + bestScore_, f.w - 10, TOP_BAR_HEIGHT + 6, 2);
         for (uint8_t i = 0; i < 4; ++i) {
             const bool lit = (litPad_ == i) ||
                              (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
-            drawPad(tft, i, lit);
+            drawPad(tft, f, i, lit);
             litDrawn_[i] = lit;
         }
         statusDrawn_ = "";
@@ -214,7 +231,7 @@ void CinnamonGame::render(AppContext& host) {
             const bool lit = (litPad_ == i) ||
                              (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
             if (lit != litDrawn_[i]) {
-                drawPad(tft, i, lit);
+                drawPad(tft, f, i, lit);
                 litDrawn_[i] = lit;
             }
         }
@@ -228,8 +245,10 @@ void CinnamonGame::render(AppContext& host) {
 
     if (status != statusDrawn_) {
         // Repaint just the status strip, never the whole screen.
-        tft.fillRect(20, 52, 280, 18, Ui::bg());
-        Ui::drawLabel(tft, Rect{20, 52, 280, 18}, status,
+        const Rect strip{20, static_cast<int16_t>(TOP_BAR_HEIGHT + 22),
+                         static_cast<int16_t>(f.w - 40), 18};
+        tft.fillRect(strip.x, strip.y, strip.w, strip.h, Ui::bg());
+        Ui::drawLabel(tft, strip, status,
                       phase_ == Phase::Failed ? Ui::error() : Ui::text(), 2, Align::Center);
         statusDrawn_ = status;
     }
@@ -237,7 +256,8 @@ void CinnamonGame::render(AppContext& host) {
     if (phase_ == Phase::Failed) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Bright pad was next", SCREEN_WIDTH / 2, 214, 2);
+        tft.drawString("Bright pad was next", f.cx(),
+                       static_cast<int16_t>(padBand(f).y + padBand(f).h + 16), 2);
     }
     tft.setTextDatum(TL_DATUM);
     Ui::setTheme(savedTheme);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -22,8 +23,9 @@ private:
         Failed
     };
 
-    Rect padRect(uint8_t index) const;
-    void drawPad(Ui::Renderer& tft, uint8_t index, bool lit) const;
+    Rect padBand(const Ui::Frame& f) const;
+    Rect padRect(const Ui::Frame& f, uint8_t index) const;
+    void drawPad(Ui::Renderer& tft, const Ui::Frame& f, uint8_t index, bool lit) const;
 
     /* Cinnamon used to repaint the whole screen on every step, so each colour in
      * the sequence produced a full-screen flash -- uncomfortable generally and
@@ -34,7 +36,7 @@ private:
     String statusDrawn_;
     void appendStep();
     void startShowing();
-    int8_t touchedPad(int16_t x, int16_t y) const;
+    int8_t touchedPad(const Ui::Frame& f, int16_t x, int16_t y) const;
     uint16_t padColor(uint8_t index, bool lit) const;
 
     uint8_t sequence_[32] = {};

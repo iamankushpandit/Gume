@@ -3,9 +3,8 @@
 
 namespace {
 constexpr uint8_t GRID = 9;
-constexpr int16_t CELL = 20;
-constexpr int16_t GRID_X = (SCREEN_WIDTH - GRID * CELL) / 2;
 constexpr int16_t GRID_Y = TOP_BAR_HEIGHT + 28;
+constexpr int16_t CELL_MAX = 26;
 constexpr uint16_t CELL_FILL = 0x1085;
 constexpr uint16_t SMILE = 0xFFE6;
 constexpr uint16_t SMILE_FACE = 0x0843;
@@ -62,21 +61,42 @@ uint16_t WhackAMoleGame::visibleMs() const {
     return max<uint16_t>(360, speed);
 }
 
-Rect WhackAMoleGame::cellRect(uint8_t index) const {
+Rect WhackAMoleGame::fieldRect(const Ui::Frame& f) const {
+    /* 20px cells came from 180px of field on a 240px-tall panel. Derive it:
+     * landscape is height-bound and lands back on 20, portrait is
+     * width-bound and gets 24. */
+    int16_t cell = static_cast<int16_t>((f.w - 16) / GRID);
+    const int16_t byHeight = static_cast<int16_t>((f.h - GRID_Y - 2) / GRID);
+    if (byHeight < cell) {
+        cell = byHeight;
+    }
+    if (cell > CELL_MAX) {
+        cell = CELL_MAX;
+    }
+    const int16_t side = static_cast<int16_t>(cell * GRID);
+    return Rect{static_cast<int16_t>((f.w - side) / 2), GRID_Y, side, side};
+}
+
+Rect WhackAMoleGame::cellRect(const Ui::Frame& f, uint8_t index) const {
+    const Rect field = fieldRect(f);
+    const int16_t cell = static_cast<int16_t>(field.w / GRID);
     return Rect{
-        static_cast<int16_t>(GRID_X + (index % GRID) * CELL),
-        static_cast<int16_t>(GRID_Y + (index / GRID) * CELL),
-        CELL,
-        CELL
+        static_cast<int16_t>(field.x + (index % GRID) * cell),
+        static_cast<int16_t>(field.y + (index / GRID) * cell),
+        cell,
+        cell
     };
 }
 
-int8_t WhackAMoleGame::touchedCell(int16_t x, int16_t y) const {
-    if (x < GRID_X || y < GRID_Y || x >= GRID_X + GRID * CELL || y >= GRID_Y + GRID * CELL) {
+int8_t WhackAMoleGame::touchedCell(const Ui::Frame& f, int16_t x, int16_t y) const {
+    const Rect field = fieldRect(f);
+    if (x < field.x || y < field.y ||
+        x >= field.x + field.w || y >= field.y + field.h) {
         return -1;
     }
-    const uint8_t col = static_cast<uint8_t>((x - GRID_X) / CELL);
-    const uint8_t row = static_cast<uint8_t>((y - GRID_Y) / CELL);
+    const int16_t cell = static_cast<int16_t>(field.w / GRID);
+    const uint8_t col = static_cast<uint8_t>((x - field.x) / cell);
+    const uint8_t row = static_cast<uint8_t>((y - field.y) / cell);
     return static_cast<int8_t>(row * GRID + col);
 }
 
@@ -130,7 +150,7 @@ void WhackAMoleGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t cell = touchedCell(touch.x, touch.y);
+    const int8_t cell = touchedCell(Ui::frame(host.display()), touch.x, touch.y);
     if (cell < 0) {
         return;
     }
@@ -171,6 +191,9 @@ void WhackAMoleGame::drawSmile(Ui::Renderer& tft, const Rect& r) const {
 
 void WhackAMoleGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
+    const int16_t bannerY = static_cast<int16_t>(
+        TOP_BAR_HEIGHT + (f.h - TOP_BAR_HEIGHT) * 38 / 100);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -178,18 +201,18 @@ void WhackAMoleGame::render(AppContext& host) {
     tft.setTextDatum(TL_DATUM);
     char leftBuf[28];
     snprintf(leftBuf, sizeof(leftBuf), "Score %u", score_);
-    tft.drawString(leftBuf, 8, 35, 2);
+    tft.drawString(leftBuf, 8, TOP_BAR_HEIGHT + 5, 2);
     snprintf(leftBuf, sizeof(leftBuf), "Level %u Miss %u/10", level(), missStreak_);
-    tft.drawString(leftBuf, 8, 51, 1);
+    tft.drawString(leftBuf, 8, TOP_BAR_HEIGHT + 21, 1);
     tft.setTextDatum(TR_DATUM);
     char rightBuf[24];
     snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestScore_);
-    tft.drawString(rightBuf, SCREEN_WIDTH - 8, 35, 2);
+    tft.drawString(rightBuf, f.w - 8, TOP_BAR_HEIGHT + 5, 2);
     snprintf(rightBuf, sizeof(rightBuf), "Speed %ums", visibleMs());
-    tft.drawString(rightBuf, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(rightBuf, f.w - 8, TOP_BAR_HEIGHT + 21, 1);
 
     for (uint8_t i = 0; i < GRID * GRID; ++i) {
-        const Rect r = cellRect(i);
+        const Rect r = cellRect(f, i);
         uint16_t fill = CELL_FILL;
         if (flashCell_ == i) {
             fill = flashSuccess_ ? HIT : MISS;
@@ -206,9 +229,9 @@ void WhackAMoleGame::render(AppContext& host) {
         tft.drawRoundRect(46, 88, 228, 72, 8, Ui::error());
         tft.setTextColor(Ui::error(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Game over", SCREEN_WIDTH / 2, 110, 4);
+        tft.drawString("Game over", f.cx(), bannerY, 4);
         tft.setTextColor(Ui::text(), Ui::panel());
-        tft.drawString("Tap to restart", SCREEN_WIDTH / 2, 140, 2);
+        tft.drawString("Tap to restart", f.cx(), bannerY + 30, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

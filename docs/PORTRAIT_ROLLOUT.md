@@ -75,14 +75,14 @@ Legend: `todo` / `wip` / `done`
 | 2 | Math | `MathGame.cpp` | done | prompt + answer grid: Ui::answerColumns picks 2x2 or 1x4 |
 | 3 | Multiply | `MultiplicationGame.cpp` | done | same grid as Math |
 | 4 | Time | `TimeGame.cpp` | todo | |
-| 5 | Whack | `WhackAMoleGame.cpp` | todo | |
-| 6 | Cinnamon | `CinnamonGame.cpp` | todo | partial redraw; photosensitivity — keep it partial |
+| 5 | Whack | `WhackAMoleGame.cpp` | done | 9x9 field sizes to whichever axis runs out first |
+| 6 | Cinnamon | `CinnamonGame.cpp` | done | pads via gridCell; now honours requestRender for rotation |
 | 7 | Microku | `MicrokuGame.cpp` | todo | |
 | 8 | Shapes | `ShapeColorGame.cpp` | done | two columns split the width; rows spread down the height |
 | 9 | Counting | `CountingGame.cpp` | done | dots per row derived from panel width; answers 4-up / 2x2 |
 | 10 | Money | `MoneyGame.cpp` | todo | 491 lines — largest game |
 | 11 | Fractions | `FractionGame.cpp` | todo | |
-| 12 | Maze | `MazeGame.cpp` | todo | fixed 22px cell grid |
+| 12 | Maze | `MazeGame.cpp` | done | 12x22px is wider than a 240px panel - cell shrinks to 19 |
 | 13 | Sorting | `SortGame.cpp` | done | 3x2 tray, height capped so portrait tiles stay tile-sized |
 | 14 | Color Mix | `ColorMixGame.cpp` | done | swatches at w/4; answers 2x2 / stacked |
 | 15 | Slide | `SlidingPuzzleGame.cpp` | done | square board, cell size from the space left |
@@ -139,3 +139,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 | +3 games (multiply, counting, oddone) | 2,326,613 | 74.0% | 71,980 |
 | +3 games (shapes, colormix, sequence) | 2,327,553 | 74.0% | 71,980 |
 | +3 games (memory, slide, sort) | 2,328,029 | 74.0% | 71,980 |
+| +3 games (whack, maze, cinnamon) | 2,328,857 | 74.0% | 71,980 |

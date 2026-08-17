@@ -5,9 +5,25 @@
 namespace {
 constexpr uint8_t MAZE_COLS = MazeData::COLS;
 constexpr uint8_t MAZE_ROWS = MazeData::ROWS;
-constexpr int16_t CELL = 22;
-constexpr int16_t MAZE_X = (SCREEN_WIDTH - MAZE_COLS * CELL) / 2;
+constexpr int16_t CELL_MAX = 22;
 constexpr int16_t MAZE_Y = TOP_BAR_HEIGHT + 28;
+
+/* 12 columns of 22px is 264px wide -- fine on a 320px panel and 24px too
+ * wide for a 240px one, so the cell shrinks to 19 in portrait rather than
+ * running the maze off both edges. Kept square: a maze with rectangular
+ * cells is much harder to read a path through. */
+int16_t mazeCell(const Ui::Frame& f) {
+    int16_t cell = static_cast<int16_t>((f.w - 8) / MAZE_COLS);
+    const int16_t byHeight = static_cast<int16_t>((f.h - MAZE_Y - 6) / MAZE_ROWS);
+    if (byHeight < cell) {
+        cell = byHeight;
+    }
+    return cell > CELL_MAX ? CELL_MAX : cell;
+}
+
+int16_t mazeOriginX(const Ui::Frame& f) {
+    return static_cast<int16_t>((f.w - MAZE_COLS * mazeCell(f)) / 2);
+}
 constexpr uint16_t WALL = 0x4A49;
 constexpr uint16_t PATH = 0xFFFF;
 constexpr uint16_t PLAYER = 0xE8E4;
@@ -158,12 +174,15 @@ bool MazeGame::isActiveMazeSolvable() const {
     return false;
 }
 
-bool MazeGame::touchToCell(int16_t x, int16_t y, int8_t& col, int8_t& row) const {
-    if (x < MAZE_X || y < MAZE_Y || x >= MAZE_X + MAZE_COLS * CELL || y >= MAZE_Y + MAZE_ROWS * CELL) {
+bool MazeGame::touchToCell(const Ui::Frame& f, int16_t x, int16_t y, int8_t& col, int8_t& row) const {
+    const int16_t cell = mazeCell(f);
+    const int16_t originX = mazeOriginX(f);
+    if (x < originX || y < MAZE_Y ||
+        x >= originX + MAZE_COLS * cell || y >= MAZE_Y + MAZE_ROWS * cell) {
         return false;
     }
-    col = static_cast<int8_t>((x - MAZE_X) / CELL);
-    row = static_cast<int8_t>((y - MAZE_Y) / CELL);
+    col = static_cast<int8_t>((x - originX) / cell);
+    row = static_cast<int8_t>((y - MAZE_Y) / cell);
     return true;
 }
 
@@ -227,13 +246,13 @@ void MazeGame::update(AppContext& host, const TouchPoint& touch) {
     }
     int8_t col = 0;
     int8_t row = 0;
-    if (touchToCell(touch.x, touch.y, col, row)) {
+    if (touchToCell(Ui::frame(host.display()), touch.x, touch.y, col, row)) {
         tryMove(host, col, row);
     }
 }
 
-void MazeGame::drawHud(Ui::Renderer& tft) const {
-    tft.fillRect(0, 42, SCREEN_WIDTH, 18, Ui::bg());
+void MazeGame::drawHud(Ui::Renderer& tft, const Ui::Frame& f) const {
+    tft.fillRect(0, TOP_BAR_HEIGHT + 12, f.w, 18, Ui::bg());
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
     char hud[48];
@@ -246,12 +265,13 @@ void MazeGame::drawHud(Ui::Renderer& tft) const {
                  static_cast<unsigned>(levelIndex_ + 1), static_cast<unsigned>(MazeData::COUNT),
                  static_cast<unsigned>(moves_));
     }
-    tft.drawString(hud, SCREEN_WIDTH / 2, 50, 1);
+    tft.drawString(hud, f.cx(), TOP_BAR_HEIGHT + 20, 1);
 }
 
-void MazeGame::drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const {
-    const int16_t x = static_cast<int16_t>(MAZE_X + col * CELL);
-    const int16_t y = static_cast<int16_t>(MAZE_Y + row * CELL);
+void MazeGame::drawMazeCell(Ui::Renderer& tft, const Ui::Frame& f, uint8_t col, uint8_t row) const {
+    const int16_t cellPx = mazeCell(f);
+    const int16_t x = static_cast<int16_t>(mazeOriginX(f) + col * cellPx);
+    const int16_t y = static_cast<int16_t>(MAZE_Y + row * cellPx);
     const char cell = maze_[row][col];
     uint16_t fill = PATH;
     if (cell == '#') {
@@ -259,52 +279,60 @@ void MazeGame::drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const {
     } else if (cell == 'E') {
         fill = EXIT;
     }
-    tft.fillRect(x, y, CELL, CELL, fill);
-    tft.drawRect(x, y, CELL, CELL, Ui::rgb(210, 210, 210));
+    tft.fillRect(x, y, cellPx, cellPx, fill);
+    tft.drawRect(x, y, cellPx, cellPx, Ui::rgb(210, 210, 210));
 }
 
-void MazeGame::drawMaze(Ui::Renderer& tft) const {
+void MazeGame::drawMaze(Ui::Renderer& tft, const Ui::Frame& f) const {
     for (uint8_t row = 0; row < MAZE_ROWS; ++row) {
         for (uint8_t col = 0; col < MAZE_COLS; ++col) {
-            drawMazeCell(tft, col, row);
+            drawMazeCell(tft, f, col, row);
         }
     }
 }
 
-void MazeGame::drawPlayer(Ui::Renderer& tft) const {
-    const int16_t px = MAZE_X + playerCol_ * CELL + CELL / 2;
-    const int16_t py = MAZE_Y + playerRow_ * CELL + CELL / 2;
-    tft.fillCircle(px, py, 8, PLAYER);
-    tft.drawCircle(px, py, 8, TFT_BLACK);
+void MazeGame::drawPlayer(Ui::Renderer& tft, const Ui::Frame& f) const {
+    const int16_t cell = mazeCell(f);
+    const int16_t px = static_cast<int16_t>(mazeOriginX(f) + playerCol_ * cell + cell / 2);
+    const int16_t py = static_cast<int16_t>(MAZE_Y + playerRow_ * cell + cell / 2);
+    /* The dot has to stay inside a cell that is 22px in landscape and 19 in
+     * portrait, so its radius follows rather than sitting at a flat 8. */
+    const int16_t r = static_cast<int16_t>(cell * 8 / 22);
+    tft.fillCircle(px, py, r, PLAYER);
+    tft.drawCircle(px, py, r, TFT_BLACK);
 }
 
 void MazeGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
 
     if (needsFullRender()) {
         Ui::clear(tft);
         host.drawTopBar(title());
-        Ui::drawLabel(tft, Rect{12, 32, 296, 16}, "Drag the red dot to the green exit", Ui::text(), 2, Align::Center);
-        drawHud(tft);
-        drawMaze(tft);
+        Ui::drawLabel(tft, Rect{12, TOP_BAR_HEIGHT + 2, static_cast<int16_t>(f.w - 24), 16},
+                      "Drag the red dot to the green exit", Ui::text(), 2, Align::Center);
+        drawHud(tft, f);
+        drawMaze(tft, f);
     } else {
-        drawHud(tft);
+        drawHud(tft, f);
         if (playerMoved_) {
-            drawMazeCell(tft, static_cast<uint8_t>(prevPlayerCol_), static_cast<uint8_t>(prevPlayerRow_));
-            drawMazeCell(tft, static_cast<uint8_t>(playerCol_), static_cast<uint8_t>(playerRow_));
+            drawMazeCell(tft, f, static_cast<uint8_t>(prevPlayerCol_), static_cast<uint8_t>(prevPlayerRow_));
+            drawMazeCell(tft, f, static_cast<uint8_t>(playerCol_), static_cast<uint8_t>(playerRow_));
         }
     }
 
-    drawPlayer(tft);
+    drawPlayer(tft, f);
     playerMoved_ = false;
 
     if (won_) {
-        tft.fillRoundRect(58, 86, 204, 58, 8, Ui::panel());
-        tft.drawRoundRect(58, 86, 204, 58, 8, Ui::success());
+        const Rect won = Ui::centreIn(Rect{0, 0, f.w, f.h}, 204, 58);
+        tft.fillRoundRect(won.x, won.y, won.w, won.h, 8, Ui::panel());
+        tft.drawRoundRect(won.x, won.y, won.w, won.h, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Maze solved!", SCREEN_WIDTH / 2, 106, 4);
-        tft.drawString(levelIndex_ + 1 < MazeData::COUNT ? "Tap for next maze" : "Tap to play again", SCREEN_WIDTH / 2, 132, 2);
+        tft.drawString("Maze solved!", f.cx(), won.y + 20, 4);
+        tft.drawString(levelIndex_ + 1 < MazeData::COUNT ? "Tap for next maze" : "Tap to play again",
+                       f.cx(), won.y + 46, 2);
         tft.setTextDatum(TL_DATUM);
     }
 }

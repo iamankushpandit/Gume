@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -19,15 +20,15 @@ private:
     void reset();
     bool canMoveTo(int8_t col, int8_t row) const;
     void tryMove(AppContext& host, int8_t targetCol, int8_t targetRow);
-    bool touchToCell(int16_t x, int16_t y, int8_t& col, int8_t& row) const;
+    bool touchToCell(const Ui::Frame& f, int16_t x, int16_t y, int8_t& col, int8_t& row) const;
     bool findCell(char target, int8_t& col, int8_t& row) const;
     bool isActiveMazeSolvable() const;
     void loadBestForLevel(AppContext& host);
     void saveProgress(AppContext& host);
-    void drawHud(Ui::Renderer& tft) const;
-    void drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const;
-    void drawMaze(Ui::Renderer& tft) const;
-    void drawPlayer(Ui::Renderer& tft) const;
+    void drawHud(Ui::Renderer& tft, const Ui::Frame& f) const;
+    void drawMazeCell(Ui::Renderer& tft, const Ui::Frame& f, uint8_t col, uint8_t row) const;
+    void drawMaze(Ui::Renderer& tft, const Ui::Frame& f) const;
+    void drawPlayer(Ui::Renderer& tft, const Ui::Frame& f) const;
 
     const char* const* maze_ = nullptr;
     uint8_t levelIndex_ = 0;

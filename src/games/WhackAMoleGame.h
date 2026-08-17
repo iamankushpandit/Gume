@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -15,8 +16,11 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect cellRect(uint8_t index) const;
-    int8_t touchedCell(int16_t x, int16_t y) const;
+    /* A 9x9 field of holes. The cell size comes from whichever axis runs out
+      * first, so the field stays square and fills the panel it is given. */
+    Rect fieldRect(const Ui::Frame& f) const;
+    Rect cellRect(const Ui::Frame& f, uint8_t index) const;
+    int8_t touchedCell(const Ui::Frame& f, int16_t x, int16_t y) const;
     void spawnMole();
     void recordMiss();
     uint8_t level() const;
