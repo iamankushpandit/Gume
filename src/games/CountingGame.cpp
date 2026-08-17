@@ -44,8 +44,9 @@ void CountingGame::begin(AppContext& host) {
     markDirty();
 }
 
-Rect CountingGame::answerRect(uint8_t index) const {
-    return Rect{static_cast<int16_t>(15 + index * 76), 188, 62, 40};
+Rect CountingGame::answerRect(uint8_t index, int16_t screenW) const {
+    const int16_t btnW = static_cast<int16_t>(screenW / 4 - 8);
+    return Rect{static_cast<int16_t>(6 + index * (btnW + 8)), 188, btnW, 40};
 }
 
 void CountingGame::newQuestion() {
@@ -92,8 +93,9 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
         markDirty();
         return;
     }
+    const int16_t W = static_cast<int16_t>(host.display().width());
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (answerRect(i, W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = i;
             answered_ = true;
             ++rounds_;
@@ -117,19 +119,17 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
 
 void CountingGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
     Ui::clear(tft);
     host.drawTopBar(title());
     tft.setTextColor(Ui::text(), Ui::bg());
-    /* The font-4 question spans roughly 60..260px when centred, and a
-     * right-aligned "Score n/m" at the same y started around 213 -- they
-     * overlapped. Score and streak now share one small line underneath. */
     tft.setTextDatum(TC_DATUM);
-    tft.drawString("How many objects?", SCREEN_WIDTH / 2, 32, 4);
+    tft.drawString("How many objects?", W / 2, 32, 4);
     tft.setTextColor(Ui::muted(), Ui::bg());
     char stats[48];
     snprintf(stats, sizeof(stats), "Score %u/%u   Streak %u   Best %u",
              score_, rounds_, streak_, bestStreak_);
-    tft.drawString(stats, SCREEN_WIDTH / 2, 60, 1);
+    tft.drawString(stats, W / 2, 60, 1);
     tft.setTextColor(Ui::text(), Ui::bg());
 
     const Rect area{18, 76, 284, 98};
@@ -158,13 +158,13 @@ void CountingGame::render(AppContext& host) {
         }
         char label[4];
         snprintf(label, sizeof(label), "%u", options_[i]);
-        Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
+        Ui::drawButton(tft, answerRect(i, W), label, fill, TFT_DARKGREY, text, false, 4);
     }
 
     if (answered_) {
         tft.setTextDatum(MC_DATUM);
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer", SCREEN_WIDTH / 2, 178, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer", W / 2, 178, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

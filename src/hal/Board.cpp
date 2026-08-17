@@ -22,15 +22,26 @@ void Board::begin() {
     pinMode(PIN_SPEAKER, OUTPUT);
     digitalWrite(PIN_SPEAKER, LOW);
 
+#ifndef CYD_TOUCH_SHARES_SPI
+    // Touch's own bit-banged bus. On boards where touch shares the TFT's
+    // hardware SPI pins instead, tft_.init() below owns MOSI/MISO/SCLK and
+    // must not have them claimed as plain GPIO first.
     pinMode(PIN_TOUCH_MOSI, OUTPUT);
     pinMode(PIN_TOUCH_MISO, INPUT);
     pinMode(PIN_TOUCH_SCLK, OUTPUT);
+    digitalWrite(PIN_TOUCH_SCLK, LOW);
+#endif
     pinMode(PIN_TOUCH_CS, OUTPUT);
     pinMode(PIN_TOUCH_IRQ, INPUT);
     digitalWrite(PIN_TOUCH_CS, HIGH);
-    digitalWrite(PIN_TOUCH_SCLK, LOW);
 
     tft_.init();
+    // Touch calibration always targets rotation 1's coordinate space; capture
+    // its actual physical size here rather than assuming it matches the fixed
+    // game canvas (SCREEN_WIDTH/SCREEN_HEIGHT).
+    tft_.setRotation(1);
+    landscapeW_ = static_cast<int16_t>(tft_.width());
+    landscapeH_ = static_cast<int16_t>(tft_.height());
     tft_.setRotation(CYD_SCREEN_ROTATION);
     displayRotation_ = CYD_SCREEN_ROTATION;
     tft_.setTextWrap(false, false);

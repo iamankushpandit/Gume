@@ -87,7 +87,9 @@ void KidsPlatformApp::resetScreenSaverRally(int16_t effW, int16_t effH) {
 }
 
 void KidsPlatformApp::renderScreenSaver() {
-    Ui::Renderer& tft = display();
+    // Always draw the screen saver on the raw physical renderer -- it fills
+    // the real panel dimensions and must not go through the game-canvas scale.
+    Ui::Renderer& tft = renderer_;
     const int16_t effW = static_cast<int16_t>(tft.width());
     const int16_t effH = static_cast<int16_t>(tft.height());
 

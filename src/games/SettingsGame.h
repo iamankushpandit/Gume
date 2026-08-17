@@ -21,21 +21,21 @@ public:
 private:
     enum class Tab : uint8_t { Device, Power };
 
-    Rect deviceTabRect() const;
-    Rect powerTabRect() const;
+    Rect deviceTabRect(int16_t W) const;
+    Rect powerTabRect(int16_t W) const;
 
-    Rect themeRect() const;
-    Rect layoutRect() const;
-    Rect ntpRect() const;
-    Rect bleRect() const;
-    Rect wifiRect() const;
-    Rect nearbyRect() const;
-    Rect resetRect() const;
-    Rect brightRect() const;
+    Rect themeRect(int16_t W) const;
+    Rect layoutRect(int16_t W) const;
+    Rect ntpRect(int16_t W) const;
+    Rect bleRect(int16_t W) const;
+    Rect wifiRect(int16_t W) const;
+    Rect nearbyRect(int16_t W) const;
+    Rect resetRect(int16_t W) const;
+    Rect brightRect(int16_t W, int16_t H) const;
 
-    Rect idleActionRect() const;
-    Rect idleAfterRect() const;
-    Rect sleepAfterRect() const;
+    Rect idleActionRect(int16_t W) const;
+    Rect idleAfterRect(int16_t W) const;
+    Rect sleepAfterRect(int16_t W) const;
 
     void cycleScreenSaver(Board& board);
     void cycleSleepSeconds(Board& board);

@@ -58,6 +58,11 @@ public:
     virtual void setTextDatum(uint8_t datum) = 0;
     virtual void setTextColor(uint16_t fg) = 0;
     virtual void setTextColor(uint16_t fg, uint16_t bg, bool bgFill = false) = 0;
+    /* Whole-number glyph scale for subsequent drawString()/textWidth() calls.
+     * Implementations must apply this before every text op rather than
+     * relying on it staying set, since the same driver instance is shared
+     * across screens that want different scales. */
+    virtual void setTextSize(uint8_t size) = 0;
     virtual int16_t drawString(const char* text, int32_t x, int32_t y, uint8_t font = 2) = 0;
     template <typename Text>
     auto drawString(const Text& text, int32_t x, int32_t y, uint8_t font = 2)
@@ -81,6 +86,26 @@ public:
     virtual bool getSwapBytes() = 0;
     virtual void setSwapBytes(bool swap) = 0;
     virtual void pushPixels(uint16_t* data, uint32_t len) = 0;
+
+    /* Average scale factor relative to the fixed 320x240 logical canvas.
+     * Returns 1.0 on the 2.8" board (no scaling). ScaledRenderer overrides
+     * this so image-blitting helpers can choose an appropriate integer scale
+     * rather than drawing at native size on a physically larger panel. */
+    virtual float imageScale() const { return 1.0f; }
+
+    /* Per-axis scale factors. Used by trig-based pie/wedge drawing to
+     * pre-correct radii so wedge points land on the same circle that
+     * fillCircle draws (which uses the averaged radius). Both return 1.0
+     * on the 2.8" board. */
+    virtual float imageScaleX() const { return 1.0f; }
+    virtual float imageScaleY() const { return 1.0f; }
+
+    /* Returns the underlying physical renderer, bypassing any coordinate
+     * transforms. Used by image-blitting code that computes its own scaled
+     * origin and pushes raw pixel data -- the ScaledRenderer's setAddrWindow
+     * would double-scale the coordinates. Defaults to `this` (no-op on the
+     * 2.8" board where there is no scaling layer). */
+    virtual Renderer* physicalRenderer() { return this; }
 };
 
 }  // namespace Ui

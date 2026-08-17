@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include <esp_system.h>
+#include <math.h>
 #include "engine/NearbyPlay.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -11,6 +12,9 @@ constexpr Rect HOME_BUTTON{0, 0, 44, TOP_BAR_HEIGHT};
 }
 
 Ui::Renderer& KidsPlatformApp::display() {
+    if (activeAppIsPlayable()) {
+        return scaledRenderer_;
+    }
     return renderer_;
 }
 
@@ -83,6 +87,9 @@ void KidsPlatformApp::drawTopBar(const char* title) {
 
 void KidsPlatformApp::begin() {
     board_.begin();
+    // Games always render landscape, so the panel's landscape extent is the
+    // physical size their fixed canvas needs to fill.
+    scaledRenderer_.configure(board_.landscapeWidth(), board_.landscapeHeight());
     Watchdog::begin();
     if (!board_.hasTouchCalibration()) {
         board_.runTouchCalibration();
@@ -185,13 +192,30 @@ void KidsPlatformApp::loop() {
             renderScreenSaver();
         }
     } else if (activeGame_ != nullptr) {
-        const Rect settingsButton = LauncherLayout::topBarSettingsRect(display().width());
+        /* The top bar (home icon, gear, clock, badges) is always drawn
+         * through the raw, unscaled renderer -- see drawTopBar() -- because
+         * it is shared chrome sized against the real panel, not part of a
+         * playable game's 320x240 canvas. Its hit rect and touch coordinates
+         * must therefore stay in the same physical space, not display()'s
+         * (which is scaled while a playable game is active). */
+        const Rect settingsButton = LauncherLayout::topBarSettingsRect(renderer_.width());
         if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
         } else if (activeGame_ != &launcher_ &&
                    touch.justPressed && HOME_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             goHome();
+        } else if (activeAppIsPlayable()) {
+            /* Below the top bar, a playable game's own Rect checks are
+             * written against its fixed 320x240 canvas -- map physical touch
+             * back into that space so they land where the (scaled) content
+             * actually is. */
+            TouchPoint gameTouch = touch;
+            gameTouch.x = static_cast<int16_t>(
+                lroundf(touch.x * static_cast<float>(SCREEN_WIDTH) / board_.landscapeWidth()));
+            gameTouch.y = static_cast<int16_t>(
+                lroundf(touch.y * static_cast<float>(SCREEN_HEIGHT) / board_.landscapeHeight()));
+            activeGame_->update(*this, gameTouch);
         } else {
             activeGame_->update(*this, touch);
         }

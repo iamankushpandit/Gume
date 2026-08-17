@@ -6,16 +6,22 @@ constexpr int16_t SCREEN_WIDTH = 320;
 constexpr int16_t SCREEN_HEIGHT = 240;
 constexpr int16_t TOP_BAR_HEIGHT = 30;
 
-constexpr uint8_t PIN_TFT_BACKLIGHT = 21;
+// Single source of truth with TFT_eSPI's own TFT_BL build flag, so the raw
+// GPIO drive in Board::begin() and the panel driver never disagree about
+// which pin the backlight is on.
+constexpr uint8_t PIN_TFT_BACKLIGHT = TFT_BL;
 
 constexpr uint8_t PIN_SD_CS = 5;
 constexpr uint8_t PIN_SD_MOSI = 23;
 constexpr uint8_t PIN_SD_MISO = 19;
 constexpr uint8_t PIN_SD_SCLK = 18;
 
-constexpr uint8_t PIN_TOUCH_MOSI = 32;
-constexpr uint8_t PIN_TOUCH_MISO = 39;
-constexpr uint8_t PIN_TOUCH_SCLK = 25;
+// Derived from build flags (see platformio.ini) rather than hardcoded, so a
+// board variant with a differently-wired touch bus doesn't need a second copy
+// of this file.
+constexpr uint8_t PIN_TOUCH_MOSI = CYD_TOUCH_MOSI;
+constexpr uint8_t PIN_TOUCH_MISO = CYD_TOUCH_MISO;
+constexpr uint8_t PIN_TOUCH_SCLK = CYD_TOUCH_SCLK;
 constexpr uint8_t PIN_TOUCH_CS = 33;
 constexpr uint8_t PIN_TOUCH_IRQ = 36;
 

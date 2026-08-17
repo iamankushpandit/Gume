@@ -117,7 +117,7 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
         if (index >= count) {
             break;
         }
-        if (LauncherLayout::tileRect(slot, mode).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (LauncherLayout::tileRect(slot, mode, lW, lH).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.openApp(host.launcherEntry(index));
             return;
         }
@@ -224,7 +224,7 @@ void LauncherGame::render(GameHost& host) {
             break;
         }
         const AppDefinition& entry = host.launcherEntry(index);
-        const Rect r = LauncherLayout::tileRect(slot, mode);
+        const Rect r = LauncherLayout::tileRect(slot, mode, lW, lH);
         const uint16_t fill = slot % 3 == 0 ? Ui::rgb(36, 132, 204)
                             : (slot % 3 == 1 ? Ui::rgb(45, 154, 96)
                                              : Ui::rgb(222, 83, 83));
@@ -234,30 +234,31 @@ void LauncherGame::render(GameHost& host) {
         if (tall) {
             drawLauncherIcon(tft, entry.icon(), r, fill,
                              static_cast<int16_t>(r.x + r.w / 2),
-                             static_cast<int16_t>(r.y + 30));
+                             static_cast<int16_t>(r.y + r.h * 38 / 100));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(MC_DATUM);
             const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
             copyFittedText(tft, entry.title(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 2);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 68), 2);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 72 / 100), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 1);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 87), 1);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 88 / 100), 1);
         } else {
             drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + 24),
-                             static_cast<int16_t>(r.y + 22));
+                             static_cast<int16_t>(r.x + r.w * 16 / 100),
+                             static_cast<int16_t>(r.y + r.h / 2));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(ML_DATUM);
+            const int16_t textX = static_cast<int16_t>(r.x + r.w * 32 / 100);
             copyFittedText(tft, entry.title(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 2);
-            tft.drawString(label, r.x + 48, r.y + 17, 2);
+                           static_cast<int16_t>(r.w - r.w * 34 / 100), 2);
+            tft.drawString(label, textX, static_cast<int16_t>(r.y + r.h * 36 / 100), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 1);
-            tft.drawString(label, r.x + 48, r.y + 34, 1);
+                           static_cast<int16_t>(r.w - r.w * 34 / 100), 1);
+            tft.drawString(label, textX, static_cast<int16_t>(r.y + r.h * 68 / 100), 1);
         }
     }
 

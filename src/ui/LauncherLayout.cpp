@@ -35,18 +35,40 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
     return Rect{x, 30, w, 18};
 }
 
-Rect tileRect(uint8_t slot, Board::LayoutMode mode) {
+Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH) {
+    constexpr int16_t GAP = 8;
+
     if (mode == Board::LayoutMode::Vertical) {
+        // 2 columns x 2 rows, filling from below the header to above the footer.
+        const int16_t headerH = LAUNCHER_HEADER_H_TALL;
+        const int16_t footerH = 32;  // pager buttons
+        const int16_t availW = static_cast<int16_t>(screenW - GAP * 3);  // 2 cols, 3 gaps
+        const int16_t availH = static_cast<int16_t>(screenH - headerH - footerH - GAP * 3);
+        const int16_t tileW = availW / 2;
+        const int16_t tileH = availH / 2;
         const uint8_t col = slot % 2;
         const uint8_t row = slot / 2;
-        return Rect{static_cast<int16_t>(8 + col * 116),
-                    static_cast<int16_t>(LAUNCHER_HEADER_H_TALL + 8 + row * 104),
-                    108, 96};
+        return Rect{
+            static_cast<int16_t>(GAP + col * (tileW + GAP)),
+            static_cast<int16_t>(headerH + GAP + row * (tileH + GAP)),
+            tileW, tileH
+        };
     }
 
+    // Horizontal: 2 columns x 3 rows (6 tiles), filling available space.
+    const int16_t headerH = LAUNCHER_HEADER_H_WIDE;
+    const int16_t footerH = 32;
+    const int16_t availW = static_cast<int16_t>(screenW - GAP * 3);
+    const int16_t availH = static_cast<int16_t>(screenH - headerH - footerH - GAP * 4);
+    const int16_t tileW = availW / 2;
+    const int16_t tileH = availH / 3;
     const uint8_t col = slot % 2;
     const uint8_t row = slot / 2;
-    return Rect{static_cast<int16_t>(10 + col * 155), static_cast<int16_t>(52 + row * 53), 145, 46};
+    return Rect{
+        static_cast<int16_t>(GAP + col * (tileW + GAP)),
+        static_cast<int16_t>(headerH + GAP + row * (tileH + GAP)),
+        tileW, tileH
+    };
 }
 
 uint8_t pageSize(Board::LayoutMode mode) {

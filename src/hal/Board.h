@@ -110,6 +110,14 @@ public:
     TouchPoint pollTouch();
     TouchPoint touch() const;
 
+    /* Physical panel size in the landscape orientation games always render
+     * in -- captured once in begin(), not a compile-time constant. On a
+     * panel that happens to be exactly SCREEN_WIDTH x SCREEN_HEIGHT (the
+     * 2.8" board) these equal the fixed canvas size, so anything built from
+     * them is naturally a no-op there. */
+    int16_t landscapeWidth() const { return landscapeW_; }
+    int16_t landscapeHeight() const { return landscapeH_; }
+
     void beepOk();
     void beepError();
     /* ---- Profiles -------------------------------------------------------
@@ -318,6 +326,13 @@ private:
     TouchPoint lastTouch_;
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
+    /* Physical panel dimensions at rotation 1, captured once in begin(). This
+     * is the touch calibration's target space -- not SCREEN_WIDTH/HEIGHT,
+     * which is the fixed 320x240 canvas playable games draw on regardless of
+     * the actual panel size. On the 320x240 board the two happen to be equal,
+     * so this was a no-op there before it mattered on a bigger panel. */
+    int16_t landscapeW_ = SCREEN_WIDTH;
+    int16_t landscapeH_ = SCREEN_HEIGHT;
 
     enum class TimeSyncState : uint8_t { Idle, Connecting, Syncing, Synced };
     TimeSyncState timeSyncState_ = TimeSyncState::Idle;

@@ -18,6 +18,7 @@ private:
     Rect menuRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect addRect(int16_t screenW, int16_t screenH) const;
     Rect doneRect(int16_t screenW, int16_t screenH) const;
+    Rect cancelRect(int16_t screenW, int16_t screenH) const;
     Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
     Rect menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect gameCheckRect(uint8_t row, int16_t screenW) const;

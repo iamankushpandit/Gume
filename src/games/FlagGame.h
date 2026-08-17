@@ -38,7 +38,7 @@ private:
     static constexpr uint8_t OPTION_COUNT = 4;
     static constexpr uint8_t RECENT_COUNT = 8;
 
-    Rect answerRect(uint8_t i) const;
+    Rect answerRect(uint8_t i, int16_t screenW) const;
     Rect tierRect() const;
     Rect flagRect() const;
 

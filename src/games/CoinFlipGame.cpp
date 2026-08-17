@@ -88,11 +88,11 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
                 spinning_ = false;
                 phaseUntilMs_ = now + HOLD_MS;
                 host.beepOk();
-                markDirty();
+                markFullDirty();
             } else if (now >= nextSpinStepMs_) {
                 nextSpinStepMs_ = now + SPIN_STEP_MS;
                 ++spinFrame_;
-                markDirty();
+                markFullDirty();
             }
         } else if (now >= phaseUntilMs_) {
             if (revealed_ >= flipsFor(choice_)) {
@@ -105,7 +105,7 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
                 phaseUntilMs_ = now + SPIN_MS;
                 nextSpinStepMs_ = 0;
             }
-            markDirty();
+            markFullDirty();
         }
         return;   // no input mid-sequence
     }
@@ -136,7 +136,7 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
         spinFrame_ = 0;
         phaseUntilMs_ = now + SPIN_MS;
         nextSpinStepMs_ = 0;
-        markDirty();
+        markFullDirty();
     }
 }
 

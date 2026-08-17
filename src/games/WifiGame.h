@@ -48,7 +48,7 @@ private:
     void startConnect(GameHost& host);
     void checkConnect(GameHost& host);
 
-    Rect netRect(uint8_t slot) const;
-    Rect zoneRect(uint8_t slot) const;
-    Rect keyRect(uint8_t row, uint8_t col) const;
+    Rect netRect(uint8_t slot, int16_t W, int16_t H) const;
+    Rect zoneRect(uint8_t slot, int16_t W, int16_t H) const;
+    Rect keyRect(uint8_t row, uint8_t col, int16_t W) const;
 };

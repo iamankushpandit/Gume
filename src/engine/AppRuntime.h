@@ -7,6 +7,7 @@
 #include "engine/LauncherGame.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
+#include "ui/ScaledRenderer.h"
 #include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
@@ -72,8 +73,24 @@ private:
      * Called after the screen has drawn itself, so it lands on top. */
     void drawNearbyBanner(bool screenRepainted);
 
+    /* Playable games are drawn through scaledRenderer_ so their fixed
+     * 320x240 canvas fills whatever the physical panel actually is; system
+     * screens draw through renderer_ directly since they already lay out
+     * responsively against the real panel size. See display().
+     *
+     * view_ == View::Game is load-bearing, not redundant: activeApp_ keeps
+     * pointing at the last-launched game while the screen saver or sleep is
+     * up (neither goes through launch(), so nothing clears it), and both of
+     * those already lay out against the real panel size like any other
+     * system view -- without this check they'd incorrectly inherit the
+     * scale of whatever game was open before they started. */
+    bool activeAppIsPlayable() const {
+        return view_ == View::Game && activeApp_ != nullptr && activeApp_->metadata != nullptr;
+    }
+
     Board board_;
     Ui::TftRenderer renderer_{board_.display()};
+    Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/2};
     ContentLoader content_;
     GameInstances games_;
     LauncherGame launcher_;

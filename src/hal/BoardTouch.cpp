@@ -96,6 +96,34 @@ uint16_t Board::readTouchAdc(uint8_t command) {
 
 Board::RawTouch Board::readRawTouch() {
     RawTouch touch;
+#ifdef CYD_TOUCH_SHARES_SPI
+    // Touch rides the TFT's own hardware SPI bus (separate CS) rather than a
+    // dedicated bit-banged one, same as the manufacturer's own reference
+    // firmware (LCDWIKI E32R40T/E32N40T Arduino Demo). Rather than
+    // hand-rolling shared-bus SPI transactions, use TFT_eSPI's own built-in
+    // touch extension (activated by TOUCH_CS in platformio.ini) -- it already
+    // handles bus arbitration with the display driver correctly.
+    // PIN_TOUCH_IRQ (GPIO36) is one of the ESP32's input-only pins (34-39),
+    // which have no internal pull resistor -- floating with no external
+    // pull-up populated on this board, it reads a constant false "touched"
+    // and is unusable for down-detection here. Pressure alone is a clean
+    // signal on this panel (idle noise ~10-20, a real touch ~2000+), so gate
+    // on that only.
+    const uint16_t pressure = tft_.getTouchRawZ();
+    if (pressure < TOUCH_PRESSURE_THRESHOLD) {
+        return touch;
+    }
+
+    uint16_t x = 0;
+    uint16_t y = 0;
+    tft_.getTouchRaw(&x, &y);
+
+    touch.down = true;
+    touch.x = static_cast<int16_t>(x);
+    touch.y = static_cast<int16_t>(y);
+    touch.pressure = pressure;
+    return touch;
+#else
     const uint16_t z1 = readTouchAdc(CMD_READ_Z1);
     const uint16_t z2 = readTouchAdc(CMD_READ_Z2);
     uint16_t pressure = 0;
@@ -122,6 +150,7 @@ Board::RawTouch Board::readRawTouch() {
     touch.y = static_cast<int16_t>(y / samples);
     touch.pressure = pressure;
     return touch;
+#endif
 }
 
 bool Board::waitForStableRaw(int16_t& rawX, int16_t& rawY) {
@@ -163,10 +192,10 @@ void Board::runTouchCalibration() {
     tft_.setRotation(1);
     displayRotation_ = 1;
 
-    constexpr int16_t screenPts[3][2] = {
+    const int16_t screenPts[3][2] = {
         {28, 36},
-        {SCREEN_WIDTH - 29, SCREEN_HEIGHT / 2},
-        {SCREEN_WIDTH / 2, SCREEN_HEIGHT - 29},
+        {static_cast<int16_t>(landscapeW_ - 29), static_cast<int16_t>(landscapeH_ / 2)},
+        {static_cast<int16_t>(landscapeW_ / 2), static_cast<int16_t>(landscapeH_ - 29)},
     };
     int16_t rawPts[3][2] = {};
     const char* labels[3] = {"top-left target", "right target", "bottom target"};
@@ -175,14 +204,14 @@ void Board::runTouchCalibration() {
         tft_.fillScreen(Ui::bg());
         tft_.setTextColor(Ui::text(), Ui::bg());
         tft_.setTextDatum(TC_DATUM);
-        tft_.drawString("Touch Calibration", SCREEN_WIDTH / 2, 12, 4);
-        tft_.drawString(String("Tap and hold the ") + labels[i], SCREEN_WIDTH / 2, 48, 2);
+        tft_.drawString("Touch Calibration", landscapeW_ / 2, 12, 4);
+        tft_.drawString(String("Tap and hold the ") + labels[i], landscapeW_ / 2, 48, 2);
         drawCrosshair(tft_, screenPts[i][0], screenPts[i][1], Ui::warning());
         if (!waitForStableRaw(rawPts[i][0], rawPts[i][1])) {
             tft_.fillScreen(Ui::bg());
             tft_.setTextDatum(MC_DATUM);
             tft_.setTextColor(Ui::error(), Ui::bg());
-            tft_.drawString("Calibration timed out", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
+            tft_.drawString("Calibration timed out", landscapeW_ / 2, landscapeH_ / 2, 4);
             delay(1500);
             tft_.setTextDatum(TL_DATUM);
             return;
@@ -197,13 +226,13 @@ void Board::runTouchCalibration() {
         tft_.fillScreen(Ui::bg());
         tft_.setTextDatum(MC_DATUM);
         tft_.setTextColor(Ui::success(), Ui::bg());
-        tft_.drawString("Calibration saved", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
+        tft_.drawString("Calibration saved", landscapeW_ / 2, landscapeH_ / 2, 4);
         delay(1200);
     } else {
         tft_.fillScreen(Ui::bg());
         tft_.setTextDatum(MC_DATUM);
         tft_.setTextColor(Ui::error(), Ui::bg());
-        tft_.drawString("Calibration failed", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
+        tft_.drawString("Calibration failed", landscapeW_ / 2, landscapeH_ / 2, 4);
         delay(1500);
     }
     tft_.setTextDatum(TL_DATUM);
@@ -218,8 +247,8 @@ bool Board::mapTouch(const RawTouch& raw, int16_t& x, int16_t& y) const {
     }
     const float mappedX = cal_.ax * raw.x + cal_.bx * raw.y + cal_.cx;
     const float mappedY = cal_.ay * raw.x + cal_.by * raw.y + cal_.cy;
-    x = constrain(static_cast<int16_t>(lroundf(mappedX)), 0, SCREEN_WIDTH - 1);
-    y = constrain(static_cast<int16_t>(lroundf(mappedY)), 0, SCREEN_HEIGHT - 1);
+    x = constrain(static_cast<int16_t>(lroundf(mappedX)), 0, static_cast<int16_t>(landscapeW_ - 1));
+    y = constrain(static_cast<int16_t>(lroundf(mappedY)), 0, static_cast<int16_t>(landscapeH_ - 1));
     return true;
 }
 
@@ -234,15 +263,15 @@ TouchPoint Board::pollTouch() {
         switch (displayRotation_) {
             case 2:
                 next.x = ly;
-                next.y = static_cast<int16_t>(SCREEN_WIDTH - 1 - lx);
+                next.y = static_cast<int16_t>(landscapeW_ - 1 - lx);
                 break;
             case 0:
-                next.x = static_cast<int16_t>(SCREEN_HEIGHT - 1 - ly);
+                next.x = static_cast<int16_t>(landscapeH_ - 1 - ly);
                 next.y = lx;
                 break;
             case 3:
-                next.x = static_cast<int16_t>(SCREEN_WIDTH - 1 - lx);
-                next.y = static_cast<int16_t>(SCREEN_HEIGHT - 1 - ly);
+                next.x = static_cast<int16_t>(landscapeW_ - 1 - lx);
+                next.y = static_cast<int16_t>(landscapeH_ - 1 - ly);
                 break;
             default:
                 next.x = lx;

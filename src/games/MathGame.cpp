@@ -47,10 +47,12 @@ uint8_t MathGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 5);
 }
 
-Rect MathGame::answerRect(uint8_t index) const {
+Rect MathGame::answerRect(uint8_t index, int16_t screenW) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(144 + row * 46), 132, 38};
+    const int16_t btnW = static_cast<int16_t>(screenW / 2 - 22);
+    const int16_t col1x = static_cast<int16_t>(screenW / 2 + 8);
+    return Rect{static_cast<int16_t>(col == 0 ? 14 : col1x), static_cast<int16_t>(144 + row * 46), btnW, 38};
 }
 
 bool MathGame::optionExists(int16_t value, uint8_t upTo) const {
@@ -163,8 +165,9 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
+    const int16_t W = static_cast<int16_t>(host.display().width());
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (answerRect(i, W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = i;
             answered_ = true;
             if (i == correctButton_) {
@@ -184,6 +187,7 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
 
 void MathGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -192,40 +196,36 @@ void MathGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 10, 35, 2);
     tft.drawString(String("Correct ") + score_ + "  " + formatSeconds(elapsedSeconds()), 10, 52, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 10, 35, 2);
-    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", SCREEN_WIDTH - 10, 52, 1);
+    tft.drawString(String("Streak ") + streak_, W - 10, 35, 2);
+    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", W - 10, 52, 1);
 
     const char symbol = operation_ == Operation::Add ? '+' : '-';
     const String equation = String(left_) + " " + symbol + " " + right_ + " = ?";
-    tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
-    tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
+    const int16_t boxW = static_cast<int16_t>(W - 52);
+    tft.fillRoundRect(26, 76, boxW, 54, 8, Ui::panel());
+    tft.drawRoundRect(26, 76, boxW, 54, 8, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(equation, SCREEN_WIDTH / 2, 103, 4);
+    tft.drawString(equation, W / 2, 103, 4);
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
         if (answered_) {
-            if (i == correctButton_) {
-                fill = GREEN;
-                text = TFT_BLACK;
-            } else if (i == selected_) {
-                fill = RED;
-                text = TFT_BLACK;
-            }
+            if (i == correctButton_) { fill = GREEN; text = TFT_BLACK; }
+            else if (i == selected_) { fill = RED;   text = TFT_BLACK; }
         }
-        Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, TFT_DARKGREY, text, false, 4);
+        Ui::drawButton(tft, answerRect(i, W), String(options_[i]), fill, TFT_DARKGREY, text, false, 4);
     }
 
     if (answered_) {
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", W / 2, 136, 2);
     } else {
         tft.setTextColor(YELLOW, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap the answer", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString("Tap the answer", W / 2, 136, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

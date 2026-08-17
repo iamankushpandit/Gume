@@ -34,12 +34,12 @@ private:
         uint8_t holder;  // profile index, 0xFF = nobody
     };
 
-    Rect rowRect(uint8_t row) const;
+    Rect rowRect(uint8_t row, int16_t screenW) const;
     Rect mineTabRect() const;
-    Rect deviceTabRect() const;
-    Rect prevRect() const;
-    Rect nextRect() const;
-    Rect switchRect() const;
+    Rect deviceTabRect(int16_t screenW) const;
+    Rect prevRect(int16_t screenW, int16_t screenH) const;
+    Rect nextRect(int16_t screenW, int16_t screenH) const;
+    Rect switchRect(int16_t screenW, int16_t screenH) const;
     uint8_t playedCount(GameHost& host) const;
     void buildDeviceTable(GameHost& host);
     uint8_t deviceRowCount() const;

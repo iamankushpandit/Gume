@@ -68,6 +68,13 @@ Rect ProfileGame::doneRect(int16_t screenW, int16_t screenH) const {
     return Rect{static_cast<int16_t>(16 + w), static_cast<int16_t>(screenH - 30), w, 26};
 }
 
+Rect ProfileGame::cancelRect(int16_t screenW, int16_t screenH) const {
+    const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
+    const bool tall = screenH > screenW;
+    const int16_t y = tall ? 64 : 62;
+    return Rect{static_cast<int16_t>((screenW - w) / 2), y, w, 22};
+}
+
 Rect ProfileGame::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t margin = 8;
@@ -75,7 +82,7 @@ Rect ProfileGame::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t scr
     const int16_t keyW = static_cast<int16_t>((screenW - 2 * margin - (KEY_COLS - 1) * gap) / KEY_COLS);
     const int16_t keyH = tall ? 36 : 26;
     const int16_t pitch = tall ? 40 : 29;
-    const int16_t y0 = tall ? 92 : 86;
+    const int16_t y0 = tall ? 92 : 90;
     return Rect{static_cast<int16_t>(margin + col * (keyW + gap)),
                 static_cast<int16_t>(y0 + row * pitch), keyW, keyH};
 }
@@ -216,6 +223,11 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
     }
 
     // ---- rename / create ----
+    if (cancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        phase_ = (editing_ == 0xFF) ? Phase::Pick : Phase::Menu;
+        markFullDirty();
+        return;
+    }
     for (uint8_t r = 0; r < KEY_ROWS; ++r) {
         for (uint8_t c = 0; c < KEY_COLS; ++c) {
             if (!keyRect(r, c, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
@@ -375,6 +387,7 @@ void ProfileGame::render(GameHost& host) {
     tft.setTextDatum(MC_DATUM);
     tft.drawString(draft_.length() ? draft_.c_str() : "...",
                    W / 2, static_cast<int16_t>(field.y + field.h / 2), 4);
+    Ui::drawButton(tft, cancelRect(W, H), "Cancel", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
     for (uint8_t r = 0; r < KEY_ROWS; ++r) {
         for (uint8_t c = 0; c < KEY_COLS; ++c) {

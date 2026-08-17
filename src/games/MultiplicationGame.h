@@ -15,7 +15,7 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect answerRect(uint8_t index) const;
+    Rect answerRect(uint8_t index, int16_t screenW) const;
     void newQuestion();
     void makeOptions();
     uint8_t level() const;

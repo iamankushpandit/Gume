@@ -267,6 +267,13 @@ void Board::beginTimeSync() {
     }
 
     WiFi.mode(WIFI_STA);
+    /* NimBLE (the beacon, and Nearby's scanner) can be active at the same
+     * time as this. Without modem sleep enabled, the coexistence code aborts
+     * outright the moment both radios are up -- "Should enable WiFi modem
+     * sleep when both WiFi and Bluetooth are enabled!!!!!!" followed by a
+     * hard reset. Harmless to call every connection attempt; it's a no-op
+     * once already enabled. */
+    WiFi.setSleep(true);
     const String ssid = wifiSsid();
     const String pass = wifiPassword();
     Serial.printf("[time] connecting to %s\n", ssid.c_str());

@@ -11,18 +11,28 @@ void ScoresGame::begin(GameHost& host) {
     markFullDirty();
 }
 
-Rect ScoresGame::rowRect(uint8_t row) const {
-    return Rect{8, static_cast<int16_t>(56 + row * 30), 304, 28};
+Rect ScoresGame::rowRect(uint8_t row, int16_t screenW) const {
+    return Rect{8, static_cast<int16_t>(56 + row * 30),
+                static_cast<int16_t>(screenW - 16), 28};
 }
 Rect ScoresGame::mineTabRect() const {
     return Rect{8, 34, 64, 18};
 }
-Rect ScoresGame::deviceTabRect() const {
+Rect ScoresGame::deviceTabRect(int16_t screenW) const {
+    (void)screenW;
     return Rect{80, 34, 80, 18};
 }
-Rect ScoresGame::prevRect()   const { return Rect{8, 208, 88, 26}; }
-Rect ScoresGame::switchRect() const { return Rect{104, 208, 112, 26}; }
-Rect ScoresGame::nextRect()   const { return Rect{224, 208, 88, 26}; }
+Rect ScoresGame::prevRect(int16_t screenW, int16_t screenH) const {
+    (void)screenW;
+    return Rect{8, static_cast<int16_t>(screenH - 34), 88, 26};
+}
+Rect ScoresGame::switchRect(int16_t screenW, int16_t screenH) const {
+    const int16_t x = static_cast<int16_t>((screenW - 112) / 2);
+    return Rect{x, static_cast<int16_t>(screenH - 34), 112, 26};
+}
+Rect ScoresGame::nextRect(int16_t screenW, int16_t screenH) const {
+    return Rect{static_cast<int16_t>(screenW - 96), static_cast<int16_t>(screenH - 34), 88, 26};
+}
 
 uint8_t ScoresGame::playedCount(GameHost& host) const {
     uint8_t n = 0;
@@ -103,6 +113,8 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
     if (!host.requireCapability(APP_CAP_SCORES, "view scores")) {
         return;
     }
+    const int16_t W = static_cast<int16_t>(host.display().width());
+    const int16_t H = static_cast<int16_t>(host.display().height());
 
     // Tab switching
     if (mineTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -113,7 +125,7 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
         }
         return;
     }
-    if (deviceTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (deviceTabRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (activeTab_ != Tab::Device) {
             activeTab_ = Tab::Device;
             page_ = 0;
@@ -130,25 +142,25 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
         const uint8_t total = playedCount(host);
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
 
-        if (prevRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
+        if (prevRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
             --page_; markFullDirty(); return;
         }
-        if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
+        if (nextRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
             ++page_; markFullDirty(); return;
         }
     } else {
         const uint8_t total = deviceRowCount_;
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
 
-        if (prevRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
+        if (prevRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
             --page_; markFullDirty(); return;
         }
-        if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
+        if (nextRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
             ++page_; markFullDirty(); return;
         }
     }
 
-    if (switchRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (switchRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.openProfiles();
         return;
     }
@@ -157,17 +169,25 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
 void ScoresGame::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+    const int16_t H = static_cast<int16_t>(tft.height());
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 
     // Draw tab strip
     if (needsFullRender()) {
         Ui::drawTab(tft, mineTabRect(), "Mine", activeTab_ == Tab::Mine);
-        Ui::drawTab(tft, deviceTabRect(), "Device", activeTab_ == Tab::Device);
-        const Rect& activeTab = (activeTab_ == Tab::Mine) ? mineTabRect() : deviceTabRect();
+        Ui::drawTab(tft, deviceTabRect(W), "Device", activeTab_ == Tab::Device);
+        const Rect& activeTab = (activeTab_ == Tab::Mine) ? mineTabRect() : deviceTabRect(W);
         Ui::drawTabBaseline(tft, mineTabRect().y + mineTabRect().h,
-                            mineTabRect().x, deviceTabRect().x + deviceTabRect().w, activeTab);
+                            mineTabRect().x, deviceTabRect(W).x + deviceTabRect(W).w, activeTab);
     }
+
+    // Column positions scale with width
+    const int16_t colBest  = static_cast<int16_t>(W - 76);
+    const int16_t colWorst = static_cast<int16_t>(W - 14);
+    const int16_t colScore = static_cast<int16_t>(W - 84);
+    const int16_t colHolder= static_cast<int16_t>(W - 14);
 
     if (activeTab_ == Tab::Mine) {
         // Mine tab: current child's scores
@@ -179,14 +199,14 @@ void ScoresGame::render(GameHost& host) {
         if (needsFullRender()) {
             tft.setTextColor(Ui::muted(), Ui::bg());
             tft.setTextDatum(TR_DATUM);
-            tft.drawString("best", 244, 64, 1);
-            tft.drawString("worst", 306, 64, 1);
+            tft.drawString("best",  colBest,  64, 1);
+            tft.drawString("worst", colWorst, 64, 1);
             tft.setTextDatum(TL_DATUM);
         }
 
         const uint8_t total = playedCount(host);
         if (total == 0) {
-            Ui::drawLabel(tft, Rect{20, 110, 280, 20},
+            Ui::drawLabel(tft, Rect{20, 110, static_cast<int16_t>(W - 40), 20},
                           "No games played yet", Ui::muted(), 2, Align::Center);
         }
 
@@ -200,7 +220,7 @@ void ScoresGame::render(GameHost& host) {
             if (score == nullptr || !board.hasScore(score->bestKey)) continue;
             if (seen++ < first) continue;
 
-            const Rect r = rowRect(drawn++);
+            const Rect r = rowRect(drawn++, W);
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
 
@@ -215,10 +235,10 @@ void ScoresGame::render(GameHost& host) {
             tft.setTextColor(Ui::success(), Ui::surface());
             char value[24];
             snprintf(value, sizeof(value), "%u%s", best, score->unit);
-            tft.drawString(value, 244, r.y + r.h / 2, 2);
+            tft.drawString(value, colBest, r.y + r.h / 2, 2);
             tft.setTextColor(Ui::muted(), Ui::surface());
             snprintf(value, sizeof(value), "%u%s", worst, score->unit);
-            tft.drawString(value, 306, r.y + r.h / 2, 2);
+            tft.drawString(value, colWorst, r.y + r.h / 2, 2);
 
             if (score->lowerIsBetter) {
                 tft.setTextColor(Ui::muted(), Ui::surface());
@@ -230,17 +250,16 @@ void ScoresGame::render(GameHost& host) {
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
         const bool canPrev = page_ > 0;
         const bool canNext = page_ + 1 < pages;
-        Ui::drawPagerButton(tft, prevRect(), "Prev", canPrev);
-        Ui::drawButton(tft, switchRect(), "Switch player", Ui::rgb(36, 132, 204),
+        Ui::drawPagerButton(tft, prevRect(W, H), "Prev", canPrev);
+        Ui::drawButton(tft, switchRect(W, H), "Switch player", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
-        Ui::drawPagerButton(tft, nextRect(), "Next", canNext);
+        Ui::drawPagerButton(tft, nextRect(W, H), "Next", canNext);
     } else {
         // Device tab: device-wide best
         const uint8_t kidCount = board.kidCount();
 
         if (needsFullRender()) {
             if (kidCount == 1) {
-                // Only one child, explain the situation
                 tft.setTextDatum(TL_DATUM);
                 tft.setTextColor(Ui::muted(), Ui::bg());
                 tft.drawString("Add a player to compete", 8, 60, 1);
@@ -249,7 +268,7 @@ void ScoresGame::render(GameHost& host) {
 
         const uint8_t total = deviceRowCount_;
         if (total == 0) {
-            Ui::drawLabel(tft, Rect{20, 110, 280, 20},
+            Ui::drawLabel(tft, Rect{20, 110, static_cast<int16_t>(W - 40), 20},
                           "No games played yet", Ui::muted(), 2, Align::Center);
         } else {
             uint8_t drawn = 0;
@@ -261,30 +280,27 @@ void ScoresGame::render(GameHost& host) {
                     continue;
                 }
 
-                const Rect r = rowRect(drawn++);
+                const Rect r = rowRect(drawn++, W);
                 tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
                 tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
 
-                // Game label
                 tft.setTextColor(Ui::text(), Ui::surface());
                 tft.setTextDatum(ML_DATUM);
                 tft.drawString(score->label, r.x + 8, r.y + r.h / 2, 2);
 
-                // Device best value, right-aligned at x = 236
                 char scoreStr[32];
                 snprintf(scoreStr, sizeof(scoreStr), "%u%s", db.value, score->unit);
                 tft.setTextDatum(MR_DATUM);
                 tft.setTextColor(Ui::success(), Ui::surface());
-                tft.drawString(scoreStr, 236, r.y + r.h / 2, 2);
+                tft.drawString(scoreStr, colScore, r.y + r.h / 2, 2);
 
-                // Holder name, right-aligned at x = 312, gold if current player
                 if (db.holder < Board::MAX_KIDS) {
                     uint16_t holderColor = (board.activeProfile() == db.holder)
                         ? Ui::rgb(255, 200, 0)
                         : Ui::muted();
                     tft.setTextColor(holderColor, Ui::surface());
                     tft.setTextDatum(MR_DATUM);
-                    tft.drawString(holderNames_[db.holder], 312, r.y + r.h / 2, 2);
+                    tft.drawString(holderNames_[db.holder], colHolder, r.y + r.h / 2, 2);
                 }
             }
         }
@@ -292,10 +308,10 @@ void ScoresGame::render(GameHost& host) {
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
         const bool canPrev = page_ > 0;
         const bool canNext = page_ + 1 < pages;
-        Ui::drawPagerButton(tft, prevRect(), "Prev", canPrev);
-        Ui::drawButton(tft, switchRect(), "Switch player", Ui::rgb(36, 132, 204),
+        Ui::drawPagerButton(tft, prevRect(W, H), "Prev", canPrev);
+        Ui::drawButton(tft, switchRect(W, H), "Switch player", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
-        Ui::drawPagerButton(tft, nextRect(), "Next", canNext);
+        Ui::drawPagerButton(tft, nextRect(W, H), "Next", canNext);
     }
 
     tft.setTextDatum(TL_DATUM);

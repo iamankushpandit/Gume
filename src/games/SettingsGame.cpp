@@ -15,33 +15,24 @@ void SettingsGame::begin(GameHost& host) {
 
 /* Tab strip sits directly under the top bar; the rows start below its
  * baseline. Both tabs split the width in half. */
-Rect SettingsGame::deviceTabRect() const { return Rect{0,   30, 160, 22}; }
-Rect SettingsGame::powerTabRect()  const { return Rect{160, 30, 160, 22}; }
+Rect SettingsGame::deviceTabRect(int16_t W) const { return Rect{0,   30, static_cast<int16_t>(W/2), 22}; }
+Rect SettingsGame::powerTabRect(int16_t W)  const { return Rect{static_cast<int16_t>(W/2), 30, static_cast<int16_t>(W - W/2), 22}; }
 
-/* Device tab: four rows of 30px, then the brightness slider.
- *
- * Network takes a whole row because Nearby needed one of the half-width slots
- * and the row it went into is the one Reset was in. Reset keeps a slot of its
- * own on the last row rather than sitting beside a harmless toggle -- it is
- * the one destructive control here.
- *
- * Nearby is deliberately next to Beacon's row rather than beside it: it does
- * nothing unless Beacon is on, and reading downwards is the order you have to
- * turn them on in. */
-Rect SettingsGame::themeRect()  const { return Rect{8,    58, 144, 30}; }
-Rect SettingsGame::layoutRect() const { return Rect{164,  58, 144, 30}; }
-Rect SettingsGame::ntpRect()    const { return Rect{8,    92, 144, 30}; }
-Rect SettingsGame::bleRect()    const { return Rect{164,  92, 144, 30}; }
-Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 304, 30}; }
-Rect SettingsGame::nearbyRect() const { return Rect{8,   160, 144, 30}; }
-Rect SettingsGame::resetRect()  const { return Rect{164, 160, 144, 30}; }
-Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
+/* Device tab rows: two half-width columns, then full-width rows, then slider.
+ * All x/w values are derived from W so portrait and landscape both fit. */
+Rect SettingsGame::themeRect(int16_t W)  const { const int16_t hw=static_cast<int16_t>(W/2-12); return Rect{8,    58, hw, 30}; }
+Rect SettingsGame::layoutRect(int16_t W) const { const int16_t hw=static_cast<int16_t>(W/2-12); return Rect{static_cast<int16_t>(W/2+4), 58, hw, 30}; }
+Rect SettingsGame::ntpRect(int16_t W)    const { const int16_t hw=static_cast<int16_t>(W/2-12); return Rect{8,    92, hw, 30}; }
+Rect SettingsGame::bleRect(int16_t W)    const { const int16_t hw=static_cast<int16_t>(W/2-12); return Rect{static_cast<int16_t>(W/2+4), 92, hw, 30}; }
+Rect SettingsGame::wifiRect(int16_t W)   const { return Rect{8,   126, static_cast<int16_t>(W-16), 30}; }
+Rect SettingsGame::nearbyRect(int16_t W) const { const int16_t hw=static_cast<int16_t>(W/2-12); return Rect{8,   160, hw, 30}; }
+Rect SettingsGame::resetRect(int16_t W)  const { const int16_t hw=static_cast<int16_t>(W/2-12); return Rect{static_cast<int16_t>(W/2+4), 160, hw, 30}; }
+Rect SettingsGame::brightRect(int16_t W, int16_t H) const { return Rect{8, static_cast<int16_t>(H-36), static_cast<int16_t>(W-16), 32}; }
 
-/* Power tab: three full-width rows, so the labels have room to say what the
- * setting actually does rather than abbreviating to fit half a screen. */
-Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
-Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
-Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
+/* Power tab: three full-width rows. */
+Rect SettingsGame::idleActionRect(int16_t W) const { return Rect{8,  58, static_cast<int16_t>(W-16), 30}; }
+Rect SettingsGame::idleAfterRect(int16_t W)  const { return Rect{8,  92, static_cast<int16_t>(W-16), 30}; }
+Rect SettingsGame::sleepAfterRect(int16_t W) const { return Rect{8, 126, static_cast<int16_t>(W-16), 30}; }
 
 bool SettingsGame::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
@@ -75,12 +66,14 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
 
     Board& board = host.board();
+    const int16_t W = static_cast<int16_t>(host.display().width());
+    const int16_t H = static_cast<int16_t>(host.display().height());
 
-    if (deviceTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (deviceTabRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (tab_ != Tab::Device) { tab_ = Tab::Device; confirmReset_ = false; markFullDirty(); }
         return;
     }
-    if (powerTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (powerTabRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (tab_ != Tab::Power) { tab_ = Tab::Power; confirmReset_ = false; markFullDirty(); }
         return;
     }
@@ -90,52 +83,47 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
 
     if (tab_ == Tab::Power) {
-        if (idleActionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (idleActionRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             cycleIdleAction(board); markFullDirty(); return;
         }
-        if (idleAfterRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (idleAfterRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             cycleScreenSaver(board); markFullDirty(); return;
         }
-        if (sleepAfterRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            // Inert unless the saver actually hands over to sleep.
+        if (sleepAfterRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (sleepRowActive(board)) { cycleSleepSeconds(board); markFullDirty(); }
             return;
         }
         return;
     }
 
-    if (themeRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (themeRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         const Board::ThemeMode next = board.themeMode() == Board::ThemeMode::Dark
             ? Board::ThemeMode::Light : Board::ThemeMode::Dark;
         board.setThemeMode(next);
         Ui::setTheme(next == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
         markDirty(); return;
     }
-    if (layoutRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (layoutRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setLayoutMode(board.layoutMode() == Board::LayoutMode::Horizontal
             ? Board::LayoutMode::Vertical : Board::LayoutMode::Horizontal);
         markDirty(); return;
     }
-    if (ntpRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (ntpRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setRgbEnabled(!board.rgbEnabled()); markDirty(); return;
     }
-    if (bleRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (bleRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setBleBeaconEnabled(!board.bleBeaconEnabled());
-        /* Nearby play rides on this radio. Turning the beacon off stands it
-         * down (NearbyPlay::tick watches for exactly that); turning the beacon
-         * back on re-arms whatever the owner had chosen here. */
         markDirty(); return;
     }
-    if (nearbyRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (nearbyRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (!board.bleBeaconEnabled()) {
-            /* Refusing out loud beats a switch that flips and does nothing. */
             board.beepError();
             markDirty(); return;
         }
         NearbyPlay::setEnabled(board, !NearbyPlay::enabled());
         markDirty(); return;
     }
-    if (resetRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (resetRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (confirmReset_) {
             if (host.requireCapability(APP_CAP_FACTORY_RESET, "factory reset")) {
                 board.factoryReset();
@@ -145,11 +133,11 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
         markDirty(); return;
     }
     confirmReset_ = false;
-    if (wifiRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (wifiRect(W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.openWifi(); return;
     }
-    if (brightRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        board.setBrightness(Ui::sliderValueAt(brightRect(), touch.x, Board::BRIGHTNESS_MIN));
+    if (brightRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        board.setBrightness(Ui::sliderValueAt(brightRect(W, H), touch.x, Board::BRIGHTNESS_MIN));
         markDirty(); return;
     }
 }
@@ -157,49 +145,51 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
 void SettingsGame::renderDeviceTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+    const int16_t H = static_cast<int16_t>(tft.height());
 
     char label[28];
     snprintf(label, sizeof(label), "Theme: %s",
              board.themeMode() == Board::ThemeMode::Dark ? "Dark" : "Light");
-    Ui::drawButton(tft, themeRect(), label,
+    Ui::drawButton(tft, themeRect(W), label,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
     snprintf(label, sizeof(label), "Menu: %s",
              board.layoutMode() == Board::LayoutMode::Horizontal ? "Horizontal" : "Vertical");
-    Ui::drawButton(tft, layoutRect(), label,
+    Ui::drawButton(tft, layoutRect(W), label,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
     snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");
-    Ui::drawButton(tft, ntpRect(), label,
+    Ui::drawButton(tft, ntpRect(W), label,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
     snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
-    Ui::drawButton(tft, bleRect(), label,
+    Ui::drawButton(tft, bleRect(W), label,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, wifiRect(), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
-    /* Greyed, not hidden, when the beacon is off: the control is what tells
-     * you the feature exists and what it depends on. */
+    Ui::drawButton(tft, wifiRect(W), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
     const bool beaconOn = board.bleBeaconEnabled();
     snprintf(label, sizeof(label), "Nearby: %s",
              !beaconOn ? "needs Beacon" : (NearbyPlay::enabled() ? "On" : "Off"));
-    Ui::drawButton(tft, nearbyRect(), label,
+    Ui::drawButton(tft, nearbyRect(W), label,
                    Ui::panel(), Ui::outline(), beaconOn ? Ui::text() : Ui::muted(), false, 2);
-    Ui::drawButton(tft, resetRect(),
+    Ui::drawButton(tft, resetRect(W),
                    confirmReset_ ? "Tap to ERASE" : "Reset device",
                    confirmReset_ ? Ui::rgb(220, 40, 40) : Ui::rgb(120, 58, 58),
                    Ui::outline(), TFT_WHITE, false, 2);
 
+    const Rect br = brightRect(W, H);
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
     tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
-                             : "Brightness", 8, 194, 1);
+                             : "Brightness", 8, static_cast<int16_t>(br.y - 6), 1);
     tft.setTextDatum(TR_DATUM);
     snprintf(label, sizeof(label), "%u%%", board.brightness());
-    tft.drawString(label, SCREEN_WIDTH - 8, 194, 1);
+    tft.drawString(label, static_cast<int16_t>(W - 8), static_cast<int16_t>(br.y - 6), 1);
     tft.setTextDatum(TL_DATUM);
-    Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
+    Ui::drawSlider(tft, br, board.brightness(), Board::BRIGHTNESS_MIN);
 }
 
 void SettingsGame::renderPowerTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
 
     const Board::IdleAction action = board.idleAction();
     const uint16_t idleSecs  = board.screenSaverSeconds();
@@ -211,7 +201,7 @@ void SettingsGame::renderPowerTab(GameHost& host) {
 
     char buf[52];
     snprintf(buf, sizeof(buf), "When idle: %s", actionName);
-    Ui::drawButton(tft, idleActionRect(), buf,
+    Ui::drawButton(tft, idleActionRect(W), buf,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
     if (idleSecs >= 60 && idleSecs % 60 == 0) {
@@ -219,12 +209,9 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     } else {
         snprintf(buf, sizeof(buf), "Idle after: %us", idleSecs);
     }
-    Ui::drawButton(tft, idleAfterRect(), buf,
+    Ui::drawButton(tft, idleAfterRect(W), buf,
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
-    /* The sleep delay only means anything when the saver hands over to sleep.
-     * The other two policies say so on the button rather than leaving a live
-     * control that quietly does nothing. */
     const bool sleepLive = sleepRowActive(board);
     if (!sleepLive) {
         snprintf(buf, sizeof(buf), "Sleep after: %s",
@@ -234,12 +221,10 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     } else {
         snprintf(buf, sizeof(buf), "Sleep after: %us", sleepSecs);
     }
-    Ui::drawButton(tft, sleepAfterRect(), buf,
+    Ui::drawButton(tft, sleepAfterRect(W), buf,
                    sleepLive ? Ui::panel() : Ui::surface(), Ui::outline(),
                    sleepLive ? Ui::text() : Ui::muted(), false, 2);
 
-    /* Say the resulting behaviour in plain words, composed from the live
-     * values -- three settings that interact are hard to hold in your head. */
     char explain[64];
     switch (action) {
         case Board::IdleAction::SleepOnly:
@@ -261,14 +246,15 @@ void SettingsGame::renderPowerTab(GameHost& host) {
 
 void SettingsGame::render(GameHost& host) {
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 
-    const Rect devTab = deviceTabRect();
-    const Rect powTab = powerTabRect();
+    const Rect devTab = deviceTabRect(W);
+    const Rect powTab = powerTabRect(W);
     Ui::drawTab(tft, devTab, "Device", tab_ == Tab::Device);
     Ui::drawTab(tft, powTab, "Power", tab_ == Tab::Power);
-    Ui::drawTabBaseline(tft, 52, 0, SCREEN_WIDTH,
+    Ui::drawTabBaseline(tft, 52, 0, W,
                         tab_ == Tab::Device ? devTab : powTab);
 
     if (tab_ == Tab::Device) {

@@ -178,14 +178,17 @@ void PercentCircleGame::markWrong() {
 }
 
 void PercentCircleGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
+    const float avg = tft.imageScale();
+    const float rx = (avg > 0.0f) ? radius * avg / tft.imageScaleX() : radius;
+    const float ry = (avg > 0.0f) ? radius * avg / tft.imageScaleY() : radius;
     const float step = PI / 24.0f;
     float angle = startAngle;
     while (angle < endAngle) {
         const float next = min(endAngle, angle + step);
-        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * radius);
-        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * radius);
-        const int16_t x2 = cx + static_cast<int16_t>(cosf(next) * radius);
-        const int16_t y2 = cy + static_cast<int16_t>(sinf(next) * radius);
+        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * rx);
+        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * ry);
+        const int16_t x2 = cx + static_cast<int16_t>(cosf(next) * rx);
+        const int16_t y2 = cy + static_cast<int16_t>(sinf(next) * ry);
         tft.fillTriangle(cx, cy, x1, y1, x2, y2, color);
         angle = next;
     }

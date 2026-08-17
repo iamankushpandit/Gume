@@ -92,11 +92,11 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
             reroll();
             rolling_ = false;
             host.beepOk();
-            markDirty();
+            markFullDirty();
         } else if (now >= nextTumbleMs_) {
             nextTumbleMs_ = now + TUMBLE_STEP_MS;
             reroll();
-            markDirty();
+            markFullDirty();
         }
         return;   // no input while the dice are in the air
     }
