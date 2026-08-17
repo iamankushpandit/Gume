@@ -2,6 +2,10 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t HUD_Y = TOP_BAR_HEIGHT + 5;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 22;
+constexpr int16_t TRAY_TOP = TOP_BAR_HEIGHT + 40;
+
 constexpr uint16_t COLORS[] = {
     0xF9EA, 0x5D9F, 0x37F0, 0xFFE6, 0xF81F, 0xFC00
 };
@@ -43,10 +47,20 @@ void OddOneOutGame::begin(AppContext& host) {
     markDirty();
 }
 
-Rect OddOneOutGame::itemRect(uint8_t index) const {
-    const uint8_t col = index % 3;
-    const uint8_t row = index / 3;
-    return Rect{static_cast<int16_t>(36 + col * 86), static_cast<int16_t>(70 + row * 50), 66, 40};
+Rect OddOneOutGame::itemBand(const Ui::Frame& f) const {
+    /* Down to the top of where the verdict banner sits. In landscape that is
+     * 140px, which is the 3x40 rows on 10px gaps the tray was drawn with. */
+    const int16_t bottom = static_cast<int16_t>(f.h - 30);
+    return Rect{30, TRAY_TOP, static_cast<int16_t>(f.w - 60),
+                static_cast<int16_t>(bottom - TRAY_TOP)};
+}
+
+Rect OddOneOutGame::itemRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(itemBand(f), 3, 3, index, 10);
+}
+
+Rect OddOneOutGame::verdictRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, static_cast<int16_t>(f.h - 44), f.w, 30}, 152, 30);
 }
 
 void OddOneOutGame::newRound() {
@@ -95,9 +109,9 @@ void OddOneOutGame::newRound() {
     flashUntil_ = 0;
 }
 
-int8_t OddOneOutGame::touchedItem(int16_t x, int16_t y) const {
+int8_t OddOneOutGame::touchedItem(const Ui::Frame& f, int16_t x, int16_t y) const {
     for (uint8_t i = 0; i < 9; ++i) {
-        if (itemRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
+        if (itemRect(f, i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
     }
@@ -154,7 +168,7 @@ void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t item = touchedItem(touch.x, touch.y);
+    const int8_t item = touchedItem(Ui::frame(host.display()), touch.x, touch.y);
     if (item < 0) {
         return;
     }
@@ -177,26 +191,29 @@ void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
 
 void OddOneOutGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Score ") + score_, 10, 35, 2);
+    tft.drawString(String("Score ") + score_, 10, HUD_Y, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 35, 2);
-    Ui::drawLabel(tft, Rect{8, 52, 304, 16}, "Tap the one that is different", Ui::muted(), 1, Align::Center);
+    tft.drawString(String("Best ") + bestStreak_, f.w - 8, HUD_Y, 2);
+    Ui::drawLabel(tft, Rect{8, PROMPT_Y, static_cast<int16_t>(f.w - 16), 16},
+                  "Tap the one that is different", Ui::muted(), 1, Align::Center);
 
     for (uint8_t i = 0; i < 9; ++i) {
-        drawItem(tft, itemRect(i), i == oddIndex_);
+        drawItem(tft, itemRect(f, i), i == oddIndex_);
     }
 
     if (flashCorrect_ || flashError_) {
         const uint16_t color = flashCorrect_ ? Ui::success() : Ui::error();
-        tft.fillRoundRect(84, 196, 152, 30, 8, color);
+        const Rect v = verdictRect(f);
+        tft.fillRoundRect(v.x, v.y, v.w, v.h, 8, color);
         tft.setTextColor(TFT_BLACK, color);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(flashCorrect_ ? "Correct" : "Try again", SCREEN_WIDTH / 2, 211, 2);
+        tft.drawString(flashCorrect_ ? "Correct" : "Try again", f.cx(), v.y + v.h / 2, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

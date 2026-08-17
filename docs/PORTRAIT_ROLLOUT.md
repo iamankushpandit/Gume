@@ -73,20 +73,20 @@ Legend: `todo` / `wip` / `done`
 | 0 | Tic-Tac-Toe | `TicTacToeGame.cpp` | done | square field: largest centred square under the header |
 | 1 | Memory | `MemoryGame.cpp` | todo | |
 | 2 | Math | `MathGame.cpp` | done | prompt + answer grid: Ui::answerColumns picks 2x2 or 1x4 |
-| 3 | Multiply | `MultiplicationGame.cpp` | todo | |
+| 3 | Multiply | `MultiplicationGame.cpp` | done | same grid as Math |
 | 4 | Time | `TimeGame.cpp` | todo | |
 | 5 | Whack | `WhackAMoleGame.cpp` | todo | |
 | 6 | Cinnamon | `CinnamonGame.cpp` | todo | partial redraw; photosensitivity — keep it partial |
 | 7 | Microku | `MicrokuGame.cpp` | todo | |
 | 8 | Shapes | `ShapeColorGame.cpp` | todo | |
-| 9 | Counting | `CountingGame.cpp` | todo | |
+| 9 | Counting | `CountingGame.cpp` | done | dots per row derived from panel width; answers 4-up / 2x2 |
 | 10 | Money | `MoneyGame.cpp` | todo | 491 lines — largest game |
 | 11 | Fractions | `FractionGame.cpp` | todo | |
 | 12 | Maze | `MazeGame.cpp` | todo | fixed 22px cell grid |
 | 13 | Sorting | `SortGame.cpp` | todo | |
 | 14 | Color Mix | `ColorMixGame.cpp` | todo | |
 | 15 | Slide | `SlidingPuzzleGame.cpp` | todo | square board |
-| 16 | Odd One | `OddOneOutGame.cpp` | todo | |
+| 16 | Odd One | `OddOneOutGame.cpp` | done | 3x3 tray keeps 3 columns; banner bottom-anchored |
 | 17 | Shape Arith | `ObjectAddGame.cpp` | todo | |
 | 18 | Fingers | `FingerCountGame.cpp` | todo | 8 SCREEN_* refs |
 | 19 | Calendar | `TimeGame.cpp` / cal | todo | |
@@ -136,3 +136,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 | baseline | 2,323,933 | 73.9% | 71,980 |
 | shared plumbing | 2,324,041 | 73.9% | 71,980 |
 | +4 games (ttt, math, dice, coinflip) | 2,325,761 | 73.9% | 71,980 |
+| +3 games (multiply, counting, oddone) | 2,326,613 | 74.0% | 71,980 |

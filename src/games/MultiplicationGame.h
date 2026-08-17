@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -15,7 +16,11 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect answerRect(uint8_t index) const;
+    /* Same shape as Math, and deliberately the same geometry: a prompt panel
+     * over four choices, arranged 2x2 in landscape and stacked in portrait. */
+    Rect equationRect(const Ui::Frame& f) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t index) const;
     void newQuestion();
     void makeOptions();
     uint8_t level() const;

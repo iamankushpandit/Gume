@@ -3,6 +3,16 @@
 #include "engine/ContentLoader.h"
 
 namespace {
+constexpr int16_t QUESTION_Y = TOP_BAR_HEIGHT + 2;
+constexpr int16_t STATS_Y = TOP_BAR_HEIGHT + 30;
+constexpr int16_t AREA_TOP = TOP_BAR_HEIGHT + 46;
+constexpr int16_t ANSWER_H = 40;
+constexpr uint8_t ANSWER_COUNT = 4;
+/* Dot pitch, and the inset the first dot sits at inside the panel. */
+constexpr int16_t DOT_PITCH = 39;
+constexpr int16_t DOT_ROW_PITCH = 30;
+constexpr int16_t DOT_INSET = 24;
+
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
@@ -44,8 +54,30 @@ void CountingGame::begin(AppContext& host) {
     markDirty();
 }
 
-Rect CountingGame::answerRect(uint8_t index) const {
-    return Rect{static_cast<int16_t>(15 + index * 76), 188, 62, 40};
+uint8_t CountingGame::answerColumns(const Ui::Frame& f) const {
+    /* Four 62px buttons plus gaps need 260px; landscape has it, portrait does
+     * not, and 2x2 keeps them finger-sized rather than shrinking to fit. */
+    return f.tall() ? 2 : ANSWER_COUNT;
+}
+
+Rect CountingGame::answerBand(const Ui::Frame& f) const {
+    const uint8_t cols = answerColumns(f);
+    const uint8_t rows = static_cast<uint8_t>(ANSWER_COUNT / cols);
+    const int16_t h = static_cast<int16_t>(rows * ANSWER_H + (rows - 1) * 8);
+    return Rect{15, static_cast<int16_t>(f.h - h - 12),
+                static_cast<int16_t>(f.w - 30), h};
+}
+
+Rect CountingGame::answerRect(const Ui::Frame& f, uint8_t index) const {
+    const uint8_t cols = answerColumns(f);
+    const uint8_t rows = static_cast<uint8_t>(ANSWER_COUNT / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, index, 8);
+}
+
+Rect CountingGame::objectArea(const Ui::Frame& f) const {
+    const int16_t bottom = static_cast<int16_t>(answerBand(f).y - 14);
+    return Rect{18, AREA_TOP, static_cast<int16_t>(f.w - 36),
+                static_cast<int16_t>(bottom - AREA_TOP)};
 }
 
 void CountingGame::newQuestion() {
@@ -92,8 +124,9 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
         markDirty();
         return;
     }
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    const Ui::Frame f = Ui::frame(host.display());
+    for (uint8_t i = 0; i < ANSWER_COUNT; ++i) {
+        if (answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = i;
             answered_ = true;
             ++rounds_;
@@ -117,6 +150,7 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
 
 void CountingGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
     tft.setTextColor(Ui::text(), Ui::bg());
@@ -124,22 +158,34 @@ void CountingGame::render(AppContext& host) {
      * right-aligned "Score n/m" at the same y started around 213 -- they
      * overlapped. Score and streak now share one small line underneath. */
     tft.setTextDatum(TC_DATUM);
-    tft.drawString("How many objects?", SCREEN_WIDTH / 2, 32, 4);
+    tft.drawString("How many objects?", f.cx(), QUESTION_Y, 4);
     tft.setTextColor(Ui::muted(), Ui::bg());
     char stats[48];
     snprintf(stats, sizeof(stats), "Score %u/%u   Streak %u   Best %u",
              score_, rounds_, streak_, bestStreak_);
-    tft.drawString(stats, SCREEN_WIDTH / 2, 60, 1);
+    tft.drawString(stats, f.cx(), STATS_Y, 1);
     tft.setTextColor(Ui::text(), Ui::bg());
 
-    const Rect area{18, 76, 284, 98};
+    const Rect area = objectArea(f);
     tft.fillRoundRect(area.x, area.y, area.w, area.h, 8, Ui::panel());
     tft.drawRoundRect(area.x, area.y, area.w, area.h, 8, Ui::outline());
+    /* Seven dots per row is what 284px of panel holds; 204px holds five. Work
+     * it out from the panel rather than hardcoding the landscape answer, or
+     * the right-hand dots fall outside the rounded rect in portrait. */
+    uint8_t cols = static_cast<uint8_t>((area.w - 2 * DOT_INSET) / DOT_PITCH + 1);
+    if (cols < 3) {
+        cols = 3;
+    }
+    const uint8_t rows = static_cast<uint8_t>((count_ + cols - 1) / cols);
+    int16_t rowPitch = DOT_ROW_PITCH;
+    if (rows > 0 && rows * rowPitch > area.h - 2 * DOT_INSET + DOT_ROW_PITCH) {
+        rowPitch = static_cast<int16_t>((area.h - DOT_INSET) / rows);
+    }
     for (uint8_t i = 0; i < count_; ++i) {
-        const uint8_t col = i % 7;
-        const uint8_t row = i / 7;
-        const int16_t x = area.x + 24 + col * 39 + (row % 2) * 8;
-        const int16_t y = area.y + 24 + row * 30;
+        const uint8_t col = static_cast<uint8_t>(i % cols);
+        const uint8_t row = static_cast<uint8_t>(i / cols);
+        const int16_t x = static_cast<int16_t>(area.x + DOT_INSET + col * DOT_PITCH + (row % 2) * 8);
+        const int16_t y = static_cast<int16_t>(area.y + DOT_INSET + row * rowPitch);
         tft.fillCircle(x, y, 10, DOT_COLORS[i % 5]);
         tft.drawCircle(x, y, 10, TFT_DARKGREY);
     }
@@ -158,13 +204,14 @@ void CountingGame::render(AppContext& host) {
         }
         char label[4];
         snprintf(label, sizeof(label), "%u", options_[i]);
-        Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
+        Ui::drawButton(tft, answerRect(f, i), label, fill, TFT_DARKGREY, text, false, 4);
     }
 
     if (answered_) {
         tft.setTextDatum(MC_DATUM);
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer", SCREEN_WIDTH / 2, 178, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer",
+                       f.cx(), static_cast<int16_t>(answerBand(f).y - 10), 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

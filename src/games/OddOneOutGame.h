@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -28,8 +29,13 @@ private:
         Orientation
     };
 
-    Rect itemRect(uint8_t index) const;
-    int8_t touchedItem(int16_t x, int16_t y) const;
+    /* A 3x3 tray of shapes. The tray keeps its 3 columns in both orientations
+     * -- the odd-one-out reading depends on comparing a row at a glance -- and
+     * takes whatever height is left above the verdict banner. */
+    Rect itemBand(const Ui::Frame& f) const;
+    Rect itemRect(const Ui::Frame& f, uint8_t index) const;
+    Rect verdictRect(const Ui::Frame& f) const;
+    int8_t touchedItem(const Ui::Frame& f, int16_t x, int16_t y) const;
     void newRound();
     void drawItem(Ui::Renderer& tft, const Rect& r, bool odd) const;
     void drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool inverted) const;

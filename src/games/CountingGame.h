@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "engine/ContentLoader.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -16,7 +17,16 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect answerRect(uint8_t index) const;
+    /* Four small number buttons. Unlike Math these are compact enough to sit
+     * in a single landscape row, so portrait folds them 2x2 rather than
+     * stacking four -- Ui::answerColumns is tuned for wide buttons and would
+     * give the wrong answer here. */
+    uint8_t answerColumns(const Ui::Frame& f) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t index) const;
+    /* The panel the objects are counted in: everything between the stats line
+     * and the buttons, which is 98px tall in landscape and 130 in portrait. */
+    Rect objectArea(const Ui::Frame& f) const;
     void newQuestion();
     void makeOptions();
 
