@@ -111,7 +111,7 @@ Legend: `todo` / `wip` / `done`
 | Scores | `ScoresGame.cpp` | no | done — rows/page derived from height; pager bottom-anchored; switch takes its own row when narrow |
 | Settings | `SettingsGame.cpp` | no | done — paired rows via gridCell; slider bottom-anchored |
 | Wi-Fi | `WifiGame.cpp` | no | todo — 12 SCREEN_* refs, worst offender |
-| About | `AboutGame.cpp` | no | todo |
+| About | `AboutGame.cpp` | no | done — content flows to the panel; games/page and page count derived |
 
 ### Shared plumbing
 

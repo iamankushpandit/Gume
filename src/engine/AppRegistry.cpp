@@ -100,7 +100,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     systemApp("systeminfo", "System Info", "device status", LauncherIcon::SystemInfo, systemInfo,
               APP_CAP_DEVICE_STATUS | APP_CAP_DIAGNOSTICS, true),
     systemApp("about", "About", "company info", LauncherIcon::About, about,
-              APP_CAP_DEVICE_STATUS),
+              APP_CAP_DEVICE_STATUS, true),
     systemApp("nearby", "Nearby", "who else is here", LauncherIcon::Nearby, nearby,
               APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS, true),
 };
