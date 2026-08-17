@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -16,10 +17,13 @@ public:
 
 private:
     void loadStage(uint8_t stageIndex);
-    Rect cellRect(uint8_t row, uint8_t col) const;
-    Rect numberRect(uint8_t value) const;
-    int8_t touchedCell(int16_t x, int16_t y) const;
-    int8_t touchedNumber(int16_t x, int16_t y) const;
+    /* The grid is square and sized to whichever axis runs out first, so a
+      * 3x3 stage no longer overruns the number pad below it. */
+    Rect gridRect(const Ui::Frame& f) const;
+    Rect cellRect(const Ui::Frame& f, uint8_t row, uint8_t col) const;
+    Rect numberRect(const Ui::Frame& f, uint8_t value) const;
+    int8_t touchedCell(const Ui::Frame& f, int16_t x, int16_t y) const;
+    int8_t touchedNumber(const Ui::Frame& f, int16_t x, int16_t y) const;
     bool complete() const;
     void advanceAfterSolve(AppContext& host);
 

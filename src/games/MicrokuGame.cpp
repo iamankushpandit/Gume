@@ -2,6 +2,10 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t GRID_TOP = TOP_BAR_HEIGHT + 28;
+/* Height kept clear below the grid for the number pad and its margin. */
+constexpr int16_t PAD_RESERVE = 46;
+
 constexpr uint16_t GIVEN_FILL = 0x294D;
 constexpr uint16_t USER_FILL = 0x18E8;
 constexpr uint16_t SELECT_FILL = 0xFFE6;
@@ -116,24 +120,37 @@ void MicrokuGame::loadStage(uint8_t stageIndex) {
     }
 }
 
-Rect MicrokuGame::cellRect(uint8_t row, uint8_t col) const {
-    const int16_t cell = size_ == 6 ? 23 : (size_ == 4 ? 32 : 54);
-    const int16_t gridSize = cell * size_;
-    const int16_t startX = (SCREEN_WIDTH - gridSize) / 2;
-    const int16_t startY = 58;
-    return Rect{static_cast<int16_t>(startX + col * cell), static_cast<int16_t>(startY + row * cell), cell, cell};
+Rect MicrokuGame::gridRect(const Ui::Frame& f) const {
+    /* 3x3 used a 54px cell, which is 162px of grid starting at y=58 -- it ran
+     * to 220 and straight under a number pad drawn at 205. Sizing to the
+     * space that is actually free fixes that in both orientations. */
+    int16_t cell = static_cast<int16_t>((f.w - 16) / size_);
+    const int16_t byHeight = static_cast<int16_t>((f.h - GRID_TOP - PAD_RESERVE) / size_);
+    if (byHeight < cell) {
+        cell = byHeight;
+    }
+    const int16_t side = static_cast<int16_t>(cell * size_);
+    return Rect{static_cast<int16_t>((f.w - side) / 2), GRID_TOP, side, side};
 }
 
-Rect MicrokuGame::numberRect(uint8_t value) const {
+Rect MicrokuGame::cellRect(const Ui::Frame& f, uint8_t row, uint8_t col) const {
+    const Rect grid = gridRect(f);
+    const int16_t cell = static_cast<int16_t>(grid.w / size_);
+    return Rect{static_cast<int16_t>(grid.x + col * cell),
+                static_cast<int16_t>(grid.y + row * cell), cell, cell};
+}
+
+Rect MicrokuGame::numberRect(const Ui::Frame& f, uint8_t value) const {
     const int16_t gap = 4;
-    const int16_t w = (SCREEN_WIDTH - 16 - gap * (size_ - 1)) / size_;
-    return Rect{static_cast<int16_t>(8 + (value - 1) * (w + gap)), 205, w, 30};
+    const int16_t w = static_cast<int16_t>((f.w - 16 - gap * (size_ - 1)) / size_);
+    return Rect{static_cast<int16_t>(8 + (value - 1) * (w + gap)),
+                static_cast<int16_t>(f.h - 35), w, 30};
 }
 
-int8_t MicrokuGame::touchedCell(int16_t x, int16_t y) const {
+int8_t MicrokuGame::touchedCell(const Ui::Frame& f, int16_t x, int16_t y) const {
     for (uint8_t row = 0; row < size_; ++row) {
         for (uint8_t col = 0; col < size_; ++col) {
-            if (cellRect(row, col).contains(x, y, TOUCH_HIT_SLOP)) {
+            if (cellRect(f, row, col).contains(x, y, TOUCH_HIT_SLOP)) {
                 return static_cast<int8_t>(row * size_ + col);
             }
         }
@@ -141,9 +158,9 @@ int8_t MicrokuGame::touchedCell(int16_t x, int16_t y) const {
     return -1;
 }
 
-int8_t MicrokuGame::touchedNumber(int16_t x, int16_t y) const {
+int8_t MicrokuGame::touchedNumber(const Ui::Frame& f, int16_t x, int16_t y) const {
     for (uint8_t value = 1; value <= size_; ++value) {
-        if (numberRect(value).contains(x, y, TOUCH_HIT_SLOP)) {
+        if (numberRect(f, value).contains(x, y, TOUCH_HIT_SLOP)) {
             return value;
         }
     }
@@ -173,6 +190,7 @@ void MicrokuGame::advanceAfterSolve(AppContext& host) {
 }
 
 void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     if (messageUntil_ > 0 && millis() > messageUntil_) {
         messageUntil_ = 0;
         markDirty();
@@ -188,7 +206,7 @@ void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t cell = touchedCell(touch.x, touch.y);
+    const int8_t cell = touchedCell(f, touch.x, touch.y);
     if (cell >= 0) {
         if (!fixed_[cell]) {
             selected_ = cell;
@@ -199,7 +217,7 @@ void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t number = touchedNumber(touch.x, touch.y);
+    const int8_t number = touchedNumber(f, touch.x, touch.y);
     if (number < 0 || selected_ < 0) {
         return;
     }
@@ -230,6 +248,7 @@ void MicrokuGame::update(AppContext& host, const TouchPoint& touch) {
 
 void MicrokuGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -237,13 +256,13 @@ void MicrokuGame::render(AppContext& host) {
     tft.setTextDatum(TL_DATUM);
     tft.drawString(String("Board ") + size_ + "x" + size_, 8, 34, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(bestSize_ > 0 ? String("Best ") + bestSize_ + "x" + bestSize_ : "Best --", SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(bestSize_ > 0 ? String("Best ") + bestSize_ + "x" + bestSize_ : "Best --", f.w - 8, TOP_BAR_HEIGHT + 4, 2);
     Ui::drawLabel(tft, Rect{24, 46, 272, 16}, message_, message_ == "Try again" ? RED : Ui::text(), 1, Align::Center);
 
     for (uint8_t row = 0; row < size_; ++row) {
         for (uint8_t col = 0; col < size_; ++col) {
             const uint8_t index = row * size_ + col;
-            const Rect r = cellRect(row, col);
+            const Rect r = cellRect(f, row, col);
             const bool selected = selected_ == index;
             const uint16_t fill = selected ? SELECT_FILL : (fixed_[index] ? GIVEN_FILL : USER_FILL);
             tft.fillRect(r.x, r.y, r.w, r.h, fill);
@@ -256,7 +275,7 @@ void MicrokuGame::render(AppContext& host) {
         }
     }
 
-    const Rect first = cellRect(0, 0);
+    const Rect first = cellRect(f, 0, 0);
     const int16_t cell = first.w;
     const int16_t gridSize = cell * size_;
     for (uint8_t i = 0; i <= size_; ++i) {
@@ -275,7 +294,7 @@ void MicrokuGame::render(AppContext& host) {
     }
 
     for (uint8_t value = 1; value <= size_; ++value) {
-        Ui::drawButton(tft, numberRect(value), String(value), solved_ ? GREEN : BLUE, TFT_DARKGREY, solved_ ? TFT_BLACK : TFT_WHITE, false, 2);
+        Ui::drawButton(tft, numberRect(f, value), String(value), solved_ ? GREEN : BLUE, TFT_DARKGREY, solved_ ? TFT_BLACK : TFT_WHITE, false, 2);
     }
 
     if (solved_) {
@@ -283,8 +302,10 @@ void MicrokuGame::render(AppContext& host) {
         tft.drawRoundRect(62, 93, 196, 48, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Microku solved", SCREEN_WIDTH / 2, 111, 4);
-        tft.drawString(stageIndex_ + 1 < STAGE_COUNT ? "Tap next" : "Tap restart", SCREEN_WIDTH / 2, 134, 2);
+        const int16_t solvedY = static_cast<int16_t>(
+            TOP_BAR_HEIGHT + (f.h - TOP_BAR_HEIGHT) * 39 / 100);
+        tft.drawString("Microku solved", f.cx(), solvedY, 4);
+        tft.drawString(stageIndex_ + 1 < STAGE_COUNT ? "Tap next" : "Tap restart", f.cx(), solvedY + 23, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

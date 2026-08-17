@@ -2,6 +2,10 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t PANEL_TOP = TOP_BAR_HEIGHT + 20;
+constexpr int16_t PANEL_H = 110;
+constexpr int16_t EQUALS_Y = TOP_BAR_HEIGHT + 132;
+
 constexpr uint16_t COL_FIRST   = 0x24BD; // blue
 constexpr uint16_t COL_SECOND  = 0x37F0; // green
 constexpr uint16_t COL_REMOVED = 0xF9EA; // red/orange for subtraction
@@ -33,16 +37,41 @@ const char* ObjectAddGame::title() const {
         : objectAddAppMetadata().title;
 }
 
-Rect ObjectAddGame::leftPanel()  const { return Rect{8,   50, 132, 110}; }
-Rect ObjectAddGame::rightPanel() const { return Rect{180, 50, 132, 110}; }
-Rect ObjectAddGame::answerRect(uint8_t i) const {
-    return Rect{static_cast<int16_t>(15 + i * 76), 172, 62, 42};
+Rect ObjectAddGame::leftPanel(const Ui::Frame& f) const {
+    return Rect{8, PANEL_TOP, static_cast<int16_t>((f.w - 40) / 2), PANEL_H};
+}
+
+Rect ObjectAddGame::rightPanel(const Ui::Frame& f) const {
+    const int16_t w = static_cast<int16_t>((f.w - 40) / 2);
+    return Rect{static_cast<int16_t>(f.w - 8 - w), PANEL_TOP, w, PANEL_H};
+}
+
+Rect ObjectAddGame::answerBand(const Ui::Frame& f) const {
+    const uint8_t cols = f.tall() ? 2 : 4;
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    const int16_t h = static_cast<int16_t>(rows * 42 + (rows - 1) * 8);
+    return Rect{15, static_cast<int16_t>(f.h - h - 10),
+                static_cast<int16_t>(f.w - 30), h};
+}
+
+Rect ObjectAddGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    /* Four 62px buttons on a 76px pitch span 304px. Portrait pairs them. */
+    const uint8_t cols = f.tall() ? 2 : 4;
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 8);
 }
 
 void ObjectAddGame::objPos(const Rect& p, uint8_t idx, int16_t& cx, int16_t& cy) const {
     const uint8_t col = idx % 4;
     const uint8_t row = idx / 4;
-    cx = static_cast<int16_t>(p.x + 18 + col * 28);
+    /* Four columns centred in the tray. A flat 28px pitch off a flat 18px
+     * inset only fitted while the tray was 132 wide. */
+    int16_t pitch = static_cast<int16_t>((p.w - 30) / 3);
+    if (pitch > 28) {
+        pitch = 28;
+    }
+    const int16_t inset = static_cast<int16_t>((p.w - 3 * pitch) / 2);
+    cx = static_cast<int16_t>(p.x + inset + col * pitch);
     cy = static_cast<int16_t>(p.y + 34 + row * 32);
 }
 
@@ -170,7 +199,7 @@ void ObjectAddGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (phase_ == Phase::Question) {
         for (uint8_t i = 0; i < 4; ++i) {
-            if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (answerRect(Ui::frame(host.display()), i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selected_ = static_cast<int8_t>(i);
                 ++rounds_;
                 if (i == correctBtn_) { ++score_; host.beepOk(); }
@@ -186,6 +215,7 @@ void ObjectAddGame::update(AppContext& host, const TouchPoint& touch) {
 
 void ObjectAddGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -195,7 +225,7 @@ void ObjectAddGame::render(AppContext& host) {
     char scoreText[16];
     snprintf(scoreText, sizeof(scoreText), "%u/%u",
              static_cast<unsigned>(score_), static_cast<unsigned>(rounds_));
-    tft.drawString(scoreText, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(scoreText, f.w - 8, TOP_BAR_HEIGHT + 4, 2);
 
     const char* shapeName = (shape_ % 4 == 0) ? "circles" :
                             (shape_ % 4 == 1) ? "squares" :
@@ -212,7 +242,7 @@ void ObjectAddGame::render(AppContext& host) {
     tft.drawString(problemText, 8, 34, 2);
 
     // Left panel: the first group, or the count left after subtraction.
-    const Rect lp = leftPanel();
+    const Rect lp = leftPanel(f);
     tft.fillRoundRect(lp.x, lp.y, lp.w, lp.h, 6, Ui::panel());
     tft.drawRoundRect(lp.x, lp.y, lp.w, lp.h, 6, Ui::outline());
     tft.setTextColor(Ui::muted(), Ui::panel());
@@ -249,7 +279,7 @@ void ObjectAddGame::render(AppContext& host) {
     }
 
     // Right panel: the second addend, or the group being taken away.
-    const Rect rp = rightPanel();
+    const Rect rp = rightPanel(f);
     tft.fillRoundRect(rp.x, rp.y, rp.w, rp.h, 6, Ui::panel());
     tft.drawRoundRect(rp.x, rp.y, rp.w, rp.h, 6, Ui::outline());
     tft.setTextColor(Ui::muted(), Ui::panel());
@@ -273,13 +303,13 @@ void ObjectAddGame::render(AppContext& host) {
     // "= ?" while animating, buttons when question/feedback
     if (phase_ == Phase::Showing || phase_ == Phase::AnimIn || phase_ == Phase::Flashing) {
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("= ?", SCREEN_WIDTH / 2, 162, 4);
+        tft.drawString("= ?", f.cx(), EQUALS_Y, 4);
     }
     if (phase_ == Phase::Question || phase_ == Phase::Feedback) {
         if (op_ == OpType::Subtract) {
             tft.setTextColor(Ui::muted(), Ui::bg());
             tft.setTextDatum(MC_DATUM);
-            tft.drawString("How many are left?", SCREEN_WIDTH / 2, 162, 1);
+            tft.drawString("How many are left?", f.cx(), EQUALS_Y, 1);
         }
         for (uint8_t i = 0; i < 4; ++i) {
             uint16_t fill = OBJ_BTN;
@@ -291,7 +321,7 @@ void ObjectAddGame::render(AppContext& host) {
             char optionText[4];
             snprintf(optionText, sizeof(optionText), "%u",
                      static_cast<unsigned>(options_[i]));
-            Ui::drawButton(tft, answerRect(i), optionText, fill, TFT_DARKGREY, tc, false, 4);
+            Ui::drawButton(tft, answerRect(f, i), optionText, fill, TFT_DARKGREY, tc, false, 4);
         }
     }
     tft.setTextDatum(TL_DATUM);

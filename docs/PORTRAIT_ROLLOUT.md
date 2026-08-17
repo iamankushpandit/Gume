@@ -77,7 +77,7 @@ Legend: `todo` / `wip` / `done`
 | 4 | Time | `TimeGame.cpp` | done | clock centred on the panel; answers 2x2 / stacked |
 | 5 | Whack | `WhackAMoleGame.cpp` | done | 9x9 field sizes to whichever axis runs out first |
 | 6 | Cinnamon | `CinnamonGame.cpp` | done | pads via gridCell; now honours requestRender for rotation |
-| 7 | Microku | `MicrokuGame.cpp` | todo | |
+| 7 | Microku | `MicrokuGame.cpp` | done | grid sized to free space - 3x3 no longer runs under the pad |
 | 8 | Shapes | `ShapeColorGame.cpp` | done | two columns split the width; rows spread down the height |
 | 9 | Counting | `CountingGame.cpp` | done | dots per row derived from panel width; answers 4-up / 2x2 |
 | 10 | Money | `MoneyGame.cpp` | todo | 491 lines — largest game |
@@ -87,7 +87,7 @@ Legend: `todo` / `wip` / `done`
 | 14 | Color Mix | `ColorMixGame.cpp` | done | swatches at w/4; answers 2x2 / stacked |
 | 15 | Slide | `SlidingPuzzleGame.cpp` | done | square board, cell size from the space left |
 | 16 | Odd One | `OddOneOutGame.cpp` | done | 3x3 tray keeps 3 columns; banner bottom-anchored |
-| 17 | Shape Arith | `ObjectAddGame.cpp` | todo | |
+| 17 | Shape Arith | `ObjectAddGame.cpp` | done | trays split the width; object pitch follows the tray |
 | 18 | Fingers | `FingerCountGame.cpp` | todo | 8 SCREEN_* refs |
 | 19 | Calendar | `SequenceGame.cpp` | done | days/months; mode buttons split width less the score gutter |
 | 20 | Number Line | `NumberLineGame.cpp` | done | line spans the panel; 4-up answers pair in portrait |
@@ -141,3 +141,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 | +3 games (memory, slide, sort) | 2,328,029 | 74.0% | 71,980 |
 | +3 games (whack, maze, cinnamon) | 2,328,857 | 74.0% | 71,980 |
 | +3 games (time, fractions, numberline) | 2,329,529 | 74.1% | 71,980 |
+| +2 games (shapearith, microku) | 2,330,101 | 74.1% | 71,980 |
