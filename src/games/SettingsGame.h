@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 /*
@@ -21,21 +22,25 @@ public:
 private:
     enum class Tab : uint8_t { Device, Power };
 
-    Rect deviceTabRect() const;
-    Rect powerTabRect() const;
+    Rect deviceTabRect(const Ui::Frame& f) const;
+    Rect powerTabRect(const Ui::Frame& f) const;
 
-    Rect themeRect() const;
-    Rect layoutRect() const;
-    Rect ntpRect() const;
-    Rect bleRect() const;
-    Rect wifiRect() const;
-    Rect nearbyRect() const;
-    Rect resetRect() const;
-    Rect brightRect() const;
+    /* Full-width band for settings row `row`, counting from under the tab
+     * baseline. Paired controls take half of one via Ui::gridCell. */
+    Rect rowBand(const Ui::Frame& f, uint8_t row) const;
 
-    Rect idleActionRect() const;
-    Rect idleAfterRect() const;
-    Rect sleepAfterRect() const;
+    Rect themeRect(const Ui::Frame& f) const;
+    Rect layoutRect(const Ui::Frame& f) const;
+    Rect ntpRect(const Ui::Frame& f) const;
+    Rect bleRect(const Ui::Frame& f) const;
+    Rect wifiRect(const Ui::Frame& f) const;
+    Rect nearbyRect(const Ui::Frame& f) const;
+    Rect resetRect(const Ui::Frame& f) const;
+    Rect brightRect(const Ui::Frame& f) const;
+
+    Rect idleActionRect(const Ui::Frame& f) const;
+    Rect idleAfterRect(const Ui::Frame& f) const;
+    Rect sleepAfterRect(const Ui::Frame& f) const;
 
     void cycleScreenSaver(Board& board);
     void cycleSleepSeconds(Board& board);

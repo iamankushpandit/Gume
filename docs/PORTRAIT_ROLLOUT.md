@@ -109,7 +109,7 @@ Legend: `todo` / `wip` / `done`
 | System Info | `SystemInfoGame.cpp` | yes | already `followsLayout` |
 | Nearby | `NearbyGame.cpp` | yes | already `followsLayout` |
 | Scores | `ScoresGame.cpp` | no | done — rows/page derived from height; pager bottom-anchored; switch takes its own row when narrow |
-| Settings | `SettingsGame.cpp` | no | todo |
+| Settings | `SettingsGame.cpp` | no | done — paired rows via gridCell; slider bottom-anchored |
 | Wi-Fi | `WifiGame.cpp` | no | todo — 12 SCREEN_* refs, worst offender |
 | About | `AboutGame.cpp` | no | todo |
 

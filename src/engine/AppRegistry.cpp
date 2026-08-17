@@ -92,7 +92,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES, true),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
-              APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS | APP_CAP_FACTORY_RESET),
+              APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS | APP_CAP_FACTORY_RESET, true),
     systemApp("wifi", "Wi-Fi", "network & time", LauncherIcon::WiFi, wifi,
               APP_CAP_DEVICE_STATUS | APP_CAP_NETWORK),
     systemApp("profiles", "Profiles", "switch player", LauncherIcon::Profiles, profiles,
