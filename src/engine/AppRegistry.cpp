@@ -77,7 +77,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(slidingPuzzleAppMetadata(), slidingPuzzle, true),
     metadataCatalogApp(oddOneOutAppMetadata(), oddOneOut, true),
     metadataCatalogApp(objectAddAppMetadata(), objectAdd, true),
-    metadataCatalogApp(fingerCountAppMetadata(), fingerCount),
+    metadataCatalogApp(fingerCountAppMetadata(), fingerCount, true),
     metadataCatalogApp(sequenceAppMetadata(), sequence, true),
     metadataCatalogApp(numberLineAppMetadata(), numberLine, true),
     metadataCatalogApp(flagAppMetadata(), flag, true),

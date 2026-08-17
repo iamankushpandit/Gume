@@ -36,27 +36,69 @@ const char* FingerCountGame::title() const {
         : fingerCountAppMetadata().title;
 }
 
-int16_t FingerCountGame::fingerTop(uint8_t idx) const {
+int16_t FingerCountGame::fingerPitch(const Ui::Frame& f) const {
+    /* Budget: two hands of 4*pitch + width, a 16px gap between them and 10px
+     * margins, so 8*pitch + 80 has to fit the width. */
+    int16_t pitch = static_cast<int16_t>((f.w - 80) / 8);
+    if (pitch > MAX_PITCH) {
+        pitch = MAX_PITCH;
+    }
+    return pitch < 12 ? 12 : pitch;
+}
+
+int16_t FingerCountGame::fingerWidth(const Ui::Frame& f) const {
+    return static_cast<int16_t>(fingerPitch(f) - 4);
+}
+
+int16_t FingerCountGame::handX0(const Ui::Frame& f, uint8_t hand) const {
+    const int16_t span = static_cast<int16_t>(4 * fingerPitch(f) + fingerWidth(f));
+    return hand == 0 ? static_cast<int16_t>(f.cx() - 8 - span)
+                     : static_cast<int16_t>(f.cx() + 8);
+}
+
+/* The palms hang off the answer row rather than off y=240, so the hands keep
+ * the same distance above the buttons on any panel. */
+int16_t FingerCountGame::palmBottom(const Ui::Frame& f) const {
+    return static_cast<int16_t>(answerBand(f).y - 14);
+}
+
+int16_t FingerCountGame::palmTop(const Ui::Frame& f) const {
+    return static_cast<int16_t>(palmBottom(f) - PALM_H);
+}
+
+Rect FingerCountGame::answerBand(const Ui::Frame& f) const {
+    /* Four 68px buttons on a 76px pitch need 304px in a row; portrait pairs
+     * them instead, as Counting and Number Line already do. */
+    const uint8_t cols = f.tall() ? 2 : OPTION_COUNT;
+    const uint8_t rows = static_cast<uint8_t>(OPTION_COUNT / cols);
+    const int16_t h = static_cast<int16_t>(rows * 34 + (rows - 1) * 8);
+    return Rect{12, static_cast<int16_t>(f.h - h - 10),
+                static_cast<int16_t>(f.w - 24), h};
+}
+
+int16_t FingerCountGame::fingerTop(const Ui::Frame& f, uint8_t idx) const {
     const uint8_t hand = idx / 5;
     const uint8_t digit = idx % 5;
     // Mirror the right hand so the two face each other like a real pair.
     const uint8_t shape = (hand == 0) ? digit : static_cast<uint8_t>(4 - digit);
     const int16_t len = raised_[idx] ? FINGER_LEN[shape] : STUB_LEN;
-    return static_cast<int16_t>(PALM_TOP - len);
+    return static_cast<int16_t>(palmTop(f) - len);
 }
 
-Rect FingerCountGame::fingerRect(uint8_t idx) const {
+Rect FingerCountGame::fingerRect(const Ui::Frame& f, uint8_t idx) const {
     const uint8_t hand = idx / 5;
     const uint8_t digit = idx % 5;
-    const int16_t x = static_cast<int16_t>((hand == 0 ? LEFT_X0 : RIGHT_X0) + digit * FINGER_PITCH);
+    const int16_t x = static_cast<int16_t>(handX0(f, hand) + digit * fingerPitch(f));
     // The touch target always spans the full possible finger height, so a
     // folded-down finger is just as easy to tap back up as a raised one.
-    const int16_t top = static_cast<int16_t>(PALM_TOP - 52);
-    return Rect{x, top, FINGER_W, static_cast<int16_t>(PALM_BOTTOM - top)};
+    const int16_t top = static_cast<int16_t>(palmTop(f) - 52);
+    return Rect{x, top, fingerWidth(f), static_cast<int16_t>(palmBottom(f) - top)};
 }
 
-Rect FingerCountGame::answerRect(uint8_t i) const {
-    return Rect{static_cast<int16_t>(12 + i * 76), 196, 68, 34};
+Rect FingerCountGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    const uint8_t cols = f.tall() ? 2 : OPTION_COUNT;
+    const uint8_t rows = static_cast<uint8_t>(OPTION_COUNT / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 8);
 }
 
 uint8_t FingerCountGame::raisedCount() const {
@@ -129,6 +171,7 @@ void FingerCountGame::begin(AppContext&) {
 }
 
 void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     const uint32_t now = millis();
 
     if (phase_ == Phase::Feedback && now >= feedbackUntil_) {
@@ -139,7 +182,7 @@ void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (mode_ == Mode::Count) {
         for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-            if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+            if (!answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
             selected_ = static_cast<int8_t>(i);
             lastCorrect_ = (i == correctBtn_);
             ++rounds_;
@@ -155,7 +198,7 @@ void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
 
     // ShowMe: toggle fingers until the raised count matches the target.
     for (uint8_t i = 0; i < FINGER_COUNT; ++i) {
-        if (!fingerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        if (!fingerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
         raised_[i] = !raised_[i];
         markDirty();
         if (raisedCount() == target_) {
@@ -169,8 +212,12 @@ void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void FingerCountGame::drawHand(Ui::Renderer& tft, uint8_t hand) const {
-    const int16_t x0 = (hand == 0) ? LEFT_X0 : RIGHT_X0;
+void FingerCountGame::drawHand(Ui::Renderer& tft, const Ui::Frame& f, uint8_t hand) const {
+    const int16_t x0 = handX0(f, hand);
+    const int16_t FINGER_PITCH = fingerPitch(f);
+    const int16_t FINGER_W = fingerWidth(f);
+    const int16_t PALM_TOP = palmTop(f);
+    const int16_t PALM_BOTTOM = palmBottom(f);
 
     // Palm first, so the fingers sit on top of it.
     const int16_t palmX = static_cast<int16_t>(x0 - 4);
@@ -182,7 +229,7 @@ void FingerCountGame::drawHand(Ui::Renderer& tft, uint8_t hand) const {
     for (uint8_t d = 0; d < 5; ++d) {
         const uint8_t idx = static_cast<uint8_t>(hand * 5 + d);
         const int16_t x = static_cast<int16_t>(x0 + d * FINGER_PITCH);
-        const int16_t top = fingerTop(idx);
+        const int16_t top = fingerTop(f, idx);
         const int16_t h = static_cast<int16_t>(PALM_TOP + 4 - top);
         const uint16_t col = raised_[idx] ? SKIN_UP : SKIN_DOWN;
 
@@ -197,13 +244,14 @@ void FingerCountGame::drawHand(Ui::Renderer& tft, uint8_t hand) const {
 }
 
 void FingerCountGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String(score_) + "/" + rounds_, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(String(score_) + "/" + rounds_, f.w - 8, TOP_BAR_HEIGHT + 3, 2);
 
     const bool done = (phase_ == Phase::Feedback);
     const uint8_t up = raisedCount();
@@ -212,39 +260,44 @@ void FingerCountGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     if (mode_ == Mode::Count) {
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString("How many fingers?", SCREEN_WIDTH / 2, 50, 4);
+        tft.drawString("How many fingers?", f.cx(), TOP_BAR_HEIGHT + 20, 4);
         if (done) {
             tft.setTextColor(lastCorrect_ ? Ui::success() : Ui::error(), Ui::bg());
             tft.drawString(lastCorrect_ ? String("Yes! ") + target_
                                         : String("It was ") + target_,
-                           SCREEN_WIDTH / 2, 78, 2);
+                           f.cx(), TOP_BAR_HEIGHT + 48, 2);
         } else {
             tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.drawString("Count them, then tap the number", SCREEN_WIDTH / 2, 78, 2);
+            tft.drawString("Count them, then tap the number", f.cx(), TOP_BAR_HEIGHT + 48, 2);
         }
     } else {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.drawString(String("Show me ") + target_ + (target_ == 1 ? " finger" : " fingers"),
-                       SCREEN_WIDTH / 2, 50, 4);
+                       f.cx(), TOP_BAR_HEIGHT + 20, 4);
         if (done) {
             tft.setTextColor(Ui::success(), Ui::bg());
-            tft.drawString("That's it!", SCREEN_WIDTH / 2, 78, 2);
+            tft.drawString("That's it!", f.cx(), TOP_BAR_HEIGHT + 48, 2);
         } else {
             tft.setTextColor(up == target_ ? Ui::success() : Ui::muted(), Ui::bg());
-            tft.drawString(String("Up: ") + up, SCREEN_WIDTH / 2, 78, 2);
+            tft.drawString(String("Up: ") + up, f.cx(), TOP_BAR_HEIGHT + 48, 2);
         }
     }
 
     // --- hands -----------------------------------------------------------
-    drawHand(tft, 0);
-    drawHand(tft, 1);
+    drawHand(tft, f, 0);
+    drawHand(tft, f, 1);
 
     /* Labels sit ON the palms. Above the hands they collided with the middle
      * fingertip, which reaches y=100. */
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::rgb(150, 90, 88), SKIN_UP);
-    tft.drawString("Left", static_cast<int16_t>(LEFT_X0 + 2 * FINGER_PITCH + FINGER_W / 2), 169, 2);
-    tft.drawString("Right", static_cast<int16_t>(RIGHT_X0 + 2 * FINGER_PITCH + FINGER_W / 2), 169, 2);
+    const int16_t labelY = static_cast<int16_t>(palmTop(f) + 17);
+    tft.drawString("Left",
+                   static_cast<int16_t>(handX0(f, 0) + 2 * fingerPitch(f) + fingerWidth(f) / 2),
+                   labelY, 2);
+    tft.drawString("Right",
+                   static_cast<int16_t>(handX0(f, 1) + 2 * fingerPitch(f) + fingerWidth(f) / 2),
+                   labelY, 2);
 
     // --- answers (Count mode only) ---------------------------------------
     if (mode_ == Mode::Count) {
@@ -255,12 +308,13 @@ void FingerCountGame::render(AppContext& host) {
                 if (i == correctBtn_) { fill = Ui::success(); tc = TFT_BLACK; }
                 else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error(); tc = TFT_BLACK; }
             }
-            Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, Ui::outline(), tc, false, 4);
+            Ui::drawButton(tft, answerRect(f, i), String(options_[i]), fill, Ui::outline(), tc, false, 4);
         }
     } else {
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap a finger to raise or lower it", SCREEN_WIDTH / 2, 212, 2);
+        tft.drawString("Tap a finger to raise or lower it", f.cx(),
+                       static_cast<int16_t>(answerBand(f).y + 6), 2);
     }
 
     tft.setTextDatum(TL_DATUM);

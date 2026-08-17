@@ -88,7 +88,7 @@ Legend: `todo` / `wip` / `done`
 | 15 | Slide | `SlidingPuzzleGame.cpp` | done | square board, cell size from the space left |
 | 16 | Odd One | `OddOneOutGame.cpp` | done | 3x3 tray keeps 3 columns; banner bottom-anchored |
 | 17 | Shape Arith | `ObjectAddGame.cpp` | done | trays split the width; object pitch follows the tray |
-| 18 | Fingers | `FingerCountGame.cpp` | todo | **measured** - see notes below |
+| 18 | Fingers | `FingerCountGame.cpp` | done | hand pitch/width derived; palms hang off the answer row |
 | 19 | Calendar | `SequenceGame.cpp` | done | days/months; mode buttons split width less the score gutter |
 | 20 | Number Line | `NumberLineGame.cpp` | done | line spans the panel; 4-up answers pair in portrait |
 | 21 | Flags | `FlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |

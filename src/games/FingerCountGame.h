@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -34,20 +35,27 @@ private:
     static constexpr uint8_t FINGER_COUNT = 10;
     static constexpr uint8_t OPTION_COUNT = 4;
 
-    // Hand geometry (landscape 320x240).
-    static constexpr int16_t PALM_TOP    = 152;
-    static constexpr int16_t PALM_BOTTOM = 182;
-    static constexpr int16_t FINGER_W    = 22;
-    static constexpr int16_t FINGER_PITCH = 26;
-    static constexpr int16_t LEFT_X0     = 22;
-    static constexpr int16_t RIGHT_X0    = 172;
+    /* Hand geometry derived from the panel rather than fixed at the 320x240
+     * numbers it was drawn with. Two hands of five need 8*pitch + 80px of
+     * width; 320 allows the authored 26px pitch and 240 does not, so the right
+     * hand used to start at x=172 and run to 298 -- straight off a narrower
+     * panel. */
+    static constexpr int16_t PALM_H = 30;
+    static constexpr int16_t MAX_PITCH = 26;
 
-    Rect fingerRect(uint8_t idx) const;
-    Rect answerRect(uint8_t i) const;
-    int16_t fingerTop(uint8_t idx) const;
+    int16_t fingerPitch(const Ui::Frame& f) const;
+    int16_t fingerWidth(const Ui::Frame& f) const;
+    int16_t handX0(const Ui::Frame& f, uint8_t hand) const;
+    int16_t palmTop(const Ui::Frame& f) const;
+    int16_t palmBottom(const Ui::Frame& f) const;
+
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect fingerRect(const Ui::Frame& f, uint8_t idx) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t i) const;
+    int16_t fingerTop(const Ui::Frame& f, uint8_t idx) const;
 
     uint8_t raisedCount() const;
-    void drawHand(Ui::Renderer& tft, uint8_t hand) const;
+    void drawHand(Ui::Renderer& tft, const Ui::Frame& f, uint8_t hand) const;
     void newQuestion();
     void makeOptions();
 
