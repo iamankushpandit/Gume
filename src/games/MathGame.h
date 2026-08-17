@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -20,7 +21,13 @@ private:
         Subtract
     };
 
-    Rect answerRect(uint8_t index) const;
+    /* The catalog's commonest shape: a prompt panel, then four choices.
+     * Ui::answerColumns decides 2x2 or 1x4 from the panel proportions, so the
+     * buttons stay finger-sized in both -- 320px of width wants two columns,
+     * 240px with 80 more pixels of height wants one. */
+    Rect equationRect(const Ui::Frame& f) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t index) const;
     void newQuestion();
     void makeOptions();
     uint8_t level() const;

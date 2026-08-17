@@ -59,9 +59,9 @@ AppDefinition systemApp(const char* id, const char* title, const char* subtitle,
 }
 
 const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
-    metadataCatalogApp(ticTacToeAppMetadata(), ticTacToe),
+    metadataCatalogApp(ticTacToeAppMetadata(), ticTacToe, true),
     metadataCatalogApp(memoryAppMetadata(), memory),
-    metadataCatalogApp(mathAppMetadata(), math),
+    metadataCatalogApp(mathAppMetadata(), math, true),
     metadataCatalogApp(multiplicationAppMetadata(), multiplication),
     metadataCatalogApp(timeGameAppMetadata(), time),
     metadataCatalogApp(whackAMoleAppMetadata(), whackAMole),
@@ -87,8 +87,8 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(stateMapAppMetadata(), stateMap),
     metadataCatalogApp(percentCircleAppMetadata(), percent),
     metadataCatalogApp(greWordsAppMetadata(), greWords),
-    metadataCatalogApp(diceAppMetadata(), dice),
-    metadataCatalogApp(coinFlipAppMetadata(), coinFlip),
+    metadataCatalogApp(diceAppMetadata(), dice, true),
+    metadataCatalogApp(coinFlipAppMetadata(), coinFlip, true),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,

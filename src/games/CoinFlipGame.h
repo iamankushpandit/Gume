@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -30,10 +31,17 @@ private:
 
     static uint8_t flipsFor(uint8_t choice) { return static_cast<uint8_t>(1 + choice * 2); }
 
-    Rect choiceRect(uint8_t index) const;
-    Rect flipRect() const;
+    Rect choiceRect(const Ui::Frame& f, uint8_t index) const;
+    Rect flipRect(const Ui::Frame& f) const;
     /* Coin, result pips and verdict -- everything that changes mid-sequence. */
-    Rect activeBand() const;
+    Rect activeBand(const Ui::Frame& f) const;
+    /* The coin, the pip row and the verdict line share the band between the
+     * choice buttons and the Flip button. That band is 120px tall in landscape
+     * and 200 in portrait, so the three are placed as fractions of it rather
+     * than at the fixed 116/166/187 the game was authored with. */
+    int16_t coinCentreY(const Ui::Frame& f) const;
+    int16_t pipRowY(const Ui::Frame& f) const;
+    int16_t verdictY(const Ui::Frame& f) const;
 
     void drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t halfWidth,
                   bool heads, bool edgeOn) const;

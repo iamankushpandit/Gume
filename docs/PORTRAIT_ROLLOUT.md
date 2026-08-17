@@ -70,9 +70,9 @@ Legend: `todo` / `wip` / `done`
 
 | # | Game | Source | Status | Notes |
 |---|------|--------|--------|-------|
-| 0 | Tic-Tac-Toe | `TicTacToeGame.cpp` | todo | |
+| 0 | Tic-Tac-Toe | `TicTacToeGame.cpp` | done | square field: largest centred square under the header |
 | 1 | Memory | `MemoryGame.cpp` | todo | |
-| 2 | Math | `MathGame.cpp` | todo | |
+| 2 | Math | `MathGame.cpp` | done | prompt + answer grid: Ui::answerColumns picks 2x2 or 1x4 |
 | 3 | Multiply | `MultiplicationGame.cpp` | todo | |
 | 4 | Time | `TimeGame.cpp` | todo | |
 | 5 | Whack | `WhackAMoleGame.cpp` | todo | |
@@ -98,8 +98,8 @@ Legend: `todo` / `wip` / `done`
 | 25 | State Maps | `StateMapGame.cpp` | todo | bitmap art |
 | 26 | Percent | `PercentCircleGame.cpp` | todo | |
 | 27 | GRE Words | `GreWordsGame.cpp` | todo | 4 constexpr rects |
-| 28 | Dice | `DiceGame.cpp` | todo | |
-| 29 | Coin Flip | `CoinFlipGame.cpp` | todo | |
+| 28 | Dice | `DiceGame.cpp` | done | Roll anchors to the bottom edge; dice size to the width |
+| 29 | Coin Flip | `CoinFlipGame.cpp` | done | coin/pips/verdict placed as fractions of the free band |
 
 ### System apps (7)
 
@@ -135,3 +135,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 |-------|-------|---|-----|
 | baseline | 2,323,933 | 73.9% | 71,980 |
 | shared plumbing | 2,324,041 | 73.9% | 71,980 |
+| +4 games (ttt, math, dice, coinflip) | 2,325,761 | 73.9% | 71,980 |

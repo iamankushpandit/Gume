@@ -18,8 +18,12 @@ constexpr AppMetadata COIN_FLIP_METADATA = {
     true,
 };
 
-constexpr int16_t COIN_CX = SCREEN_WIDTH / 2;
-constexpr int16_t COIN_CY = 116;
+/* Fixed offsets from the top bar. The band below BAND_TOP is shared out at
+ * render time, because its height depends on where the bottom edge is. */
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 4;
+constexpr int16_t CHOICE_ROW_Y = TOP_BAR_HEIGHT + 16;
+constexpr int16_t BAND_TOP = TOP_BAR_HEIGHT + 48;
+constexpr int16_t FLIP_FROM_BOTTOM = 42;
 constexpr int16_t COIN_R = 34;
 
 uint16_t coinFace() { return Ui::rgb(226, 182, 72); }
@@ -52,16 +56,41 @@ void CoinFlipGame::begin(AppContext& host) {
     markFullDirty();
 }
 
-Rect CoinFlipGame::choiceRect(uint8_t index) const {
-    return Rect{static_cast<int16_t>(86 + index * 52), 46, 44, 26};
+Rect CoinFlipGame::choiceRect(const Ui::Frame& f, uint8_t index) const {
+    constexpr int16_t w = 44;
+    constexpr int16_t gap = 8;
+    const int16_t span = static_cast<int16_t>(CHOICES * w + (CHOICES - 1) * gap);
+    const int16_t x0 = static_cast<int16_t>((f.w - span) / 2);
+    return Rect{static_cast<int16_t>(x0 + index * (w + gap)), CHOICE_ROW_Y, w, 26};
 }
 
-Rect CoinFlipGame::flipRect() const {
-    return Rect{85, 198, 150, 34};
+Rect CoinFlipGame::flipRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, static_cast<int16_t>(f.h - FLIP_FROM_BOTTOM), f.w, 34},
+                        150, 34);
 }
 
-Rect CoinFlipGame::activeBand() const {
-    return Rect{0, 78, SCREEN_WIDTH, 118};
+Rect CoinFlipGame::activeBand(const Ui::Frame& f) const {
+    const int16_t bottom = static_cast<int16_t>(f.h - FLIP_FROM_BOTTOM - 2);
+    return Rect{0, BAND_TOP, f.w, static_cast<int16_t>(bottom - BAND_TOP)};
+}
+
+/* 32%, then 32px and 11px up from the foot of the band. In landscape that is
+ * 116, 166 and 187 -- the numbers this screen was drawn with -- and in
+ * portrait the same three spread down the extra 80px instead of leaving it
+ * blank under the verdict. */
+int16_t CoinFlipGame::coinCentreY(const Ui::Frame& f) const {
+    const Rect band = activeBand(f);
+    return static_cast<int16_t>(band.y + band.h * 32 / 100);
+}
+
+int16_t CoinFlipGame::pipRowY(const Ui::Frame& f) const {
+    const Rect band = activeBand(f);
+    return static_cast<int16_t>(band.y + band.h - 32);
+}
+
+int16_t CoinFlipGame::verdictY(const Ui::Frame& f) const {
+    const Rect band = activeBand(f);
+    return static_cast<int16_t>(band.y + band.h - 11);
 }
 
 uint8_t CoinFlipGame::headsCount() const {
@@ -114,8 +143,9 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
+    const Ui::Frame f = Ui::frame(host.display());
     for (uint8_t i = 0; i < CHOICES; ++i) {
-        if (!choiceRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (!choiceRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             continue;
         }
         if (i != choice_) {
@@ -128,7 +158,7 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    if (flipRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (flipRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         revealed_ = 0;
         finished_ = false;
         busy_ = true;
@@ -173,7 +203,11 @@ void CoinFlipGame::drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy,
 
 void CoinFlipGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     const uint8_t flips = flipsFor(choice_);
+    const int16_t coinCx = f.cx();
+    const int16_t coinCy = coinCentreY(f);
+    const int16_t pipY = pipRowY(f);
 
     if (needsFullRender()) {
         Ui::clear(tft);
@@ -181,21 +215,21 @@ void CoinFlipGame::render(AppContext& host) {
 
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        tft.drawString("Best of how many?", SCREEN_WIDTH / 2, 34, 1);
+        tft.drawString("Best of how many?", f.cx(), PROMPT_Y, 1);
 
         for (uint8_t i = 0; i < CHOICES; ++i) {
             const bool on = (i == choice_);
             char label[2] = {static_cast<char>('0' + flipsFor(i)), '\0'};
-            Ui::drawButton(tft, choiceRect(i), label,
+            Ui::drawButton(tft, choiceRect(f, i), label,
                            on ? Ui::rgb(36, 132, 204) : Ui::panel(),
                            Ui::outline(), on ? TFT_WHITE : Ui::text(), false, 2);
         }
 
-        Ui::drawButton(tft, flipRect(), "Flip", Ui::rgb(45, 154, 96),
+        Ui::drawButton(tft, flipRect(f), "Flip", Ui::rgb(45, 154, 96),
                        Ui::outline(), TFT_WHITE, false, 4);
     }
 
-    const Rect band = activeBand();
+    const Rect band = activeBand(f);
     tft.fillRect(band.x, band.y, band.w, band.h, Ui::bg());
 
     // ---- the coin ----
@@ -205,27 +239,27 @@ void CoinFlipGame::render(AppContext& host) {
         const float squash = fabsf(cosf(angle));
         const int16_t halfWidth = static_cast<int16_t>(COIN_R * squash);
         const bool edgeOn = halfWidth <= COIN_R / 2;
-        drawCoin(tft, COIN_CX, COIN_CY, halfWidth, (spinFrame_ % 2) == 0, edgeOn);
+        drawCoin(tft, coinCx, coinCy, halfWidth, (spinFrame_ % 2) == 0, edgeOn);
     } else if (revealed_ > 0) {
-        drawCoin(tft, COIN_CX, COIN_CY, COIN_R, heads_[revealed_ - 1], false);
+        drawCoin(tft, coinCx, coinCy, COIN_R, heads_[revealed_ - 1], false);
     } else {
-        drawCoin(tft, COIN_CX, COIN_CY, COIN_R, true, false);
+        drawCoin(tft, coinCx, coinCy, COIN_R, true, false);
     }
 
     // ---- one pip per flip in the round, filled as each lands ----
     const int16_t pitch = 28;
     const int16_t span = static_cast<int16_t>((flips - 1) * pitch);
-    const int16_t px0 = static_cast<int16_t>((SCREEN_WIDTH - span) / 2);
+    const int16_t px0 = static_cast<int16_t>((f.w - span) / 2);
     tft.setTextDatum(MC_DATUM);
     for (uint8_t i = 0; i < flips; ++i) {
         const int16_t px = static_cast<int16_t>(px0 + i * pitch);
         if (i < revealed_) {
-            tft.fillCircle(px, 166, 10, coinFace());
-            tft.drawCircle(px, 166, 10, coinEdge());
+            tft.fillCircle(px, pipY, 10, coinFace());
+            tft.drawCircle(px, pipY, 10, coinEdge());
             tft.setTextColor(coinEdge(), coinFace());
-            tft.drawString(heads_[i] ? "H" : "T", px, 166, 1);
+            tft.drawString(heads_[i] ? "H" : "T", px, pipY, 1);
         } else {
-            tft.drawCircle(px, 166, 10, Ui::outline());
+            tft.drawCircle(px, pipY, 10, Ui::outline());
         }
     }
 
@@ -252,6 +286,6 @@ void CoinFlipGame::render(AppContext& host) {
         snprintf(line, sizeof(line), "Tap Flip to spin");
         tft.setTextColor(Ui::muted(), Ui::bg());
     }
-    tft.drawString(line, SCREEN_WIDTH / 2, 187, 2);
+    tft.drawString(line, f.cx(), verdictY(f), 2);
     tft.setTextDatum(TL_DATUM);
 }

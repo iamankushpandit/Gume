@@ -2,6 +2,16 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+/* Rows measured down from the top bar; the answer grid takes everything left
+ * over, so it grows with the panel instead of ending at a hardcoded 232. */
+constexpr int16_t HUD_TOP = TOP_BAR_HEIGHT + 5;
+constexpr int16_t HUD_SECOND = TOP_BAR_HEIGHT + 22;
+constexpr int16_t EQUATION_TOP = TOP_BAR_HEIGHT + 46;
+constexpr int16_t EQUATION_H = 54;
+constexpr int16_t HINT_Y = TOP_BAR_HEIGHT + 106;
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 114;
+constexpr uint8_t ANSWER_COUNT = 4;
+
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
@@ -47,10 +57,19 @@ uint8_t MathGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 5);
 }
 
-Rect MathGame::answerRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(144 + row * 46), 132, 38};
+Rect MathGame::equationRect(const Ui::Frame& f) const {
+    return Rect{26, EQUATION_TOP, static_cast<int16_t>(f.w - 52), EQUATION_H};
+}
+
+Rect MathGame::answerBand(const Ui::Frame& f) const {
+    return Rect{18, ANSWER_TOP, static_cast<int16_t>(f.w - 36),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 8)};
+}
+
+Rect MathGame::answerRect(const Ui::Frame& f, uint8_t index) const {
+    const uint8_t cols = Ui::answerColumns(f, ANSWER_COUNT);
+    const uint8_t rows = static_cast<uint8_t>(ANSWER_COUNT / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, index, 8);
 }
 
 bool MathGame::optionExists(int16_t value, uint8_t upTo) const {
@@ -163,8 +182,9 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    const Ui::Frame f = Ui::frame(host.display());
+    for (uint8_t i = 0; i < ANSWER_COUNT; ++i) {
+        if (answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = i;
             answered_ = true;
             if (i == correctButton_) {
@@ -184,26 +204,28 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
 
 void MathGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Level ") + level(), 10, 35, 2);
-    tft.drawString(String("Correct ") + score_ + "  " + formatSeconds(elapsedSeconds()), 10, 52, 1);
+    tft.drawString(String("Level ") + level(), 10, HUD_TOP, 2);
+    tft.drawString(String("Correct ") + score_ + "  " + formatSeconds(elapsedSeconds()), 10, HUD_SECOND, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 10, 35, 2);
-    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", SCREEN_WIDTH - 10, 52, 1);
+    tft.drawString(String("Streak ") + streak_, f.w - 10, HUD_TOP, 2);
+    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", f.w - 10, HUD_SECOND, 1);
 
     const char symbol = operation_ == Operation::Add ? '+' : '-';
     const String equation = String(left_) + " " + symbol + " " + right_ + " = ?";
-    tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
-    tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
+    const Rect eq = equationRect(f);
+    tft.fillRoundRect(eq.x, eq.y, eq.w, eq.h, 8, Ui::panel());
+    tft.drawRoundRect(eq.x, eq.y, eq.w, eq.h, 8, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(equation, SCREEN_WIDTH / 2, 103, 4);
+    tft.drawString(equation, f.cx(), eq.y + eq.h / 2, 4);
 
-    for (uint8_t i = 0; i < 4; ++i) {
+    for (uint8_t i = 0; i < ANSWER_COUNT; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
         if (answered_) {
@@ -215,17 +237,17 @@ void MathGame::render(AppContext& host) {
                 text = TFT_BLACK;
             }
         }
-        Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, TFT_DARKGREY, text, false, 4);
+        Ui::drawButton(tft, answerRect(f, i), String(options_[i]), fill, TFT_DARKGREY, text, false, 4);
     }
 
     if (answered_) {
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", f.cx(), HINT_Y, 2);
     } else {
         tft.setTextColor(YELLOW, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap the answer", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString("Tap the answer", f.cx(), HINT_Y, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }
