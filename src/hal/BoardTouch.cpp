@@ -5,7 +5,24 @@
 #include "ui/Ui.h"
 
 namespace {
-constexpr uint32_t TOUCH_CAL_MAGIC = 0x43594431UL;
+/* The calibration is a 3-point affine fit onto SCREEN_WIDTH x SCREEN_HEIGHT,
+ * so it is only meaningful for the panel geometry it was captured on. Nothing
+ * checked that, and the failure is silent and confusing: moving the same NVS
+ * to a 480x320 panel left a calibration fitted to 320x240, so touches mapped
+ * into a corner of the screen and the device looked like its digitiser had
+ * died.
+ *
+ * Folding the geometry into the magic makes a calibration from another panel
+ * simply not validate, which drops the owner into the calibration wizard at
+ * boot -- the correct behaviour. The literal is preserved verbatim for the
+ * 320x240 panel it was minted on, so 2.8-inch devices in the field keep the
+ * calibration they already have. */
+constexpr uint32_t TOUCH_CAL_BASE_MAGIC = 0x43594431UL;
+constexpr uint32_t TOUCH_CAL_MAGIC =
+    (SCREEN_WIDTH == 320 && SCREEN_HEIGHT == 240)
+        ? TOUCH_CAL_BASE_MAGIC
+        : (TOUCH_CAL_BASE_MAGIC ^ ((static_cast<uint32_t>(SCREEN_WIDTH) << 16) |
+                                   static_cast<uint32_t>(SCREEN_HEIGHT)));
 constexpr uint8_t CMD_READ_X = 0xD0;
 constexpr uint8_t CMD_READ_Y = 0x90;
 constexpr uint8_t CMD_READ_Z1 = 0xB0;
@@ -94,6 +111,37 @@ uint16_t Board::readTouchAdc(uint8_t command) {
     return static_cast<uint16_t>((raw >> 3) & 0x0FFF);
 }
 
+/* Two ways to reach the XPT2046, chosen at build time by how the board wires
+ * it.
+ *
+ * The E32R28T-1 gives the digitiser its own three pins, so bit-banging is both
+ * simple and safe -- nothing else touches them.
+ *
+ * The 4-inch ST7796S board shares SCLK/MOSI/MISO with the LCD, and TFT_eSPI
+ * owns those pins through the ESP32's hardware SPI peripheral. digitalWrite()
+ * on a peripheral-routed pin does not reliably reach the pad, so the bit-bang
+ * path reads a constant there: every calibration target returns the same raw
+ * pair, the affine solve correctly rejects three identical points, and it
+ * surfaces as "Calibration failed" with nothing pointing at the bus. Going
+ * through TFT_eSPI's own touch support drives the digitiser over the
+ * peripheral that already owns the lines, and serialises against panel
+ * traffic for free. */
+#ifdef TOUCH_SHARES_LCD_BUS
+Board::RawTouch Board::readRawTouch() {
+    RawTouch touch;
+    uint16_t rx = 0;
+    uint16_t ry = 0;
+    const uint16_t pressure = tft_.getTouchRawZ();
+    if (pressure < TOUCH_PRESSURE_THRESHOLD || !tft_.getTouchRaw(&rx, &ry)) {
+        return touch;
+    }
+    touch.down = true;
+    touch.x = static_cast<int16_t>(rx);
+    touch.y = static_cast<int16_t>(ry);
+    touch.pressure = pressure;
+    return touch;
+}
+#else
 Board::RawTouch Board::readRawTouch() {
     RawTouch touch;
     const uint16_t z1 = readTouchAdc(CMD_READ_Z1);
@@ -123,6 +171,7 @@ Board::RawTouch Board::readRawTouch() {
     touch.pressure = pressure;
     return touch;
 }
+#endif
 
 bool Board::waitForStableRaw(int16_t& rawX, int16_t& rawY) {
     const uint32_t deadline = millis() + 20000UL;
@@ -187,6 +236,14 @@ void Board::runTouchCalibration() {
             tft_.setTextDatum(TL_DATUM);
             return;
         }
+        /* The raw pair for each target, because "Calibration failed" on its own
+         * cannot distinguish a degenerate solve from a digitiser that is not
+         * being read at all -- identical values across all three targets mean
+         * the touch bus is returning a constant, i.e. wrong pins or a
+         * different controller. */
+        Serial.printf("[touchcal] target %u screen=(%d,%d) raw=(%d,%d)\n",
+                      i, screenPts[i][0], screenPts[i][1],
+                      rawPts[i][0], rawPts[i][1]);
         beepOk();
     }
 
@@ -203,6 +260,8 @@ void Board::runTouchCalibration() {
         tft_.fillScreen(Ui::bg());
         tft_.setTextDatum(MC_DATUM);
         tft_.setTextColor(Ui::error(), Ui::bg());
+        Serial.println("[touchcal] computeAffine rejected the points -- they are "
+                       "collinear or identical, so no affine transform exists");
         tft_.drawString("Calibration failed", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
         delay(1500);
     }

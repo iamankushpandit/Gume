@@ -22,13 +22,22 @@ void Board::begin() {
     pinMode(PIN_SPEAKER, OUTPUT);
     digitalWrite(PIN_SPEAKER, LOW);
 
+    /* Only claim the touch lines as GPIO when the digitiser has its own.
+     *
+     * On a board where touch shares the LCD's SPI pins, taking pinMode() over
+     * them drags SCLK/MOSI/MISO away from the SPI peripheral that TFT_eSPI is
+     * driving -- which breaks touch *and* the panel, and does it during
+     * begin() where nothing points at the cause. TFT_eSPI owns those pins and
+     * its own TOUCH_CS there; leave all of it alone. */
+#ifndef TOUCH_SHARES_LCD_BUS
     pinMode(PIN_TOUCH_MOSI, OUTPUT);
     pinMode(PIN_TOUCH_MISO, INPUT);
     pinMode(PIN_TOUCH_SCLK, OUTPUT);
     pinMode(PIN_TOUCH_CS, OUTPUT);
-    pinMode(PIN_TOUCH_IRQ, INPUT);
     digitalWrite(PIN_TOUCH_CS, HIGH);
     digitalWrite(PIN_TOUCH_SCLK, LOW);
+#endif
+    pinMode(PIN_TOUCH_IRQ, INPUT);
 
     tft_.init();
     tft_.setRotation(CYD_SCREEN_ROTATION);
