@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 #include "CountryData.h"
 #include "engine/Progress.h"
@@ -38,9 +39,10 @@ private:
     static constexpr uint8_t OPTION_COUNT = 4;
     static constexpr uint8_t RECENT_COUNT = 8;
 
-    Rect answerRect(uint8_t i) const;
-    Rect tierRect() const;
-    Rect flagRect() const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t i) const;
+    Rect tierRect(const Ui::Frame& f) const;
+    Rect flagRect(const Ui::Frame& f) const;
 
     bool recentlyUsed(const char* iso2) const;
     void rememberCurrent();

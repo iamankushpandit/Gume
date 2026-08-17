@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "engine/RecentQuestions.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 #include "StateData.h"
 
@@ -35,9 +36,10 @@ private:
 
     static constexpr uint8_t OPTION_COUNT = 4;
 
-    Rect answerRect(uint8_t i) const;
-    Rect tierRect() const;
-    Rect imageRect() const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t i) const;
+    Rect tierRect(const Ui::Frame& f) const;
+    Rect imageRect(const Ui::Frame& f) const;
 
     uint8_t poolSize() const;
     const StateFact* fromPool(uint8_t index) const;

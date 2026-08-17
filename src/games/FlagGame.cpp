@@ -3,6 +3,8 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 156;
+
 constexpr uint16_t FLAG_BG = 0xFFFF;   // white card behind the flag
 
 /* Shrink a label until it fits the given width, adding an ellipsis. Country
@@ -40,16 +42,27 @@ const char* FlagGame::title() const {
         : flagAppMetadata().title;
 }
 
-Rect FlagGame::flagRect() const  { return Rect{80, 48, 160, 120}; }
-Rect FlagGame::tierRect() const  { return Rect{132, 31, 56, 16}; }
+Rect FlagGame::flagRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 18, f.w, 120}, 160, 120);
+}
+Rect FlagGame::tierRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 1, f.w, 16}, 56, 16);
+}
 
 /* 2x2 grid of wide buttons. Four buttons across the bottom would only be 72px
  * each, which truncates most country names into uselessness. */
-Rect FlagGame::answerRect(uint8_t i) const {
-    const int16_t col = i % 2;
-    const int16_t row = i / 2;
-    return Rect{static_cast<int16_t>(6 + col * 158),
-                static_cast<int16_t>(186 + row * 27), 150, 25};
+Rect FlagGame::answerBand(const Ui::Frame& f) const {
+    return Rect{6, ANSWER_TOP, static_cast<int16_t>(f.w - 12),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 0)};
+}
+
+/* Two 150px choices side by side need 316px of width. Landscape has it;
+ * portrait stacks all four instead, which is also what the extra height is
+ * for. */
+Rect FlagGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    const uint8_t cols = Ui::answerColumns(f, 4);
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 2);
 }
 
 bool FlagGame::recentlyUsed(const char* iso2) const {
@@ -158,6 +171,7 @@ void FlagGame::end(AppContext& host) {
 }
 
 void FlagGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     const uint32_t now = millis();
 
     if ((phase_ == Phase::FeedbackCountry || phase_ == Phase::FeedbackCapital) &&
@@ -176,7 +190,7 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
 
     // Difficulty cycles Easy -> Medium -> Hard and restarts the round.
-    if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (tierRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
         host.setScore("geoTier", tier_);
         for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
@@ -189,7 +203,7 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
     if (current_ == nullptr) return;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        if (!answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
 
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
@@ -227,6 +241,7 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void FlagGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
@@ -238,10 +253,10 @@ void FlagGame::render(AppContext& host) {
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
-    tft.drawString(String("+") + capBonus_, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(String("+") + capBonus_, f.w - 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    Ui::drawButton(tft, tierRect(f), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No countries available",
@@ -250,7 +265,7 @@ void FlagGame::render(AppContext& host) {
     }
 
     // --- flag ------------------------------------------------------------
-    const Rect fr = flagRect();
+    const Rect fr = flagRect(f);
     tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, FLAG_BG);
     tft.drawRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::outline());
     // 80x60 source drawn at 2x fills the 160x120 card exactly.
@@ -264,7 +279,7 @@ void FlagGame::render(AppContext& host) {
     tft.drawString(capitalRound
                        ? String("Bonus! Capital of ") + (countryName ? countryName : current_->iso2) + "?"
                        : String("Which country?"),
-                   SCREEN_WIDTH / 2, 176, 2);
+                   f.cx(), 176, 2);
 
     // --- answers ---------------------------------------------------------
     const bool showingFeedback =
@@ -282,7 +297,7 @@ void FlagGame::render(AppContext& host) {
         }
 
         const char* raw = capitalRound ? opt->capital : mnf_name(opt->iso2);
-        const Rect r = answerRect(i);
+        const Rect r = answerRect(f, i);
         Ui::drawButton(tft, r, fitLabel(tft, raw ? raw : opt->iso2, r.w - 10, 2),
                        fill, Ui::outline(), tc, false, 2);
     }

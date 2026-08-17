@@ -91,11 +91,11 @@ Legend: `todo` / `wip` / `done`
 | 18 | Fingers | `FingerCountGame.cpp` | todo | 8 SCREEN_* refs |
 | 19 | Calendar | `SequenceGame.cpp` | done | days/months; mode buttons split width less the score gutter |
 | 20 | Number Line | `NumberLineGame.cpp` | done | line spans the panel; 4-up answers pair in portrait |
-| 21 | Flags | `FlagGame.cpp` | todo | bitmap art |
-| 22 | US States | `StatesGame.cpp` | todo | |
+| 21 | Flags | `FlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
+| 22 | US States | `StatesGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 23 | Trace | `TraceGame.cpp` | todo | glyph paths, 8 constexpr rects |
-| 24 | State Flags | `StateFlagGame.cpp` | todo | bitmap art |
-| 25 | State Maps | `StateMapGame.cpp` | todo | bitmap art |
+| 24 | State Flags | `StateFlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
+| 25 | State Maps | `StateMapGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 26 | Percent | `PercentCircleGame.cpp` | todo | |
 | 27 | GRE Words | `GreWordsGame.cpp` | todo | 4 constexpr rects |
 | 28 | Dice | `DiceGame.cpp` | done | Roll anchors to the bottom edge; dice size to the width |
@@ -142,3 +142,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 | +3 games (whack, maze, cinnamon) | 2,328,857 | 74.0% | 71,980 |
 | +3 games (time, fractions, numberline) | 2,329,529 | 74.1% | 71,980 |
 | +2 games (shapearith, microku) | 2,330,101 | 74.1% | 71,980 |
+| +4 games (flags, states, stateflags, statemaps) | 2,331,305 | 74.1% | 71,980 |

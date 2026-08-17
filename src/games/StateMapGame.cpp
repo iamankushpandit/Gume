@@ -3,6 +3,8 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 156;
+
 constexpr AppScoreInfo STATE_MAP_SCORE = {
     "statemaps", "State Maps", "smapBest", "pts", false
 };
@@ -31,14 +33,25 @@ const char* StateMapGame::title() const {
         : stateMapAppMetadata().title;
 }
 
-Rect StateMapGame::imageRect() const { return Rect{112, 44, 96, 96}; }
-Rect StateMapGame::tierRect() const  { return Rect{132, 31, 56, 16}; }
+Rect StateMapGame::imageRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 14, f.w, 96}, 96, 96);
+}
+Rect StateMapGame::tierRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 1, f.w, 16}, 56, 16);
+}
 
-Rect StateMapGame::answerRect(uint8_t i) const {
-    const int16_t col = i % 2;
-    const int16_t row = i / 2;
-    return Rect{static_cast<int16_t>(6 + col * 158),
-                static_cast<int16_t>(186 + row * 27), 150, 25};
+Rect StateMapGame::answerBand(const Ui::Frame& f) const {
+    return Rect{6, ANSWER_TOP, static_cast<int16_t>(f.w - 12),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 0)};
+}
+
+/* Two 150px choices side by side need 316px of width. Landscape has it;
+ * portrait stacks all four instead, which is also what the extra height is
+ * for. */
+Rect StateMapGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    const uint8_t cols = Ui::answerColumns(f, 4);
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 2);
 }
 
 uint8_t StateMapGame::poolSize() const {
@@ -117,6 +130,7 @@ void StateMapGame::begin(AppContext& host) {
 }
 
 void StateMapGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     const uint32_t now = millis();
 
     if ((phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital) &&
@@ -134,7 +148,7 @@ void StateMapGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (!touch.justPressed) return;
 
-    if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (tierRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
         host.setScore("smapTier", tier_);
         recent_.reset();
@@ -146,7 +160,7 @@ void StateMapGame::update(AppContext& host, const TouchPoint& touch) {
     if (current_ == nullptr) return;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        if (!answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
 
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
@@ -181,6 +195,7 @@ void StateMapGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void StateMapGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
@@ -195,10 +210,10 @@ void StateMapGame::render(AppContext& host) {
     tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
     char bonusBuf[8];
     snprintf(bonusBuf, sizeof(bonusBuf), "+%u", capBonus_);
-    tft.drawString(bonusBuf, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(bonusBuf, f.w - 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    Ui::drawButton(tft, tierRect(f), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No states available",
@@ -206,7 +221,7 @@ void StateMapGame::render(AppContext& host) {
         return;
     }
 
-    const Rect ir = imageRect();
+    const Rect ir = imageRect(f);
     tft.fillRect(ir.x - 2, ir.y - 2, ir.w + 4, ir.h + 4, Ui::bg());
     tft.drawRect(ir.x - 2, ir.y - 2, ir.w + 4, ir.h + 4, Ui::outline());
     Ui::drawCountryImageTinted(tft, mnf_state_map(current_->code), ir,
@@ -219,9 +234,9 @@ void StateMapGame::render(AppContext& host) {
     if (capitalRound) {
         char prompt[48];
         snprintf(prompt, sizeof(prompt), "Bonus! Capital of %s?", current_->name);
-        tft.drawString(prompt, SCREEN_WIDTH / 2, 150, 2);
+        tft.drawString(prompt, f.cx(), 150, 2);
     } else {
-        tft.drawString("Which state?", SCREEN_WIDTH / 2, 176, 2);
+        tft.drawString("Which state?", f.cx(), 176, 2);
     }
 
     const bool showingFeedback =
@@ -239,7 +254,7 @@ void StateMapGame::render(AppContext& host) {
         }
 
         const char* label = capitalRound ? opt->capital : opt->name;
-        const Rect r = answerRect(i);
+        const Rect r = answerRect(f, i);
         Ui::drawButton(tft, r, label, fill, Ui::outline(), tc, false, 2);
     }
 

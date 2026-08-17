@@ -3,6 +3,8 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 156;
+
 constexpr uint16_t FLAG_BG = 0xFFFF;
 
 constexpr AppScoreInfo STATE_FLAG_SCORE = {
@@ -33,14 +35,25 @@ const char* StateFlagGame::title() const {
         : stateFlagAppMetadata().title;
 }
 
-Rect StateFlagGame::imageRect() const { return Rect{80, 48, 160, 120}; }
-Rect StateFlagGame::tierRect() const  { return Rect{132, 31, 56, 16}; }
+Rect StateFlagGame::imageRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 18, f.w, 120}, 160, 120);
+}
+Rect StateFlagGame::tierRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 1, f.w, 16}, 56, 16);
+}
 
-Rect StateFlagGame::answerRect(uint8_t i) const {
-    const int16_t col = i % 2;
-    const int16_t row = i / 2;
-    return Rect{static_cast<int16_t>(6 + col * 158),
-                static_cast<int16_t>(186 + row * 27), 150, 25};
+Rect StateFlagGame::answerBand(const Ui::Frame& f) const {
+    return Rect{6, ANSWER_TOP, static_cast<int16_t>(f.w - 12),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 0)};
+}
+
+/* Two 150px choices side by side need 316px of width. Landscape has it;
+ * portrait stacks all four instead, which is also what the extra height is
+ * for. */
+Rect StateFlagGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    const uint8_t cols = Ui::answerColumns(f, 4);
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 2);
 }
 
 uint8_t StateFlagGame::poolSize() const {
@@ -119,6 +132,7 @@ void StateFlagGame::begin(AppContext& host) {
 }
 
 void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     const uint32_t now = millis();
 
     if ((phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital) &&
@@ -136,7 +150,7 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (!touch.justPressed) return;
 
-    if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (tierRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
         host.setScore("sflagTier", tier_);
         recent_.reset();
@@ -148,7 +162,7 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
     if (current_ == nullptr) return;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        if (!answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
 
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
@@ -183,6 +197,7 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void StateFlagGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
@@ -197,10 +212,10 @@ void StateFlagGame::render(AppContext& host) {
     tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
     char bonusBuf[8];
     snprintf(bonusBuf, sizeof(bonusBuf), "+%u", capBonus_);
-    tft.drawString(bonusBuf, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(bonusBuf, f.w - 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    Ui::drawButton(tft, tierRect(f), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No states available",
@@ -208,7 +223,7 @@ void StateFlagGame::render(AppContext& host) {
         return;
     }
 
-    const Rect fr = imageRect();
+    const Rect fr = imageRect(f);
     tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, FLAG_BG);
     tft.drawRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::outline());
     Ui::drawCountryImageScaled(tft, mnf_state_flag(current_->code), fr, FLAG_BG, 2);
@@ -219,7 +234,7 @@ void StateFlagGame::render(AppContext& host) {
     tft.drawString(capitalRound
                        ? String("Bonus! Capital of ") + current_->name + "?"
                        : String("Which state?"),
-                   SCREEN_WIDTH / 2, 176, 2);
+                   f.cx(), 176, 2);
 
     const bool showingFeedback =
         (phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital);
@@ -236,7 +251,7 @@ void StateFlagGame::render(AppContext& host) {
         }
 
         const char* label = capitalRound ? opt->capital : opt->name;
-        const Rect r = answerRect(i);
+        const Rect r = answerRect(f, i);
         Ui::drawButton(tft, r, label, fill, Ui::outline(), tc, false, 2);
     }
 

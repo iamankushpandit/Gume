@@ -2,6 +2,8 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 120;
+
 String fitLabel(Ui::Renderer& tft, const String& in, int16_t maxW, uint8_t font) {
     if (tft.textWidth(in, font) <= maxW) return in;
     String s = in;
@@ -39,13 +41,22 @@ const char* StatesGame::title() const {
         : statesAppMetadata().title;
 }
 
-Rect StatesGame::tierRect() const { return Rect{132, 31, 56, 16}; }
+Rect StatesGame::tierRect(const Ui::Frame& f) const {
+    return Ui::centreIn(Rect{0, TOP_BAR_HEIGHT + 1, f.w, 16}, 56, 16);
+}
 
-Rect StatesGame::answerRect(uint8_t i) const {
-    const int16_t col = i % 2;
-    const int16_t row = i / 2;
-    return Rect{static_cast<int16_t>(6 + col * 158),
-                static_cast<int16_t>(150 + row * 40), 150, 36};
+Rect StatesGame::answerBand(const Ui::Frame& f) const {
+    return Rect{6, ANSWER_TOP, static_cast<int16_t>(f.w - 12),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 10)};
+}
+
+/* Two 150px choices side by side need 316px of width. Landscape has it;
+ * portrait stacks all four instead, which is also what the extra height is
+ * for. */
+Rect StatesGame::answerRect(const Ui::Frame& f, uint8_t i) const {
+    const uint8_t cols = Ui::answerColumns(f, 4);
+    const uint8_t rows = static_cast<uint8_t>(4 / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 4);
 }
 
 uint8_t StatesGame::poolSize() const {
@@ -140,6 +151,7 @@ void StatesGame::end(AppContext& host) {
 }
 
 void StatesGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     const uint32_t now = millis();
 
     if (phase_ == Phase::Feedback && now >= feedbackUntil_) {
@@ -148,7 +160,7 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
     }
     if (!touch.justPressed) return;
 
-    if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (tierRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
         host.setScore("stateTier", tier_);
         recent_.reset();
@@ -158,7 +170,7 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
     if (phase_ != Phase::Asking || current_ == nullptr) return;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        if (!answerRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
 
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
@@ -189,6 +201,7 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void StatesGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
@@ -198,7 +211,7 @@ void StatesGame::render(AppContext& host) {
     tft.drawString(String(score_) + "/" + rounds_, 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    Ui::drawButton(tft, tierRect(f), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No states available",
@@ -210,7 +223,7 @@ void StatesGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::rgb(90, 170, 255), Ui::bg());
     tft.drawString(mode_ == Mode::CapitalOf ? current_->name : current_->capital,
-                   SCREEN_WIDTH / 2, 72, 4);
+                   f.cx(), 72, 4);
 
     const bool done = (phase_ == Phase::Feedback);
     tft.setTextColor(done ? (lastCorrect_ ? Ui::success() : Ui::error()) : Ui::text(), Ui::bg());
@@ -223,7 +236,7 @@ void StatesGame::render(AppContext& host) {
         prompt = (mode_ == Mode::CapitalOf) ? String("What is its capital?")
                                             : String("is the capital of which state?");
     }
-    tft.drawString(fitLabel(tft, prompt, SCREEN_WIDTH - 16, 2), SCREEN_WIDTH / 2, 112, 2);
+    tft.drawString(fitLabel(tft, prompt, f.w - 16, 2), f.cx(), 112, 2);
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         const StateFact* opt = options_[i];
@@ -235,7 +248,7 @@ void StatesGame::render(AppContext& host) {
             if (i == correctBtn_) { fill = Ui::success(); tc = TFT_BLACK; }
             else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error(); tc = TFT_BLACK; }
         }
-        const Rect r = answerRect(i);
+        const Rect r = answerRect(f, i);
         const char* label = (mode_ == Mode::CapitalOf) ? opt->capital : opt->name;
         Ui::drawButton(tft, r, fitLabel(tft, label, r.w - 10, 2), fill, Ui::outline(), tc, false, 2);
     }
