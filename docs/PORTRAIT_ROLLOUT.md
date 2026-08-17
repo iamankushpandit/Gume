@@ -110,7 +110,7 @@ Legend: `todo` / `wip` / `done`
 | Nearby | `NearbyGame.cpp` | yes | already `followsLayout` |
 | Scores | `ScoresGame.cpp` | no | done — rows/page derived from height; pager bottom-anchored; switch takes its own row when narrow |
 | Settings | `SettingsGame.cpp` | no | done — paired rows via gridCell; slider bottom-anchored |
-| Wi-Fi | `WifiGame.cpp` | no | todo — 12 SCREEN_* refs, worst offender |
+| Wi-Fi | `WifiGame.cpp` | no | done — every rect literal became a named frame helper, so update() and render() share one layout |
 | About | `AboutGame.cpp` | no | done — content flows to the panel; games/page and page count derived |
 
 ### Shared plumbing

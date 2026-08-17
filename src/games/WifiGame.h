@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 class WifiGame : public Game {
@@ -48,7 +49,29 @@ private:
     void startConnect(GameHost& host);
     void checkConnect(GameHost& host);
 
-    Rect netRect(uint8_t slot) const;
-    Rect zoneRect(uint8_t slot) const;
-    Rect keyRect(uint8_t row, uint8_t col) const;
+    /* Every rect on this screen was a literal, and most were written out twice
+     * -- once in update() to hit-test and once in render() to draw. That is
+     * why this was the last screen still pinned to a 320x240 canvas: there
+     * were twelve places to change and no single place that owned the layout.
+     * They are named helpers now, so a rect exists once and both callers ask
+     * for it. On a 320x240 panel they reproduce the authored geometry. */
+    Rect menuRow(const Ui::Frame& f, uint8_t row) const;
+    Rect menuCell(const Ui::Frame& f, uint8_t row, uint8_t col) const;
+
+    Rect netRect(const Ui::Frame& f, uint8_t slot) const;
+    Rect zoneRect(const Ui::Frame& f, uint8_t slot) const;
+    uint8_t listRowsPerPage(const Ui::Frame& f) const;
+    uint8_t zoneRowsPerPage(const Ui::Frame& f) const;
+
+    /* Prev / middle / Next, bottom-anchored and shared by the network list
+     * and the time-zone list. */
+    Rect pagerBand(const Ui::Frame& f) const;
+    Rect pagerCell(const Ui::Frame& f, uint8_t index) const;
+
+    Rect passwordRect(const Ui::Frame& f) const;
+    Rect keysBand(const Ui::Frame& f) const;
+    Rect keyRect(const Ui::Frame& f, uint8_t row, uint8_t col) const;
+    Rect keyActionRow(const Ui::Frame& f) const;
+    Rect keyActionRect(const Ui::Frame& f, uint8_t index) const;
+    Rect backChipRect(const Ui::Frame& f) const;
 };
