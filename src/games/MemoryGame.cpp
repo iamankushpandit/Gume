@@ -67,25 +67,28 @@ void MemoryGame::newRound(AppContext& host) {
     resolving_ = false;
 }
 
-Rect MemoryGame::cardRect(uint8_t index) const {
+/* This one was already doing the right arithmetic -- fit square cards to the
+ * space, centre the grid in what is left -- against the wrong two numbers.
+ * Feeding it the live panel is the whole change. */
+Rect MemoryGame::cardRect(const Ui::Frame& f, uint8_t index) const {
     const uint8_t totalCols = config_.cols;
     const uint8_t totalRows = config_.rows;
-    const int16_t maxCellW = (SCREEN_WIDTH - 20 - GRID_GAP * (totalCols - 1)) / totalCols;
-    const int16_t maxCellH = (SCREEN_HEIGHT - GRID_TOP - 4 - GRID_GAP * (totalRows - 1)) / totalRows;
+    const int16_t maxCellW = (f.w - 20 - GRID_GAP * (totalCols - 1)) / totalCols;
+    const int16_t maxCellH = (f.h - GRID_TOP - 4 - GRID_GAP * (totalRows - 1)) / totalRows;
     const int16_t cell = min<int16_t>(maxCellW, maxCellH);
     const int16_t gridW = totalCols * cell + (totalCols - 1) * GRID_GAP;
     const int16_t gridH = totalRows * cell + (totalRows - 1) * GRID_GAP;
-    const int16_t startX = (SCREEN_WIDTH - gridW) / 2;
-    const int16_t startY = GRID_TOP + (SCREEN_HEIGHT - GRID_TOP - gridH) / 2;
+    const int16_t startX = (f.w - gridW) / 2;
+    const int16_t startY = GRID_TOP + (f.h - GRID_TOP - gridH) / 2;
     const uint8_t row = index / totalCols;
     const uint8_t col = index % totalCols;
     return Rect{static_cast<int16_t>(startX + col * (cell + GRID_GAP)), static_cast<int16_t>(startY + row * (cell + GRID_GAP)), cell, cell};
 }
 
-int8_t MemoryGame::cardAt(int16_t x, int16_t y) const {
+int8_t MemoryGame::cardAt(const Ui::Frame& f, int16_t x, int16_t y) const {
     const uint8_t total = config_.rows * config_.cols;
     for (uint8_t i = 0; i < total; ++i) {
-        if (cardRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
+        if (cardRect(f, i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
     }
@@ -123,7 +126,7 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t index = cardAt(touch.x, touch.y);
+    const int8_t index = cardAt(Ui::frame(host.display()), touch.x, touch.y);
     if (index < 0 || matched_[index] || visible_[index]) {
         return;
     }
@@ -156,12 +159,13 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
 
 void MemoryGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
     const uint8_t total = config_.rows * config_.cols;
     for (uint8_t i = 0; i < total; ++i) {
-        const Rect r = cardRect(i);
+        const Rect r = cardRect(f, i);
         const bool up = visible_[i] || matched_[i];
         const uint16_t fill = matched_[i] ? MATCHED : (up ? CARD_FRONT : CARD_BACK);
         tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 6, 0xBDF7);
@@ -188,8 +192,10 @@ void MemoryGame::render(AppContext& host) {
         tft.drawRoundRect(50, 92, 220, 56, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("You matched all!", SCREEN_WIDTH / 2, 112, 4);
-        tft.drawString("Tap to play again", SCREEN_WIDTH / 2, 136, 2);
+        const int16_t bannerY = static_cast<int16_t>(
+            TOP_BAR_HEIGHT + (f.h - TOP_BAR_HEIGHT) * 39 / 100);
+        tft.drawString("You matched all!", f.cx(), bannerY, 4);
+        tft.drawString("Tap to play again", f.cx(), bannerY + 24, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

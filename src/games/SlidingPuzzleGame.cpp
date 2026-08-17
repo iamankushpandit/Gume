@@ -2,6 +2,11 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t HUD_Y = TOP_BAR_HEIGHT + 6;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 24;
+constexpr int16_t BOARD_TOP = TOP_BAR_HEIGHT + 38;
+constexpr int16_t BOARD_MAX_CELL = 76;
+
 constexpr uint16_t TILE = 0x24BD;
 constexpr uint16_t EMPTY = 0x1085;
 constexpr uint16_t WIN = 0x37F0;
@@ -100,17 +105,26 @@ void SlidingPuzzleGame::shuffle() {
     moves_ = 0;
 }
 
-Rect SlidingPuzzleGame::tileRect(uint8_t index) const {
-    const int16_t cell = size_ == 2 ? 58 : 48;
-    const int16_t grid = cell * size_;
-    const int16_t startX = (SCREEN_WIDTH - grid) / 2;
-    const int16_t startY = size_ == 2 ? 80 : 68;
-    return Rect{static_cast<int16_t>(startX + (index % size_) * cell), static_cast<int16_t>(startY + (index / size_) * cell), cell, cell};
+Rect SlidingPuzzleGame::boardRect(const Ui::Frame& f) const {
+    /* Largest centred square between the prompt and the solved banner, then
+     * rounded down to a whole number of cells so the tiles stay flush. */
+    const Rect band{0, BOARD_TOP, f.w, static_cast<int16_t>(f.h - BOARD_TOP - 34)};
+    const Rect square = Ui::squareIn(band, static_cast<int16_t>(BOARD_MAX_CELL * size_));
+    const int16_t cell = static_cast<int16_t>(square.w / size_);
+    const int16_t grid = static_cast<int16_t>(cell * size_);
+    return Ui::centreIn(band, grid, grid);
 }
 
-int8_t SlidingPuzzleGame::touchedTile(int16_t x, int16_t y) const {
+Rect SlidingPuzzleGame::tileRect(const Ui::Frame& f, uint8_t index) const {
+    const Rect board = boardRect(f);
+    const int16_t cell = static_cast<int16_t>(board.w / size_);
+    return Rect{static_cast<int16_t>(board.x + (index % size_) * cell),
+                static_cast<int16_t>(board.y + (index / size_) * cell), cell, cell};
+}
+
+int8_t SlidingPuzzleGame::touchedTile(const Ui::Frame& f, int16_t x, int16_t y) const {
     for (uint8_t i = 0; i < size_ * size_; ++i) {
-        if (tiles_[i] != 0 && tileRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
+        if (tiles_[i] != 0 && tileRect(f, i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
     }
@@ -143,7 +157,7 @@ void SlidingPuzzleGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t tile = touchedTile(touch.x, touch.y);
+    const int8_t tile = touchedTile(Ui::frame(host.display()), touch.x, touch.y);
     if (tile < 0 || !adjacentToGap(tile)) {
         return;
     }
@@ -159,6 +173,7 @@ void SlidingPuzzleGame::update(AppContext& host, const TouchPoint& touch) {
 
 void SlidingPuzzleGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -174,12 +189,13 @@ void SlidingPuzzleGame::render(AppContext& host) {
     } else {
         snprintf(bestBuf, sizeof(bestBuf), "Best --");
     }
-    tft.drawString(bestBuf, SCREEN_WIDTH - 8, 36, 2);
-    Ui::drawLabel(tft, Rect{8, 54, 304, 16}, "Slide tiles into order", Ui::muted(), 1, Align::Center);
+    tft.drawString(bestBuf, f.w - 8, HUD_Y, 2);
+    Ui::drawLabel(tft, Rect{8, PROMPT_Y, static_cast<int16_t>(f.w - 16), 16},
+                  "Slide tiles into order", Ui::muted(), 1, Align::Center);
 
     const uint8_t total = size_ * size_;
     for (uint8_t i = 0; i < total; ++i) {
-        const Rect r = tileRect(i);
+        const Rect r = tileRect(f, i);
         if (tiles_[i] == 0) {
             tft.fillRoundRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6, 6, EMPTY);
             continue;
@@ -192,6 +208,7 @@ void SlidingPuzzleGame::render(AppContext& host) {
     if (won_) {
         tft.fillRoundRect(52, 184, 216, 42, 8, Ui::panel());
         tft.drawRoundRect(52, 184, 216, 42, 8, WIN);
-        Ui::drawLabel(tft, Rect{54, 190, 212, 28}, size_ == 2 ? "Solved - tap for 3x3" : "Solved - tap again", WIN, 2, Align::Center);
+        Ui::drawLabel(tft, Ui::centreIn(Rect{0, static_cast<int16_t>(f.h - 50), f.w, 28}, 212, 28),
+                      size_ == 2 ? "Solved - tap for 3x3" : "Solved - tap again", WIN, 2, Align::Center);
     }
 }

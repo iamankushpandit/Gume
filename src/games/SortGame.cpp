@@ -2,6 +2,11 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t HUD_Y = TOP_BAR_HEIGHT + 5;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 25;
+constexpr int16_t TRAY_TOP = TOP_BAR_HEIGHT + 52;
+constexpr int16_t TRAY_MAX_H = 130;
+
 constexpr uint16_t TILE = 0x24BD;
 constexpr uint16_t LOCKED = 0x37F0;
 constexpr uint16_t WRONG = 0xF9EA;
@@ -42,10 +47,18 @@ void SortGame::begin(AppContext& host) {
     markDirty();
 }
 
-Rect SortGame::tileRect(uint8_t index) const {
-    const uint8_t col = index % 3;
-    const uint8_t row = index / 3;
-    return Rect{static_cast<int16_t>(24 + col * 92), static_cast<int16_t>(82 + row * 58), 76, 44};
+Rect SortGame::tileBand(const Ui::Frame& f) const {
+    /* Down to the solved banner, but capped -- portrait leaves 174px here and
+     * two rows of 83px tiles look like buttons for a different game. */
+    int16_t h = static_cast<int16_t>(f.h - 64 - TRAY_TOP);
+    if (h > TRAY_MAX_H) {
+        h = TRAY_MAX_H;
+    }
+    return Rect{16, TRAY_TOP, static_cast<int16_t>(f.w - 32), h};
+}
+
+Rect SortGame::tileRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(tileBand(f), 3, 2, index, 8);
 }
 
 void SortGame::newRound() {
@@ -90,9 +103,9 @@ bool SortGame::allLocked() const {
     return next_ >= count_;
 }
 
-int8_t SortGame::touchedTile(int16_t x, int16_t y) const {
+int8_t SortGame::touchedTile(const Ui::Frame& f, int16_t x, int16_t y) const {
     for (uint8_t i = 0; i < count_; ++i) {
-        if (!locked_[i] && tileRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
+        if (!locked_[i] && tileRect(f, i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
     }
@@ -121,7 +134,7 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t tile = touchedTile(touch.x, touch.y);
+    const int8_t tile = touchedTile(Ui::frame(host.display()), touch.x, touch.y);
     if (tile < 0) {
         return;
     }
@@ -143,6 +156,7 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
 
 void SortGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
@@ -154,8 +168,10 @@ void SortGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char bestBuf[24];
     snprintf(bestBuf, sizeof(bestBuf), "Best streak %u", bestStreak_);
-    tft.drawString(bestBuf, SCREEN_WIDTH - 8, 35, 2);
-    Ui::drawLabel(tft, Rect{10, 55, 300, 18}, ascending_ ? "Tap smallest to largest" : "Tap largest to smallest", Ui::text(), 2, Align::Center);
+    tft.drawString(bestBuf, f.w - 8, HUD_Y, 2);
+    Ui::drawLabel(tft, Rect{10, PROMPT_Y, static_cast<int16_t>(f.w - 20), 18},
+                  ascending_ ? "Tap smallest to largest" : "Tap largest to smallest",
+                  Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < count_; ++i) {
         uint16_t fill = locked_[i] ? LOCKED : TILE;
@@ -166,13 +182,14 @@ void SortGame::render(AppContext& host) {
         }
         char label[8];
         snprintf(label, sizeof(label), "%d", numbers_[i]);
-        Ui::drawButton(tft, tileRect(i), label, fill, Ui::outline(), text, false, 4);
+        Ui::drawButton(tft, tileRect(f, i), label, fill, Ui::outline(), text, false, 4);
     }
 
     if (allLocked()) {
         tft.fillRoundRect(58, 178, 204, 42, 8, Ui::panel());
         tft.drawRoundRect(58, 178, 204, 42, 8, Ui::success());
-        Ui::drawLabel(tft, Rect{60, 184, 200, 30}, "Sorted - tap next", Ui::success(), 2, Align::Center);
+        Ui::drawLabel(tft, Ui::centreIn(Rect{0, static_cast<int16_t>(f.h - 56), f.w, 30}, 200, 30),
+                      "Sorted - tap next", Ui::success(), 2, Align::Center);
     }
 }
 

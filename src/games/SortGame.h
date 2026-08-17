@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -15,9 +16,12 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect tileRect(uint8_t index) const;
+    /* Up to six number tiles in a 3x2 tray. Three columns in both
+      * orientations -- the ordering task reads across the row. */
+    Rect tileBand(const Ui::Frame& f) const;
+    Rect tileRect(const Ui::Frame& f, uint8_t index) const;
     void newRound();
-    int8_t touchedTile(int16_t x, int16_t y) const;
+    int8_t touchedTile(const Ui::Frame& f, int16_t x, int16_t y) const;
     int16_t expectedValue() const;
     bool allLocked() const;
 

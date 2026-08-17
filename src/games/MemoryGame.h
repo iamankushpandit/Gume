@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "engine/ContentLoader.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -17,8 +18,8 @@ public:
 
 private:
     void newRound(AppContext& host);
-    int8_t cardAt(int16_t x, int16_t y) const;
-    Rect cardRect(uint8_t index) const;
+    int8_t cardAt(const Ui::Frame& f, int16_t x, int16_t y) const;
+    Rect cardRect(const Ui::Frame& f, uint8_t index) const;
     bool allMatched() const;
 
     MemoryConfig config_;
