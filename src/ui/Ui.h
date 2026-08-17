@@ -51,9 +51,29 @@ void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint1
  * slash when not. Centred on (cx, cy), about 16px across. */
 void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
-/* Battery state beside Wi-Fi. Shows battery outline holding a percentage fill,
- * or a plug icon if external power is supplied. */
-void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, bool isExternalPower, uint16_t bg);
+/* What the badge should say about where the power is coming from. Kept as a
+ * Ui-level type rather than Board::ChargingState so this header stays free of
+ * the HAL; powerHint() below is the one place the two meet. */
+enum class PowerHint : uint8_t {
+    OnBattery,   // running down: the fill colour is the whole story
+    Charging,    // cable in and climbing: bolt over the fill
+    Charged      // cable in, topped off: bolt over a full fill
+};
+
+/** Read the board's current source and charge verdict as a PowerHint. */
+PowerHint powerHint(Board& board);
+
+/* Battery state beside Wi-Fi: a battery outline holding a percentage fill,
+ * with a bolt struck through it while the charger is attached, and an empty
+ * bolt alone when there is no pack at all.
+ *
+ * At or below Board::BATTERY_LOW_PERCENT the *shell* goes red as well as the
+ * fill. A nearly empty battery and a nearly full one differ by 11 pixels of
+ * fill, which is not something a child reads at arm's length -- the outline
+ * changing colour is what makes "charge me" visible across the room. That
+ * emphasis is dropped the moment the charger is attached, because by then the
+ * user has already done the thing it was asking for. */
+void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, PowerHint power, uint16_t bg);
 
 /* BLE beacon indicator: the Bluetooth rune, drawn only while the radio is
  * actually advertising. There is no "off" variant on purpose -- an icon that is

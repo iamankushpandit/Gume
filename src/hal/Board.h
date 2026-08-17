@@ -64,18 +64,29 @@ public:
         Light = 1,
     };
 
-    /* TODO(HARDWARE-VALIDATION): the divider ratio, no-battery behaviour and
-     * USB-power behaviour still need a meter on a real board. The ADC
-     * conversion itself is no longer guesswork -- see Board.cpp. This board
-     * exposes no charge-status line, so ChargingState stays UNKNOWN. */
+    /* TODO(HARDWARE-VALIDATION): the divider ratio and no-battery behaviour
+     * still need a meter on a real board. The ADC conversion itself is no
+     * longer guesswork -- see Board.cpp. */
     enum class PowerState {
         BATTERY,
         EXTERNAL_POWER,
         UNKNOWN
     };
 
+    /* This board brings no charge-status line out to a GPIO: the TP4056-style
+     * charger's CHRG pin is not wired to the ESP32, so the only thing the
+     * firmware can see is the cell voltage on PIN_BAT_ADC. Charging is
+     * therefore *inferred* from how that voltage moves, in BoardPower.cpp.
+     *
+     * UNKNOWN is the honest answer for the first few seconds after boot, and
+     * whenever no battery is attached. FULL means "on the charger and topped
+     * off" -- it is only ever reached from CHARGING, because a resting full
+     * cell and a finished charge look identical from one sample. */
     enum class ChargingState {
-        UNKNOWN
+        UNKNOWN,
+        CHARGING,
+        FULL,
+        DISCHARGING
     };
 
     enum class LayoutMode : uint8_t {
@@ -101,6 +112,16 @@ public:
     int8_t getBatteryPercent();
     bool isBatteryPresent();
     ChargingState getChargingState();
+    /* True while the pack is genuinely running down and needs the charger.
+     * Both are false whenever the charger is attached, so plugging in silences
+     * the warning without waiting for the percentage to climb. */
+    bool isBatteryLow();
+    bool isBatteryCritical();
+
+    /* The charge-me thresholds, in percent. LOW is what the user is asked to
+     * act on; CRITICAL escalates the wording when there is very little left. */
+    static constexpr int8_t BATTERY_LOW_PERCENT = 15;
+    static constexpr int8_t BATTERY_CRITICAL_PERCENT = 5;
 
     bool sdReady() const;
     bool mountSd();
@@ -414,6 +435,18 @@ private:
     BatteryTelemetry batterySample_{};
     uint32_t batterySampleMs_ = 0;
     bool batterySampled_ = false;
+
+    /* Charge inference state, advanced once per *fresh* battery sample (so at
+     * BATTERY_SAMPLE_MS, not per frame). chargeSmoothV_ is a low-pass of the
+     * cell voltage that the slow trend is measured on; chargeRefV_ is where
+     * that average stood when the current trend window opened. */
+    void updateChargeState(float volts, uint32_t nowMs);
+    ChargingState chargeState_ = ChargingState::UNKNOWN;
+    float chargeLastV_ = 0.0f;
+    float chargeSmoothV_ = 0.0f;
+    float chargeRefV_ = 0.0f;
+    uint32_t chargeRefMs_ = 0;
+    bool chargeTracking_ = false;
 
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;

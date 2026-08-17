@@ -55,7 +55,12 @@ String powerText(Board::PowerState pwr) {
 }
 
 String chargingText(Board::ChargingState state) {
-    (void)state;
+    switch (state) {
+        case Board::ChargingState::CHARGING:    return "Charging";
+        case Board::ChargingState::FULL:        return "Charged (on USB)";
+        case Board::ChargingState::DISCHARGING: return "On battery";
+        default: break;
+    }
     return "Unknown";
 }
 
@@ -280,6 +285,10 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("Charging", chargingText(board.getChargingState()));
     rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
            (pct >= 0 ? " (" + String(pct) + "%)" : " (no batt)"));
+    rows_.addRow("Charge level", pct < 0 ? String("No battery")
+                                : board.isBatteryCritical() ? String("Critical - charge now")
+                                : board.isBatteryLow() ? String("Low - charge soon")
+                                : String("OK"));
     rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
     rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
 

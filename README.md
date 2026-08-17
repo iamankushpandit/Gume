@@ -18,8 +18,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 30 |
-| Flash | 2,323,937 / 3,145,728 bytes (**73.9%**) |
-| RAM | 71,980 / 327,680 bytes (**22.0%**) |
+| Flash | 2,325,045 / 3,145,728 bytes (**73.9%**) |
+| RAM | 72,020 / 327,680 bytes (**22.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -383,9 +383,39 @@ Percentage comes off a piecewise LiPo discharge curve, not a straight line: a
 cell sits near 3.7V for most of its life, so a linear map reads about 20 points
 high through the middle.
 
-The divider ratio itself is still an assumption pending a meter on the board,
-and there is no charge-status line on this hardware — so "charging" is honestly
-reported as unknown rather than guessed.
+**Charging is inferred, because this board has no charge-status line.** The
+charger's CHRG pin never reaches a GPIO, so the cell voltage on GPIO34 is the
+only thing the firmware can see. Three signals are read from it: a step between
+consecutive samples (plugging the cable in lifts the terminal voltage well
+beyond ADC noise within a couple of seconds, and unplugging drops it back under
+load), a voltage held above 4.24V that no resting cell reaches, and — for
+everything in between — the direction the voltage has moved over the last 45
+seconds. Mid-discharge a LiPo sits on a plateau where 40% of the capacity spans
+about 20mV, which is why the slow window has to be that long, and why a window
+that comes out genuinely flat leaves the previous verdict standing rather than
+flapping between charging and not.
+
+"Charged" is only ever reached from "charging". A pack resting at 4.15V off the
+cable and one that has just finished charging read identically from a single
+sample, so the firmware will not claim a battery is full unless it watched it
+get there.
+
+The **battery icon** shows all of this: a green fill above 40%, amber down to
+16%, and at or below **15%** the outline goes red as well as the fill — a nearly
+empty battery and a nearly full one differ by 11 pixels of fill, which is not
+something a child reads at arm's length. A bolt is struck through the icon
+whenever the charger is attached, and an empty bolt on its own means the console
+is running on USB with no pack fitted.
+
+At **15% or less** a strip also appears across the top of whatever screen is
+open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
+charger* at 5%. It shows for six seconds and repeats every two minutes, so it
+stays a warning rather than becoming furniture. Plugging in clears it within a
+couple of seconds — the warning is driven off the charge verdict, not the
+percentage, so it goes away when the user does the thing it asked for rather
+than waiting for the reading to climb.
+
+The divider ratio itself is still an assumption pending a meter on the board.
 
 ### Reliability
 
@@ -491,7 +521,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **4.1.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **4.2.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 

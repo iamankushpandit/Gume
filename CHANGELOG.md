@@ -1,5 +1,58 @@
 # Changelog
 
+## 4.2.0 — 2026-08-17
+
+Battery status the user can act on: the console now works out whether it is
+charging, and asks to be plugged in before it dies.
+
+Flash 2,325,045 / 3,145,728 (73.9%), RAM 72,020 / 327,680 (22.0%).
+
+### Added
+
+- **Charging is detected, where it used to be reported as unknown.** This board
+  brings no charge-status line out to a GPIO, so `ChargingState` had exactly one
+  value and the System Info row said "Unknown" forever. It is now inferred from
+  the cell voltage on GPIO34, which is the only thing the firmware can see:
+  a step between consecutive samples catches the cable going in or out within
+  about two seconds, a voltage held above 4.24V is a charger holding it there
+  because no resting cell reaches that, and a 45-second trend covers everything
+  in between. A window that comes out flat keeps the previous verdict rather
+  than flapping — mid-discharge a LiPo plateau spans about 20mV across 40% of
+  the capacity, so "no movement" is not evidence of anything. `FULL` is only
+  ever reached from `CHARGING`, because a rested full pack and a finished charge
+  look identical from one sample.
+- **A charge-me warning at 15%.** `Board::isBatteryLow()` and
+  `isBatteryCritical()` (15% and 5%) drive a strip across the top of whatever
+  screen is open: *Battery low — time to charge*, escalating to *Battery empty —
+  plug in the charger*. It shows for six seconds and repeats every two minutes,
+  which is often enough to be a warning and rare enough not to become furniture
+  a child learns to ignore. Crossing either threshold restarts the cycle, so low
+  becoming critical says so at once. Both predicates are false while charging,
+  so plugging in clears the warning immediately rather than waiting for the
+  percentage to climb back over the line.
+- System Info's Power section now reports the charge verdict and a plain-English
+  charge level beside the voltage.
+
+### Changed
+
+- **The battery icon says something at a glance.** The lowest colour band began
+  at 30%, so it said nothing new at the level the user is actually asked to act
+  on; the bands are now red at or below 15%, amber to 40%, green above. At or
+  below 15% the *outline* goes red as well as the fill, because a nearly empty
+  battery and a nearly full one differ by 11 pixels of fill and that is not
+  something anyone reads across a room. The emphasis drops the moment the
+  charger is attached — by then the user has done the thing it was asking for.
+- The bolt now means "the charger is attached", derived from the charge verdict
+  rather than from a voltage above 4.35V — with a pack fitted that threshold was
+  never crossed, so the bolt could not appear while charging a real battery. An
+  empty bolt alone still means USB with no pack.
+- `Ui::drawBatteryBadge()` takes a `Ui::PowerHint` rather than an
+  `isExternalPower` bool. `Ui::powerHint(board)` is the single place the drawing
+  layer and the HAL enum meet, which keeps `Ui.h` free of the HAL.
+- The runtime's notification strip is now `drawHeaderBanner()`, and the battery
+  warning outranks a Nearby event on it: one of them is a nicety, the other is
+  the reason the console is about to switch off.
+
 ## 4.1.0 — 2026-08-15
 
 A major console refresh with a new product name, redesigned launcher icons,
