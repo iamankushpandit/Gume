@@ -90,7 +90,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(diceAppMetadata(), dice, true),
     metadataCatalogApp(coinFlipAppMetadata(), coinFlip, true),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
-              APP_CAP_SCORES),
+              APP_CAP_SCORES, true),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
               APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS | APP_CAP_FACTORY_RESET),
     systemApp("wifi", "Wi-Fi", "network & time", LauncherIcon::WiFi, wifi,

@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "hal/Board.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 /*
@@ -25,7 +26,10 @@ private:
         Device = 1,
     };
 
-    static constexpr uint8_t ROWS_PER_PAGE = 5;
+    /* Rows per page is derived from the panel, not fixed: a 320x240 panel
+     * fits the authored five, a 320x480 one fits thirteen. The cap only has
+     * to stay at or above what the tallest supported panel can show. */
+    static constexpr uint8_t MAX_ROWS_PER_PAGE = 16;
     static constexpr uint8_t MAX_DEVICE_ROWS = 32;  // >= scored playable apps
 
     struct DeviceBest {
@@ -34,12 +38,14 @@ private:
         uint8_t holder;  // profile index, 0xFF = nobody
     };
 
-    Rect rowRect(uint8_t row) const;
+    Rect rowRect(const Ui::Frame& f, uint8_t row) const;
     Rect mineTabRect() const;
     Rect deviceTabRect() const;
-    Rect prevRect() const;
-    Rect nextRect() const;
-    Rect switchRect() const;
+    Rect pagerRow(const Ui::Frame& f) const;
+    Rect prevRect(const Ui::Frame& f) const;
+    Rect nextRect(const Ui::Frame& f) const;
+    Rect switchRect(const Ui::Frame& f) const;
+    uint8_t rowsPerPage(const Ui::Frame& f) const;
     uint8_t playedCount(GameHost& host) const;
     void buildDeviceTable(GameHost& host);
     uint8_t deviceRowCount() const;
