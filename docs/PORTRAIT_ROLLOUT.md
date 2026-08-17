@@ -93,7 +93,7 @@ Legend: `todo` / `wip` / `done`
 | 20 | Number Line | `NumberLineGame.cpp` | done | line spans the panel; 4-up answers pair in portrait |
 | 21 | Flags | `FlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 22 | US States | `StatesGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
-| 23 | Trace | `TraceGame.cpp` | todo | glyph stroke data is in normalised coords - check TraceGlyphData before scaling |
+| 23 | Trace | `TraceGame.cpp` | done | strokes are normalised 0-200 design coords; box keeps its 160:132 aspect and grows with the panel |
 | 24 | State Flags | `StateFlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 25 | State Maps | `StateMapGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 26 | Percent | `PercentCircleGame.cpp` | done | stacked portrait branch as measured |

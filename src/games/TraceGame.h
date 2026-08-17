@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -39,19 +40,40 @@ private:
         int16_t x, y;
     };
 
-    void loadGlyph();
-    void resampleWaypoints();
-    int16_t scaleX(int16_t nx) const;
-    int16_t scaleY(int16_t ny) const;
+    /* Chrome bands, all hung off the live panel. On a 320x240 screen these
+     * reproduce the authored rects exactly. */
+    Rect tabRow(const Ui::Frame& f) const;
+    Rect modeTabRect(const Ui::Frame& f, uint8_t index) const;
+    Rect pagerRow(const Ui::Frame& f) const;
+    Rect prevRect(const Ui::Frame& f) const;
+    Rect nextRect(const Ui::Frame& f) const;
+    Rect statusRect(const Ui::Frame& f) const;
+    Rect progressRect(const Ui::Frame& f) const;
+
+    /* The glyph box. Stroke data is in an abstract 0..COORD_MAX design space,
+     * so the box can be any size; it keeps the authored 160:132 aspect so the
+     * letters are not restretched on a differently shaped panel. */
+    Rect drawBox(const Ui::Frame& f) const;
+
+    void loadGlyph(const Rect& box);
+    void resampleWaypoints(const Rect& box);
+    int16_t scaleX(const Rect& box, int16_t nx) const;
+    int16_t scaleY(const Rect& box, int16_t ny) const;
     void drawGuide(Ui::Renderer& tft);
-    void drawProgress(Ui::Renderer& tft);
-    void drawCompleteStatus(Ui::Renderer& tft);
-    void drawModeTabs(Ui::Renderer& tft);
+    void drawProgress(Ui::Renderer& tft, const Ui::Frame& f);
+    void drawCompleteStatus(Ui::Renderer& tft, const Ui::Frame& f);
+    void drawModeTabs(Ui::Renderer& tft, const Ui::Frame& f);
     void updatePulsePhase();
-    void previousGlyph();
-    void nextGlyph();
+    void previousGlyph(const Rect& box);
+    void nextGlyph(const Rect& box);
     uint8_t getSetFirstIndex() const;
     uint8_t getSetLastIndex() const;
+
+    /* The box pts_ was built against. Waypoints are baked into panel pixels,
+     * so they have to be rebuilt when the panel changes shape -- the count is
+     * unaffected (the polyline is walked in design units), so a rotation
+     * remaps the dots without losing how far the child had got. */
+    Rect box_ = {};
 
     Pt pts_[MAX_POINTS] = {};
     uint8_t strokeStart_[MAX_STROKES] = {};

@@ -82,7 +82,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(numberLineAppMetadata(), numberLine, true),
     metadataCatalogApp(flagAppMetadata(), flag, true),
     metadataCatalogApp(statesAppMetadata(), states, true),
-    metadataCatalogApp(traceAppMetadata(), trace),
+    metadataCatalogApp(traceAppMetadata(), trace, true),
     metadataCatalogApp(stateFlagAppMetadata(), stateFlag, true),
     metadataCatalogApp(stateMapAppMetadata(), stateMap, true),
     metadataCatalogApp(percentCircleAppMetadata(), percent, true),

@@ -1,26 +1,26 @@
 #include "TraceGame.h"
 #include "TraceGlyphData.h"
 #include "engine/AppRegistry.h"
+#include "ui/GameLayout.h"
 
 namespace {
 
-constexpr int16_t DRAW_X = 80;
-constexpr int16_t DRAW_Y = 58;
-constexpr int16_t DRAW_W = 160;
-constexpr int16_t DRAW_H = 132;
+/* The glyph box was authored 160x132; that ratio is kept when the box is
+ * resized so the letters keep their proportions. */
+constexpr int16_t BOX_ASPECT_W = 160;
+constexpr int16_t BOX_ASPECT_H = 132;
 constexpr int16_t COORD_MAX = 200;
 constexpr int16_t WAYPOINT_SPACING = 20;
 constexpr int16_t HIT_RADIUS = 16;
 constexpr uint32_t PULSE_PERIOD_MS = 500;
 
-constexpr Rect PREV_BTN{8,   202, 60, 30};
-constexpr Rect NEXT_BTN{252, 202, 60, 30};
-
-constexpr Rect MODE_ABC{38,  32, 50, 22};
-constexpr Rect MODE_abc{92,  32, 50, 22};
-constexpr Rect MODE_123{146, 32, 50, 22};
-constexpr Rect RETRY_BTN{204, 32, 52, 22};
-constexpr Rect TOP_NEXT_BTN{260, 32, 52, 22};
+constexpr int16_t TAB_ROW_Y = 32;
+constexpr int16_t TAB_ROW_H = 22;
+constexpr int16_t MODE_TAB_COUNT = 5;   // ABC abc 123 Again Next
+constexpr int16_t PAGER_W = 60;
+constexpr int16_t PAGER_H = 30;
+constexpr int16_t BAR_H = 10;
+constexpr int16_t STATUS_H = 21;
 
 constexpr AppMetadata TRACE_METADATA = {
     "trace",
@@ -47,10 +47,9 @@ const char* TraceGame::title() const {
 }
 
 void TraceGame::begin(AppContext& host) {
-    (void)host;
     glyphIndex_ = 0;
     glyphSet_ = GlyphSet::Upper;
-    loadGlyph();
+    loadGlyph(drawBox(Ui::frame(host.display())));
     markFullDirty();
 }
 
@@ -72,7 +71,59 @@ uint8_t TraceGame::getSetLastIndex() const {
     return 0;
 }
 
-void TraceGame::loadGlyph() {
+Rect TraceGame::tabRow(const Ui::Frame& f) const {
+    return Rect{8, TAB_ROW_Y, static_cast<int16_t>(f.w - 16), TAB_ROW_H};
+}
+
+/* Five equal chips across the row rather than the authored 38/92/146/204/260,
+ * which ran to x=312 and fell off a 240px panel. */
+Rect TraceGame::modeTabRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(tabRow(f), MODE_TAB_COUNT, 1, index, 4);
+}
+
+Rect TraceGame::pagerRow(const Ui::Frame& f) const {
+    return Rect{8, static_cast<int16_t>(f.h - 38), static_cast<int16_t>(f.w - 16), PAGER_H};
+}
+Rect TraceGame::prevRect(const Ui::Frame& f) const {
+    const Rect p = pagerRow(f);
+    return Rect{p.x, p.y, PAGER_W, p.h};
+}
+Rect TraceGame::nextRect(const Ui::Frame& f) const {
+    const Rect p = pagerRow(f);
+    return Rect{static_cast<int16_t>(p.x + p.w - PAGER_W), p.y, PAGER_W, p.h};
+}
+
+/* The bar sits between the two pagers, so its width is what is left there. */
+Rect TraceGame::progressRect(const Ui::Frame& f) const {
+    int16_t w = static_cast<int16_t>(f.w - 2 * (PAGER_W + 16));
+    if (w > 120) w = 120;
+    return Rect{static_cast<int16_t>(f.cx() - w / 2),
+                static_cast<int16_t>(f.h - 18), w, BAR_H};
+}
+
+Rect TraceGame::statusRect(const Ui::Frame& f) const {
+    int16_t w = static_cast<int16_t>(f.w - 40);
+    if (w > 156) w = 156;
+    return Rect{static_cast<int16_t>(f.cx() - w / 2),
+                static_cast<int16_t>(progressRect(f).y - 26), w, STATUS_H};
+}
+
+Rect TraceGame::drawBox(const Ui::Frame& f) const {
+    const Rect tabs = tabRow(f);
+    const int16_t top = static_cast<int16_t>(tabs.y + tabs.h + 4);
+    const int16_t bottom = static_cast<int16_t>(statusRect(f).y - 6);
+    int16_t h = static_cast<int16_t>(bottom - top);
+    if (h < 40) h = 40;
+    int16_t w = static_cast<int16_t>((static_cast<int32_t>(h) * BOX_ASPECT_W) / BOX_ASPECT_H);
+    const int16_t maxW = static_cast<int16_t>(f.w - 20);
+    if (w > maxW) {
+        w = maxW;
+        h = static_cast<int16_t>((static_cast<int32_t>(w) * BOX_ASPECT_H) / BOX_ASPECT_W);
+    }
+    return Rect{static_cast<int16_t>(f.cx() - w / 2), top, w, h};
+}
+
+void TraceGame::loadGlyph(const Rect& box) {
     glyphIndex_ = constrain(glyphIndex_, getSetFirstIndex(), getSetLastIndex());
     complete_ = false;
     completeAt_ = 0;
@@ -80,27 +131,28 @@ void TraceGame::loadGlyph() {
     nextPoint_ = 0;
     lastPulseChange_ = millis();
     pulseState_ = false;
-    resampleWaypoints();
+    resampleWaypoints(box);
     markFullDirty();
 }
 
-void TraceGame::previousGlyph() {
+void TraceGame::previousGlyph(const Rect& box) {
     glyphIndex_ = (glyphIndex_ == getSetFirstIndex())
         ? getSetLastIndex()
         : glyphIndex_ - 1;
-    loadGlyph();
+    loadGlyph(box);
 }
 
-void TraceGame::nextGlyph() {
+void TraceGame::nextGlyph(const Rect& box) {
     glyphIndex_ = (glyphIndex_ == getSetLastIndex())
         ? getSetFirstIndex()
         : glyphIndex_ + 1;
-    loadGlyph();
+    loadGlyph(box);
 }
 
-void TraceGame::resampleWaypoints() {
+void TraceGame::resampleWaypoints(const Rect& box) {
     const Glyph& g = TRACE_GLYPHS[glyphIndex_];
     uint8_t totalPts = 0;
+    box_ = box;
 
     for (uint8_t s = 0; s < g.strokeCount && s < MAX_STROKES; ++s) {
         const Stroke& st = g.strokes[s];
@@ -110,8 +162,8 @@ void TraceGame::resampleWaypoints() {
             continue;
         }
 
-        pts_[totalPts].x = scaleX(st.pts[0]);
-        pts_[totalPts].y = scaleY(st.pts[1]);
+        pts_[totalPts].x = scaleX(box, st.pts[0]);
+        pts_[totalPts].y = scaleY(box, st.pts[1]);
         ++totalPts;
 
         float distanceToNext = WAYPOINT_SPACING;
@@ -131,16 +183,16 @@ void TraceGame::resampleWaypoints() {
             while (walked + distanceToNext <= segLen && totalPts < MAX_POINTS) {
                 walked += distanceToNext;
                 const float ratio = walked / segLen;
-                pts_[totalPts].x = scaleX(static_cast<int16_t>(x1 + dx * ratio));
-                pts_[totalPts].y = scaleY(static_cast<int16_t>(y1 + dy * ratio));
+                pts_[totalPts].x = scaleX(box, static_cast<int16_t>(x1 + dx * ratio));
+                pts_[totalPts].y = scaleY(box, static_cast<int16_t>(y1 + dy * ratio));
                 ++totalPts;
                 distanceToNext = WAYPOINT_SPACING;
             }
             distanceToNext -= (segLen - walked);
         }
 
-        const int16_t endX = scaleX(st.pts[(st.count - 1) * 2]);
-        const int16_t endY = scaleY(st.pts[(st.count - 1) * 2 + 1]);
+        const int16_t endX = scaleX(box, st.pts[(st.count - 1) * 2]);
+        const int16_t endY = scaleY(box, st.pts[(st.count - 1) * 2 + 1]);
         const bool duplicateEnd = totalPts > strokeStart_[s] &&
             pts_[totalPts - 1].x == endX && pts_[totalPts - 1].y == endY;
         if (totalPts < MAX_POINTS && !duplicateEnd) {
@@ -154,12 +206,12 @@ void TraceGame::resampleWaypoints() {
     strokeCount_ = g.strokeCount;
 }
 
-int16_t TraceGame::scaleX(int16_t nx) const {
-    return DRAW_X + (int16_t)((int32_t)nx * DRAW_W / COORD_MAX);
+int16_t TraceGame::scaleX(const Rect& box, int16_t nx) const {
+    return box.x + (int16_t)((int32_t)nx * box.w / COORD_MAX);
 }
 
-int16_t TraceGame::scaleY(int16_t ny) const {
-    return DRAW_Y + (int16_t)((int32_t)ny * DRAW_H / COORD_MAX);
+int16_t TraceGame::scaleY(const Rect& box, int16_t ny) const {
+    return box.y + (int16_t)((int32_t)ny * box.h / COORD_MAX);
 }
 
 void TraceGame::updatePulsePhase() {
@@ -172,39 +224,42 @@ void TraceGame::updatePulsePhase() {
 }
 
 void TraceGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
+    const Rect box = drawBox(f);
+
     if (touch.justPressed) {
-        if (MODE_ABC.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (modeTabRect(f, 0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             glyphSet_ = GlyphSet::Upper;
             glyphIndex_ = UPPER_FIRST;
-            loadGlyph();
+            loadGlyph(box);
             return;
         }
-        if (MODE_abc.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (modeTabRect(f, 1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             glyphSet_ = GlyphSet::Lower;
             glyphIndex_ = LOWER_FIRST;
-            loadGlyph();
+            loadGlyph(box);
             return;
         }
-        if (MODE_123.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (modeTabRect(f, 2).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             glyphSet_ = GlyphSet::Digit;
             glyphIndex_ = DIGIT_FIRST;
-            loadGlyph();
+            loadGlyph(box);
             return;
         }
-        if (RETRY_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            loadGlyph();
+        if (modeTabRect(f, 3).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            loadGlyph(box);
             return;
         }
-        if (TOP_NEXT_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            nextGlyph();
+        if (modeTabRect(f, 4).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            nextGlyph(box);
             return;
         }
-        if (PREV_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            previousGlyph();
+        if (prevRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            previousGlyph(box);
             return;
         }
-        if (NEXT_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            nextGlyph();
+        if (nextRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            nextGlyph(box);
             return;
         }
     }
@@ -250,7 +305,7 @@ void TraceGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void TraceGame::drawModeTabs(Ui::Renderer& tft) {
+void TraceGame::drawModeTabs(Ui::Renderer& tft, const Ui::Frame& f) {
     const uint16_t activeBg = Ui::warning();
     const uint16_t activeTxt = Ui::panel();
     const uint16_t inactiveBg = Ui::panel();
@@ -264,11 +319,11 @@ void TraceGame::drawModeTabs(Ui::Renderer& tft) {
         tft.drawString(label, r.x + r.w/2, r.y + r.h/2, 1);
     };
 
-    drawTab(MODE_ABC, "ABC", glyphSet_ == TraceGame::GlyphSet::Upper);
-    drawTab(MODE_abc, "abc", glyphSet_ == TraceGame::GlyphSet::Lower);
-    drawTab(MODE_123, "123", glyphSet_ == TraceGame::GlyphSet::Digit);
-    drawTab(RETRY_BTN, "Again", false);
-    drawTab(TOP_NEXT_BTN, "Next", false);
+    drawTab(modeTabRect(f, 0), "ABC", glyphSet_ == TraceGame::GlyphSet::Upper);
+    drawTab(modeTabRect(f, 1), "abc", glyphSet_ == TraceGame::GlyphSet::Lower);
+    drawTab(modeTabRect(f, 2), "123", glyphSet_ == TraceGame::GlyphSet::Digit);
+    drawTab(modeTabRect(f, 3), "Again", false);
+    drawTab(modeTabRect(f, 4), "Next", false);
 }
 
 void TraceGame::drawGuide(Ui::Renderer& tft) {
@@ -340,7 +395,7 @@ void TraceGame::drawGuide(Ui::Renderer& tft) {
     }
 }
 
-void TraceGame::drawProgress(Ui::Renderer& tft) {
+void TraceGame::drawProgress(Ui::Renderer& tft, const Ui::Frame& f) {
     uint16_t totalPoints = 0;
     uint16_t claimedPoints = 0;
 
@@ -354,21 +409,19 @@ void TraceGame::drawProgress(Ui::Renderer& tft) {
     }
 
     uint8_t pct = totalPoints > 0 ? (uint8_t)((uint32_t)claimedPoints * 100 / totalPoints) : 0;
-    int16_t barW = 120;
-    int16_t barX = (SCREEN_WIDTH - barW) / 2;
-    int16_t barY = 222;
+    const Rect bar = progressRect(f);
 
-    tft.fillRoundRect(barX, barY, barW, 10, 4, Ui::panel());
-    tft.drawRoundRect(barX, barY, barW, 10, 4, Ui::outline());
+    tft.fillRoundRect(bar.x, bar.y, bar.w, bar.h, 4, Ui::panel());
+    tft.drawRoundRect(bar.x, bar.y, bar.w, bar.h, 4, Ui::outline());
 
-    int16_t fillW = (int16_t)((int32_t)barW * pct / 100);
+    int16_t fillW = (int16_t)((int32_t)bar.w * pct / 100);
     if (fillW > 0) {
-        tft.fillRoundRect(barX, barY, fillW, 10, 4, Ui::success());
+        tft.fillRoundRect(bar.x, bar.y, fillW, bar.h, 4, Ui::success());
     }
 }
 
-void TraceGame::drawCompleteStatus(Ui::Renderer& tft) {
-    constexpr Rect STATUS{82, 196, 156, 21};
+void TraceGame::drawCompleteStatus(Ui::Renderer& tft, const Ui::Frame& f) {
+    const Rect STATUS = statusRect(f);
     tft.fillRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::success());
     tft.drawRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::outline());
     tft.setTextColor(TFT_BLACK, Ui::success());
@@ -379,30 +432,47 @@ void TraceGame::drawCompleteStatus(Ui::Renderer& tft) {
 
 void TraceGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
+    const Rect box = drawBox(f);
     const Glyph& g = TRACE_GLYPHS[glyphIndex_];
+
+    /* The waypoints are baked into panel pixels. If the panel changed shape
+     * under us, rebuild them against the new box -- the count is the same, so
+     * how far the child had got survives the rotation. */
+    if (box.x != box_.x || box.y != box_.y || box.w != box_.w || box.h != box_.h) {
+        resampleWaypoints(box);
+        markFullDirty();
+    }
 
     if (needsFullRender()) {
         Ui::clear(tft);
         host.drawTopBar(title());
-        drawModeTabs(tft);
+        drawModeTabs(tft, f);
 
-        Ui::drawPagerButton(tft, PREV_BTN, "Prev", true);
-        Ui::drawPagerButton(tft, NEXT_BTN, "Next", true);
+        Ui::drawPagerButton(tft, prevRect(f), "Prev", true);
+        Ui::drawPagerButton(tft, nextRect(f), "Next", true);
     } else {
-        tft.fillRect(76, 194, 168, 44, Ui::bg());
+        /* Clear only the status/progress strip between the two pagers, so the
+         * pagers themselves survive a partial repaint. */
+        const Rect status = statusRect(f);
+        const Rect prev = prevRect(f);
+        const int16_t stripX = static_cast<int16_t>(prev.x + prev.w + 8);
+        tft.fillRect(stripX, static_cast<int16_t>(status.y - 2),
+                     static_cast<int16_t>(nextRect(f).x - stripX - 8),
+                     static_cast<int16_t>(f.h - status.y), Ui::bg());
     }
 
-    tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());
+    tft.fillRect(box.x - 2, box.y - 2, box.w + 4, box.h + 4, Ui::bg());
     tft.setTextColor(Ui::panel(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
     char label[2] = {g.label, 0};
-    tft.drawString(label, DRAW_X + DRAW_W / 2, DRAW_Y + DRAW_H / 2, 1);
+    tft.drawString(label, box.x + box.w / 2, box.y + box.h / 2, 1);
 
     drawGuide(tft);
-    drawProgress(tft);
+    drawProgress(tft, f);
 
     if (complete_) {
-        drawCompleteStatus(tft);
+        drawCompleteStatus(tft, f);
     }
 
     tft.setTextDatum(TL_DATUM);
