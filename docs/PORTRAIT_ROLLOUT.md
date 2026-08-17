@@ -78,13 +78,13 @@ Legend: `todo` / `wip` / `done`
 | 5 | Whack | `WhackAMoleGame.cpp` | todo | |
 | 6 | Cinnamon | `CinnamonGame.cpp` | todo | partial redraw; photosensitivity — keep it partial |
 | 7 | Microku | `MicrokuGame.cpp` | todo | |
-| 8 | Shapes | `ShapeColorGame.cpp` | todo | |
+| 8 | Shapes | `ShapeColorGame.cpp` | done | two columns split the width; rows spread down the height |
 | 9 | Counting | `CountingGame.cpp` | done | dots per row derived from panel width; answers 4-up / 2x2 |
 | 10 | Money | `MoneyGame.cpp` | todo | 491 lines — largest game |
 | 11 | Fractions | `FractionGame.cpp` | todo | |
 | 12 | Maze | `MazeGame.cpp` | todo | fixed 22px cell grid |
 | 13 | Sorting | `SortGame.cpp` | todo | |
-| 14 | Color Mix | `ColorMixGame.cpp` | todo | |
+| 14 | Color Mix | `ColorMixGame.cpp` | done | swatches at w/4; answers 2x2 / stacked |
 | 15 | Slide | `SlidingPuzzleGame.cpp` | todo | square board |
 | 16 | Odd One | `OddOneOutGame.cpp` | done | 3x3 tray keeps 3 columns; banner bottom-anchored |
 | 17 | Shape Arith | `ObjectAddGame.cpp` | todo | |
@@ -137,3 +137,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 | shared plumbing | 2,324,041 | 73.9% | 71,980 |
 | +4 games (ttt, math, dice, coinflip) | 2,325,761 | 73.9% | 71,980 |
 | +3 games (multiply, counting, oddone) | 2,326,613 | 74.0% | 71,980 |
+| +3 games (shapes, colormix, sequence) | 2,327,553 | 74.0% | 71,980 |

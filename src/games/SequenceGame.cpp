@@ -2,6 +2,13 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t MODE_ROW_Y = TOP_BAR_HEIGHT + 2;
+constexpr int16_t SCORE_GUTTER = 68;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 40;
+constexpr int16_t SUBJECT_TOP = TOP_BAR_HEIGHT + 54;
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 122;
+constexpr uint8_t ANSWER_COUNT = 4;
+
 constexpr AppMetadata SEQUENCE_METADATA = {
     "calendar",
     "Calendar",
@@ -35,14 +42,31 @@ const char* SequenceGame::title() const {
         : sequenceAppMetadata().title;
 }
 
-Rect SequenceGame::modeBtn(uint8_t m) const {
-    return Rect{static_cast<int16_t>(8 + m * 124), 32, 120, 26};
+Rect SequenceGame::modeBtn(const Ui::Frame& f, uint8_t m) const {
+    /* SCORE_GUTTER is the corner the "n/m" line needs; the two buttons split
+     * what is left, giving the authored 120px in landscape and 78 in
+     * portrait -- still wider than "Months" at font 2. */
+    const int16_t w = static_cast<int16_t>((f.w - 16 - SCORE_GUTTER) / 2);
+    return Rect{static_cast<int16_t>(8 + m * (w + 4)), MODE_ROW_Y, w, 26};
 }
 
-Rect SequenceGame::answerTile(uint8_t i) const {
-    const uint8_t col = i % 2;
-    const uint8_t row = i / 2;
-    return Rect{static_cast<int16_t>(8 + col * 159), static_cast<int16_t>(152 + row * 48), 152, 40};
+Rect SequenceGame::subjectRect(const Ui::Frame& f) const {
+    int16_t w = 200;
+    if (w > f.w - 40) {
+        w = static_cast<int16_t>(f.w - 40);
+    }
+    return Ui::centreIn(Rect{0, SUBJECT_TOP, f.w, 52}, w, 52);
+}
+
+Rect SequenceGame::answerBand(const Ui::Frame& f) const {
+    return Rect{8, ANSWER_TOP, static_cast<int16_t>(f.w - 16),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 8)};
+}
+
+Rect SequenceGame::answerTile(const Ui::Frame& f, uint8_t i) const {
+    const uint8_t cols = Ui::answerColumns(f, ANSWER_COUNT);
+    const uint8_t rows = static_cast<uint8_t>(ANSWER_COUNT / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, i, 8);
 }
 
 uint8_t SequenceGame::itemCount() const {
@@ -101,11 +125,12 @@ void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
 
     // Mode toggle (always interactive)
-    if (modeBtn(0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    const Ui::Frame f = Ui::frame(host.display());
+    if (modeBtn(f, 0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (mode_ != Mode::Days) { mode_ = Mode::Days; newQuestion(); markDirty(); }
         return;
     }
-    if (modeBtn(1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (modeBtn(f, 1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (mode_ != Mode::Months) { mode_ = Mode::Months; newQuestion(); markDirty(); }
         return;
     }
@@ -114,7 +139,7 @@ void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
 
     // Answer tiles
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerTile(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (answerTile(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             selected_ = static_cast<int8_t>(i);
             answered_ = true;
             ++rounds_;
@@ -129,13 +154,14 @@ void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
 
 void SequenceGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
     // Mode toggle buttons
     for (uint8_t m = 0; m < 2; ++m) {
         const bool active = (mode_ == static_cast<Mode>(m));
-        Ui::drawButton(tft, modeBtn(m), m == 0 ? "Days" : "Months",
+        Ui::drawButton(tft, modeBtn(f, m), m == 0 ? "Days" : "Months",
             active ? Ui::rgb(36, 132, 204) : Ui::panel(),
             Ui::outline(),
             active ? TFT_WHITE : Ui::text());
@@ -146,7 +172,7 @@ void SequenceGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char scoreBuf[16];
     snprintf(scoreBuf, sizeof(scoreBuf), "%u/%u", score_, rounds_);
-    tft.drawString(scoreBuf, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(scoreBuf, f.w - 8, MODE_ROW_Y + 2, 2);
 
     // Question text
     tft.setTextDatum(MC_DATUM);
@@ -154,21 +180,22 @@ void SequenceGame::render(AppContext& host) {
     const char* qtypeStr = qtype_ == QType::After ? "AFTER" : "BEFORE";
     char prompt[32];
     snprintf(prompt, sizeof(prompt), "What comes %s:", qtypeStr);
-    tft.drawString(prompt, SCREEN_WIDTH / 2, 70, 2);
+    tft.drawString(prompt, f.cx(), PROMPT_Y, 2);
 
     // Subject highlight box
-    tft.fillRoundRect(60, 84, 200, 52, 8, Ui::surface());
-    tft.drawRoundRect(60, 84, 200, 52, 8, Ui::rgb(36, 132, 204));
+    const Rect subject = subjectRect(f);
+    tft.fillRoundRect(subject.x, subject.y, subject.w, subject.h, 8, Ui::surface());
+    tft.drawRoundRect(subject.x, subject.y, subject.w, subject.h, 8, Ui::rgb(36, 132, 204));
     tft.setTextColor(Ui::text(), Ui::surface());
     const char* subj = itemName(subject_);
-    // Fit long names
+    // Fit long names -- against the box we actually drew, not a fixed 180.
     uint8_t subjectFont = 4;
-    if (tft.textWidth(subj, 4) > 180) subjectFont = 2;
-    tft.drawString(subj, SCREEN_WIDTH / 2, 110, subjectFont);
+    if (tft.textWidth(subj, 4) > subject.w - 20) subjectFont = 2;
+    tft.drawString(subj, f.cx(), subject.y + subject.h / 2, subjectFont);
 
     // "?" label
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString("?", SCREEN_WIDTH / 2, 140, 2);
+    tft.drawString("?", f.cx(), subject.y + subject.h + 4, 2);
 
     // Answer tiles
     for (uint8_t i = 0; i < 4; ++i) {
@@ -178,7 +205,7 @@ void SequenceGame::render(AppContext& host) {
             if (i == correctPos_)                       { fill = Ui::success(); tc = TFT_BLACK; }
             else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error();   tc = TFT_BLACK; }
         }
-        const Rect tile = answerTile(i);
+        const Rect tile = answerTile(f, i);
         Ui::drawButton(tft, tile, itemName(options_[i]), fill, Ui::outline(), tc, false, 2);
     }
     tft.setTextDatum(TL_DATUM);

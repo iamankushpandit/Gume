@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -21,8 +22,12 @@ private:
     static const char* DAY_NAMES[7];
     static const char* MONTH_NAMES[12];
 
-    Rect modeBtn(uint8_t m) const;
-    Rect answerTile(uint8_t i) const;
+    /* Two mode buttons share the width left over once the score has its
+     * corner, and the four answer tiles go 2x2 or stacked. */
+    Rect modeBtn(const Ui::Frame& f, uint8_t m) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerTile(const Ui::Frame& f, uint8_t i) const;
+    Rect subjectRect(const Ui::Frame& f) const;
     void newQuestion();
     const char* itemName(uint8_t idx) const;
     uint8_t itemCount() const;

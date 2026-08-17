@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -28,8 +29,13 @@ private:
         const char* name;
     };
 
-    Rect choiceRect(uint8_t index) const;
-    Rect targetRect(uint8_t index) const;
+    /* Two columns of four: shapes on the left, outlines to match on the
+     * right. Both columns split the width evenly, and the four rows spread
+     * down whatever height there is, so portrait gets taller spacing rather
+     * than 95px of dead panel under the last row. */
+    Rect columnRect(const Ui::Frame& f, uint8_t index, bool rightColumn) const;
+    Rect choiceRect(const Ui::Frame& f, uint8_t index) const;
+    Rect targetRect(const Ui::Frame& f, uint8_t index) const;
     void newRound();
     bool allMatched() const;
     void drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const;

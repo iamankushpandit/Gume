@@ -2,6 +2,12 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 2;
+constexpr int16_t STATS_Y = TOP_BAR_HEIGHT + 20;
+constexpr int16_t ROWS_TOP = TOP_BAR_HEIGHT + 28;
+constexpr int16_t ROW_H = 38;
+constexpr uint8_t ROW_COUNT = 4;
+
 constexpr uint16_t SELECTED = 0xFEC0;
 constexpr uint16_t EMPTY_TARGET = 0xD6BA;
 
@@ -91,12 +97,22 @@ bool ShapeColorGame::allMatched() const {
     return true;
 }
 
-Rect ShapeColorGame::choiceRect(uint8_t index) const {
-    return Rect{16, static_cast<int16_t>(58 + index * 43), 136, 38};
+Rect ShapeColorGame::columnRect(const Ui::Frame& f, uint8_t index, bool rightColumn) const {
+    /* Two 136px columns need 272px of width, which 240 does not have. Split
+     * what is there instead: 136 each in landscape, 96 each in portrait. */
+    const int16_t colW = static_cast<int16_t>((f.w - 48) / 2);
+    const int16_t x = rightColumn ? static_cast<int16_t>(32 + colW) : 16;
+    const int16_t bottom = static_cast<int16_t>(f.h - 12);
+    const int16_t pitch = static_cast<int16_t>((bottom - ROWS_TOP - ROW_H) / (ROW_COUNT - 1));
+    return Rect{x, static_cast<int16_t>(ROWS_TOP + index * pitch), colW, ROW_H};
 }
 
-Rect ShapeColorGame::targetRect(uint8_t index) const {
-    return Rect{168, static_cast<int16_t>(58 + index * 43), 136, 38};
+Rect ShapeColorGame::choiceRect(const Ui::Frame& f, uint8_t index) const {
+    return columnRect(f, index, false);
+}
+
+Rect ShapeColorGame::targetRect(const Ui::Frame& f, uint8_t index) const {
+    return columnRect(f, index, true);
 }
 
 void ShapeColorGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const {
@@ -138,8 +154,9 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
+    const Ui::Frame f = Ui::frame(host.display());
     for (uint8_t i = 0; i < 4; ++i) {
-        if (!matched_[i] && choiceRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (!matched_[i] && choiceRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             ++taps_;
             selected_ = i;
             host.beepOk();
@@ -153,7 +170,7 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     for (uint8_t target = 0; target < 4; ++target) {
-        if (targetRect(target).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (targetRect(f, target).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             ++taps_;
             if (targetOrder_[target] == selected_) {
                 matched_[selected_] = true;
@@ -173,9 +190,11 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
 
 void ShapeColorGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
-    Ui::drawLabel(tft, Rect{10, 32, 300, 18}, "Tap a shape, then its matching outline", Ui::text(), 2, Align::Center);
+    Ui::drawLabel(tft, Rect{10, PROMPT_Y, static_cast<int16_t>(f.w - 20), 18},
+                  "Tap a shape, then its matching outline", Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
     char stats[32];
@@ -184,10 +203,10 @@ void ShapeColorGame::render(AppContext& host) {
     } else {
         snprintf(stats, sizeof(stats), "Taps %u", taps_);
     }
-    tft.drawString(stats, SCREEN_WIDTH - 8, 50, 1);
+    tft.drawString(stats, f.w - 8, STATS_Y, 1);
 
     for (uint8_t i = 0; i < 4; ++i) {
-        const Rect choice = choiceRect(i);
+        const Rect choice = choiceRect(f, i);
         const uint16_t fill = selected_ == i ? SELECTED : Ui::panel();
         tft.fillRoundRect(choice.x, choice.y, choice.w, choice.h, 6, fill);
         tft.drawRoundRect(choice.x, choice.y, choice.w, choice.h, 6, matched_[i] ? Ui::rgb(45, 154, 96) : TFT_DARKGREY);
@@ -199,7 +218,7 @@ void ShapeColorGame::render(AppContext& host) {
         tft.drawString(matched_[i] ? "matched" : items_[i].name, choice.x + 46, choice.y + choice.h / 2, matched_[i] ? 2 : 1);
 
         const uint8_t itemIndex = targetOrder_[i];
-        const Rect target = targetRect(i);
+        const Rect target = targetRect(f, i);
         tft.fillRoundRect(target.x, target.y, target.w, target.h, 6, Ui::surface());
         tft.drawRoundRect(target.x, target.y, target.w, target.h, 6, EMPTY_TARGET);
         drawShape(tft, items_[itemIndex].shape, target.x + 28, target.y + target.h / 2, 13, matched_[itemIndex] ? items_[itemIndex].color : TFT_DARKGREY, matched_[itemIndex]);
@@ -212,8 +231,12 @@ void ShapeColorGame::render(AppContext& host) {
         tft.drawRoundRect(54, 94, 212, 52, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Great matching!", SCREEN_WIDTH / 2, 112, 4);
-        tft.drawString("Tap to play again", SCREEN_WIDTH / 2, 137, 2);
+        /* 39% down the content area, which is y=112 on a 240px panel -- where
+         * this banner has always sat -- and stays visually centred at 320. */
+        const int16_t bannerY = static_cast<int16_t>(
+            TOP_BAR_HEIGHT + (f.h - TOP_BAR_HEIGHT) * 39 / 100);
+        tft.drawString("Great matching!", f.cx(), bannerY, 4);
+        tft.drawString("Tap to play again", f.cx(), bannerY + 25, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

@@ -2,6 +2,14 @@
 #include "engine/AppRegistry.h"
 
 namespace {
+constexpr int16_t HUD_Y = TOP_BAR_HEIGHT + 5;
+constexpr int16_t PROMPT_Y = TOP_BAR_HEIGHT + 22;
+constexpr int16_t SWATCH_Y = TOP_BAR_HEIGHT + 48;
+constexpr int16_t SWATCH_W = 60;
+constexpr int16_t SWATCH_H = 44;
+constexpr int16_t ANSWER_TOP = TOP_BAR_HEIGHT + 112;
+constexpr uint8_t ANSWER_COUNT = 4;
+
 constexpr ColorMixDefinition MIXES[] = {
     {"red", "blue", "purple", 0xF800, 0x041F, 0x9813},
     {"blue", "yellow", "green", 0x041F, 0xFFE0, 0x07E0},
@@ -53,10 +61,25 @@ void ColorMixGame::begin(AppContext& host) {
     markDirty();
 }
 
-Rect ColorMixGame::answerRect(uint8_t index) const {
-    const int16_t col = index % 2;
-    const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(26 + col * 148), static_cast<int16_t>(142 + row * 44), 120, 34};
+Rect ColorMixGame::swatchRect(const Ui::Frame& f, bool rightSwatch) const {
+    /* Quarter of the width plus 6 puts the pair at x=56 and x=204 on a 320px
+     * panel, which is where they were drawn, and keeps them clear of each
+     * other and of the "+" between them at 240. */
+    const int16_t offset = static_cast<int16_t>(f.w / 4 + 6);
+    const int16_t cx = rightSwatch ? static_cast<int16_t>(f.cx() + offset)
+                                   : static_cast<int16_t>(f.cx() - offset);
+    return Rect{static_cast<int16_t>(cx - SWATCH_W / 2), SWATCH_Y, SWATCH_W, SWATCH_H};
+}
+
+Rect ColorMixGame::answerBand(const Ui::Frame& f) const {
+    return Rect{26, ANSWER_TOP, static_cast<int16_t>(f.w - 52),
+                static_cast<int16_t>(f.h - ANSWER_TOP - 12)};
+}
+
+Rect ColorMixGame::answerRect(const Ui::Frame& f, uint8_t index) const {
+    const uint8_t cols = Ui::answerColumns(f, ANSWER_COUNT);
+    const uint8_t rows = static_cast<uint8_t>(ANSWER_COUNT / cols);
+    return Ui::gridCell(answerBand(f), cols, rows, index, 8);
 }
 
 void ColorMixGame::newQuestion() {
@@ -91,9 +114,9 @@ void ColorMixGame::newQuestion() {
     flashUntil_ = 0;
 }
 
-int8_t ColorMixGame::touchedAnswer(int16_t x, int16_t y) const {
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
+int8_t ColorMixGame::touchedAnswer(const Ui::Frame& f, int16_t x, int16_t y) const {
+    for (uint8_t i = 0; i < ANSWER_COUNT; ++i) {
+        if (answerRect(f, i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
     }
@@ -116,7 +139,7 @@ void ColorMixGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    const int8_t answer = touchedAnswer(touch.x, touch.y);
+    const int8_t answer = touchedAnswer(Ui::frame(host.display()), touch.x, touch.y);
     if (answer < 0) {
         return;
     }
@@ -140,30 +163,32 @@ void ColorMixGame::update(AppContext& host, const TouchPoint& touch) {
 
 void ColorMixGame::render(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     Ui::clear(tft);
     host.drawTopBar(title());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Score ") + score_ + "/" + attempts_, 10, 35, 2);
+    tft.drawString(String("Score ") + score_ + "/" + attempts_, 10, HUD_Y, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 35, 2);
-    Ui::drawLabel(tft, Rect{10, 52, 300, 18}, "What do you get?", Ui::text(), 2, Align::Center);
+    tft.drawString(String("Best ") + bestStreak_, f.w - 8, HUD_Y, 2);
+    Ui::drawLabel(tft, Rect{10, PROMPT_Y, static_cast<int16_t>(f.w - 20), 18},
+                  "What do you get?", Ui::text(), 2, Align::Center);
 
-    const Rect left{56, 78, 60, 44};
-    const Rect right{204, 78, 60, 44};
+    const Rect left = swatchRect(f, false);
+    const Rect right = swatchRect(f, true);
     tft.fillRoundRect(left.x, left.y, left.w, left.h, 6, active_->leftColor);
     tft.drawRoundRect(left.x, left.y, left.w, left.h, 6, Ui::outline());
     tft.fillRoundRect(right.x, right.y, right.w, right.h, 6, active_->rightColor);
     tft.drawRoundRect(right.x, right.y, right.w, right.h, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("+", SCREEN_WIDTH / 2, 100, 4);
+    tft.drawString("+", f.cx(), SWATCH_Y + SWATCH_H / 2, 4);
     tft.drawString(active_->left, left.x + left.w / 2, left.y + left.h + 12, 1);
     tft.drawString(active_->right, right.x + right.w / 2, right.y + right.h + 12, 1);
 
     for (uint8_t i = 0; i < 4; ++i) {
-        const Rect r = answerRect(i);
+        const Rect r = answerRect(f, i);
         tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, colors_[i]);
         tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
         const uint16_t labelBg = colors_[i];
@@ -175,10 +200,13 @@ void ColorMixGame::render(AppContext& host) {
 
     if (correctFlash_ || wrongFlash_) {
         const uint16_t color = correctFlash_ ? Ui::success() : Ui::error();
-        tft.fillRoundRect(96, 96, 128, 34, 8, color);
+        const Rect banner = Ui::centreIn(
+            Rect{0, static_cast<int16_t>(SWATCH_Y + 18), f.w, 34}, 128, 34);
+        tft.fillRoundRect(banner.x, banner.y, banner.w, banner.h, 8, color);
         tft.setTextColor(TFT_BLACK, color);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(correctFlash_ ? "Correct" : "Try again", SCREEN_WIDTH / 2, 113, 2);
+        tft.drawString(correctFlash_ ? "Correct" : "Try again",
+                       f.cx(), banner.y + banner.h / 2, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

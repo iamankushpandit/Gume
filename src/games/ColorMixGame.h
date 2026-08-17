@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct ColorMixDefinition {
@@ -24,9 +25,12 @@ public:
     void render(AppContext& host) override;
 
 private:
-    Rect answerRect(uint8_t index) const;
+    Rect answerBand(const Ui::Frame& f) const;
+    Rect answerRect(const Ui::Frame& f, uint8_t index) const;
+    /* The two colours being mixed, either side of the "+". */
+    Rect swatchRect(const Ui::Frame& f, bool rightSwatch) const;
     void newQuestion();
-    int8_t touchedAnswer(int16_t x, int16_t y) const;
+    int8_t touchedAnswer(const Ui::Frame& f, int16_t x, int16_t y) const;
 
     const ColorMixDefinition* active_ = nullptr;
     const char* labels_[4] = {};
