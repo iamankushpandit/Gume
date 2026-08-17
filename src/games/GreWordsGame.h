@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "engine/Progress.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -36,11 +37,14 @@ private:
 
     Rect flipTabRect(int16_t w) const;
     Rect quizTabRect(int16_t w) const;
-    Rect cardRect() const;
-    Rect optionRect(uint8_t i) const;
-    Rect knewRect() const;
-    Rect missedRect() const;
-    Rect nextRect() const;
+    Rect cardRect(const Ui::Frame& f) const;
+    Rect optionRect(const Ui::Frame& f, uint8_t i) const;
+    /* Three study buttons in a row. 92px each spans 296px, so in portrait
+      * they share the narrower width rather than running off the edge. */
+    Rect studyBand(const Ui::Frame& f) const;
+    Rect knewRect(const Ui::Frame& f) const;
+    Rect missedRect(const Ui::Frame& f) const;
+    Rect nextRect(const Ui::Frame& f) const;
 
     void nextWord();
     void buildOptions();

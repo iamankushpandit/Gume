@@ -6,6 +6,9 @@
 #include <cstring>
 
 namespace {
+constexpr int16_t CARD_TOP = TOP_BAR_HEIGHT + 28;
+constexpr int16_t OPTION_TOP = TOP_BAR_HEIGHT + 58;
+
 /* Progress::pickWeighted takes a plain function pointer, not a closure. */
 bool allowAny(uint16_t, void*) { return true; }
 constexpr uint32_t REVEAL_MS = 900;
@@ -44,14 +47,33 @@ Rect GreWordsGame::flipTabRect(int16_t w) const {
 Rect GreWordsGame::quizTabRect(int16_t w) const {
     return Rect{static_cast<int16_t>(w / 2), 30, static_cast<int16_t>(w - w / 2), 22};
 }
-Rect GreWordsGame::cardRect() const { return Rect{12, 58, 296, 130}; }
-Rect GreWordsGame::optionRect(uint8_t i) const {
-    // Below the word, which is font 4 centred at y=70 and so reaches ~83.
-    return Rect{10, static_cast<int16_t>(88 + i * 34), 300, 30};
+Rect GreWordsGame::cardRect(const Ui::Frame& f) const {
+    return Rect{12, CARD_TOP, static_cast<int16_t>(f.w - 24),
+                static_cast<int16_t>(studyBand(f).y - 4 - CARD_TOP)};
 }
-Rect GreWordsGame::knewRect()   const { return Rect{12,  192, 92, 30}; }
-Rect GreWordsGame::missedRect() const { return Rect{114, 192, 92, 30}; }
-Rect GreWordsGame::nextRect()   const { return Rect{216, 192, 92, 30}; }
+
+Rect GreWordsGame::optionRect(const Ui::Frame& f, uint8_t i) const {
+    // Below the word, which is font 4 centred at y=70 and so reaches ~83.
+    return Rect{10, static_cast<int16_t>(OPTION_TOP + i * 34),
+                static_cast<int16_t>(f.w - 20), 30};
+}
+
+Rect GreWordsGame::studyBand(const Ui::Frame& f) const {
+    return Rect{12, static_cast<int16_t>(f.h - 48),
+                static_cast<int16_t>(f.w - 24), 30};
+}
+
+Rect GreWordsGame::knewRect(const Ui::Frame& f) const {
+    return Ui::gridCell(studyBand(f), 3, 1, 0, 10);
+}
+
+Rect GreWordsGame::missedRect(const Ui::Frame& f) const {
+    return Ui::gridCell(studyBand(f), 3, 1, 1, 10);
+}
+
+Rect GreWordsGame::nextRect(const Ui::Frame& f) const {
+    return Ui::gridCell(studyBand(f), 3, 1, 2, 10);
+}
 
 void GreWordsGame::begin(AppContext& host) {
     progress_.begin(host, "greProg", GRE_WORD_COUNT);
@@ -150,6 +172,7 @@ void GreWordsGame::answer(AppContext& host, bool correct) {
 }
 
 void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     const int16_t w = static_cast<int16_t>(host.display().width());
 
     // A wrong answer holds the correct option highlighted for a moment before
@@ -174,31 +197,31 @@ void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
     if (revealUntilMs_ != 0) return;   // mid-reveal: ignore further taps
 
     if (mode_ == Mode::Flip) {
-        if (cardRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (cardRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             cardFlipped_ = !cardFlipped_;
             markFullDirty();
             return;
         }
         // Knew it / Didn't feed the same mastery data the quiz does, so study
         // mode is not wasted effort -- it just does not score.
-        if (knewRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (knewRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             progress_.record(currentWord_, true);
             progress_.maybeFlush();
             nextWord(); markFullDirty(); return;
         }
-        if (missedRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (missedRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             progress_.record(currentWord_, false);
             progress_.maybeFlush();
             nextWord(); markFullDirty(); return;
         }
-        if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (nextRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             nextWord(); markFullDirty(); return;
         }
         return;
     }
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        if (!optionRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
         chosenOption_ = static_cast<int8_t>(i);
         const bool correct = (i == correctOption_);
         answer(host, correct);
@@ -210,8 +233,9 @@ void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
 
 void GreWordsGame::renderFlip(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     const GreWord& word = GRE_WORDS[currentWord_];
-    const Rect card = cardRect();
+    const Rect card = cardRect(f);
 
     tft.fillRoundRect(card.x, card.y, card.w, card.h, 8, Ui::surface());
     tft.drawRoundRect(card.x, card.y, card.w, card.h, 8, Ui::outline());
@@ -240,16 +264,17 @@ void GreWordsGame::renderFlip(AppContext& host) {
     }
     tft.setTextDatum(TL_DATUM);
 
-    Ui::drawButton(tft, knewRect(),   "Knew it", Ui::rgb(45, 154, 96),
+    Ui::drawButton(tft, knewRect(f),   "Knew it", Ui::rgb(45, 154, 96),
                    Ui::outline(), TFT_WHITE, false, 2);
-    Ui::drawButton(tft, missedRect(), "Didn't",  Ui::rgb(178, 58, 58),
+    Ui::drawButton(tft, missedRect(f), "Didn't",  Ui::rgb(178, 58, 58),
                    Ui::outline(), TFT_WHITE, false, 2);
-    Ui::drawButton(tft, nextRect(),   "Next",    Ui::panel(),
+    Ui::drawButton(tft, nextRect(f),   "Next",    Ui::panel(),
                    Ui::outline(), Ui::text(), false, 2);
 }
 
 void GreWordsGame::renderQuiz(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    const Ui::Frame f = Ui::frame(tft);
     const GreWord& word = GRE_WORDS[currentWord_];
 
     tft.setTextDatum(MC_DATUM);
@@ -258,7 +283,7 @@ void GreWordsGame::renderQuiz(AppContext& host) {
     tft.setTextDatum(TL_DATUM);
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        const Rect r = optionRect(i);
+        const Rect r = optionRect(f, i);
         uint16_t fill = Ui::panel();
         uint16_t ink  = Ui::text();
         if (revealUntilMs_ != 0) {
@@ -281,6 +306,7 @@ void GreWordsGame::renderQuiz(AppContext& host) {
 }
 
 void GreWordsGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());
 

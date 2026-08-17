@@ -97,7 +97,7 @@ Legend: `todo` / `wip` / `done`
 | 24 | State Flags | `StateFlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 25 | State Maps | `StateMapGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 26 | Percent | `PercentCircleGame.cpp` | todo | |
-| 27 | GRE Words | `GreWordsGame.cpp` | todo | 4 constexpr rects |
+| 27 | GRE Words | `GreWordsGame.cpp` | done | card fills to the study row; the three buttons share the width |
 | 28 | Dice | `DiceGame.cpp` | done | Roll anchors to the bottom edge; dice size to the width |
 | 29 | Coin Flip | `CoinFlipGame.cpp` | done | coin/pips/verdict placed as fractions of the free band |
 
@@ -143,3 +143,4 @@ consolidate geometry into `GameLayout` rather than pushing on.
 | +3 games (time, fractions, numberline) | 2,329,529 | 74.1% | 71,980 |
 | +2 games (shapearith, microku) | 2,330,101 | 74.1% | 71,980 |
 | +4 games (flags, states, stateflags, statemaps) | 2,331,305 | 74.1% | 71,980 |
+| +1 game (grewords) | 2,331,865 | 74.1% | 71,980 |
