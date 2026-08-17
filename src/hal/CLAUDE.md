@@ -75,7 +75,17 @@ Percentage uses a piecewise LiPo discharge curve. A linear 3.2–4.2V map reads 
 
 `isBatteryPresent()` is deliberately **not** `getPowerSource() == BATTERY` — the old version returned false whenever the device was on external power, which reads as "no battery fitted" and is not the question being asked.
 
-Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k) and the no-battery behaviour of the pin. The board exposes no charge-status line, so `ChargingState` stays `UNKNOWN`.
+Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k) and the no-battery behaviour of the pin.
+
+## Charge detection
+
+The board exposes no charge-status line — the charger's CHRG pin is not wired to the ESP32 — so `getChargingState()` **infers** the answer from the cell voltage alone. `updateChargeState()` runs once per *fresh* telemetry sample (so at `BATTERY_SAMPLE_MS`, not per frame, however often a render path asks) and reads three signals: a step of `CHARGE_STEP_V` between consecutive samples, which is what makes the icon respond to a cable within ~2s; a voltage held above `V_CHARGER_HELD` (4.24V), which no resting cell reaches; and the trend of a low-passed average over `CHARGE_WINDOW_MS` (45s) for everything in between.
+
+Two things are deliberate and worth not undoing. **A flat window keeps the previous verdict** rather than resetting to unknown — mid-discharge a LiPo plateau spans 20mV across 40% of the capacity, so "no movement" is not evidence of anything. And **`FULL` is only reachable from `CHARGING`**, because a rested full pack and a finished charge are indistinguishable from one sample; claiming "charged" for a battery nobody watched charge is a lie the user would act on.
+
+`getPowerSource()` returns `EXTERNAL_POWER` either when there is no pack at all (above `V_NO_BATTERY`) or when the charge verdict says the cable is in. With a pack fitted the voltage stays under `V_NO_BATTERY` whether the cable is in or not, so the verdict is the only thing that tells the two apart.
+
+`isBatteryLow()` / `isBatteryCritical()` (≤15% / ≤5%) are both false while charging, so plugging in silences the warning at once instead of waiting for the reading to climb.
 
 ## BleBeacon.{h,cpp}
 

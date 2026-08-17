@@ -193,7 +193,7 @@ void KidsPlatformApp::renderScreenSaver() {
     tft.fillRect(static_cast<int16_t>(batCx - 12), static_cast<int16_t>(batCy - 6), 24, 12, TFT_BLACK);
     Ui::drawBatteryBadge(tft, batCx, batCy,
                          board_.getBatteryPercent(),
-                         board_.getPowerSource() == Board::PowerState::EXTERNAL_POWER,
+                         Ui::powerHint(board_),
                          TFT_BLACK);
 
     tft.fillRoundRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);

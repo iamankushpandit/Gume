@@ -20,6 +20,29 @@ constexpr CurvePoint LIPO_CURVE[] = {
 };
 constexpr uint8_t LIPO_CURVE_COUNT = sizeof(LIPO_CURVE) / sizeof(LIPO_CURVE[0]);
 
+/* ---- Charge inference ------------------------------------------------
+ * There is no CHRG line on this board, so "is it charging?" has to come out
+ * of the cell voltage alone. Three signals, cheapest first:
+ *
+ * 1. A step between two consecutive samples. Attaching USB pulls the terminal
+ *    voltage up within a second or two, and unplugging drops it back under
+ *    load; both are far larger than ADC noise, which is why this is the signal
+ *    that makes the icon respond to a cable within ~2s.
+ * 2. A voltage no resting cell reaches. A disconnected pack settles to about
+ *    4.15V within minutes of coming off charge, so anything held above
+ *    V_CHARGER_HELD is a charger holding it there.
+ * 3. The slow trend, for everything in between. Mid-discharge a LiPo sits on a
+ *    plateau where 40% of the capacity spans 20mV, so the window has to be
+ *    long enough that real movement clears the noise -- and when the window is
+ *    genuinely flat the previous verdict stands rather than flapping.
+ */
+constexpr float CHARGE_STEP_V = 0.060f;        // plug/unplug, sample to sample
+constexpr float V_CHARGER_HELD = 4.24f;        // above any resting cell
+constexpr float CHARGE_FULL_V = 4.13f;         // charged, once charging is known
+constexpr uint32_t CHARGE_WINDOW_MS = 45000;   // slow-trend window
+constexpr float CHARGE_TREND_V = 0.012f;       // movement that clears ADC noise
+constexpr float CHARGE_SMOOTH_ALPHA = 0.30f;   // low-pass on the trend input
+
 constexpr uint8_t BL_CHANNEL = 4;
 constexpr uint32_t BL_PWM_HZ = 5000;
 constexpr uint8_t BL_PWM_BITS = 8;
@@ -52,7 +75,59 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
     batterySample_ = sample;
     batterySampleMs_ = now;
     batterySampled_ = true;
+    updateChargeState(sample.batteryVoltage, now);
     return sample;
+}
+
+/* Called only on a fresh sample, so "the previous sample" is BATTERY_SAMPLE_MS
+ * ago regardless of how often the render path asked for telemetry. */
+void Board::updateChargeState(float volts, uint32_t nowMs) {
+    if (volts < V_IMPLAUSIBLE || volts > V_NO_BATTERY) {
+        // No pack, or USB with nothing to charge: there is no trend to read.
+        chargeState_ = ChargingState::UNKNOWN;
+        chargeTracking_ = false;
+        return;
+    }
+
+    if (!chargeTracking_) {
+        chargeLastV_ = volts;
+        chargeSmoothV_ = volts;
+        chargeRefV_ = volts;
+        chargeRefMs_ = nowMs;
+        chargeTracking_ = true;
+        return;   // UNKNOWN until there is something to compare against
+    }
+
+    const float step = volts - chargeLastV_;
+    chargeLastV_ = volts;
+    chargeSmoothV_ += (volts - chargeSmoothV_) * CHARGE_SMOOTH_ALPHA;
+
+    if (step >= CHARGE_STEP_V || volts >= V_CHARGER_HELD) {
+        chargeState_ = ChargingState::CHARGING;
+    } else if (step <= -CHARGE_STEP_V) {
+        chargeState_ = ChargingState::DISCHARGING;
+    } else if (nowMs - chargeRefMs_ < CHARGE_WINDOW_MS) {
+        return;   // window still open: no new evidence, keep the last verdict
+    } else {
+        const float trend = chargeSmoothV_ - chargeRefV_;
+        if (trend >= CHARGE_TREND_V) {
+            chargeState_ = ChargingState::CHARGING;
+        } else if (trend <= -CHARGE_TREND_V) {
+            chargeState_ = ChargingState::DISCHARGING;
+        } else if (chargeState_ == ChargingState::CHARGING &&
+                   chargeSmoothV_ >= CHARGE_FULL_V) {
+            /* Flat and high, having been charging: the charger has tapered
+             * off. A pack resting at the same voltage off the cable reads the
+             * same, which is why this is only reachable from CHARGING. */
+            chargeState_ = ChargingState::FULL;
+        } else if (chargeState_ == ChargingState::UNKNOWN) {
+            // Flat, low, and nothing has said charger: it is running on cell.
+            chargeState_ = ChargingState::DISCHARGING;
+        }
+    }
+
+    chargeRefV_ = chargeSmoothV_;
+    chargeRefMs_ = nowMs;
 }
 
 float Board::getBatteryVoltage() {
@@ -62,9 +137,16 @@ float Board::getBatteryVoltage() {
 Board::PowerState Board::getPowerSource() {
     const float vBat = readBatteryTelemetry().batteryVoltage;
     if (vBat > V_NO_BATTERY) {
-        return PowerState::EXTERNAL_POWER;
+        return PowerState::EXTERNAL_POWER;   // running with no pack attached
     }
     if (vBat >= V_IMPLAUSIBLE) {
+        /* With a pack fitted the cell voltage is all there is to go on, and it
+         * stays under V_NO_BATTERY whether the cable is in or not -- so the
+         * charger verdict is what distinguishes the two. */
+        if (chargeState_ == ChargingState::CHARGING ||
+            chargeState_ == ChargingState::FULL) {
+            return PowerState::EXTERNAL_POWER;
+        }
         return PowerState::BATTERY;
     }
     return PowerState::UNKNOWN;
@@ -96,7 +178,28 @@ int8_t Board::getBatteryPercent() {
 }
 
 Board::ChargingState Board::getChargingState() {
-    return ChargingState::UNKNOWN;
+    readBatteryTelemetry();   // keeps the verdict advancing off the render path
+    return chargeState_;
+}
+
+bool Board::isBatteryLow() {
+    const int8_t pct = getBatteryPercent();
+    if (pct < 0) return false;
+    if (chargeState_ == ChargingState::CHARGING ||
+        chargeState_ == ChargingState::FULL) {
+        return false;
+    }
+    return pct <= BATTERY_LOW_PERCENT;
+}
+
+bool Board::isBatteryCritical() {
+    const int8_t pct = getBatteryPercent();
+    if (pct < 0) return false;
+    if (chargeState_ == ChargingState::CHARGING ||
+        chargeState_ == ChargingState::FULL) {
+        return false;
+    }
+    return pct <= BATTERY_CRITICAL_PERCENT;
 }
 
 uint8_t Board::brightness() {

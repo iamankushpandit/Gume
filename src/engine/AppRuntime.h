@@ -68,9 +68,27 @@ private:
     void onScreenSaverHit();
     void resetScreenSaverRally(int16_t effW, int16_t effH);
     void renderScreenSaver();
-    /* Paint the current Nearby notification over the header, if there is one.
-     * Called after the screen has drawn itself, so it lands on top. */
-    void drawNearbyBanner(bool screenRepainted);
+    /* Paint the current header notification, if there is one. Called after the
+     * screen has drawn itself, so it lands on top. The battery warning wins
+     * over a Nearby event: one of them is a nicety, the other is the reason
+     * the console is about to switch off. */
+    void drawHeaderBanner(bool screenRepainted);
+
+    /* Raise, escalate and retire the "charge me" strip. Cheap enough to call
+     * every frame -- it reads the cached battery sample and returns early
+     * until BATTERY_CHECK_MS has passed. */
+    void tickBatteryWarning(uint32_t nowMs);
+
+    /* Mark the strip as needing paint and make the screen under it redraw. */
+    void requestBannerRepaint();
+
+    /* Long enough to read at a glance, and repeated rarely enough that it
+     * stays a warning rather than becoming furniture a child learns to ignore.
+     * A low battery is not an emergency: it has tens of minutes left at the
+     * point the strip first appears. */
+    static constexpr uint32_t BATTERY_CHECK_MS = 2000;
+    static constexpr uint32_t BATTERY_BANNER_MS = 6000;
+    static constexpr uint32_t BATTERY_REPEAT_MS = 120000;
 
     Board board_;
     Ui::TftRenderer renderer_{board_.display()};
@@ -98,6 +116,15 @@ private:
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;
+
+    /* The battery warning currently on screen, or nullptr. Points at a string
+     * literal, so there is no buffer here to keep in step. */
+    const char* batteryBanner_ = nullptr;
+    uint32_t batteryCheckMs_ = 0;
+    uint32_t batteryShownMs_ = 0;
+    uint32_t batteryHiddenMs_ = 0;
+    bool batteryEverHidden_ = false;
+    uint8_t batteryWarnLevel_ = 0;   // 0 none, 1 low, 2 critical
     uint32_t lastClockMinute_ = 0;
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;

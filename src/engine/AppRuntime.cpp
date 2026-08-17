@@ -128,6 +128,7 @@ void KidsPlatformApp::loop() {
     board_.tickTimeSync();
     board_.tickRgb();
     NearbyPlay::tick(board_);
+    tickBatteryWarning(nowMs);
 
     /* Rotation used to be decided only at screen transitions, which was fine
      * while nothing could change orientation without causing one. Settings
@@ -226,7 +227,7 @@ void KidsPlatformApp::loop() {
             activeGame_->clearDirty();
             repainted = true;
         }
-        drawNearbyBanner(repainted);
+        drawHeaderBanner(repainted);
     }
 
     const uint32_t workMs = millis() - nowMs;
@@ -244,8 +245,70 @@ void KidsPlatformApp::loop() {
  * just redrawn over it -- not on every frame. Repainting a 320x30 strip at
  * 50Hz for five seconds would spend milliseconds a frame redrawing text that
  * has not changed, and the frame budget is 20ms for everything. */
-void KidsPlatformApp::drawNearbyBanner(bool screenRepainted) {
-    const char* text = NearbyPlay::banner();
+/* The charger is the only way out of this state, so the warning is driven off
+ * Board's charge verdict rather than the percentage alone: plugging in clears
+ * it within a couple of seconds, long before the reading climbs. */
+void KidsPlatformApp::tickBatteryWarning(uint32_t nowMs) {
+    if (batteryCheckMs_ != 0 && nowMs - batteryCheckMs_ < BATTERY_CHECK_MS) {
+        return;
+    }
+    batteryCheckMs_ = nowMs;
+
+    const uint8_t level = board_.isBatteryCritical() ? 2
+                        : board_.isBatteryLow()      ? 1
+                                                     : 0;
+
+    if (level != batteryWarnLevel_) {
+        batteryWarnLevel_ = level;
+        /* Crossing a threshold -- in either direction -- restarts the cycle,
+         * so going from low to critical says so at once instead of waiting out
+         * the repeat interval left over from the milder warning. */
+        batteryEverHidden_ = false;
+        if (batteryBanner_ != nullptr) {
+            batteryBanner_ = nullptr;
+            requestBannerRepaint();
+        }
+    }
+
+    if (level == 0) {
+        if (batteryBanner_ != nullptr) {
+            batteryBanner_ = nullptr;
+            requestBannerRepaint();
+        }
+        return;
+    }
+
+    if (batteryBanner_ != nullptr) {
+        if (nowMs - batteryShownMs_ >= BATTERY_BANNER_MS) {
+            batteryBanner_ = nullptr;
+            batteryHiddenMs_ = nowMs;
+            batteryEverHidden_ = true;
+            requestBannerRepaint();
+        }
+        return;
+    }
+
+    if (batteryEverHidden_ && nowMs - batteryHiddenMs_ < BATTERY_REPEAT_MS) {
+        return;
+    }
+    batteryBanner_ = (level == 2) ? "Battery empty - plug in the charger"
+                                  : "Battery low - time to charge";
+    batteryShownMs_ = nowMs;
+    requestBannerRepaint();
+}
+
+/* The strip is painted over the screen's own header, so the screen underneath
+ * has to redraw before it can genuinely go away again. */
+void KidsPlatformApp::requestBannerRepaint() {
+    bannerNeedsPaint_ = true;
+    if (view_ == View::Game && activeGame_ != nullptr) {
+        activeGame_->requestRender();
+    }
+}
+
+void KidsPlatformApp::drawHeaderBanner(bool screenRepainted) {
+    const char* text = (batteryBanner_ != nullptr) ? batteryBanner_
+                                                   : NearbyPlay::banner();
     if (text == nullptr) {
         bannerNeedsPaint_ = false;
         return;

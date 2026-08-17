@@ -100,6 +100,8 @@ public:
     int8_t batteryPercent() { return board_.getBatteryPercent(); }
     bool batteryPresent() { return board_.isBatteryPresent(); }
     Board::ChargingState chargingState() { return board_.getChargingState(); }
+    bool batteryLow() { return board_.isBatteryLow(); }
+    bool batteryCritical() { return board_.isBatteryCritical(); }
     uint16_t screenSaverSeconds() { return board_.screenSaverSeconds(); }
     void setScreenSaverSeconds(uint16_t seconds) { board_.setScreenSaverSeconds(seconds); }
     Board::IdleAction idleAction() { return board_.idleAction(); }

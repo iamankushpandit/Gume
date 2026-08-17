@@ -177,7 +177,7 @@ void LauncherGame::render(GameHost& host) {
         Ui::drawWifiBadge(tft, static_cast<int16_t>(bx + 22), 60, Ui::surface());
         Ui::drawBatteryBadge(tft, static_cast<int16_t>(bx + 46), 60,
                              board.getBatteryPercent(),
-                             board.getPowerSource() == Board::PowerState::EXTERNAL_POWER,
+                             Ui::powerHint(board),
                              Ui::surface());
         if (BleBeacon::active()) {
             Ui::drawBleBadge(tft, static_cast<int16_t>(bx + 70), 60, Ui::surface());
@@ -209,7 +209,7 @@ void LauncherGame::render(GameHost& host) {
         Ui::drawWifiBadge(tft, static_cast<int16_t>(lW - 68), 34, Ui::surface());
         Ui::drawBatteryBadge(tft, static_cast<int16_t>(lW - 44), 34,
                              board.getBatteryPercent(),
-                             board.getPowerSource() == Board::PowerState::EXTERNAL_POWER,
+                             Ui::powerHint(board),
                              Ui::surface());
         tft.drawFastVLine(static_cast<int16_t>(lW - 110), 8, 32, Ui::outline());
     }
