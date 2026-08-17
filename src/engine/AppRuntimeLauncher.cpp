@@ -117,7 +117,7 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
         if (index >= count) {
             break;
         }
-        if (LauncherLayout::tileRect(slot, mode).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (LauncherLayout::tileRect(slot, mode, host.display().width(), host.display().height()).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.openApp(host.launcherEntry(index));
             return;
         }
@@ -224,40 +224,46 @@ void LauncherGame::render(GameHost& host) {
             break;
         }
         const AppDefinition& entry = host.launcherEntry(index);
-        const Rect r = LauncherLayout::tileRect(slot, mode);
+        const Rect r = LauncherLayout::tileRect(slot, mode, host.display().width(), host.display().height());
         const uint16_t fill = slot % 3 == 0 ? Ui::rgb(36, 132, 204)
                             : (slot % 3 == 1 ? Ui::rgb(45, 154, 96)
                                              : Ui::rgb(222, 83, 83));
         Ui::drawButton(tft, r, "", fill, TFT_DARKGREY, TFT_WHITE);
 
         char label[24];
+        /* Placed as fractions of the tile rather than at fixed offsets. The
+         * old numbers (icon 30 down, title at 68) were measured against a
+         * 96-tall portrait tile and a 46-tall landscape one; on the 4-inch
+         * board's much taller tiles they bunched everything against the top
+         * edge instead of sitting in the middle. */
         if (tall) {
-            drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + r.w / 2),
-                             static_cast<int16_t>(r.y + 30));
+            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
+            drawLauncherIcon(tft, entry.icon(), r, fill, cxT,
+                             static_cast<int16_t>(r.y + r.h * 31 / 100));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(MC_DATUM);
-            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
             copyFittedText(tft, entry.title(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 2);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 68), 2);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 71 / 100), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 1);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 87), 1);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 91 / 100), 1);
         } else {
-            drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + 24),
-                             static_cast<int16_t>(r.y + 22));
+            /* Icon centred vertically in the tile, text beside it around the
+             * same centre line. */
+            const int16_t iconCx = static_cast<int16_t>(r.x + LAUNCHER_ICON_BOX + 8);
+            const int16_t midY = static_cast<int16_t>(r.y + r.h / 2);
+            const int16_t textX = static_cast<int16_t>(iconCx + LAUNCHER_ICON_BOX + 6);
+            const int16_t textW = static_cast<int16_t>(r.x + r.w - textX - 6);
+            drawLauncherIcon(tft, entry.icon(), r, fill, iconCx, midY);
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(ML_DATUM);
-            copyFittedText(tft, entry.title(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 2);
-            tft.drawString(label, r.x + 48, r.y + 17, 2);
+            copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
+            tft.drawString(label, textX, static_cast<int16_t>(midY - 6), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
-            copyFittedText(tft, entry.subtitle(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 1);
-            tft.drawString(label, r.x + 48, r.y + 34, 1);
+            copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
+            tft.drawString(label, textX, static_cast<int16_t>(midY + 11), 1);
         }
     }
 

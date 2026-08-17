@@ -43,13 +43,18 @@
 
 namespace {
 
-/* Half-width of the box every icon must fit inside. See rule 3. */
-constexpr int16_t ICON_HALF = 18;
-/* The landscape tile is 46 tall and the icon is centred 22 down from its top,
- * so anything past 22 is off the tile outright; 18 keeps a margin inside the
- * rounded border. Stated as an assertion so the relationship is checked rather
- * than remembered. */
-static_assert(ICON_HALF <= 22, "icon box would overrun the landscape tile");
+/* Half-width of the box every icon must fit inside. See rule 3.
+ *
+ * Per-board, because the tile it has to fit inside is per-board: a 320x240
+ * panel gives 145x46 landscape tiles, where 18 is about the limit, while the
+ * 4-inch 480x320 gives 228x73 and the same icon looks lost in it. 24 is the
+ * 1.3x that matches the larger tile. */
+constexpr int16_t ICON_HALF = LAUNCHER_ICON_BOX;
+/* An icon centred half a tile down cannot be taller than that half, or it
+ * overruns the tile outright. Checked against the smallest tile the build can
+ * produce rather than remembered. */
+static_assert(ICON_HALF * 2 <= LAUNCHER_MIN_TILE_H,
+              "icon box would overrun the smallest launcher tile");
 /* Every rounded corner in this file. See rule 4. */
 constexpr int16_t RADIUS = 4;
 
