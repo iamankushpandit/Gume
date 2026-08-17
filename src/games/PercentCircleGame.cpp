@@ -5,7 +5,7 @@ namespace {
 constexpr uint16_t PERCENT_FILL = 0xFCA8;     // Ui::rgb(255, 202, 84) - golden/orange
 constexpr uint16_t PERCENT_EMPTY = 0x39EF;    // similar to surface
 constexpr uint16_t PERCENT_OUTLINE = 0x2478;  // Ui::rgb(36, 132, 204) - blue
-constexpr int16_t CIRCLE_CX = 96;
+constexpr int16_t CIRCLE_CX_WIDE = 96;
 constexpr int16_t CIRCLE_CY = 130;
 constexpr int16_t CIRCLE_RADIUS = 62;
 
@@ -177,6 +177,48 @@ void PercentCircleGame::markWrong() {
     flashUntil_ = millis() + 500UL;
 }
 
+int16_t PercentCircleGame::circleCx(const Ui::Frame& f) const {
+    /* Landscape keeps the circle left of the controls; portrait centres it,
+     * because the controls have moved underneath. */
+    return f.tall() ? f.cx() : CIRCLE_CX_WIDE;
+}
+
+Rect PercentCircleGame::controlsRect(const Ui::Frame& f) const {
+    if (f.tall()) {
+        return Rect{10, static_cast<int16_t>(CIRCLE_CY + CIRCLE_RADIUS + 16),
+                    static_cast<int16_t>(f.w - 20), 88};
+    }
+    return Rect{164, static_cast<int16_t>(TOP_BAR_HEIGHT + 66),
+                static_cast<int16_t>(f.w - 174), 88};
+}
+
+Rect PercentCircleGame::stepperBand(const Ui::Frame& f) const {
+    const Rect c = controlsRect(f);
+    return Rect{c.x, static_cast<int16_t>(c.y + 56), c.w, 34};
+}
+
+Rect PercentCircleGame::optionRect(const Ui::Frame& f, uint8_t index) const {
+    return Ui::gridCell(controlsRect(f), 2, 2, index, 6);
+}
+
+/* minus / value / plus / ok share one four-wide row, which lands back on the
+ * authored x=164/200/240/276 at y=152 in landscape. */
+Rect PercentCircleGame::minusRect(const Ui::Frame& f) const {
+    return Ui::gridCell(stepperBand(f), 4, 1, 0, 2);
+}
+
+Rect PercentCircleGame::valueRect(const Ui::Frame& f) const {
+    return Ui::gridCell(stepperBand(f), 4, 1, 1, 2);
+}
+
+Rect PercentCircleGame::plusRect(const Ui::Frame& f) const {
+    return Ui::gridCell(stepperBand(f), 4, 1, 2, 2);
+}
+
+Rect PercentCircleGame::okRect(const Ui::Frame& f) const {
+    return Ui::gridCell(stepperBand(f), 4, 1, 3, 2);
+}
+
 void PercentCircleGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
     const float step = PI / 24.0f;
     float angle = startAngle;
@@ -191,27 +233,27 @@ void PercentCircleGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int
     }
 }
 
-void PercentCircleGame::drawCircle(Ui::Renderer& tft, uint8_t percent, bool highlight) const {
-    tft.fillCircle(CIRCLE_CX, CIRCLE_CY, CIRCLE_RADIUS + 3, highlight ? Ui::warning() : Ui::surface());
-    tft.fillCircle(CIRCLE_CX, CIRCLE_CY, CIRCLE_RADIUS, PERCENT_EMPTY);
+void PercentCircleGame::drawCircle(Ui::Renderer& tft, const Ui::Frame& f, uint8_t percent, bool highlight) const {
+    tft.fillCircle(circleCx(f), CIRCLE_CY, CIRCLE_RADIUS + 3, highlight ? Ui::warning() : Ui::surface());
+    tft.fillCircle(circleCx(f), CIRCLE_CY, CIRCLE_RADIUS, PERCENT_EMPTY);
 
     if (percent > 0) {
         const float fillAngle = (percent / 100.0f) * TWO_PI;
-        fillSlice(tft, CIRCLE_CX, CIRCLE_CY, CIRCLE_RADIUS, -PI / 2.0f, -PI / 2.0f + fillAngle, PERCENT_FILL);
+        fillSlice(tft, circleCx(f), CIRCLE_CY, CIRCLE_RADIUS, -PI / 2.0f, -PI / 2.0f + fillAngle, PERCENT_FILL);
     }
 
-    tft.drawCircle(CIRCLE_CX, CIRCLE_CY, CIRCLE_RADIUS, PERCENT_OUTLINE);
+    tft.drawCircle(circleCx(f), CIRCLE_CY, CIRCLE_RADIUS, PERCENT_OUTLINE);
 
     for (uint8_t i = 0; i < 10; ++i) {
         const float angle = -PI / 2.0f + i * TWO_PI / 10.0f;
-        const int16_t x = CIRCLE_CX + static_cast<int16_t>(cosf(angle) * CIRCLE_RADIUS);
+        const int16_t x = circleCx(f) + static_cast<int16_t>(cosf(angle) * CIRCLE_RADIUS);
         const int16_t y = CIRCLE_CY + static_cast<int16_t>(sinf(angle) * CIRCLE_RADIUS);
-        tft.drawLine(CIRCLE_CX, CIRCLE_CY, x, y, Ui::rgb(100, 150, 200));
+        tft.drawLine(circleCx(f), CIRCLE_CY, x, y, Ui::rgb(100, 150, 200));
     }
 }
 
-void PercentCircleGame::drawReadCircleMode(Ui::Renderer& tft) const {
-    drawCircle(tft, targetPercent_, false);
+void PercentCircleGame::drawReadCircleMode(Ui::Renderer& tft, const Ui::Frame& f) const {
+    drawCircle(tft, f, targetPercent_, false);
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = Ui::panel();
@@ -230,12 +272,12 @@ void PercentCircleGame::drawReadCircleMode(Ui::Renderer& tft) const {
 
         char label[16];
         snprintf(label, sizeof(label), "%u%%", options_[i]);
-        Ui::drawButton(tft, optionRect(i), label, fill, outline, text, false, 2);
+        Ui::drawButton(tft, optionRect(f, i), label, fill, outline, text, false, 2);
     }
 }
 
-void PercentCircleGame::drawMakeCircleMode(Ui::Renderer& tft) const {
-    drawCircle(tft, currentPercent_, false);
+void PercentCircleGame::drawMakeCircleMode(Ui::Renderer& tft, const Ui::Frame& f) const {
+    drawCircle(tft, f, currentPercent_, false);
 
     tft.fillRoundRect(200, 152, 38, 34, 4, Ui::panel());
     tft.drawRoundRect(200, 152, 38, 34, 4, Ui::outline());
@@ -245,18 +287,18 @@ void PercentCircleGame::drawMakeCircleMode(Ui::Renderer& tft) const {
     snprintf(valueStr, sizeof(valueStr), "%u%%", currentPercent_);
     tft.drawString(valueStr, 219, 169, 1);
 
-    Ui::drawPagerButton(tft, minusRect(), "âˆ’", currentPercent_ > 0);
-    Ui::drawPagerButton(tft, plusRect(), "+", currentPercent_ < 100);
+    Ui::drawPagerButton(tft, minusRect(f), "âˆ’", currentPercent_ > 0);
+    Ui::drawPagerButton(tft, plusRect(f), "+", currentPercent_ < 100);
 
     uint16_t okFill = currentPercent_ == targetPercent_ ? Ui::success() : Ui::panel();
     uint16_t okText = currentPercent_ == targetPercent_ ? TFT_BLACK : Ui::text();
-    Ui::drawButton(tft, okRect(), "âœ“", okFill, Ui::outline(), okText, false, 2);
+    Ui::drawButton(tft, okRect(f), "âœ“", okFill, Ui::outline(), okText, false, 2);
 
     tft.setTextDatum(TL_DATUM);
 }
 
-void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft) const {
-    drawCircle(tft, targetPercent_, false);
+void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft, const Ui::Frame& f) const {
+    drawCircle(tft, f, targetPercent_, false);
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = Ui::panel();
@@ -275,18 +317,19 @@ void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft) const {
 
         char label[16];
         snprintf(label, sizeof(label), "%u", options_[i]);
-        Ui::drawButton(tft, optionRect(i), label, fill, outline, text, false, 2);
+        Ui::drawButton(tft, optionRect(f, i), label, fill, outline, text, false, 2);
     }
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
     char circleLabel[32];
     snprintf(circleLabel, sizeof(circleLabel), "%u", (baseNumber_ * targetPercent_) / 100);
-    tft.drawString(circleLabel, CIRCLE_CX, CIRCLE_CY, 2);
+    tft.drawString(circleLabel, circleCx(f), CIRCLE_CY, 2);
     tft.setTextDatum(TL_DATUM);
 }
 
 void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
+    const Ui::Frame f = Ui::frame(host.display());
     if (flashIndex_ >= 0 && millis() > flashUntil_) {
         flashIndex_ = -1;
         markDirty();
@@ -304,7 +347,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (roundType_ == RoundType::ReadCircle || roundType_ == RoundType::PercentOfNumber) {
         for (uint8_t i = 0; i < 4; ++i) {
-            if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (optionRect(f, i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 if (i == correctButton_) {
                     markCorrect(host);
                 } else {
@@ -316,7 +359,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
             }
         }
     } else if (roundType_ == RoundType::MakeCircle) {
-        if (minusRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (minusRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (currentPercent_ > 0) {
                 currentPercent_ -= 5;
                 markDirty();
@@ -324,7 +367,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
             return;
         }
 
-        if (plusRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (plusRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (currentPercent_ < 100) {
                 currentPercent_ += 5;
                 markDirty();
@@ -332,7 +375,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
             return;
         }
 
-        if (okRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (okRect(f).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (currentPercent_ == targetPercent_) {
                 markCorrect(host);
             } else {
@@ -346,6 +389,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void PercentCircleGame::render(AppContext& host) {
+    const Ui::Frame f = Ui::frame(host.display());
     Ui::Renderer& tft = host.display();
 
     if (needsFullRender()) {
@@ -353,30 +397,31 @@ void PercentCircleGame::render(AppContext& host) {
         host.drawTopBar(title());
     }
 
-    tft.fillRect(0, 48, SCREEN_WIDTH, 34, Ui::bg());
+    tft.fillRect(0, TOP_BAR_HEIGHT + 18, f.w, 34, Ui::bg());
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(promptBuffer_, 200, 60, 4);
+    tft.drawString(promptBuffer_, f.tall() ? f.cx() : 200, TOP_BAR_HEIGHT + 30, 4);
     tft.setTextDatum(TL_DATUM);
 
     if (roundType_ == RoundType::ReadCircle) {
-        drawReadCircleMode(tft);
+        drawReadCircleMode(tft, f);
     } else if (roundType_ == RoundType::MakeCircle) {
-        drawMakeCircleMode(tft);
+        drawMakeCircleMode(tft, f);
     } else {
-        drawPercentOfNumberMode(tft);
+        drawPercentOfNumberMode(tft, f);
     }
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.fillRect(0, 222, SCREEN_WIDTH, 18, Ui::bg());
+    tft.fillRect(0, static_cast<int16_t>(f.h - 18), f.w, 18, Ui::bg());
     char scoreStr[48];
     snprintf(scoreStr, sizeof(scoreStr), "Score: %u  Streak: %u  Lvl: %u", score_, streak_, level());
-    tft.drawString(scoreStr, 8, 226, 1);
+    tft.drawString(scoreStr, 8, static_cast<int16_t>(f.h - 14), 1);
 
     if (roundComplete_) {
-        tft.fillRoundRect(52, 96, 216, 68, 8, Ui::panel());
-        tft.drawRoundRect(52, 96, 216, 68, 8, Ui::success());
+        const Rect done = Ui::centreIn(Rect{0, 0, f.w, f.h}, 216, 68);
+        tft.fillRoundRect(done.x, done.y, done.w, done.h, 8, Ui::panel());
+        tft.drawRoundRect(done.x, done.y, done.w, done.h, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
         tft.drawString("Correct!", 160, 120, 4);

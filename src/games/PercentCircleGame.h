@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/GameLayout.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -44,31 +45,24 @@ private:
     void markWrong();
     void generateOptions();
 
-    Rect optionRect(uint8_t index) const {
-        const int16_t col = index % 2;
-        const int16_t row = index / 2;
-        return Rect{static_cast<int16_t>(164 + col * 76), static_cast<int16_t>(96 + row * 44), 70, 38};
-    }
-
-    Rect minusRect() const {
-        return Rect{164, 152, 34, 34};
-    }
-
-    Rect valueRect() const {
-        return Rect{200, 152, 38, 34};
-    }
-
-    Rect plusRect() const {
-        return Rect{240, 152, 34, 34};
-    }
-
-    Rect okRect() const {
-        return Rect{276, 152, 34, 34};
-    }
+    /* The only screen in the catalog that genuinely needs two layouts.
+     *
+     * It is a circle beside a column of controls, and that column needs about
+     * 146px starting at x=164 -- 310px in total. A 240px panel cannot give it
+     * that at any inset, so portrait puts the controls *under* the circle
+     * instead of beside it. Everything else derives from this one rect. */
+    Rect controlsRect(const Ui::Frame& f) const;
+    Rect stepperBand(const Ui::Frame& f) const;
+    Rect optionRect(const Ui::Frame& f, uint8_t index) const;
+    Rect minusRect(const Ui::Frame& f) const;
+    Rect valueRect(const Ui::Frame& f) const;
+    Rect plusRect(const Ui::Frame& f) const;
+    Rect okRect(const Ui::Frame& f) const;
+    int16_t circleCx(const Ui::Frame& f) const;
 
     void fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
-    void drawCircle(Ui::Renderer& tft, uint8_t percent, bool highlight) const;
-    void drawReadCircleMode(Ui::Renderer& tft) const;
-    void drawMakeCircleMode(Ui::Renderer& tft) const;
-    void drawPercentOfNumberMode(Ui::Renderer& tft) const;
+    void drawCircle(Ui::Renderer& tft, const Ui::Frame& f, uint8_t percent, bool highlight) const;
+    void drawReadCircleMode(Ui::Renderer& tft, const Ui::Frame& f) const;
+    void drawMakeCircleMode(Ui::Renderer& tft, const Ui::Frame& f) const;
+    void drawPercentOfNumberMode(Ui::Renderer& tft, const Ui::Frame& f) const;
 };

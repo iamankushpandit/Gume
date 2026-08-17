@@ -96,7 +96,7 @@ Legend: `todo` / `wip` / `done`
 | 23 | Trace | `TraceGame.cpp` | todo | glyph stroke data is in normalised coords - check TraceGlyphData before scaling |
 | 24 | State Flags | `StateFlagGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
 | 25 | State Maps | `StateMapGame.cpp` | done | picture-quiz family: centred art, choices stack in portrait |
-| 26 | Percent | `PercentCircleGame.cpp` | todo | **measured** - the one screen needing a real portrait branch, see below |
+| 26 | Percent | `PercentCircleGame.cpp` | done | stacked portrait branch as measured |
 | 27 | GRE Words | `GreWordsGame.cpp` | done | card fills to the study row; the three buttons share the width |
 | 28 | Dice | `DiceGame.cpp` | done | Roll anchors to the bottom edge; dice size to the width |
 | 29 | Coin Flip | `CoinFlipGame.cpp` | done | coin/pips/verdict placed as fractions of the free band |
