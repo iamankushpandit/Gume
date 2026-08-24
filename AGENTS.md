@@ -234,6 +234,84 @@ Everything above still applies, plus:
   **About radios page** and the **README privacy section** are part of the same
   change — and About must *read* the state, not restate it.
 
+## Supporting a new board — the whole checklist
+
+Before adding support for a new hardware variant, complete a comprehensive hardware reference and verification app. This prevents silent failures, driver misconfigurations, and port-specific quirks from reaching users.
+
+### 1. Hardware documentation — must precede any game support
+
+1. **Create `BOARD_<VARIANT>.md`** — complete hardware reference for the new board
+   - Copy structure from [`BOARD_E32R28T-1.md`](BOARD_E32R28T-1.md) — the template
+   - Sections: overview, GPIO pinout, display driver, touch, battery sensing, RGB LED, radios, memory, watchdog, known issues, verification procedures
+   - Include all TFT_eSPI flags, SPI frequencies, ADC attenuation, power thresholds
+   - Document every GPIO assignment and SPI bus topology (which devices share which buses?)
+   - **List every known hardware bug, quirk and workaround** (crossed LED pins, inverted polarity, ADC2 unavailable, etc.)
+   - Do NOT skip "known issues" section — it is where you prevent the next person from re-discovering the same bugs
+
+2. **Update `AGENTS.md`** to reference the new board file in this section
+
+3. **Update `platformio.ini`** with a new environment for the variant
+   - Example: `[panel_st7789]` or `[env:app4]` for a 4-inch board
+   - Include all build flags (`-D TFT_WIDTH=`, `-D TFT_HEIGHT=`, `-D PANEL_<VARIANT>=1`, etc.)
+   - Partition table (3 MB app? 1.5 MB app?)
+   - SPI speeds (some displays require lower frequencies)
+
+### 2. Hardware verification app — exercises all subsystems before game support
+
+1. **Create a bringup/test app** (can extend the existing `env:bringup` environment)
+   - Exercises every hardware subsystem: display, touch, battery, BLE, Wi-Fi, RGB LED
+   - Each subsystem has a simple test: fill colors, show coordinates, read voltage, scan networks
+   - Display full-screen color test + rotation check + brightness slider
+   - Touch: show crosshairs, tap them, verify coordinates match screen, check pressure threshold
+   - Battery: show voltage, percentage, charging state; physically plug/unplug USB and verify state changes within 2s
+   - BLE: turn beacon on/off, use phone scanner to verify name and payload format
+   - Wi-Fi: connect to network, fetch NTP time, verify clock advances
+   - RGB LED: show all colours, verify no crossed polarity or missing channels
+   - Run tests from serial monitor or on-device UI menu
+
+2. **All tests must pass before merging the variant into main:**
+   - [ ] Display renders all colors correctly at native resolution
+   - [ ] Touch calibration works; coordinates accurate to ±10 pixels
+   - [ ] Battery readings within 0.1V of meter; charging/discharging detected within 2s of USB plug/unplug
+   - [ ] BLE beacon visible on phone with correct device name and manufacturer data payload
+   - [ ] Wi-Fi connects and fetches time; clock is correct
+   - [ ] RGB LED shows correct colours (no crossed channels)
+   - [ ] Watchdog reboot works (hang the loop; device reboots after 12s)
+
+3. **Document test procedures in the board file** — section 11: Hardware Verification Procedures
+   - Step-by-step instructions so future agents can verify a new board independently
+   - Expected success criteria (e.g., "voltage within ±0.1V of meter")
+
+### 3. Architecture changes for multi-board support (applies if adding non-playable-game code)
+
+1. **`ScaledRenderer` or similar display scaling** — if supporting different resolutions (e.g., 240×320 vs 480×320)
+   - Games author to fixed 320×240 logical canvas
+   - Renderer stretches to physical panel size
+   - Touch reverse-scales from physical space back to logical canvas
+
+2. **Pin abstraction layer** — if multiple GPIO assignments across boards
+   - Do NOT hardcode pins in driver code; use `BoardConfig.h` and `-D` flags
+   - Use compile-time constants; no runtime conditionals for pins
+
+3. **Driver selection flags** — if multiple display/touch controllers
+   - Use `-D PANEL_<NAME>=1` and `#if PANEL_<NAME>` in driver init
+   - TFT_eSPI already supports this via `-D <DRIVER>=1` flags
+
+### 4. Verification before merge
+
+1. `python tools/check_docs.py` — must pass (board list, build figures)
+2. `pio run -e app` and `pio run -e app4` (or new variant) — both must build
+3. Firmware flashes successfully on the new board
+4. All hardware verification tests pass
+5. At least one playable game runs and is responsive (no frames > 40ms)
+
+### What NOT to do
+
+- Do NOT add support for a new board without a `BOARD_<VARIANT>.md` file
+- Do NOT merge to `main` unless all verification tests pass
+- Do NOT ship a board driver without documenting known bugs and workarounds
+- Do NOT change display/touch driver code without also updating the board reference file
+
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
