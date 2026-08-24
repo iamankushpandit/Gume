@@ -46,40 +46,25 @@ Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
 Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
 
 Rect SettingsGame::pinKeyRect(uint8_t row, uint8_t col) const {
-    const int16_t W = SCREEN_WIDTH;
-    const int16_t H = SCREEN_HEIGHT;
-    const bool tall = H > W;
-    const int16_t keyW = tall ? 60 : 88;
-    const int16_t keyH = tall ? 32 : 36;
-    const int16_t keySpacingX = tall ? 70 : 96;
-    const int16_t keypadStartX = tall ? (W - keySpacingX * 3) / 2 : 12;
-    const int16_t keypadStartY = tall ? 100 : 120;
+    const int16_t keyW = 50;
+    const int16_t keyH = 40;
+    const int16_t keySpacingX = 60;
+    const int16_t keypadStartX = SCREEN_WIDTH / 2 - (keySpacingX * 3) / 2 - keyW / 2;
+    const int16_t keypadStartY = 120;
     return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
-                static_cast<int16_t>(keypadStartY + row * 40), keyW, keyH};
+                static_cast<int16_t>(keypadStartY + row * 50), keyW, keyH};
 }
 
 Rect SettingsGame::pinDeleteRect() const {
-    const int16_t W = SCREEN_WIDTH;
-    const int16_t H = SCREEN_HEIGHT;
-    const bool tall = H > W;
-    if (tall) {
-        const int16_t keyW = 60;
-        const int16_t keyH = 32;
-        return Rect{static_cast<int16_t>(W / 2 - keyW - 10), 200, keyW, keyH};
-    }
-    return Rect{12, 200, 88, 36};
+    const int16_t keyW = 50;
+    const int16_t keyH = 40;
+    return Rect{static_cast<int16_t>(SCREEN_WIDTH / 2 - 110), 270, keyW, keyH};
 }
 
 Rect SettingsGame::pinConfirmRect() const {
-    const int16_t W = SCREEN_WIDTH;
-    const int16_t H = SCREEN_HEIGHT;
-    const bool tall = H > W;
-    if (tall) {
-        const int16_t keyW = 60;
-        const int16_t keyH = 32;
-        return Rect{static_cast<int16_t>(W / 2 + 10), 200, keyW, keyH};
-    }
-    return Rect{232, 200, 88, 36};
+    const int16_t keyW = 50;
+    const int16_t keyH = 40;
+    return Rect{static_cast<int16_t>(SCREEN_WIDTH / 2 + 60), 270, keyW, keyH};
 }
 
 bool SettingsGame::sleepRowActive(Board& board) const {

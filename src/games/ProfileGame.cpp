@@ -104,33 +104,28 @@ Rect ProfileGame::gamesNextRect(int16_t screenW, int16_t screenH) const {
 }
 
 Rect ProfileGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
-    const bool tall = screenH > screenW;
-    const int16_t keyW = tall ? 36 : 40;
-    const int16_t keyH = tall ? 36 : 40;
-    const int16_t keySpacingX = tall ? 44 : 50;
-    const int16_t keySpacingY = tall ? 44 : 50;
+    const int16_t keyW = 50;
+    const int16_t keyH = 40;
+    const int16_t keySpacingX = 60;
+    const int16_t keySpacingY = 50;
     const int16_t keypadStartX = screenW / 2 - (keySpacingX * 3) / 2 - keyW / 2;
-    const int16_t keypadStartY = tall ? 75 : 70;
+    const int16_t keypadStartY = 70;
     return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
                 static_cast<int16_t>(keypadStartY + row * keySpacingY), keyW, keyH};
 }
 
 Rect ProfileGame::pinDeleteRect(int16_t screenW, int16_t screenH) const {
-    const bool tall = screenH > screenW;
-    const int16_t keyW = tall ? 36 : 40;
-    const int16_t keyH = tall ? 36 : 40;
-    const int16_t keypadStartX = screenW / 2 - 20;
-    const int16_t buttonY = tall ? 225 : 220;
-    return Rect{static_cast<int16_t>(keypadStartX - 50), buttonY, keyW, keyH};
+    const int16_t keyW = 50;
+    const int16_t keyH = 40;
+    const int16_t buttonY = 270;
+    return Rect{static_cast<int16_t>(screenW / 2 - 110), buttonY, keyW, keyH};
 }
 
 Rect ProfileGame::pinConfirmRect(int16_t screenW, int16_t screenH) const {
-    const bool tall = screenH > screenW;
-    const int16_t keyW = tall ? 36 : 40;
-    const int16_t keyH = tall ? 36 : 40;
-    const int16_t keypadStartX = screenW / 2 - 20;
-    const int16_t buttonY = tall ? 225 : 220;
-    return Rect{static_cast<int16_t>(keypadStartX + 50), buttonY, keyW, keyH};
+    const int16_t keyW = 50;
+    const int16_t keyH = 40;
+    const int16_t buttonY = 270;
+    return Rect{static_cast<int16_t>(screenW / 2 + 60), buttonY, keyW, keyH};
 }
 
 uint8_t ProfileGame::visibleGameRows(int16_t screenH) const {
@@ -169,8 +164,8 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
                 return;
             }
             if (slotRect(r, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                // Require PIN to switch to Admin profile
-                if (board.isAdminProfile(prof) && !board.isAdminProfile(board.activeProfile())) {
+                // Require PIN every time admin profile is accessed
+                if (board.isAdminProfile(prof)) {
                     profileToSwitchTo_ = prof;
                     adminPinAttempt_ = 0;
                     phase_ = Phase::PinEntry;
