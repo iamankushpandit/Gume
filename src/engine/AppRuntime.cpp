@@ -112,13 +112,15 @@ void KidsPlatformApp::begin() {
     lastActivityMs_ = millis();
     Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
 
-    /* First-boot admin setup: if no admin is configured, launch the setup wizard. */
+    /* First-boot: automatically create default Admin profile with PIN 0000. */
     if (board_.kidCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
-        activeGame_ = &games_.setupAdmin;
-        activeGame_->begin(*this);
-    } else {
-        openProfiles();
+        uint8_t adminIdx = board_.addKid(String("Admin"));
+        board_.setAdminProfileIndex(adminIdx);
+        board_.setAdminPin(0);
+        board_.setActiveProfile(adminIdx);
+        Serial.println("[boot] Created default Admin profile with PIN 0000");
     }
+    openProfiles();
 }
 
 void KidsPlatformApp::loop() {
