@@ -30,7 +30,11 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
         return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, screenW - 46)), 20};
     }
     const int16_t x = 124;
-    const int16_t rightLimit = static_cast<int16_t>(screenW - 114);
+    /* Stops short of the header's status hairline at lW-116. That hairline
+     * moved out by 6px when the battery badge grew to carry its percentage;
+     * the profile name gives up those pixels because it truncates gracefully
+     * and the badge row does not. */
+    const int16_t rightLimit = static_cast<int16_t>(screenW - 120);
     const int16_t w = static_cast<int16_t>(min<int16_t>(86, max<int16_t>(52, rightLimit - x)));
     return Rect{x, 30, w, 18};
 }

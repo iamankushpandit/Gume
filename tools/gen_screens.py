@@ -98,17 +98,61 @@ def topbar(d, title, synced=True, bars=3):
     d.text((11, 9), "home", font=F1, fill=MUTED)
     d.text((48, 8), title, font=F2, fill=TEXT)
     t = "12:41 AM"
-    d.text((W - 98 - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
-    sync_badge(d, W - 88, 15, synced)
-    wifi_badge(d, W - 64, 15, bars)
+    batt_w = battery_width(72)
+    batt_right = W - 40
+    wifi_cx = batt_right - batt_w - 6 - 8
+    sync_cx = wifi_cx - 8 - 6 - 6
+    clock_right = sync_cx - 12
+    d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
+    sync_badge(d, sync_cx, 15, synced)
+    wifi_badge(d, wifi_cx, 15, bars)
+    battery_badge(d, batt_right - batt_w // 2, 15, 72)
     d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
 
 
-def battery_badge(d, cx, cy, pct=72):
-    d.rectangle([cx - 7, cy - 4, cx + 5, cy + 4], outline=MUTED)
-    d.rectangle([cx + 6, cy - 2, cx + 7, cy + 2], fill=MUTED)
-    w = int(10 * pct / 100)
-    d.rectangle([cx - 6, cy - 3, cx - 6 + w, cy + 3], fill=SUCCESS)
+BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 13, 3, 6, 2, 2
+
+
+def battery_width(pct=72, charging=False):
+    """Mirrors Ui::batteryBadgeWidth. Font 1 advances exactly 6px on the
+    device, so the width is counted in characters rather than measured with
+    PIL's proportional stand-in -- otherwise the mock-up packs differently
+    from the firmware and stops being evidence."""
+    text = "" if pct is None or pct < 0 else str(min(pct, 100))
+    inner = BATT_PAD * 2 + (BATT_BOLT_W + BATT_BOLT_GAP if charging else 0) + 6 * len(text)
+    return max(inner, 11) + 2 + BATT_TERM_W
+
+
+def battery_badge(d, cx, cy, pct=72, charging=False):
+    """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
+    shell, a two-pixel level gauge along the inside bottom, and the charging
+    bolt inside the shell. Variable width -- see battery_width."""
+    text = "" if pct is None or pct < 0 else str(min(pct, 100))
+    total = battery_width(pct, charging)
+    shell = total - BATT_TERM_W
+    bx, by = cx - total // 2, cy - BATT_H // 2
+    low = (not charging) and 0 <= pct <= 15
+    out = ERROR if low else MUTED
+    if charging:
+        level = SUCCESS
+    elif pct <= 15:
+        level = ERROR
+    elif pct <= 40:
+        level = WARN
+    else:
+        level = SUCCESS
+    d.rectangle([bx, by, bx + shell - 1, by + BATT_H - 1], outline=out)
+    d.rectangle([bx + shell, cy - 3, bx + shell + 1, cy + 3], fill=out)
+    if pct > 0:
+        gw = max(1, int(pct * (shell - 2) / 100))
+        d.rectangle([bx + 1, cy + 4, bx + gw, cy + 5], fill=level)
+    penx = bx + 1 + BATT_PAD
+    if charging:
+        d.polygon([(penx + 4, cy - 5), (penx, cy + 1), (penx + 4, cy + 1)], fill=level)
+        d.polygon([(penx + 1, cy + 5), (penx + 5, cy - 1), (penx + 1, cy - 1)], fill=level)
+        penx += BATT_BOLT_W + BATT_BOLT_GAP
+    if text:
+        d.text((penx, cy - 6), text, font=F1, fill=out)
 
 
 def ble_badge(d, cx, cy):
@@ -386,8 +430,13 @@ def launcher_wide():
     d.text((W - 40 - d.textlength(t, font=F1), 9), t, font=F1, fill=TEXT)
     # Beacon badge sits left of the clock, off its measured width.
     ble_badge(d, int(W - 40 - d.textlength(t, font=F1)) - 14, 14)
-    sync_badge(d, W - 92, 34); wifi_badge(d, W - 68, 34); battery_badge(d, W - 44, 34)
-    d.line([(W - 110, 8), (W - 110, 40)], fill=OUTLINE)
+    batt_w = battery_width(72)
+    batt_right = W - 36
+    wifi_cx = batt_right - batt_w - 6 - 8
+    sync_cx = wifi_cx - 8 - 6 - 6
+    sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
+    battery_badge(d, batt_right - batt_w // 2, 34)
+    d.line([(W - 116, 8), (W - 116, 40)], fill=OUTLINE)
     d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
     tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
              ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
@@ -418,8 +467,11 @@ def launcher_tall():
     d.text((8, 36), "Ava", font=F2, fill=TEXT)
     d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
     bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
-    sync_badge(d, bx, 60); wifi_badge(d, bx + 22, 60); battery_badge(d, bx + 46, 60)
-    ble_badge(d, bx + 70, 60)
+    batt_w = battery_width(72)
+    batt_left = bx + 40
+    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
+    battery_badge(d, batt_left + batt_w // 2, 60)
+    ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
     tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
              ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]

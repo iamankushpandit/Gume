@@ -473,12 +473,20 @@ cable and one that has just finished charging read identically from a single
 sample, so the firmware will not claim a battery is full unless it watched it
 get there.
 
-The **battery icon** shows all of this: a green fill above 40%, amber down to
-16%, and at or below **15%** the outline goes red as well as the fill — a nearly
-empty battery and a nearly full one differ by 11 pixels of fill, which is not
-something a child reads at arm's length. A bolt is struck through the icon
-whenever the charger is attached, and an empty bolt on its own means the console
-is running on USB with no pack fitted.
+The **battery icon shows the percentage as a number**, inside the shell, the
+way an iPhone or an Android status bar does it — because eleven pixels of fill
+is not a figure anyone can read, and "how long have I got?" is a number
+question. Underneath the digits a two-pixel gauge still runs along the inside
+of the shell, so the analogue cue is there too: green above 40%, amber down to
+16%, and at or below **15%** the shell and the digits both go red. That red
+outline is what makes *charge me* visible across a room, which is why nothing
+else colours the shell. A lightning bolt appears inside the icon whenever the
+charger is attached, and a bolt with no digits means the console is running on
+USB with no pack fitted.
+
+The icon is deliberately **not** a fixed size: it is 22px wide showing `72`
+and 36px showing `100` on the charger, and the status rows around it are laid
+out from its measured width rather than a constant offset.
 
 At **15% or less** a strip also appears across the top of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the

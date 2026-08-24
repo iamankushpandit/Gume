@@ -190,11 +190,15 @@ void KidsPlatformApp::renderScreenSaver() {
 
     const int16_t batCx = effW / 2;
     const int16_t batCy = 14;
-    tft.fillRect(static_cast<int16_t>(batCx - 12), static_cast<int16_t>(batCy - 6), 24, 12, TFT_BLACK);
-    Ui::drawBatteryBadge(tft, batCx, batCy,
-                         board_.getBatteryPercent(),
-                         Ui::powerHint(board_),
-                         TFT_BLACK);
+    const int8_t batPct = board_.getBatteryPercent();
+    const Ui::PowerHint batPower = Ui::powerHint(board_);
+    /* Clear to the badge's own width: it is variable now, and a fixed 24px
+     * wipe would leave the tail of a wider one behind as the ball goes past. */
+    const int16_t batW = Ui::batteryBadgeWidth(tft, batPct, batPower);
+    tft.fillRect(static_cast<int16_t>(batCx - batW / 2 - 2),
+                 static_cast<int16_t>(batCy - 8),
+                 static_cast<int16_t>(batW + 6), 16, TFT_BLACK);
+    Ui::drawBatteryBadge(tft, batCx, batCy, batPct, batPower, TFT_BLACK);
 
     tft.fillRoundRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);
     tft.fillRoundRect(RX - PAD_W / 2, static_cast<int16_t>(ssav_ry_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);

@@ -74,6 +74,26 @@ Flash 2,347,169 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
   reset. Settings grew a third tab for it, and its tab strip now divides the
   live width instead of assuming 160px halves.
 
+### Changed
+
+- **The battery icon shows the percentage.** It carries the number as numerals
+  inside the shell, the way iOS and Android status bars do, over a two-pixel
+  level gauge that keeps the analogue cue the fill used to give. Eleven pixels
+  of fill is not a figure anybody can read, and "how long have I got?" is a
+  number question. The bolt moved inside the shell while charging, so plugged-in
+  and how-full are one glance rather than two. Red at or below 15% now colours
+  the digits as well as the shell, and still nothing else colours the shell --
+  that signal only works while it is rare.
+- **The status rows are laid out from measured widths, not constants.** The
+  badge is variable width now (22px at `72`, 36px at `100` on the charger), so
+  the top bar and both launcher headers place the clock, sync, Wi-Fi, battery
+  and beacon badges right-to-left off `Ui::batteryBadgeWidth()` and the measured
+  clock string. The landscape launcher's status hairline moved from `lW-110` to
+  `lW-116` to buy the pixels, and `LauncherLayout::profileRect()` gave them up;
+  in the widest state that row has about 4px of slack left. The portrait top bar
+  is measured now too, which happens to *reduce* an existing title/clock overlap
+  at 240px rather than making it worse.
+
 ### Notes
 
 - Neither Elements tab commits on a single tap. A chart cell is 16x14 px, well

@@ -63,17 +63,27 @@ enum class PowerHint : uint8_t {
 /** Read the board's current source and charge verdict as a PowerHint. */
 PowerHint powerHint(Board& board);
 
-/* Battery state beside Wi-Fi: a battery outline holding a percentage fill,
- * with a bolt struck through it while the charger is attached, and an empty
- * bolt alone when there is no pack at all.
+/* Battery state beside Wi-Fi: a battery shell holding the percentage as
+ * numerals, a two-pixel level gauge along its inside bottom, and a lightning
+ * bolt inside the shell while the charger is attached. This is the iOS /
+ * Android status-bar pattern: eleven pixels of fill is not a number anybody
+ * can read, so the badge says both -- the digits for the parent, the colour
+ * for the child.
  *
- * At or below Board::BATTERY_LOW_PERCENT the *shell* goes red as well as the
- * fill. A nearly empty battery and a nearly full one differ by 11 pixels of
- * fill, which is not something a child reads at arm's length -- the outline
- * changing colour is what makes "charge me" visible across the room. That
- * emphasis is dropped the moment the charger is attached, because by then the
- * user has already done the thing it was asking for. */
+ * At or below Board::BATTERY_LOW_PERCENT the *shell and the digits* go red.
+ * The outline changing colour is what makes "charge me" visible across the
+ * room, and it only works while it is rare, so every other level leaves the
+ * shell neutral and lets the gauge carry green/amber. That emphasis is
+ * dropped the moment the charger is attached, because by then the user has
+ * already done the thing it was asking for.
+ *
+ * THE BADGE IS VARIABLE WIDTH -- 22px for a two-digit charge, 35px for "100"
+ * while plugged in. Lay out from batteryBadgeWidth() instead of assuming a
+ * size; `cx` is the centre of the whole badge, terminal nub included. */
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, PowerHint power, uint16_t bg);
+
+/** Width the badge will occupy in this state. Lay headers out from the right. */
+int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent, PowerHint power);
 
 /* BLE beacon indicator: the Bluetooth rune, drawn only while the radio is
  * actually advertising. There is no "off" variant on purpose -- an icon that is
