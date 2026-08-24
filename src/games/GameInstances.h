@@ -6,6 +6,7 @@
 #include "games/CoinFlipGame.h"
 #include "games/CountingGame.h"
 #include "games/DiceGame.h"
+#include "games/ElementsGame.h"
 #include "games/FingerCountGame.h"
 #include "games/FlagGame.h"
 #include "games/FractionGame.h"
@@ -71,6 +72,7 @@ struct GameInstances {
     GreWordsGame greWords;
     DiceGame dice;
     CoinFlipGame coinFlip;
+    ElementsGame elements;
     ProfileGame profile;
     ScoresGame scores;
     AboutGame about;

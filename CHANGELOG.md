@@ -3,7 +3,7 @@
 ## 5.0.0 — Unreleased
 
 An admin profile behind a four-digit PIN, so device settings and one profile
-are out of a child's reach.
+are out of a child's reach -- and Elements, the periodic table, as game 31.
 
 The major bump is deliberate: this is the first release where an existing
 device changes behaviour under its owner rather than only gaining features.
@@ -11,10 +11,39 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,330,865 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
+Flash 2,347,169 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Added
 
+- **Elements, the periodic table (game 31).** Three tabs, and the order is the
+  argument: *Explore* first, because a quiz about something you have never seen
+  is a test rather than a lesson. Explore draws the real 118-cell wall chart --
+  nine rows, including the lanthanide and actinide strips lifted out from under
+  periods 6 and 7, coloured by family. Tapping a square selects it; tapping the
+  strip above opens a card with the name, the atomic number, what kind of
+  element it is, whether it is solid, liquid or gas, and one plain line about
+  where the child has already met it: *Helium -- fills balloons and makes them
+  float*. From the card, **Quiz me** starts a round about that element.
+- **Six question shapes, all derived from the table.** Symbol to name, name to
+  symbol, find it on the chart, how many protons, which element does this, and
+  solid/liquid/gas. Over 118 elements that is upwards of seven hundred distinct
+  questions, and -- the point -- a bank that cannot drift from the data behind
+  it, the same reason About derives its game list instead of restating it.
+  Wrong answers hold the right one on screen for 1.2s rather than just scoring
+  the child. Selection is weighted by `Progress`, so a missed element comes
+  back soon and a known one fades out.
+- **A Level tab, because auto alone was not enough.** Auto follows measured
+  mastery: the famous 26 until 80% of them are known, then the everyday 63,
+  then all 118. *Easy / Common / All* pin it instead, persisted per profile, so
+  a parent can set an older sibling to the whole table. The level only ever
+  narrows the **quiz** -- Explore always shows and opens all 118, with
+  out-of-level squares dimmed rather than hidden. A child who wants to go and
+  read about Oganesson is doing exactly the thing the screen is for.
+- **`tools/gen_elements.py`** generates `src/games/ElementDataTable.cpp`, and
+  is where the checking lives: unique chart cells, every element covered once,
+  facts inside the 46 characters the card can render, tier lists naming only
+  real symbols. A hand-edited 118-row C++ table hides all four until it is on
+  the device.
 - **An admin profile, guarded by a four-digit PIN.** One profile is the admin
   (`Board::adminProfileIndex()`, with the PIN beside it in NVS). A fresh device
   gets the profile **Admin** and the PIN **0000** created on first boot — there
@@ -44,6 +73,14 @@ Flash 2,330,865 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
   owner out of their own device, and there is no recovery short of a factory
   reset. Settings grew a third tab for it, and its tab strip now divides the
   live width instead of assuming 160px halves.
+
+### Notes
+
+- Neither Elements tab commits on a single tap. A chart cell is 16x14 px, well
+  under the 30 px touch minimum, so the first tap aims and the second confirms
+  -- in the quiz too, where the aimed square is ringed in amber and the strip
+  says so. Moving the selection repaints two cells, not 118: a full chart is
+  ~20 ms of SPI, which is a whole frame budget for a one-square move.
 
 ### Fixed
 

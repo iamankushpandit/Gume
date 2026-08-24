@@ -1,6 +1,6 @@
 # Braino!
 
-A 30-game educational console for young children, running on an **ESP32-32E
+A 31-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -17,9 +17,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 30 |
-| Flash | 2,330,865 / 3,145,728 bytes (**74.1%**) |
-| RAM | 72,044 / 327,680 bytes (**22.0%**) |
+| Games | 31 |
+| Flash | 2,347,169 / 3,145,728 bytes (**74.6%**) |
+| RAM | 72,524 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -93,8 +93,9 @@ needs without touching anyone else's. Only the admin can change it.
 | **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition | 7–12 |
 | **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time | 4–7 |
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
+| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a child who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 
-Flags and the three US States games all use **spaced repetition**; Flags also
+Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
 
 ### Logic, memory and attention
@@ -216,6 +217,11 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/time.png" width="300" alt="Time">
+  <img src="docs/screens/elements.png" width="300" alt="Elements: the periodic table">
+  <img src="docs/screens/elements-card.png" width="300" alt="Elements: one element up close">
+</p>
+<p align="center">
+  <img src="docs/screens/elements-quiz.png" width="300" alt="Elements: find it in the table">
 </p>
 
 ### Logic, memory and attention
@@ -672,6 +678,8 @@ src/
   games/                one .cpp/.h pair per game and per system app
     CountryData.cpp     capitals, continents, difficulty tiers
     CountryDataTable.cpp  generated -- see tools/gen_country_facts.py
+    ElementData.cpp     lookups over the 118-element table
+    ElementDataTable.cpp  generated -- see tools/gen_elements.py
     MazeData.cpp        maze layouts kept out of the redraw logic
     StateData.cpp       50 US states: code, name, capital, tier
     TraceGlyphData.cpp  letter/number stroke guides
@@ -699,6 +707,7 @@ src/
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
 tools/
   gen_country_facts.py  regenerates the capital/continent table
+  gen_elements.py       regenerates the 118-element table, checking it
   gen_screens.py        regenerates the images in this README
   gen_site.py           builds the GitHub Pages site and its flash manifests
   check_docs.py         fails if these docs have drifted from the code

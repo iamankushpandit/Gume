@@ -141,7 +141,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 30 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 31 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -248,9 +248,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,330,865 / 3,145,728 bytes,
-**74.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,044 / 327,680 (22.0%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,347,169 / 3,145,728 bytes,
+**74.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 72,524 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -340,7 +340,7 @@ call site sits inside a `Watchdog::Pause` guard.
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 30 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 31 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-110` to the gear at `lW-30` with about 8px spare, which is why the BLE badge sits on the clock's line and is positioned off the *measured* width of the clock string. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.

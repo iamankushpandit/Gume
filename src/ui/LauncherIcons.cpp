@@ -433,6 +433,20 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             ring(tft, cx + 4, cy - 1, 10, Ui::shade(amber(), 65));
             tft.fillRoundRect(cx - 16, cy - 9, 8, 18, RADIUS, Ui::shade(amber(), 130));
             break;
+        case LauncherIcon::Elements:
+            /* One cell out of the wall chart, drawn the way the chart draws it:
+             * atomic number in the corner, symbol below, a family stripe along
+             * the foot. Not a grid -- Tic-Tac-Toe, Memory and Sliding Puzzle
+             * are already grids, and rule 5 is what keeps them apart. */
+            tft.fillRoundRect(cx - 16, cy - 16, 32, 32, RADIUS, snow());
+            tft.fillRect(cx - 14, cy + 8, 28, 6, mint());
+            tft.setTextColor(ink(), snow());
+            tft.setTextDatum(TL_DATUM);
+            tft.drawString("8", cx - 12, cy - 13, 1);
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString("O", cx + 1, cy - 1, 4);
+            tft.setTextDatum(TL_DATUM);
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

@@ -34,6 +34,7 @@ enum class LauncherIcon : uint8_t {
     GreWords,
     Dice,
     CoinFlip,
+    Elements,
     Profiles,
     Scores,
     Settings,

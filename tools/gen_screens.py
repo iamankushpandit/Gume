@@ -1446,6 +1446,120 @@ def coinflip():
     return im
 
 
+# ---- Elements: the periodic table ---------------------------------------
+# Geometry and data mirrored from src/games/ElementsGame.cpp and the same
+# table the firmware compiles, so the mock-up cannot drift from the device.
+from gen_elements import ELEMENTS as ELEM_ROWS, TIER1, category as elem_category, position as elem_position  # noqa: E402
+
+E_X0, E_COL, E_CW = 7, 17, 16
+E_Y0, E_ROW, E_CH, E_GAP = 84, 15, 14, 6
+E_INK = (20, 26, 36)
+E_CAT_COLORS = [
+    (255, 122, 92), (255, 190, 84), (166, 182, 204), (126, 206, 194),
+    (192, 164, 244), (126, 220, 146), (248, 226, 112), (134, 184, 255),
+    (242, 154, 202), (214, 136, 154),
+]
+
+
+def _e_row_y(row):
+    y = E_Y0 + (row - 1) * E_ROW
+    return y if row <= 7 else y + E_GAP
+
+
+def _e_cell(col, row):
+    return E_X0 + (col - 1) * E_COL, _e_row_y(row)
+
+
+def _e_tabs(d, active):
+    for i, lab in enumerate(["Explore", "Quiz", "Level"]):
+        third = W // 3
+        x = i * third
+        wid = (W - 2 * third) if i == 2 else third
+        on = (i == active)
+        top, h = (30, 22) if on else (34, 18)
+        fill = SURFACE if on else PANEL
+        d.rounded_rectangle([x, top, x + wid - 1, top + h], 4, fill=fill, outline=OUTLINE)
+        d.text((x + wid / 2 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+               font=F2, fill=TEXT if on else MUTED)
+    d.line([(0, 52), (319, 52)], fill=OUTLINE)
+
+
+def _e_strip(d, text, ink=TEXT):
+    d.rounded_rectangle([6, 56, W - 7, 82], 5, fill=SURFACE, outline=OUTLINE)
+    font = F2 if d.textlength(text, font=F2) <= W - 24 else F1
+    d.text((W / 2 - d.textlength(text, font=font) / 2, 69 - (7 if font is F2 else 5)),
+           text, font=font, fill=ink)
+
+
+def _e_table(d, selected=None, pending=None, correct=None, wrong=None):
+    """The 118-cell chart. Anything above the Easy level is drawn dimmed, which
+    is what the device does at the default Auto level on a fresh profile."""
+    for i, (sym, name, _fact) in enumerate(ELEM_ROWS):
+        z = i + 1
+        col, row = elem_position(z)
+        x, y = _e_cell(col, row)
+        base = E_CAT_COLORS[elem_category(z, sym)]
+        fill, ink = base, E_INK
+        if sym not in TIER1:
+            ink = shade(base, 155)
+            fill = shade(base, 38)
+        if sym == correct:
+            fill, ink = SUCCESS, E_INK
+        elif sym == wrong:
+            fill, ink = ERROR, WHITE
+        d.rectangle([x, y, x + E_CW - 1, y + E_CH - 1], fill=fill)
+        if sym in (selected, pending):
+            edge = WARN if sym == pending else TEXT
+            d.rectangle([x - 1, y - 1, x + E_CW, y + E_CH], outline=edge, width=2)
+        d.text((x + E_CW / 2 - d.textlength(sym, font=F1) / 2, y + E_CH / 2 - 5),
+               sym, font=F1, fill=ink)
+    for row in (6, 7):
+        x, y = _e_cell(3, row)
+        d.text((x + E_CW / 2 - 2, y + 2), "*", font=F1, fill=MUTED)
+
+
+def elements():
+    """Elements, Explore tab: the whole chart with Oxygen picked out."""
+    im, d = blank(); topbar(d, "Elements")
+    _e_tabs(d, 0)
+    _e_strip(d, "O  Oxygen  8  -  tap here")
+    _e_table(d, selected="O")
+    return im
+
+
+def elements_card():
+    """Elements: one element opened up, and the way back into the quiz."""
+    im, d = blank(); topbar(d, "Elements")
+    fill = E_CAT_COLORS[elem_category(8, "O")]
+    d.rounded_rectangle([12, 44, 87, 119], 6, fill=fill)
+    d.text((50 - d.textlength("O", font=F4) / 2, 84 - 10), "O", font=F4, fill=E_INK)
+    d.text((17, 48), "8", font=F2, fill=E_INK)
+    d.text((100, 48), "Oxygen", font=F4, fill=TEXT)
+    d.text((100, 78), "Nonmetal", font=F2, fill=MUTED)
+    d.text((100, 98), "Gas  -  8 protons", font=F2, fill=MUTED)
+    d.text((14, 132), "The part of air that keeps you", font=F2, fill=TEXT)
+    d.text((14, 152), "alive.", font=F2, fill=TEXT)
+    half = (W - 30) // 2
+    d.rounded_rectangle([10, 198, 10 + half, 232], 6, fill=GREEN, outline=OUTLINE)
+    d.text((10 + half / 2 - d.textlength("Quiz me", font=F2) / 2, 208), "Quiz me",
+           font=F2, fill=WHITE)
+    d.rounded_rectangle([W - 10 - half, 198, W - 10, 232], 6, fill=PANEL, outline=OUTLINE)
+    d.text((W - 10 - half / 2 - d.textlength("Back", font=F2) / 2, 208), "Back",
+           font=F2, fill=TEXT)
+    return im
+
+
+def elements_quiz():
+    """Elements, Quiz tab: the one question shape answered on the chart."""
+    im, d = blank(); topbar(d, "Elements")
+    _e_tabs(d, 1)
+    _e_strip(d, "Find Calcium in the table")
+    _e_table(d, pending="Ca")
+    hint = "tap it again to answer"
+    d.text((W / 2 - d.textlength(hint, font=F1) / 2, 228), hint, font=F1, fill=WARN)
+    return im
+
+
 EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
@@ -1478,6 +1592,9 @@ EXTRA_SCREENS = [
     ("grewords-study", grewords_study, "GRE Words: study card"),
     ("dice", dice, "Dice: three dice thrown"),
     ("coinflip", coinflip, "Coin Flip: best of five"),
+    ("elements", elements, "Elements: the periodic table"),
+    ("elements-card", elements_card, "Elements: one element up close"),
+    ("elements-quiz", elements_quiz, "Elements: find it in the table"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 
