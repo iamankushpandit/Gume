@@ -1,9 +1,15 @@
 # Changelog
 
-## Unreleased
+## 5.0.0 — Unreleased
 
 An admin profile behind a four-digit PIN, so device settings and one profile
 are out of a child's reach.
+
+The major bump is deliberate: this is the first release where an existing
+device changes behaviour under its owner rather than only gaining features.
+A console that upgrades to this gains an Admin profile it did not have, stops
+booting into whatever profile was last used if that profile is the admin, and
+starts refusing settings changes to everyone else in the house.
 
 Flash 2,330,649 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
 

@@ -75,20 +75,42 @@ jobs:
       - name: Generate the site
         run: python tools/gen_site.py --out _site --repo "${{ github.server_url }}/${{ github.repository }}"
 
+      # The env list is *derived* from what gen_site.py actually laid down,
+      # never written out again here. Every environment is still built above --
+      # that is the point of building them -- but only the ones the site offers
+      # for download get binaries copied beside a manifest.
+      #
+      # This loop used to hard-code "app bringup wifidiag" while gen_site.py's
+      # BOARDS declared envs: ("app",). It created app/, then asserted a
+      # bringup/ directory that nothing had any reason to create, and exited 1
+      # -- so every Pages deploy from 2026-08-15 onward died *after* a clean
+      # three-environment build, and the installer page silently stayed on the
+      # last version that happened to publish. Deriving the list is what stops
+      # that recurring: add a variant to gen_site.py and it is picked up here
+      # with no second edit.
       - name: Collect the binaries next to their manifests
         run: |
           set -euo pipefail
           boot_app0=$(find ~/.platformio/packages -name boot_app0.bin -path '*partitions*' | head -n 1)
           test -n "$boot_app0"
-          for env in app bringup wifidiag; do
-            dest="_site/firmware/e32r28t1/$env"
-            test -d "$dest"
-            cp ".pio/build/$env/firmware.bin"   "$dest/"
-            cp ".pio/build/$env/bootloader.bin" "$dest/"
-            cp ".pio/build/$env/partitions.bin" "$dest/"
-            cp "$boot_app0"                     "$dest/"
+          shopt -s nullglob
+          copied=0
+          for dest in _site/firmware/*/*/; do
+            env=$(basename "$dest")
+            # The site asked for an environment CI did not build: that is a
+            # real mismatch and should fail here, not in someone's browser.
+            test -d ".pio/build/$env"
+            cp ".pio/build/$env/firmware.bin"   "$dest"
+            cp ".pio/build/$env/bootloader.bin" "$dest"
+            cp ".pio/build/$env/partitions.bin" "$dest"
+            cp "$boot_app0"                     "$dest"
             ls -l "$dest"
+            copied=$((copied + 1))
           done
+          # Publishing an installer page with no firmware behind the button is
+          # worse than failing: it looks like it works.
+          test "$copied" -gt 0
+          echo "Copied binaries for $copied environment(s)."
 
       # A manifest that points at a missing .bin fails only at flash time, in
       # the user's browser, halfway through erasing their board. Check here.

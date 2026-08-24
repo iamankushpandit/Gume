@@ -175,13 +175,16 @@ SYSTEM_SHOWCASE = (
     },
     {
         "id": "profiles",
-        "subtitle": "Boot-time player choice, five children, and Guest mode that deliberately saves nothing.",
-        "stills": ("profiles",),
+        "subtitle": "Boot-time player choice, five children, Guest mode that deliberately saves nothing, "
+                    "and a PIN-guarded admin profile.",
+        "stills": ("profiles", "profiles-pin"),
     },
     {
         "id": "settings",
-        "subtitle": "Device controls, per-child game visibility, brightness, screen saver and sleep policy.",
-        "stills": ("settings-device", "settings-games", "settings-power"),
+        "subtitle": "Device controls, per-child game visibility, brightness, screen saver and sleep policy -- "
+                    "readable by anyone, changeable only by the admin.",
+        "stills": ("settings-device", "settings-games", "settings-power",
+                   "settings-admin", "settings-pin"),
     },
     {
         "id": "wifi",

@@ -573,7 +573,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **4.2.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **5.0.0** — see [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 
