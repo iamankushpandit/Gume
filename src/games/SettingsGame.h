@@ -20,9 +20,13 @@ public:
 
 private:
     enum class Tab : uint8_t { Device, Power };
+    enum class Mode : uint8_t { Locked, PinEntry, Unlocked };
 
     Rect deviceTabRect() const;
     Rect powerTabRect() const;
+    Rect pinKeyRect(uint8_t row, uint8_t col) const;
+    Rect pinDeleteRect() const;
+    Rect pinConfirmRect() const;
 
     Rect themeRect() const;
     Rect layoutRect() const;
@@ -42,6 +46,8 @@ private:
     void cycleIdleAction(Board& board);
     void renderDeviceTab(GameHost& host);
     void renderPowerTab(GameHost& host);
+    void renderLockedScreen(GameHost& host);
+    void renderPinEntry(GameHost& host);
 
     /* True when the Sleep-after row is inert: SaverOnly never blanks, and
      * SleepOnly blanks at the idle delay instead. A live-looking control that
@@ -49,6 +55,11 @@ private:
     bool sleepRowActive(Board& board) const;
     bool isAdmin(Board& board) const;
 
+    void appendPinDigit(uint8_t digit);
+    void deletePinDigit();
+
     Tab tab_ = Tab::Device;
     bool confirmReset_ = false;
+    Mode mode_ = Mode::Locked;
+    uint16_t enteredPin_ = 0;
 };

@@ -9,6 +9,8 @@ void SettingsGame::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_DEVICE_SETTINGS, "open settings");
     confirmReset_ = false;
     tab_ = Tab::Device;
+    enteredPin_ = 0;
+    mode_ = isAdmin(host.board()) ? Mode::Unlocked : Mode::Locked;
     Ui::setTheme(host.board().themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
     markFullDirty();
 }
@@ -43,12 +45,32 @@ Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
 Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
 Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
 
+Rect SettingsGame::pinKeyRect(uint8_t row, uint8_t col) const {
+    return Rect{12 + col * 96, 120 + row * 40, 88, 36};
+}
+Rect SettingsGame::pinDeleteRect() const { return Rect{12, 200, 88, 36}; }
+Rect SettingsGame::pinConfirmRect() const { return Rect{232, 200, 88, 36}; }
+
 bool SettingsGame::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
 }
 
 bool SettingsGame::isAdmin(Board& board) const {
     return board.isAdminProfile(board.activeProfile());
+}
+
+void SettingsGame::appendPinDigit(uint8_t digit) {
+    if (enteredPin_ < 9999) {
+        enteredPin_ = enteredPin_ * 10 + digit;
+        markDirty();
+    }
+}
+
+void SettingsGame::deletePinDigit() {
+    if (enteredPin_ > 0) {
+        enteredPin_ /= 10;
+        markDirty();
+    }
 }
 
 void SettingsGame::cycleScreenSaver(Board& board) {
@@ -80,6 +102,35 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
 
     Board& board = host.board();
 
+    /* If locked and not admin, show PIN entry */
+    if (mode_ == Mode::Locked && !isAdmin(board)) {
+        if (pinConfirmRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            if (enteredPin_ == board.adminPin()) {
+                mode_ = Mode::Unlocked;
+                host.beepOk();
+                markFullDirty();
+            } else {
+                host.beepError();
+                enteredPin_ = 0;
+                markDirty();
+            }
+            return;
+        }
+        if (pinDeleteRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            deletePinDigit();
+            return;
+        }
+        for (uint8_t row = 0; row < 4; ++row) {
+            for (uint8_t col = 0; col < 3; ++col) {
+                if (pinKeyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                    appendPinDigit(static_cast<uint8_t>(row * 3 + col));
+                    return;
+                }
+            }
+        }
+        return;
+    }
+
     if (deviceTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (tab_ != Tab::Device) { tab_ = Tab::Device; confirmReset_ = false; markFullDirty(); }
         return;
@@ -89,10 +140,6 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
 
-    if (!isAdmin(board)) {
-        board.beepError();
-        return;
-    }
     if (!host.requireCapability(APP_CAP_DEVICE_SETTINGS, "change settings")) {
         return;
     }
@@ -281,10 +328,42 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     }
 }
 
+void SettingsGame::renderLockedScreen(GameHost& host) {
+    Ui::Renderer& tft = host.display();
+    tft.setTextColor(Ui::text(), Ui::bg());
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString("Admin PIN Required", 20, 60, 2);
+    tft.setTextDatum(CC_DATUM);
+    tft.drawString("Enter 4-digit PIN:", SCREEN_WIDTH/2, 110, 1);
+
+    char pinStr[8];
+    snprintf(pinStr, sizeof(pinStr), "%04u", enteredPin_);
+    Rect pinBox{80, 130, 160, 30};
+    tft.fillRect(pinBox.x, pinBox.y, pinBox.w, pinBox.h, Ui::surface());
+    tft.drawRect(pinBox.x, pinBox.y, pinBox.w, pinBox.h, Ui::outline());
+    tft.drawString(pinStr, pinBox.x + pinBox.w/2, pinBox.y + pinBox.h/2, 2);
+
+    tft.setTextDatum(TL_DATUM);
+    for (uint8_t row = 0; row < 4; ++row) {
+        for (uint8_t col = 0; col < 3; ++col) {
+            char digit[2];
+            snprintf(digit, sizeof(digit), "%u", row * 3 + col);
+            Ui::drawButton(tft, pinKeyRect(row, col), digit, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+        }
+    }
+    Ui::drawButton(tft, pinDeleteRect(), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    Ui::drawButton(tft, pinConfirmRect(), "OK", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+}
+
 void SettingsGame::render(GameHost& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
+
+    if (mode_ == Mode::Locked && !isAdmin(host.board())) {
+        renderLockedScreen(host);
+        return;
+    }
 
     const Rect devTab = deviceTabRect();
     const Rect powTab = powerTabRect();
