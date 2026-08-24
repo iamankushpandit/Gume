@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,330,649 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
+Flash 2,330,865 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
 
 ### Added
 
@@ -26,6 +26,15 @@ Flash 2,330,649 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
   per-child game list). It is asked **every time**, including straight after a
   correct entry — "already admin" says nothing about who is holding the device
   now, which is exactly the case this is for.
+- **Per-child game visibility is the admin's to set, and now actually is.**
+  The list at *Profiles → Edit → Games* is readable by anyone and changeable
+  only by the admin. Previously it enforced nothing: a child opened their own
+  row and switched back on every game that had been hidden from them, which
+  made the whole per-child feature decorative.
+- **Removing a player is admin-only.** It destroys that child's scores and
+  mastery data permanently, and any child could previously delete a sibling in
+  two taps with no confirmation. Renaming stays open to everyone: it is
+  harmless and reversible.
 - **Settings is readable by everyone, writable only by the admin.** No PIN to
   open it: there is nothing secret on those pages, and a child who cannot see
   why the screen dims is worse off than one who can read it. Every control

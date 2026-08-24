@@ -584,9 +584,21 @@ def profiles_pin():
     return im
 
 
-def settings_games():
-    im, d = blank(); topbar(d, "Settings")
-    tabs(d, False)
+def profiles_games():
+    """Per-child game visibility: Profiles -> Edit -> Games.
+
+    This lived in a Settings tab once and the mock-up went on depicting that
+    long after Settings stopped having one -- Settings holds Device, Power and
+    Admin. Visibility is per child, so it belongs with the child. Geometry
+    follows ProfileGame::gameCheckRect() and gamesBackRect()."""
+    im, d = blank()
+    lab = "Ada"
+    d.text((W / 2 - d.textlength(lab, font=F4) / 2, 8), lab, font=F4, fill=TEXT)
+    # gamesBackRect() is top-right, clear of the centred name and the hint.
+    button(d, (W - 72, 4, 64, 24), "Back", f=F2)
+    hint = "Tap to show or hide from launcher"
+    d.text((W / 2 - d.textlength(hint, font=F1) / 2, 30), hint, font=F1, fill=MUTED)
+
     for i, (lab, on) in enumerate([("Slide", 1), ("Odd One", 1), ("Shape Arith", 1),
                                    ("Fingers", 0), ("Calendar", 1)]):
         y = 62 + i * 29
@@ -667,7 +679,7 @@ SCREENS = [
     ("settings-admin", settings_admin, "Settings: the admin PIN"),
     ("settings-pin", settings_pin, "Settings: setting a new admin PIN"),
     ("profiles-pin", profiles_pin, "Profiles: the admin PIN prompt"),
-    ("settings-games", settings_games, "Settings: which games appear"),
+    ("profiles-games", profiles_games, "Profiles: which games a child sees"),
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),
     ("screensaver", screensaver, "Pong screen saver"),

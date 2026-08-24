@@ -114,7 +114,7 @@ SCREEN_CAPTIONS = {
     "scores-mine": "Scores: this player",
     "screensaver": "Screen saver",
     "settings-device": "Settings: device",
-    "settings-games": "Settings: games",
+    "profiles-games": "Profiles: per-child games",
     "settings-power": "Settings: power",
     "shapearith": "Shape Arith",
     "shapes": "Shapes",
@@ -176,14 +176,14 @@ SYSTEM_SHOWCASE = (
     {
         "id": "profiles",
         "subtitle": "Boot-time player choice, five children, Guest mode that deliberately saves nothing, "
-                    "and a PIN-guarded admin profile.",
-        "stills": ("profiles", "profiles-pin"),
+                    "a PIN-guarded admin profile, and per-child game visibility only the admin can set.",
+        "stills": ("profiles", "profiles-pin", "profiles-games"),
     },
     {
         "id": "settings",
-        "subtitle": "Device controls, per-child game visibility, brightness, screen saver and sleep policy -- "
+        "subtitle": "Device controls, brightness, screen saver and sleep policy -- "
                     "readable by anyone, changeable only by the admin.",
-        "stills": ("settings-device", "settings-games", "settings-power",
+        "stills": ("settings-device", "settings-power",
                    "settings-admin", "settings-pin"),
     },
     {

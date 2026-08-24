@@ -18,7 +18,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 30 |
-| Flash | 2,330,649 / 3,145,728 bytes (**74.1%**) |
+| Flash | 2,330,865 / 3,145,728 bytes (**74.1%**) |
 | RAM | 72,044 / 327,680 bytes (**22.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -64,8 +64,9 @@ touch calibration, the profiles, the scores and the mastery data.
 
 ## The games
 
-Ages are a guide, not a gate. Every game can be hidden from the launcher in
-**Settings → Games**, so you can pare the list down to what one child needs.
+Ages are a guide, not a gate. Every game can be hidden from a child's launcher
+in **Profiles → Edit → Games**, so you can pare the list down to what one child
+needs without touching anyone else's. Only the admin can change it.
 
 ### Numbers and early maths
 
@@ -263,9 +264,10 @@ rides on that radio, and a switch that flips without doing anything is worse
 than one that says why. **Power** holds
 the idle policy and its two delays — see [Screen saver and
 sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
-arrived and there was nowhere left to put them. The Games tab hides
-any game from the launcher, paged five at a time -- and that visibility is **per
-child**, so one child's launcher can be pared down without touching another's.
+arrived and there was nowhere left to put them.
+
+Game visibility is **not** here — it is per child, so it lives with the child,
+under *Profiles → Edit → Games*. See [The admin profile](#the-admin-profile).
 
 Brightness floors at **25%, not 0**, deliberately: at lower duty the panel is
 unreadable and a child who dragged the slider to the bottom could not see the
@@ -297,6 +299,19 @@ It is asked **every time**, including immediately after a correct entry.
 "Already admin" is not evidence that the person now holding the device is the
 one who typed the PIN — which is the entire situation this guards against, a
 device handed to a child mid-session.
+
+**The admin decides who plays what.** Game visibility is per child, set from
+*Profiles → Edit → Games*, and only the admin can change it. Anyone can open
+the list and see which games are on or off — a child seeing that something is
+switched off is fine, and better than a launcher that is mysteriously short —
+but the checkboxes only respond to the admin. Before this the feature enforced
+nothing: a child opened their own row and turned back on everything that had
+been hidden from them.
+
+**Removing a player is also the admin's call**, because it destroys that
+child's scores and mastery data permanently. Any child could previously delete
+a sibling in two taps. Renaming is deliberately left open — it is harmless, and
+a child wanting their own name spelled properly is not a threat.
 
 **Settings is not behind the PIN.** Anyone can open it and read every page —
 there is nothing secret there, and a child being unable to see why the screen

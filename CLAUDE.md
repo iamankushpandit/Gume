@@ -248,7 +248,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,330,649 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,330,865 / 3,145,728 bytes,
 **74.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,044 / 327,680 (22.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -311,6 +311,13 @@ call site sits inside a `Watchdog::Pause` guard.
   in NVS). Add a third way to become admin and it needs the same gate. It is
   asked **every time**, including when already admin: being admin is not
   evidence about who is holding the device, which is the whole threat model.
+- **Per-child game visibility and profile removal are admin-only; renaming is
+  not.** `ProfileGame` gates on `board.isAdminProfile(board.activeProfile())`
+  — the *actor*, not the profile being edited. Those two are different
+  questions and conflating them is exactly how Remove ended up available to
+  every child. The Games list stays readable by anyone on purpose: a child who
+  can see a game is switched off is better served than one facing a launcher
+  that is short for unexplained reasons.
 - **Settings is readable by everyone and writable only by the admin.** There is
   no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
   early return in `SettingsGame::update()`, sitting *below* tab switching so a

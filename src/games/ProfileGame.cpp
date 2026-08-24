@@ -263,13 +263,19 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             return;
         }
         if (menuActionRect(2, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (!board.isAdminProfile(menuFor_)) {
-                board.removeKid(menuFor_);
-                phase_ = Phase::Pick;
-                markFullDirty();
-            } else {
+            /* Two separate conditions, and both matter. The admin profile
+             * cannot be removed by anybody; and removing anyone else is the
+             * admin's call, because it destroys that child's scores and
+             * mastery data for good. Any child could previously delete a
+             * sibling in two taps with no confirmation. */
+            if (board.isAdminProfile(menuFor_) ||
+                !board.isAdminProfile(board.activeProfile())) {
                 board.beepError();
+                return;
             }
+            board.removeKid(menuFor_);
+            phase_ = Phase::Pick;
+            markFullDirty();
             return;
         }
         if (menuActionRect(3, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -299,6 +305,17 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             const uint8_t gi = gameScroll_ + row;
             if (gi >= playableAppCount()) break;
             if (gameCheckRect(row, W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                /* Who may play what is the admin's decision, for every child
+                 * including themselves. Anyone may read the list -- a child
+                 * seeing which games are switched off is fine, and better than
+                 * a launcher that is short for reasons nobody will explain --
+                 * but only the admin may change it. Without this the feature
+                 * enforced nothing: a child opened their own row and turned
+                 * back on everything that had been hidden from them. */
+                if (!board.isAdminProfile(board.activeProfile())) {
+                    board.beepError();
+                    return;
+                }
                 const AppDefinition& app = playableAppAt(gi);
                 board.setGameVisibleFor(app.launcherIndex(), menuFor_,
                     !board.gameVisibleFor(app.launcherIndex(), menuFor_, app.defaultVisible()));
@@ -544,32 +561,45 @@ void ProfileGame::render(GameHost& host) {
     }
 
     if (phase_ == Phase::Menu) {
-        const bool isAdmin = board.isAdminProfile(menuFor_);
-        tft.drawString(board.profileName(menuFor_) + (isAdmin ? " (Admin)" : ""), W / 2, tall ? 28 : 24, 4);
+        /* Two different questions, and conflating them is how Remove ended up
+         * available to everyone: whether the profile being edited is the
+         * admin, and whether the person doing the editing is. */
+        const bool targetIsAdmin = board.isAdminProfile(menuFor_);
+        const bool actorIsAdmin  = board.isAdminProfile(board.activeProfile());
+        const bool canRemove     = actorIsAdmin && !targetIsAdmin;
+
+        tft.drawString(board.profileName(menuFor_) + (targetIsAdmin ? " (Admin)" : ""),
+                       W / 2, tall ? 28 : 24, 4);
         Ui::drawButton(tft, menuActionRect(0, W, H), "Rename", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
         Ui::drawButton(tft, menuActionRect(1, W, H), "Games", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
         Ui::drawButton(tft, menuActionRect(2, W, H), "Remove",
-                       isAdmin ? Ui::rgb(80, 80, 80) : Ui::rgb(178, 58, 58),
-                       Ui::outline(), isAdmin ? Ui::muted() : TFT_WHITE, false, 2);
+                       canRemove ? Ui::rgb(178, 58, 58) : Ui::rgb(80, 80, 80),
+                       Ui::outline(), canRemove ? TFT_WHITE : Ui::muted(), false, 2);
         Ui::drawButton(tft, menuActionRect(3, W, H), "Cancel", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        if (isAdmin) {
-            tft.drawString("Admin profile cannot be removed", W / 2, static_cast<int16_t>(H - 20), 1);
-        } else {
-            tft.drawString("Removing also clears their scores", W / 2, static_cast<int16_t>(H - 20), 1);
-        }
+        const char* note = targetIsAdmin ? "Admin profile cannot be removed"
+                         : !actorIsAdmin ? "Only the admin can remove a player"
+                                         : "Removing also clears their scores";
+        tft.drawString(note, W / 2, static_cast<int16_t>(H - 20), 1);
         tft.setTextDatum(TL_DATUM);
         return;
     }
 
     if (phase_ == Phase::Games) {
+        /* Read-only unless the admin is the one looking. The hint line has to
+         * say which it is: a checkbox that looks live and does nothing is
+         * worse than one that admits it is locked. */
+        const bool canEdit = board.isAdminProfile(board.activeProfile());
+
         tft.drawString(board.profileName(menuFor_), W / 2, 8, 4);
         Ui::drawButton(tft, gamesBackRect(W), "Back", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        tft.drawString("Tap to show or hide from launcher", W / 2, 30, 1);
+        tft.drawString(canEdit ? "Tap to show or hide from launcher"
+                               : "Only the admin can change these",
+                       W / 2, 30, 1);
 
         const uint8_t visible = visibleGameRows(H);
         for (uint8_t row = 0; row < visible; ++row) {
@@ -579,16 +609,17 @@ void ProfileGame::render(GameHost& host) {
             const Rect r = gameCheckRect(row, W);
             const bool on = board.gameVisibleFor(app.launcherIndex(), menuFor_,
                                                  app.defaultVisible());
+            const uint16_t tick = canEdit ? Ui::success() : Ui::rgb(70, 96, 78);
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
-            tft.fillRoundRect(r.x + 4, r.y + 6, 16, 16, 3, on ? Ui::success() : Ui::panel());
+            tft.fillRoundRect(r.x + 4, r.y + 6, 16, 16, 3, on ? tick : Ui::panel());
             tft.drawRoundRect(r.x + 4, r.y + 6, 16, 16, 3, Ui::outline());
             if (on) {
-                tft.setTextColor(TFT_WHITE, Ui::success());
+                tft.setTextColor(canEdit ? TFT_WHITE : Ui::muted(), tick);
                 tft.setTextDatum(MC_DATUM);
                 tft.drawString("v", r.x + 12, r.y + 14, 1);
             }
-            tft.setTextColor(Ui::text(), Ui::surface());
+            tft.setTextColor(canEdit ? Ui::text() : Ui::muted(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(app.label(), r.x + 28, r.y + r.h / 2, 2);
         }
