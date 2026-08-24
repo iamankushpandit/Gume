@@ -104,14 +104,28 @@ Rect ProfileGame::gamesNextRect(int16_t screenW, int16_t screenH) const {
 }
 
 Rect ProfileGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
-    const int16_t keyW = 50;
-    const int16_t keyH = 40;
-    const int16_t keySpacingX = 60;
-    const int16_t keySpacingY = 50;
-    const int16_t keypadStartX = screenW / 2 - (keySpacingX * 3) / 2 - keyW / 2;
-    const int16_t keypadStartY = 70;
-    return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
-                static_cast<int16_t>(keypadStartY + row * keySpacingY), keyW, keyH};
+    const bool tall = screenH > screenW;
+    if (tall) {
+        // Portrait: 2 columns
+        const int16_t keyW = 50;
+        const int16_t keyH = 35;
+        const int16_t keySpacingX = 70;
+        const int16_t keySpacingY = 40;
+        const int16_t keypadStartX = screenW / 2 - keySpacingX + 10;
+        const int16_t keypadStartY = 65;
+        return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
+                    static_cast<int16_t>(keypadStartY + row * keySpacingY), keyW, keyH};
+    } else {
+        // Landscape: 3 columns
+        const int16_t keyW = 50;
+        const int16_t keyH = 40;
+        const int16_t keySpacingX = 60;
+        const int16_t keySpacingY = 50;
+        const int16_t keypadStartX = screenW / 2 - (keySpacingX * 3) / 2 - keyW / 2;
+        const int16_t keypadStartY = 70;
+        return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
+                    static_cast<int16_t>(keypadStartY + row * keySpacingY), keyW, keyH};
+    }
 }
 
 Rect ProfileGame::pinDeleteRect(int16_t screenW, int16_t screenH) const {
@@ -168,6 +182,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
                 if (board.isAdminProfile(prof)) {
                     profileToSwitchTo_ = prof;
                     adminPinAttempt_ = 0;
+                    adminPinDigitCount_ = 0;
                     phase_ = Phase::PinEntry;
                     markFullDirty();
                     return;
@@ -261,6 +276,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             } else {
                 board.beepError();
                 adminPinAttempt_ = 0;
+                adminPinDigitCount_ = 0;
                 markDirty();
             }
             return;
@@ -269,20 +285,40 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             deletePinDigit();
             return;
         }
-        // Digits 1-9 (3x3 grid)
-        for (uint8_t row = 0; row < 3; ++row) {
-            for (uint8_t col = 0; col < 3; ++col) {
-                if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                    const uint8_t digit = static_cast<uint8_t>(row * 3 + col + 1);
-                    appendPinDigit(digit);
-                    return;
+
+        const bool tall = H > W;
+        if (tall) {
+            // Portrait: 2 columns x 5 rows
+            for (uint8_t row = 0; row < 5; ++row) {
+                for (uint8_t col = 0; col < 2; ++col) {
+                    if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                        const uint8_t digit = static_cast<uint8_t>(row * 2 + col + 1);
+                        if (digit <= 9) appendPinDigit(digit);
+                        return;
+                    }
                 }
             }
-        }
-        // Digit 0 (row 3, col 1)
-        if (pinKeyRect(3, 1, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            appendPinDigit(0);
-            return;
+            // 0 button
+            if (pinKeyRect(5, 0, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                appendPinDigit(0);
+                return;
+            }
+        } else {
+            // Landscape: 3x3 grid
+            for (uint8_t row = 0; row < 3; ++row) {
+                for (uint8_t col = 0; col < 3; ++col) {
+                    if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                        const uint8_t digit = static_cast<uint8_t>(row * 3 + col + 1);
+                        appendPinDigit(digit);
+                        return;
+                    }
+                }
+            }
+            // Digit 0 (row 3, col 1)
+            if (pinKeyRect(3, 1, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                appendPinDigit(0);
+                return;
+            }
         }
         return;
     }
@@ -313,15 +349,17 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
 }
 
 void ProfileGame::appendPinDigit(uint8_t digit) {
-    if (adminPinAttempt_ < 9999) {
+    if (adminPinDigitCount_ < 4) {
         adminPinAttempt_ = adminPinAttempt_ * 10 + digit;
+        adminPinDigitCount_++;
         markDirty();
     }
 }
 
 void ProfileGame::deletePinDigit() {
-    if (adminPinAttempt_ > 0) {
+    if (adminPinDigitCount_ > 0) {
         adminPinAttempt_ /= 10;
+        adminPinDigitCount_--;
         markDirty();
     }
 }
@@ -345,41 +383,59 @@ void ProfileGame::renderPinEntry(GameHost& host) {
     const int16_t dotSpacing = 40;
     const int16_t dotsStartX = W / 2 - (dotSpacing * 3) / 2 - 10;
 
-    uint8_t digitsEntered = 0;
-    if (adminPinAttempt_ >= 1000) digitsEntered = 4;
-    else if (adminPinAttempt_ >= 100) digitsEntered = 3;
-    else if (adminPinAttempt_ >= 10) digitsEntered = 2;
-    else if (adminPinAttempt_ > 0) digitsEntered = 1;
-
     tft.setTextDatum(MC_DATUM);
     for (uint8_t i = 0; i < 4; ++i) {
         const int16_t x = dotsStartX + i * dotSpacing;
-        const uint16_t fill = i < digitsEntered ? Ui::rgb(70, 140, 70) : Ui::rgb(100, 100, 100);
+        const uint16_t fill = i < adminPinDigitCount_ ? Ui::rgb(70, 140, 70) : Ui::rgb(100, 100, 100);
         tft.fillCircle(x, pinY, 8, fill);
         tft.drawCircle(x, pinY, 8, Ui::outline());
     }
 
-    // Numeric keypad
-    for (uint8_t row = 0; row < 3; ++row) {
-        for (uint8_t col = 0; col < 3; ++col) {
-            const uint8_t digit = row * 3 + col + 1;
-            char label[2] = {static_cast<char>('0' + digit), 0};
-            const Rect keyRect = pinKeyRect(row, col, W, H);
-            tft.fillRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::panel());
-            tft.drawRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::outline());
-            tft.setTextColor(Ui::text(), Ui::panel());
-            tft.setTextDatum(MC_DATUM);
-            tft.drawString(label, keyRect.x + keyRect.w / 2, keyRect.y + keyRect.h / 2, 2);
+    // Numeric keypad - landscape: 3x3, portrait: 2x5
+    if (tall) {
+        // Portrait: 2 columns x 5 rows
+        for (uint8_t row = 0; row < 5; ++row) {
+            for (uint8_t col = 0; col < 2; ++col) {
+                const uint8_t digit = row * 2 + col + 1;
+                if (digit > 9) break;
+                char label[2] = {static_cast<char>('0' + digit), 0};
+                const Rect keyRect = pinKeyRect(row, col, W, H);
+                tft.fillRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::panel());
+                tft.drawRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::outline());
+                tft.setTextColor(Ui::text(), Ui::panel());
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString(label, keyRect.x + keyRect.w / 2, keyRect.y + keyRect.h / 2, 2);
+            }
         }
+        // 0 button (row 5, centered)
+        const Rect key0Rect = pinKeyRect(5, 0, W, H);
+        tft.fillRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::panel());
+        tft.drawRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::outline());
+        tft.setTextColor(Ui::text(), Ui::panel());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString("0", key0Rect.x + key0Rect.w / 2, key0Rect.y + key0Rect.h / 2, 2);
+    } else {
+        // Landscape: 3x3 + centered 0
+        for (uint8_t row = 0; row < 3; ++row) {
+            for (uint8_t col = 0; col < 3; ++col) {
+                const uint8_t digit = row * 3 + col + 1;
+                char label[2] = {static_cast<char>('0' + digit), 0};
+                const Rect keyRect = pinKeyRect(row, col, W, H);
+                tft.fillRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::panel());
+                tft.drawRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::outline());
+                tft.setTextColor(Ui::text(), Ui::panel());
+                tft.setTextDatum(MC_DATUM);
+                tft.drawString(label, keyRect.x + keyRect.w / 2, keyRect.y + keyRect.h / 2, 2);
+            }
+        }
+        // 0 button (centered)
+        const Rect key0Rect = pinKeyRect(3, 1, W, H);
+        tft.fillRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::panel());
+        tft.drawRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::outline());
+        tft.setTextColor(Ui::text(), Ui::panel());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString("0", key0Rect.x + key0Rect.w / 2, key0Rect.y + key0Rect.h / 2, 2);
     }
-
-    // 0 button (centered)
-    const Rect key0Rect = pinKeyRect(3, 1, W, H);
-    tft.fillRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::panel());
-    tft.drawRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::panel());
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString("0", key0Rect.x + key0Rect.w / 2, key0Rect.y + key0Rect.h / 2, 2);
 
     // Delete button
     const Rect deleteRect = pinDeleteRect(W, H);

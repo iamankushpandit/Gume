@@ -39,7 +39,8 @@ private:
     uint8_t editing_ = 0;
     uint8_t menuFor_ = 0;
     uint8_t gameScroll_ = 0;
-    uint8_t adminPinAttempt_ = 0;
+    uint16_t adminPinAttempt_ = 0;
+    uint8_t adminPinDigitCount_ = 0;
     uint8_t profileToSwitchTo_ = 0;
     String draft_;
 };
