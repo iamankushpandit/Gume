@@ -11,11 +11,14 @@ public:
     void render(GameHost& host) override;
 
 private:
-    enum class Phase : uint8_t { Pick, Menu, Rename, Games };
+    enum class Phase : uint8_t { Pick, Menu, Rename, Games, PinEntry };
 
     Rect headerRect(int16_t screenW, int16_t screenH) const;
     Rect slotRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect menuRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
+    Rect pinDeleteRect(int16_t screenW, int16_t screenH) const;
+    Rect pinConfirmRect(int16_t screenW, int16_t screenH) const;
     Rect addRect(int16_t screenW, int16_t screenH) const;
     Rect doneRect(int16_t screenW, int16_t screenH) const;
     Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
@@ -28,9 +31,15 @@ private:
     uint8_t rowCount(Board& board) const;
     uint8_t profileForRow(Board& board, uint8_t row) const;
 
+    void appendPinDigit(uint8_t digit);
+    void deletePinDigit();
+    void renderPinEntry(GameHost& host);
+
     Phase phase_ = Phase::Pick;
     uint8_t editing_ = 0;
     uint8_t menuFor_ = 0;
     uint8_t gameScroll_ = 0;
+    uint8_t adminPinAttempt_ = 0;
+    uint8_t profileToSwitchTo_ = 0;
     String draft_;
 };
