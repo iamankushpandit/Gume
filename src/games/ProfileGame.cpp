@@ -9,6 +9,30 @@ constexpr uint8_t KEY_ROWS = 5;
 const char* const KEYS[KEY_ROWS] = {
     "ABCDEF", "GHIJKL", "MNOPQR", "STUVWX", "YZ -<>"
 };
+
+/* PIN pad geometry. Four rows: 1-9 then the DEL / 0 / OK row. PIN_PAD_TOP
+ * clears the title (font 2, 16px) and the row of PIN dots below it. */
+constexpr uint8_t PIN_PAD_COLS = 3;
+constexpr uint8_t PIN_PAD_ROWS = 4;
+constexpr int16_t PIN_PAD_TOP  = 58;
+constexpr int16_t PIN_DOT_Y    = 38;
+constexpr int16_t PIN_DOT_R    = 7;
+constexpr uint8_t PIN_LENGTH   = 4;
+
+/* Small padlock, centred on (cx, cy): a 9x7 body with a shackle arc above it.
+ * Drawn from primitives rather than added to LauncherIcons because it is a
+ * row badge, not a launcher tile. */
+void drawLockBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour) {
+    const int16_t bodyW = 9, bodyH = 7;
+    const int16_t bx = static_cast<int16_t>(cx - bodyW / 2);
+    const int16_t by = static_cast<int16_t>(cy - 1);
+    tft.fillRoundRect(bx, by, bodyW, bodyH, 2, colour);
+    // Shackle: two uprights and a cap, one pixel in from each body edge.
+    tft.drawFastVLine(static_cast<int16_t>(bx + 2), static_cast<int16_t>(by - 4), 4, colour);
+    tft.drawFastVLine(static_cast<int16_t>(bx + bodyW - 3), static_cast<int16_t>(by - 4), 4, colour);
+    tft.drawFastHLine(static_cast<int16_t>(bx + 2), static_cast<int16_t>(by - 5),
+                      static_cast<int16_t>(bodyW - 4), colour);
+}
 }
 
 const char* ProfileGame::title() const { return "Profiles"; }
@@ -103,43 +127,55 @@ Rect ProfileGame::gamesNextRect(int16_t screenW, int16_t screenH) const {
     return Rect{static_cast<int16_t>(screenW - 100), static_cast<int16_t>(screenH - 30), 92, 25};
 }
 
+/* Standard PIN pad: three columns, four rows, stacked vertically and centred.
+ *
+ * 1 2 3
+ * 4 5 6
+ * 7 8 9
+ * < 0 OK
+ *
+ * The whole pad is derived from the live width/height so it fits in both
+ * orientations. The previous version hard-coded row Y values that ran past
+ * 240px in landscape, so the bottom row and both action buttons were drawn
+ * off the panel entirely -- there was nothing to press. Anything changed here
+ * must still end above screenH. */
 Rect ProfileGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
-    const bool tall = screenH > screenW;
-    if (tall) {
-        // Portrait: 2 columns
-        const int16_t keyW = 50;
-        const int16_t keyH = 35;
-        const int16_t keySpacingX = 70;
-        const int16_t keySpacingY = 40;
-        const int16_t keypadStartX = screenW / 2 - keySpacingX + 10;
-        const int16_t keypadStartY = 65;
-        return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
-                    static_cast<int16_t>(keypadStartY + row * keySpacingY), keyW, keyH};
-    } else {
-        // Landscape: 3 columns
-        const int16_t keyW = 50;
-        const int16_t keyH = 40;
-        const int16_t keySpacingX = 60;
-        const int16_t keySpacingY = 50;
-        const int16_t keypadStartX = screenW / 2 - (keySpacingX * 3) / 2 - keyW / 2;
-        const int16_t keypadStartY = 70;
-        return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
-                    static_cast<int16_t>(keypadStartY + row * keySpacingY), keyW, keyH};
-    }
+    const int16_t top    = PIN_PAD_TOP;
+    const int16_t bottom = static_cast<int16_t>(screenH - 6);
+    const int16_t pitchY = static_cast<int16_t>((bottom - top) / PIN_PAD_ROWS);
+    const int16_t keyH   = static_cast<int16_t>(pitchY - 6);
+
+    const int16_t keyW   = static_cast<int16_t>(min<int16_t>(70, (screenW - 40) / PIN_PAD_COLS - 8));
+    const int16_t pitchX = static_cast<int16_t>(keyW + 8);
+    const int16_t left   = static_cast<int16_t>((screenW - (pitchX * (PIN_PAD_COLS - 1) + keyW)) / 2);
+
+    return Rect{static_cast<int16_t>(left + col * pitchX),
+                static_cast<int16_t>(top + row * pitchY), keyW, keyH};
 }
 
+/* Bottom row, outer two cells. Kept as accessors so the touch handler and the
+ * renderer cannot disagree about where they are. */
 Rect ProfileGame::pinDeleteRect(int16_t screenW, int16_t screenH) const {
-    const int16_t keyW = 50;
-    const int16_t keyH = 40;
-    const int16_t buttonY = 270;
-    return Rect{static_cast<int16_t>(screenW / 2 - 110), buttonY, keyW, keyH};
+    return pinKeyRect(3, 0, screenW, screenH);
 }
 
 Rect ProfileGame::pinConfirmRect(int16_t screenW, int16_t screenH) const {
-    const int16_t keyW = 50;
-    const int16_t keyH = 40;
-    const int16_t buttonY = 270;
-    return Rect{static_cast<int16_t>(screenW / 2 + 60), buttonY, keyW, keyH};
+    return pinKeyRect(3, 2, screenW, screenH);
+}
+
+/* Top-left, clear of the pad. Without this a child who taps the admin row is
+ * stuck on the PIN screen with no way back to the picker. */
+Rect ProfileGame::pinCancelRect(int16_t, int16_t) const {
+    return Rect{6, 6, 52, 22};
+}
+
+void ProfileGame::beginPinEntry(uint8_t profile, PinPurpose purpose) {
+    profileToSwitchTo_ = profile;
+    pinPurpose_ = purpose;
+    adminPinAttempt_ = 0;
+    adminPinDigitCount_ = 0;
+    phase_ = Phase::PinEntry;
+    markFullDirty();
 }
 
 uint8_t ProfileGame::visibleGameRows(int16_t screenH) const {
@@ -172,19 +208,24 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             const uint8_t prof = profileForRow(board, r);
             if (menuRect(r, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 if (prof == Board::GUEST_INDEX) return;
+                /* Edit leads to rename and to the admin's own game list, so it
+                 * is as privileged as switching into the profile and is gated
+                 * the same way. */
+                if (board.isAdminProfile(prof)) {
+                    beginPinEntry(prof, PinPurpose::OpenMenu);
+                    return;
+                }
                 menuFor_ = prof;
                 phase_ = Phase::Menu;
                 markFullDirty();
                 return;
             }
             if (slotRect(r, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                // Require PIN every time admin profile is accessed
+                /* Every time, not just from a non-admin profile: "already
+                 * admin" is not evidence that the person holding the device is
+                 * the one who typed the PIN. */
                 if (board.isAdminProfile(prof)) {
-                    profileToSwitchTo_ = prof;
-                    adminPinAttempt_ = 0;
-                    adminPinDigitCount_ = 0;
-                    phase_ = Phase::PinEntry;
-                    markFullDirty();
+                    beginPinEntry(prof, PinPurpose::Switch);
                     return;
                 }
                 board.setActiveProfile(prof);
@@ -268,16 +309,37 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
     }
 
     if (phase_ == Phase::PinEntry) {
+        if (pinCancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            phase_ = Phase::Pick;
+            adminPinAttempt_ = 0;
+            adminPinDigitCount_ = 0;
+            markFullDirty();
+            return;
+        }
         if (pinConfirmRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (adminPinAttempt_ == board.adminPin()) {
-                board.setActiveProfile(profileToSwitchTo_);
-                board.beepOk();
-                host.goHome();
-            } else {
+            /* Judge only a complete entry, so a wrong-length attempt cannot be
+             * used to probe whether a shorter prefix is accepted. */
+            if (adminPinDigitCount_ != PIN_LENGTH) {
                 board.beepError();
-                adminPinAttempt_ = 0;
-                adminPinDigitCount_ = 0;
+                return;
+            }
+            const bool ok = (adminPinAttempt_ == board.adminPin());
+            adminPinAttempt_ = 0;
+            adminPinDigitCount_ = 0;
+
+            if (!ok) {
+                board.beepError();
                 markDirty();
+                return;
+            }
+            board.beepOk();
+            if (pinPurpose_ == PinPurpose::OpenMenu) {
+                menuFor_ = profileToSwitchTo_;
+                phase_ = Phase::Menu;
+                markFullDirty();
+            } else {
+                board.setActiveProfile(profileToSwitchTo_);
+                host.goHome();
             }
             return;
         }
@@ -285,40 +347,19 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             deletePinDigit();
             return;
         }
-
-        const bool tall = H > W;
-        if (tall) {
-            // Portrait: 2 columns x 5 rows
-            for (uint8_t row = 0; row < 5; ++row) {
-                for (uint8_t col = 0; col < 2; ++col) {
-                    if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                        const uint8_t digit = static_cast<uint8_t>(row * 2 + col + 1);
-                        if (digit <= 9) appendPinDigit(digit);
-                        return;
-                    }
+        /* Rows 0-2 carry 1-9; row 3 middle cell is 0. DEL and OK are the outer
+         * cells of row 3 and were handled above. */
+        for (uint8_t row = 0; row < 3; ++row) {
+            for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
+                if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                    appendPinDigit(static_cast<uint8_t>(row * PIN_PAD_COLS + col + 1));
+                    return;
                 }
             }
-            // 0 button
-            if (pinKeyRect(5, 0, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                appendPinDigit(0);
-                return;
-            }
-        } else {
-            // Landscape: 3x3 grid
-            for (uint8_t row = 0; row < 3; ++row) {
-                for (uint8_t col = 0; col < 3; ++col) {
-                    if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                        const uint8_t digit = static_cast<uint8_t>(row * 3 + col + 1);
-                        appendPinDigit(digit);
-                        return;
-                    }
-                }
-            }
-            // Digit 0 (row 3, col 1)
-            if (pinKeyRect(3, 1, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                appendPinDigit(0);
-                return;
-            }
+        }
+        if (pinKeyRect(3, 1, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            appendPinDigit(0);
+            return;
         }
         return;
     }
@@ -349,7 +390,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
 }
 
 void ProfileGame::appendPinDigit(uint8_t digit) {
-    if (adminPinDigitCount_ < 4) {
+    if (adminPinDigitCount_ < PIN_LENGTH) {
         adminPinAttempt_ = adminPinAttempt_ * 10 + digit;
         adminPinDigitCount_++;
         markDirty();
@@ -365,93 +406,56 @@ void ProfileGame::deletePinDigit() {
 }
 
 void ProfileGame::renderPinEntry(GameHost& host) {
-    Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
-    const bool tall = H > W;
 
     Ui::clear(tft);
+
+    Ui::drawButton(tft, pinCancelRect(W, H), "Back", Ui::panel(), Ui::outline(),
+                   Ui::text(), false, 1);
+
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TC_DATUM);
+    tft.drawString("Enter Admin PIN", W / 2, 6, 2);
 
-    const int16_t titleY = tall ? 20 : 12;
-    tft.drawString("Enter Admin PIN", W / 2, titleY, 2);
-
-    // PIN display dots
-    const int16_t pinY = tall ? 50 : 40;
-    const int16_t dotSpacing = 40;
-    const int16_t dotsStartX = W / 2 - (dotSpacing * 3) / 2 - 10;
-
-    tft.setTextDatum(MC_DATUM);
-    for (uint8_t i = 0; i < 4; ++i) {
-        const int16_t x = dotsStartX + i * dotSpacing;
-        const uint16_t fill = i < adminPinDigitCount_ ? Ui::rgb(70, 140, 70) : Ui::rgb(100, 100, 100);
-        tft.fillCircle(x, pinY, 8, fill);
-        tft.drawCircle(x, pinY, 8, Ui::outline());
+    /* Four dots, one per digit, filled from the left as digits arrive. The
+     * count is tracked separately from the value because "0000" and an empty
+     * field are the same number. */
+    const int16_t dotPitch = 26;
+    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
+    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
+        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
+        const uint16_t fill = i < adminPinDigitCount_ ? Ui::success() : Ui::panel();
+        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
+        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
     }
 
-    // Numeric keypad - landscape: 3x3, portrait: 2x5
-    if (tall) {
-        // Portrait: 2 columns x 5 rows
-        for (uint8_t row = 0; row < 5; ++row) {
-            for (uint8_t col = 0; col < 2; ++col) {
-                const uint8_t digit = row * 2 + col + 1;
-                if (digit > 9) break;
-                char label[2] = {static_cast<char>('0' + digit), 0};
-                const Rect keyRect = pinKeyRect(row, col, W, H);
-                tft.fillRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::panel());
-                tft.drawRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::outline());
-                tft.setTextColor(Ui::text(), Ui::panel());
-                tft.setTextDatum(MC_DATUM);
-                tft.drawString(label, keyRect.x + keyRect.w / 2, keyRect.y + keyRect.h / 2, 2);
+    /* Rows 0-2 are 1-9; row 3 is DEL / 0 / OK. */
+    for (uint8_t row = 0; row < PIN_PAD_ROWS; ++row) {
+        for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
+            const Rect r = pinKeyRect(row, col, W, H);
+
+            const char* label;
+            char digitLabel[2] = {0, 0};
+            uint16_t fill = Ui::panel();
+
+            if (row < 3) {
+                digitLabel[0] = static_cast<char>('1' + row * PIN_PAD_COLS + col);
+                label = digitLabel;
+            } else if (col == 0) {
+                label = "DEL";
+                fill  = Ui::rgb(150, 60, 60);
+            } else if (col == 1) {
+                label = "0";
+            } else {
+                label = "OK";
+                fill  = Ui::rgb(45, 154, 96);
             }
+
+            Ui::drawButton(tft, r, label, fill, Ui::outline(), Ui::text(), false, 2);
         }
-        // 0 button (row 5, centered)
-        const Rect key0Rect = pinKeyRect(5, 0, W, H);
-        tft.fillRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::panel());
-        tft.drawRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::outline());
-        tft.setTextColor(Ui::text(), Ui::panel());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("0", key0Rect.x + key0Rect.w / 2, key0Rect.y + key0Rect.h / 2, 2);
-    } else {
-        // Landscape: 3x3 + centered 0
-        for (uint8_t row = 0; row < 3; ++row) {
-            for (uint8_t col = 0; col < 3; ++col) {
-                const uint8_t digit = row * 3 + col + 1;
-                char label[2] = {static_cast<char>('0' + digit), 0};
-                const Rect keyRect = pinKeyRect(row, col, W, H);
-                tft.fillRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::panel());
-                tft.drawRoundRect(keyRect.x, keyRect.y, keyRect.w, keyRect.h, 4, Ui::outline());
-                tft.setTextColor(Ui::text(), Ui::panel());
-                tft.setTextDatum(MC_DATUM);
-                tft.drawString(label, keyRect.x + keyRect.w / 2, keyRect.y + keyRect.h / 2, 2);
-            }
-        }
-        // 0 button (centered)
-        const Rect key0Rect = pinKeyRect(3, 1, W, H);
-        tft.fillRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::panel());
-        tft.drawRoundRect(key0Rect.x, key0Rect.y, key0Rect.w, key0Rect.h, 4, Ui::outline());
-        tft.setTextColor(Ui::text(), Ui::panel());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("0", key0Rect.x + key0Rect.w / 2, key0Rect.y + key0Rect.h / 2, 2);
     }
-
-    // Delete button
-    const Rect deleteRect = pinDeleteRect(W, H);
-    tft.fillRoundRect(deleteRect.x, deleteRect.y, deleteRect.w, deleteRect.h, 4, Ui::rgb(150, 60, 60));
-    tft.drawRoundRect(deleteRect.x, deleteRect.y, deleteRect.w, deleteRect.h, 4, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::rgb(150, 60, 60));
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString("DEL", deleteRect.x + deleteRect.w / 2, deleteRect.y + deleteRect.h / 2, 1);
-
-    // Confirm button
-    const Rect confirmRect = pinConfirmRect(W, H);
-    tft.fillRoundRect(confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 4, Ui::rgb(45, 154, 96));
-    tft.drawRoundRect(confirmRect.x, confirmRect.y, confirmRect.w, confirmRect.h, 4, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::rgb(45, 154, 96));
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString("OK", confirmRect.x + confirmRect.w / 2, confirmRect.y + confirmRect.h / 2, 1);
 
     tft.setTextDatum(TL_DATUM);
 }
@@ -505,9 +509,21 @@ void ProfileGame::render(GameHost& host) {
             const uint8_t prof = profileForRow(board, r);
             const bool sel = (prof == active);
             const bool guest = (prof == Board::GUEST_INDEX);
-            Ui::drawButton(tft, slotRect(r, W, H), board.profileName(prof),
+            const Rect slot = slotRect(r, W, H);
+            Ui::drawButton(tft, slot, board.profileName(prof),
                            sel ? Ui::rgb(36, 132, 204) : (guest ? Ui::surface() : Ui::panel()),
                            Ui::outline(), sel ? TFT_WHITE : Ui::text(), false, 2);
+
+            /* A padlock on the admin's row. This is the only cue in the picker
+             * that the row will ask for a PIN, so it has to be visible before
+             * the tap, not after. Drawn at the right edge of the slot, clear of
+             * the centred name. */
+            if (board.isAdminProfile(prof)) {
+                drawLockBadge(tft, static_cast<int16_t>(slot.x + slot.w - 14),
+                              static_cast<int16_t>(slot.y + slot.h / 2),
+                              sel ? TFT_WHITE : Ui::muted());
+            }
+
             if (!guest) {
                 Ui::drawButton(tft, menuRect(r, W, H), "Edit", Ui::surface(),
                                Ui::outline(), Ui::muted(), false, 2);

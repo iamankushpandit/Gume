@@ -19,14 +19,21 @@ public:
     void render(GameHost& host) override;
 
 private:
-    enum class Tab : uint8_t { Device, Power };
-    enum class Mode : uint8_t { Locked, PinEntry, Unlocked };
+    enum class Tab : uint8_t { Device, Power, Admin };
+
+    /* Settings is readable by everyone and writable only by the admin, so
+     * there is no lock screen here -- the PIN pad exists purely to set a new
+     * PIN, which is entered twice. */
+    enum class PinTask : uint8_t { None, SetNew, ConfirmNew };
 
     Rect deviceTabRect() const;
     Rect powerTabRect() const;
-    Rect pinKeyRect(uint8_t row, uint8_t col) const;
-    Rect pinDeleteRect() const;
-    Rect pinConfirmRect() const;
+    Rect adminTabRect() const;
+    Rect changePinRect() const;
+    Rect pinCancelRect() const;
+    Rect pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
+    Rect pinDeleteRect(int16_t screenW, int16_t screenH) const;
+    Rect pinConfirmRect(int16_t screenW, int16_t screenH) const;
 
     Rect themeRect() const;
     Rect layoutRect() const;
@@ -46,8 +53,12 @@ private:
     void cycleIdleAction(Board& board);
     void renderDeviceTab(GameHost& host);
     void renderPowerTab(GameHost& host);
-    void renderLockedScreen(GameHost& host);
-    void renderPinEntry(GameHost& host);
+    void renderAdminTab(GameHost& host);
+    void renderPinPad(GameHost& host, const char* heading);
+
+    /* Shared by the unlock screen and the change-PIN flow. Returns true if the
+     * touch landed on the pad, so callers can stop looking. */
+    bool handlePinPadTouch(GameHost& host, const TouchPoint& touch);
 
     /* True when the Sleep-after row is inert: SaverOnly never blanks, and
      * SleepOnly blanks at the idle delay instead. A live-looking control that
@@ -60,6 +71,11 @@ private:
 
     Tab tab_ = Tab::Device;
     bool confirmReset_ = false;
-    Mode mode_ = Mode::Locked;
     uint16_t enteredPin_ = 0;
+    /* Tracked separately from the value: "0000" and an empty field are the
+     * same number, so the value alone cannot say how many digits are in. */
+    uint8_t enteredPinDigits_ = 0;
+
+    PinTask pinTask_ = PinTask::None;
+    uint16_t pendingPin_ = 0;   // first entry of a new PIN, awaiting confirmation
 };

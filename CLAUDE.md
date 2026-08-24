@@ -248,9 +248,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,325,045 / 3,145,728 bytes,
-**73.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,020 / 327,680 (22.0%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,335,229 / 3,145,728 bytes,
+**74.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 72,076 / 327,680 (22.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -305,6 +305,33 @@ call site sits inside a `Watchdog::Pause` guard.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a child clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
 - **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
+- **The admin PIN gates the two routes into the admin profile**: switching to
+  it, and opening its Edit menu (rename plus its per-child game list). One
+  profile is admin (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it
+  in NVS). Add a third way to become admin and it needs the same gate. It is
+  asked **every time**, including when already admin: being admin is not
+  evidence about who is holding the device, which is the whole threat model.
+- **Settings is readable by everyone and writable only by the admin.** There is
+  no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
+  early return in `SettingsGame::update()`, sitting *below* tab switching so a
+  non-admin can still page through and read. The greyed-out controls are a
+  drawing decision and enforce nothing on their own: for a while every greyed
+  row was still live and a child could toggle the lot. If you add a control,
+  it is covered by that early return automatically — do not add a path above
+  it.
+- **Boot must not leave the admin profile active.** `KidsPlatformApp::begin()`
+  drops to Guest if it finds admin selected. The picker's Done button goes home
+  with whatever is already active, so a remembered admin selection is a PIN
+  bypass, not a convenience. Do not "restore the last profile" here.
+- **A PIN's digit count is not derivable from its value.** `0000` and an empty
+  field are both zero, so every PIN entry point tracks digits separately from
+  the number, and only judges an entry once it is exactly four long. Both
+  screens got this wrong first time and silently accepted a three-digit prefix.
+- **Both PIN pads are laid out against the live `tft.width()`/`height()`.** The
+  first version hard-coded rows at y=220 and the action buttons at y=270 on a
+  240px-tall panel, so the bottom row, DEL and OK were all drawn off the screen
+  and there was physically nothing to press. Anything added to either pad must
+  still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
 - **`APP_REGISTRY` holds the 30 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.

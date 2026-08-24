@@ -458,18 +458,26 @@ def tabs(d, active_device):
     d.line([(ax + 152, 60), (316, 60)], fill=OUTLINE)
 
 
-def settings_device():
-    im, d = blank(); topbar(d, "Settings")
-    # Tab strip under the top bar; the active tab merges into the page below.
-    for i, (lab, x) in enumerate([("Device", 0), ("Power", 160)]):
-        active = (i == 0)
+def settings_tabs(d, active_index):
+    """Three tabs, each SCREEN_WIDTH/3 wide -- mirrors deviceTabRect() and
+    friends, which divide the live width rather than assuming 160px halves."""
+    third = 320 // 3
+    for i, lab in enumerate(("Device", "Power", "Admin")):
+        x = i * third
+        w = (320 - x) if i == 2 else third
+        active = (i == active_index)
         top = 30 if active else 34
         h = 22 if active else 18
         fillc = SURFACE if active else PANEL
-        d.rounded_rectangle([x, top, x + 159, top + h], 4, fill=fillc, outline=OUTLINE)
-        d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
+        d.rounded_rectangle([x, top, x + w - 1, top + h], 4, fill=fillc, outline=OUTLINE)
+        d.text((x + w / 2 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
                font=F2, fill=TEXT if active else MUTED)
     d.line([(0, 52), (319, 52)], fill=OUTLINE)
+
+
+def settings_device():
+    im, d = blank(); topbar(d, "Settings")
+    settings_tabs(d, 0)
     # Four rows of 30px from y=58, under the tab baseline. Network takes a
     # whole row so Nearby can have a half-width slot beside Reset.
     button(d, (8, 58, 144, 30), "Theme: Dark")
@@ -497,21 +505,82 @@ def settings_device():
 def settings_power():
     """Settings tab: what happens when nobody is touching the device."""
     im, d = blank(); topbar(d, "Settings")
-    # Tab strip under the top bar; the active tab merges into the page below.
-    for i, (lab, x) in enumerate([("Device", 0), ("Power", 160)]):
-        active = (i == 1)
-        top = 30 if active else 34
-        h = 22 if active else 18
-        fillc = SURFACE if active else PANEL
-        d.rounded_rectangle([x, top, x + 159, top + h], 4, fill=fillc, outline=OUTLINE)
-        d.text((x + 80 - d.textlength(lab, font=F2) / 2, top + h / 2 - 6), lab,
-               font=F2, fill=TEXT if active else MUTED)
-    d.line([(0, 52), (319, 52)], fill=OUTLINE)
+    settings_tabs(d, 1)
     button(d, (8, 58, 304, 30), "When idle: Saver then sleep")
     button(d, (8, 92, 304, 30), "Idle after: 1m")
     button(d, (8, 126, 304, 30), "Sleep after: 1m")
     d.text((8, 168), "Saver at 60s, screen off at 120s.", font=F1, fill=MUTED)
     d.text((8, 184), "Sleep blanks the screen. A touch wakes it.", font=F1, fill=MUTED)
+    return im
+
+
+def settings_admin():
+    """Settings tab: the PIN that guards this screen and the admin profile."""
+    im, d = blank(); topbar(d, "Settings")
+    settings_tabs(d, 2)
+    button(d, (8, 58, 304, 30), "Change admin PIN")
+    d.text((8, 100), "The PIN guards the admin profile. It", font=F1, fill=MUTED)
+    d.text((8, 116), "ships as 0000 -- change it.", font=F1, fill=MUTED)
+    d.text((8, 140), "Admin profile: Admin", font=F1, fill=MUTED)
+    lab = "Entered twice; only saved if both match."
+    d.text((160 - d.textlength(lab, font=F1) / 2, 220), lab, font=F1, fill=MUTED)
+    return im
+
+
+def _pin_pad(d, heading, filled):
+    """Mirrors the shared 3x4 PIN pad: rows 0-2 are 1-9, row 3 is DEL / 0 / OK.
+
+    Geometry follows pinKeyRect(): derived from the panel size so every row
+    lands above the bottom edge."""
+    lab_w = d.textlength(heading, font=F2)
+    d.text((160 - lab_w / 2, 38), heading, font=F2, fill=TEXT)
+
+    # Four dots, filled from the left as digits arrive. Masked, never digits.
+    pitch = 26
+    x0 = 160 - (pitch * 3) // 2
+    for i in range(4):
+        cx = x0 + i * pitch
+        fill = SUCCESS if i < filled else PANEL
+        d.ellipse([cx - 7, 74 - 7, cx + 7, 74 + 7], fill=fill, outline=OUTLINE)
+
+    top, bottom = 92, 240 - 6
+    pitch_y = (bottom - top) // 4
+    key_h = pitch_y - 5
+    key_w = min(70, (320 - 40) // 3 - 8)
+    pitch_x = key_w + 8
+    left = (320 - (pitch_x * 2 + key_w)) // 2
+
+    for row in range(4):
+        for col in range(3):
+            x = left + col * pitch_x
+            y = top + row * pitch_y
+            if row < 3:
+                lab, fill = str(row * 3 + col + 1), PANEL
+            elif col == 0:
+                lab, fill = "DEL", (150, 60, 60)
+            elif col == 1:
+                lab, fill = "0", PANEL
+            else:
+                lab, fill = "OK", (45, 154, 96)
+            d.rounded_rectangle([x, y, x + key_w, y + key_h], 4,
+                                fill=fill, outline=OUTLINE)
+            d.text((x + key_w / 2 - d.textlength(lab, font=F2) / 2,
+                    y + key_h / 2 - 7), lab, font=F2, fill=TEXT)
+
+
+def settings_pin():
+    """Setting a new admin PIN: entered twice, saved only if both match."""
+    im, d = blank(); topbar(d, "Settings")
+    button(d, (6, 6, 52, 22), "Back", f=F1)
+    _pin_pad(d, "Enter new PIN", 2)
+    return im
+
+
+def profiles_pin():
+    """The PIN asked for on the way into the admin profile."""
+    im, d = blank()
+    button(d, (6, 6, 52, 22), "Back", f=F1)
+    _pin_pad(d, "Enter Admin PIN", 3)
     return im
 
 
@@ -595,6 +664,9 @@ SCREENS = [
     ("cinnamon", cinnamon, "Cinnamon Says"),
     ("settings-device", settings_device, "Settings: device"),
     ("settings-power", settings_power, "Settings: power and sleep"),
+    ("settings-admin", settings_admin, "Settings: the admin PIN"),
+    ("settings-pin", settings_pin, "Settings: setting a new admin PIN"),
+    ("profiles-pin", profiles_pin, "Profiles: the admin PIN prompt"),
     ("settings-games", settings_games, "Settings: which games appear"),
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),

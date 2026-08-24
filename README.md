@@ -18,8 +18,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 30 |
-| Flash | 2,325,045 / 3,145,728 bytes (**73.9%**) |
-| RAM | 72,020 / 327,680 bytes (**22.0%**) |
+| Flash | 2,335,229 / 3,145,728 bytes (**74.2%**) |
+| RAM | 72,076 / 327,680 bytes (**22.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -253,9 +253,10 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/settings-device.png" width="360" alt="Settings: device">
   <img src="docs/screens/settings-power.png" width="360" alt="Settings: power and sleep">
+  <img src="docs/screens/settings-admin.png" width="360" alt="Settings: the admin PIN">
 </p>
 
-Two tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
+Three tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
 the Nearby switch, screen brightness, and a factory reset behind a two-tap
 confirm. Nearby greys out and reads *needs Beacon* while the radio is off — it
 rides on that radio, and a switch that flips without doing anything is worse
@@ -272,6 +273,57 @@ control needed to undo it.
 
 **Menu layout is launcher-only.** Every game is authored against the fixed
 320×240 landscape canvas, so Tall changes the home screen and nothing else.
+
+**Admin** holds the PIN that guards the admin profile. See below.
+
+### The admin profile
+
+<p align="center">
+  <img src="docs/screens/profiles-pin.png" width="360" alt="The admin PIN prompt">
+  <img src="docs/screens/settings-pin.png" width="360" alt="Setting a new admin PIN">
+</p>
+
+One profile is the **admin**, and it is guarded by a four-digit PIN. It carries
+a small padlock in the profile picker, so the lock is visible before the tap
+rather than after it.
+
+The PIN is asked for on the two routes *into* the admin profile:
+
+- switching to it,
+- opening its **Edit** menu — which reaches rename and that profile's
+  per-child game list.
+
+It is asked **every time**, including immediately after a correct entry.
+"Already admin" is not evidence that the person now holding the device is the
+one who typed the PIN — which is the entire situation this guards against, a
+device handed to a child mid-session.
+
+**Settings is not behind the PIN.** Anyone can open it and read every page —
+there is nothing secret there, and a child being unable to see why the screen
+dims is worse than one who can look. What a non-admin cannot do is *change*
+anything: every control renders greyed, and every one of them is inert. The
+greying and the refusal are separate things, and it is the refusal that
+enforces it — the controls were grey and fully live for a while, which is
+exactly the bug this arrangement is written down to prevent.
+
+The device also refuses to **boot** into the admin profile: if admin was active
+at power-off, the next boot drops to Guest. The picker's *Done* button goes home
+with whatever profile is already active, so a remembered admin selection would
+have handed out admin with no PIN at all.
+
+The admin profile **cannot be removed** — the Remove button greys out on that
+row and says why.
+
+A fresh device ships with the admin profile **Admin** and the PIN **0000**.
+Change it from *Settings → Admin → Change admin PIN*: the new PIN is entered
+twice and is only written if both entries match. A mistyped PIN stored anyway
+would lock the owner out of their own device with no recovery short of a
+factory reset.
+
+What the PIN is **not**: it is a parental control, not a security boundary. It
+is four digits, there is no attempt limiting, and anyone who can reflash the
+board can clear it. It is sized to stop a child changing settings, not an
+adversary.
 
 ### Nearby
 

@@ -3,6 +3,17 @@
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
 
+namespace {
+/* PIN pad geometry, matching ProfileGame's: three columns, four rows, the
+ * last row being DEL / 0 / OK. */
+constexpr uint8_t PIN_PAD_COLS = 3;
+constexpr uint8_t PIN_PAD_ROWS = 4;
+constexpr int16_t PIN_PAD_TOP  = 92;
+constexpr int16_t PIN_DOT_Y    = 74;
+constexpr int16_t PIN_DOT_R    = 7;
+constexpr uint8_t PIN_LENGTH   = 4;
+}
+
 const char* SettingsGame::title() const { return "Settings"; }
 
 void SettingsGame::begin(GameHost& host) {
@@ -10,15 +21,30 @@ void SettingsGame::begin(GameHost& host) {
     confirmReset_ = false;
     tab_ = Tab::Device;
     enteredPin_ = 0;
-    mode_ = isAdmin(host.board()) ? Mode::Unlocked : Mode::Locked;
+    enteredPinDigits_ = 0;
+    pinTask_ = PinTask::None;
+    pendingPin_ = 0;
     Ui::setTheme(host.board().themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
     markFullDirty();
 }
 
 /* Tab strip sits directly under the top bar; the rows start below its
  * baseline. Both tabs split the width in half. */
-Rect SettingsGame::deviceTabRect() const { return Rect{0,   30, 160, 22}; }
-Rect SettingsGame::powerTabRect()  const { return Rect{160, 30, 160, 22}; }
+Rect SettingsGame::deviceTabRect() const { return Rect{0, 30, SCREEN_WIDTH / 3, 22}; }
+Rect SettingsGame::powerTabRect()  const {
+    return Rect{static_cast<int16_t>(SCREEN_WIDTH / 3), 30, SCREEN_WIDTH / 3, 22};
+}
+Rect SettingsGame::adminTabRect()  const {
+    const int16_t x = static_cast<int16_t>((SCREEN_WIDTH / 3) * 2);
+    return Rect{x, 30, static_cast<int16_t>(SCREEN_WIDTH - x), 22};
+}
+
+/* Admin tab: one action for now. Sized like a Device-tab row. */
+Rect SettingsGame::changePinRect() const { return Rect{8, 58, 304, 30}; }
+
+/* Abandons a half-finished PIN change. Without it a mis-tap on Change PIN
+ * traps the admin on the pad with no way back. */
+Rect SettingsGame::pinCancelRect() const { return Rect{6, 6, 52, 22}; }
 
 /* Device tab: four rows of 30px, then the brightness slider.
  *
@@ -45,26 +71,32 @@ Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
 Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
 Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
 
-Rect SettingsGame::pinKeyRect(uint8_t row, uint8_t col) const {
-    const int16_t keyW = 50;
-    const int16_t keyH = 40;
-    const int16_t keySpacingX = 60;
-    const int16_t keypadStartX = SCREEN_WIDTH / 2 - (keySpacingX * 3) / 2 - keyW / 2;
-    const int16_t keypadStartY = 120;
-    return Rect{static_cast<int16_t>(keypadStartX + col * keySpacingX),
-                static_cast<int16_t>(keypadStartY + row * 50), keyW, keyH};
+/* Standard PIN pad, laid out against the live panel size so it works in both
+ * orientations and, more importantly, so every row lands above the bottom
+ * edge. The previous version hard-coded rows at y=220 and buttons at y=270 on
+ * a 240px-tall panel: the bottom row and both actions were drawn off-screen,
+ * leaving nothing to press. */
+Rect SettingsGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
+    const int16_t top    = PIN_PAD_TOP;
+    const int16_t bottom = static_cast<int16_t>(screenH - 6);
+    const int16_t pitchY = static_cast<int16_t>((bottom - top) / PIN_PAD_ROWS);
+    const int16_t keyH   = static_cast<int16_t>(pitchY - 5);
+
+    const int16_t keyW   = static_cast<int16_t>(min<int16_t>(70, (screenW - 40) / PIN_PAD_COLS - 8));
+    const int16_t pitchX = static_cast<int16_t>(keyW + 8);
+    const int16_t left   = static_cast<int16_t>((screenW - (pitchX * (PIN_PAD_COLS - 1) + keyW)) / 2);
+
+    return Rect{static_cast<int16_t>(left + col * pitchX),
+                static_cast<int16_t>(top + row * pitchY), keyW, keyH};
 }
 
-Rect SettingsGame::pinDeleteRect() const {
-    const int16_t keyW = 50;
-    const int16_t keyH = 40;
-    return Rect{static_cast<int16_t>(SCREEN_WIDTH / 2 - 110), 270, keyW, keyH};
+/* Bottom row, outer cells -- accessors so the renderer and the touch handler
+ * cannot disagree about where they are. */
+Rect SettingsGame::pinDeleteRect(int16_t screenW, int16_t screenH) const {
+    return pinKeyRect(3, 0, screenW, screenH);
 }
-
-Rect SettingsGame::pinConfirmRect() const {
-    const int16_t keyW = 50;
-    const int16_t keyH = 40;
-    return Rect{static_cast<int16_t>(SCREEN_WIDTH / 2 + 60), 270, keyW, keyH};
+Rect SettingsGame::pinConfirmRect(int16_t screenW, int16_t screenH) const {
+    return pinKeyRect(3, 2, screenW, screenH);
 }
 
 bool SettingsGame::sleepRowActive(Board& board) const {
@@ -76,15 +108,17 @@ bool SettingsGame::isAdmin(Board& board) const {
 }
 
 void SettingsGame::appendPinDigit(uint8_t digit) {
-    if (enteredPin_ < 9999) {
-        enteredPin_ = enteredPin_ * 10 + digit;
+    if (enteredPinDigits_ < PIN_LENGTH) {
+        enteredPin_ = static_cast<uint16_t>(enteredPin_ * 10 + digit);
+        enteredPinDigits_++;
         markDirty();
     }
 }
 
 void SettingsGame::deletePinDigit() {
-    if (enteredPin_ > 0) {
+    if (enteredPinDigits_ > 0) {
         enteredPin_ /= 10;
+        enteredPinDigits_--;
         markDirty();
     }
 }
@@ -113,37 +147,87 @@ void SettingsGame::cycleIdleAction(Board& board) {
     }
 }
 
+/* One pad, three jobs: unlock, enter a new PIN, confirm it. Keeping the hit
+ * testing in a single place is what stops the renderer and the handler
+ * disagreeing about which cell is which. */
+bool SettingsGame::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
+    Board& board = host.board();
+    const int16_t W = static_cast<int16_t>(host.display().width());
+    const int16_t H = static_cast<int16_t>(host.display().height());
+
+    if (pinConfirmRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (enteredPinDigits_ != PIN_LENGTH) {
+            host.beepError();          // partial entry: nothing to judge yet
+            return true;
+        }
+        const uint16_t value = enteredPin_;
+        enteredPin_ = 0;
+        enteredPinDigits_ = 0;
+
+        switch (pinTask_) {
+            case PinTask::None:
+                break;      // pad is not in use
+            case PinTask::SetNew:
+                pendingPin_ = value;
+                pinTask_ = PinTask::ConfirmNew;
+                host.beepOk();
+                break;
+            case PinTask::ConfirmNew:
+                /* Only commit when both entries agree -- a mistyped new PIN
+                 * that is stored anyway locks the owner out of their own
+                 * device, and there is no recovery path short of a factory
+                 * reset. */
+                if (value == pendingPin_) {
+                    board.setAdminPin(value);
+                    host.beepOk();
+                } else {
+                    host.beepError();
+                }
+                pendingPin_ = 0;
+                pinTask_ = PinTask::None;
+                break;
+        }
+        markFullDirty();
+        return true;
+    }
+
+    if (pinDeleteRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        deletePinDigit();
+        return true;
+    }
+    /* Rows 0-2 carry 1-9; row 3 middle cell is 0. DEL and OK are the outer
+     * cells of row 3 and were handled above. */
+    for (uint8_t row = 0; row < 3; ++row) {
+        for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
+            if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                appendPinDigit(static_cast<uint8_t>(row * PIN_PAD_COLS + col + 1));
+                return true;
+            }
+        }
+    }
+    if (pinKeyRect(3, 1, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        appendPinDigit(0);
+        return true;
+    }
+    return false;
+}
+
 void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
 
     Board& board = host.board();
 
-    /* If locked and not admin, show PIN entry */
-    if (mode_ == Mode::Locked && !isAdmin(board)) {
-        if (pinConfirmRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (enteredPin_ == board.adminPin()) {
-                mode_ = Mode::Unlocked;
-                host.beepOk();
-                markFullDirty();
-            } else {
-                host.beepError();
-                enteredPin_ = 0;
-                markDirty();
-            }
+    /* Mid-change: the pad takes the screen until both entries are in. */
+    if (pinTask_ != PinTask::None) {
+        if (pinCancelRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            pinTask_ = PinTask::None;
+            enteredPin_ = 0;
+            enteredPinDigits_ = 0;
+            pendingPin_ = 0;
+            markFullDirty();
             return;
         }
-        if (pinDeleteRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            deletePinDigit();
-            return;
-        }
-        for (uint8_t row = 0; row < 4; ++row) {
-            for (uint8_t col = 0; col < 3; ++col) {
-                if (pinKeyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                    appendPinDigit(static_cast<uint8_t>(row * 3 + col));
-                    return;
-                }
-            }
-        }
+        handlePinPadTouch(host, touch);
         return;
     }
 
@@ -155,8 +239,35 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
         if (tab_ != Tab::Power) { tab_ = Tab::Power; confirmReset_ = false; markFullDirty(); }
         return;
     }
+    if (adminTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (tab_ != Tab::Admin) { tab_ = Tab::Admin; confirmReset_ = false; markFullDirty(); }
+        return;
+    }
 
     if (!host.requireCapability(APP_CAP_DEVICE_SETTINGS, "change settings")) {
+        return;
+    }
+
+    /* Anyone may look; only the admin may change anything. Tab switching is
+     * above this line so a child can still read every page.
+     *
+     * This gate is what actually enforces it. The two render paths grey the
+     * controls out for a non-admin, but greying is a drawing decision -- until
+     * this early return existed every one of those greyed rows was still live
+     * and a child could toggle the lot. */
+    if (!isAdmin(board)) {
+        host.beepError();
+        return;
+    }
+
+    if (tab_ == Tab::Admin) {
+        if (changePinRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            pinTask_ = PinTask::SetNew;
+            enteredPin_ = 0;
+            enteredPinDigits_ = 0;
+            pendingPin_ = 0;
+            markFullDirty();
+        }
         return;
     }
 
@@ -344,31 +455,55 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     }
 }
 
-void SettingsGame::renderLockedScreen(GameHost& host) {
+void SettingsGame::renderPinPad(GameHost& host, const char* heading) {
     Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+    const int16_t H = static_cast<int16_t>(tft.height());
+
+    Ui::drawButton(tft, pinCancelRect(), "Back", Ui::panel(), Ui::outline(),
+                   Ui::text(), false, 1);
+
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    tft.drawString("Admin PIN Required", 20, 60, 2);
-    tft.setTextDatum(CC_DATUM);
-    tft.drawString("Enter 4-digit PIN:", SCREEN_WIDTH/2, 110, 1);
+    tft.setTextDatum(TC_DATUM);
+    tft.drawString(heading, W / 2, 38, 2);
 
-    char pinStr[8];
-    snprintf(pinStr, sizeof(pinStr), "%04u", enteredPin_);
-    Rect pinBox{80, 130, 160, 30};
-    tft.fillRect(pinBox.x, pinBox.y, pinBox.w, pinBox.h, Ui::surface());
-    tft.drawRect(pinBox.x, pinBox.y, pinBox.w, pinBox.h, Ui::outline());
-    tft.drawString(pinStr, pinBox.x + pinBox.w/2, pinBox.y + pinBox.h/2, 2);
+    /* Dots, not the digits: the PIN is masked. The previous version printed
+     * it in plain text in a box, which defeats the point of having one. */
+    const int16_t dotPitch = 26;
+    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
+    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
+        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
+        const uint16_t fill = i < enteredPinDigits_ ? Ui::success() : Ui::panel();
+        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
+        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
+    }
 
-    tft.setTextDatum(TL_DATUM);
-    for (uint8_t row = 0; row < 4; ++row) {
-        for (uint8_t col = 0; col < 3; ++col) {
-            char digit[2];
-            snprintf(digit, sizeof(digit), "%u", row * 3 + col);
-            Ui::drawButton(tft, pinKeyRect(row, col), digit, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    /* Rows 0-2 are 1-9; row 3 is DEL / 0 / OK. */
+    for (uint8_t row = 0; row < PIN_PAD_ROWS; ++row) {
+        for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
+            const Rect r = pinKeyRect(row, col, W, H);
+
+            const char* label;
+            char digitLabel[2] = {0, 0};
+            uint16_t fill = Ui::panel();
+
+            if (row < 3) {
+                digitLabel[0] = static_cast<char>('1' + row * PIN_PAD_COLS + col);
+                label = digitLabel;
+            } else if (col == 0) {
+                label = "DEL";
+                fill  = Ui::rgb(150, 60, 60);
+            } else if (col == 1) {
+                label = "0";
+            } else {
+                label = "OK";
+                fill  = Ui::rgb(45, 154, 96);
+            }
+
+            Ui::drawButton(tft, r, label, fill, Ui::outline(), Ui::text(), false, 2);
         }
     }
-    Ui::drawButton(tft, pinDeleteRect(), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-    Ui::drawButton(tft, pinConfirmRect(), "OK", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    tft.setTextDatum(TL_DATUM);
 }
 
 void SettingsGame::render(GameHost& host) {
@@ -376,22 +511,66 @@ void SettingsGame::render(GameHost& host) {
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 
-    if (mode_ == Mode::Locked && !isAdmin(host.board())) {
-        renderLockedScreen(host);
+    /* The change-PIN flow owns the whole screen while it runs, so there is no
+     * half-changed state visible behind it. */
+    if (pinTask_ == PinTask::SetNew) {
+        renderPinPad(host, "Enter new PIN");
+        return;
+    }
+    if (pinTask_ == PinTask::ConfirmNew) {
+        renderPinPad(host, "Re-enter new PIN");
         return;
     }
 
     const Rect devTab = deviceTabRect();
     const Rect powTab = powerTabRect();
+    const Rect admTab = adminTabRect();
     Ui::drawTab(tft, devTab, "Device", tab_ == Tab::Device);
     Ui::drawTab(tft, powTab, "Power", tab_ == Tab::Power);
+    Ui::drawTab(tft, admTab, "Admin", tab_ == Tab::Admin);
     Ui::drawTabBaseline(tft, 52, 0, SCREEN_WIDTH,
-                        tab_ == Tab::Device ? devTab : powTab);
+                        tab_ == Tab::Device ? devTab
+                                            : (tab_ == Tab::Power ? powTab : admTab));
 
     if (tab_ == Tab::Device) {
         renderDeviceTab(host);
-    } else {
+    } else if (tab_ == Tab::Power) {
         renderPowerTab(host);
+    } else {
+        renderAdminTab(host);
     }
+    tft.setTextDatum(TL_DATUM);
+}
+
+void SettingsGame::renderAdminTab(GameHost& host) {
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+    const bool admin = isAdmin(board);
+
+    Ui::drawButton(tft, changePinRect(), "Change admin PIN",
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   admin ? Ui::text() : Ui::muted(), false, 2);
+
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString("The PIN guards the admin profile. It", 8, 100, 1);
+    tft.drawString("ships as 0000 -- change it.", 8, 116, 1);
+
+    /* Name the admin rather than restating that one exists: if the profile is
+     * renamed this follows it. */
+    char who[40];
+    const uint8_t adminIdx = board.adminProfileIndex();
+    if (adminIdx == Board::GUEST_INDEX) {
+        snprintf(who, sizeof(who), "No admin profile is set");
+    } else {
+        snprintf(who, sizeof(who), "Admin profile: %s", board.profileName(adminIdx).c_str());
+    }
+    tft.drawString(who, 8, 140, 1);
+
+    tft.setTextDatum(TC_DATUM);
+    tft.drawString(admin ? "Entered twice; only saved if both match."
+                         : "Only the admin can change settings.",
+                   W / 2, static_cast<int16_t>(tft.height() - 20), 1);
     tft.setTextDatum(TL_DATUM);
 }

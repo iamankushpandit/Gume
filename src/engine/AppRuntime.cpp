@@ -117,8 +117,16 @@ void KidsPlatformApp::begin() {
         uint8_t adminIdx = board_.addKid(String("Admin"));
         board_.setAdminProfileIndex(adminIdx);
         board_.setAdminPin(0);
-        board_.setActiveProfile(adminIdx);
         Serial.println("[boot] Created default Admin profile with PIN 0000");
+    }
+
+    /* Never boot straight into the admin profile. The picker's Done button
+     * goes home with whatever profile is already active, so leaving admin
+     * selected across a reboot would hand out admin without a PIN -- the one
+     * path the PIN is there to close. Guest writes nothing, which is the right
+     * thing to be holding until somebody chooses. */
+    if (board_.isAdminProfile(board_.activeProfile())) {
+        board_.setActiveProfile(Board::GUEST_INDEX);
     }
     openProfiles();
 }

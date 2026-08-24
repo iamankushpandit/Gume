@@ -1,5 +1,62 @@
 # Changelog
 
+## Unreleased
+
+An admin profile behind a four-digit PIN, so device settings and one profile
+are out of a child's reach.
+
+Flash 2,335,229 / 3,145,728 (74.2%), RAM 72,076 / 327,680 (22.0%).
+
+### Added
+
+- **An admin profile, guarded by a four-digit PIN.** One profile is the admin
+  (`Board::adminProfileIndex()`, with the PIN beside it in NVS). A fresh device
+  gets the profile **Admin** and the PIN **0000** created on first boot — there
+  is no setup wizard to sit through, and the PIN is changeable afterwards. The
+  admin row carries a padlock in the profile picker, so the lock is visible
+  before the tap rather than after it.
+- **The PIN is asked for on the two routes into the admin profile**: switching
+  to it, and opening its Edit menu (which reaches rename and that profile's
+  per-child game list). It is asked **every time**, including straight after a
+  correct entry — "already admin" says nothing about who is holding the device
+  now, which is exactly the case this is for.
+- **Settings is readable by everyone, writable only by the admin.** No PIN to
+  open it: there is nothing secret on those pages, and a child who cannot see
+  why the screen dims is worse off than one who can read it. Every control
+  greys out for a non-admin and, more to the point, is refused.
+- **Settings → Admin → Change admin PIN.** The new PIN is entered twice and is
+  written only if both entries match. A mistyped PIN stored anyway locks the
+  owner out of their own device, and there is no recovery short of a factory
+  reset. Settings grew a third tab for it, and its tab strip now divides the
+  live width instead of assuming 160px halves.
+
+### Fixed
+
+- **Every greyed-out Settings control was still live.** Both tabs have drawn
+  their controls greyed for a non-admin for some time, but nothing checked who
+  was tapping: a child could change the theme, the layout, the brightness, the
+  radios and the idle policy, and could trigger a factory reset. Settings now
+  refuses the change as well as drawing it grey.
+- **The device no longer boots into the admin profile.** First boot used to
+  leave admin selected, and the picker's *Done* button goes home with whatever
+  profile is already active — so the PIN could be skipped entirely by pressing
+  Done. Boot now drops to Guest if it finds admin active.
+- **Both PIN pads were drawn off the bottom of the screen.** Rows were
+  hard-coded at y=220 and the DEL/OK buttons at y=270 on a 240px-tall panel:
+  the bottom row and both actions were outside the display, so there was
+  nothing to press and no way to submit a PIN. Both pads are now laid out
+  against the live panel size, as a standard 3x4 pad with DEL / 0 / OK on the
+  last row.
+- **A PIN of `0000` could not be entered.** Digit count was inferred from the
+  numeric value, and `0000` is zero — indistinguishable from an empty field. It
+  is tracked separately now, and an entry is only judged once it is exactly
+  four digits, so a short prefix cannot be tested against the stored PIN.
+- **The Settings PIN pad printed the PIN in plain text** in a box above the
+  keys, and labelled its keys `0`–`11`. It shows masked dots and the digits
+  `0`–`9`.
+- **The PIN screen had no way out.** Tapping the admin row left a child stuck
+  on it; there is a Back button now.
+
 ## 4.2.0 — 2026-08-17
 
 Battery status the user can act on: the console now works out whether it is
