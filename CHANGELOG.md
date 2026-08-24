@@ -5,7 +5,7 @@
 An admin profile behind a four-digit PIN, so device settings and one profile
 are out of a child's reach.
 
-Flash 2,335,229 / 3,145,728 (74.2%), RAM 72,076 / 327,680 (22.0%).
+Flash 2,330,649 / 3,145,728 (74.1%), RAM 72,044 / 327,680 (22.0%).
 
 ### Added
 
