@@ -25,6 +25,7 @@
 #include "games/ScoresGame.h"
 #include "games/SequenceGame.h"
 #include "games/SettingsGame.h"
+#include "games/SetupAdminGame.h"
 #include "games/ShapeColorGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
@@ -76,4 +77,5 @@ struct GameInstances {
     AboutGame about;
     SystemInfoGame systemInfo;
     NearbyGame nearby;
+    SetupAdminGame setupAdmin;
 };

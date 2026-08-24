@@ -174,9 +174,13 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             return;
         }
         if (menuActionRect(2, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            board.removeKid(menuFor_);
-            phase_ = Phase::Pick;
-            markFullDirty();
+            if (!board.isAdminProfile(menuFor_)) {
+                board.removeKid(menuFor_);
+                phase_ = Phase::Pick;
+                markFullDirty();
+            } else {
+                board.beepError();
+            }
             return;
         }
         if (menuActionRect(3, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -306,16 +310,22 @@ void ProfileGame::render(GameHost& host) {
     }
 
     if (phase_ == Phase::Menu) {
-        tft.drawString(board.profileName(menuFor_), W / 2, tall ? 28 : 24, 4);
+        const bool isAdmin = board.isAdminProfile(menuFor_);
+        tft.drawString(board.profileName(menuFor_) + (isAdmin ? " (Admin)" : ""), W / 2, tall ? 28 : 24, 4);
         Ui::drawButton(tft, menuActionRect(0, W, H), "Rename", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
         Ui::drawButton(tft, menuActionRect(1, W, H), "Games", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
-        Ui::drawButton(tft, menuActionRect(2, W, H), "Remove", Ui::rgb(178, 58, 58),
-                       Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, menuActionRect(2, W, H), "Remove",
+                       isAdmin ? Ui::rgb(80, 80, 80) : Ui::rgb(178, 58, 58),
+                       Ui::outline(), isAdmin ? Ui::muted() : TFT_WHITE, false, 2);
         Ui::drawButton(tft, menuActionRect(3, W, H), "Cancel", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        tft.drawString("Removing also clears their scores", W / 2, static_cast<int16_t>(H - 20), 1);
+        if (isAdmin) {
+            tft.drawString("Admin profile cannot be removed", W / 2, static_cast<int16_t>(H - 20), 1);
+        } else {
+            tft.drawString("Removing also clears their scores", W / 2, static_cast<int16_t>(H - 20), 1);
+        }
         tft.setTextDatum(TL_DATUM);
         return;
     }

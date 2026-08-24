@@ -86,6 +86,8 @@ void Board::removeKid(uint8_t index) {
     if (index >= n) return;
 
     const uint8_t oldActive = activeProfile();
+    const uint8_t oldAdmin = adminProfileIndex();
+
     for (uint8_t i = index; i + 1 < n; ++i) {
         moveProfileSlot(static_cast<uint8_t>(i + 1), i);
     }
@@ -101,6 +103,13 @@ void Board::removeKid(uint8_t index) {
     } else if (oldActive != GUEST_INDEX && oldActive >= kidCount()) {
         setActiveProfile(GUEST_INDEX);
     }
+
+    if (oldAdmin == index) {
+        setAdminProfileIndex(GUEST_INDEX);
+    } else if (oldAdmin > index && oldAdmin < n) {
+        setAdminProfileIndex(static_cast<uint8_t>(oldAdmin - 1));
+    }
+
     logStorageUsage("profile delete");
 }
 

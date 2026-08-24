@@ -164,6 +164,15 @@ public:
     /** Delete a child, shifting later names and persisted profile data down. */
     void removeKid(uint8_t index);
     bool isGuest() { return activeProfile() == GUEST_INDEX; }
+
+    /* Admin profile with PIN protection for device settings access. */
+    uint8_t adminProfileIndex();
+    void setAdminProfileIndex(uint8_t index);
+    uint16_t adminPin();
+    void setAdminPin(uint16_t pin);
+    bool verifyAdminPin(uint16_t pin);
+    bool isAdminProfile(uint8_t profileIndex);
+
     StorageTelemetry storageTelemetry();
 
     /** Wipe every stored setting, score and credential, then reboot. */
@@ -392,6 +401,10 @@ private:
     uint16_t cachedSleepSecs_ = 0;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
+    bool adminIdxCached_ = false;
+    uint8_t cachedAdminIdx_ = 0;
+    bool adminPinCached_ = false;
+    uint16_t cachedAdminPin_ = 0;
     bool displayAsleep_ = false;
     DisplaySleepTelemetry displaySleepTelemetry_{};
 

@@ -47,6 +47,10 @@ bool SettingsGame::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
 }
 
+bool SettingsGame::isAdmin(Board& board) const {
+    return board.isAdminProfile(board.activeProfile());
+}
+
 void SettingsGame::cycleScreenSaver(Board& board) {
     const uint16_t current = board.screenSaverSeconds();
     const uint16_t next = current < 60 ? 60 : (current < 120 ? 120 : (current < 300 ? 300 : 30));
@@ -85,6 +89,10 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
 
+    if (!isAdmin(board)) {
+        board.beepError();
+        return;
+    }
     if (!host.requireCapability(APP_CAP_DEVICE_SETTINGS, "change settings")) {
         return;
     }
@@ -157,49 +165,57 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
 void SettingsGame::renderDeviceTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
+    const bool admin = isAdmin(board);
 
     char label[28];
     snprintf(label, sizeof(label), "Theme: %s",
              board.themeMode() == Board::ThemeMode::Dark ? "Dark" : "Light");
     Ui::drawButton(tft, themeRect(), label,
-                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Menu: %s",
              board.layoutMode() == Board::LayoutMode::Horizontal ? "Horizontal" : "Vertical");
     Ui::drawButton(tft, layoutRect(), label,
-                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");
     Ui::drawButton(tft, ntpRect(), label,
-                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
     Ui::drawButton(tft, bleRect(), label,
-                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, wifiRect(), "Network", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    Ui::drawButton(tft, wifiRect(), "Network", admin ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
+                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
     /* Greyed, not hidden, when the beacon is off: the control is what tells
      * you the feature exists and what it depends on. */
     const bool beaconOn = board.bleBeaconEnabled();
     snprintf(label, sizeof(label), "Nearby: %s",
              !beaconOn ? "needs Beacon" : (NearbyPlay::enabled() ? "On" : "Off"));
+    const bool nearbyTextEnabled = admin && beaconOn;
     Ui::drawButton(tft, nearbyRect(), label,
-                   Ui::panel(), Ui::outline(), beaconOn ? Ui::text() : Ui::muted(), false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), nearbyTextEnabled ? Ui::text() : Ui::muted(), false, 2);
     Ui::drawButton(tft, resetRect(),
                    confirmReset_ ? "Tap to ERASE" : "Reset device",
-                   confirmReset_ ? Ui::rgb(220, 40, 40) : Ui::rgb(120, 58, 58),
-                   Ui::outline(), TFT_WHITE, false, 2);
+                   admin ? (confirmReset_ ? Ui::rgb(220, 40, 40) : Ui::rgb(120, 58, 58)) : Ui::rgb(80, 80, 80),
+                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
-                             : "Brightness", 8, 194, 1);
-    tft.setTextDatum(TR_DATUM);
-    snprintf(label, sizeof(label), "%u%%", board.brightness());
-    tft.drawString(label, SCREEN_WIDTH - 8, 194, 1);
-    tft.setTextDatum(TL_DATUM);
-    Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
+    if (!admin) {
+        tft.drawString("Settings locked. Only Admin can change.", 8, 194, 1);
+    } else {
+        tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
+                                 : "Brightness", 8, 194, 1);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(label, sizeof(label), "%u%%", board.brightness());
+        tft.drawString(label, SCREEN_WIDTH - 8, 194, 1);
+        tft.setTextDatum(TL_DATUM);
+        Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
+    }
 }
 
 void SettingsGame::renderPowerTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
+    const bool admin = isAdmin(board);
 
     const Board::IdleAction action = board.idleAction();
     const uint16_t idleSecs  = board.screenSaverSeconds();
@@ -212,7 +228,7 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     char buf[52];
     snprintf(buf, sizeof(buf), "When idle: %s", actionName);
     Ui::drawButton(tft, idleActionRect(), buf,
-                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
 
     if (idleSecs >= 60 && idleSecs % 60 == 0) {
         snprintf(buf, sizeof(buf), "Idle after: %um", idleSecs / 60);
@@ -220,12 +236,12 @@ void SettingsGame::renderPowerTab(GameHost& host) {
         snprintf(buf, sizeof(buf), "Idle after: %us", idleSecs);
     }
     Ui::drawButton(tft, idleAfterRect(), buf,
-                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
 
     /* The sleep delay only means anything when the saver hands over to sleep.
      * The other two policies say so on the button rather than leaving a live
      * control that quietly does nothing. */
-    const bool sleepLive = sleepRowActive(board);
+    const bool sleepLive = sleepRowActive(board) && admin;
     if (!sleepLive) {
         snprintf(buf, sizeof(buf), "Sleep after: %s",
                  action == Board::IdleAction::SleepOnly ? "(at idle)" : "--");
@@ -241,22 +257,28 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     /* Say the resulting behaviour in plain words, composed from the live
      * values -- three settings that interact are hard to hold in your head. */
     char explain[64];
-    switch (action) {
-        case Board::IdleAction::SleepOnly:
-            snprintf(explain, sizeof(explain), "Screen off at %us. No screen saver.", idleSecs);
-            break;
-        case Board::IdleAction::SaverOnly:
-            snprintf(explain, sizeof(explain), "Saver at %us. Screen never turns off.", idleSecs);
-            break;
-        default:
-            snprintf(explain, sizeof(explain), "Saver at %us, screen off at %us.",
-                     idleSecs, static_cast<uint16_t>(idleSecs + sleepSecs));
-            break;
+    if (!admin) {
+        snprintf(explain, sizeof(explain), "Settings locked. Only Admin can change.");
+    } else {
+        switch (action) {
+            case Board::IdleAction::SleepOnly:
+                snprintf(explain, sizeof(explain), "Screen off at %us. No screen saver.", idleSecs);
+                break;
+            case Board::IdleAction::SaverOnly:
+                snprintf(explain, sizeof(explain), "Saver at %us. Screen never turns off.", idleSecs);
+                break;
+            default:
+                snprintf(explain, sizeof(explain), "Saver at %us, screen off at %us.",
+                         idleSecs, static_cast<uint16_t>(idleSecs + sleepSecs));
+                break;
+        }
     }
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
     tft.drawString(explain, 8, 168, 1);
-    tft.drawString("Sleep blanks the screen. A touch wakes it.", 8, 184, 1);
+    if (admin) {
+        tft.drawString("Sleep blanks the screen. A touch wakes it.", 8, 184, 1);
+    }
 }
 
 void SettingsGame::render(GameHost& host) {

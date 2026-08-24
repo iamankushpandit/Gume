@@ -47,6 +47,7 @@ private:
      * SleepOnly blanks at the idle delay instead. A live-looking control that
      * does nothing is worse than one that says so. */
     bool sleepRowActive(Board& board) const;
+    bool isAdmin(Board& board) const;
 
     Tab tab_ = Tab::Device;
     bool confirmReset_ = false;

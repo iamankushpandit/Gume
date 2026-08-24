@@ -111,7 +111,14 @@ void KidsPlatformApp::begin() {
     lastClockMinute_ = Clock::minuteKey();
     lastActivityMs_ = millis();
     Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
-    openProfiles();
+
+    /* First-boot admin setup: if no admin is configured, launch the setup wizard. */
+    if (board_.kidCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
+        activeGame_ = &games_.setupAdmin;
+        activeGame_->begin(*this);
+    } else {
+        openProfiles();
+    }
 }
 
 void KidsPlatformApp::loop() {

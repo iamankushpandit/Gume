@@ -247,6 +247,44 @@ uint8_t Board::kidCount() {
     return n > MAX_KIDS ? MAX_KIDS : n;
 }
 
+uint8_t Board::adminProfileIndex() {
+    if (!adminIdxCached_) {
+        cachedAdminIdx_ = prefs_.getUChar("admin_idx", GUEST_INDEX);
+        adminIdxCached_ = true;
+    }
+    return cachedAdminIdx_;
+}
+
+void Board::setAdminProfileIndex(uint8_t index) {
+    if (index != GUEST_INDEX && index >= kidCount()) index = GUEST_INDEX;
+    prefs_.putUChar("admin_idx", index);
+    cachedAdminIdx_ = index;
+    adminIdxCached_ = true;
+}
+
+uint16_t Board::adminPin() {
+    if (!adminPinCached_) {
+        cachedAdminPin_ = prefs_.getUShort("admin_pin", 0);
+        adminPinCached_ = true;
+    }
+    return cachedAdminPin_;
+}
+
+void Board::setAdminPin(uint16_t pin) {
+    if (pin > 9999) pin = 9999;
+    prefs_.putUShort("admin_pin", pin);
+    cachedAdminPin_ = pin;
+    adminPinCached_ = true;
+}
+
+bool Board::verifyAdminPin(uint16_t pin) {
+    return adminPin() == pin;
+}
+
+bool Board::isAdminProfile(uint8_t profileIndex) {
+    return profileIndex != GUEST_INDEX && profileIndex == adminProfileIndex();
+}
+
 void Board::factoryReset() {
     Watchdog::pause();
     Serial.println("[reset] erasing all stored data");
