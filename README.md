@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-74.6%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-74.7%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,346,841 / 3,145,728 bytes (**74.6%**) |
-| RAM | 72,524 / 327,680 bytes (**22.1%**) |
+| Flash | 2,348,957 / 3,145,728 bytes (**74.7%**) |
+| RAM | 72,540 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -296,8 +296,8 @@ the Nearby switch, screen brightness, and a factory reset behind a two-tap
 confirm. Nearby greys out and reads *needs Beacon* while the radio is off — it
 rides on that radio, and a switch that flips without doing anything is worse
 than one that says why. **Power** holds
-the idle policy and its two delays — see [Screen saver and
-sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
+the idle policy, its two delays and the hold-to-unlock guard — see [Screen
+saver and sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
 arrived and there was nowhere left to put them.
 
 Game visibility is **not** here — it is per child, so it lives with the child,
@@ -412,6 +412,7 @@ anyone touching it in March and November.
 
 <p align="center">
   <img src="docs/screens/screensaver.png" width="360" alt="Pong screen saver">
+  <img src="docs/screens/wakelock.png" width="360" alt="Hold to unlock">
 </p>
 
 Pong that plays itself. Paddles sweep opposite ways; every rally speeds the ball
@@ -439,6 +440,26 @@ the saver runs before the screen goes dark.
 panel — there is no wake source wired for a true deep sleep on this board. The
 main loop drops from 50 Hz to 10 Hz while asleep, and the battery still drains,
 just far more slowly than with the backlight on.
+
+#### Hold to unlock
+
+A console in a bag or a coat pocket gets pressed constantly. A touch therefore
+**lights the screen and nothing else**: it lands on a lock screen, and only a
+deliberate **press-and-hold of about a second** on the unlock button hands the
+device back to the screen underneath. A progress bar fills while you hold, so
+it is obvious what the device is waiting for.
+
+This is an accidental-touch guard, not a password. It is **nothing to do with
+the admin PIN** — unlocking neither grants nor revokes admin, and you come back
+to exactly the profile and screen you left, in the orientation you left them in.
+It guards the screen saver and panel sleep alike, and it is deliberately
+tolerant of the way a resistive panel drops contact mid-press: gaps of up to
+150 ms do not restart the hold. If nobody unlocks within 12 seconds the device
+goes back to sleep on its own.
+
+Turn it off in **Settings → Power → Hold to unlock** if you would rather any
+touch went straight through. It is on by default, and like every device
+setting it is global and admin-writable only.
 
 ### Scores, Profiles, About and System Info
 
@@ -714,6 +735,7 @@ src/
     AppRuntime.cpp      runtime loop, transitions, view state
     AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
+    AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     Game.h              base class; lifecycle + full vs partial invalidation
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view

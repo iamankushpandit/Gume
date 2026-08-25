@@ -277,9 +277,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,346,841 / 3,145,728 bytes,
-**74.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,524 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,348,957 / 3,145,728 bytes,
+**74.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 72,540 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -303,7 +303,7 @@ This keeps diffs reviewable, conflicts locatable, and prevents any single file f
 
 `setup()`/`loop()` in `src/main.cpp` delegate to a `KidsPlatformApp` singleton defined in `src/engine/AppRuntime.*`, which owns every screen as a `static` instance and implements `GameHost`.
 
-Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED) and **Asleep** (backlight off, panel in low-power state). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherGame` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
+Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED), **Asleep** (backlight off, panel in low-power state) and **Locked** (the hold-to-unlock guard between either of those and the screen underneath). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherGame` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
 
 The idle path is driven by `Board::idleAction()`: `SaverThenSleep` runs the
 saver and then blanks after `sleepSeconds()`, `SleepOnly` blanks straight away
@@ -313,6 +313,25 @@ to draw, and holding 50Hz behind a dark screen defeats the point. It is panel
 sleep, not `esp_deep_sleep`: the CPU must stay up to poll touch, since no wake
 source is wired. `Board::displayWake()` blocks ~120ms for the panel, so its
 call site sits inside a `Watchdog::Pause` guard.
+
+`View::Locked` sits between both idle views and the screen underneath, and is
+gated on `Board::wakeLockEnabled()` (default on, RAM-mirrored, global like
+every device setting). It is an **accidental-touch guard, not access control**:
+it is disjoint from the admin PIN, neither granting nor revoking admin, and
+`resumeUnderlyingScreen()` -- the single tail shared by `exitScreenSaver()`,
+`wakeFromSleep()` and the unlock -- returns to exactly the screen, profile and
+orientation that were up before. Three things about it are load-bearing:
+
+- **The press that got you here is swallowed.** `enterLock()` sets
+  `swallowTouch_`, so a press held through a bag can never complete the
+  gesture however long it lasts.
+- **The hold tolerates dropouts.** Resistive contact falls below
+  `TOUCH_PRESSURE_THRESHOLD` mid-press as a matter of course, so gaps up to
+  `LOCK_CONTACT_GRACE_MS` (150ms) do not restart the timer.
+- **`Locked` is excluded from the idle-timeout block** alongside `ScreenSaver`
+  and `Asleep`; it runs its own `LOCK_TIMEOUT_MS` and hands back to sleep (or
+  to the saver under `SaverOnly`). Leaving it in that block re-arms the saver
+  timer against an already-expired `lastActivityMs_`.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -492,7 +511,7 @@ include/BoardConfig.h     pins + screen constants   include/AppVersion.h
 src/main.cpp              bringup entrypoint + normal app setup/loop
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
-                          AppRuntime, ScoreCatalog, Progress,
+                          AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Country/State, Maze and Trace data

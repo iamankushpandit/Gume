@@ -47,6 +47,7 @@ private:
     Rect idleActionRect() const;
     Rect idleAfterRect() const;
     Rect sleepAfterRect() const;
+    Rect wakeLockRect() const;
 
     void cycleScreenSaver(Board& board);
     void cycleSleepSeconds(Board& board);

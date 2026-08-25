@@ -42,11 +42,23 @@ public:
     static constexpr uint32_t FRAME_BUDGET_MS = 20;
     static constexpr uint32_t SLEEP_POLL_MS = 100;
 
+    /* Long enough that a press through a bag cannot complete it, short enough
+     * that a four-year-old holding a button does not give up. */
+    static constexpr uint32_t LOCK_HOLD_MS = 900;
+    /* Resistive contact drops out mid-hold. Forgive gaps up to this long. */
+    static constexpr uint32_t LOCK_CONTACT_GRACE_MS = 150;
+    /* Nobody unlocked: go back where we came from rather than sitting lit. */
+    static constexpr uint32_t LOCK_TIMEOUT_MS = 12000;
+
 private:
     enum class View {
         Game,
         ScreenSaver,
-        Asleep
+        Asleep,
+        /* Between the saver/sleep and the screen underneath. The panel is lit
+         * and showing an unlock target, but nothing beneath it can be
+         * touched. See enterLock(). */
+        Locked
     };
 
     static constexpr uint8_t CYD_PORTRAIT_ROTATION = 0;
@@ -65,6 +77,28 @@ private:
     void enterSleep();
     void wakeFromSleep();
     void exitScreenSaver();
+
+    /* The lock screen -- an accidental-touch guard, nothing to do with the
+     * admin PIN. Coming out of the saver or out of panel sleep, a single
+     * stray press used to land on whatever screen was underneath, live. Now
+     * it lands here instead, and only a deliberate press-and-hold on the
+     * unlock target hands the device back.
+     *
+     * enterLock() is reached from both View::ScreenSaver (panel already lit)
+     * and View::Asleep (panel woken by the caller, inside its Watchdog::Pause
+     * guard). resumeUnderlyingScreen() is the shared tail that both the old
+     * direct-exit paths and the unlock use, so there is one place that decides
+     * what you come back to and in which orientation. */
+    void enterLock();
+    void updateLock(const TouchPoint& touch, uint32_t nowMs);
+    void renderLock();
+    void resumeUnderlyingScreen();
+    /** Unlock target, laid out against the live panel so portrait works. */
+    Rect lockButtonRect();
+    /** Progress bar under it, same width. */
+    Rect lockProgressRect();
+    /** 0-100, how far through the hold we are. */
+    uint8_t lockProgressPercent(uint32_t nowMs) const;
     void onScreenSaverHit();
     void resetScreenSaverRally(int16_t effW, int16_t effH);
     void renderScreenSaver();
@@ -109,6 +143,21 @@ private:
     bool ssav_initialized_ = false;
     View ssavPrevView_ = View::Game;
     bool swallowTouch_ = false;
+
+    /* Lock-screen state.
+     *
+     * lockContactMs_ is what makes the hold usable on a resistive panel: a
+     * held press drops below TOUCH_PRESSURE_THRESHOLD intermittently, which is
+     * normal rather than a fault, so the timer survives up to
+     * LOCK_CONTACT_GRACE_MS of no contact instead of resetting on the first
+     * gap. lockPaintedPct_ keeps the frame cheap -- the progress fill is
+     * repainted when its width actually changes, not every frame. */
+    uint32_t lockHoldStartMs_ = 0;
+    uint32_t lockContactMs_ = 0;
+    uint32_t lockActivityMs_ = 0;
+    bool lockHolding_ = false;
+    bool lockFullPaint_ = true;
+    int16_t lockPaintedPct_ = -1;
     uint8_t ssav_hits_ = 0;
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;

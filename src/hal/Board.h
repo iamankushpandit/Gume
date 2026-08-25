@@ -240,6 +240,19 @@ public:
     uint16_t sleepSeconds();
     void setSleepSeconds(uint16_t seconds);
 
+    /* Require a deliberate press-and-hold before the screen saver or panel
+     * sleep hands the device back.
+     *
+     * This is an accidental-touch guard, not access control: in a bag or a
+     * pocket a single stray press used to dismiss the saver and land on
+     * whatever screen was underneath, live. It is unrelated to the admin PIN
+     * and neither grants nor revokes admin. Default on; global, like every
+     * other device setting.
+     *
+     * Mirrored in RAM because the loop consults it on every wake path. */
+    bool wakeLockEnabled();
+    void setWakeLockEnabled(bool enabled);
+
     /* Panel sleep. Backlight to zero and the controller to its low-power
      * state; the CPU stays up so touch still wakes it. This is NOT
      * esp_deep_sleep -- there is no wake source wired for that on this board.
@@ -409,6 +422,8 @@ private:
     uint8_t cachedIdleAction_ = 0;
     bool sleepSecsCached_ = false;
     uint16_t cachedSleepSecs_ = 0;
+    bool wakeLockCached_ = false;
+    bool cachedWakeLock_ = true;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
     bool adminIdxCached_ = false;

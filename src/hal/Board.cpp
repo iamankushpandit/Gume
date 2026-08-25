@@ -204,6 +204,24 @@ void Board::setSleepSeconds(uint16_t seconds) {
     sleepSecsCached_ = true;
 }
 
+/* Mirrored in RAM: the loop asks on every touch that reaches a sleeping or
+ * screen-saving device, and Preferences is flash-backed. Defaults to on --
+ * the guard is the point of the feature, and an owner who wants the old
+ * single-touch behaviour can say so in Settings. */
+bool Board::wakeLockEnabled() {
+    if (!wakeLockCached_) {
+        cachedWakeLock_ = prefs_.getBool("wakeLock", true);
+        wakeLockCached_ = true;
+    }
+    return cachedWakeLock_;
+}
+
+void Board::setWakeLockEnabled(bool enabled) {
+    prefs_.putBool("wakeLock", enabled);
+    cachedWakeLock_ = enabled;
+    wakeLockCached_ = true;
+}
+
 bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
     if (isGuest()) return true;
     return gameVisibleFor(catalogIndex, activeProfile(), fallback);
