@@ -36,6 +36,22 @@ no data collection.** Two radios exist and both are narrow by design:
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Help wanted
+
+**Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
+variant in progress. The CYD family has many variants whose differences fail
+silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
+but a light sensor on the ESP32-2432S028R. If you own a variant,
+[AGENTS.md](AGENTS.md) has the checklist: hardware reference first, then the
+PlatformIO env, then a verification app, then games.
+
+**Tell us what's wrong with the code.** Much of this firmware was written by
+coding agents under human direction. Confident mistakes survive longer that
+way, so bug reports and code critique are genuinely valuable — please
+[open an issue](https://github.com/iamankushpandit/Gume/issues), and if you
+can, say how you'd fix it. Hardware assumptions that were never measured are
+the most valuable of all.
+
 <p align="center">
   <img src="docs/screens/launcher-wide.png" width="420" alt="Home screen, Wide layout">
   <img src="docs/screens/launcher-tall.png" width="315" alt="Home screen, Tall layout">

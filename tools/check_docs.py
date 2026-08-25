@@ -74,6 +74,24 @@ def check_game_count(problems):
     if not re.search(r"\b%s-game\b" % count, readme):
         fail(problems, "README.md opening line does not say '%s-game'" % count)
 
+    # CONTRIBUTING.md is the first file a would-be contributor reads, and it
+    # was never checked by anything -- it claimed 30 games while the registry
+    # had 31.
+    contributing = read("CONTRIBUTING.md")
+    stated = re.search(r"(\d+) built-in games", contributing)
+    if not stated:
+        fail(problems, "CONTRIBUTING.md: no 'N built-in games' phrase")
+    elif stated.group(1) != count:
+        fail(problems, "CONTRIBUTING.md says %s built-in games, playable app "
+                       "count is %s" % (stated.group(1), count))
+
+    registry = read("src", "engine", "AppRegistry.h")
+    declared = re.search(r"SYSTEM_APP_COUNT\s*=\s*(\d+)", registry)
+    stated = re.search(r"built-in games,\s+(\d+)\s+system apps", contributing)
+    if declared and stated and stated.group(1) != declared.group(1):
+        fail(problems, "CONTRIBUTING.md says %s system apps, AppRegistry.h "
+                       "says %s" % (stated.group(1), declared.group(1)))
+
 
 def check_source_tree(problems):
     """Every source file should appear in README's 'Layout of the code' block.

@@ -1,7 +1,7 @@
 # Contributing
 
 GUme is the repository behind **Braino!**, a small firmware project with a
-large code surface: 30 built-in games,
+large code surface: 31 built-in games, 7
 system apps, hardware drivers, generated screenshots, a web installer and CI.
 The code in this repo has largely been built with Claude or other coding agents
 under human direction, so the repo includes explicit instructions and machine
@@ -21,6 +21,23 @@ These files exist because multiple clients can work on this repo at the same
 time. Follow them even when you are not using Claude. They explain how to keep
 changes small, avoid stepping on another contributor's work and preserve the
 firmware's performance and memory constraints.
+
+## What would help most
+
+**Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
+variant in progress. The CYD family has many variants whose differences fail
+silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
+but a light sensor on the ESP32-2432S028R. If you own a variant, the checklist
+is [AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
+hardware reference first, then the PlatformIO env, then a verification app,
+then games. The "known issues" section of the board doc is not optional.
+
+**Tell us what's wrong with the code.** Much of this firmware was written by
+coding agents under human direction. Confident mistakes survive longer that
+way, so bug reports and code critique are genuinely valuable — please
+[open an issue](https://github.com/iamankushpandit/Gume/issues), and if you
+can, say how you'd fix it. Hardware assumptions that were never measured are
+the most valuable of all.
 
 ## Workflow
 
