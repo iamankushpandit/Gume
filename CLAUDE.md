@@ -183,7 +183,7 @@ Assume you are **not** the only one editing this tree. Several agents (Claude or
 When a new requirement arrives, don't start editing the shared tree. Take an isolated copy:
 
 ```bash
-git worktree add ../GUme-<slug> -b feat/<slug>
+git worktree add ../GUme-<slug> -b feat/<slug> dev
 ```
 
 Then work entirely in `../GUme-<slug>`. Branch names: `feat/<game-id>` for a new game, `fix/<area>` for a repair, `docs/<topic>` otherwise.
@@ -192,7 +192,7 @@ Then work entirely in `../GUme-<slug>`. Branch names: `feat/<game-id>` for a new
 
 A separate worktree also gives you your own `.pio/` build directory, which removes the concurrent-build race described below.
 
-Keep branches short-lived and rebase onto `main` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge to `main` or push unless the user asks.
+Base new work on `dev`, not `main`. Keep branches short-lived and rebase onto `dev` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
 
 **Branching moves the risk rather than removing it.** More parallel branches means more merges, and the failure below is a merge-time failure â€” so it gets *more* important, not less.
 
@@ -276,6 +276,7 @@ This keeps diffs reviewable, conflicts locatable, and prevents any single file f
 - Commit narrowly â€” one game or one concern per commit â€” so conflicts stay resolvable.
 - Don't rebase or force-push shared branches, and don't revert changes you can't attribute; an unfamiliar edit is more likely someone's in-flight work than a mistake.
 - Don't reformat, re-order includes, or opportunistically refactor files you aren't otherwise changing. Cosmetic churn in a spine file turns someone else's small diff into a merge conflict.
+- `main` and `dev` are protected branches. Open a pull request against `dev`; never try to force-push or delete either, and do not use an admin bypass to skip a failing check.
 - `src/games/CountryDataTable.cpp` is generated. Regenerating it rewrites the whole file â€” announce it rather than folding it into an unrelated change.
 
 ## Architecture
