@@ -21,7 +21,7 @@ cases/
 
 | Board | Case | Notes |
 |---|---|---|
-| [E32R28T-1](E32R28T-1/) | Two-part screwed shell | Fits the 2.8-inch ILI9341 board Braino targets today |
+| [E32R28T-1](E32R28T-1/) | Two-part screwed shell | Printed and assembled; a stopgap. The designed enclosure is [#13](https://github.com/iamankushpandit/Gume/issues/13), queued behind [#8](https://github.com/iamankushpandit/Gume/issues/8) |
 
 ## Adding a case for your board
 

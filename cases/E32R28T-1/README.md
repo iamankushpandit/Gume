@@ -54,20 +54,46 @@ The board sits in the back tray, display upwards, with the USB connector
 through the side cut-out. The bezel goes on top and the two plates screw
 together through the four corner holes.
 
-**Fastener sizes are not documented here because they were not measured.**
-Check the holes against what you have — self-tapping M2 or M2.5 screws are the
-usual answer for a shell this size — and if you fit it, please open a pull
-request adding the size and length that worked, so the next person does not
-have to work it out again.
+**Fasteners used, and why they are not a recommendation:**
+
+| Part | Detail | Cost |
+|---|---|---|
+| Screw | M3-0.50 × 25 mm socket head, 2 mm hex key (part `43908-G`) | ~$1.19 each |
+| Washer | M3 flat washer | ~$0.15 each |
+
+Four of each. They hold the shell together, but this is a stopgap rather than a
+design: at roughly **$5.36 of hardware per unit** they cost a noticeable
+fraction of the board, and the fit is no better than cheaper self-tapping
+screws would give. Do not read the table as "buy these" — read it as "these are
+what the current holes happen to take."
+
+The fix is a redesigned case with fastening chosen as part of the model rather
+than found afterwards, which is
+[issue #13](https://github.com/iamankushpandit/Gume/issues/13).
 
 There is no dedicated battery compartment. The single-cell Li-ion/LiPo pack the
 board charges (see the Battery section of the [README](../../README.md)) has to
 be placed in the free space in the tray by hand.
 
-## Status
+## Status — this is the stopgap, not the design
 
-Modelled and sliced for this board; treat the fit as **not yet verified in this
-repository**. If you print it, say what happened —
+Printed and assembled with the fasteners above, so the geometry works. It is
+still a first shell: expensive hardware, no light pipe for the RGB LED, and no
+speaker volume set aside.
+
+**A proper enclosure is [issue #13](https://github.com/iamankushpandit/Gume/issues/13)**,
+which lists the constraints the firmware imposes on the mechanical design —
+the LED is the only non-visual feedback channel and must be visible, the
+resistive panel needs backing from behind, USB and BOOT must stay reachable
+without opening the case, and the battery must need a tool. Read it before
+starting a redesign; several of those are not obvious from looking at the
+board, and all of them are expensive to discover at first fit.
+
+**It is queued behind [issue #8](https://github.com/iamankushpandit/Gume/issues/8)**
+(the battery gauge). Runtime cannot be measured while the gauge bounces and 0%
+does not mean empty, and pack size drives the internal volume — so the case is
+sized around a battery decision that cannot be made yet.
+
+Until then: if you print this one, say what happened —
 [open an issue](https://github.com/iamankushpandit/Gume/issues) or a pull
-request against this file. A note saying "printed, fits, M2×6 screws" is a real
-contribution.
+request against this file.
