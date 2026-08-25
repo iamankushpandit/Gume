@@ -151,9 +151,18 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Two diagnostic environments exist for hardware triage:
+Three diagnostic environments exist for hardware triage:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
+- `pio run -e batdiag` — builds `src/battery_diag.cpp` **alone**, an eight-page
+  battery bring-up and calibration tool. It exists because the questions the
+  battery poses cannot be answered from inside the app: the frame budget, the
+  watchdog and the 2s telemetry cache are all correct product decisions that
+  get in the way of watching an ADC for an hour. BOOT cycles pages; CSV
+  (`ms,raw,adc_mv,cell_mv,pct,state`) streams to serial for capturing a full
+  discharge. Its charge-inference constants are copied from `BoardPower.cpp`
+  deliberately, so what it shows is what the product will do — **if you change
+  one, change both.**
 
 ### Build gotchas
 

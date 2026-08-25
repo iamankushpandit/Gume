@@ -670,6 +670,7 @@ The main firmware also traces the clock over serial at 115200:
 src/
   main.cpp              bringup entrypoint + normal app setup/loop
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
+  battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   engine/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
