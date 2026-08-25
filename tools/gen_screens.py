@@ -83,12 +83,27 @@ def sync_badge(d, cx, cy, synced=True):
     d.text((cx - 3, cy - 6), "v" if synced else "!", font=F1, fill=(0, 0, 0))
 
 
+# Mirrors Ui::drawWifiBadge -- a fan of arcs over a dot, not signal bars. The
+# offsets are the same table the firmware carries, relative to the dot.
+WIFI_ARCS = (
+    ((-2, -3), (-1, -3), (0, -3), (1, -3), (2, -3), (-2, -2), (2, -2)),
+    ((-2, -6), (-1, -6), (0, -6), (1, -6), (2, -6), (-4, -5), (-3, -5), (-2, -5),
+     (2, -5), (3, -5), (4, -5)),
+    ((-3, -9), (-2, -9), (-1, -9), (0, -9), (1, -9), (2, -9), (3, -9), (-5, -8),
+     (-4, -8), (-3, -8), (3, -8), (4, -8), (5, -8), (-6, -7), (-5, -7), (5, -7),
+     (6, -7)),
+)
+
+
 def wifi_badge(d, cx, cy, bars=3):
-    base = cy + 6
-    for i in range(4):
-        h = 3 + i * 3
-        x = cx - 7 + i * 4
-        d.rectangle([x, base - h, x + 2, base], fill=SUCCESS if i < bars else (70, 74, 84))
+    """`bars` is the lit level 0-4: 0 nothing, 1 the dot, then one arc each."""
+    off = (70, 74, 84)
+    dot_y = cy + 5
+    d.rectangle([cx - 1, dot_y - 1, cx, dot_y], fill=SUCCESS if bars >= 1 else off)
+    for band, arc in enumerate(WIFI_ARCS):
+        col = SUCCESS if bars >= band + 2 else off
+        for dx, dy in arc:
+            d.point((cx + dx, dot_y + dy), fill=col)
 
 
 def topbar(d, title, synced=True, bars=3):

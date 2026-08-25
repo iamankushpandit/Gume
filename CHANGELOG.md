@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,347,577 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
+Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Added
 
@@ -104,6 +104,15 @@ Flash 2,347,577 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Fixed
 
+- **The Wi-Fi icon was drawn as mobile-signal bars.** Four ascending bars is
+  the cellular convention, on a device with no cellular radio -- it read as
+  data signal rather than Wi-Fi. It is now the usual fan: a dot with three
+  arcs radiating from it, still driven by the real RSSI (the dot alone is the
+  weakest level, each further arc one step up), still greyed and struck
+  through when the radio is down. The arcs are a precomputed table of pixel
+  offsets rather than trig in the render path, since the top bar is on every
+  screen and `Ui::Renderer` has no arc primitive. `tools/gen_screens.py`
+  carries the same table, so all 50 mock-ups with a top bar were regenerated.
 - **The battery gauge claimed it could tell whether a pack was fitted. It
   cannot.** Measured on hardware with the `batdiag` wizard, 8s averaged: pack
   plus USB 4.224 V, USB with no pack 4.159 V, pack alone 4.066 V. The no-pack

@@ -267,6 +267,21 @@ bool wifiUp() {
     return WiFi.status() == WL_CONNECTED;
 }
 
+namespace {
+/* Wi-Fi glyph: three arcs radiating from a dot, offsets relative to the dot.
+ * Generated for radii 3/6/9 over a +/-38 degree fan; see drawWifiBadge. */
+struct WifiPixel { int8_t dx; int8_t dy; };
+constexpr WifiPixel WIFI_ARC1[] = {{-2,-3}, {-1,-3}, {0,-3}, {1,-3}, {2,-3}, {-2,-2}, {2,-2}};
+constexpr WifiPixel WIFI_ARC2[] = {{-2,-6}, {-1,-6}, {0,-6}, {1,-6}, {2,-6}, {-4,-5}, {-3,-5}, {-2,-5}, {2,-5}, {3,-5}, {4,-5}};
+constexpr WifiPixel WIFI_ARC3[] = {{-3,-9}, {-2,-9}, {-1,-9}, {0,-9}, {1,-9}, {2,-9}, {3,-9}, {-5,-8}, {-4,-8}, {-3,-8}, {3,-8}, {4,-8}, {5,-8}, {-6,-7}, {-5,-7}, {5,-7}, {6,-7}};
+constexpr const WifiPixel* WIFI_ARCS[] = {WIFI_ARC1, WIFI_ARC2, WIFI_ARC3};
+constexpr uint8_t WIFI_ARC_COUNTS[] = {
+    sizeof(WIFI_ARC1) / sizeof(WIFI_ARC1[0]),
+    sizeof(WIFI_ARC2) / sizeof(WIFI_ARC2[0]),
+    sizeof(WIFI_ARC3) / sizeof(WIFI_ARC3[0]),
+};
+}  // namespace
+
 void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
     const bool up = wifiUp();
 
@@ -279,18 +294,31 @@ void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
     }
 
     const uint16_t on  = up ? COLOR_SUCCESS : rgb(120, 126, 138);
-    // Unlit bars must read against the background in both themes.
+    // Unlit arcs must read against the background in both themes.
     const uint16_t off = (s_theme == Theme::Light) ? rgb(190, 194, 202) : rgb(70, 74, 84);
-    const int16_t base = static_cast<int16_t>(cy + 6);
 
-    for (uint8_t i = 0; i < 4; ++i) {
-        const int16_t h = static_cast<int16_t>(3 + i * 3);   // 3,6,9,12
-        const int16_t x = static_cast<int16_t>(cx - 7 + i * 4);
-        tft.fillRect(x, static_cast<int16_t>(base - h), 3, h, i < lit ? on : off);
+    /* A fan of arcs over a dot -- the Wi-Fi convention. This used to be four
+     * ascending bars, which is the mobile-signal convention and read as cell
+     * data on a device that has no cellular radio at all.
+     *
+     * The arcs are precomputed pixel offsets rather than trig at draw time:
+     * the top bar is on every screen, and Ui:: has no arc primitive to call.
+     * Origin is the dot; y is negative upwards. */
+    const int16_t dotY = static_cast<int16_t>(cy + 5);
+    tft.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(dotY - 1),
+                 2, 2, lit >= 1 ? on : off);
+    for (uint8_t band = 0; band < 3; ++band) {
+        const WifiPixel* arc = WIFI_ARCS[band];
+        const uint8_t count = WIFI_ARC_COUNTS[band];
+        const uint16_t col = lit >= band + 2 ? on : off;
+        for (uint8_t i = 0; i < count; ++i) {
+            tft.drawPixel(static_cast<int16_t>(cx + arc[i].dx),
+                          static_cast<int16_t>(dotY + arc[i].dy), col);
+        }
     }
     if (!up) {
-        tft.drawLine(cx - 8, cy - 6, cx + 8, cy + 7, COLOR_ERROR);
-        tft.drawLine(cx - 8, cy - 7, cx + 8, cy + 6, COLOR_ERROR);
+        tft.drawLine(cx - 7, cy - 5, cx + 7, cy + 7, COLOR_ERROR);
+        tft.drawLine(cx - 7, cy - 6, cx + 7, cy + 6, COLOR_ERROR);
     }
     (void)bg;
 }
