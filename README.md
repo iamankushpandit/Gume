@@ -1,5 +1,17 @@
 # Braino!
 
+[![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
+[![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
+[![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
+[![Version](https://img.shields.io/badge/version-5.0.0-1f7a3d)](CHANGELOG.md)
+[![Games](https://img.shields.io/badge/games-31-2d7d9a)](#the-games)
+[![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
+[![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
+[![Flash](https://img.shields.io/badge/flash-74.6%25%20of%203%20MB-yellow)](#build-and-flash)
+[![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#credits-and-licensing)
+
 A 31-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).

@@ -21,6 +21,7 @@ import os
 import re
 import sys
 
+import elf_size
 import gen_site
 from app_registry_parser import playable_apps
 
@@ -99,26 +100,54 @@ def check_source_tree(problems):
 
 
 def check_size_agreement(problems):
-    """README and CLAUDE.md must quote the same build figures as each other.
+    """README and CLAUDE.md must quote the same build figures -- as each other,
+    and as the last actual build.
 
-    Neither can be derived here without running a build, but they going out of
-    step with one another is the failure that actually happens: one gets
-    updated after a `pio run` and the other does not.
+    They going out of step with one another is one failure: one gets updated
+    after a `pio run` and the other does not. But agreeing with each other was
+    never sufficient, and trusting it cost 404 bytes of drift -- both documents
+    said 2,347,169 while the firmware had grown to 2,347,573, and the check
+    stayed green the whole time because it only compared them to each other.
+
+    So when there is a build to read, the documented figures are checked
+    against the ELF the compiler actually produced. On a tree that has never
+    been built there is nothing to compare against and only the agreement check
+    runs, which keeps a fresh checkout (and CI before its build step) clean.
     """
     readme = read("README.md")
     claude = read("CLAUDE.md")
 
-    def numbers(text, label):
-        found = re.findall(r"([\d,]{7,})\s*/\s*3,145,728", text)
+    def numbers(text, label, capacity):
+        found = re.findall(r"([\d,]{6,})\s*/\s*" + re.escape(capacity), text)
         if not found:
-            fail(problems, "%s: no flash figure of the form 'N / 3,145,728'" % label)
+            fail(problems, "%s: no figure of the form 'N / %s'" % (label, capacity))
         return set(found)
 
-    readme_flash = numbers(readme, "README.md")
-    claude_flash = numbers(claude, "CLAUDE.md")
+    readme_flash = numbers(readme, "README.md", "3,145,728")
+    claude_flash = numbers(claude, "CLAUDE.md", "3,145,728")
     if readme_flash and claude_flash and readme_flash != claude_flash:
         fail(problems, "flash figures disagree: README %s vs CLAUDE.md %s"
              % (sorted(readme_flash), sorted(claude_flash)))
+
+    figures = elf_size.build_figures(elf_size.default_elf(ROOT))
+    if figures is None:
+        return                      # never built here; nothing to check against
+    flash, ram = figures
+
+    readme_ram = numbers(readme, "README.md", "327,680")
+    claude_ram = numbers(claude, "CLAUDE.md", "327,680")
+
+    for label, stated, real, what in (
+            ("README.md", readme_flash, flash, "flash"),
+            ("CLAUDE.md", claude_flash, flash, "flash"),
+            ("README.md", readme_ram, ram, "RAM"),
+            ("CLAUDE.md", claude_ram, ram, "RAM")):
+        for value in sorted(stated):
+            if int(value.replace(",", "")) != real:
+                fail(problems, "%s says %s bytes of %s, the build in .pio "
+                               "reports %s -- re-read the size line from your "
+                               "own `pio run`"
+                     % (label, value, what, format(real, ",")))
 
 
 def check_about_is_derived(problems):
@@ -291,6 +320,47 @@ def check_site_screens(problems):
                  " -- fix tools/gen_site.py, or the Pages build fails on main")
 
 
+def check_badges(problems):
+    """The README badges must not become the next stale fact.
+
+    Shields.io badges are images with the value baked into the URL, so a
+    version, a game count or a flash percentage typed into one drifts exactly
+    the way the README's headline game count and flash figure already did --
+    and a wrong number is more believable in a badge, because it looks
+    generated. These three are checked against the same sources the rest of
+    this file uses.
+    """
+    readme = read("README.md")
+
+    match = re.search(r"BRAINO_VERSION\s+\"([^\"]+)\"", read("include", "AppVersion.h"))
+    badge = re.search(r"img\.shields\.io/badge/version-([\d.]+)-", readme)
+    if match and badge and badge.group(1) != match.group(1):
+        fail(problems, "README version badge says %s, AppVersion.h says %s"
+             % (badge.group(1), match.group(1)))
+
+    count = len(playable_apps())
+    badge = re.search(r"img\.shields\.io/badge/games-(\d+)-", readme)
+    if badge and int(badge.group(1)) != count:
+        fail(problems, "README games badge says %s, the registry has %d playable apps"
+             % (badge.group(1), count))
+
+    badge = re.search(r"img\.shields\.io/badge/flash-([\d.]+)%25", readme)
+    if not badge:
+        return
+    figures = elf_size.build_figures(elf_size.default_elf(ROOT))
+    if figures is None:
+        stated = re.search(r"([\d,]{6,})\s*/\s*3,145,728", readme)
+        if not stated:
+            return
+        flash = int(stated.group(1).replace(",", ""))
+    else:
+        flash = figures[0]
+    real = round(100.0 * flash / elf_size.FLASH_CAPACITY, 1)
+    if abs(float(badge.group(1)) - real) > 0.05:
+        fail(problems, "README flash badge says %s%%, the real figure is %.1f%%"
+             % (badge.group(1), real))
+
+
 def main():
     problems = []
     check_version(problems)
@@ -302,6 +372,7 @@ def main():
     check_games_are_documented(problems)
     check_screens(problems)
     check_site(problems)
+    check_badges(problems)
 
     if problems:
         print("Docs are out of sync with the code:\n")
