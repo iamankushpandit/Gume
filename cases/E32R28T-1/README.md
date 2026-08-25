@@ -58,14 +58,19 @@ together through the four corner holes.
 
 | Part | Detail | Cost |
 |---|---|---|
-| Screw | M3-0.50 × 25 mm socket head, 2 mm hex key (part `43908-G`) | ~$1.19 each |
-| Washer | M3 flat washer | ~$0.15 each |
+| Screw | M3-0.50 × 25 mm socket head, 2 mm hex key (ACE Hardware, part `43908-G`) | ~$1.19 each |
+| Washer | M3 flat washer (ACE Hardware) | ~$0.15 each |
 
-Four of each. They hold the shell together, but this is a stopgap rather than a
-design: at roughly **$5.36 of hardware per unit** they cost a noticeable
-fraction of the board, and the fit is no better than cheaper self-tapping
-screws would give. Do not read the table as "buy these" — read it as "these are
-what the current holes happen to take."
+Four of each, bought off the shelf at ACE Hardware. They work — the assembled
+shell holds the board and the battery pack firmly — but read the table as
+"these are what the current holes happen to take", not as a shopping list:
+
+- **They stick out.** 25 mm is longer than the stack needs, so the screws
+  protrude past the back. A shorter M3 is almost certainly the right length;
+  nobody has measured what it is.
+- **They are expensive.** About **$5.36 of hardware per unit**, a noticeable
+  fraction of what the board costs, for a fit no better than cheap
+  self-tapping screws would give.
 
 The fix is a redesigned case with fastening chosen as part of the model rather
 than found afterwards, which is
@@ -77,9 +82,10 @@ be placed in the free space in the tray by hand.
 
 ## Status — this is the stopgap, not the design
 
-Printed and assembled with the fasteners above, so the geometry works. It is
-still a first shell: expensive hardware, no light pipe for the RGB LED, and no
-speaker volume set aside.
+Printed and assembled with the fasteners above. It works: the board and the
+battery are held nicely and the thing is usable. It is still a first shell —
+screws that protrude and cost more than they should, no light pipe for the RGB
+LED, and no speaker volume set aside.
 
 **A proper enclosure is [issue #13](https://github.com/iamankushpandit/Gume/issues/13)**,
 which lists the constraints the firmware imposes on the mechanical design —
