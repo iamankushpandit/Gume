@@ -59,7 +59,7 @@ together through the four corner holes.
 | Part | Detail | Cost |
 |---|---|---|
 | Screw | M3-0.50 × 25 mm socket head, 2 mm hex key (ACE Hardware, part `43908-G`) | ~$1.19 each |
-| Washer | M3 flat washer (ACE Hardware) | ~$0.15 each |
+| Washer | M3 flat washer (ACE Hardware, part `H923010-543053`) | ~$0.15 each |
 
 Four of each, bought off the shelf at ACE Hardware. They work — the assembled
 shell holds the board and the battery pack firmly — but read the table as
