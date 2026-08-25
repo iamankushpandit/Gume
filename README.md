@@ -45,6 +45,13 @@ but a light sensor on the ESP32-2432S028R. If you own a variant,
 [AGENTS.md](AGENTS.md) has the checklist: hardware reference first, then the
 PlatformIO env, then a verification app, then games.
 
+**Cases.** A printable shell for the E32R28T-1 is in
+[`cases/`](cases/README.md), one folder per board. A case is not required for a
+board to be supported — but a builder who has never opened a CAD tool should
+not be left with a bare board and a battery taped to the back, so ports are
+encouraged to bring one. Print notes and fastener sizes are as valuable as the
+mesh.
+
 **Tell us what's wrong with the code.** Much of this firmware was written by
 coding agents under human direction. Confident mistakes survive longer that
 way, so bug reports and code critique are genuinely valuable — please
@@ -765,6 +772,8 @@ site/
 docs/
   BLE_BEACON_SPEC.md    what the beacon broadcasts, and why that is checkable
   SD_CONTENT_SPEC.md    optional SD content format
+cases/
+  <BOARD_NAME>/         printable enclosure for that board -- STL, 3MF, print notes
 ```
 
 `AppRegistry` matters more than it looks: each playable game declares its own
