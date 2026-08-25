@@ -116,6 +116,7 @@ SCREEN_CAPTIONS = {
     "scores-device": "Scores: device best",
     "scores-mine": "Scores: this player",
     "screensaver": "Screen saver",
+    "wakelock": "Hold to unlock",
     "settings-device": "Settings: device",
     "profiles-games": "Profiles: per-child games",
     "settings-power": "Settings: power",
@@ -218,8 +219,10 @@ SYSTEM_SHOWCASE = (
     {
         "id": "screensaver",
         "title": "Screen Saver",
-        "subtitle": "Self-playing Pong before panel sleep, with rally colour mirrored on the case LED.",
-        "stills": ("screensaver",),
+        "subtitle": "Self-playing Pong before panel sleep, with rally colour mirrored on the case LED -- "
+                    "and a press-and-hold unlock on the way back, so a stray press in a bag "
+                    "cannot land on a live screen.",
+        "stills": ("screensaver", "wakelock"),
     },
 )
 

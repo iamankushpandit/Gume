@@ -65,11 +65,15 @@ Rect SettingsGame::nearbyRect() const { return Rect{8,   160, 144, 30}; }
 Rect SettingsGame::resetRect()  const { return Rect{164, 160, 144, 30}; }
 Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
 
-/* Power tab: three full-width rows, so the labels have room to say what the
- * setting actually does rather than abbreviating to fit half a screen. */
+/* Power tab: four full-width rows, so the labels have room to say what the
+ * setting actually does rather than abbreviating to fit half a screen.
+ *
+ * Wake lock sits with them because it is the last thing in the idle sequence:
+ * saver, sleep, then what it takes to get back. */
 Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
 Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
 Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
+Rect SettingsGame::wakeLockRect()   const { return Rect{8, 160, 304, 30}; }
 
 /* Standard PIN pad, laid out against the live panel size so it works in both
  * orientations and, more importantly, so every row lands above the bottom
@@ -283,6 +287,10 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
             if (sleepRowActive(board)) { cycleSleepSeconds(board); markFullDirty(); }
             return;
         }
+        if (wakeLockRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.setWakeLockEnabled(!board.wakeLockEnabled());
+            markFullDirty(); return;
+        }
         return;
     }
 
@@ -428,6 +436,14 @@ void SettingsGame::renderPowerTab(GameHost& host) {
                    sleepLive ? Ui::panel() : Ui::surface(), Ui::outline(),
                    sleepLive ? Ui::text() : Ui::muted(), false, 2);
 
+    /* Always live: it guards the saver as well as sleep, so it means
+     * something under all three idle policies. */
+    snprintf(buf, sizeof(buf), "Hold to unlock: %s",
+             board.wakeLockEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, wakeLockRect(), buf,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   admin ? Ui::text() : Ui::muted(), false, 2);
+
     /* Say the resulting behaviour in plain words, composed from the live
      * values -- three settings that interact are hard to hold in your head. */
     char explain[64];
@@ -449,9 +465,14 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     }
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(explain, 8, 168, 1);
+    tft.drawString(explain, 8, 196, 1);
     if (admin) {
-        tft.drawString("Sleep blanks the screen. A touch wakes it.", 8, 184, 1);
+        /* Say what a touch actually does, because the row above changes it.
+         * A stray press in a bag is the case this exists for. */
+        tft.drawString(board.wakeLockEnabled()
+                           ? "A touch lights the screen; hold to go back."
+                           : "Any touch goes straight back to what you were doing.",
+                       8, 212, 1);
     }
 }
 

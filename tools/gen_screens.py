@@ -577,8 +577,35 @@ def settings_power():
     button(d, (8, 58, 304, 30), "When idle: Saver then sleep")
     button(d, (8, 92, 304, 30), "Idle after: 1m")
     button(d, (8, 126, 304, 30), "Sleep after: 1m")
-    d.text((8, 168), "Saver at 60s, screen off at 120s.", font=F1, fill=MUTED)
-    d.text((8, 184), "Sleep blanks the screen. A touch wakes it.", font=F1, fill=MUTED)
+    button(d, (8, 160, 304, 30), "Hold to unlock: On")
+    d.text((8, 196), "Saver at 60s, screen off at 120s.", font=F1, fill=MUTED)
+    d.text((8, 212), "A touch lights the screen; hold to go back.",
+           font=F1, fill=MUTED)
+    return im
+
+
+def wakelock():
+    """The unlock screen the saver and panel sleep hand you, not the screen
+    underneath. Geometry from KidsPlatformApp::lockButtonRect()."""
+    im, d = blank()
+    bw, bh = min(200, W - 48), 58
+    bx, by = (W - bw) // 2, (H - bh) // 2 + 12
+    icon_cy = by - 74
+    d.ellipse([W // 2 - 9, icon_cy - 9, W // 2 + 9, icon_cy + 9], outline=MUTED, width=2)
+    d.rectangle([W // 2 - 10, icon_cy, W // 2 + 10, icon_cy + 12], fill=BG)
+    d.rounded_rectangle([W // 2 - 12, icon_cy, W // 2 + 11, icon_cy + 17], 3, fill=MUTED)
+    head = "Locked"
+    d.text((W / 2 - d.textlength(head, font=F4) / 2, by - 48), head, font=F4, fill=TEXT)
+    hint = "Press and hold the button"
+    d.text((W / 2 - d.textlength(hint, font=F1) / 2, by - 22), hint, font=F1, fill=MUTED)
+    button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)
+    barx, bary, barh = bx, by + bh + 10, 10
+    d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
+    d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],
+                fill=SUCCESS)
+    foot = "Nothing under here can be touched yet"
+    d.text((W / 2 - d.textlength(foot, font=F1) / 2, bary + barh + 14), foot,
+           font=F1, fill=MUTED)
     return im
 
 
@@ -751,6 +778,7 @@ SCREENS = [
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),
     ("screensaver", screensaver, "Pong screen saver"),
+    ("wakelock", wakelock, "Hold to unlock, after the saver or sleep"),
 ]
 
 

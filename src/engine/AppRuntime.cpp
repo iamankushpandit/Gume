@@ -165,7 +165,12 @@ void KidsPlatformApp::loop() {
     }
 
     const Board::IdleAction idlePolicy = board_.idleAction();
-    if (view_ != View::ScreenSaver && view_ != View::Asleep) {
+    /* View::Locked is excluded along with the two idle views. It runs its own
+     * timeout in updateLock(); leaving it in here would re-arm the saver timer
+     * against a lastActivityMs_ that is already older than the timeout, and
+     * the two would fight over the same frame. */
+    if (view_ != View::ScreenSaver && view_ != View::Asleep &&
+        view_ != View::Locked) {
         const uint32_t idleMs = nowMs - lastActivityMs_;
         const uint32_t timeoutMs = static_cast<uint32_t>(board_.screenSaverSeconds()) * 1000UL;
         if (timeoutMs > 0 && idleMs > timeoutMs) {
@@ -195,6 +200,10 @@ void KidsPlatformApp::loop() {
         if (rawTouch.justPressed || rawTouch.down) {
             wakeFromSleep();
         }
+    } else if (view_ == View::Locked) {
+        /* The swallowed touch, not the raw one: the press that lit the panel
+         * has to be released before a hold can start. */
+        updateLock(touch, nowMs);
     } else if (view_ == View::ScreenSaver) {
         if (touch.justPressed) {
             exitScreenSaver();

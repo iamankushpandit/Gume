@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,346,841 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
+Flash 2,348,957 / 3,145,728 (74.7%), RAM 72,540 / 327,680 (22.1%).
 
 ### Fixed
 
@@ -48,6 +48,25 @@ Flash 2,346,841 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Added
 
+- **Hold to unlock, coming out of the screen saver or panel sleep.** A single
+  stray press used to dismiss the saver and land straight on whatever screen
+  was underneath -- mid-game, or on Settings -- which in a bag or a coat
+  pocket meant phantom taps on live UI. `swallowTouch_` suppressed the *next*
+  press, which never helped: the press that dismissed the saver was itself the
+  unintended one. A touch now lights the screen and nothing else, onto a lock
+  screen whose unlock button has to be held for about a second, with a
+  progress bar so it is obvious what the device is waiting for. It covers both
+  the saver and panel sleep, works in both orientations, and returns you to
+  exactly the screen, profile and orientation you left.
+
+  It is **not** a PIN and is disjoint from the admin PIN: unlocking neither
+  grants nor revokes admin. The hold forgives up to 150ms of lost contact,
+  because a held press on a resistive panel drops out intermittently as a
+  matter of course -- a detector that reset on the first gap would feel broken
+  while looking correct in code. Nobody unlocking within 12 seconds sends the
+  device back to sleep rather than leaving it lit. On by default; switch it off
+  in **Settings -> Power -> Hold to unlock**, which like every device setting
+  is global and admin-writable only.
 - **A licence.** The repo had none, which meant default copyright -- all
   rights reserved -- so nobody could legally contribute to a project that was
   asking for contributions. It is now **GPL-3.0-or-later**, so ports and
