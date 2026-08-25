@@ -1,6 +1,6 @@
 # Agent instructions
 
-This project keeps its guidance in **`CLAUDE.md`** files, which apply to every agent working here regardless of which tool you are — read them as your instructions.
+This project keeps its guidance in **`CLAUDE.md`** files. They apply to everyone who changes this repository — every agent regardless of which tool you are, and every human contributor too. There is one rulebook, not an agent track and a people track: [CONTRIBUTING.md](CONTRIBUTING.md) covers how work reaches the protected `main` and `dev` branches, and these files cover what the code itself has to honour. Read them as your instructions.
 
 - [`CLAUDE.md`](CLAUDE.md) — start here: build commands, architecture, invariants, and the protocol for working alongside other agents
 - [`src/engine/CLAUDE.md`](src/engine/CLAUDE.md) — screen lifecycle, catalogs, progress tracking
@@ -73,6 +73,24 @@ The fix, and the standing rule, is to **derive rather than restate**:
 If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static — the credits, the
 privacy statements — must be re-read whenever the thing it describes changes.
+
+## No data collection — the rule that outranks the feature
+
+Braino collects nothing about the child using it, and no change may alter
+that. It is not a setting that ships switched off; it is what the product is.
+Exactly three things leave the device: an NTP time query, one `ip-api.com`
+lookup to guess the timezone on first connect, and the opt-in, non-connectable
+BLE beacon. **That list is closed.** Do not add analytics, usage counters,
+crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
+home at runtime, or anything transmitted that carries a child's name, profile
+name, score, progress or typing. A fourth outbound flow needs the maintainer's
+agreement in an issue *before* the code exists — it is a change to what the
+product promises, not a feature to be reviewed on merit.
+
+Storing is not collecting: scores and profiles live in this device's own NVS
+and never leave it. The full statement, including what to update if a
+transmitted-data change is ever agreed, is in
+[CONTRIBUTING.md](CONTRIBUTING.md#no-data-collection).
 
 **A privacy claim that has drifted from the hardware is worse than none at all,
 because it is believed.** If you add or change anything that transmits, stores
