@@ -89,6 +89,9 @@ SCREEN_CAPTIONS = {
     "cinnamon": "Cinnamon Says",
     "colormix": "Color Mix",
     "counting": "Counting",
+    "elements": "Elements: the periodic table",
+    "elements-card": "Elements: one element up close",
+    "elements-quiz": "Elements: find it in the table",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
     "flags-capital": "Flags: capital bonus",
@@ -164,6 +167,7 @@ PLAYABLE_STILLS = {
     "grewords": ("grewords", "grewords-study"),
     "dice": ("dice",),
     "coinflip": ("coinflip",),
+    "elements": ("elements", "elements-card", "elements-quiz"),
 }
 
 SYSTEM_SHOWCASE = (

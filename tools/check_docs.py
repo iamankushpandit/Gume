@@ -15,10 +15,13 @@ Exit code 0 = clean, 1 = something has drifted. It deliberately does not try to
 check prose; it checks the facts that have actually gone stale before.
 """
 
+import contextlib
+import io
 import os
 import re
 import sys
 
+import gen_site
 from app_registry_parser import playable_apps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -232,6 +235,15 @@ def check_site(problems):
     supplies, or someone adds a PlatformIO environment to the page that the
     Pages workflow never builds -- which produces a picker entry whose manifest
     404s halfway through erasing somebody's board.
+
+    The third way, and the one that actually broke the deploy: a new game adds
+    a still to docs/screens/ and wires it into gen_screens.py and the README,
+    but nobody adds it to gen_site.py's PLAYABLE_STILLS. gen_site.py refuses to
+    generate an orphaned still, but it only says so when the site is generated
+    -- which happens in CI, on main, after the push. Every documented local
+    check passed and Pages failed twice anyway. So the still contract is
+    enforced here too, by calling gen_site's own validator rather than
+    reimplementing it, so the two cannot drift apart.
     """
     template = read("site", "index.template.html")
     generator = read("tools", "gen_site.py")
@@ -256,6 +268,27 @@ def check_site(problems):
             fail(problems, "gen_site.py offers firmware '%s', but the Pages "
                            "workflow never builds it -- its manifest would "
                            "point at binaries that do not exist" % env)
+
+    check_site_screens(problems)
+
+
+def check_site_screens(problems):
+    """Every docs/screens still must appear on the site, and vice versa.
+
+    gen_site.validate_site_screens() is the authority; it reports through
+    die(), which writes to stderr and raises SystemExit. Left alone that would
+    kill check_docs.py mid-run and hide every later problem, so capture both
+    and turn them into ordinary problem strings.
+    """
+    captured = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(captured):
+            gen_site.validate_site_screens(playable_apps())
+    except SystemExit:
+        message = captured.getvalue().strip() or "gen_site.py rejected the screen set"
+        for line in message.splitlines():
+            fail(problems, line.replace("gen_site.py: ", "", 1) +
+                 " -- fix tools/gen_site.py, or the Pages build fails on main")
 
 
 def main():

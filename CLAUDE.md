@@ -400,13 +400,19 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
+11. `tools/gen_site.py` — add every new still to `PLAYABLE_STILLS` (or
+    `SYSTEM_SHOWCASE` for a system app), keyed by app id, and give each one a
+    `SCREEN_CAPTIONS` entry. **A still on disk that the site does not
+    reference makes `gen_site.py` refuse to generate**, which fails the Pages
+    deploy rather than the build. Elements shipped without this and the site
+    went undeployed for two pushes.
 
 ### 4. Verify
 
-11. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
+12. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
     `CLAUDE.md`. They are the two places that disagree.
-12. `python tools/check_docs.py` â€” must be clean.
-13. Flash it and actually play it. Take the board lock first.
+13. `python tools/check_docs.py` â€” must be clean.
+14. Flash it and actually play it. Take the board lock first.
 
 ### What you do NOT hand-edit
 
@@ -420,7 +426,9 @@ how About fell six games behind in the first place:
   `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
-  fails if a version number is typed into it
+  fails if a version number is typed into it. The gallery is generated too, so
+  do not add an `<img>` to the template to show a new screenshot — add the
+  still to `PLAYABLE_STILLS` per step 11 above
 
 ### If it is a system app rather than a game
 
