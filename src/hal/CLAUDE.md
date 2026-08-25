@@ -55,6 +55,8 @@ The red and green GPIOs are physically crossed on this unit versus the standard 
 
 Wi-Fi exists only to set the clock. `tickTimeSync()` drives a non-blocking `Idle → Connecting → Syncing → Synced` state machine from the main loop, re-syncing every ~5 minutes. `ntpUdpProbe()` queries NTP over raw UDP and doubles as a diagnostic and a fallback that sets the clock directly when lwIP's SNTP never answers.
 
+**These are the only outbound flows the firmware has, together with the opt-in BLE beacon, and that list is closed.** No analytics, no usage or crash reporting, no other HTTP/UDP/DNS request, and nothing transmitted that carries a child's name, profile name, score, progress or typing. `BoardNetwork.cpp` is where such a thing would be added, so it is where it gets refused: a fourth flow needs agreement in an issue before the code exists. See [CONTRIBUTING.md](../../CONTRIBUTING.md#no-data-collection).
+
 Credentials are cached in RAM (`wifiCacheLoaded_`) because the state machine polls `hasWifiCredentials()` at ~27 Hz and hitting NVS that often wasted cycles and flooded the log with `nvs_get_str NOT_FOUND`.
 
 Timezone is stored in **minutes** to support :30 and :45 zones, and comes from a named POSIX zone or a public-IP lookup — DHCP options 100/101 exist but are essentially never implemented by routers.

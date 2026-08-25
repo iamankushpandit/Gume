@@ -18,9 +18,61 @@ Start here:
 - `src/ui/CLAUDE.md`: renderer, theme, widgets and drawing helpers.
 
 These files exist because multiple clients can work on this repo at the same
-time. Follow them even when you are not using Claude. They explain how to keep
+time, but they are not agent-only paperwork: they are the rules for every
+contributor, and a pull request is reviewed against them whether a person or
+a model wrote the diff. Follow them even when you are not using Claude. They explain how to keep
 changes small, avoid stepping on another contributor's work and preserve the
 firmware's performance and memory constraints.
+
+## No Data Collection
+
+Braino collects nothing about the child using it, and no contribution may
+change that. It is not a default, a setting or an opt-in that happens to be
+switched off — it is what the product is. This is the one rule here that a
+maintainer cannot wave through in review.
+
+Three things leave the device over the air. This is the complete list:
+
+| Flow | What goes out | Controlled by |
+|---|---|---|
+| NTP | A time query to `pool.ntp.org`, or whichever server is configured | Only once Wi-Fi is set up, and Wi-Fi can be skipped entirely |
+| Timezone guess | One request to `ip-api.com` on first connect, which necessarily shows that host the device's public IP | The same Wi-Fi switch; overridden by picking a zone by hand |
+| BLE beacon | A device name and two bytes of the factory Bluetooth MAC, non-connectable. With Nearby play on, also a game index and a best score | Off by default, opt-in from *Settings → Beacon* |
+
+Adding a fourth changes what the product promises its owners. Raise it in an
+issue and get agreement before writing the code, because a pull request that
+adds one gets closed on principle rather than on quality.
+
+Concretely, do not add:
+
+- analytics, usage counters, or crash and error reporting to any server;
+- any HTTP, UDP or DNS request beyond the table above;
+- a child's name, profile name, score, progress or usage history inside
+  anything that is transmitted;
+- an identifier derived from something a child typed;
+- a dependency that phones home, checks for updates, or fetches remote content
+  at runtime;
+- a field in the BLE advertisement that identifies a person rather than a
+  device — and there is no room for one regardless, the payload with Nearby
+  play on is already exactly 31 bytes.
+
+Storing is not collecting. Scores, mastery data and profiles live in the
+ESP32's own NVS and never leave it, which is the design rather than a
+compromise. Nothing needs an account, and there is nothing to sign in to.
+
+If a change to what is transmitted or stored is agreed, four documents are part
+of that same commit: the About app's radio page — which must *read* the state
+from the firmware, not restate it — the README Privacy section, the privacy
+section of `site/index.template.html`, and this file. **A privacy claim that
+has drifted from the hardware is worse than no claim at all, because it is
+believed.**
+
+The project's own infrastructure holds the same line. No analytics on the
+GitHub Pages site, and the web installer flashes over Web Serial from inside
+the browser — no firmware, serial number or board detail is uploaded anywhere.
+The one third-party request that page makes today is the `esp-web-tools` module
+it loads from unpkg.com, which sees a visitor's IP the way any CDN does. Do not
+add a second.
 
 ## What would help most
 
