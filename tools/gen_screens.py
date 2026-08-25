@@ -16,6 +16,7 @@ Output: docs/screens/*.png
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -897,20 +898,55 @@ def counting():
     return im
 
 
+# MoneyGame::coinFill / coinText -- the mint colours, per denomination.
+COIN_FILL = {1: (184, 96, 52), 5: (160, 170, 176), 10: (210, 218, 224),
+             25: (128, 146, 166), 50: (222, 184, 82)}
+COIN_OUTLINE = (8, 8, 24)
+
+
+def cents_text(cents):
+    """MoneyGame::centsText -- '42c' under a dollar, '$1.25' at or above."""
+    return "%dc" % cents if cents < 100 else "$%d.%02d" % (cents // 100, cents % 100)
+
+
+def draw_coin(d, cx, cy, value):
+    """MoneyGame::drawCoin -- radius 12, denomination inside, white ink on the
+    penny and the quarter."""
+    d.ellipse([cx - 12, cy - 12, cx + 12, cy + 12],
+              fill=COIN_FILL[value], outline=COIN_OUTLINE)
+    label = cents_text(value)
+    d.text((cx - d.textlength(label, font=F1) / 2, cy - F1.size / 2 - 1), label,
+           font=F1, fill=WHITE if value in (1, 25) else (0, 0, 0))
+
+
 def money():
     im, d = blank(); topbar(d, "Money")
-    q = "How much is this?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=TEXT)
-    coins = [("25", (170, 175, 180)), ("10", (170, 175, 180)),
-             ("5", (170, 175, 180)), ("1", (190, 130, 90)), ("1", (190, 130, 90))]
-    for i, (v, col) in enumerate(coins):
-        x = 14 + i * 59
-        d.ellipse([x + 9, 146, x + 43, 180], fill=col, outline=(90, 90, 96))
-        d.text((x + 20, 156), v, font=F2, fill=(30, 30, 36))
+    # MoneyGame::render -- the score header, then the mode name, then the coin
+    # group panel, then the options. The coins live in a panel at y78..148 and
+    # the buttons start at y160; the old mock-up put loose coins at y146 with
+    # no panel, so they collided with the answers and lost their labels.
+    d.text((8, 35), "Level 3", font=F2, fill=TEXT)
+    d.text((8, 51), "Score 40", font=F1, fill=TEXT)
+    streak, best = "Streak 4", "Best 7"
+    d.text((W - 8 - d.textlength(streak, font=F2), 35), streak, font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength(best, font=F1), 51), best, font=F1, fill=TEXT)
+
+    q = "How much is this?"           # drawLabel(Rect{8,58,304,12}, muted, 1)
+    d.text((160 - d.textlength(q, font=F1) / 2, 64 - F1.size / 2 - 1), q,
+           font=F1, fill=MUTED)
+
+    px, py, pw, ph = 18, 78, 284, 70  # drawCoinGroup(Rect{18,78,284,70})
+    d.rounded_rectangle([px, py, px + pw - 1, py + ph - 1], 6,
+                        fill=SURFACE, outline=OUTLINE)
+    coins = [25, 10, 5, 1, 1]         # 42c, the highlighted answer
+    cols = pw // 34
+    for i, v in enumerate(coins):
+        draw_coin(d, px + 18 + (i % cols) * 34, py + 18 + (i // cols) * 30, v)
+
     for i, a in enumerate(["42c", "37c", "45c", "40c"]):
-        r = (18 + (i % 2) * 152, 160 + (i // 2) * 36, 132, 30)
+        r = (18 + (i % 2) * 152, 160 + (i // 2) * 36, 132, 30)   # optionRect
         button(d, r, a,
-               SUCCESS if a == "42c" else PANEL, (0, 0, 0) if a == "42c" else TEXT)
+               SUCCESS if a == "42c" else BLUE, (0, 0, 0) if a == "42c" else TEXT)
     return im
 
 
@@ -927,23 +963,55 @@ def fractions():
     return im
 
 
+def maze_levels():
+    """The real maze grids, read from src/games/MazeData.cpp.
+
+    Transcribing a level by hand is how a mock-up ends up showing a maze the
+    firmware has never drawn. The old version invented ten floating wall
+    segments that crossed each other into plus shapes -- a shape no MazeData
+    level contains, and not how the game draws walls in the first place.
+    """
+    text = (ROOT / "src" / "games" / "MazeData.cpp").read_text(encoding="utf-8")
+    body = text[text.index("MAZES[][ROWS]"):]
+    if "FALLBACK_MAZE" in body:
+        body = body[:body.index("FALLBACK_MAZE")]
+    rows = re.findall(r'"([#SE.]+)"', body)
+    return [rows[i:i + 8] for i in range(0, len(rows) - 7, 8)]
+
+
 def maze():
     im, d = blank(); topbar(d, "Maze")
-    d.text((10, 36), "Level 4", font=F2, fill=TEXT)
+    # MazeGame draws the board as filled CELLS -- white path, dark wall, green
+    # exit, each cell outlined -- not as thin wall segments over a dark board.
     COLS, ROWS, CELL = 12, 8, 22
-    mx, my = (W - COLS * CELL) // 2, 58
-    d.rectangle([mx, my, mx + COLS * CELL, my + ROWS * CELL], fill=SURFACE, outline=OUTLINE)
-    walls = [(0, 2, 'v'), (1, 4, 'h'), (3, 1, 'v'), (4, 5, 'h'), (6, 3, 'v'),
-             (2, 6, 'h'), (5, 8, 'v'), (7, 2, 'h'), (3, 9, 'v'), (6, 7, 'h')]
-    for r, c, o in walls:
-        x, y = mx + c * CELL, my + r * CELL
-        if o == 'v':
-            d.line([(x, y), (x, y + CELL * 2)], fill=(150, 158, 172), width=2)
-        else:
-            d.line([(x, y), (x + CELL * 2, y)], fill=(150, 158, 172), width=2)
-    d.ellipse([mx + 6, my + 6, mx + 16, my + 16], fill=(255, 246, 178))
-    d.rectangle([mx + COLS * CELL - 18, my + ROWS * CELL - 18,
-                 mx + COLS * CELL - 6, my + ROWS * CELL - 6], fill=SUCCESS)
+    MX, MY = (W - COLS * CELL) // 2, 30 + 28      # MAZE_X, TOP_BAR_HEIGHT + 28
+    WALL_C, PATH_C = (74, 73, 74), (255, 255, 255)
+    EXIT_C, PLAYER_C, GRID_C = (0, 186, 140), (237, 28, 33), (210, 210, 210)
+
+    label = "Drag the red dot to the green exit"   # drawLabel(Rect{12,32,296,16}, 2)
+    d.text((12 + 296 / 2 - d.textlength(label, font=F2) / 2, 40 - F2.size / 2 - 1),
+           label, font=F2, fill=TEXT)
+    # drawHud() repaints this band *after* the label, so the label's lower rows
+    # are erased on the device. Mirrored here rather than quietly tidied up --
+    # a mock-up that looks better than the hardware is not evidence.
+    d.rectangle([0, 42, W - 1, 59], fill=BG)
+    hud = "Level 4/%d  Moves 0  Best 46" % len(maze_levels())
+    d.text((W / 2 - d.textlength(hud, font=F1) / 2, 50 - F1.size / 2 - 1), hud,
+           font=F1, fill=TEXT)
+
+    levels = maze_levels()
+    grid = levels[3]
+    for r, row in enumerate(grid):
+        for c, cell in enumerate(row):
+            x, y = MX + c * CELL, MY + r * CELL
+            fill = WALL_C if cell == "#" else EXIT_C if cell == "E" else PATH_C
+            d.rectangle([x, y, x + CELL - 1, y + CELL - 1], fill=fill, outline=GRID_C)
+
+    for r, row in enumerate(grid):                 # drawPlayer, radius 8, at S
+        if "S" in row:
+            c = row.index("S")
+            px, py = MX + c * CELL + CELL // 2, MY + r * CELL + CELL // 2
+            d.ellipse([px - 8, py - 8, px + 8, py + 8], fill=PLAYER_C, outline=(0, 0, 0))
     return im
 
 
