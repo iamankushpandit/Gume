@@ -8,7 +8,7 @@ namespace {
 constexpr int16_t TOGGLE_H = 30;
 constexpr int16_t TOGGLE_TOP = TOP_BAR_HEIGHT + 6;
 
-/* Signal strength as a word rather than a number. A dBm figure invites a child
+/* Signal strength as a word rather than a number. A dBm figure invites a player
  * to compare two meaningless negatives; "Near" and "Far" say the thing the
  * number was standing in for. */
 const char* proximityText(int8_t rssi) {

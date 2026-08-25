@@ -66,7 +66,7 @@ void loop() {
 
 #else
 
-KidsPlatformApp app;
+BrainoApp app;
 
 void setup() {
     app.begin();

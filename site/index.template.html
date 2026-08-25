@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Braino! &mdash; {{GAME_COUNT}}-game console firmware for the ESP32</title>
-<meta name="description" content="Braino! is open ESP32 firmware: {{GAME_COUNT}} educational games for young children on a {{BOARD}} touchscreen board. Flash it from this page.">
+<meta name="description" content="Braino! is open ESP32 firmware: {{GAME_COUNT}} educational games for young players on a {{BOARD}} touchscreen board. Flash it from this page.">
 <style>
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #14181d;
@@ -155,7 +155,7 @@ footer {
 <header class="hero">
   <h1>Braino!</h1>
   <p class="tag">
-    A {{GAME_COUNT}}-game educational console for young children, running as open
+    A {{GAME_COUNT}}-game educational console for young players, running as open
     firmware on a {{BOARD}} touchscreen board. No accounts, no telemetry, no SD
     card &mdash; every game is baked into flash.
   </p>
@@ -230,7 +230,7 @@ footer {
     </div>
 
     <div class="warn">
-      <b>Flashing replaces the firmware; erasing wipes the child data.</b> The
+      <b>Flashing replaces the firmware; erasing wipes the player data.</b> The
       touch calibration, the five profiles, their scores and their mastery data
       all live in the ESP32's NVS partition. A plain install leaves NVS alone; if
       the installer offers <i>Erase device</i>, that is what throws it away.
@@ -289,17 +289,17 @@ footer {
 <section id="first-run">
   <h2>First run</h2>
   <ol class="tight">
-    <li>The device boots into <b>Profiles</b>. Pick a child, or Guest &mdash; Guest deliberately saves nothing.</li>
+    <li>The device boots into <b>Profiles</b>. Pick a player, or Guest &mdash; Guest deliberately saves nothing.</li>
     <li>Resistive touch needs calibrating once: <b>Settings &rarr; Calibrate</b>, then tap the three targets.</li>
-    <li>Wi-Fi is optional and used for one thing, the clock: <b>Settings &rarr; Wi-Fi</b>.</li>
-    <li>Pare the launcher down to what one child needs in <b>Settings &rarr; Games</b>.</li>
+    <li>Wi-Fi is optional and used for one thing, the clock: <b>Settings &rarr; Network</b>. Automatic resync defaults to 6 hours.</li>
+    <li>Pare the launcher down to what one player needs in <b>Profiles &rarr; Edit &rarr; Games</b>.</li>
   </ol>
 </section>
 
 <section id="games">
   <h2>The {{GAME_COUNT}} games</h2>
   <p class="lede">
-    Every one can be hidden per child. Flags and the three US States games use
+    Every one can be hidden per player. Flags and the three US States games use
     spaced repetition, so a missed item comes back sooner and a mastered one
     fades into the background.
   </p>
@@ -330,7 +330,8 @@ footer {
     <ul class="tight">
       <li><b>Wi-Fi</b> connects only to reach an NTP server, plus one lookup to
         <code>ip-api.com</code> to guess the time zone on first connect. You can
-        skip Wi-Fi entirely.</li>
+        skip Wi-Fi entirely. After the first clock set, automatic NTP resync is
+        configurable from 1 to 24 hours and defaults to 6 hours.</li>
       <li><b>Bluetooth LE</b> is off by default. Switched on, it advertises a
         device name (<code>Braino-&lt;id&gt;</code>) and two bytes of the factory
         Bluetooth MAC &mdash; and the device shows you a hex dump of the exact
@@ -339,9 +340,9 @@ footer {
       <li><b>Nearby play</b> is a second opt-in on top of that, also off by
         default. Turned on, the beacon additionally carries which game is open
         and the best score for it, so consoles in the same room can see each
-        other's records. No child name, no profile name, nothing profile-scoped:
+        other's records. No player name, no profile name, nothing profile-scoped:
         a peer is four hex digits of its own hardware id and nothing else, and
-        there is no path from a score back to a child. Listening is passive, so
+        there is no path from a score back to a player. Listening is passive, so
         a console that is only watching transmits nothing extra. Turned off, the
         two fields are absent from the payload rather than sent as zeroes.</li>
       <li><b>This page</b> talks to your board over Web Serial, inside your

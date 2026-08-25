@@ -42,6 +42,7 @@ private:
     uint8_t poolSize() const;
     const StateFact* fromPool(uint8_t index) const;
     void makeOptions();
+    void shuffleOptionsForBonus();
     void newQuestion();
 
     RecentQuestions recent_;

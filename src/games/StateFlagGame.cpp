@@ -94,6 +94,32 @@ void StateFlagGame::makeOptions() {
     }
 }
 
+void StateFlagGame::shuffleOptionsForBonus() {
+    const uint8_t oldCorrect = correctBtn_;
+    for (int8_t i = static_cast<int8_t>(OPTION_COUNT - 1); i > 0; --i) {
+        const uint8_t j = static_cast<uint8_t>(random(i + 1));
+        const StateFact* tmp = options_[i];
+        options_[i] = options_[j];
+        options_[j] = tmp;
+    }
+
+    for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
+        if (options_[i] == current_) {
+            correctBtn_ = i;
+            break;
+        }
+    }
+
+    if (correctBtn_ == oldCorrect && OPTION_COUNT > 1) {
+        const uint8_t swapWith = static_cast<uint8_t>(
+            (correctBtn_ + 1 + random(OPTION_COUNT - 1)) % OPTION_COUNT);
+        const StateFact* tmp = options_[correctBtn_];
+        options_[correctBtn_] = options_[swapWith];
+        options_[swapWith] = tmp;
+        correctBtn_ = swapWith;
+    }
+}
+
 void StateFlagGame::newQuestion() {
     const uint8_t pool = poolSize();
     if (pool == 0) { current_ = nullptr; return; }
@@ -124,6 +150,7 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
     if ((phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital) &&
         now >= feedbackUntil_) {
         if (phase_ == Phase::FeedbackState && lastCorrect_) {
+            shuffleOptionsForBonus();
             selected_ = -1;
             phase_ = Phase::CapitalBonus;
         } else {

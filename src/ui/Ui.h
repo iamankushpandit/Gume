@@ -64,11 +64,11 @@ enum class PowerHint : uint8_t {
 PowerHint powerHint(Board& board);
 
 /* Battery state beside Wi-Fi: a battery shell holding the percentage as
- * numerals, a two-pixel level gauge along its inside bottom, and a lightning
- * bolt inside the shell while the charger is attached. This is the iOS /
+ * numerals, a bordered two-pixel level gauge along its inside bottom, and a
+ * lightning bolt inside the shell while the charger is attached. This is the iOS /
  * Android status-bar pattern: eleven pixels of fill is not a number anybody
  * can read, so the badge says both -- the digits for the parent, the colour
- * for the child.
+ * for the player.
  *
  * At or below Board::BATTERY_LOW_PERCENT the *shell and the digits* go red.
  * The outline changing colour is what makes "charge me" visible across the

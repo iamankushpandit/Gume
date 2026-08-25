@@ -363,7 +363,7 @@ void SystemInfoGame::buildMemoryRows(GameHost& host) {
     } else {
         snprintf(namespaceValue, sizeof(namespaceValue), "No namespace");
     }
-    rows_.addRow("cydkids", namespaceValue);
+    rows_.addRow("App NVS", namespaceValue);
     if (storage.watchdogNamespaceAvailable) {
         snprintf(namespaceValue, sizeof(namespaceValue), "%lu data entries",
                  static_cast<unsigned long>(storage.watchdogEntries));
@@ -409,6 +409,9 @@ void SystemInfoGame::buildNetworkRows(GameHost& host) {
     rows_.addRow("TZ lookup", board.tzZoneChosen() ? "Disabled (manual zone)" : "ip-api.com");
     rows_.addRow("Time sync", board.timeSynced() ? "Synced" : "Free-running",
            board.timeSynced() ? Ui::success() : Ui::warning());
+    char syncText[16];
+    snprintf(syncText, sizeof(syncText), "%u h", static_cast<unsigned>(board.ntpResyncHours()));
+    rows_.addRow("Resync", syncText);
     rows_.addRow("Last sync", formatTimestamp(lastSyncEpoch));
     rows_.addRow("Since sync", lastSyncMs != 0 ? syncAgeText(millis() - lastSyncMs) : "Never");
 
@@ -523,8 +526,8 @@ void SystemInfoGame::buildBleRows(GameHost& host) {
      * claim, because a privacy row that has drifted is worse than none. */
     rows_.addSection("Privacy");
     const uint16_t safe = Ui::success();
-    rows_.addRow("Child info", "Not Broadcast", safe);
-    rows_.addRow("Child name", "Not Broadcast", safe);
+    rows_.addRow("Player info", "Not Broadcast", safe);
+    rows_.addRow("Player name", "Not Broadcast", safe);
     rows_.addRow("Profile name", "Not Broadcast", safe);
     rows_.addRow("Location", "Not Broadcast", safe);
     rows_.addRow("Wi-Fi password", "Not Broadcast", safe);

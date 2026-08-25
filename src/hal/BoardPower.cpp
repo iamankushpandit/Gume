@@ -265,7 +265,7 @@ void Board::displayWake() {
     const uint32_t wakeStartMs = millis();
     /* The ILI9341 ignores Sleep Out inside 120ms of a Sleep In, and a touch
      * arriving that fast is reachable: the saver can hand over to sleep and the
-     * child's next tap lands milliseconds later. Wait out only the remainder --
+     * player's next tap lands milliseconds later. Wait out only the remainder --
      * after a real sleep this is already long past and costs nothing. */
     const uint32_t sinceSleep = wakeStartMs - displaySleepTelemetry_.lastSleepMs;
     if (sinceSleep < PANEL_SLEEP_SETTLE_MS) {

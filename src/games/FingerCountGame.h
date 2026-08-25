@@ -12,11 +12,11 @@ const AppMetadata& fingerCountAppMetadata();
  *
  * Trains counting on hands in BOTH directions, alternating each round:
  *
- *   Count  -- a number of fingers is already raised; the child counts them and
+ *   Count  -- a number of fingers is already raised; the player counts them and
  *             taps the matching number.
- *   ShowMe -- a number is given; the child raises that many fingers.
+ *   ShowMe -- a number is given; the player raises that many fingers.
  *
- * The old version asked "3 + 4 = ?" and expected the child to tap 7 fingers,
+ * The old version asked "3 + 4 = ?" and expected the player to tap 7 fingers,
  * which required knowing the answer before touching the hands -- it tested
  * arithmetic rather than teaching finger counting.
  */

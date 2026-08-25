@@ -4,4 +4,4 @@
 
 (C) GoodTime Micro Company™. Copyright 2026.
 
-Braino! and all game names are trademarks of GoodTime Micro Company™ and may not be reused without permission. The console was previously called GoodTime Kids; the name changed, the owner did not.
+Braino! and all game names are trademarks of GoodTime Micro Company™ and may not be reused without permission. The console has been renamed before; the owner did not change.

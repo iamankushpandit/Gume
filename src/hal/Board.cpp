@@ -39,6 +39,8 @@ void Board::begin() {
     prefs_.begin("cydkids", false);
     migrateStorageSchema();
     logStorageUsage("boot");
+    loadNtpEnabled();
+    loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
     mountSd();
@@ -67,15 +69,15 @@ String Board::profileName(uint8_t index) {
 }
 
 void Board::setProfileName(uint8_t index, const String& name) {
-    if (index >= MAX_KIDS) return;
+    if (index >= MAX_PLAYERS) return;
     char key[10];
     snprintf(key, sizeof(key), "pname%u", index);
     prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
 }
 
-uint8_t Board::addKid(const char* name) {
-    const uint8_t n = kidCount();
-    if (n >= MAX_KIDS) return 0xFF;
+uint8_t Board::addPlayer(const char* name) {
+    const uint8_t n = playerCount();
+    if (n >= MAX_PLAYERS) return 0xFF;
     prefs_.putUChar("kids", static_cast<uint8_t>(n + 1));
 
     /* Truncation is the same PROFILE_NAME_MAX the String path applied via
@@ -92,8 +94,8 @@ uint8_t Board::addKid(const char* name) {
     return n;
 }
 
-void Board::removeKid(uint8_t index) {
-    const uint8_t n = kidCount();
+void Board::removePlayer(uint8_t index) {
+    const uint8_t n = playerCount();
     if (index >= n) return;
 
     const uint8_t oldActive = activeProfile();
@@ -111,7 +113,7 @@ void Board::removeKid(uint8_t index) {
         setActiveProfile(GUEST_INDEX);
     } else if (oldActive > index && oldActive < n) {
         setActiveProfile(static_cast<uint8_t>(oldActive - 1));
-    } else if (oldActive != GUEST_INDEX && oldActive >= kidCount()) {
+    } else if (oldActive != GUEST_INDEX && oldActive >= playerCount()) {
         setActiveProfile(GUEST_INDEX);
     }
 

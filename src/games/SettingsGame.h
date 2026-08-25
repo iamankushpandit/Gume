@@ -37,9 +37,10 @@ private:
 
     Rect themeRect() const;
     Rect layoutRect() const;
-    Rect ntpRect() const;
+    Rect lightRect() const;
     Rect bleRect() const;
     Rect wifiRect() const;
+    Rect ntpSyncRect() const;
     Rect nearbyRect() const;
     Rect resetRect() const;
     Rect brightRect() const;
@@ -52,6 +53,7 @@ private:
     void cycleScreenSaver(Board& board);
     void cycleSleepSeconds(Board& board);
     void cycleIdleAction(Board& board);
+    void cycleNtpResyncHours(Board& board);
     void renderDeviceTab(GameHost& host);
     void renderPowerTab(GameHost& host);
     void renderAdminTab(GameHost& host);

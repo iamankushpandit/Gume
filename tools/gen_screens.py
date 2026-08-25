@@ -78,6 +78,20 @@ def button(d, r, label, fill=PANEL, tc=TEXT, f=F2):
     d.text((x + (w - d.textlength(s, font=f)) / 2, y + h / 2 - f.size / 2 - 1), s, font=f, fill=tc)
 
 
+def fitted_text(d, text, max_w, f):
+    s = text
+    while len(s) > 2 and d.textlength(s, font=f) > max_w:
+        s = s[:-1]
+    if len(s) < len(text) and len(s) > 1:
+        s = s[:-1] + "."
+    return s
+
+
+def centered_fitted(d, text, cx, y, max_w, f, fill):
+    s = fitted_text(d, text, max_w, f)
+    d.text((cx - d.textlength(s, font=f) / 2, y), s, font=f, fill=fill)
+
+
 def sync_badge(d, cx, cy, synced=True):
     d.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=SUCCESS if synced else WARN)
     d.text((cx - 3, cy - 6), "v" if synced else "!", font=F1, fill=(0, 0, 0))
@@ -126,7 +140,8 @@ def topbar(d, title, synced=True, bars=3):
     d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
 
 
-BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 13, 3, 6, 2, 2
+BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 15, 3, 6, 2, 2
+BATT_TRACK_H = 4
 
 
 def battery_width(pct=72, charging=False):
@@ -141,8 +156,8 @@ def battery_width(pct=72, charging=False):
 
 def battery_badge(d, cx, cy, pct=72, charging=False):
     """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
-    shell, a two-pixel level gauge along the inside bottom, and the charging
-    bolt inside the shell. Variable width -- see battery_width."""
+    shell, a bordered two-pixel level gauge along the inside bottom, and the
+    charging bolt inside the shell. Variable width -- see battery_width."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
     total = battery_width(pct, charging)
     shell = total - BATT_TERM_W
@@ -159,9 +174,14 @@ def battery_badge(d, cx, cy, pct=72, charging=False):
         level = SUCCESS
     d.rectangle([bx, by, bx + shell - 1, by + BATT_H - 1], outline=out)
     d.rectangle([bx + shell, cy - 3, bx + shell + 1, cy + 3], fill=out)
-    if pct > 0:
-        gw = max(1, int(pct * (shell - 2) / 100))
-        d.rectangle([bx + 1, cy + 4, bx + gw, cy + 5], fill=level)
+    track_x = bx + 2
+    track_y = by + BATT_H - 1 - BATT_TRACK_H
+    track_w = shell - 4
+    if track_w > 2:
+        d.rectangle([track_x, track_y, track_x + track_w - 1, track_y + BATT_TRACK_H - 1], outline=MUTED)
+    if pct > 0 and track_w > 2:
+        gw = max(1, int(pct * (track_w - 2) / 100))
+        d.rectangle([track_x + 1, track_y + 1, track_x + gw, track_y + BATT_TRACK_H - 2], fill=level)
     penx = bx + 1 + BATT_PAD
     if charging:
         d.polygon([(penx + 4, cy - 5), (penx, cy + 1), (penx + 4, cy + 1)], fill=level)
@@ -546,13 +566,14 @@ def settings_tabs(d, active_index):
 def settings_device():
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 0)
-    # Four rows of 30px from y=58, under the tab baseline. Network takes a
-    # whole row so Nearby can have a half-width slot beside Reset.
+    # Four rows of 30px from y=58, under the tab baseline. Network shares a
+    # clock-settings row with the NTP resync cadence.
     button(d, (8, 58, 144, 30), "Theme: Dark")
     button(d, (164, 58, 144, 30), "Menu: Tall")
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
-    button(d, (8, 126, 304, 30), "Network", BLUE, WHITE)
+    button(d, (8, 126, 144, 30), "Network", BLUE, WHITE)
+    button(d, (164, 126, 144, 30), "Sync: 6h")
     button(d, (8, 160, 144, 30), "Nearby: On")
     button(d, (164, 160, 144, 30), "Reset device", (120, 58, 58), WHITE)
     d.text((8, 194), "Brightness", font=F1, fill=MUTED)
@@ -586,26 +607,24 @@ def settings_power():
 
 def wakelock():
     """The unlock screen the saver and panel sleep hand you, not the screen
-    underneath. Geometry from KidsPlatformApp::lockButtonRect()."""
+    underneath. Geometry from BrainoApp::lockButtonRect()."""
     im, d = blank()
     bw, bh = min(200, W - 48), 58
     bx, by = (W - bw) // 2, (H - bh) // 2 + 12
+    text_max = W - 16
     icon_cy = by - 74
     d.ellipse([W // 2 - 9, icon_cy - 9, W // 2 + 9, icon_cy + 9], outline=MUTED, width=2)
     d.rectangle([W // 2 - 10, icon_cy, W // 2 + 10, icon_cy + 12], fill=BG)
     d.rounded_rectangle([W // 2 - 12, icon_cy, W // 2 + 11, icon_cy + 17], 3, fill=MUTED)
-    head = "Locked"
-    d.text((W / 2 - d.textlength(head, font=F4) / 2, by - 48), head, font=F4, fill=TEXT)
-    hint = "Press and hold the button"
-    d.text((W / 2 - d.textlength(hint, font=F1) / 2, by - 22), hint, font=F1, fill=MUTED)
+    centered_fitted(d, "Locked", W / 2, by - 48, text_max, F4, TEXT)
+    centered_fitted(d, "Press and hold the button", W / 2, by - 22, text_max, F1, MUTED)
     button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)
     barx, bary, barh = bx, by + bh + 10, 10
     d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
     d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],
                 fill=SUCCESS)
-    foot = "Nothing under here can be touched yet"
-    d.text((W / 2 - d.textlength(foot, font=F1) / 2, bary + barh + 14), foot,
-           font=F1, fill=MUTED)
+    centered_fitted(d, "Nothing under here can be touched yet", W / 2,
+                    H - 16, text_max, F1, MUTED)
     return im
 
 
@@ -680,11 +699,11 @@ def profiles_pin():
 
 
 def profiles_games():
-    """Per-child game visibility: Profiles -> Edit -> Games.
+    """Per-player game visibility: Profiles -> Edit -> Games.
 
     This lived in a Settings tab once and the mock-up went on depicting that
     long after Settings stopped having one -- Settings holds Device, Power and
-    Admin. Visibility is per child, so it belongs with the child. Geometry
+    Admin. Visibility is per player, so it belongs with the player. Geometry
     follows ProfileGame::gameCheckRect() and gamesBackRect()."""
     im, d = blank()
     lab = "Ada"
@@ -774,7 +793,7 @@ SCREENS = [
     ("settings-admin", settings_admin, "Settings: the admin PIN"),
     ("settings-pin", settings_pin, "Settings: setting a new admin PIN"),
     ("profiles-pin", profiles_pin, "Profiles: the admin PIN prompt"),
-    ("profiles-games", profiles_games, "Profiles: which games a child sees"),
+    ("profiles-games", profiles_games, "Profiles: which games a player sees"),
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),
     ("screensaver", screensaver, "Pong screen saver"),
@@ -1241,7 +1260,7 @@ def systeminfo_ble():
         ("r", "Game index", "12 Maze", None),
         ("r", "Best score", "7", None),
         ("s", "Privacy", "", None),
-        ("r", "Child name", "Not Broadcast", SUCCESS),
+        ("r", "Player name", "Not Broadcast", SUCCESS),
         ("r", "Wi-Fi SSID", "Not Broadcast", SUCCESS),
         ("r", "Open game", "Broadcast", WARN),
         ("r", "Best score", "Broadcast", WARN),
@@ -1307,13 +1326,13 @@ def about_radios():
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
     d.text((14, 44), "What the radios do", font=F2, fill=TEXT)
-    d.text((14, 70), "Wi-Fi: the clock only (NTP), plus", font=F1, fill=MUTED)
-    d.text((14, 84), "a one-off time zone lookup.", font=F1, fill=MUTED)
+    d.text((14, 70), "Wi-Fi: clock only; sync every 6h.", font=F1, fill=MUTED)
+    d.text((14, 84), "Plus one-off time-zone lookup.", font=F1, fill=MUTED)
     d.text((14, 100), "Now: connected", font=F1, fill=TEXT)
     d.text((14, 120), "Bluetooth beacon", font=F2, fill=TEXT)
     d.text((14, 146), "Now: broadcasting Braino-A4F2", font=F1, fill=WARN)
-    d.text((14, 162), "Nearby on: also the game open and", font=F1, fill=WARN)
-    d.text((14, 176), "its best score. No name, no profile.", font=F1, fill=WARN)
+    d.text((14, 162), "Nearby on: game + best score.", font=F1, fill=WARN)
+    d.text((14, 176), "No name, no profile, no location.", font=F1, fill=MUTED)
     button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next")
     d.text((W / 2 - 14, 212), "6/8", font=F2, fill=MUTED)
@@ -1521,7 +1540,7 @@ def profiles_pick():
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
     d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
-    # Six rows (five children + Guest) from ProfileGame's rowsTop/rowsPitch.
+    # Six rows (five players + Guest) from ProfileGame's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
         y = 60 + i * 25

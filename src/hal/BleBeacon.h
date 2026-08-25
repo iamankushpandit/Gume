@@ -5,13 +5,13 @@
 /* BLE beacon -- a non-connectable, advertise-only presence broadcast.
  *
  * By default the device announces nothing but its own identity: a family tag
- * and a short hardware-derived id. No child name, no location, no Wi-Fi
+ * and a short hardware-derived id. No player name, no location, no Wi-Fi
  * details. Nothing that identifies a person ever reaches the radio.
  *
  * When the owner opts in to Nearby play (Settings > Nearby, which itself
  * requires the beacon to be on), two anonymous fields are added: which game is
  * open and the best score recorded on this device for it. Those are game
- * facts, not child facts -- see docs/BLE_BEACON_SPEC.md.
+ * facts, not player facts -- see docs/BLE_BEACON_SPEC.md.
  *
  * ------------------------------------------------------------------------
  * The single source of truth

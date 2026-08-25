@@ -6,7 +6,7 @@
 /*
  * Per-item mastery tracking, used for spaced repetition.
  *
- * Questions used to be drawn uniformly at random, so a child saw Brazil exactly
+ * Questions used to be drawn uniformly at random, so a player saw Brazil exactly
  * as often as Bhutan and never got extra practice on the ones they missed. This
  * keeps a small score per item and biases selection toward weak items, which is
  * what turns a quiz into actual teaching.

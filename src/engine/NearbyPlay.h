@@ -19,7 +19,7 @@ struct AppDefinition;
  * ------------------------------------------------------------------------
  * A peer is only ever a four hex digit device id taken from its Bluetooth MAC.
  * Profile names are never read by this module, never mind transmitted, and the
- * only numbers that travel are a game index and a best score. Two children
+ * only numbers that travel are a game index and a best score. Two players
  * therefore learn that "someone with a Braino nearby has 42 on Maze" and
  * nothing whatever about each other. That is the whole design: the fun of a
  * leaderboard without a way to find out who is on it.

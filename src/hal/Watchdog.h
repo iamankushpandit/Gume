@@ -8,7 +8,7 @@
  *
  *  1. The ESP32 hardware task watchdog, subscribed to the Arduino loop task.
  *     If a frame ever takes longer than TIMEOUT_SECONDS the chip panics and
- *     reboots, so a hung game can never leave a child staring at a frozen
+ *     reboots, so a hung game can never leave a player staring at a frozen
  *     screen.
  *  2. A low priority FreeRTOS monitor task pinned to core 0 that samples a
  *     heartbeat counter, frame times and heap once a second. It logs a stall

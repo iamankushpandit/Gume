@@ -13,7 +13,8 @@ constexpr const char* DEFAULT_NTP_SERVER = "pool.ntp.org";
 constexpr uint32_t TIME_CONNECT_TIMEOUT_MS = 20000;
 constexpr uint32_t TIME_SYNC_TIMEOUT_MS = 45000;
 constexpr uint32_t TIME_RETRY_MS = 5UL * 60UL * 1000UL;
-constexpr uint32_t TIME_RESYNC_MS = 5UL * 60UL * 1000UL;
+constexpr const char* NTP_ENABLED_KEY = "ntpOn";
+constexpr const char* NTP_RESYNC_HOURS_KEY = "ntpSyncHrs";
 
 bool clockLooksValid() {
     struct tm t;
@@ -127,12 +128,52 @@ bool Board::hasWifiCredentials() {
     return wifiSsidCache_.length() > 0;
 }
 
+void Board::loadNtpEnabled() {
+    cachedNtpEnabled_ = prefs_.getBool(NTP_ENABLED_KEY, true);
+    ntpEnabledCached_ = true;
+}
+
 bool Board::ntpEnabled() {
-    return prefs_.getBool("ntpOn", true);
+    if (!ntpEnabledCached_) {
+        loadNtpEnabled();
+    }
+    return cachedNtpEnabled_;
 }
 
 void Board::setNtpEnabled(bool enabled) {
-    prefs_.putBool("ntpOn", enabled);
+    prefs_.putBool(NTP_ENABLED_KEY, enabled);
+    cachedNtpEnabled_ = enabled;
+    ntpEnabledCached_ = true;
+}
+
+uint8_t Board::clampNtpResyncHours(uint8_t hours) {
+    if (hours < NTP_RESYNC_MIN_HOURS) return NTP_RESYNC_MIN_HOURS;
+    if (hours > NTP_RESYNC_MAX_HOURS) return NTP_RESYNC_MAX_HOURS;
+    return hours;
+}
+
+void Board::loadNtpResyncHours() {
+    const uint8_t stored = prefs_.getUChar(NTP_RESYNC_HOURS_KEY, NTP_RESYNC_DEFAULT_HOURS);
+    cachedNtpResyncHours_ = clampNtpResyncHours(stored);
+    ntpResyncCached_ = true;
+}
+
+uint8_t Board::ntpResyncHours() {
+    if (!ntpResyncCached_) {
+        loadNtpResyncHours();
+    }
+    return cachedNtpResyncHours_;
+}
+
+void Board::setNtpResyncHours(uint8_t hours) {
+    const uint8_t clamped = clampNtpResyncHours(hours);
+    prefs_.putUChar(NTP_RESYNC_HOURS_KEY, clamped);
+    cachedNtpResyncHours_ = clamped;
+    ntpResyncCached_ = true;
+}
+
+uint32_t Board::ntpResyncIntervalMs() const {
+    return static_cast<uint32_t>(cachedNtpResyncHours_) * 60UL * 60UL * 1000UL;
 }
 
 String Board::ntpServer() {
@@ -292,10 +333,10 @@ void Board::beginTimeSync() {
  * minutes and died after hours, once Wi-Fi buffers had reused the memory. The
  * name now lives in ntpServerName_, a member of the singleton board.
  *
- * Second, this is idempotent. It was re-issued every TIME_RESYNC_MS forever,
- * and each call stops and restarts the daemon. That is not what keeps the
- * clock honest -- once started, SNTP re-polls by itself -- it was pure churn,
- * a dozen teardowns an hour for as long as the device stayed idle. */
+ * Second, this is idempotent. It used to be re-issued on every automatic
+ * resync, and each call stops and restarts the daemon. That is not what keeps
+ * the clock honest -- once started, SNTP re-polls by itself -- it was pure
+ * churn whenever the device stayed idle. */
 void Board::applyTimeConfig() {
     /* Copied straight out of the temporary rather than held in a named local:
      * the point of this whole function is that nothing lwIP keeps may live in
@@ -471,7 +512,10 @@ void Board::tickTimeSync() {
             break;
 
         case TimeSyncState::Synced:
-            if (now - lastResyncMs_ >= TIME_RESYNC_MS) {
+            if (!ntpEnabled() || !hasWifiCredentials()) {
+                break;
+            }
+            if (now - lastResyncMs_ >= ntpResyncIntervalMs()) {
                 lastResyncMs_ = now;
                 if (WiFi.status() == WL_CONNECTED) {
                     applyTimeConfig();

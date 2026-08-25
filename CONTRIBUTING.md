@@ -26,7 +26,7 @@ firmware's performance and memory constraints.
 
 ## No Data Collection
 
-Braino collects nothing about the child using it, and no contribution may
+Braino collects nothing about the player using it, and no contribution may
 change that. It is not a default, a setting or an opt-in that happens to be
 switched off — it is what the product is. This is the one rule here that a
 maintainer cannot wave through in review.
@@ -47,9 +47,9 @@ Concretely, do not add:
 
 - analytics, usage counters, or crash and error reporting to any server;
 - any HTTP, UDP or DNS request beyond the table above;
-- a child's name, profile name, score, progress or usage history inside
+- a player's name, profile name, score, progress or usage history inside
   anything that is transmitted;
-- an identifier derived from something a child typed;
+- an identifier derived from something a player typed;
 - a dependency that phones home, checks for updates, or fetches remote content
   at runtime;
 - a field in the BLE advertisement that identifies a person rather than a

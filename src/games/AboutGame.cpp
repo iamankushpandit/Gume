@@ -90,7 +90,7 @@ void AboutGame::renderIntro(Ui::Renderer& tft) {
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 162, "195 flags and 50 US states,", 1);
     drawLine(tft, 176, "all stored on the device.", 1);
-    drawLine(tft, 190, "Up to 5 children, plus a Guest.", 1);
+    drawLine(tft, 190, "Up to 5 players, plus a Guest.", 1);
 }
 
 void AboutGame::renderGames(Ui::Renderer& tft, int16_t w) {
@@ -121,9 +121,18 @@ void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
     drawLine(tft, 48, "What the radios do", 2);
 
     const bool wifiCreds = board.hasWifiCredentials();
+    char syncLine[44];
+    if (board.ntpEnabled()) {
+        snprintf(syncLine, sizeof(syncLine), "Wi-Fi: clock only; sync every %uh.",
+                 static_cast<unsigned>(board.ntpResyncHours()));
+    } else {
+        snprintf(syncLine, sizeof(syncLine), "Wi-Fi: clock sync is off.");
+    }
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 74, "Wi-Fi: the clock only (NTP), plus", 1);
-    drawLine(tft, 88, "a one-off time zone lookup.", 1);
+    drawLine(tft, 74, syncLine, 1);
+    drawLine(tft, 88, board.tzZoneChosen()
+                         ? "No time-zone web lookup."
+                         : "Plus one-off time-zone lookup.", 1);
     tft.setTextColor(wifiCreds ? Ui::text() : Ui::muted(), Ui::surface());
     drawLine(tft, 104, wifiCreds ? (board.isWifiConnected() ? "Now: connected"
                                                             : "Now: set up, not connected")
@@ -143,18 +152,12 @@ void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
      * is worse than no claim, because it is believed. */
     tft.setTextColor(cfg.sharesActivity ? Ui::warning() : Ui::muted(), Ui::surface());
     drawLine(tft, 166, cfg.sharesActivity
-                 ? "Nearby on: also the game open and"
+                 ? "Nearby on: game + best score."
                  : "Nearby off: no game, no score.", 1);
-    if (cfg.sharesActivity) {
-        drawLine(tft, 180, "its best score. No name, no profile.", 1);
-    }
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 194, cfg.sharesActivity
-                 ? "Never sent: names, progress, location."
+    drawLine(tft, 180, cfg.sharesActivity
+                 ? "No name, no profile, no location."
                  : "Never sent: names, scores, progress.", 1);
-    tft.setTextColor(Ui::text(), Ui::surface());
-    drawLine(tft, 212, "System Info > BLE shows the exact", 1);
-    drawLine(tft, 226, "bytes being transmitted.", 1);
 }
 
 void AboutGame::renderCredits(Ui::Renderer& tft) {

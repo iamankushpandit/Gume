@@ -40,7 +40,7 @@ bool appendAd(Advertisement& a, uint8_t type, const uint8_t* data, uint8_t len) 
 }
 
 /* Derive the short device id from the factory MAC. It is a hardware serial,
- * not anything the child or parent typed, and it is stable across reboots so a
+ * not anything the player or parent typed, and it is stable across reboots so a
  * parent can recognise their own device in a scanner. */
 void deriveIdentity(Advertisement& a) {
     uint8_t mac[6] = {0};
