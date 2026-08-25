@@ -182,3 +182,20 @@ A useful PR includes:
 
 Do not merge your own firmware branch into `main` until the device build has
 been tested on hardware.
+
+## Licensing
+
+This project is licensed **GPL-3.0-or-later** — see [LICENSE](LICENSE).
+
+By opening a pull request you agree that your contribution is licensed under
+those same terms. There is no separate CLA. If you port Braino to another board
+and distribute it, or ship a device running a modified build, GPL-3.0 requires
+you to make the corresponding source available under the same licence — which
+is the point: ports should stay available to the people holding the hardware.
+
+The bundled libraries and artwork keep their own permissive licences
+(`TFT_eSPI` FreeBSD, `ArduinoJson` MIT, `NimBLE-Arduino` Apache-2.0,
+`map-n-flag` MIT), all GPL-3.0-compatible. Do not add a dependency under a
+licence that is not — anything GPL-incompatible, or "non-commercial" and
+similar source-available terms, cannot ship in this firmware. If you are
+unsure, raise it in the issue before writing the code.

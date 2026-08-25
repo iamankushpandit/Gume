@@ -15,6 +15,14 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Added
 
+- **A licence.** The repo had none, which meant default copyright -- all
+  rights reserved -- so nobody could legally contribute to a project that was
+  asking for contributions. It is now **GPL-3.0-or-later**, so ports and
+  modified builds stay available to the people holding the hardware. The
+  bundled libraries keep their own permissive, GPL-compatible licences.
+- **Help wanted sections** in `README.md`, `CONTRIBUTING.md` and on the Pages
+  site, asking for the two things the project actually needs: board ports, and
+  people willing to say what is wrong with the code.
 - **Elements, the periodic table (game 31).** Three tabs, and the order is the
   argument: *Explore* first, because a quiz about something you have never seen
   is a test rather than a lesson. Explore draws the real 118-cell wall chart --

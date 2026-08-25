@@ -10,7 +10,7 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
 [![Flash](https://img.shields.io/badge/flash-74.6%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#credits-and-licensing)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
 A 31-game educational console for young children, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
@@ -777,7 +777,20 @@ launchable system apps. That replaced the old split between `CATALOG_KINDS[]`,
 
 ## Credits and licensing
 
-Code in this repository is MIT.
+Code in this repository is licensed **GPL-3.0-or-later** — see
+[LICENSE](LICENSE). Copyright © 2026 Ankush Pandit.
+
+In short: you may use, study, modify and redistribute it, but if you
+distribute a modified version or a device running one, you must offer the
+corresponding source under the same terms. That is deliberate — this is a
+project for children's hardware that people are invited to port, and the ports
+should stay available to the people who own the devices.
+
+The bundled artwork and libraries keep their own, more permissive licences, all
+of which are compatible with GPL-3.0: `TFT_eSPI` (FreeBSD), `ArduinoJson`
+(MIT), `NimBLE-Arduino` (Apache-2.0, which is GPLv3-compatible) and
+[map-n-flag](https://github.com/iamankushpandit/map-n-flag) (MIT). Combining
+them under GPL-3.0 does not relicense them; it licenses *this* work.
 
 | Asset | Source | Licence |
 |---|---|---|

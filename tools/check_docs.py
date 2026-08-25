@@ -362,6 +362,28 @@ def check_badges(problems):
         fail(problems, "README games badge says %s, the registry has %d playable apps"
              % (badge.group(1), count))
 
+    # The licence badge must match the LICENSE file. A badge claiming the
+    # wrong licence is a legal statement, not a cosmetic slip.
+    licence_badge = re.search(r"img\.shields\.io/badge/license-([A-Za-z0-9.\-]+)-",
+                              readme)
+    if licence_badge:
+        if not os.path.isfile(os.path.join(ROOT, "LICENSE")):
+            fail(problems, "README has a licence badge but there is no LICENSE file")
+        else:
+            text = read("LICENSE")
+            head = text[:400]
+            if "GNU GENERAL PUBLIC LICENSE" in head and "Version 3" in head:
+                actual = "GPLv3"
+            elif "MIT License" in head:
+                actual = "MIT"
+            elif "Apache License" in head:
+                actual = "Apache-2.0"
+            else:
+                actual = None
+            if actual and licence_badge.group(1) != actual:
+                fail(problems, "README licence badge says %s, LICENSE is %s"
+                     % (licence_badge.group(1), actual))
+
     badge = re.search(r"img\.shields\.io/badge/flash-([\d.]+)%25", readme)
     if not badge:
         return
