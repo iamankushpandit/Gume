@@ -39,12 +39,68 @@ way, so bug reports and code critique are genuinely valuable — please
 can, say how you'd fix it. Hardware assumptions that were never measured are
 the most valuable of all.
 
-## Workflow
+## Branches And Protection
 
-1. Create or use a branch for one concern. Do not merge into `main` until the
-   change has been tested and reviewed.
-2. Prefer a separate worktree for new requirements:
-   `git worktree add ../GUme-<slug> -b fix/<slug>`.
+`main` and `dev` are both protected on GitHub. Neither can be force-pushed or
+deleted, and changes reach them through a pull request whose CI has passed.
+
+| Branch | What it holds | How work lands |
+|---|---|---|
+| `main` | Released firmware — what the web installer flashes | Pull request from `dev`, after the build has been tested on hardware |
+| `dev` | Integration branch, and the base for everything below | Pull request from a topic branch or a fork |
+| `feat/*`, `fix/*`, `docs/*` | One concern each, short-lived | Rebased on `dev` and opened as a pull request |
+
+In force on both branches: a pull request is required, the `verify` job in
+`.github/workflows/ci.yml` must pass, the branch must be current with its base
+before it can merge, review conversations must be resolved, and force-push and
+deletion are blocked. `main` additionally requires linear history, so rebase or
+squash rather than merging a stale branch into it. Repository admins can bypass
+these rules — that exists for an emergency such as a broken release, not as a
+normal route, and using it skips the CI that would have caught the problem.
+
+`git push origin main` will be rejected. That is the protection working; open a
+pull request instead.
+
+## Contributing From A Fork
+
+Forking is the normal path, and the only one available if you are not a
+collaborator on this repository. Base your work on `dev`, not `main`:
+
+```bash
+gh repo fork iamankushpandit/Gume --clone
+cd Gume
+git remote add upstream https://github.com/iamankushpandit/Gume.git
+git fetch upstream
+git switch -c fix/<slug> upstream/dev
+```
+
+Work, commit, then push to your fork and open the pull request against `dev`:
+
+```bash
+git push -u origin fix/<slug>
+gh pr create --repo iamankushpandit/Gume --base dev
+```
+
+Keep the branch current — `git fetch upstream && git rebase upstream/dev` —
+because the protection rules will not let a stale branch merge. Leave "allow
+edits by maintainers" ticked so a maintainer can rebase or fix a check for you.
+
+CI runs on pull requests from forks with a read-only token, so `verify` (repo
+checks plus a build of every firmware environment) will report on your PR
+without any secret being exposed to it. What CI cannot do is flash a board:
+anything touching hardware, touch, storage or a screen still needs a human with
+the device, so say in the PR what you tested and on which board.
+
+Maintainers with push access can branch inside the repository instead of
+forking — the worktree flow below — but the pull request and CI requirements
+are identical either way. There is no path that merges to `main` or `dev`
+without one.
+
+## Working On A Change
+
+1. One concern per branch. Branch from `dev`.
+2. Prefer a separate worktree for a new requirement:
+   `git worktree add ../GUme-<slug> -b fix/<slug> dev`.
 3. Check the worktree before editing: `git status --short --branch`.
 4. Read the relevant `CLAUDE.md` file before changing a subsystem.
 5. Keep the change scoped. Stage explicit paths; do not use `git add -A` in a
@@ -172,6 +228,9 @@ migration and test profile deletion and slot shifting.
 
 ## Pull Requests
 
+Open it against `dev` unless you are a maintainer cutting a release, which is
+the one case that targets `main`.
+
 A useful PR includes:
 
 - What changed.
@@ -180,8 +239,14 @@ A useful PR includes:
 - Screenshots or regenerated mockups for UI changes.
 - Any hardware validation that was done or still remains.
 
-Do not merge your own firmware branch into `main` until the device build has
-been tested on hardware.
+Before asking for a merge: `verify` green, the branch rebased on its base, and
+every review conversation resolved. The protection rules enforce all three, so
+a PR that is not ready simply will not offer the merge button.
+
+Firmware that has only been built, never run, does not go to `main`. CI proves
+it links and fits in flash; it cannot prove a screen draws, a touch target is
+reachable or a battery reading is sane. `dev` is where a change waits for
+somebody to hold the board.
 
 ## Licensing
 
