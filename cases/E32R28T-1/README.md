@@ -77,8 +77,15 @@ than found afterwards, which is
 [issue #13](https://github.com/iamankushpandit/Gume/issues/13).
 
 There is no dedicated battery compartment. The single-cell Li-ion/LiPo pack the
-board charges (see the Battery section of the [README](../../README.md)) has to
-be placed in the free space in the tray by hand.
+board charges has to be placed in the free space in the tray by hand — the
+prints were assembled around a **3.7V 1100mAh 102540 cell (10 × 25 × 40 mm)**
+whose JST 2.0 plug was adapted to fit the board's battery pins. It fits, and the
+assembled shell holds it firmly, but nothing locates or retains it. Details of
+the pack, including the polarity warning that comes with re-terminating a plug,
+are in the Battery section of the [README](../../README.md#battery).
+
+If you fit a taller or longer pack, check it against that free space before
+printing: at 7.0 mm the back tray has very little depth to give.
 
 ## Status — this is the stopgap, not the design
 

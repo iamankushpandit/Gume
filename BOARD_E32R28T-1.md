@@ -255,6 +255,22 @@ Commands:
 1. **Battery (Li-ion/LiPo):** 3.7V nominal, sensed on GPIO34 via voltage divider
 2. **USB:** 5V, connected through charging circuitry
 
+**Pack used for development and calibration:** a 3.7V **1100mAh** LiPo, cell
+size **102540** (10 × 25 × 40 mm), with an integrated protection board and a
+JST 2.0 plug. That plug does not mate with this board's battery header — it was
+**re-terminated to fit the board's battery pins**, and the board was not
+modified. **Verify polarity with a meter before connecting**: JST-plugged packs
+are not consistent about pin order and the charger input is not
+reverse-protected.
+
+Measured behaviour with that pack: charges from a slow (1A) USB supply, and
+holds a charge for **up to ~5 hours** of use. Every constant in
+`src/hal/BoardPower.cpp` — the `LIPO_CURVE`, the charge-inference thresholds,
+and the no-pack measurements below — was taken against this cell. A different
+capacity, chemistry or protection board can shift the resting and float
+voltages they are tuned to; re-run `pio run -e batdiag` rather than assuming
+they carry over.
+
 ### Voltage Sensing
 
 **Divider equation:**

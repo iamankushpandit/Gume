@@ -540,6 +540,36 @@ couple of seconds — the warning is driven off the charge verdict, not the
 percentage, so it goes away when the user does the thing it asked for rather
 than waiting for the reading to climb.
 
+**The pack fitted here, and how it was connected.** One cell: a **3.7V 1100mAh
+LiPo, 102540 (10 × 25 × 40 mm), with a JST 2.0 plug and an integrated
+protection board**, sold in pairs with a 1000mA USB charging cable and
+insulating tape. The board's battery header is not that connector, so the
+**plug was adapted to fit the battery pins on the board** — the board itself
+was not modified.
+
+Check the polarity with a meter before the first connection, on your own cells.
+JST-plugged LiPo packs are not consistent about which pin is positive, and
+re-terminating a plug is exactly where that gets reversed; the charger input
+has no protection against it, so a wrong first connection is a dead board
+rather than a mistake you get to notice.
+
+**It is good enough for this use case.** Measured here: a slow charger fills
+the pack over USB, and the device runs **up to about 5 hours** on it — enough
+for the sessions this is built for. That is the whole of the claim. Runtime was
+not measured against screen brightness, Wi-Fi or Nearby being on, and the
+percentage it reports while doing so is still the bouncing gauge described
+above.
+
+**A better pack and a better case would make this a better product.** This one
+was chosen for being to hand and cheap, and the case has no compartment for it
+([`cases/`](cases/README.md)) — it lies in the free space in the tray. Pack
+size drives the internal volume of any redesigned shell, which is why the
+enclosure ([issue #13](https://github.com/iamankushpandit/Gume/issues/13)) is
+queued behind the battery gauge
+([issue #8](https://github.com/iamankushpandit/Gume/issues/8)). If you fit a
+different cell, say which one — every battery constant in this firmware was
+tuned against this pack, not derived from a datasheet.
+
 The divider ratio itself is still an assumption pending a meter on the board.
 
 ### Reliability

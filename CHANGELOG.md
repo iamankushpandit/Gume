@@ -22,6 +22,15 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
   supported; the folder exists because someone who has never opened a CAD tool
   should not be handed a bare board and told to improvise. Ports are encouraged
   to add their own folder.
+- **The battery pack is written down.** `README.md`, `BOARD_E32R28T-1.md` and
+  the case notes now record the cell the firmware was actually calibrated
+  against -- a 3.7V 1100mAh 102540 LiPo whose JST 2.0 plug was re-terminated to
+  fit the board's battery pins -- together with what was measured (charges from
+  a slow USB supply, runs up to ~5 hours), a polarity warning for anyone
+  repeating the adaptation, and the plain statement that a better pack and a
+  case designed around it would improve the product. Every battery constant in
+  the firmware is empirical for that cell, so the cell belongs in the docs
+  beside the constants.
 - **A licence.** The repo had none, which meant default copyright -- all
   rights reserved -- so nobody could legally contribute to a project that was
   asking for contributions. It is now **GPL-3.0-or-later**, so ports and
