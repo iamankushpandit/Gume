@@ -9,7 +9,7 @@
  *
  * The exchange is anonymous by construction: a peer is four hex digits of its
  * own Bluetooth MAC, and the only other things that travel are which game is
- * open and the best score recorded for it. No child name, no profile, nothing
+ * open and the best score recorded for it. No player name, no profile, nothing
  * a name could be reconstructed from. See docs/BLE_BEACON_SPEC.md.
  *
  * It is off by default and needs the BLE beacon on, so this screen has three

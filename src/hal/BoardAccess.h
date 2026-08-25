@@ -47,8 +47,8 @@ public:
 
     uint8_t activeProfile() { return board_.activeProfile(); }
     void setActiveProfile(uint8_t index) { board_.setActiveProfile(index); }
-    uint8_t kidCount() { return board_.kidCount(); }
-    void removeKid(uint8_t index) { board_.removeKid(index); }
+    uint8_t playerCount() { return board_.playerCount(); }
+    void removePlayer(uint8_t index) { board_.removePlayer(index); }
     bool isGuest() { return board_.isGuest(); }
     Board::StorageTelemetry storageTelemetry() { return board_.storageTelemetry(); }
     void factoryReset() { board_.factoryReset(); }
@@ -127,6 +127,8 @@ public:
     bool isWifiConnected() { return board_.isWifiConnected(); }
     bool ntpEnabled() { return board_.ntpEnabled(); }
     void setNtpEnabled(bool enabled) { board_.setNtpEnabled(enabled); }
+    uint8_t ntpResyncHours() { return board_.ntpResyncHours(); }
+    void setNtpResyncHours(uint8_t hours) { board_.setNtpResyncHours(hours); }
     void beginTimeSync() { board_.beginTimeSync(); }
     void syncTimeNow() { board_.syncTimeNow(); }
     void applyTimeConfig() { board_.applyTimeConfig(); }

@@ -55,7 +55,7 @@ never be read as a game and score that were never sent.
 - **Device ID** is the last two bytes of the factory Bluetooth MAC, rendered as
   four uppercase hex digits. It is a hardware serial, stable across reboots so a
   parent can recognise their own unit in a scanner. Nobody types it and it is
-  not derived from anything a child entered.
+  not derived from anything a player entered.
 - **Company ID `0xFFFF`** is the SIG's reserved "no company / testing" value. We
   are not a member company; claiming another company's identifier would be worse
   than honestly using the reserved one.
@@ -95,7 +95,7 @@ Structural, not a promise typed into the UI: `buildPayload()` emits a name AD
 and a manufacturer AD and nothing else, so none of the following is reachable
 from the radio path.
 
-Child information · child name · profile name · location · Wi-Fi credentials ·
+Player information · player name · profile name · location · Wi-Fi credentials ·
 Wi-Fi SSID · IP address · game progress · usage history.
 
 Nothing profile-scoped (`Board::scopedKey()`) is read by `BleBeacon` at all.
@@ -106,7 +106,7 @@ travels with no name attached.
 ### The anonymity argument, in one line
 
 A peer is four hex digits of its own hardware MAC. There is no name, no
-profile, and no path from a score back to a child. Two children learn that
+profile, and no path from a score back to a player. Two players learn that
 *someone nearby has 9 on Maze*; neither learns anything about the other.
 
 ## What System Info must show

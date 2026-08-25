@@ -1,7 +1,7 @@
 #include "StateData.h"
 
 /* Sorted by postal code so lookups can binary-search. Tiers group by how
- * likely a child is to have heard of the state, matching the Easy/Medium/
+ * likely a player is to have heard of the state, matching the Easy/Medium/
  * Hard structure the flag game already uses. */
 const StateFact STATE_FACTS[] = {
     { "AK", "Alaska", "Juneau", 1 },

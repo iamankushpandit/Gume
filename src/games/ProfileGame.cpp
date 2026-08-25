@@ -49,7 +49,7 @@ void ProfileGame::begin(GameHost& host) {
 /* One header bar, both orientations.
  *
  * This briefly needed a taller portrait bar with the copyright stacked under
- * the title, because "GoodTime Kids!" at font 4 was most of a 240px screen and
+ * the title, because the old product mark at font 4 was most of a 240px screen and
  * the two collided. "Braino!" is half the width and the collision is gone: the
  * title runs to about x=80 in portrait and the copyright right-aligns from
  * x=124, so a single 30px bar carries both. Rename the product to something
@@ -62,7 +62,7 @@ Rect ProfileGame::headerRect(int16_t screenW, int16_t screenH) const {
 
 /* Rows are packed against both ends: the header plus its two lines of prompt
  * text above, and the Add / Done buttons at screenH - 30 below. Six rows (five
- * children and the guest) have to fit between them, so the pitch here and the
+ * players and the guest) have to fit between them, so the pitch here and the
  * prompt baselines in render() are one budget -- move either and re-check the
  * last row against the buttons. */
 namespace {
@@ -163,7 +163,7 @@ Rect ProfileGame::pinConfirmRect(int16_t screenW, int16_t screenH) const {
     return pinKeyRect(3, 2, screenW, screenH);
 }
 
-/* Top-left, clear of the pad. Without this a child who taps the admin row is
+/* Top-left, clear of the pad. Without this a player who taps the admin row is
  * stuck on the PIN screen with no way back to the picker. */
 Rect ProfileGame::pinCancelRect(int16_t, int16_t) const {
     return Rect{6, 6, 52, 22};
@@ -185,11 +185,11 @@ uint8_t ProfileGame::visibleGameRows(int16_t screenH) const {
 }
 
 uint8_t ProfileGame::rowCount(Board& board) const {
-    return static_cast<uint8_t>(board.kidCount() + 1);
+    return static_cast<uint8_t>(board.playerCount() + 1);
 }
 
 uint8_t ProfileGame::profileForRow(Board& board, uint8_t row) const {
-    return (row < board.kidCount()) ? row : Board::GUEST_INDEX;
+    return (row < board.playerCount()) ? row : Board::GUEST_INDEX;
 }
 
 void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
@@ -235,7 +235,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             }
         }
         if (addRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
-            board.kidCount() < Board::MAX_KIDS) {
+            board.playerCount() < Board::MAX_PLAYERS) {
             editing_ = 0xFF;
             draft_ = "";
             phase_ = Phase::Rename;
@@ -265,15 +265,15 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
         if (menuActionRect(2, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             /* Two separate conditions, and both matter. The admin profile
              * cannot be removed by anybody; and removing anyone else is the
-             * admin's call, because it destroys that child's scores and
-             * mastery data for good. Any child could previously delete a
+             * admin's call, because it destroys that player's scores and
+             * mastery data for good. Any player could previously delete a
              * sibling in two taps with no confirmation. */
             if (board.isAdminProfile(menuFor_) ||
                 !board.isAdminProfile(board.activeProfile())) {
                 board.beepError();
                 return;
             }
-            board.removeKid(menuFor_);
+            board.removePlayer(menuFor_);
             phase_ = Phase::Pick;
             markFullDirty();
             return;
@@ -305,12 +305,12 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
             const uint8_t gi = gameScroll_ + row;
             if (gi >= playableAppCount()) break;
             if (gameCheckRect(row, W).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                /* Who may play what is the admin's decision, for every child
-                 * including themselves. Anyone may read the list -- a child
+                /* Who may play what is the admin's decision, for every player
+                 * including themselves. Anyone may read the list -- a player
                  * seeing which games are switched off is fine, and better than
                  * a launcher that is short for reasons nobody will explain --
                  * but only the admin may change it. Without this the feature
-                 * enforced nothing: a child opened their own row and turned
+                 * enforced nothing: a player opened their own row and turned
                  * back on everything that had been hidden from them. */
                 if (!board.isAdminProfile(board.activeProfile())) {
                     board.beepError();
@@ -390,7 +390,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
                 if (draft_.length() > 0) draft_.remove(draft_.length() - 1);
             } else if (ch == '>') {
                 if (editing_ == 0xFF) {
-                    board.addKid(draft_);
+                    board.addPlayer(draft_);
                 } else if (draft_.length() > 0) {
                     board.setProfileName(editing_, draft_);
                 }
@@ -547,10 +547,10 @@ void ProfileGame::render(GameHost& host) {
             }
         }
 
-        const bool canAdd = board.kidCount() < Board::MAX_KIDS;
+        const bool canAdd = board.playerCount() < Board::MAX_PLAYERS;
         char label[16];
         snprintf(label, sizeof(label), canAdd ? "Add Player" : "Max %u",
-                 static_cast<unsigned>(Board::MAX_KIDS));
+                 static_cast<unsigned>(Board::MAX_PLAYERS));
         Ui::drawButton(tft, addRect(W, H), label,
                        canAdd ? Ui::rgb(45, 154, 96) : Ui::surface(),
                        Ui::outline(), canAdd ? TFT_WHITE : Ui::muted(), false, 2);

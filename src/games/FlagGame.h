@@ -45,6 +45,7 @@ private:
     bool recentlyUsed(const char* iso2) const;
     void rememberCurrent();
     void makeOptions();
+    void shuffleOptionsForBonus();
     void newQuestion();
 
     /* Spaced repetition: countries answered wrong come back sooner. Shared

@@ -118,7 +118,7 @@ SCREEN_CAPTIONS = {
     "screensaver": "Screen saver",
     "wakelock": "Hold to unlock",
     "settings-device": "Settings: device",
-    "profiles-games": "Profiles: per-child games",
+    "profiles-games": "Profiles: per-player games",
     "settings-power": "Settings: power",
     "shapearith": "Shape Arith",
     "shapes": "Shapes",
@@ -180,8 +180,8 @@ SYSTEM_SHOWCASE = (
     },
     {
         "id": "profiles",
-        "subtitle": "Boot-time player choice, five children, Guest mode that deliberately saves nothing, "
-                    "a PIN-guarded admin profile, and per-child game visibility only the admin can set.",
+        "subtitle": "Boot-time player choice, five players, Guest mode that deliberately saves nothing, "
+                    "a PIN-guarded admin profile, and per-player game visibility only the admin can set.",
         "stills": ("profiles", "profiles-pin", "profiles-games"),
     },
     {

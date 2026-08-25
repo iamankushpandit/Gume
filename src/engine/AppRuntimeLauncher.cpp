@@ -22,23 +22,23 @@ void copyFittedText(Ui::Renderer& tft, const char* source, char* dest, size_t ca
 }
 }
 
-uint8_t KidsPlatformApp::launcherEntryCount() {
+uint8_t BrainoApp::launcherEntryCount() {
     return appVisibleCount(board_);
 }
 
-uint8_t KidsPlatformApp::launcherPageSize() {
+uint8_t BrainoApp::launcherPageSize() {
     return LauncherLayout::pageSize(board_.layoutMode());
 }
 
-const AppDefinition& KidsPlatformApp::launcherEntry(uint8_t filteredIndex) {
+const AppDefinition& BrainoApp::launcherEntry(uint8_t filteredIndex) {
     return appVisibleAt(board_, filteredIndex);
 }
 
-void KidsPlatformApp::openApp(const AppDefinition& app) {
+void BrainoApp::openApp(const AppDefinition& app) {
     launch(app);
 }
 
-void KidsPlatformApp::launch(const AppDefinition& app) {
+void BrainoApp::launch(const AppDefinition& app) {
     leaveActiveGame();
 
     activeGame_ = &app.game(games_);

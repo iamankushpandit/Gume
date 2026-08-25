@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 /*
- * The 118 chemical elements, as much of them as a child needs.
+ * The 118 chemical elements, as much of them as a player needs.
  *
  * Deliberately absent: atomic mass to four decimals, electron configuration,
  * electronegativity. None of it means anything to the audience and all of it
@@ -43,7 +43,7 @@ extern const char* const ELEMENT_STATE_NAMES[ELEMENT_STATE_COUNT];
 struct ElementFact {
     const char* symbol;    /**< One or two letters, e.g. "Fe". */
     const char* name;      /**< "Iron". US spellings, matching the rest of the catalog. */
-    const char* fact;      /**< One kid-facing line, <= 46 chars. */
+    const char* fact;      /**< One player-facing line, <= 46 chars. */
     uint8_t z;             /**< Atomic number, 1..118. Also the proton count. */
     uint8_t col;           /**< Table column, 1..18. */
     uint8_t row;           /**< Table row, 1..9 (8 and 9 are the f-block strips). */

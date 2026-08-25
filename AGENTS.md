@@ -63,7 +63,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 
 | About shows | Derived from |
 |---|---|
-| Version | `GOODTIME_KIDS_VERSION` |
+| Version | `BRAINO_VERSION` |
 | Game count and every game name/blurb | `GAME_CATALOG` |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
@@ -76,13 +76,13 @@ privacy statements — must be re-read whenever the thing it describes changes.
 
 ## No data collection — the rule that outranks the feature
 
-Braino collects nothing about the child using it, and no change may alter
+Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
 Exactly three things leave the device: an NTP time query, one `ip-api.com`
 lookup to guess the timezone on first connect, and the opt-in, non-connectable
 BLE beacon. **That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
-home at runtime, or anything transmitted that carries a child's name, profile
+home at runtime, or anything transmitted that carries a player's name, profile
 name, score, progress or typing. A fourth outbound flow needs the maintainer's
 agreement in an issue *before* the code exists — it is a change to what the
 product promises, not a feature to be reviewed on merit.
@@ -166,7 +166,7 @@ Rules, in the order they bite:
    user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) — that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
-   through `KidsPlatformApp::leaveActiveGame()`, which compares free heap
+   through `BrainoApp::leaveActiveGame()`, which compares free heap
    against the value captured before that screen's `begin()` and logs
    `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
    Watch the serial log after adding a screen.

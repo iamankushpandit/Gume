@@ -9,14 +9,14 @@ struct AppMetadata;
 const AppMetadata& elementsAppMetadata();
 
 /*
- * The periodic table, for a child who has never taken chemistry.
+ * The periodic table, for a player who has never taken chemistry.
  *
  * Three tabs, and the order matters: Explore first, because a quiz about
  * something you have never seen is a test, not a lesson.
  *
  *   Explore  the real 118-cell wall chart. Tap a square to select it, tap the
  *            strip above to open a card with the name, the atomic number, what
- *            kind of element it is and one line about where the child has
+ *            kind of element it is and one line about where the player has
  *            already met it. From the card, "Quiz me" starts a round about
  *            that element.
  *   Quiz     six question shapes generated from the same table, so the bank
@@ -27,7 +27,7 @@ const AppMetadata& elementsAppMetadata();
  *            Easy / Common / All pin it.
  *
  * The level only ever narrows the *quiz*. Explore always shows and opens all
- * 118 -- out-of-level squares are drawn dimmed, not hidden. A child who wants
+ * 118 -- out-of-level squares are drawn dimmed, not hidden. A player who wants
  * to go and read about Oganesson is doing exactly the thing this screen is
  * for, and nothing here should stop them.
  */

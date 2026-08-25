@@ -38,7 +38,7 @@ void ElementsGame::nextQuestion() {
     }
 
     /* "What state is it at room temperature?" is only honest for elements a
-     * child could meet. Beyond tier 2 the answer is a laboratory prediction,
+     * player could meet. Beyond tier 2 the answer is a laboratory prediction,
      * and a quiz that scores a prediction as a fact is teaching the wrong
      * thing. Everything else works at any tier. */
     const bool allowState = ELEMENTS[qElement_].tier <= 2;
@@ -74,7 +74,7 @@ void ElementsGame::buildOptions() {
         return;
     }
 
-    /* Distractors come from the level's own pool, widened if the child pressed
+    /* Distractors come from the level's own pool, widened if the player pressed
      * "Quiz me" on something above their level -- otherwise Oganesson would be
      * the only unfamiliar name among three they know, and the round would be
      * answerable without reading it. */
@@ -175,7 +175,7 @@ void ElementsGame::answer(AppContext& host, bool correct) {
     progress_.maybeFlush();
     host.saveBestScore(elementsAppMetadata().score->bestKey, score_, false);
     /* Hold the right answer on screen either way. A round that only says
-     * "wrong" and moves on has scored the child without teaching them. */
+     * "wrong" and moves on has scored the player without teaching them. */
     revealUntilMs_ = millis() + REVEAL_MS;
     markDirty();
 }

@@ -73,7 +73,7 @@ renegotiating with 28 call sites.
 | Layer | Becomes | From |
 |---|---|---|
 | HAL | `Display`, `Touch`, `Storage`, `Power`, `Net`, `Led`, `BoardProfile` | `Board` (1,484 lines) split by concern |
-| Kernel | `Runtime`, `AppRegistry`, `Lifecycle`, `Budget`, `Watchdog` | `KidsPlatformApp` in `main.cpp` |
+| Kernel | `Runtime`, `AppRegistry`, `Lifecycle`, `Budget`, `Watchdog` | `BrainoApp` in `main.cpp` |
 | SDK | `App`, `AppContext`, `AppManifest`, `Canvas`, `Input`, `Store`, `Scores`, `Progress`, `Rng` | `Game`, `GameHost`, `Ui`, parts of `Board` |
 | Shell | the seven system screens, as privileged first-party apps | `SettingsGame`, `ProfileGame`, … |
 | Apps | one library per app | `src/games/*` |
@@ -169,7 +169,7 @@ Two consequences to plan for rather than discover:
 
 1. **Migration.** Every shipped device holds `p0_mathBest`, `p0_flagBest` and ~27
    more. A one-shot migration table, run once at boot behind a schema-version
-   key, rewrites them into the new namespace. Getting this wrong wipes a child's
+   key, rewrites them into the new namespace. Getting this wrong wipes a player's
    scores, which is the most user-visible failure this project can produce.
 2. **Quota.** NVS is finite and shared. Each app gets a byte and key budget
    (proposal: 2 KB / 32 keys by default, raisable in the manifest with review).
@@ -252,7 +252,7 @@ It is technically possible on ESP32, and people have done it. It should not be
 done *here*:
 
 - **No memory protection.** A stray pointer in a contributed app corrupts the
-  kernel. The observable symptom is a child's device rebooting mid-game, with a
+  kernel. The observable symptom is a player's device rebooting mid-game, with a
   crash breadcrumb naming a screen that is not at fault.
 - The Xtensa windowed ABI and the absence of first-class PIC support in this
   toolchain make the relocation path fragile and toolchain-version-sensitive.
@@ -321,7 +321,7 @@ The active app is placement-new'd into the arena on launch and destroyed in the
 existing lifecycle funnel. No `malloc`, no fragmentation, no free list. RAM cost
 becomes **O(largest app)** instead of **O(sum of apps)**. The manifest's
 `stateBytes` lets the registry validate at registration, and a build-time
-`static_assert` catches an oversized app at compile time rather than on a child's
+`static_assert` catches an oversized app at compile time rather than on a player's
 device.
 
 One consequence to accept deliberately: **an app's state no longer survives
@@ -378,7 +378,7 @@ contributors both shipping `"quiz"` would share saved data. Therefore:
   reap-on-uninstall pass, or an explicit "keep, in case it returns". Not deciding
   is how devices slowly fill with unreachable keys.
 
-### 7.3 This is a children's device
+### 7.3 This is a players' device
 
 An app ecosystem for four-to-ten-year-olds carries obligations a hobbyist plugin
 system does not: content review before an app enters the index, an age field the
@@ -521,7 +521,7 @@ mostly *stop existing* after phase 2, which is the point.
    on-demand CI builds (§5). Start with the first; the decision only forces
    itself when flash binds.
 5. **Governance.** Who reviews contributed apps, what the content policy is for a
-   children's device, how ids are allocated, what licence and CLA contributors
+   players' device, how ids are allocated, what licence and CLA contributors
    accept, and what "core" versus "community" means in the launcher.
 6. **Board portability.** `BoardConfig.h` describes exactly one unit, down to the
    crossed RGB lines. Supporting a second board (ESP32-S3, a different panel) is

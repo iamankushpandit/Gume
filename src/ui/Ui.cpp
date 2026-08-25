@@ -218,7 +218,7 @@ void drawTopBar(Board& board, const String& title) {
 }
 
 void drawNotification(Ui::Renderer& tft, const char* text) {
-    if (text == nullptr || text[0] == ' ') {
+    if (text == nullptr || text[0] == '\0') {
         return;
     }
     const int16_t w = static_cast<int16_t>(tft.width());
@@ -374,8 +374,9 @@ PowerHint powerHint(Board& board) {
  *
  * The shell carries the number, the way both iOS and Android status bars do it:
  * a percentage a parent can read beats eleven pixels of fill they cannot. The
- * fill did not go away -- it became a two-pixel gauge along the inside bottom,
- * so the analogue cue and the digits are both there and neither is guessing.
+ * fill did not go away -- it became a bordered two-pixel gauge along the
+ * inside bottom, so the analogue cue and the digits are both there and neither
+ * is guessing.
  *
  * The badge is therefore VARIABLE WIDTH: "8" unplugged is 22px, "100" while
  * charging is 35px. Callers must lay out from batteryBadgeWidth() rather than
@@ -383,12 +384,13 @@ PowerHint powerHint(Board& board) {
  * widest state, and it is the surface that will break first. */
 namespace {
 
-constexpr int16_t BATT_H        = 13;   // shell height, outline included
+constexpr int16_t BATT_H        = 15;   // shell height, outline included
 constexpr int16_t BATT_PAD      = 3;    // inner padding, each side
 constexpr int16_t BATT_BOLT_W   = 6;
 constexpr int16_t BATT_BOLT_GAP = 2;
 constexpr int16_t BATT_TERM_W   = 2;    // the positive terminal nub
 constexpr int16_t BATT_MIN_INNER = 11;  // the no-battery case still needs a shell
+constexpr int16_t BATT_TRACK_H  = 4;    // border plus the two-pixel gauge fill
 
 /* One place decides what the badge says, so the width helper and the draw
  * routine cannot disagree about it -- which is the only way a measured layout
@@ -421,7 +423,6 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent, PowerHint power) {
 }
 
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, PowerHint power, uint16_t bg) {
-    (void)bg;
     const bool onCharger = power != PowerHint::OnBattery;
     char text[8];
     batteryText(text, sizeof(text), percent);
@@ -452,16 +453,27 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     }
 
     // Shell and positive terminal.
+    tft.fillRect(static_cast<int16_t>(bx + 1), static_cast<int16_t>(by + 1),
+                 static_cast<int16_t>(shellW - 2), static_cast<int16_t>(BATT_H - 2), bg);
     tft.drawRect(bx, by, shellW, BATT_H, outClr);
     tft.drawFastVLine(static_cast<int16_t>(bx + shellW), static_cast<int16_t>(cy - 3), 7, outClr);
     tft.drawFastVLine(static_cast<int16_t>(bx + shellW + 1), static_cast<int16_t>(cy - 2), 5, outClr);
 
+    const int16_t trackX = static_cast<int16_t>(bx + 2);
+    const int16_t trackY = static_cast<int16_t>(by + BATT_H - 1 - BATT_TRACK_H);
+    const int16_t trackW = static_cast<int16_t>(shellW - 4);
+    const uint16_t trackBorder = neutralClr;
+    if (trackW > 2) {
+        tft.drawRect(trackX, trackY, trackW, BATT_TRACK_H, trackBorder);
+    }
+
     // Gauge first, so the bolt and the digits sit over it rather than under.
-    if (percent > 0) {
-        const int16_t track = static_cast<int16_t>(shellW - 2);
-        int16_t gw = static_cast<int16_t>((static_cast<int32_t>(percent) * track) / 100);
+    if (percent > 0 && trackW > 2) {
+        const int16_t fillTrack = static_cast<int16_t>(trackW - 2);
+        int16_t gw = static_cast<int16_t>((static_cast<int32_t>(percent) * fillTrack) / 100);
         if (gw == 0) gw = 1;
-        tft.fillRect(static_cast<int16_t>(bx + 1), static_cast<int16_t>(cy + 4), gw, 2, levelCol);
+        tft.fillRect(static_cast<int16_t>(trackX + 1), static_cast<int16_t>(trackY + 1),
+                     gw, static_cast<int16_t>(BATT_TRACK_H - 2), levelCol);
     }
 
     int16_t penX = static_cast<int16_t>(bx + 1 + BATT_PAD);

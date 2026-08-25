@@ -10,19 +10,19 @@ namespace {
 constexpr Rect HOME_BUTTON{0, 0, 44, TOP_BAR_HEIGHT};
 }
 
-Ui::Renderer& KidsPlatformApp::display() {
+Ui::Renderer& BrainoApp::display() {
     return renderer_;
 }
 
-Board& KidsPlatformApp::board() {
+Board& BrainoApp::board() {
     return board_;
 }
 
-bool KidsPlatformApp::hasCapability(uint32_t capability) const {
+bool BrainoApp::hasCapability(uint32_t capability) const {
     return activeApp_ != nullptr && activeApp_->hasCapability(capability);
 }
 
-bool KidsPlatformApp::requireCapability(uint32_t capability, const char* action) {
+bool BrainoApp::requireCapability(uint32_t capability, const char* action) {
     if (hasCapability(capability)) {
         return true;
     }
@@ -35,19 +35,19 @@ bool KidsPlatformApp::requireCapability(uint32_t capability, const char* action)
     return false;
 }
 
-ContentLoader& KidsPlatformApp::content() {
+ContentLoader& BrainoApp::content() {
     return content_;
 }
 
-uint32_t KidsPlatformApp::getScore(const char* key, uint32_t fallback) {
+uint32_t BrainoApp::getScore(const char* key, uint32_t fallback) {
     return board_.getScore(key, fallback);
 }
 
-void KidsPlatformApp::setScore(const char* key, uint32_t value) {
+void BrainoApp::setScore(const char* key, uint32_t value) {
     board_.setScore(key, value);
 }
 
-bool KidsPlatformApp::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
+bool BrainoApp::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
     const bool improved = board_.saveBestScore(key, value, lowerIsBetter);
     if (improved) {
         /* Peers should see the number that is true now, not the one that was
@@ -57,31 +57,31 @@ bool KidsPlatformApp::saveBestScore(const char* key, uint32_t value, bool lowerI
     return improved;
 }
 
-void KidsPlatformApp::loadBlob(const char* key, void* dst, size_t len) {
+void BrainoApp::loadBlob(const char* key, void* dst, size_t len) {
     board_.loadBlob(key, dst, len);
 }
 
-void KidsPlatformApp::saveBlob(const char* key, const void* src, size_t len) {
+void BrainoApp::saveBlob(const char* key, const void* src, size_t len) {
     board_.saveBlob(key, src, len);
 }
 
-void KidsPlatformApp::beepOk() {
+void BrainoApp::beepOk() {
     board_.beepOk();
 }
 
-void KidsPlatformApp::beepError() {
+void BrainoApp::beepError() {
     board_.beepError();
 }
 
-void KidsPlatformApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
+void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
     board_.pulseRgb(r, g, b, ms);
 }
 
-void KidsPlatformApp::drawTopBar(const char* title) {
+void BrainoApp::drawTopBar(const char* title) {
     Ui::drawTopBar(board_, title);
 }
 
-void KidsPlatformApp::begin() {
+void BrainoApp::begin() {
     board_.begin();
     Watchdog::begin();
     if (!board_.hasTouchCalibration()) {
@@ -113,8 +113,8 @@ void KidsPlatformApp::begin() {
     Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
 
     /* First-boot: automatically create default Admin profile with PIN 0000. */
-    if (board_.kidCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
-        uint8_t adminIdx = board_.addKid("Admin");
+    if (board_.playerCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
+        uint8_t adminIdx = board_.addPlayer("Admin");
         board_.setAdminProfileIndex(adminIdx);
         board_.setAdminPin(0);
         Serial.println("[boot] Created default Admin profile with PIN 0000");
@@ -131,7 +131,7 @@ void KidsPlatformApp::begin() {
     openProfiles();
 }
 
-void KidsPlatformApp::loop() {
+void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
     const uint32_t nowMs = millis();
@@ -249,7 +249,7 @@ void KidsPlatformApp::loop() {
 /* The charger is the only way out of this state, so the warning is driven off
  * Board's charge verdict rather than the percentage alone: plugging in clears
  * it within a couple of seconds, long before the reading climbs. */
-void KidsPlatformApp::tickBatteryWarning(uint32_t nowMs) {
+void BrainoApp::tickBatteryWarning(uint32_t nowMs) {
     if (batteryCheckMs_ != 0 && nowMs - batteryCheckMs_ < BATTERY_CHECK_MS) {
         return;
     }
@@ -300,14 +300,14 @@ void KidsPlatformApp::tickBatteryWarning(uint32_t nowMs) {
 
 /* The strip is painted over the screen's own header, so the screen underneath
  * has to redraw before it can genuinely go away again. */
-void KidsPlatformApp::requestBannerRepaint() {
+void BrainoApp::requestBannerRepaint() {
     bannerNeedsPaint_ = true;
     if (view_ == View::Game && activeGame_ != nullptr) {
         activeGame_->requestRender();
     }
 }
 
-void KidsPlatformApp::drawHeaderBanner(bool screenRepainted) {
+void BrainoApp::drawHeaderBanner(bool screenRepainted) {
     const char* text = (batteryBanner_ != nullptr) ? batteryBanner_
                                                    : NearbyPlay::banner();
     if (text == nullptr) {
@@ -321,14 +321,14 @@ void KidsPlatformApp::drawHeaderBanner(bool screenRepainted) {
     Ui::drawNotification(renderer_, text);
 }
 
-void KidsPlatformApp::applyRotation(uint8_t rotation) {
+void BrainoApp::applyRotation(uint8_t rotation) {
     if (board_.displayRotation() != rotation) {
         board_.setDisplayRotation(rotation);
     }
     swallowTouch_ = true;
 }
 
-uint8_t KidsPlatformApp::effectiveRotation(bool landscape) {
+uint8_t BrainoApp::effectiveRotation(bool landscape) {
     return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
 }
 
@@ -345,13 +345,13 @@ uint8_t KidsPlatformApp::effectiveRotation(bool landscape) {
  * screen saver or from sleep forced those two screens to landscape and left
  * them there. Boot into Profiles in Vertical layout was correct; idle until the
  * saver came on, then touch, and it came back landscape. */
-uint8_t KidsPlatformApp::rotationForActiveScreen() {
+uint8_t BrainoApp::rotationForActiveScreen() {
     const bool followsLayout = (activeApp_ == nullptr) || activeApp_->followsLayout;
     return effectiveRotation(!followsLayout ||
                              board_.layoutMode() != Board::LayoutMode::Vertical);
 }
 
-void KidsPlatformApp::leaveActiveGame() {
+void BrainoApp::leaveActiveGame() {
     if (activeGame_ == nullptr) {
         return;
     }
@@ -362,7 +362,7 @@ void KidsPlatformApp::leaveActiveGame() {
     Watchdog::noteScreenLeft(leaving, heapAtLaunch_);
 }
 
-void KidsPlatformApp::goHome() {
+void BrainoApp::goHome() {
     leaveActiveGame();
     NearbyPlay::setActiveApp(board_, nullptr);
     Watchdog::setContext("Launcher");
@@ -376,32 +376,32 @@ void KidsPlatformApp::goHome() {
     activeGame_->clearDirty();
 }
 
-void KidsPlatformApp::relaunchActiveGame() {
+void BrainoApp::relaunchActiveGame() {
     if (activeGame_ != nullptr) {
         activeGame_->begin(*this);
     }
 }
 
-void KidsPlatformApp::openSettings() {
+void BrainoApp::openSettings() {
     launch(appById("settings"));
 }
 
-void KidsPlatformApp::openWifi() {
+void BrainoApp::openWifi() {
     launch(appById("wifi"));
 }
 
-void KidsPlatformApp::openProfiles() {
+void BrainoApp::openProfiles() {
     launch(appById("profiles"));
 }
 
-const char* KidsPlatformApp::activeAppTitle() const {
+const char* BrainoApp::activeAppTitle() const {
     if (activeGame_ == &launcher_) {
         return "Launcher";
     }
     return activeApp_ != nullptr ? activeApp_->title() : "Game";
 }
 
-const AppDefinition& KidsPlatformApp::appById(const char* id) const {
+const AppDefinition& BrainoApp::appById(const char* id) const {
     for (uint8_t i = 0; i < APP_REGISTRY_COUNT; ++i) {
         if (strcmp(APP_REGISTRY[i].id(), id) == 0) {
             return APP_REGISTRY[i];

@@ -10,7 +10,7 @@
 #include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
-class KidsPlatformApp : public GameHost {
+class BrainoApp : public GameHost {
 public:
     void begin();
     void loop();
@@ -117,7 +117,7 @@ private:
     void requestBannerRepaint();
 
     /* Long enough to read at a glance, and repeated rarely enough that it
-     * stays a warning rather than becoming furniture a child learns to ignore.
+     * stays a warning rather than becoming furniture a player learns to ignore.
      * A low battery is not an emergency: it has tens of minutes left at the
      * point the strip first appears. */
     static constexpr uint32_t BATTERY_CHECK_MS = 2000;

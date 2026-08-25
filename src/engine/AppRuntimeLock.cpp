@@ -2,6 +2,20 @@
 
 #include "hal/Watchdog.h"
 
+namespace {
+void drawCenteredFitted(Ui::Renderer& tft, const char* text, int16_t cx,
+                        int16_t y, int16_t maxW, uint8_t font) {
+    tft.drawString(Ui::fitted(tft, text != nullptr ? text : "", maxW, font),
+                   cx, y, font);
+}
+
+int16_t lockFooterY(Ui::Renderer& tft) {
+    constexpr int16_t GLCD_FONT_H = 8;
+    constexpr int16_t BOTTOM_PAD = 8;
+    return static_cast<int16_t>(tft.height() - BOTTOM_PAD - GLCD_FONT_H);
+}
+}
+
 /*
  * The wake lock: an accidental-touch guard between the screen saver or panel
  * sleep and whatever screen was underneath.
@@ -23,7 +37,7 @@
  * up for a second would cost two full repaints and a visible flash.
  */
 
-Rect KidsPlatformApp::lockButtonRect() {
+Rect BrainoApp::lockButtonRect() {
     const int16_t w = static_cast<int16_t>(renderer_.width());
     const int16_t h = static_cast<int16_t>(renderer_.height());
     const int16_t bw = min<int16_t>(200, static_cast<int16_t>(w - 48));
@@ -32,19 +46,19 @@ Rect KidsPlatformApp::lockButtonRect() {
                 static_cast<int16_t>((h - BH) / 2 + 12), bw, BH};
 }
 
-Rect KidsPlatformApp::lockProgressRect() {
+Rect BrainoApp::lockProgressRect() {
     const Rect b = lockButtonRect();
     return Rect{b.x, static_cast<int16_t>(b.y + b.h + 10), b.w, 10};
 }
 
-uint8_t KidsPlatformApp::lockProgressPercent(uint32_t nowMs) const {
+uint8_t BrainoApp::lockProgressPercent(uint32_t nowMs) const {
     if (!lockHolding_) return 0;
     const uint32_t held = nowMs - lockHoldStartMs_;
     if (held >= LOCK_HOLD_MS) return 100;
     return static_cast<uint8_t>(held * 100UL / LOCK_HOLD_MS);
 }
 
-void KidsPlatformApp::enterLock() {
+void BrainoApp::enterLock() {
     board_.setRgbColor(0, 0, 0);
     Watchdog::setContext("Locked");
     view_ = View::Locked;
@@ -62,7 +76,7 @@ void KidsPlatformApp::enterLock() {
     renderLock();
 }
 
-void KidsPlatformApp::updateLock(const TouchPoint& touch, uint32_t nowMs) {
+void BrainoApp::updateLock(const TouchPoint& touch, uint32_t nowMs) {
     if (touch.down || touch.justPressed || touch.justReleased) {
         lockActivityMs_ = nowMs;
     }
@@ -113,12 +127,13 @@ void KidsPlatformApp::updateLock(const TouchPoint& touch, uint32_t nowMs) {
     renderLock();
 }
 
-void KidsPlatformApp::renderLock() {
+void BrainoApp::renderLock() {
     Ui::Renderer& tft = renderer_;
     const int16_t W = static_cast<int16_t>(tft.width());
     const Rect btn = lockButtonRect();
     const Rect bar = lockProgressRect();
     const uint8_t pct = lockProgressPercent(millis());
+    const int16_t textMaxW = static_cast<int16_t>(W - 16);
 
     if (lockFullPaint_) {
         lockFullPaint_ = false;
@@ -136,18 +151,19 @@ void KidsPlatformApp::renderLock() {
 
         tft.setTextDatum(TC_DATUM);
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString("Locked", W / 2, static_cast<int16_t>(btn.y - 48), 4);
+        drawCenteredFitted(tft, "Locked", W / 2,
+                           static_cast<int16_t>(btn.y - 48), textMaxW, 4);
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("Press and hold the button", W / 2,
-                       static_cast<int16_t>(btn.y - 22), 1);
+        drawCenteredFitted(tft, "Press and hold the button", W / 2,
+                           static_cast<int16_t>(btn.y - 22), textMaxW, 1);
 
         Ui::drawButton(tft, btn, "Hold to unlock", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
 
         tft.drawRoundRect(bar.x, bar.y, bar.w, bar.h, 4, Ui::outline());
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("Nothing under here can be touched yet", W / 2,
-                       static_cast<int16_t>(bar.y + bar.h + 14), 1);
+        drawCenteredFitted(tft, "Nothing under here can be touched yet", W / 2,
+                           lockFooterY(tft), textMaxW, 1);
         tft.setTextDatum(TL_DATUM);
         lockPaintedPct_ = -1;
     }

@@ -44,7 +44,7 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
     deviceRowCount_ = 0;
 
     // Cache holder names to avoid repeated String allocations
-    for (uint8_t i = 0; i < board.kidCount(); ++i) {
+    for (uint8_t i = 0; i < board.playerCount(); ++i) {
         String name = board.profileName(i);
         snprintf(holderNames_[i], Board::PROFILE_NAME_MAX + 1, "%s", name.c_str());
     }
@@ -61,8 +61,8 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
         uint32_t bestValue = 0;
         uint8_t bestHolder = 0xFF;
 
-        // Check all profiles (0 to kidCount-1, excluding Guest at GUEST_INDEX)
-        for (uint8_t profileIdx = 0; profileIdx < board.kidCount(); ++profileIdx) {
+        // Check all profiles (0 to playerCount-1, excluding Guest at GUEST_INDEX)
+        for (uint8_t profileIdx = 0; profileIdx < board.playerCount(); ++profileIdx) {
             if (!board.hasScoreFor(profileIdx, score->bestKey)) continue;
 
             anyPlayed = true;
@@ -170,7 +170,7 @@ void ScoresGame::render(GameHost& host) {
     }
 
     if (activeTab_ == Tab::Mine) {
-        // Mine tab: current child's scores
+        // Mine tab: current player's scores
         tft.setTextDatum(TL_DATUM);
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.drawString(board.profileName(board.activeProfile()), 8, 60, 2);
@@ -190,7 +190,7 @@ void ScoresGame::render(GameHost& host) {
                           "No games played yet", Ui::muted(), 2, Align::Center);
         }
 
-        // Walk the catalog, skipping games this child has not played.
+        // Walk the catalog, skipping games this player has not played.
         uint8_t seen = 0;
         uint8_t drawn = 0;
         const uint8_t first = static_cast<uint8_t>(page_ * ROWS_PER_PAGE);
@@ -236,11 +236,11 @@ void ScoresGame::render(GameHost& host) {
         Ui::drawPagerButton(tft, nextRect(), "Next", canNext);
     } else {
         // Device tab: device-wide best
-        const uint8_t kidCount = board.kidCount();
+        const uint8_t playerCount = board.playerCount();
 
         if (needsFullRender()) {
-            if (kidCount == 1) {
-                // Only one child, explain the situation
+            if (playerCount == 1) {
+                // Only one player, explain the situation
                 tft.setTextDatum(TL_DATUM);
                 tft.setTextColor(Ui::muted(), Ui::bg());
                 tft.drawString("Add a player to compete", 8, 60, 1);
@@ -278,7 +278,7 @@ void ScoresGame::render(GameHost& host) {
                 tft.drawString(scoreStr, 236, r.y + r.h / 2, 2);
 
                 // Holder name, right-aligned at x = 312, gold if current player
-                if (db.holder < Board::MAX_KIDS) {
+                if (db.holder < Board::MAX_PLAYERS) {
                     uint16_t holderColor = (board.activeProfile() == db.holder)
                         ? Ui::rgb(255, 200, 0)
                         : Ui::muted();

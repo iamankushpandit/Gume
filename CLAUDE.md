@@ -1,4 +1,4 @@
-﻿# GUme â€” Braino!
+# GUme â€” Braino!
 
 These rules apply to everyone changing this repository, human or agent. `CONTRIBUTING.md` covers how a change reaches the protected `main` and `dev` branches; this file covers what the change itself has to honour.
 
@@ -56,13 +56,13 @@ privacy statements â€” must be re-read whenever the thing it describes chan
 
 ## No data collection - the rule that outranks the feature
 
-Braino collects nothing about the child using it, and no change may alter
+Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
 Exactly three things leave the device: an NTP time query, one `ip-api.com`
 lookup to guess the timezone on first connect, and the opt-in, non-connectable
 BLE beacon. **That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
-home at runtime, or anything transmitted that carries a child's name, profile
+home at runtime, or anything transmitted that carries a player's name, profile
 name, score, progress or typing. A fourth outbound flow needs the maintainer's
 agreement in an issue *before* the code exists - it is a change to what the
 product promises, not a feature to be reviewed on merit.
@@ -94,8 +94,8 @@ call site:
    than once per screen change gets a write-through RAM mirror in `Board`**:
    the setter updates the mirror and NVS together, so a stale read is not
    possible. Theme, layout, brightness, idle timeout, active profile, game
-   visibility and the Wi-Fi credentials all work this way now. Add to that list
-   rather than reaching for `prefs_` in a hot path.
+   visibility, Wi-Fi credentials and the NTP hot-path settings all work this
+   way now. Add to that list rather than reaching for `prefs_` in a hot path.
 2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
    and `Ui::drawTopBar()` calls two battery getters, so every top bar cost
    ~20ms â€” a whole frame â€” before anything was drawn. **No `delay()` in
@@ -146,7 +146,7 @@ Rules, in the order they bite:
    user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) â€” that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
-   through `KidsPlatformApp::leaveActiveGame()`, which compares free heap
+   through `BrainoApp::leaveActiveGame()`, which compares free heap
    against the value captured before that screen's `begin()` and logs
    `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
    Watch the serial log after adding a screen.
@@ -161,7 +161,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young children. 31 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 31 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -277,9 +277,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,348,957 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,350,141 / 3,145,728 bytes,
 **74.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,540 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
+at 72,548 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -301,7 +301,7 @@ This keeps diffs reviewable, conflicts locatable, and prevents any single file f
 
 ## Architecture
 
-`setup()`/`loop()` in `src/main.cpp` delegate to a `KidsPlatformApp` singleton defined in `src/engine/AppRuntime.*`, which owns every screen as a `static` instance and implements `GameHost`.
+`setup()`/`loop()` in `src/main.cpp` delegate to a `BrainoApp` singleton defined in `src/engine/AppRuntime.*`, which owns every screen as a `static` instance and implements `GameHost`.
 
 Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED), **Asleep** (backlight off, panel in low-power state) and **Locked** (the hold-to-unlock guard between either of those and the screen underneath). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherGame` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
 
@@ -349,22 +349,22 @@ orientation that were up before. Three things about it are load-bearing:
 ### Invariants worth knowing before editing
 
 - **Every screen is a `Game`.** Launcher, Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
-- **`end()` is called on every screen change** via `KidsPlatformApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
+- **`end()` is called on every screen change** via `BrainoApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
-- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a child clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth child.
-- **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, timezone. Per-profile: scores, mastery blobs, game visibility.
+- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
+- **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone. Per-profile: scores, mastery blobs, game visibility.
 - **The admin PIN gates the two routes into the admin profile**: switching to
-  it, and opening its Edit menu (rename plus its per-child game list). One
+  it, and opening its Edit menu (rename plus its per-player game list). One
   profile is admin (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it
   in NVS). Add a third way to become admin and it needs the same gate. It is
   asked **every time**, including when already admin: being admin is not
   evidence about who is holding the device, which is the whole threat model.
-- **Per-child game visibility and profile removal are admin-only; renaming is
+- **Per-player game visibility and profile removal are admin-only; renaming is
   not.** `ProfileGame` gates on `board.isAdminProfile(board.activeProfile())`
   — the *actor*, not the profile being edited. Those two are different
   questions and conflating them is exactly how Remove ended up available to
-  every child. The Games list stays readable by anyone on purpose: a child who
+  every player. The Games list stays readable by anyone on purpose: a player who
   can see a game is switched off is better served than one facing a launcher
   that is short for unexplained reasons.
 - **Settings is readable by everyone and writable only by the admin.** There is
@@ -372,10 +372,10 @@ orientation that were up before. Three things about it are load-bearing:
   early return in `SettingsGame::update()`, sitting *below* tab switching so a
   non-admin can still page through and read. The greyed-out controls are a
   drawing decision and enforce nothing on their own: for a while every greyed
-  row was still live and a child could toggle the lot. If you add a control,
+  row was still live and a player could toggle the lot. If you add a control,
   it is covered by that early return automatically — do not add a path above
   it.
-- **Boot must not leave the admin profile active.** `KidsPlatformApp::begin()`
+- **Boot must not leave the admin profile active.** `BrainoApp::begin()`
   drops to Guest if it finds admin selected. The picker's Done button goes home
   with whatever is already active, so a remembered admin selection is a PIN
   bypass, not a convenience. Do not "restore the last profile" here.
@@ -404,7 +404,7 @@ orientation that were up before. Three things about it are load-bearing:
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
-- **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `KidsPlatformApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
+- **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game or an app â€” the whole checklist
 
@@ -560,9 +560,9 @@ Pins live in `include/BoardConfig.h`; read it rather than trusting generic ESP32
 
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `PIN_RGB_R = 16`, `PIN_RGB_G = 4`, `PIN_RGB_B = 17`. This is already corrected in `BoardConfig.h` and verified on hardware; do not "fix" it again. Common anode, so drive is inverted.
 - Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `TOUCH_PRESSURE_THRESHOLD = 350`, `TOUCH_HIT_SLOP = 8`.
-- Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a child could not see the slider to undo it.
+- Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
 - `PIN_SPEAKER = 26` exists but audio is stubbed; `beepOk()`/`beepError()` pulse the RGB LED instead.
-- Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
+- Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions
 

@@ -200,7 +200,7 @@ void Board::migrateStorageSchema() {
     }
 
     Serial.printf("[storage] migrating schema %u -> %u\n", stored, STORAGE_SCHEMA_VERSION);
-    for (uint8_t profile = 0; profile < MAX_KIDS; ++profile) {
+    for (uint8_t profile = 0; profile < MAX_PLAYERS; ++profile) {
         for (size_t i = 0; i < STORAGE_KEY_COUNT; ++i) {
             migrateProfileKey(prefs_, profile, STORAGE_KEYS[i].legacy,
                               STORAGE_KEYS[i].kind, STORAGE_KEYS[i].copyWorst);
@@ -228,23 +228,23 @@ void Board::scopedKey(char* out, size_t cap, const char* key) {
 uint8_t Board::activeProfile() {
     if (!profileCached_) {
         const uint8_t v = prefs_.getUChar("profile", GUEST_INDEX);
-        cachedProfile_ = (v == GUEST_INDEX || v >= kidCount()) ? GUEST_INDEX : v;
+        cachedProfile_ = (v == GUEST_INDEX || v >= playerCount()) ? GUEST_INDEX : v;
         profileCached_ = true;
     }
     return cachedProfile_;
 }
 
 void Board::setActiveProfile(uint8_t index) {
-    if (index != GUEST_INDEX && index >= kidCount()) index = GUEST_INDEX;
+    if (index != GUEST_INDEX && index >= playerCount()) index = GUEST_INDEX;
     prefs_.putUChar("profile", index);
     cachedProfile_ = index;
     profileCached_ = true;
     visibilityCached_ = false;
 }
 
-uint8_t Board::kidCount() {
+uint8_t Board::playerCount() {
     const uint8_t n = prefs_.getUChar("kids", 0);
-    return n > MAX_KIDS ? MAX_KIDS : n;
+    return n > MAX_PLAYERS ? MAX_PLAYERS : n;
 }
 
 uint8_t Board::adminProfileIndex() {
@@ -256,7 +256,7 @@ uint8_t Board::adminProfileIndex() {
 }
 
 void Board::setAdminProfileIndex(uint8_t index) {
-    if (index != GUEST_INDEX && index >= kidCount()) index = GUEST_INDEX;
+    if (index != GUEST_INDEX && index >= playerCount()) index = GUEST_INDEX;
     prefs_.putUChar("admin_idx", index);
     cachedAdminIdx_ = index;
     adminIdxCached_ = true;
@@ -352,14 +352,14 @@ bool Board::hasScore(const char* key) {
 }
 
 uint32_t Board::scoreFor(uint8_t profileIndex, const char* key, uint32_t fallback) {
-    if (profileIndex >= MAX_KIDS) return fallback;
+    if (profileIndex >= MAX_PLAYERS) return fallback;
     char scoped[STORAGE_KEY_CAP];
     scopedKeyForProfile(scoped, sizeof(scoped), profileIndex, key);
     return prefs_.getUInt(scoped, fallback);
 }
 
 bool Board::hasScoreFor(uint8_t profileIndex, const char* key) {
-    if (profileIndex >= MAX_KIDS) return false;
+    if (profileIndex >= MAX_PLAYERS) return false;
     char scoped[STORAGE_KEY_CAP];
     scopedKeyForProfile(scoped, sizeof(scoped), profileIndex, key);
     return prefs_.isKey(scoped);

@@ -26,9 +26,9 @@ This file tracks the review items that are still intentionally open after finish
 4. Add explicit storage quotas or NVS usage monitoring
 - Scoped keys and schema migration exist, but there is no quota enforcement or partition usage reporting.
 
-5. Fix child deletion semantics for persisted data more safely
+5. Fix player deletion semantics for persisted data more safely
 - Profile name shifting remains in place.
-- Broader persisted-state migration for deleted or reordered child slots is still open.
+- Broader persisted-state migration for deleted or reordered player slots is still open.
 
 6. Validate battery divider and power detection on hardware
 - `Board.h` still carries the hardware-validation TODO.
@@ -47,7 +47,7 @@ This file tracks the review items that are still intentionally open after finish
 - No long-run test harness or documented soak procedure yet for heap stability, NVS writes, sleep/wake cycles, Wi-Fi sync, and repeated app transitions.
 
 11. Standardize naming
-- ~~Branding still mixes `GUme`, `Gume`, and `GoodTime Kids` in different
+- ~~Branding still mixes `GUme`, `Gume`, and `the former product name` in different
   places.~~ The product is **Braino!** and is spelled once, in
   `include/AppVersion.h`; `GUme` remains the repository name only.
 
