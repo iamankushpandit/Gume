@@ -79,7 +79,11 @@ public:
      * therefore *inferred* from how that voltage moves, in BoardPower.cpp.
      *
      * UNKNOWN is the honest answer for the first few seconds after boot, and
-     * whenever no battery is attached. FULL means "on the charger and topped
+     * whenever the ADC reads outside a plausible range. It is NOT a no-battery
+     * signal: this board cannot detect whether a pack is fitted at all, since
+     * the charger holds its output at float voltage either way. See the
+     * measurements at the top of BoardPower.cpp. FULL means "on the charger
+     * and topped
      * off" -- it is only ever reached from CHARGING, because a resting full
      * cell and a finished charge look identical from one sample. */
     enum class ChargingState {
@@ -110,7 +114,6 @@ public:
     BatteryTelemetry readBatteryTelemetry();
     float getBatteryVoltage();
     int8_t getBatteryPercent();
-    bool isBatteryPresent();
     ChargingState getChargingState();
     /* True while the pack is genuinely running down and needs the charger.
      * Both are false whenever the charger is attached, so plugging in silences

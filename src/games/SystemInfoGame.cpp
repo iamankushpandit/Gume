@@ -283,9 +283,12 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addSection("Power");
     rows_.addRow("Source", powerText(board.getPowerSource()));
     rows_.addRow("Charging", chargingText(board.getChargingState()));
+    /* A negative percentage means the ADC read outside a plausible range, not
+     * that the pack is missing: this board cannot tell whether one is fitted
+     * (see BoardPower.cpp), so it must not claim to. */
     rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
-           (pct >= 0 ? " (" + String(pct) + "%)" : " (no batt)"));
-    rows_.addRow("Charge level", pct < 0 ? String("No battery")
+           (pct >= 0 ? " (" + String(pct) + "%)" : " (sensor fault)"));
+    rows_.addRow("Charge level", pct < 0 ? String("Sensor out of range")
                                 : board.isBatteryCritical() ? String("Critical - charge now")
                                 : board.isBatteryLow() ? String("Low - charge soon")
                                 : String("OK"));

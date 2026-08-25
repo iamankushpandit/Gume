@@ -9,7 +9,30 @@ bool s_adcCharacterised = false;
 constexpr uint32_t ADC_DEFAULT_VREF_MV = 1100;
 constexpr uint8_t BATTERY_SAMPLES = 8;
 constexpr float DIVIDER_RATIO = 2.0f;
-constexpr float V_NO_BATTERY = 4.35f;
+/* ---- Why there is no "is a pack fitted?" test -------------------------
+ * There is not one, and on this board there cannot be. Measured 2026-08-24
+ * with the batdiag wizard, three power states, 8s averaged:
+ *
+ *     pack + USB      4.224 V
+ *     USB, NO pack    4.159 V   <-- sits BETWEEN the other two
+ *     pack only       4.066 V
+ *
+ * The TP4054 holds its BAT output at the float voltage whether or not a cell
+ * is attached, so "USB with no pack" lands inside the range a real pack
+ * occupies. No threshold separates the two in either direction, so do not try
+ * to retune one; this is measured, not inferred.
+ *
+ * The old V_NO_BATTERY = 4.35f was above anything this board produces, so it
+ * never fired: isBatteryPresent() was a constant true, getPowerSource()'s
+ * no-pack branch was dead, getBatteryPercent() never returned -1, and the
+ * blank-digit rendering in Ui::drawBatteryBadge was unreachable.
+ *
+ * V_SENSOR_MAX is a sanity ceiling on the ADC, NOT a pack test. Above it the
+ * divider or the ADC is faulty and the gauge blanks its digits to say so.
+ * With no pack fitted the gauge reads HIGH -- about 4.16 V, near full -- and
+ * that is the honest description of what this hardware can see.
+ */
+constexpr float V_SENSOR_MAX = 4.50f;
 constexpr float V_IMPLAUSIBLE = 3.0f;
 
 struct CurvePoint { float volts; uint8_t pct; };
@@ -28,16 +51,18 @@ constexpr uint8_t LIPO_CURVE_COUNT = sizeof(LIPO_CURVE) / sizeof(LIPO_CURVE[0]);
  *    voltage up within a second or two, and unplugging drops it back under
  *    load; both are far larger than ADC noise, which is why this is the signal
  *    that makes the icon respond to a cable within ~2s.
- * 2. A voltage no resting cell reaches. A disconnected pack settles to about
- *    4.15V within minutes of coming off charge, so anything held above
- *    V_CHARGER_HELD is a charger holding it there.
+ * 2. A voltage no resting cell reaches. A pack off the cable was measured at
+ *    4.066V, while the charger holds the rail up to 4.224-4.238V, so anything
+ *    above V_CHARGER_HELD is a charger holding it there. The old 4.24f sat
+ *    above the measured maximum and so never fired at all.
  * 3. The slow trend, for everything in between. Mid-discharge a LiPo sits on a
  *    plateau where 40% of the capacity spans 20mV, so the window has to be
  *    long enough that real movement clears the noise -- and when the window is
  *    genuinely flat the previous verdict stands rather than flapping.
  */
 constexpr float CHARGE_STEP_V = 0.060f;        // plug/unplug, sample to sample
-constexpr float V_CHARGER_HELD = 4.24f;        // above any resting cell
+constexpr float V_CHARGER_HELD = 4.21f;        // above a resting cell, below
+                                               // the 4.238V measured on charge
 constexpr float CHARGE_FULL_V = 4.13f;         // charged, once charging is known
 constexpr uint32_t CHARGE_WINDOW_MS = 45000;   // slow-trend window
 constexpr float CHARGE_TREND_V = 0.012f;       // movement that clears ADC noise
@@ -82,8 +107,8 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
 /* Called only on a fresh sample, so "the previous sample" is BATTERY_SAMPLE_MS
  * ago regardless of how often the render path asked for telemetry. */
 void Board::updateChargeState(float volts, uint32_t nowMs) {
-    if (volts < V_IMPLAUSIBLE || volts > V_NO_BATTERY) {
-        // No pack, or USB with nothing to charge: there is no trend to read.
+    if (volts < V_IMPLAUSIBLE || volts > V_SENSOR_MAX) {
+        // Sensor out of range: there is no trend worth reading.
         chargeState_ = ChargingState::UNKNOWN;
         chargeTracking_ = false;
         return;
@@ -102,10 +127,12 @@ void Board::updateChargeState(float volts, uint32_t nowMs) {
     chargeLastV_ = volts;
     chargeSmoothV_ += (volts - chargeSmoothV_) * CHARGE_SMOOTH_ALPHA;
 
-    if (step >= CHARGE_STEP_V || volts >= V_CHARGER_HELD) {
-        chargeState_ = ChargingState::CHARGING;
-    } else if (step <= -CHARGE_STEP_V) {
+    if (step <= -CHARGE_STEP_V) {
+        /* Tested before the held-high level on purpose: a cell that is still
+         * above V_CHARGER_HELD while falling is coming down, not charging. */
         chargeState_ = ChargingState::DISCHARGING;
+    } else if (step >= CHARGE_STEP_V || volts >= V_CHARGER_HELD) {
+        chargeState_ = ChargingState::CHARGING;
     } else if (nowMs - chargeRefMs_ < CHARGE_WINDOW_MS) {
         return;   // window still open: no new evidence, keep the last verdict
     } else {
@@ -120,8 +147,12 @@ void Board::updateChargeState(float volts, uint32_t nowMs) {
              * off. A pack resting at the same voltage off the cable reads the
              * same, which is why this is only reachable from CHARGING. */
             chargeState_ = ChargingState::FULL;
-        } else if (chargeState_ == ChargingState::UNKNOWN) {
-            // Flat, low, and nothing has said charger: it is running on cell.
+        } else if (chargeState_ == ChargingState::UNKNOWN &&
+                   chargeSmoothV_ < CHARGE_FULL_V) {
+            /* Flat, low, and nothing has said charger: it is running on cell.
+             * The level test is what makes this "low" -- without it a board
+             * booted on USB and sitting flat at float voltage fell through
+             * here and reported DISCHARGING after CHARGE_WINDOW_MS. */
             chargeState_ = ChargingState::DISCHARGING;
         }
     }
@@ -136,13 +167,11 @@ float Board::getBatteryVoltage() {
 
 Board::PowerState Board::getPowerSource() {
     const float vBat = readBatteryTelemetry().batteryVoltage;
-    if (vBat > V_NO_BATTERY) {
-        return PowerState::EXTERNAL_POWER;   // running with no pack attached
-    }
-    if (vBat >= V_IMPLAUSIBLE) {
-        /* With a pack fitted the cell voltage is all there is to go on, and it
-         * stays under V_NO_BATTERY whether the cable is in or not -- so the
-         * charger verdict is what distinguishes the two. */
+    if (vBat >= V_IMPLAUSIBLE && vBat <= V_SENSOR_MAX) {
+        /* The cell voltage is all there is to go on, and it sits in the same
+         * range whether the cable is in, out, or there is no pack at all -- so
+         * the charge verdict is the only thing that tells them apart. There is
+         * deliberately no "no pack" answer here; see V_SENSOR_MAX above. */
         if (chargeState_ == ChargingState::CHARGING ||
             chargeState_ == ChargingState::FULL) {
             return PowerState::EXTERNAL_POWER;
@@ -152,15 +181,10 @@ Board::PowerState Board::getPowerSource() {
     return PowerState::UNKNOWN;
 }
 
-bool Board::isBatteryPresent() {
-    const float vBat = readBatteryTelemetry().batteryVoltage;
-    return vBat >= V_IMPLAUSIBLE && vBat <= V_NO_BATTERY;
-}
-
 int8_t Board::getBatteryPercent() {
     const float vBat = readBatteryTelemetry().batteryVoltage;
-    if (vBat < V_IMPLAUSIBLE || vBat > V_NO_BATTERY) {
-        return -1;
+    if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
+        return -1;   // sensor fault -- NOT "no pack", which is undetectable
     }
     if (vBat >= LIPO_CURVE[0].volts) {
         return 100;

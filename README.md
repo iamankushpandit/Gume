@@ -18,7 +18,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,347,169 / 3,145,728 bytes (**74.6%**) |
+| Flash | 2,347,577 / 3,145,728 bytes (**74.6%**) |
 | RAM | 72,524 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -461,7 +461,7 @@ charger's CHRG pin never reaches a GPIO, so the cell voltage on GPIO34 is the
 only thing the firmware can see. Three signals are read from it: a step between
 consecutive samples (plugging the cable in lifts the terminal voltage well
 beyond ADC noise within a couple of seconds, and unplugging drops it back under
-load), a voltage held above 4.24V that no resting cell reaches, and — for
+load), a voltage held above 4.21V that no resting cell reaches, and — for
 everything in between — the direction the voltage has moved over the last 45
 seconds. Mid-discharge a LiPo sits on a plateau where 40% of the capacity spans
 about 20mV, which is why the slow window has to be that long, and why a window
@@ -481,8 +481,17 @@ of the shell, so the analogue cue is there too: green above 40%, amber down to
 16%, and at or below **15%** the shell and the digits both go red. That red
 outline is what makes *charge me* visible across a room, which is why nothing
 else colours the shell. A lightning bolt appears inside the icon whenever the
-charger is attached, and a bolt with no digits means the console is running on
-USB with no pack fitted.
+charger is attached.
+
+**This board cannot tell whether a battery is fitted, and the gauge does not
+claim to.** The charger holds its BAT output at float voltage whether or not a
+cell is attached, so running on USB with no pack reads *between* the two
+states a real pack produces — measured here as 4.159 V with no pack, against
+4.066 V on a pack alone and 4.224 V on a pack plus USB. No threshold can
+separate them in either direction. With no pack fitted the gauge therefore
+reads **high, close to full**, rather than showing an empty or absent battery.
+The digits blank only when the ADC reads outside a plausible range, which means
+a sensor fault, not a missing pack.
 
 The icon is deliberately **not** a fixed size: it is 22px wide showing `72`
 and 36px showing `100` on the charger, and the status rows around it are laid

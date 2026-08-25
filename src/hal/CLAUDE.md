@@ -67,23 +67,27 @@ Time/date formatting and sync-state helpers over the ESP32 RTC.
 
 `PIN_BAT_ADC` is GPIO34 = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
 
-`readBatteryTelemetry()` caches one sample set for `BATTERY_SAMPLE_MS` (2s) and every other accessor — `getBatteryVoltage()`, `getPowerSource()`, `isBatteryPresent()`, `getBatteryPercent()` — reads through it. **Keep it that way.** Before this, each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. That is most of a frame, and it is what made scrolling feel sluggish.
+`readBatteryTelemetry()` caches one sample set for `BATTERY_SAMPLE_MS` (2s) and every other accessor — `getBatteryVoltage()`, `getPowerSource()`, `getBatteryPercent()` — reads through it. **Keep it that way.** Before this, each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. That is most of a frame, and it is what made scrolling feel sluggish.
 
 Conversion goes through `esp_adc_cal`, not `raw / 4095 * 3.3`. At 11dB the ESP32's ADC is nominally 0–3.1V but only linear to ~2.45V, and its reference varies 1000–1200mV part to part; the eFuse calibration corrects both. The old comment claiming "3.3V reference with 11dB attenuation" described two mutually exclusive things.
 
 Percentage uses a piecewise LiPo discharge curve. A linear 3.2–4.2V map reads roughly 20 points high through the middle, because a cell sits near 3.7V for most of its life.
 
-`isBatteryPresent()` is deliberately **not** `getPowerSource() == BATTERY` — the old version returned false whenever the device was on external power, which reads as "no battery fitted" and is not the question being asked.
+**There is no `isBatteryPresent()`, and there must not be one.** It used to exist and was a constant `true`. Measured on hardware 2026-08-24 with `batdiag` (8s averaged): pack + USB **4.224 V**, USB with **no pack 4.159 V**, pack alone **4.066 V**. The no-pack case sits *between* the other two, because the TP4054 holds BAT at float voltage with or without a cell — so no threshold separates them in either direction. This is measured, not inferred; do not reintroduce the question in a new form or retune a constant to answer it.
 
-Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k) and the no-battery behaviour of the pin.
+`V_SENSOR_MAX` (4.50V) is the plausibility ceiling that replaced `V_NO_BATTERY` (4.35V). It means **the ADC is faulty**, not "no pack": 4.35V was above anything this board produces, so it never fired, which left `getBatteryPercent()` unable to return -1 and the blank-digit rendering in `Ui::drawBatteryBadge` unreachable. With no pack the gauge reads *high*, near full.
+
+Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k).
 
 ## Charge detection
 
-The board exposes no charge-status line — the charger's CHRG pin is not wired to the ESP32 — so `getChargingState()` **infers** the answer from the cell voltage alone. `updateChargeState()` runs once per *fresh* telemetry sample (so at `BATTERY_SAMPLE_MS`, not per frame, however often a render path asks) and reads three signals: a step of `CHARGE_STEP_V` between consecutive samples, which is what makes the icon respond to a cable within ~2s; a voltage held above `V_CHARGER_HELD` (4.24V), which no resting cell reaches; and the trend of a low-passed average over `CHARGE_WINDOW_MS` (45s) for everything in between.
+The board exposes no charge-status line — the charger's CHRG pin is not wired to the ESP32 — so `getChargingState()` **infers** the answer from the cell voltage alone. `updateChargeState()` runs once per *fresh* telemetry sample (so at `BATTERY_SAMPLE_MS`, not per frame, however often a render path asks) and reads three signals: a step of `CHARGE_STEP_V` between consecutive samples, which is what makes the icon respond to a cable within ~2s; a voltage held above `V_CHARGER_HELD` (4.21V), which no resting cell reaches; and the trend of a low-passed average over `CHARGE_WINDOW_MS` (45s) for everything in between.
 
 Two things are deliberate and worth not undoing. **A flat window keeps the previous verdict** rather than resetting to unknown — mid-discharge a LiPo plateau spans 20mV across 40% of the capacity, so "no movement" is not evidence of anything. And **`FULL` is only reachable from `CHARGING`**, because a rested full pack and a finished charge are indistinguishable from one sample; claiming "charged" for a battery nobody watched charge is a lie the user would act on.
 
-`getPowerSource()` returns `EXTERNAL_POWER` either when there is no pack at all (above `V_NO_BATTERY`) or when the charge verdict says the cable is in. With a pack fitted the voltage stays under `V_NO_BATTERY` whether the cable is in or not, so the verdict is the only thing that tells the two apart.
+`getPowerSource()` returns `EXTERNAL_POWER` when the charge verdict says the cable is in, and that is the *only* way it can be reached. The voltage sits in the same range whether the cable is in, out, or there is no pack at all, so the verdict is the only thing that distinguishes them. The old "no pack at all (above `V_NO_BATTERY`)" branch was dead code and has been removed.
+
+Three fixes proven on hardware and now in both `BoardPower.cpp` and `battery_diag.cpp` — **change one, change both**: `V_CHARGER_HELD` is 4.21V (4.24V sat above the 4.238V maximum the board actually produces, so it never fired); the negative-step test runs **before** the held-high level, so a cell that is falling while still above the trip is never called charging; and the flat-window fallback is guarded by `chargeSmoothV_ < CHARGE_FULL_V`, because it claimed to mean "flat and low" while never testing for low — a board booted on USB reported `DISCHARGING` after 45s.
 
 `isBatteryLow()` / `isBatteryCritical()` (≤15% / ≤5%) are both false while charging, so plugging in silences the warning at once instead of waiting for the reading to climb.
 

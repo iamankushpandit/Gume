@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,347,169 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
+Flash 2,347,577 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Added
 
@@ -104,6 +104,31 @@ Flash 2,347,169 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 
 ### Fixed
 
+- **The battery gauge claimed it could tell whether a pack was fitted. It
+  cannot.** Measured on hardware with the `batdiag` wizard, 8s averaged: pack
+  plus USB 4.224 V, USB with no pack 4.159 V, pack alone 4.066 V. The no-pack
+  case sits *between* the other two, because the TP4054 holds its BAT output at
+  float voltage whether or not a cell is attached, so no threshold separates
+  them in either direction. `V_NO_BATTERY = 4.35 V` was above anything this
+  board produces and never fired: `isBatteryPresent()` was a constant `true`,
+  `getPowerSource()`'s no-pack branch was dead, `getBatteryPercent()` could not
+  return -1, and the blank-digit rendering in the badge was unreachable.
+  `isBatteryPresent()` has been removed rather than left as a function that
+  structurally cannot be right; the ceiling is now `V_SENSOR_MAX = 4.50 V` and
+  means *the ADC is faulty*, not *no pack*. With no pack fitted the gauge reads
+  high, near full -- the README and System Info now say so instead of promising
+  a state the hardware cannot reach.
+- **A console booted on USB reported "on battery" after 45 seconds.** Three
+  charge-inference faults, all proven on hardware and now shared by
+  `BoardPower.cpp` and `battery_diag.cpp`: `V_CHARGER_HELD` was 4.24 V, above
+  the 4.238 V maximum the board actually produces, so the held-high signal
+  never fired; the flat-window fallback described itself as "flat and low" but
+  never tested for low, so a full pack sitting at float voltage fell into it;
+  and the held-high level was tested before the negative step, so a falling
+  cell that was still above the trip could be called charging. The step test
+  now runs first, the level is 4.21 V, and the fallback is guarded by
+  `chargeSmoothV_ < CHARGE_FULL_V`. Plug/unplug detection was never at fault
+  and is unchanged.
 - **Every greyed-out Settings control was still live.** Both tabs have drawn
   their controls greyed for a non-admin for some time, but nothing checked who
   was tapping: a child could change the theme, the layout, the brightness, the

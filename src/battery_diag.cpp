@@ -82,11 +82,26 @@ constexpr uint32_t CHARGE_WINDOW_MS = 45000;
 constexpr float CHARGE_TREND_V = 0.012f;
 constexpr float CHARGE_SMOOTH_ALPHA = 0.30f;
 
-/* UNVERIFIED. These two decide "is a pack fitted", and page NOBAT exists
- * because the reasoning behind V_NO_BATTERY looks wrong: with no cell the
- * TP4054 BAT pin should float near its 4.2V float voltage, which is BELOW
- * this threshold, so the no-battery case may never be detected at all. */
+/* VERIFIED 2026-08-24 on hardware, and the answer was no. Page NOBAT existed
+ * because the reasoning behind V_NO_BATTERY looked wrong; it is worse than
+ * wrong. Measured, 8s averaged:
+ *
+ *     pack + USB      4.224 V
+ *     USB, NO pack    4.159 V   <-- BETWEEN the other two
+ *     pack only       4.066 V
+ *
+ * The TP4054 holds BAT at float voltage with or without a cell, so the
+ * no-pack case does not merely sit below 4.35V -- it sits inside the range a
+ * real pack occupies. No threshold separates them in either direction, so
+ * presence is not detectable on this board at all and BoardPower.cpp no
+ * longer pretends otherwise.
+ *
+ * V_NO_BATTERY is kept here only as the historical shipping value that page
+ * NOBAT measures against; nothing infers presence from it any more.
+ * V_SENSOR_MAX is the plausibility ceiling the firmware actually uses, and
+ * means "the ADC is faulty", not "no pack". */
 constexpr float V_NO_BATTERY = 4.35f;
+constexpr float V_SENSOR_MAX = 4.50f;
 constexpr float V_IMPLAUSIBLE = 3.00f;
 }   // namespace cfg
 
@@ -261,7 +276,7 @@ void sampleBurst() {
 }
 
 int8_t socFromCurve(float v) {
-    if (v < cfg::V_IMPLAUSIBLE || v > cfg::V_NO_BATTERY) return -1;
+    if (v < cfg::V_IMPLAUSIBLE || v > cfg::V_SENSOR_MAX) return -1;
     if (v >= LIPO_CURVE[0].volts) return 100;
     for (uint8_t i = 1; i < LIPO_COUNT; ++i) {
         const CurvePoint& hi = LIPO_CURVE[i - 1];
@@ -283,7 +298,7 @@ uint8_t socLinear(float v) {
 /* The production inference, run on the production cadence so its timing is
  * observable. Kept structurally identical to Board::updateChargeState(). */
 void updateChargeState(float volts, uint32_t nowMs) {
-    if (volts < cfg::V_IMPLAUSIBLE || volts > cfg::V_NO_BATTERY) {
+    if (volts < cfg::V_IMPLAUSIBLE || volts > cfg::V_SENSOR_MAX) {
         if (chargeState != CS_UNKNOWN) logEvent("state -> UNKNOWN (%.3fV)", volts);
         chargeState = CS_UNKNOWN;
         chargeTracking = false;

@@ -98,7 +98,6 @@ public:
     Board::BatteryTelemetry batteryTelemetry() { return board_.readBatteryTelemetry(); }
     float batteryVoltage() { return board_.getBatteryVoltage(); }
     int8_t batteryPercent() { return board_.getBatteryPercent(); }
-    bool batteryPresent() { return board_.isBatteryPresent(); }
     Board::ChargingState chargingState() { return board_.getChargingState(); }
     bool batteryLow() { return board_.isBatteryLow(); }
     bool batteryCritical() { return board_.isBatteryCritical(); }
