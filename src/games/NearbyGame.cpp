@@ -17,14 +17,24 @@ const char* proximityText(int8_t rssi) {
     return "Far";
 }
 
-String scoreText(uint32_t value, const char* unit) {
-    String out(value);
+/* Writes "1234" or "1234 pts" into a caller-owned buffer.
+ *
+ * This returned a String until the ratchet caught it. Two peers on screen is
+ * four of these per rebuild, each one a heap block made and freed while the
+ * scanner keeps the list churning -- exactly the fragmentation the memory rule
+ * in CLAUDE.md is about, and exactly what RowList itself was rewritten to
+ * avoid. The buffer belongs to the caller because RowList copies out of it
+ * immediately. */
+void scoreText(char* out, size_t cap, uint32_t value, const char* unit) {
     if (unit != nullptr && unit[0] != '\0') {
-        out += ' ';
-        out += unit;
+        snprintf(out, cap, "%lu %s", static_cast<unsigned long>(value), unit);
+    } else {
+        snprintf(out, cap, "%lu", static_cast<unsigned long>(value));
     }
-    return out;
 }
+
+/* Longest realistic value is a 10-digit score, a space and a short unit. */
+constexpr size_t SCORE_TEXT_CAP = 24;
 }
 
 const char* NearbyGame::title() const {
@@ -121,11 +131,17 @@ void NearbyGame::rebuildRows(GameHost& host) {
             continue;
         }
         rows_.addRow("Playing", peer.gameTitle);
-        rows_.addRow("Their best", scoreText(peer.theirScore, peer.unit),
-                     peer.beatsYou ? Ui::warning() : 0);
+
+        char theirs[SCORE_TEXT_CAP];
+        scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
+        rows_.addRow("Their best", theirs, peer.beatsYou ? Ui::warning() : 0);
+
+        char yours[SCORE_TEXT_CAP];
+        if (peer.haveOwnScore) {
+            scoreText(yours, sizeof(yours), peer.yourScore, peer.unit);
+        }
         rows_.addRow("Your best",
-                     peer.haveOwnScore ? scoreText(peer.yourScore, peer.unit)
-                                       : String("Not played yet"),
+                     peer.haveOwnScore ? yours : "Not played yet",
                      peer.haveOwnScore ? 0 : Ui::muted());
         if (peer.beatsYou) {
             rows_.addRow("", "They are ahead of you", Ui::warning());

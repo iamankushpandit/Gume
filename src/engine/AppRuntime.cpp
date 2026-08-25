@@ -114,7 +114,7 @@ void KidsPlatformApp::begin() {
 
     /* First-boot: automatically create default Admin profile with PIN 0000. */
     if (board_.kidCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
-        uint8_t adminIdx = board_.addKid(String("Admin"));
+        uint8_t adminIdx = board_.addKid("Admin");
         board_.setAdminProfileIndex(adminIdx);
         board_.setAdminPin(0);
         Serial.println("[boot] Created default Admin profile with PIN 0000");

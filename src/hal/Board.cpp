@@ -73,11 +73,22 @@ void Board::setProfileName(uint8_t index, const String& name) {
     prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
 }
 
-uint8_t Board::addKid(const String& name) {
+uint8_t Board::addKid(const char* name) {
     const uint8_t n = kidCount();
     if (n >= MAX_KIDS) return 0xFF;
     prefs_.putUChar("kids", static_cast<uint8_t>(n + 1));
-    setProfileName(n, name.length() ? name : String("Player ") + static_cast<int>(n + 1));
+
+    /* Truncation is the same PROFILE_NAME_MAX the String path applied via
+     * substring(); doing it in a stack buffer just means no temporary. */
+    char stored[PROFILE_NAME_MAX + 1];
+    if (name == nullptr || name[0] == '\0') {
+        snprintf(stored, sizeof(stored), "Player %u", static_cast<unsigned>(n + 1));
+    } else {
+        snprintf(stored, sizeof(stored), "%s", name);
+    }
+    char key[10];
+    snprintf(key, sizeof(key), "pname%u", n);
+    prefs_.putString(key, stored);
     return n;
 }
 
