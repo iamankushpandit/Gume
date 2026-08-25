@@ -162,8 +162,15 @@ public:
 
     /** How many child profiles exist (0..MAX_KIDS). Guest is always extra. */
     uint8_t kidCount();
-    /** Append a child. Returns its index, or 0xFF when full. */
-    uint8_t addKid(const String& name);
+    /* Append a child. Returns its index, or 0xFF when full.
+     *
+     * The char* form is the real one: it builds the stored name in a stack
+     * buffer, so a caller with a literal -- boot's default Admin profile --
+     * allocates nothing, and the empty-name fallback no longer builds
+     * `String("Player ") + n` to throw it away. The String overload is kept
+     * for ProfileGame, whose draft name genuinely is a String. */
+    uint8_t addKid(const char* name);
+    uint8_t addKid(const String& name) { return addKid(name.c_str()); }
     /** Delete a child, shifting later names and persisted profile data down. */
     void removeKid(uint8_t index);
     bool isGuest() { return activeProfile() == GUEST_INDEX; }

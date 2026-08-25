@@ -69,11 +69,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/GreWordTable.cpp": {
-      "String": 0,
-      "delay": 0,
-      "heap": 1
-    },
     "src/games/MathGame.cpp": {
       "String": 8,
       "delay": 0,
@@ -145,7 +140,7 @@
       "heap": 0
     },
     "src/games/SystemInfoGame.cpp": {
-      "String": 45,
+      "String": 43,
       "delay": 0,
       "heap": 0
     },
@@ -190,7 +185,7 @@
       "heap": 0
     },
     "src/hal/Board.cpp": {
-      "String": 7,
+      "String": 5,
       "delay": 1,
       "heap": 0
     },

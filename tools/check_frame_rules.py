@@ -52,6 +52,14 @@ RULES = [
 # count and make the ratchet meaningless.
 COMMENT = re.compile(r"^\s*(?://|\*|/\*)")
 
+# Text inside a string literal is data, not code. Without this the `new`
+# arm of the heap rule fires on ordinary UI copy -- renderPinPad(host, "Enter
+# new PIN") was reported as two raw allocations in SettingsGame.cpp, which is
+# not just noise: a rule that cries wolf on a button label is a rule people
+# start editing the baseline to silence. Blanking literals first also stops a
+# "http://..." URL being mistaken for a trailing // comment.
+STRING_LITERAL = re.compile(r'"(?:[^"\\]|\\.)*"')
+
 
 def source_files():
     for parts in SCAN_DIRS:
@@ -71,7 +79,7 @@ def count_violations(path):
         for lineno, line in enumerate(handle, 1):
             if COMMENT.match(line):
                 continue
-            code = line.split("//", 1)[0]
+            code = STRING_LITERAL.sub('""', line).split("//", 1)[0]
             for label, pattern in RULES:
                 if pattern.search(code):
                     counts[label] += 1

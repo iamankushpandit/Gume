@@ -11,7 +11,40 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
+Flash 2,346,841 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
+
+### Fixed
+
+- **`verify` was red on `dev` for every pull request**, whatever the request
+  contained. `tools/check_frame_rules.py` is a ratchet over the memory and
+  frame-budget rules, and its baseline had fallen behind four files, so the
+  job failed before it could say anything about the change under review. A
+  check that is always red teaches people to ignore it, so the counts are
+  brought back under the baseline rather than the baseline raised to meet
+  them:
+  - `SettingsGame.cpp` was never in debt at all -- the `new` arm of the heap
+    rule was matching *inside a string literal*, so `renderPinPad(host, "Enter
+    new PIN")` read as two raw allocations. The checker now blanks string
+    literals before matching, which also stops a `"http://..."` URL being
+    mistaken for a trailing `//` comment. `GreWordTable.cpp` was a false
+    positive of the same kind.
+  - `Board::addKid()` grew a `const char*` form that builds the stored name in
+    a stack buffer, so boot's default Admin profile allocates nothing and the
+    empty-name fallback no longer builds `String("Player ") + n` only to throw
+    it away. The `String` overload stays for `ProfileGame`, whose draft name
+    genuinely is one.
+  - `NearbyGame`'s `scoreText()` returned a `String` per row -- four heap
+    blocks per rebuild with two peers on screen, churning while the scanner
+    keeps the list moving. It writes into a caller-owned buffer now, which is
+    what `RowList` itself was rewritten to do.
+  - `SystemInfoGame`'s loop-load, worst-work, worst-frame, loops, boot-count,
+    fragmentation, RSSI, channel, brightness, saver and stall rows build with
+    `snprintf` into a reused stack buffer. These are the rows somebody watches
+    *while* chasing a slow frame, so they were the worst possible place to be
+    churning the heap.
+
+  The ratchet has been lowered to the new counts, so none of it can climb
+  back. Flash is 884 bytes smaller as a side effect.
 
 ### Added
 
