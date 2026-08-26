@@ -8,6 +8,34 @@ release, and About's **This build** page names the branch and commit.
 
 Build figures are those of 5.0.0 until something changes them.
 
+### Added
+
+- **Releasing is a tag now.** `.github/workflows/release.yml` builds every
+  environment `platformio.ini` declares, packs them with the new
+  `tools/pack_release.py`, and publishes a GitHub release carrying all four
+  flash parts plus a single `-merged.bin` per environment, `SHA256SUMS.txt`
+  and `FLASHING.txt`. 5.0.0 was assembled by hand -- four builds, sixteen
+  copies, four `esptool` invocations and notes typed out beside a changelog
+  that already said the same thing.
+
+  Two things are derived rather than restated, both because the hand-kept
+  version of each has already failed here. The environment list comes out of
+  `platformio.ini`, since `pages.yml` hard-coded its own and every Pages
+  deploy died silently for two pushes. The flash mode, frequency and size are
+  `keep`, so `esptool` reads them from the bootloader the build just produced
+  rather than from a fourth copy of the board's description -- verified
+  byte-identical to the explicit flags.
+
+  The packing is a script rather than workflow YAML so it can be run against a
+  local build: `python tools/pack_release.py --out dist`. YAML is only ever
+  executed on a tag, which is the worst moment to learn it was wrong.
+
+  The workflow refuses to publish if the tag disagrees with `BRAINO_VERSION`,
+  or if the version is a `-SNAPSHOT`. `dev` carries a snapshot between
+  releases by design, so without that guard the first mistaken tag would
+  publish a "release" the firmware itself describes as unreleased -- and a
+  published release cannot be quietly corrected.
+
 ## 5.0.0 — 2026-08-26
 
 An admin profile behind a four-digit PIN, so device settings and one profile
