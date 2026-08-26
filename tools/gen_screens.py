@@ -120,13 +120,39 @@ def wifi_badge(d, cx, cy, bars=3):
             d.point((cx + dx, dot_y + dy), fill=col)
 
 
+def lock_icon(d, r, color=TEXT, bg=SURFACE):
+    """Mirrors Ui::drawLockIcon: a hoop over a body, keyhole punched back out."""
+    x, y, w, h = r
+    cx = x + w // 2
+    body_w = w - w // 4
+    body_h = max(7, h * 5 // 11)
+    body_y = y + h - body_h - h // 10
+    shackle_w = max(6, body_w - body_w // 3)
+    shackle_h = body_y - y + body_h // 2
+    stroke = max(1, w // 12)
+    for i in range(stroke):
+        d.rounded_rectangle([cx - shackle_w // 2 + i, y + i,
+                             cx + shackle_w // 2 - i, y + shackle_h - i],
+                            max(2, shackle_w // 2 - i), outline=color)
+    d.rounded_rectangle([cx - body_w // 2, body_y, cx + body_w // 2, body_y + body_h],
+                        max(2, body_w // 6), fill=color)
+    key_r = max(1, body_w // 8)
+    key_cy = body_y + body_h // 2 - key_r // 2
+    d.ellipse([cx - key_r, key_cy - key_r, cx + key_r, key_cy + key_r], fill=bg)
+    d.rectangle([cx - max(1, key_r // 2), key_cy,
+                 cx + max(1, key_r // 2) - 1, key_cy + body_h // 3], fill=bg)
+
+
 def topbar(d, title, synced=True, bars=3):
     d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 29), (W, 29)], fill=shade(SURFACE, 60))
-    d.rounded_rectangle([6, 5, 38, 24], 3, outline=MUTED)
-    d.text((11, 9), "home", font=F1, fill=MUTED)
-    d.text((48, 8), title, font=F2, fill=TEXT)
+    # Home narrowed from 42px to 32px to make room for Lock beside it, and the
+    # title starts at 62 instead of 48. See LauncherLayout.
+    d.rounded_rectangle([2, 5, 30, 24], 3, outline=MUTED)
+    d.text((5, 9), "home", font=F1, fill=MUTED)
+    lock_icon(d, (40, 5, 18, 20))
+    d.text((62, 8), title, font=F2, fill=TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
     batt_right = W - 40
@@ -474,6 +500,7 @@ def launcher_wide():
     battery_badge(d, batt_right - batt_w // 2, 34)
     d.line([(W - 116, 8), (W - 116, 40)], fill=OUTLINE)
     d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
+    lock_icon(d, (92, 8, 24, 24))
     tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
              ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
              ("Trace", "A-Z & 0-9"), ("Calendar", "days & months")]
@@ -509,6 +536,7 @@ def launcher_tall():
     battery_badge(d, batt_left + batt_w // 2, 60)
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
+    lock_icon(d, (170, 48, 24, 24))
     tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
              ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]
     for slot, (title, sub, fill) in enumerate(tiles):
@@ -613,9 +641,7 @@ def wakelock():
     bx, by = (W - bw) // 2, (H - bh) // 2 + 12
     text_max = W - 16
     icon_cy = by - 74
-    d.ellipse([W // 2 - 9, icon_cy - 9, W // 2 + 9, icon_cy + 9], outline=MUTED, width=2)
-    d.rectangle([W // 2 - 10, icon_cy, W // 2 + 10, icon_cy + 12], fill=BG)
-    d.rounded_rectangle([W // 2 - 12, icon_cy, W // 2 + 11, icon_cy + 17], 3, fill=MUTED)
+    lock_icon(d, (W // 2 - 17, icon_cy - 17, 34, 34), MUTED, BG)
     centered_fitted(d, "Locked", W / 2, by - 48, text_max, F4, TEXT)
     centered_fitted(d, "Press and hold the button", W / 2, by - 22, text_max, F1, MUTED)
     button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)

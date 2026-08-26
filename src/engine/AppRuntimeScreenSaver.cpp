@@ -33,7 +33,10 @@ void BrainoApp::enterSleep() {
  * Board::displayWake() blocks ~120ms for the ILI9341 guard time, which is
  * otherwise indistinguishable from a stalled loop. */
 void BrainoApp::wakeFromSleep() {
-    const bool lock = board_.wakeLockEnabled();
+    /* lockOnWake_ is the Lock button asking for this one: an owner who has
+     * switched the wake lock off still gets the lock screen when they press
+     * Lock themselves, because that press is the request. */
+    const bool lock = board_.wakeLockEnabled() || lockOnWake_;
     {
         Watchdog::Pause guard;
         board_.displayWake();
@@ -60,7 +63,10 @@ void BrainoApp::wakeFromSleep() {
 void BrainoApp::exitScreenSaver() {
     board_.setRgbColor(0, 0, 0);
 
-    if (board_.wakeLockEnabled()) {
+    /* Same gate as the wake path. It matters under SaverOnly: a deliberate
+     * lock that nobody unlocks hands over to the saver rather than blanking,
+     * and coming back out of that must still ask for the hold. */
+    if (board_.wakeLockEnabled() || lockOnWake_) {
         enterLock();
         return;
     }
@@ -72,6 +78,9 @@ void BrainoApp::exitScreenSaver() {
 /* One place that decides what you come back to. It was two, and they agreed
  * only by accident; the lock screen would have made it three. */
 void BrainoApp::resumeUnderlyingScreen() {
+    /* One place decides what you come back to, so it is also the one place
+     * that can say the deliberate lock is over. */
+    lockOnWake_ = false;
     if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
         applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());

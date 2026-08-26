@@ -39,6 +39,17 @@ public:
     void openWifi() override;
     void openProfiles() override;
 
+    /* Lock now: blank the panel immediately, and make the next wake land on
+     * the wake lock instead of on the screen underneath.
+     *
+     * Same guard, reached deliberately rather than by timing out. It is for a
+     * console being carried, handed over or dropped in a bag with a game still
+     * open -- so it sleeps through the ordinary enterSleep(), leaves
+     * activeGame_ alone, and a completed hold resumes exactly what was up.
+     * Called from the runtime's own touch routing, above the active screen, so
+     * the tap that locks is never also delivered to what was under it. */
+    void lockAndSleepNow();
+
     static constexpr uint32_t FRAME_BUDGET_MS = 20;
     static constexpr uint32_t SLEEP_POLL_MS = 100;
 
@@ -88,6 +99,8 @@ private:
      * direct-exit paths and the unlock use, so there is one place that decides
      * what you come back to and in which orientation. */
     void enterLock();
+    /** Where the Lock button is on whatever screen is up right now. */
+    Rect activeLockRect();
     void updateLock(const TouchPoint& touch, uint32_t nowMs);
     void renderLock();
     void resumeUnderlyingScreen();
@@ -153,6 +166,10 @@ private:
     uint32_t lockHoldStartMs_ = 0;
     uint32_t lockContactMs_ = 0;
     uint32_t lockActivityMs_ = 0;
+    /* Set by the Lock button, cleared by resumeUnderlyingScreen(). It is what
+     * makes an explicit lock land on the lock screen even for an owner who has
+     * switched the wake lock off: they asked for this one. */
+    bool lockOnWake_ = false;
     bool lockHolding_ = false;
     bool lockFullPaint_ = true;
     int16_t lockPaintedPct_ = -1;

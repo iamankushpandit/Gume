@@ -13,6 +13,30 @@ Rect topBarSettingsRect(int16_t screenW) {
     return Rect{static_cast<int16_t>(screenW - 34), 3, 26, 24};
 }
 
+Rect topBarHomeRect() {
+    return Rect{0, 0, 32, TOP_BAR_HEIGHT};
+}
+
+Rect topBarLockRect() {
+    /* Starts at 40 so that home's 8px of touch slop -- which reaches exactly
+     * 40 -- stops where the padlock starts drawing. The two targets overlap in
+     * slop only, never in pixels either of them paints. */
+    return Rect{40, 5, 18, 20};
+}
+
+Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
+    if (mode == Board::LayoutMode::Vertical) {
+        /* On the badge row, left of the gear. The badges before it end near
+         * x=155 in the widest state ("100" while charging, plus the beacon
+         * rune), and the gear starts at screenW-32. */
+        return Rect{static_cast<int16_t>(screenW - 70), 48, 24, 24};
+    }
+    /* Wide: the air between "Braino!" -- which ends near x=80 at font 4 -- and
+     * the profile name at x=124. The badge row below is untouched; it is
+     * packed to the pixel and had nothing to give. */
+    return Rect{92, 8, 24, 24};
+}
+
 int16_t headerHeight(Board::LayoutMode mode) {
     return mode == Board::LayoutMode::Vertical ? LAUNCHER_HEADER_H_TALL
                                                : LAUNCHER_HEADER_H_WIDE;

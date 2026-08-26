@@ -40,6 +40,13 @@ uint16_t warning();
 void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
+
+/* Padlock, drawn to fill `r`. `bg` is whatever is behind it: the keyhole is
+ * punched back out in that colour, which is what makes the glyph read as a
+ * lock at 18px rather than as a filled blob. Used by the top bar, by the
+ * launcher header and at four times the size by the lock screen, so it takes
+ * its proportions from the rect rather than from constants. */
+void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg);
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
 /* Small badge shown beside the clock: a tick when the time came from NTP, a

@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include "hal/Watchdog.h"
+#include "ui/LauncherLayout.h"
 
 namespace {
 void drawCenteredFitted(Ui::Renderer& tft, const char* text, int16_t cx,
@@ -36,6 +37,28 @@ int16_t lockFooterY(Ui::Renderer& tft) {
  * screen's own rotation on the way out. Rotating twice for a screen that is
  * up for a second would cost two full repaints and a visible flash.
  */
+
+Rect BrainoApp::activeLockRect() {
+    /* The launcher draws no top bar, so it carries the button on its own
+     * header instead. Both rects come from LauncherLayout, which is also where
+     * the drawing reads them from. */
+    if (activeGame_ == &launcher_) {
+        return LauncherLayout::lockRect(board_.layoutMode(), renderer_.width());
+    }
+    return LauncherLayout::topBarLockRect();
+}
+
+/* The deliberate way in. Everything else here is reached by a timeout; this is
+ * reached by a child, a parent or a bag being packed. */
+void BrainoApp::lockAndSleepNow() {
+    board_.beepOk();
+    lockOnWake_ = true;
+    /* The finger that pressed Lock is still on the panel. Without this the
+     * Asleep branch takes that same contact as the press that wakes it, and
+     * the screen lights again before it has gone dark. Cleared on release. */
+    swallowTouch_ = true;
+    enterSleep();
+}
 
 Rect BrainoApp::lockButtonRect() {
     const int16_t w = static_cast<int16_t>(renderer_.width());
@@ -139,15 +162,14 @@ void BrainoApp::renderLock() {
         lockFullPaint_ = false;
         Ui::clear(tft);
 
-        /* Padlock: a body and a shackle. There is no arc primitive, so the
-         * shackle is a ring with its lower half painted back out. */
-        const int16_t iconCy = static_cast<int16_t>(btn.y - 74);
-        tft.drawCircle(W / 2, iconCy, 9, Ui::muted());
-        tft.drawCircle(W / 2, iconCy, 8, Ui::muted());
-        tft.fillRect(static_cast<int16_t>(W / 2 - 10), iconCy,
-                     20, 12, Ui::bg());
-        tft.fillRoundRect(static_cast<int16_t>(W / 2 - 12), iconCy,
-                          24, 18, 3, Ui::muted());
+        /* The same padlock the Lock button shows, drawn large. It was a
+         * ring-and-body built inline here; there are three of them now -- top
+         * bar, launcher header and this screen -- so the glyph lives in Ui and
+         * takes its proportions from the rect it is given. */
+        constexpr int16_t ICON = 34;
+        Ui::drawLockIcon(tft, Rect{static_cast<int16_t>(W / 2 - ICON / 2),
+                                   static_cast<int16_t>(btn.y - 74 - ICON / 2),
+                                   ICON, ICON}, Ui::muted(), Ui::bg());
 
         tft.setTextDatum(TC_DATUM);
         tft.setTextColor(Ui::text(), Ui::bg());

@@ -231,6 +231,11 @@ void LauncherGame::render(GameHost& host) {
         tft.drawFastVLine(static_cast<int16_t>(lW - 116), 8, 32, Ui::outline());
     }
     Ui::drawGearIcon(tft, gearBtn, Ui::text());
+    /* The launcher draws no top bar, so it carries its own Lock button. The
+     * tap is consumed by the runtime before update() ever sees it, which is
+     * why nothing here hit-tests it. */
+    Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(),
+                     Ui::surface());
 
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t start = page_ * pageSize;

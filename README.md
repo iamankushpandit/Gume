@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,350,197 / 3,145,728 bytes (**74.7%**) |
+| Flash | 2,351,205 / 3,145,728 bytes (**74.7%**) |
 | RAM | 72,548 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -478,6 +478,20 @@ goes back to sleep on its own.
 Turn it off in **Settings → Power → Hold to unlock** if you would rather any
 touch went straight through. It is on by default, and like every device
 setting it is global and admin-writable only.
+
+#### Lock now
+
+The padlock beside **Home** — and on the launcher's own header, in both
+layouts — blanks the screen at once, without waiting for an idle timeout. It
+is the same guard, reached deliberately: for a console being carried, handed
+across a car seat, or dropped into a bag with a game still open.
+
+The next touch lands on the same **Hold to unlock** screen above, and a
+completed hold puts back the exact screen that was open. Pressing Lock
+yourself is a request, so it produces the lock screen even if **Hold to
+unlock** is switched off. Nothing is stored, no profile or score is touched,
+and the tap is consumed by the shell — whatever sat under the padlock is not
+pressed as well.
 
 ### Scores, Profiles, About and System Info
 

@@ -11,7 +11,19 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,350,197 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
+Flash 2,351,205 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
+
+### Added
+
+- **A Lock button.** A padlock beside Home on the top bar, and on the
+  launcher's own header in both layouts, blanks the panel immediately; the next
+  touch lands on the existing Hold to unlock screen and a completed hold
+  resumes exactly what was open. It reuses the wake lock rather than adding a
+  second lock state, and an explicit press produces the lock screen even for an
+  owner who has switched Hold to unlock off -- that press is the request. The
+  tap is consumed by the shell above the active screen, so nothing under the
+  padlock is pressed as well. Making room for it narrowed the top bar's Home
+  slot from 42px to 32px and moved the title's start from 48 to 62.
 
 ### Fixed
 
