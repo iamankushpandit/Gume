@@ -1386,7 +1386,24 @@ def about_radios():
     d.text((14, 176), "No name, no profile, no location.", font=F1, fill=MUTED)
     button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next")
-    d.text((W / 2 - 14, 212), "6/8", font=F2, fill=MUTED)
+    d.text((W / 2 - 14, 212), "7/9", font=F2, fill=MUTED)
+    return im
+
+
+def about_build():
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "This build", font=F2, fill=TEXT)
+    d.text((14, 70), "Which firmware is on this device.", font=F1, fill=MUTED)
+    d.text((14, 92), "Branch", font=F1, fill=TEXT)
+    d.text((14, 104), "dev", font=F2, fill=MUTED)
+    d.text((14, 130), "Commit", font=F1, fill=TEXT)
+    d.text((14, 142), "403b280", font=F2, fill=MUTED)
+    d.text((14, 168), "Built", font=F1, fill=TEXT)
+    d.text((14, 182), "Aug 26 2026 14:28", font=F1, fill=MUTED)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next", PANEL, MUTED)  # last page: disabled
+    d.text((W / 2 - 14, 212), "9/9", font=F2, fill=MUTED)
     return im
 
 
@@ -1801,6 +1818,7 @@ EXTRA_SCREENS = [
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-radios", about_radios, "About: what the radios do"),
+    ("about-build", about_build, "About: which build is on the device"),
     ("tictactoe", tictactoe, "Tic-Tac-Toe"),
     ("memory", memory, "Memory Match"),
     ("math", math_game, "Math"),

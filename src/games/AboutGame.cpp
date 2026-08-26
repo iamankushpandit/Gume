@@ -1,5 +1,6 @@
 #include "AboutGame.h"
 #include "AppVersion.h"
+#include "BuildStamp.h"
 #include "engine/AppRegistry.h"
 #include "hal/Board.h"
 #include "hal/BleBeacon.h"
@@ -20,7 +21,14 @@ constexpr uint8_t PAGE_INTRO = 0;
 constexpr uint8_t PAGE_FIRST_GAME = 1;
 constexpr uint8_t PAGE_RADIOS = PAGE_FIRST_GAME + GAME_PAGES;
 constexpr uint8_t PAGE_CREDITS = PAGE_RADIOS + 1;
-constexpr uint8_t PAGE_COUNT = PAGE_CREDITS + 1;
+/* The build stamp gets a page of its own rather than a line on the intro.
+ * The intro page already runs to y=190 and the panel bottom is y=196 in
+ * landscape, so there is no room there -- and this is the page somebody is
+ * sent to when a bug report needs to say which firmware is on the board,
+ * which is easier to describe as "the last page of About" than as a line
+ * part-way down the first one. */
+constexpr uint8_t PAGE_BUILD = PAGE_CREDITS + 1;
+constexpr uint8_t PAGE_COUNT = PAGE_BUILD + 1;
 
 constexpr int16_t PANEL_TOP = 38;
 constexpr int16_t FOOTER_H = 44;
@@ -175,6 +183,35 @@ void AboutGame::renderCredits(Ui::Renderer& tft) {
     drawLine(tft, 190, "device's own memory.", 1);
 }
 
+/* Every value here is read from BuildStamp, which reads it from the build. The
+ * same rule as the game list and the radio page: a commit typed into a screen
+ * is a commit that will be wrong by the next build, and a build stamp nobody
+ * can trust is worse than none -- its whole job is to be believed when someone
+ * is trying to work out what is on the board.
+ *
+ * "unknown" is shown plainly rather than hidden. A build from a source tarball
+ * has no git to ask, and saying so is the honest answer. */
+void AboutGame::renderBuild(Ui::Renderer& tft) {
+    drawLine(tft, 48, "This build", 2);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 74, "Which firmware is on this device.", 1);
+
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 96, "Branch", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 110, BuildStamp::branch(), 2);
+
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 134, "Commit", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 148, BuildStamp::commit(), 2);
+
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 172, "Built", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 186, BuildStamp::builtAt(), 1);
+}
+
 void AboutGame::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
@@ -196,8 +233,10 @@ void AboutGame::render(GameHost& host) {
         renderGames(tft, w);
     } else if (page_ == PAGE_RADIOS) {
         renderRadios(tft, board);
-    } else {
+    } else if (page_ == PAGE_CREDITS) {
         renderCredits(tft);
+    } else {
+        renderBuild(tft);
     }
 
     Ui::drawPagerButton(tft, prevRect(w, h), "Prev", page_ > 0);
