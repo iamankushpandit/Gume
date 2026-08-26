@@ -147,6 +147,13 @@ Flash 2,351,873 / 3,145,728 (74.8%), RAM 72,548 / 327,680 (22.1%).
   device back to sleep rather than leaving it lit. On by default; switch it off
   in **Settings -> Power -> Hold to unlock**, which like every device setting
   is global and admin-writable only.
+- **`cases/` — printable enclosures, one folder per board.** The first is
+  `cases/E32R28T-1/`: a two-part screwed shell for the 2.8-inch board, as STL
+  and as a Bambu Studio project with the print profile intact, plus the notes a
+  slicer cannot infer. A case is explicitly **not** required for a board to be
+  supported; the folder exists because someone who has never opened a CAD tool
+  should not be handed a bare board and told to improvise. Ports are encouraged
+  to add their own folder.
 - **A licence.** The repo had none, which meant default copyright -- all
   rights reserved -- so nobody could legally contribute to a project that was
   asking for contributions. It is now **GPL-3.0-or-later**, so ports and

@@ -89,6 +89,14 @@ hardware reference first, then the profile and the PlatformIO env, then a
 verification app, then games. The "known issues" section of the board doc is
 not optional.
 
+**Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
+in a folder named after the `BOARD_NAME` the firmware reports. A case is
+optional — nothing about board support depends on one — but most people
+building this have never designed an enclosure, and a port that ships a shell
+is a complete package rather than a bare board. Print notes, fastener sizes and
+"here is what I got wrong on the first print" are worth as much as the mesh
+itself. `cases/README.md` has the layout to follow.
+
 **Tell us what's wrong with the code.** Much of this firmware was written by
 coding agents under human direction. Confident mistakes survive longer that
 way, so bug reports and code critique are genuinely valuable — please
