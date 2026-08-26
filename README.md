@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-74.7%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-74.8%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,351,369 / 3,145,728 bytes (**74.7%**) |
+| Flash | 2,351,873 / 3,145,728 bytes (**74.8%**) |
 | RAM | 72,548 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -431,6 +431,7 @@ anyone touching it in March and November.
 <p align="center">
   <img src="docs/screens/screensaver.png" width="360" alt="Pong screen saver">
   <img src="docs/screens/wakelock.png" width="360" alt="Hold to unlock">
+  <img src="docs/screens/wakelock-tall.png" width="200" alt="Hold to unlock, Tall layout">
 </p>
 
 Pong that plays itself. Paddles sweep opposite ways; every rally speeds the ball

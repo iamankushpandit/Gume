@@ -635,10 +635,19 @@ def settings_power():
     return im
 
 
-def wakelock():
+def wakelock(w=W, h=H):
     """The unlock screen the saver and panel sleep hand you, not the screen
-    underneath. Geometry from BrainoApp::lockButtonRect()."""
-    im, d = blank()
+    underneath. Geometry from BrainoApp::lockButtonRect().
+
+    Drawn in both orientations, because the landscape still is what hid a
+    real defect: the footer sentence is at its tightest on the 240px portrait
+    panel, and only the wide one was ever pictured. The mock still cannot
+    prove the device: PIL has its own font metrics and clips nothing, where
+    TFT_eSPI drops characters at the viewport edge. It shows the layout, not
+    the widths -- see LOCK_FOOTERS in AppRuntimeLock.cpp.
+    """
+    im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
+    W, H = w, h
     bw, bh = min(200, W - 48), 58
     bx, by = (W - bw) // 2, (H - bh) // 2 + 12
     text_max = W - 16
@@ -662,6 +671,11 @@ def wakelock():
     d.text((W / 2 - d.textlength(footer, font=F1) / 2, H - 16), footer,
            font=F1, fill=MUTED)
     return im
+
+
+def wakelock_tall():
+    """The same screen on the portrait panel, where the footer is tightest."""
+    return wakelock(240, 320)
 
 
 def settings_admin():
@@ -833,6 +847,7 @@ SCREENS = [
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),
     ("screensaver", screensaver, "Pong screen saver"),
+    ("wakelock-tall", wakelock_tall, "Hold to unlock, Tall layout"),
     ("wakelock", wakelock, "Hold to unlock, after the saver or sleep"),
 ]
 
