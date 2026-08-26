@@ -9,36 +9,49 @@ void Board::begin() {
     Serial.begin(115200);
     delay(100);
 
-    pinMode(PIN_BAT_ADC, INPUT);
+    /* Every peripheral below is optional in the profile. A board that does not
+     * wire one sets PIN_NONE and skips it here -- that is what makes a port a
+     * header rather than a patch. Touch and the panel are not optional. */
+    if (BOARD.hasBatterySense()) {
+        pinMode(BOARD.battery.adcPin, INPUT);
+    }
 
-    pinMode(PIN_TFT_BACKLIGHT, OUTPUT);
-    digitalWrite(PIN_TFT_BACKLIGHT, HIGH);
+    if (BOARD.hasBacklightControl()) {
+        pinMode(BOARD.panel.backlightPin, OUTPUT);
+        digitalWrite(BOARD.panel.backlightPin, BOARD.panel.backlightActiveHigh ? HIGH : LOW);
+    }
 
-    pinMode(PIN_RGB_R, OUTPUT);
-    pinMode(PIN_RGB_G, OUTPUT);
-    pinMode(PIN_RGB_B, OUTPUT);
-    setRgb(false, false, false);
+    if (BOARD.hasRgbLed()) {
+        if (BOARD.rgb.r != PIN_NONE) pinMode(BOARD.rgb.r, OUTPUT);
+        if (BOARD.rgb.g != PIN_NONE) pinMode(BOARD.rgb.g, OUTPUT);
+        if (BOARD.rgb.b != PIN_NONE) pinMode(BOARD.rgb.b, OUTPUT);
+        setRgb(false, false, false);
+    }
 
-    pinMode(PIN_SPEAKER, OUTPUT);
-    digitalWrite(PIN_SPEAKER, LOW);
+    if (BOARD.hasSpeaker()) {
+        pinMode(BOARD.audio.speakerPin, OUTPUT);
+        digitalWrite(BOARD.audio.speakerPin, LOW);
+    }
 
-    pinMode(PIN_TOUCH_MOSI, OUTPUT);
-    pinMode(PIN_TOUCH_MISO, INPUT);
-    pinMode(PIN_TOUCH_SCLK, OUTPUT);
-    pinMode(PIN_TOUCH_CS, OUTPUT);
-    pinMode(PIN_TOUCH_IRQ, INPUT);
-    digitalWrite(PIN_TOUCH_CS, HIGH);
-    digitalWrite(PIN_TOUCH_SCLK, LOW);
+    pinMode(BOARD.touch.mosi, OUTPUT);
+    pinMode(BOARD.touch.miso, INPUT);
+    pinMode(BOARD.touch.sclk, OUTPUT);
+    pinMode(BOARD.touch.cs, OUTPUT);
+    pinMode(BOARD.touch.irq, INPUT);
+    digitalWrite(BOARD.touch.cs, HIGH);
+    digitalWrite(BOARD.touch.sclk, LOW);
 
     tft_.init();
-    tft_.setRotation(CYD_SCREEN_ROTATION);
-    displayRotation_ = CYD_SCREEN_ROTATION;
+    tft_.setRotation(BOARD.panel.landscapeRotation);
+    displayRotation_ = BOARD.panel.landscapeRotation;
     tft_.setTextWrap(false, false);
     tft_.fillScreen(Ui::bg());
 
     prefs_.begin("cydkids", false);
     migrateStorageSchema();
     logStorageUsage("boot");
+    loadNtpEnabled();
+    loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
     mountSd();
@@ -50,8 +63,12 @@ bool Board::sdReady() const {
 }
 
 bool Board::mountSd() {
-    sdSpi_.begin(PIN_SD_SCLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS);
-    sdMounted_ = SD.begin(PIN_SD_CS, sdSpi_, 16000000);
+    if (!BOARD.hasSdSlot()) {
+        sdMounted_ = false;
+        return false;
+    }
+    sdSpi_.begin(BOARD.sd.sclk, BOARD.sd.miso, BOARD.sd.mosi, BOARD.sd.cs);
+    sdMounted_ = SD.begin(BOARD.sd.cs, sdSpi_, BOARD.sd.spiHz);
     setRgb(!sdMounted_, sdMounted_, false);
     Serial.printf("SD mount: %s\n", sdMounted_ ? "ok" : "failed");
     return sdMounted_;
@@ -67,22 +84,33 @@ String Board::profileName(uint8_t index) {
 }
 
 void Board::setProfileName(uint8_t index, const String& name) {
-    if (index >= MAX_KIDS) return;
+    if (index >= MAX_PLAYERS) return;
     char key[10];
     snprintf(key, sizeof(key), "pname%u", index);
     prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
 }
 
-uint8_t Board::addKid(const String& name) {
-    const uint8_t n = kidCount();
-    if (n >= MAX_KIDS) return 0xFF;
+uint8_t Board::addPlayer(const char* name) {
+    const uint8_t n = playerCount();
+    if (n >= MAX_PLAYERS) return 0xFF;
     prefs_.putUChar("kids", static_cast<uint8_t>(n + 1));
-    setProfileName(n, name.length() ? name : String("Player ") + static_cast<int>(n + 1));
+
+    /* Truncation is the same PROFILE_NAME_MAX the String path applied via
+     * substring(); doing it in a stack buffer just means no temporary. */
+    char stored[PROFILE_NAME_MAX + 1];
+    if (name == nullptr || name[0] == '\0') {
+        snprintf(stored, sizeof(stored), "Player %u", static_cast<unsigned>(n + 1));
+    } else {
+        snprintf(stored, sizeof(stored), "%s", name);
+    }
+    char key[10];
+    snprintf(key, sizeof(key), "pname%u", n);
+    prefs_.putString(key, stored);
     return n;
 }
 
-void Board::removeKid(uint8_t index) {
-    const uint8_t n = kidCount();
+void Board::removePlayer(uint8_t index) {
+    const uint8_t n = playerCount();
     if (index >= n) return;
 
     const uint8_t oldActive = activeProfile();
@@ -100,7 +128,7 @@ void Board::removeKid(uint8_t index) {
         setActiveProfile(GUEST_INDEX);
     } else if (oldActive > index && oldActive < n) {
         setActiveProfile(static_cast<uint8_t>(oldActive - 1));
-    } else if (oldActive != GUEST_INDEX && oldActive >= kidCount()) {
+    } else if (oldActive != GUEST_INDEX && oldActive >= playerCount()) {
         setActiveProfile(GUEST_INDEX);
     }
 
@@ -191,6 +219,24 @@ void Board::setSleepSeconds(uint16_t seconds) {
     prefs_.putUShort("sleepSecs", clamped);
     cachedSleepSecs_ = clamped;
     sleepSecsCached_ = true;
+}
+
+/* Mirrored in RAM: the loop asks on every touch that reaches a sleeping or
+ * screen-saving device, and Preferences is flash-backed. Defaults to on --
+ * the guard is the point of the feature, and an owner who wants the old
+ * single-touch behaviour can say so in Settings. */
+bool Board::wakeLockEnabled() {
+    if (!wakeLockCached_) {
+        cachedWakeLock_ = prefs_.getBool("wakeLock", true);
+        wakeLockCached_ = true;
+    }
+    return cachedWakeLock_;
+}
+
+void Board::setWakeLockEnabled(bool enabled) {
+    prefs_.putBool("wakeLock", enabled);
+    cachedWakeLock_ = enabled;
+    wakeLockCached_ = true;
 }
 
 bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {

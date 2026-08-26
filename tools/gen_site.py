@@ -68,20 +68,24 @@ VARIANTS = (
 )
 
 # The pin map, screen rotation and touch controller are compile-time constants,
-# so a build is only meaningful on the board it was compiled for. One entry.
-BOARDS = (
-    {
-        "id": "e32r28t1",
+# so a build is only meaningful on the board it was compiled for -- the picker
+# offers one firmware per supported board.
+#
+# The board LIST is not written here. It is read out of platformio.ini's
+# [board_*] sections by boards(), because "supported" and "offered on the page"
+# have to be the same set: a board someone can build is a board someone should
+# be able to flash from the browser, and a hand-kept list here is exactly how
+# the two drift. What cannot be derived -- the human label and the chip family
+# the flasher needs -- is looked up below, and a board missing an entry stops
+# the site from generating rather than being quietly dropped.
+BOARD_DETAILS = {
+    "e32r28t1": {
         "label": "E32R28T-1 / ESP32-32E -- 2.8 inch ILI9341 + XPT2046 (resistive)",
         "chip": "ESP32",
-        "envs": ("app",),
+        "buy": "https://www.amazon.com/dp/B0D92C9MMH"
+               "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1",
     },
-)
-
-BOARD_BUY_URL = (
-    "https://www.amazon.com/dp/B0D92C9MMH"
-    "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1"
-)
+}
 
 SCREEN_CAPTIONS = {
     "about-radios": "About: what the radios do",
@@ -116,8 +120,10 @@ SCREEN_CAPTIONS = {
     "scores-device": "Scores: device best",
     "scores-mine": "Scores: this player",
     "screensaver": "Screen saver",
+    "wakelock": "Hold to unlock",
+    "wakelock-tall": "Hold to unlock, Tall layout",
     "settings-device": "Settings: device",
-    "profiles-games": "Profiles: per-child games",
+    "profiles-games": "Profiles: per-player games",
     "settings-power": "Settings: power",
     "shapearith": "Shape Arith",
     "shapes": "Shapes",
@@ -179,8 +185,8 @@ SYSTEM_SHOWCASE = (
     },
     {
         "id": "profiles",
-        "subtitle": "Boot-time player choice, five children, Guest mode that deliberately saves nothing, "
-                    "a PIN-guarded admin profile, and per-child game visibility only the admin can set.",
+        "subtitle": "Boot-time player choice, five players, Guest mode that deliberately saves nothing, "
+                    "a PIN-guarded admin profile, and per-player game visibility only the admin can set.",
         "stills": ("profiles", "profiles-pin", "profiles-games"),
     },
     {
@@ -218,8 +224,10 @@ SYSTEM_SHOWCASE = (
     {
         "id": "screensaver",
         "title": "Screen Saver",
-        "subtitle": "Self-playing Pong before panel sleep, with rally colour mirrored on the case LED.",
-        "stills": ("screensaver",),
+        "subtitle": "Self-playing Pong before panel sleep, with rally colour mirrored on the case LED -- "
+                    "and a press-and-hold unlock on the way back, so a stray press in a bag "
+                    "cannot land on a live screen.",
+        "stills": ("screensaver", "wakelock", "wakelock-tall"),
     },
 )
 
@@ -252,9 +260,49 @@ def version():
                 read("include", "AppVersion.h"), "the version").group(1)
 
 
-def board_name():
-    return find(r'BOARD_NAME=\\"([^\\"]+)\\"',
-                read("platformio.ini"), "BOARD_NAME").group(1)
+def boards():
+    """Every supported board, read out of platformio.ini's [board_*] sections.
+
+    A board is supported when it has a section and an environment building the
+    games firmware for it. Both are facts about platformio.ini, so both are
+    read from it -- the page cannot offer a board that does not build, and
+    cannot omit one that does.
+    """
+    ini = read("platformio.ini")
+    offered = {entry["env"] for entry in VARIANTS}
+
+    found = []
+    for section in re.findall(r"^\[board_(\w+)\]", ini, re.M):
+        body = re.search(r"^\[board_%s\](.*?)(?=^\[|\Z)" % re.escape(section),
+                         ini, re.M | re.S).group(1)
+        name = find(r'BOARD_NAME=\\"([^\\"]+)\\"', body,
+                    "BOARD_NAME in [board_%s]" % section).group(1)
+
+        envs = tuple(env for env in re.findall(
+            r"^\[env:(\w+)\](?:(?!^\[).)*?\$\{board_%s\.build_flags\}"
+            % re.escape(section), ini, re.M | re.S) if env in offered)
+        if not envs:
+            die("platformio.ini declares [board_%s] but no environment builds "
+                "the games firmware for it, so the site cannot offer it. A "
+                "board that can be supported must be flashable from the page "
+                "-- see docs/PORTING.md." % section)
+
+        details = BOARD_DETAILS.get(section)
+        if not details:
+            die("board '%s' has no BOARD_DETAILS entry in tools/gen_site.py, "
+                "so the picker has no label for it. Add one." % section)
+
+        found.append({"id": section, "name": name, "envs": envs, **details})
+
+    if not found:
+        die("platformio.ini declares no [board_*] section")
+    if len(found) > 1:
+        die("more than one board is supported, but site/index.template.html "
+            "still describes a single board in prose ({{BOARD}}, "
+            "{{BOARD_BUY_URL}}). Generalise that copy before adding the "
+            "second board -- offering a firmware the page then mislabels is "
+            "worse than not offering it.")
+    return found
 
 
 def games():
@@ -444,7 +492,7 @@ def main():
     args = parser.parse_args()
 
     release = version()
-    board = board_name()
+    supported = boards()
     catalog = playable_apps()
     validate_site_screens(catalog)
     flash, ram = build_figures()
@@ -456,7 +504,7 @@ def main():
 
     variants = {entry["env"]: entry for entry in VARIANTS}
     builds = []
-    for target in BOARDS:
+    for target in supported:
         for env in target["envs"]:
             if env not in variants:
                 die("board %s offers env '%s', which is not in VARIANTS"
@@ -478,7 +526,7 @@ def main():
 
     board_options = "\n".join(
         '          <option value="%s">%s</option>' % (t["id"], escape(t["label"]))
-        for t in BOARDS)
+        for t in supported)
     variant_options = "\n".join(
         '          <option value="%s">%s</option>' % (v["env"], escape(v["label"]))
         for v in VARIANTS)
@@ -491,10 +539,10 @@ def main():
     for key, value in (
         ("{{VERSION}}", release),
         ("{{GAME_COUNT}}", str(len(catalog))),
-        ("{{BOARD}}", escape(board)),
+        ("{{BOARD}}", escape(supported[0]["name"])),
         ("{{FLASH}}", escape(flash)),
         ("{{RAM}}", escape(ram)),
-        ("{{BOARD_BUY_URL}}", BOARD_BUY_URL),
+        ("{{BOARD_BUY_URL}}", supported[0]["buy"]),
         ("{{BOARD_OPTIONS}}", board_options),
         ("{{VARIANT_OPTIONS}}", variant_options),
         ("{{SCREEN_COUNT}}", str(screen_count)),

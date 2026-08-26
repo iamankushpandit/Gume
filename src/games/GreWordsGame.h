@@ -12,7 +12,7 @@ const AppMetadata& greWordsAppMetadata();
  * GRE vocabulary trainer: a study mode and a scored quiz.
  *
  * The odd one out in this catalog -- every other screen is aimed at a small
- * child, this one at whoever is sitting the test. Denser text and smaller
+ * player, this one at whoever is sitting the test. Denser text and smaller
  * fonts are appropriate here; the 30px minimum touch target is not, and still
  * applies.
  *

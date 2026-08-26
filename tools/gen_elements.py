@@ -174,7 +174,7 @@ ELEMENTS = [
 GASES = "H He N O F Ne Cl Ar Kr Xe Rn".split()
 LIQUIDS = "Br Hg".split()
 
-# Tier 1: the ones a young child has plausibly already heard the name of.
+# Tier 1: the ones a young player has plausibly already heard the name of.
 TIER1 = "H He Li C N O Ne Na Mg Al Si P S Cl K Ca Fe Ni Cu Zn Ag Sn I Au Hg Pb".split()
 # Tier 2 adds the rest of the everyday table (cumulative).
 TIER2 = TIER1 + ("Be B F Ar Sc Ti V Cr Mn Co Ga Ge As Se Br Kr Sr Y Zr Mo Pd Cd "
@@ -277,7 +277,7 @@ def main() -> None:
  *
  * All 118 elements: symbol, name, atomic number, the cell they occupy in the
  * folded 18-wide periodic table, a category, their state at room temperature,
- * a difficulty tier, and one plain-English line about where a child has
+ * a difficulty tier, and one plain-English line about where a player has
  * already met them.
  */
 #include "ElementData.h"

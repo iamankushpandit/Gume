@@ -8,7 +8,10 @@ bool s_adcCharacterised = false;
 
 constexpr uint32_t ADC_DEFAULT_VREF_MV = 1100;
 constexpr uint8_t BATTERY_SAMPLES = 8;
-constexpr float DIVIDER_RATIO = 2.0f;
+/* The divider and the ADC's fault ceiling are properties of the board, so they
+ * come from its profile rather than being restated here. Everything below them
+ * is a property of a lithium cell, and is the same on any board. */
+constexpr float DIVIDER_RATIO = BOARD.battery.dividerRatio;
 /* ---- Why there is no "is a pack fitted?" test -------------------------
  * There is not one, and on this board there cannot be. Measured 2026-08-24
  * with the batdiag wizard, three power states, 8s averaged:
@@ -32,7 +35,7 @@ constexpr float DIVIDER_RATIO = 2.0f;
  * With no pack fitted the gauge reads HIGH -- about 4.16 V, near full -- and
  * that is the honest description of what this hardware can see.
  */
-constexpr float V_SENSOR_MAX = 4.50f;
+constexpr float V_SENSOR_MAX = BOARD.battery.sensorMaxVolts;
 constexpr float V_IMPLAUSIBLE = 3.0f;
 
 struct CurvePoint { float volts; uint8_t pct; };
@@ -72,6 +75,13 @@ constexpr uint8_t BL_CHANNEL = 4;
 constexpr uint32_t BL_PWM_HZ = 5000;
 constexpr uint8_t BL_PWM_BITS = 8;
 bool blReady = false;
+
+/* A backlight wired active-low is off at full duty, so the duty is inverted
+ * rather than the pin, which would defeat the PWM entirely. */
+uint32_t backlightDuty(uint8_t percent) {
+    const uint32_t duty = (static_cast<uint32_t>(percent) * 255) / 100;
+    return BOARD.panel.backlightActiveHigh ? duty : 255 - duty;
+}
 }
 
 Board::BatteryTelemetry Board::readBatteryTelemetry() {
@@ -80,8 +90,17 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
         return batterySample_;
     }
 
+    /* No sense line means no reading. A zeroed sample reads as implausible
+     * downstream, which is already how the gauge says "I cannot see this". */
+    if (!BOARD.hasBatterySense()) {
+        batterySample_ = BatteryTelemetry{};
+        batterySampleMs_ = now;
+        batterySampled_ = true;
+        return batterySample_;
+    }
+
     if (!s_adcCharacterised) {
-        analogSetPinAttenuation(PIN_BAT_ADC, ADC_11db);
+        analogSetPinAttenuation(BOARD.battery.adcPin, ADC_11db);
         esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12,
                                  ADC_DEFAULT_VREF_MV, &s_adcChars);
         s_adcCharacterised = true;
@@ -89,7 +108,7 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
 
     uint32_t accumulator = 0;
     for (uint8_t i = 0; i < BATTERY_SAMPLES; ++i) {
-        accumulator += static_cast<uint32_t>(analogRead(PIN_BAT_ADC));
+        accumulator += static_cast<uint32_t>(analogRead(BOARD.battery.adcPin));
     }
 
     BatteryTelemetry sample;
@@ -240,17 +259,18 @@ void Board::setBrightness(uint8_t percent) {
 }
 
 void Board::applyBrightness() {
+    if (!BOARD.hasBacklightControl()) return;
     if (!blReady) {
         ledcSetup(BL_CHANNEL, BL_PWM_HZ, BL_PWM_BITS);
-        ledcAttachPin(PIN_TFT_BACKLIGHT, BL_CHANNEL);
+        ledcAttachPin(BOARD.panel.backlightPin, BL_CHANNEL);
         blReady = true;
     }
-    ledcWrite(BL_CHANNEL, (brightness() * 255) / 100);
+    ledcWrite(BL_CHANNEL, backlightDuty(brightness()));
 }
 
 void Board::displaySleep() {
     if (displayAsleep_) return;
-    ledcWrite(BL_CHANNEL, 0);
+    if (BOARD.hasBacklightControl()) ledcWrite(BL_CHANNEL, backlightDuty(0));
     tft_.writecommand(0x10);
     displayAsleep_ = true;
     displaySleepTelemetry_.sleepCount++;
@@ -265,7 +285,7 @@ void Board::displayWake() {
     const uint32_t wakeStartMs = millis();
     /* The ILI9341 ignores Sleep Out inside 120ms of a Sleep In, and a touch
      * arriving that fast is reachable: the saver can hand over to sleep and the
-     * child's next tap lands milliseconds later. Wait out only the remainder --
+     * player's next tap lands milliseconds later. Wait out only the remainder --
      * after a real sleep this is already long past and costs nothing. */
     const uint32_t sinceSleep = wakeStartMs - displaySleepTelemetry_.lastSleepMs;
     if (sinceSleep < PANEL_SLEEP_SETTLE_MS) {

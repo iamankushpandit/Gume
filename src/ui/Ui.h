@@ -40,6 +40,13 @@ uint16_t warning();
 void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
+
+/* Padlock, drawn to fill `r`. `bg` is whatever is behind it: the keyhole is
+ * punched back out in that colour, which is what makes the glyph read as a
+ * lock at 18px rather than as a filled blob. Used by the top bar, by the
+ * launcher header and at four times the size by the lock screen, so it takes
+ * its proportions from the rect rather than from constants. */
+void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg);
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
@@ -64,11 +71,11 @@ enum class PowerHint : uint8_t {
 PowerHint powerHint(Board& board);
 
 /* Battery state beside Wi-Fi: a battery shell holding the percentage as
- * numerals, a two-pixel level gauge along its inside bottom, and a lightning
- * bolt inside the shell while the charger is attached. This is the iOS /
+ * numerals, a bordered two-pixel level gauge along its inside bottom, and a
+ * lightning bolt inside the shell while the charger is attached. This is the iOS /
  * Android status-bar pattern: eleven pixels of fill is not a number anybody
  * can read, so the badge says both -- the digits for the parent, the colour
- * for the child.
+ * for the player.
  *
  * At or below Board::BATTERY_LOW_PERCENT the *shell and the digits* go red.
  * The outline changing colour is what makes "charge me" visible across the

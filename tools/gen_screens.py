@@ -78,6 +78,20 @@ def button(d, r, label, fill=PANEL, tc=TEXT, f=F2):
     d.text((x + (w - d.textlength(s, font=f)) / 2, y + h / 2 - f.size / 2 - 1), s, font=f, fill=tc)
 
 
+def fitted_text(d, text, max_w, f):
+    s = text
+    while len(s) > 2 and d.textlength(s, font=f) > max_w:
+        s = s[:-1]
+    if len(s) < len(text) and len(s) > 1:
+        s = s[:-1] + "."
+    return s
+
+
+def centered_fitted(d, text, cx, y, max_w, f, fill):
+    s = fitted_text(d, text, max_w, f)
+    d.text((cx - d.textlength(s, font=f) / 2, y), s, font=f, fill=fill)
+
+
 def sync_badge(d, cx, cy, synced=True):
     d.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=SUCCESS if synced else WARN)
     d.text((cx - 3, cy - 6), "v" if synced else "!", font=F1, fill=(0, 0, 0))
@@ -106,13 +120,39 @@ def wifi_badge(d, cx, cy, bars=3):
             d.point((cx + dx, dot_y + dy), fill=col)
 
 
+def lock_icon(d, r, color=TEXT, bg=SURFACE):
+    """Mirrors Ui::drawLockIcon: a hoop over a body, keyhole punched back out."""
+    x, y, w, h = r
+    cx = x + w // 2
+    body_w = w - w // 4
+    body_h = max(7, h * 5 // 11)
+    body_y = y + h - body_h - h // 10
+    shackle_w = max(6, body_w - body_w // 3)
+    shackle_h = body_y - y + body_h // 2
+    stroke = max(1, w // 12)
+    for i in range(stroke):
+        d.rounded_rectangle([cx - shackle_w // 2 + i, y + i,
+                             cx + shackle_w // 2 - i, y + shackle_h - i],
+                            max(2, shackle_w // 2 - i), outline=color)
+    d.rounded_rectangle([cx - body_w // 2, body_y, cx + body_w // 2, body_y + body_h],
+                        max(2, body_w // 6), fill=color)
+    key_r = max(1, body_w // 8)
+    key_cy = body_y + body_h // 2 - key_r // 2
+    d.ellipse([cx - key_r, key_cy - key_r, cx + key_r, key_cy + key_r], fill=bg)
+    d.rectangle([cx - max(1, key_r // 2), key_cy,
+                 cx + max(1, key_r // 2) - 1, key_cy + body_h // 3], fill=bg)
+
+
 def topbar(d, title, synced=True, bars=3):
     d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 29), (W, 29)], fill=shade(SURFACE, 60))
-    d.rounded_rectangle([6, 5, 38, 24], 3, outline=MUTED)
-    d.text((11, 9), "home", font=F1, fill=MUTED)
-    d.text((48, 8), title, font=F2, fill=TEXT)
+    # Home narrowed from 42px to 32px to make room for Lock beside it, and the
+    # title starts at 62 instead of 48. See LauncherLayout.
+    d.rounded_rectangle([2, 5, 30, 24], 3, outline=MUTED)
+    d.text((5, 9), "home", font=F1, fill=MUTED)
+    lock_icon(d, (40, 6, 18, 18))
+    d.text((62, 8), title, font=F2, fill=TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
     batt_right = W - 40
@@ -126,7 +166,8 @@ def topbar(d, title, synced=True, bars=3):
     d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
 
 
-BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 13, 3, 6, 2, 2
+BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 15, 3, 6, 2, 2
+BATT_TRACK_H = 4
 
 
 def battery_width(pct=72, charging=False):
@@ -141,8 +182,8 @@ def battery_width(pct=72, charging=False):
 
 def battery_badge(d, cx, cy, pct=72, charging=False):
     """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
-    shell, a two-pixel level gauge along the inside bottom, and the charging
-    bolt inside the shell. Variable width -- see battery_width."""
+    shell, a bordered two-pixel level gauge along the inside bottom, and the
+    charging bolt inside the shell. Variable width -- see battery_width."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
     total = battery_width(pct, charging)
     shell = total - BATT_TERM_W
@@ -159,9 +200,14 @@ def battery_badge(d, cx, cy, pct=72, charging=False):
         level = SUCCESS
     d.rectangle([bx, by, bx + shell - 1, by + BATT_H - 1], outline=out)
     d.rectangle([bx + shell, cy - 3, bx + shell + 1, cy + 3], fill=out)
-    if pct > 0:
-        gw = max(1, int(pct * (shell - 2) / 100))
-        d.rectangle([bx + 1, cy + 4, bx + gw, cy + 5], fill=level)
+    track_x = bx + 2
+    track_y = by + BATT_H - 1 - BATT_TRACK_H
+    track_w = shell - 4
+    if track_w > 2:
+        d.rectangle([track_x, track_y, track_x + track_w - 1, track_y + BATT_TRACK_H - 1], outline=MUTED)
+    if pct > 0 and track_w > 2:
+        gw = max(1, int(pct * (track_w - 2) / 100))
+        d.rectangle([track_x + 1, track_y + 1, track_x + gw, track_y + BATT_TRACK_H - 2], fill=level)
     penx = bx + 1 + BATT_PAD
     if charging:
         d.polygon([(penx + 4, cy - 5), (penx, cy + 1), (penx + 4, cy + 1)], fill=level)
@@ -452,8 +498,11 @@ def launcher_wide():
     sync_cx = wifi_cx - 8 - 6 - 6
     sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
     battery_badge(d, batt_right - batt_w // 2, 34)
-    d.line([(W - 116, 8), (W - 116, 40)], fill=OUTLINE)
+    d.line([(W - 138, 8), (W - 138, 40)], fill=OUTLINE)
     d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
+    # Lock at the left-hand end of the badge row, inside the hairline, at badge
+    # size. See LauncherLayout::lockRect().
+    lock_icon(d, (W - 136, 25, 18, 18))
     tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
              ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
              ("Trace", "A-Z & 0-9"), ("Calendar", "days & months")]
@@ -489,6 +538,7 @@ def launcher_tall():
     battery_badge(d, batt_left + batt_w // 2, 60)
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
+    lock_icon(d, (176, 51, 18, 18))
     tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
              ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]
     for slot, (title, sub, fill) in enumerate(tiles):
@@ -546,13 +596,14 @@ def settings_tabs(d, active_index):
 def settings_device():
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 0)
-    # Four rows of 30px from y=58, under the tab baseline. Network takes a
-    # whole row so Nearby can have a half-width slot beside Reset.
+    # Four rows of 30px from y=58, under the tab baseline. Network shares a
+    # clock-settings row with the NTP resync cadence.
     button(d, (8, 58, 144, 30), "Theme: Dark")
     button(d, (164, 58, 144, 30), "Menu: Tall")
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
-    button(d, (8, 126, 304, 30), "Network", BLUE, WHITE)
+    button(d, (8, 126, 144, 30), "Network", BLUE, WHITE)
+    button(d, (164, 126, 144, 30), "Sync: 6h")
     button(d, (8, 160, 144, 30), "Nearby: On")
     button(d, (164, 160, 144, 30), "Reset device", (120, 58, 58), WHITE)
     d.text((8, 194), "Brightness", font=F1, fill=MUTED)
@@ -577,9 +628,54 @@ def settings_power():
     button(d, (8, 58, 304, 30), "When idle: Saver then sleep")
     button(d, (8, 92, 304, 30), "Idle after: 1m")
     button(d, (8, 126, 304, 30), "Sleep after: 1m")
-    d.text((8, 168), "Saver at 60s, screen off at 120s.", font=F1, fill=MUTED)
-    d.text((8, 184), "Sleep blanks the screen. A touch wakes it.", font=F1, fill=MUTED)
+    button(d, (8, 160, 304, 30), "Hold to unlock: On")
+    d.text((8, 196), "Saver at 60s, screen off at 120s.", font=F1, fill=MUTED)
+    d.text((8, 212), "A touch lights the screen; hold to go back.",
+           font=F1, fill=MUTED)
     return im
+
+
+def wakelock(w=W, h=H):
+    """The unlock screen the saver and panel sleep hand you, not the screen
+    underneath. Geometry from BrainoApp::lockButtonRect().
+
+    Drawn in both orientations, because the landscape still is what hid a
+    real defect: the footer sentence is at its tightest on the 240px portrait
+    panel, and only the wide one was ever pictured. The mock still cannot
+    prove the device: PIL has its own font metrics and clips nothing, where
+    TFT_eSPI drops characters at the viewport edge. It shows the layout, not
+    the widths -- see LOCK_FOOTERS in AppRuntimeLock.cpp.
+    """
+    im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
+    W, H = w, h
+    bw, bh = min(200, W - 48), 58
+    bx, by = (W - bw) // 2, (H - bh) // 2 + 12
+    text_max = W - 16
+    icon_cy = by - 74
+    lock_icon(d, (W // 2 - 17, icon_cy - 17, 34, 34), MUTED, BG)
+    centered_fitted(d, "Locked", W / 2, by - 48, text_max, F4, TEXT)
+    centered_fitted(d, "Press and hold the button", W / 2, by - 22, text_max, F1, MUTED)
+    button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)
+    barx, bary, barh = bx, by + bh + 10, 10
+    d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
+    d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],
+                fill=SUCCESS)
+    # The longest form that fits whole, never a truncated sentence. Mirrors
+    # LOCK_FOOTERS in AppRuntimeLock.cpp.
+    footer = next((s for s in ("Nothing under here can be touched yet",
+                               "Nothing under here can be touched",
+                               "Nothing below can be touched",
+                               "Nothing below is live")
+                   if d.textlength(s, font=F1) <= text_max),
+                  "Nothing below is live")
+    d.text((W / 2 - d.textlength(footer, font=F1) / 2, H - 16), footer,
+           font=F1, fill=MUTED)
+    return im
+
+
+def wakelock_tall():
+    """The same screen on the portrait panel, where the footer is tightest."""
+    return wakelock(240, 320)
 
 
 def settings_admin():
@@ -653,11 +749,11 @@ def profiles_pin():
 
 
 def profiles_games():
-    """Per-child game visibility: Profiles -> Edit -> Games.
+    """Per-player game visibility: Profiles -> Edit -> Games.
 
     This lived in a Settings tab once and the mock-up went on depicting that
     long after Settings stopped having one -- Settings holds Device, Power and
-    Admin. Visibility is per child, so it belongs with the child. Geometry
+    Admin. Visibility is per player, so it belongs with the player. Geometry
     follows ProfileGame::gameCheckRect() and gamesBackRect()."""
     im, d = blank()
     lab = "Ada"
@@ -747,10 +843,12 @@ SCREENS = [
     ("settings-admin", settings_admin, "Settings: the admin PIN"),
     ("settings-pin", settings_pin, "Settings: setting a new admin PIN"),
     ("profiles-pin", profiles_pin, "Profiles: the admin PIN prompt"),
-    ("profiles-games", profiles_games, "Profiles: which games a child sees"),
+    ("profiles-games", profiles_games, "Profiles: which games a player sees"),
     ("network-time", network_time, "Network & Time"),
     ("timezone", timezone_picker, "Time zone picker"),
     ("screensaver", screensaver, "Pong screen saver"),
+    ("wakelock-tall", wakelock_tall, "Hold to unlock, Tall layout"),
+    ("wakelock", wakelock, "Hold to unlock, after the saver or sleep"),
 ]
 
 
@@ -1213,7 +1311,7 @@ def systeminfo_ble():
         ("r", "Game index", "12 Maze", None),
         ("r", "Best score", "7", None),
         ("s", "Privacy", "", None),
-        ("r", "Child name", "Not Broadcast", SUCCESS),
+        ("r", "Player name", "Not Broadcast", SUCCESS),
         ("r", "Wi-Fi SSID", "Not Broadcast", SUCCESS),
         ("r", "Open game", "Broadcast", WARN),
         ("r", "Best score", "Broadcast", WARN),
@@ -1279,13 +1377,13 @@ def about_radios():
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
     d.text((14, 44), "What the radios do", font=F2, fill=TEXT)
-    d.text((14, 70), "Wi-Fi: the clock only (NTP), plus", font=F1, fill=MUTED)
-    d.text((14, 84), "a one-off time zone lookup.", font=F1, fill=MUTED)
+    d.text((14, 70), "Wi-Fi: clock only; sync every 6h.", font=F1, fill=MUTED)
+    d.text((14, 84), "Plus one-off time-zone lookup.", font=F1, fill=MUTED)
     d.text((14, 100), "Now: connected", font=F1, fill=TEXT)
     d.text((14, 120), "Bluetooth beacon", font=F2, fill=TEXT)
     d.text((14, 146), "Now: broadcasting Braino-A4F2", font=F1, fill=WARN)
-    d.text((14, 162), "Nearby on: also the game open and", font=F1, fill=WARN)
-    d.text((14, 176), "its best score. No name, no profile.", font=F1, fill=WARN)
+    d.text((14, 162), "Nearby on: game + best score.", font=F1, fill=WARN)
+    d.text((14, 176), "No name, no profile, no location.", font=F1, fill=MUTED)
     button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next")
     d.text((W / 2 - 14, 212), "6/8", font=F2, fill=MUTED)
@@ -1493,7 +1591,7 @@ def profiles_pick():
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
     d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
-    # Six rows (five children + Guest) from ProfileGame's rowsTop/rowsPitch.
+    # Six rows (five players + Guest) from ProfileGame's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
         y = 60 + i * 25

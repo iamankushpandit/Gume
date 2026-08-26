@@ -325,7 +325,9 @@ void SystemInfoGame::buildMemoryRows(GameHost& host) {
     /* The number free heap alone will not tell you: plenty available, no
      * single piece big enough for the next allocation. */
     const uint8_t frag = Watchdog::heapFragmentation();
-    rows_.addRow("Fragmented", String(frag) + "%",
+    char fragText[8];
+    snprintf(fragText, sizeof(fragText), "%u%%", static_cast<unsigned>(frag));
+    rows_.addRow("Fragmented", fragText,
                  frag >= 60 ? Ui::error() : (frag >= 35 ? Ui::warning() : Ui::success()));
     rows_.addMeter(frag, frag >= 60 ? Ui::error() : (frag >= 35 ? Ui::warning() : Ui::success()));
     rows_.addRow("PSRAM", psramTotal > 0 ? formatBytes(psramFree) + " free" : "Not present");
@@ -361,7 +363,7 @@ void SystemInfoGame::buildMemoryRows(GameHost& host) {
     } else {
         snprintf(namespaceValue, sizeof(namespaceValue), "No namespace");
     }
-    rows_.addRow("cydkids", namespaceValue);
+    rows_.addRow("App NVS", namespaceValue);
     if (storage.watchdogNamespaceAvailable) {
         snprintf(namespaceValue, sizeof(namespaceValue), "%lu data entries",
                  static_cast<unsigned long>(storage.watchdogEntries));
@@ -371,12 +373,24 @@ void SystemInfoGame::buildMemoryRows(GameHost& host) {
     rows_.addRow("cydwdt", namespaceValue);
 
     rows_.addSection("CPU");
-    rows_.addRow("Loop load", String(loopPct) + "% (" + stats.lastWorkMs + "/" + stats.lastFrameMs + " ms)");
+    /* One buffer, reused down the block. These are the rows a reader watches
+     * while chasing a slow frame, so they are also the rows most likely to be
+     * rebuilt repeatedly -- the last place that should be churning the heap. */
+    char cpuText[40];
+    snprintf(cpuText, sizeof(cpuText), "%u%% (%lu/%lu ms)",
+             static_cast<unsigned>(loopPct),
+             static_cast<unsigned long>(stats.lastWorkMs),
+             static_cast<unsigned long>(stats.lastFrameMs));
+    rows_.addRow("Loop load", cpuText);
     rows_.addMeter(loopPct, loopPct > 70 ? Ui::warning() : Ui::success());
-    rows_.addRow("Worst work", String(stats.maxWorkMs) + " ms");
-    rows_.addRow("Worst frame", String(stats.maxFrameMs) + " ms");
-    rows_.addRow("Loops", String(stats.loops));
-    rows_.addRow("Boot count", String(stats.bootCount));
+    snprintf(cpuText, sizeof(cpuText), "%lu ms", static_cast<unsigned long>(stats.maxWorkMs));
+    rows_.addRow("Worst work", cpuText);
+    snprintf(cpuText, sizeof(cpuText), "%lu ms", static_cast<unsigned long>(stats.maxFrameMs));
+    rows_.addRow("Worst frame", cpuText);
+    snprintf(cpuText, sizeof(cpuText), "%lu", static_cast<unsigned long>(stats.loops));
+    rows_.addRow("Loops", cpuText);
+    snprintf(cpuText, sizeof(cpuText), "%lu", static_cast<unsigned long>(stats.bootCount));
+    rows_.addRow("Boot count", cpuText);
 }
 
 void SystemInfoGame::buildNetworkRows(GameHost& host) {
@@ -395,6 +409,9 @@ void SystemInfoGame::buildNetworkRows(GameHost& host) {
     rows_.addRow("TZ lookup", board.tzZoneChosen() ? "Disabled (manual zone)" : "ip-api.com");
     rows_.addRow("Time sync", board.timeSynced() ? "Synced" : "Free-running",
            board.timeSynced() ? Ui::success() : Ui::warning());
+    char syncText[16];
+    snprintf(syncText, sizeof(syncText), "%u h", static_cast<unsigned>(board.ntpResyncHours()));
+    rows_.addRow("Resync", syncText);
     rows_.addRow("Last sync", formatTimestamp(lastSyncEpoch));
     rows_.addRow("Since sync", lastSyncMs != 0 ? syncAgeText(millis() - lastSyncMs) : "Never");
 
@@ -406,8 +423,11 @@ void SystemInfoGame::buildNetworkRows(GameHost& host) {
         wifi_ap_record_t ap{};
         const bool haveAp = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
         rows_.addRow("SSID", WiFi.SSID());
-        rows_.addRow("RSSI", String(WiFi.RSSI()) + " dBm");
-        rows_.addRow("Channel", String(WiFi.channel()));
+        char radioText[24];
+        snprintf(radioText, sizeof(radioText), "%d dBm", static_cast<int>(WiFi.RSSI()));
+        rows_.addRow("RSSI", radioText);
+        snprintf(radioText, sizeof(radioText), "%d", static_cast<int>(WiFi.channel()));
+        rows_.addRow("Channel", radioText);
         rows_.addRow("PHY", wifiPhyText());
         rows_.addRow("BSSID", haveAp ? WiFi.BSSIDstr() : "-");
         rows_.addRow("IP", WiFi.localIP().toString());
@@ -506,8 +526,8 @@ void SystemInfoGame::buildBleRows(GameHost& host) {
      * claim, because a privacy row that has drifted is worse than none. */
     rows_.addSection("Privacy");
     const uint16_t safe = Ui::success();
-    rows_.addRow("Child info", "Not Broadcast", safe);
-    rows_.addRow("Child name", "Not Broadcast", safe);
+    rows_.addRow("Player info", "Not Broadcast", safe);
+    rows_.addRow("Player name", "Not Broadcast", safe);
     rows_.addRow("Profile name", "Not Broadcast", safe);
     rows_.addRow("Location", "Not Broadcast", safe);
     rows_.addRow("Wi-Fi password", "Not Broadcast", safe);
@@ -556,8 +576,11 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
     rows_.addSection("Device");
     rows_.addRow("Theme", board.themeMode() == Board::ThemeMode::Light ? "Light" : "Dark");
     rows_.addRow("Layout", board.layoutMode() == Board::LayoutMode::Vertical ? "Portrait" : "Landscape");
-    rows_.addRow("Brightness", String(board.brightness()) + "%");
-    rows_.addRow("Saver", String(board.screenSaverSeconds()) + " s");
+    char deviceText[16];
+    snprintf(deviceText, sizeof(deviceText), "%u%%", static_cast<unsigned>(board.brightness()));
+    rows_.addRow("Brightness", deviceText);
+    snprintf(deviceText, sizeof(deviceText), "%u s", static_cast<unsigned>(board.screenSaverSeconds()));
+    rows_.addRow("Saver", deviceText);
     rows_.addRow("Profile", board.isGuest() ? "Guest" : board.profileName(board.activeProfile()));
     rows_.addRow("Touch cal", board.hasTouchCalibration() ? "Calibrated" : "Uncalibrated");
     rows_.addRow("SD card", board.sdReady() ? "Ready" : "Not found");
@@ -586,7 +609,9 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
 
     rows_.addSection("Watchdog");
     rows_.addRow("State", stats.armed ? "Armed" : "Not armed");
-    rows_.addRow("Stalls", String(stats.stalls));
+    char stallText[16];
+    snprintf(stallText, sizeof(stallText), "%lu", static_cast<unsigned long>(stats.stalls));
+    rows_.addRow("Stalls", stallText);
     rows_.addRow("Uptime", uptimeText(stats.uptimeSeconds));
 
     rows_.addSection("Claims");

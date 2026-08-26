@@ -4,7 +4,7 @@
 
 ## Renderer
 
-`Renderer.h` is the app-facing drawing interface. It declares the small RGB565 primitive set used by games and UI helpers without including `TFT_eSPI.h`, so host renderers can implement the same surface later. `TftRenderer.h` is the firmware adapter around the real panel driver and is owned by `KidsPlatformApp`; ordinary games get only `Ui::Renderer&` from `AppContext::display()`.
+`Renderer.h` is the app-facing drawing interface. It declares the small RGB565 primitive set used by games and UI helpers without including `TFT_eSPI.h`, so host renderers can implement the same surface later. `TftRenderer.h` is the firmware adapter around the real panel driver and is owned by `BrainoApp`; ordinary games get only `Ui::Renderer&` from `AppContext::display()`.
 
 ## Theme
 
@@ -18,9 +18,11 @@ Tabs have an ordering contract: draw all `drawTab()` calls **first**, then `draw
 
 Shapes and icons: `drawTriangleShape()`, `drawStarShape()`, `drawGearIcon()`, `drawHomeIcon()`.
 
-Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI), `drawBatteryBadge()` (the percentage as numerals **inside** the shell, iOS/Android status-bar style, over a two-pixel level gauge along the inside bottom, plus a bolt inside the shell while charging; red shell *and* digits at or below `Board::BATTERY_LOW_PERCENT`, since 11 pixels of fill is not a signal a child reads across a room and a number is. Takes a `Ui::PowerHint`, not the HAL enum — `Ui::powerHint(board)` is the one place the two meet. **It is variable width** — 22px at `72`, 36px at `100` while charging — so callers lay out from `Ui::batteryBadgeWidth()` and never assume a size; `cx` is the centre of the whole badge, terminal nub included), `drawBleBadge()` (the Bluetooth rune).
+Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI), `drawBatteryBadge()` (the percentage as numerals **inside** the shell, iOS/Android status-bar style, over a bordered two-pixel level gauge along the inside bottom, plus a bolt inside the shell while charging; red shell *and* digits at or below `Board::BATTERY_LOW_PERCENT`, since 11 pixels of fill is not a signal a player reads across a room and a number is. Takes a `Ui::PowerHint`, not the HAL enum — `Ui::powerHint(board)` is the one place the two meet. **It is variable width** — 22px at `72`, 36px at `100` while charging — so callers lay out from `Ui::batteryBadgeWidth()` and never assume a size; `cx` is the centre of the whole badge, terminal nub included), `drawBleBadge()` (the Bluetooth rune).
 
 `drawBleBadge()` has **no "off" variant on purpose.** An icon that is always present but sometimes greyed turns "is it transmitting?" into a question of shade, and that is the one question the badge exists to answer at a glance — so callers draw it only while `BleBeacon::active()`. It is 10x16 centred on the given point; the launcher header has almost no slack in landscape, so position anything near it off measured text widths rather than fixed offsets.
+
+`drawTopBar()` carries Home, Lock, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's 18px came out of the title (Home narrowed to 32px, the title moved from x=48 to x=62). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
 
 `drawNotification()` paints a transient strip over the top of whatever header is already there, full width at `TOP_BAR_HEIGHT`, so it works over the top bar and over the launcher's taller header alike. It is painted by the runtime **after** the screen has drawn itself, and the screen is asked for a full repaint when the notification goes away — that repaint is what actually removes it. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
 

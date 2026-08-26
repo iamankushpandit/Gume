@@ -5,7 +5,7 @@
 #include "ui/Ui.h"
 
 /*
- * Best and worst result per game for the current child (Mine tab).
+ * Best and worst result per game for the current player (Mine tab).
  * Device-wide best and its holder (Device tab).
  *
  * Only games that have actually been played appear. Games where a lower
@@ -49,6 +49,6 @@ private:
 
     DeviceBest deviceRows_[MAX_DEVICE_ROWS];
     uint8_t deviceRowCount_ = 0;
-    char holderNames_[Board::MAX_KIDS][Board::PROFILE_NAME_MAX + 1];
+    char holderNames_[Board::MAX_PLAYERS][Board::PROFILE_NAME_MAX + 1];
     bool deviceStale_ = true;
 };

@@ -34,7 +34,7 @@ inline uint32_t below(uint32_t bound) {
     }
     /* Reject the short tail at the top of the 32-bit range rather than taking
      * esp_random() % bound. For a six-sided die the bias would have been about
-     * four parts in 2^32 and no child would ever see it, but a helper that is
+     * four parts in 2^32 and no player would ever see it, but a helper that is
      * only correct for small bounds is the kind that gets reused for a large
      * one. The loop retries with probability under 2^-29 for any bound a game
      * here would ask for. */

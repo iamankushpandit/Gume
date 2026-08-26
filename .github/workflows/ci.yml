@@ -1,8 +1,14 @@
 name: CI
 
+# Runs on every branch, main included. It used to carry
+# `branches-ignore: [main]`, on the reasoning that main only ever receives pull
+# requests and so is covered by the pull_request trigger. It was not: work
+# reached main without a pull request, and four files sat over the frame-rule
+# baseline on main for weeks while every branch below it reported green. A
+# check that never runs on the branch it protects is a convention, not a check.
+
 on:
   push:
-    branches-ignore: [main]
   pull_request:
   workflow_dispatch:
 
@@ -31,6 +37,7 @@ jobs:
       - name: Run repository checks
         run: |
           python tools/check_docs.py
+          python tools/check_boards.py
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 

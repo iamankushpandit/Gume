@@ -57,7 +57,7 @@ Pick an `id` that nobody else is likely to be using concurrently, and re-read th
 
 - `CountryData.{h,cpp}`: 195 countries: ISO2, capital, continent, difficulty tier.
 - `CountryDataTable.cpp`: generated; edit `tools/gen_country_facts.py` and regenerate rather than hand-editing.
-- `ElementData.{h,cpp}`: all 118 elements: symbol, name, atomic number, chart cell, category, room-temperature state, difficulty tier, and one kid-facing line. `.cpp` holds only the lookups.
+- `ElementData.{h,cpp}`: all 118 elements: symbol, name, atomic number, chart cell, category, room-temperature state, difficulty tier, and one player-facing line. `.cpp` holds only the lookups.
 - `ElementDataTable.cpp`: generated; edit `tools/gen_elements.py` and regenerate. The generator is where the real checking lives — unique chart cells, fact length, tier lists naming real symbols.
 - `MazeData.{h,cpp}`: static maze layouts used by Maze; keep path data out of the redraw logic.
 - `StateData.{h,cpp}`: 50 US states: code, name, capital, tier.

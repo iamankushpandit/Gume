@@ -3,7 +3,7 @@
 ## 5.0.0 — Unreleased
 
 An admin profile behind a four-digit PIN, so device settings and one profile
-are out of a child's reach -- and Elements, the periodic table, as game 31.
+are out of a player's reach -- and Elements, the periodic table, as game 31.
 
 The major bump is deliberate: this is the first release where an existing
 device changes behaviour under its owner rather than only gaining features.
@@ -11,10 +11,142 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
+Flash 2,351,873 / 3,145,728 (74.8%), RAM 72,548 / 327,680 (22.1%).
 
 ### Added
 
+- **A Lock button.** A padlock beside Home on the top bar, and on the
+  launcher's own header in both layouts, blanks the panel immediately; the next
+  touch lands on the existing Hold to unlock screen and a completed hold
+  resumes exactly what was open. It reuses the wake lock rather than adding a
+  second lock state, and an explicit press produces the lock screen even for an
+  owner who has switched Hold to unlock off -- that press is the request. The
+  tap is consumed by the shell above the active screen, so nothing under the
+  padlock is pressed as well. Making room for it narrowed the top bar's Home
+  slot from 42px to 32px and moved the title's start from 48 to 62.
+
+### Fixed
+
+- **The lock screen's footer is no longer cut mid-word on the device.** It went
+  through `Ui::fitted()`, which truncates and ends in a `.`; past that, a line
+  wider than the panel loses its tail silently, because TFT_eSPI drops
+  characters once x reaches the viewport's right edge. The footer now takes the
+  longest wording that measures whole against the live panel, wraps at a word
+  break if none fits, and clamps both lines inside the screen; `renderLock()`
+  also resets the viewport, since the lock screen owns the panel and should not
+  inherit another screen's clip. The mock-ups could not have caught this -- PIL
+  has its own metrics and clips nothing -- so the generator now draws the
+  portrait lock screen too, where the sentence is tightest, and the firmware
+  logs the panel size and the measured footer width once per lock paint.
+- **Profiles are players throughout the firmware, UI and docs.** The profile
+  APIs are now `playerCount()`, `addPlayer()` and `removePlayer()`, the runtime
+  singleton is `BrainoApp`, and on-device text talks about players. The
+  persisted NVS namespace and profile-count key keep their old names so
+  existing devices do not orphan profiles or scores.
+- **Flag capital bonus answers no longer stay on the same button.** Flags and
+  State Flags now reshuffle the fixed option array when entering the capital
+  bonus phase, move `correctBtn_` with the answer, and force the answer off the
+  just-pressed slot.
+- **The battery badge has real clearance and a bordered level strip.** The
+  shell is taller so the percentage digits no longer touch the outline, and the
+  internal level strip is drawn inside its own border without changing the
+  width contract used by the launcher header.
+- **The hold-to-unlock footer now fits in both orientations.** Lock-screen
+  strings are measured and fitted against the live panel width, and the footer
+  is anchored to the bottom of the panel instead of inheriting all the stacked
+  spacing above it.
+- **Automatic NTP resync is now configurable.** Settings → Device shows a
+  global `Sync: Nh` control, admin-writable from 1 to 24 hours with a 6-hour
+  default. The value is mirrored in RAM for `tickTimeSync()`, while boot sync,
+  manual **Sync now** and failure retries keep their existing paths.
+- **`verify` was red on `dev` for every pull request**, whatever the request
+  contained. `tools/check_frame_rules.py` is a ratchet over the memory and
+  frame-budget rules, and its baseline had fallen behind four files, so the
+  job failed before it could say anything about the change under review. A
+  check that is always red teaches people to ignore it, so the counts are
+  brought back under the baseline rather than the baseline raised to meet
+  them:
+  - `SettingsGame.cpp` was never in debt at all -- the `new` arm of the heap
+    rule was matching *inside a string literal*, so `renderPinPad(host, "Enter
+    new PIN")` read as two raw allocations. The checker now blanks string
+    literals before matching, which also stops a `"http://..."` URL being
+    mistaken for a trailing `//` comment. `GreWordTable.cpp` was a false
+    positive of the same kind.
+  - `Board::addPlayer()` grew a `const char*` form that builds the stored name in
+    a stack buffer, so boot's default Admin profile allocates nothing and the
+    empty-name fallback no longer builds `String("Player ") + n` only to throw
+    it away. The `String` overload stays for `ProfileGame`, whose draft name
+    genuinely is one.
+  - `NearbyGame`'s `scoreText()` returned a `String` per row -- four heap
+    blocks per rebuild with two peers on screen, churning while the scanner
+    keeps the list moving. It writes into a caller-owned buffer now, which is
+    what `RowList` itself was rewritten to do.
+  - `SystemInfoGame`'s loop-load, worst-work, worst-frame, loops, boot-count,
+    fragmentation, RSSI, channel, brightness, saver and stall rows build with
+    `snprintf` into a reused stack buffer. These are the rows somebody watches
+    *while* chasing a slow frame, so they were the worst possible place to be
+    churning the heap.
+
+  The ratchet has been lowered to the new counts, so none of it can climb
+  back. Flash is 884 bytes smaller as a side effect.
+
+### Added
+
+- **Board profiles — a board is now two files, and nothing else.** The
+  firmware was tied to the E32R28T-1 by construction: `include/BoardConfig.h`
+  held one board's pins as global constants, `SCREEN_WIDTH`/`SCREEN_HEIGHT`
+  were literal 320 and 240, and a second board meant copying thirty `-D` flags
+  into a second `platformio.ini` section. Now `include/boards/<id>.h` holds the
+  whole board — pins, rotations, the battery divider, which peripherals exist
+  at all — and a `[board_<id>]` section carries only the macros TFT_eSPI
+  insists on being told at compile time. **No file under `src/` names a GPIO
+  number any more.** The landscape canvas is derived from the panel and its
+  rotation rather than stated, so a differently sized board gets the right
+  constants without an edit. A peripheral a board does not wire is `PIN_NONE`
+  and the firmware degrades quietly, so a board with no SD slot, no LED or no
+  battery needs no code change. `docs/PORTING.md` is the checklist.
+- **A statement of which boards *cannot* be supported.** Optional hardware and
+  missing hardware are different answers and used to be blurred together. Four
+  things are now hard requirements — a panel of at least 320×240 in landscape,
+  a touch controller, the backlight on a GPIO, and 4 MB of flash for the 3 MB
+  app — and a board missing one fails to compile with a message naming it,
+  rather than flashing into a screen nobody can read or press. The SD slot, the
+  RGB LED, the speaker and battery sensing stay genuinely optional.
+- **The web installer now derives its board list from `platformio.ini`.** A
+  board that can be supported has to be flashable by the person who owns it,
+  not only by someone with a toolchain, so "supported" and "offered on the
+  page" are now the same set by construction. `gen_site.py` reads the
+  `[board_*]` sections and refuses to generate until a new board has a label, a
+  firmware entry and a CI build behind it; `check_boards.py` reports the same
+  gaps without needing to build.
+- **`tools/check_boards.py`, and a compile-time cross-check.** The panel is
+  necessarily described twice — once to TFT_eSPI, once to us — so
+  `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against
+  the profile. The backlight one matters most: with the wrong `TFT_BL` the
+  panel is completely dark while Wi-Fi, BLE, NVS, the LED and the screen saver
+  all run perfectly, so it reads as a dead screen rather than a wrong pin. The
+  script catches what the compiler cannot — a profile field a board never
+  filled in, a header no section points at, a board-specific flag that has
+  drifted into `[common]` where it would silently apply to every board.
+- **Hold to unlock, coming out of the screen saver or panel sleep.** A single
+  stray press used to dismiss the saver and land straight on whatever screen
+  was underneath -- mid-game, or on Settings -- which in a bag or a coat
+  pocket meant phantom taps on live UI. `swallowTouch_` suppressed the *next*
+  press, which never helped: the press that dismissed the saver was itself the
+  unintended one. A touch now lights the screen and nothing else, onto a lock
+  screen whose unlock button has to be held for about a second, with a
+  progress bar so it is obvious what the device is waiting for. It covers both
+  the saver and panel sleep, works in both orientations, and returns you to
+  exactly the screen, profile and orientation you left.
+
+  It is **not** a PIN and is disjoint from the admin PIN: unlocking neither
+  grants nor revokes admin. The hold forgives up to 150ms of lost contact,
+  because a held press on a resistive panel drops out intermittently as a
+  matter of course -- a detector that reset on the first gap would feel broken
+  while looking correct in code. Nobody unlocking within 12 seconds sends the
+  device back to sleep rather than leaving it lit. On by default; switch it off
+  in **Settings -> Power -> Hold to unlock**, which like every device setting
+  is global and admin-writable only.
 - **`cases/` — printable enclosures, one folder per board.** The first is
   `cases/E32R28T-1/`: a two-part screwed shell for the 2.8-inch board, as STL
   and as a Bambu Studio project with the print profile intact, plus the notes a
@@ -37,7 +169,7 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
   periods 6 and 7, coloured by family. Tapping a square selects it; tapping the
   strip above opens a card with the name, the atomic number, what kind of
   element it is, whether it is solid, liquid or gas, and one plain line about
-  where the child has already met it: *Helium -- fills balloons and makes them
+  where the player has already met it: *Helium -- fills balloons and makes them
   float*. From the card, **Quiz me** starts a round about that element.
 - **Six question shapes, all derived from the table.** Symbol to name, name to
   symbol, find it on the chart, how many protons, which element does this, and
@@ -45,14 +177,14 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
   questions, and -- the point -- a bank that cannot drift from the data behind
   it, the same reason About derives its game list instead of restating it.
   Wrong answers hold the right one on screen for 1.2s rather than just scoring
-  the child. Selection is weighted by `Progress`, so a missed element comes
+  the player. Selection is weighted by `Progress`, so a missed element comes
   back soon and a known one fades out.
 - **A Level tab, because auto alone was not enough.** Auto follows measured
   mastery: the famous 26 until 80% of them are known, then the everyday 63,
   then all 118. *Easy / Common / All* pin it instead, persisted per profile, so
   a parent can set an older sibling to the whole table. The level only ever
   narrows the **quiz** -- Explore always shows and opens all 118, with
-  out-of-level squares dimmed rather than hidden. A child who wants to go and
+  out-of-level squares dimmed rather than hidden. A player who wants to go and
   read about Oganesson is doing exactly the thing the screen is for.
 - **`tools/gen_elements.py`** generates `src/games/ElementDataTable.cpp`, and
   is where the checking lives: unique chart cells, every element covered once,
@@ -67,20 +199,20 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
   before the tap rather than after it.
 - **The PIN is asked for on the two routes into the admin profile**: switching
   to it, and opening its Edit menu (which reaches rename and that profile's
-  per-child game list). It is asked **every time**, including straight after a
+  per-player game list). It is asked **every time**, including straight after a
   correct entry — "already admin" says nothing about who is holding the device
   now, which is exactly the case this is for.
-- **Per-child game visibility is the admin's to set, and now actually is.**
+- **Per-player game visibility is the admin's to set, and now actually is.**
   The list at *Profiles → Edit → Games* is readable by anyone and changeable
-  only by the admin. Previously it enforced nothing: a child opened their own
+  only by the admin. Previously it enforced nothing: a player opened their own
   row and switched back on every game that had been hidden from them, which
-  made the whole per-child feature decorative.
-- **Removing a player is admin-only.** It destroys that child's scores and
-  mastery data permanently, and any child could previously delete a sibling in
+  made the whole per-player feature decorative.
+- **Removing a player is admin-only.** It destroys that player's scores and
+  mastery data permanently, and any player could previously delete a sibling in
   two taps with no confirmation. Renaming stays open to everyone: it is
   harmless and reversible.
 - **Settings is readable by everyone, writable only by the admin.** No PIN to
-  open it: there is nothing secret on those pages, and a child who cannot see
+  open it: there is nothing secret on those pages, and a player who cannot see
   why the screen dims is worse off than one who can read it. Every control
   greys out for a non-admin and, more to the point, is refused.
 - **Settings → Admin → Change admin PIN.** The new PIN is entered twice and is
@@ -155,7 +287,7 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
   and is unchanged.
 - **Every greyed-out Settings control was still live.** Both tabs have drawn
   their controls greyed for a non-admin for some time, but nothing checked who
-  was tapping: a child could change the theme, the layout, the brightness, the
+  was tapping: a player could change the theme, the layout, the brightness, the
   radios and the idle policy, and could trigger a factory reset. Settings now
   refuses the change as well as drawing it grey.
 - **The device no longer boots into the admin profile.** First boot used to
@@ -175,7 +307,7 @@ Flash 2,347,725 / 3,145,728 (74.6%), RAM 72,524 / 327,680 (22.1%).
 - **The Settings PIN pad printed the PIN in plain text** in a box above the
   keys, and labelled its keys `0`–`11`. It shows masked dots and the digits
   `0`–`9`.
-- **The PIN screen had no way out.** Tapping the admin row left a child stuck
+- **The PIN screen had no way out.** Tapping the admin row left a player stuck
   on it; there is a Back button now.
 
 ## 4.2.0 — 2026-08-17
@@ -204,7 +336,7 @@ Flash 2,325,045 / 3,145,728 (73.9%), RAM 72,020 / 327,680 (22.0%).
   screen is open: *Battery low — time to charge*, escalating to *Battery empty —
   plug in the charger*. It shows for six seconds and repeats every two minutes,
   which is often enough to be a warning and rare enough not to become furniture
-  a child learns to ignore. Crossing either threshold restarts the cycle, so low
+  a player learns to ignore. Crossing either threshold restarts the cycle, so low
   becoming critical says so at once. Both predicates are false while charging,
   so plugging in clears the warning immediately rather than waiting for the
   percentage to climb back over the line.
@@ -241,13 +373,13 @@ Flash 2,323,937 / 3,145,728 (73.9%), RAM 71,980 / 327,680 (22.0%).
 
 ### Changed
 
-- **The console is now Braino!** The product was GoodTime Kids; it is Braino!
+- **The console is now Braino!** The product was renamed; it is Braino!
   from this release. The owner did not change: every copyright line still reads
-  GoodTime Micro Company, and the trademark notice records the old name so the
-  two facts cannot be conflated later. The name and both copyright forms now
-  live only in `include/AppVersion.h` -- they had been typed out in five places,
+  GoodTime Micro Company, and the trademark notice states that continuity
+  directly. The name and both copyright forms now live only in
+  `include/AppVersion.h` -- they had been typed out in five places,
   which is the same shape of drift that once left About six games behind.
-  `GOODTIME_KIDS_VERSION` is now `BRAINO_VERSION`.
+  The version macro is now `BRAINO_VERSION`.
 - **The launcher icons are drawn to a design system now.** What made the old
   set look homemade was not any single icon but that they disagreed: some were
   outlines and some solids, strokes ran from one to three pixels, several sat
@@ -290,7 +422,7 @@ Flash 2,323,937 / 3,145,728 (73.9%), RAM 71,980 / 327,680 (22.0%).
     and then only once *Settings → Nearby* (or the switch on the Nearby screen
     itself) is turned on. Turning the beacon off stands it down.
   - What travels is a game index and a best score, added to the existing
-    beacon payload. **No child name, no profile name, no progress, nothing
+    beacon payload. **No player name, no profile name, no progress, nothing
     profile-scoped.** A peer is four hex digits of its own MAC and nothing
     else, which is the whole design: a leaderboard with no way to find out who
     is on it.
@@ -386,7 +518,7 @@ Flash 2,307,681 / 3,145,728 (73.4%), RAM 68,036 / 327,680 (20.8%).
 ### Added
 
 - **Device-wide best scores on the Scores screen.** A new **Device** tab shows
-  the best score across every child on the device for each game, and who holds
+  the best score across every player on the device for each game, and who holds
   it. The holder's name appears in gold when it is the current player. Scores
   are computed once at screen entry and cached, so scrolling and paging add no
   NVS reads. Ties go to the lowest profile index.
@@ -419,7 +551,7 @@ Flash 2,307,681 / 3,145,728 (73.4%), RAM 68,036 / 327,680 (20.8%).
   and **Quiz** asks for the right gloss out of four. Both feed the same
   spaced-repetition data (`engine/Progress`), so a missed word comes back soon
   and a known one fades out. The odd screen out in this catalog -- it is aimed
-  at whoever is sitting the test, not at a small child.
+  at whoever is sitting the test, not at the youngest audience.
 
 - **Screen sleep.** The device now blanks the panel when it has been left
   alone, which is what actually conserves the battery: the screen saver was
@@ -466,10 +598,10 @@ Flash 2,307,681 / 3,145,728 (73.4%), RAM 68,036 / 327,680 (20.8%).
   26 lowercase letters (a–z) alongside the existing uppercase and digits,
   with a three-way mode selector (ABC / abc / 123) at the top. Waypoints are
   now calculated at glyph load and displayed as pulsing dots that guide the
-  child through the correct path, teaching both letter formation and stroke
+  player through the correct path, teaching both letter formation and stroke
   order before a pencil is involved. The final device-tested pass improved
   lowercase `f` and `g`, added Again/Next controls, and moved completion
-  feedback out of the drawing field so the child can see the finished
+  feedback out of the drawing field so the player can see the finished
   character.
 
 - **Apps and games now launch through one registry.** Playable games declare
@@ -487,14 +619,14 @@ Flash 2,307,681 / 3,145,728 (73.4%), RAM 68,036 / 327,680 (20.8%).
   units.
 
 - **Shape Arith subtraction is clearer.** Subtraction now shows a `left` box and
-  a `take away` box, keeps the removed group visible, and asks the child to
+  a `take away` box, keeps the removed group visible, and asks the player to
   count what remains instead of showing an unused mystery box.
 
 ### Fixed
 
 - **Profile deletion now moves persisted data, not only names.** Removing a
-  child clears that slot's `pN_` keys, shifts later profile data down with the
-  child, clears the old last slot and keeps the active child pointing at the
+  player clears that slot's `pN_` keys, shifts later profile data down with the
+  player, clears the old last slot and keeps the active player pointing at the
   same real profile where possible.
 
 - **Percent, Maze, Trace, Shape & Color, Cinnamon and Profiles redraw bugs.**
@@ -685,8 +817,8 @@ harmless at the call site and each was eating most of a 20ms frame.
 
 ### Changed
 
-- **Profiles screen now carries the GoodTime Kids product mark.** A branded
-  header at the top shows "GoodTime Kids!" and "(C) GoodTime Micro" in the same
+- **Profiles screen now carries the product mark.** A branded
+  header at the top shows the product name and "(C) GoodTime Micro" in the same
   visual language as the launcher and screen saver. The Pick phase geometry is
   recalculated to accommodate the header without collision.
 
@@ -721,7 +853,7 @@ Display and theming fixes, all reported from the device.
   (rounded track, filled portion, round handle).
 
   The floor is **25%, not 0** — deliberately. At very low duty the panel is
-  unreadable, and a child who dragged it to the bottom would have no way to
+  unreadable, and a player who dragged it to the bottom would have no way to
   *see* the control needed to undo it. The slider's full travel maps to
   25–100, so the unusable range cannot be reached at all.
 
@@ -791,7 +923,7 @@ images totalling 1.11 MiB, costing **zero RAM** because they stream from flash.
 
 ### Learning behaviour
 
-- **Spaced repetition.** Questions were drawn uniformly at random, so a child
+- **Spaced repetition.** Questions were drawn uniformly at random, so a player
   saw Brazil as often as Bhutan and got no extra practice on misses. Flags and
   Countries now keep a mastery score per country; a miss costs **twice** what a
   correct answer earns, and selection weights a recently-missed country **8×**
@@ -799,10 +931,10 @@ images totalling 1.11 MiB, costing **zero RAM** because they stream from flash.
 - **Adaptive difficulty.** Easy (30 countries) / Medium (62) / Hard (195), with
   six correct in a row promoting a tier automatically.
 - **Finger Counting rebuilt.** It previously showed "3 + 4 = ?" and expected the
-  child to tap 7 fingers — which requires already knowing the answer, so it
+  player to tap 7 fingers — which requires already knowing the answer, so it
   tested arithmetic rather than teaching counting. It now alternates *"How many
   fingers?"* and *"Show me 7 fingers"*, drawn as real hands.
-- **Subtraction animation loops** in Shape Arith, so a child who looks away can
+- **Subtraction animation loops** in Shape Arith, so a player who looks away can
   re-watch it.
 
 ### Accessibility

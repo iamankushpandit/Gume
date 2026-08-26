@@ -23,7 +23,7 @@ private:
     static constexpr uint8_t MAX_DICE = 3;
     /* How long the faces tumble, and how often they change while they do.
      * 90ms is fast enough to read as a throw rather than a slideshow, and slow
-     * enough that a child can see individual faces go past. */
+     * enough that a player can see individual faces go past. */
     static constexpr uint32_t TUMBLE_MS = 1000;
     static constexpr uint32_t TUMBLE_STEP_MS = 90;
 

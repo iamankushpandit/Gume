@@ -75,8 +75,8 @@ public:
 
     /* This board brings no charge-status line out to a GPIO: the TP4056-style
      * charger's CHRG pin is not wired to the ESP32, so the only thing the
-     * firmware can see is the cell voltage on PIN_BAT_ADC. Charging is
-     * therefore *inferred* from how that voltage moves, in BoardPower.cpp.
+     * firmware can see is the cell voltage on the profile's battery ADC pin.
+     * Charging is therefore *inferred* from how that voltage moves, in BoardPower.cpp.
      *
      * UNKNOWN is the honest answer for the first few seconds after boot, and
      * whenever the ADC reads outside a plausible range. It is NOT a no-battery
@@ -138,19 +138,19 @@ public:
     void beepError();
     /* ---- Profiles -------------------------------------------------------
      * Scores, best/worst records and spaced-repetition data are stored per
-     * child. Every key that goes through getScore/setScore/saveBestScore and
+     * player. Every key that goes through getScore/setScore/saveBestScore and
      * loadBlob/saveBlob is transparently prefixed with the active profile, so
      * catalog games get per-profile storage without touching their own files.
-     * Device settings (theme, layout, Wi-Fi, brightness) stay global. */
-    /* Up to five children plus a permanent Guest slot.
+     * Device settings (theme, layout, Wi-Fi, NTP, brightness) stay global. */
+    /* Up to five players plus a permanent Guest slot.
      *
      * Guest deliberately does NOT persist anything: every write through
      * setScore/saveBestScore/saveBlob is dropped while it is active. That is
-     * what makes it a guest rather than a sixth child -- a visitor can play
+     * what makes it a guest rather than a sixth player -- a visitor can play
      * without leaving results behind or disturbing anyone's records. */
-    static constexpr uint8_t MAX_KIDS      = 5;
-    static constexpr uint8_t GUEST_INDEX   = MAX_KIDS;   // 5
-    static constexpr uint8_t PROFILE_SLOTS = MAX_KIDS + 1;
+    static constexpr uint8_t MAX_PLAYERS      = 5;
+    static constexpr uint8_t GUEST_INDEX   = MAX_PLAYERS;   // 5
+    static constexpr uint8_t PROFILE_SLOTS = MAX_PLAYERS + 1;
     static constexpr uint8_t PROFILE_NAME_MAX = 9;   // NAME_MAX is a POSIX macro
     static constexpr uint8_t STORAGE_WARN_PERCENT = 80;
     static constexpr uint8_t STORAGE_CRITICAL_PERCENT = 92;
@@ -160,12 +160,19 @@ public:
     String profileName(uint8_t index);
     void setProfileName(uint8_t index, const String& name);
 
-    /** How many child profiles exist (0..MAX_KIDS). Guest is always extra. */
-    uint8_t kidCount();
-    /** Append a child. Returns its index, or 0xFF when full. */
-    uint8_t addKid(const String& name);
-    /** Delete a child, shifting later names and persisted profile data down. */
-    void removeKid(uint8_t index);
+    /** How many player profiles exist (0..MAX_PLAYERS). Guest is always extra. */
+    uint8_t playerCount();
+    /* Append a player. Returns its index, or 0xFF when full.
+     *
+     * The char* form is the real one: it builds the stored name in a stack
+     * buffer, so a caller with a literal -- boot's default Admin profile --
+     * allocates nothing, and the empty-name fallback no longer builds
+     * `String("Player ") + n` to throw it away. The String overload is kept
+     * for ProfileGame, whose draft name genuinely is a String. */
+    uint8_t addPlayer(const char* name);
+    uint8_t addPlayer(const String& name) { return addPlayer(name.c_str()); }
+    /** Delete a player, shifting later names and persisted profile data down. */
+    void removePlayer(uint8_t index);
     bool isGuest() { return activeProfile() == GUEST_INDEX; }
 
     /* Admin profile with PIN protection for device settings access. */
@@ -189,7 +196,7 @@ public:
     bool hasScore(const char* key);
     /* Read another profile's record without switching to it. Scores are
      * normally scoped to whoever is playing; the Scores screen needs to look
-     * across every child to show who holds the device best. Guest
+     * across every player to show who holds the device best. Guest
      * (GUEST_INDEX) never persists anything, so it is never a holder. */
     uint32_t scoreFor(uint8_t profileIndex, const char* key, uint32_t fallback = 0);
     bool hasScoreFor(uint8_t profileIndex, const char* key);
@@ -201,7 +208,7 @@ public:
     ThemeMode themeMode();
     void setThemeMode(ThemeMode mode);
     /* Backlight brightness as a percentage. The floor is deliberately well
-     * above zero: at very low duty the panel is unreadable, and a child who
+     * above zero: at very low duty the panel is unreadable, and a player who
      * dragged it to the bottom would have no way to see the control to undo
      * it. The slider's full travel maps to BRIGHTNESS_MIN..100. */
     static constexpr uint8_t BRIGHTNESS_MIN = 25;
@@ -233,6 +240,19 @@ public:
     uint16_t sleepSeconds();
     void setSleepSeconds(uint16_t seconds);
 
+    /* Require a deliberate press-and-hold before the screen saver or panel
+     * sleep hands the device back.
+     *
+     * This is an accidental-touch guard, not access control: in a bag or a
+     * pocket a single stray press used to dismiss the saver and land on
+     * whatever screen was underneath, live. It is unrelated to the admin PIN
+     * and neither grants nor revokes admin. Default on; global, like every
+     * other device setting.
+     *
+     * Mirrored in RAM because the loop consults it on every wake path. */
+    bool wakeLockEnabled();
+    void setWakeLockEnabled(bool enabled);
+
     /* Panel sleep. Backlight to zero and the controller to its low-power
      * state; the CPU stays up so touch still wakes it. This is NOT
      * esp_deep_sleep -- there is no wake source wired for that on this board.
@@ -256,16 +276,23 @@ public:
     bool hasWifiCredentials();
     bool ntpEnabled();
     void setNtpEnabled(bool enabled);
+    static constexpr uint8_t NTP_RESYNC_MIN_HOURS = 1;
+    static constexpr uint8_t NTP_RESYNC_DEFAULT_HOURS = 6;
+    static constexpr uint8_t NTP_RESYNC_MAX_HOURS = 24;
+    uint8_t ntpResyncHours();
+    void setNtpResyncHours(uint8_t hours);
+    uint32_t ntpResyncIntervalMs() const;
     String ntpServer();
     void setNtpServer(const String& server);
     bool isWifiConnected();
 
     /* Time sync. Wi-Fi is used for nothing but NTP: we connect, set the clock,
-     * and then re-issue the sync every TIME_RESYNC_MS so drift is corrected.
+     * and then re-issue the sync on the user's configured cadence so drift is
+     * corrected without a busy recent-calls log.
      * Both calls are non-blocking; tickTimeSync() drives a small state machine
      * from the main loop. */
     void beginTimeSync();
-    /** Force an immediate re-sync; ignores the 5 minute cadence. */
+    /** Force an immediate re-sync; ignores the automatic cadence. */
     void syncTimeNow();
     void applyTimeConfig();   // programs SNTP with the stored tz offset
     /* Queries an NTP server over raw UDP. Doubles as a diagnostic (it logs DNS
@@ -319,7 +346,7 @@ public:
 
     /* Nearby play -- the anonymous score exchange with other Braino devices.
      * Also a global device setting: it is a property of the radio, not of the
-     * child, and the beacon is its master switch. Read every frame by
+     * player, and the beacon is its master switch. Read every frame by
      * engine/NearbyPlay, so it keeps a RAM mirror like the rest of the hot
      * settings. The policy lives in engine/NearbyPlay.h; this is the switch. */
     bool nearbyEnabled();
@@ -378,6 +405,9 @@ private:
     static void legacyScopedKeyForProfile(char* out, size_t cap, uint8_t profileIndex, const char* key);
     void logNetworkActivity(const char* fmt, ...);
     void noteTimeSyncSuccess();
+    void loadNtpEnabled();
+    void loadNtpResyncHours();
+    static uint8_t clampNtpResyncHours(uint8_t hours);
 
     /* RAM mirrors of the settings that are read every frame.
      *
@@ -402,6 +432,12 @@ private:
     uint8_t cachedIdleAction_ = 0;
     bool sleepSecsCached_ = false;
     uint16_t cachedSleepSecs_ = 0;
+    bool wakeLockCached_ = false;
+    bool cachedWakeLock_ = true;
+    bool ntpEnabledCached_ = false;
+    bool cachedNtpEnabled_ = true;
+    bool ntpResyncCached_ = false;
+    uint8_t cachedNtpResyncHours_ = NTP_RESYNC_DEFAULT_HOURS;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
     bool adminIdxCached_ = false;

@@ -26,7 +26,7 @@ firmware's performance and memory constraints.
 
 ## No Data Collection
 
-Braino collects nothing about the child using it, and no contribution may
+Braino collects nothing about the player using it, and no contribution may
 change that. It is not a default, a setting or an opt-in that happens to be
 switched off — it is what the product is. This is the one rule here that a
 maintainer cannot wave through in review.
@@ -47,9 +47,9 @@ Concretely, do not add:
 
 - analytics, usage counters, or crash and error reporting to any server;
 - any HTTP, UDP or DNS request beyond the table above;
-- a child's name, profile name, score, progress or usage history inside
+- a player's name, profile name, score, progress or usage history inside
   anything that is transmitted;
-- an identifier derived from something a child typed;
+- an identifier derived from something a player typed;
 - a dependency that phones home, checks for updates, or fetches remote content
   at runtime;
 - a field in the BLE advertisement that identifies a person rather than a
@@ -79,10 +79,15 @@ add a second.
 **Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
 variant in progress. The CYD family has many variants whose differences fail
 silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
-but a light sensor on the ESP32-2432S028R. If you own a variant, the checklist
-is [AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
-hardware reference first, then the PlatformIO env, then a verification app,
-then games. The "known issues" section of the board doc is not optional.
+but a light sensor on the ESP32-2432S028R. A board is described in two files
+and nowhere else — a profile header in `include/boards/` and a `[board_*]`
+section in `platformio.ini` — and no file under `src/` names a GPIO. The
+mechanics are in [docs/PORTING.md](docs/PORTING.md); everything a port needs
+around the code is in
+[AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
+hardware reference first, then the profile and the PlatformIO env, then a
+verification app, then games. The "known issues" section of the board doc is
+not optional.
 
 **Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
 in a folder named after the `BOARD_NAME` the firmware reports. A case is
@@ -117,6 +122,11 @@ deletion are blocked. `main` additionally requires linear history, so rebase or
 squash rather than merging a stale branch into it. Repository admins can bypass
 these rules — that exists for an emergency such as a broken release, not as a
 normal route, and using it skips the CI that would have caught the problem.
+
+`verify` also runs on every push, to every branch, `main` included. That is
+deliberate belt-and-braces: the pull-request trigger alone left `main`
+unchecked, and it stayed red for weeks without anyone seeing it. If an admin
+bypass ever does land something on `main`, the push run is what says so.
 
 `git push origin main` will be rejected. That is the protection working; open a
 pull request instead.

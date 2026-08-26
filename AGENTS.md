@@ -63,7 +63,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 
 | About shows | Derived from |
 |---|---|
-| Version | `GOODTIME_KIDS_VERSION` |
+| Version | `BRAINO_VERSION` |
 | Game count and every game name/blurb | `GAME_CATALOG` |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
@@ -76,13 +76,13 @@ privacy statements — must be re-read whenever the thing it describes changes.
 
 ## No data collection — the rule that outranks the feature
 
-Braino collects nothing about the child using it, and no change may alter
+Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
 Exactly three things leave the device: an NTP time query, one `ip-api.com`
 lookup to guess the timezone on first connect, and the opt-in, non-connectable
 BLE beacon. **That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
-home at runtime, or anything transmitted that carries a child's name, profile
+home at runtime, or anything transmitted that carries a player's name, profile
 name, score, progress or typing. A fourth outbound flow needs the maintainer's
 agreement in an issue *before* the code exists — it is a change to what the
 product promises, not a feature to be reviewed on merit.
@@ -166,7 +166,7 @@ Rules, in the order they bite:
    user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) — that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
-   through `KidsPlatformApp::leaveActiveGame()`, which compares free heap
+   through `BrainoApp::leaveActiveGame()`, which compares free heap
    against the value captured before that screen's `begin()` and logs
    `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
    Watch the serial log after adding a screen.
@@ -254,11 +254,24 @@ Everything above still applies, plus:
 
 ## Supporting a new board — the whole checklist
 
+**The mechanics are in [docs/PORTING.md](docs/PORTING.md) and are now small**: a
+board is a profile header in `include/boards/` plus a `[board_*]` section in
+`platformio.ini`, and nothing under `src/` names a GPIO. Read that first — this
+section is about everything a port needs *around* the code, which is the part
+that has actually been getting skipped.
+
 Before adding support for a new hardware variant, complete a comprehensive hardware reference and verification app. This prevents silent failures, driver misconfigurations, and port-specific quirks from reaching users.
 
 ### 1. Hardware documentation — must precede any game support
 
-1. **Create `BOARD_<VARIANT>.md`** — complete hardware reference for the new board
+1. **Check the board can be supported at all.** A panel of at least 320×240 in
+   landscape, a touch controller, the backlight on a GPIO, and 4 MB of flash
+   are hard requirements; a board missing one fails to compile and is out of
+   scope, not a porting task. SD, LED, speaker and battery sense are optional
+   and the firmware does without them. The table is in
+   [docs/PORTING.md](docs/PORTING.md).
+
+2. **Create `BOARD_<VARIANT>.md`** — complete hardware reference for the new board
    - Copy structure from [`BOARD_E32R28T-1.md`](BOARD_E32R28T-1.md) — the template
    - Sections: overview, GPIO pinout, display driver, touch, battery sensing, RGB LED, radios, memory, watchdog, known issues, verification procedures
    - Include all TFT_eSPI flags, SPI frequencies, ADC attenuation, power thresholds
@@ -266,13 +279,26 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
    - **List every known hardware bug, quirk and workaround** (crossed LED pins, inverted polarity, ADC2 unavailable, etc.)
    - Do NOT skip "known issues" section — it is where you prevent the next person from re-discovering the same bugs
 
-2. **Update `AGENTS.md`** to reference the new board file in this section
+3. **Update `AGENTS.md`** to reference the new board file in this section
 
-3. **Update `platformio.ini`** with a new environment for the variant
-   - Example: `[panel_st7789]` or `[env:app4]` for a 4-inch board
-   - Include all build flags (`-D TFT_WIDTH=`, `-D TFT_HEIGHT=`, `-D PANEL_<VARIANT>=1`, etc.)
-   - Partition table (3 MB app? 1.5 MB app?)
-   - SPI speeds (some displays require lower frequencies)
+4. **Write `include/boards/<id>.h`** — the board profile. Pins, rotations, the
+   battery divider, and `PIN_NONE` for anything the board does not wire. Label
+   every value with its field name in a `/* comment */`; `check_boards.py`
+   reads those labels to prove nothing was left out.
+
+5. **Add `[board_<id>]` and `[env:<name>]` to `platformio.ini`** — the board
+   section carries only `BOARD_NAME`, `GUME_BOARD_HEADER`, the driver and the
+   TFT_eSPI pin/size/SPI macros. Everything shared is already in `[common]`,
+   and putting a board-specific flag there fails `check_boards.py`. The
+   environment composes `${common.build_flags}` with exactly one
+   `${board_*.build_flags}`.
+
+6. **Put it on the web installer.** `tools/gen_site.py` derives its board list
+   from those same sections, so add a `BOARD_DETAILS` entry (label, chip
+   family, where to buy one) and make sure `.github/workflows/ci.yml` and
+   `pages.yml` build the environment. A board that can be supported must be
+   flashable by the person who owns it, not only by someone with a toolchain;
+   `check_boards.py` fails the port until that is true.
 
 ### 2. Hardware verification app — exercises all subsystems before game support
 
@@ -307,9 +333,11 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
    - Renderer stretches to physical panel size
    - Touch reverse-scales from physical space back to logical canvas
 
-2. **Pin abstraction layer** — if multiple GPIO assignments across boards
-   - Do NOT hardcode pins in driver code; use `BoardConfig.h` and `-D` flags
-   - Use compile-time constants; no runtime conditionals for pins
+2. **Pin abstraction layer** — already built; use it rather than adding to it
+   - Do NOT hardcode pins in driver code. Read `BOARD` (`include/BoardProfile.h`)
+   - If the fact you need is not on `BOARD`, add the field and fill it in for
+     every existing board in the same commit — do not add a `#if` instead
+   - It is all `constexpr`, so it costs nothing at runtime
 
 3. **Driver selection flags** — if multiple display/touch controllers
    - Use `-D PANEL_<NAME>=1` and `#if PANEL_<NAME>` in driver init
@@ -317,14 +345,21 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
 
 ### 4. Verification before merge
 
-1. `python tools/check_docs.py` — must pass (board list, build figures)
-2. `pio run -e app` and `pio run -e app4` (or new variant) — both must build
-3. Firmware flashes successfully on the new board
-4. All hardware verification tests pass
-5. At least one playable game runs and is responsive (no frames > 40ms)
+1. `python tools/check_docs.py` and `python tools/check_boards.py` — both must pass
+2. `pio run -e app` and `pio run -e <new variant>` — both must build
+3. The board is offered by the web installer, and CI builds its firmware — a
+   board people cannot flash from the page is not a supported board
+4. Firmware flashes successfully on the new board
+5. All hardware verification tests pass
+6. At least one playable game runs and is responsive (no frames > 40ms)
 
 ### What NOT to do
 
+- Do NOT claim support for a board that trips one of the hard requirements. It
+  is out of scope, and the static_assert saying so is the answer, not an
+  obstacle to work around
+- Do NOT land a board the web installer does not offer — support that needs a
+  toolchain is not support for the person who owns the board
 - Do NOT add support for a new board without a `BOARD_<VARIANT>.md` file
 - Do NOT merge to `main` unless all verification tests pass
 - Do NOT ship a board driver without documenting known bugs and workarounds

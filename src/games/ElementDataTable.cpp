@@ -3,7 +3,7 @@
  *
  * All 118 elements: symbol, name, atomic number, the cell they occupy in the
  * folded 18-wide periodic table, a category, their state at room temperature,
- * a difficulty tier, and one plain-English line about where a child has
+ * a difficulty tier, and one plain-English line about where a player has
  * already met them.
  */
 #include "ElementData.h"

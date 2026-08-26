@@ -32,7 +32,7 @@
  *    single-pixel line on this panel breaks up and reads as an artefact. Use
  *    the stroke helpers rather than drawLine or drawFastHLine directly.
  *
- * 5. **Distinct silhouettes.** A child navigates this grid by shape. Three
+ * 5. **Distinct silhouettes.** A player navigates this grid by shape. Three
  *    pairs were once the same picture: Fractions and Percent were both a white
  *    circle with a yellow wedge, Flags and State Flags the same flag in two
  *    colours, Tic-Tac-Toe and Whack A Mole both a white grid.
@@ -379,7 +379,7 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             fillStar(tft, cx, cy - 3, 11, amber());
             break;
         case LauncherIcon::Trace:
-            // The letter, plus the guide dots the game makes a child follow.
+            // The letter, plus the guide dots the game makes a player follow.
             tft.setTextColor(snow(), fill);
             tft.setTextDatum(MC_DATUM);
             tft.drawString("A", cx - 6, cy - 1, 4);

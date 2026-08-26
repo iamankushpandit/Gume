@@ -5,7 +5,7 @@ Generate src/games/CountryData.cpp for Braino!.
 
 Country NAMES and artwork come from the map-n-flag library. This table adds
 only what map-n-flag does not carry: capital city, continent, and a difficulty
-tier for the kids' games.
+tier for the player-facing games.
 
 Source data: https://github.com/mledoze/countries (ODbL). Only capital and
 region/subregion fields are used, ASCII-folded so they render in the default
@@ -36,7 +36,7 @@ SK SI SB SO ZA SS ES LK SD SR SE CH SY TJ TZ TH TL TG TO TT TN TR TM TV UG UA
 AE GB US UY UZ VU VE VN YE ZM ZW VA PS
 """.split()
 
-# Tier 1: the ~30 a young child is most likely to have heard of.
+# Tier 1: the ~30 a young player is most likely to have heard of.
 TIER1 = """
 US GB FR DE IT ES CA MX BR AR CN JP KR IN RU AU NZ EG ZA NG KE GR PT NL CH SE
 NO IE TR TH

@@ -48,28 +48,34 @@ Rect SettingsGame::pinCancelRect() const { return Rect{6, 6, 52, 22}; }
 
 /* Device tab: four rows of 30px, then the brightness slider.
  *
- * Network takes a whole row because Nearby needed one of the half-width slots
- * and the row it went into is the one Reset was in. Reset keeps a slot of its
- * own on the last row rather than sitting beside a harmless toggle -- it is
- * the one destructive control here.
+ * Network shares a row with the NTP resync cadence: both are clock-related
+ * global settings, and keeping the row compact leaves the brightness slider
+ * where the existing muscle memory expects it. Reset keeps a slot of its own
+ * on the last row rather than sitting beside a harmless toggle -- it is the
+ * one destructive control here.
  *
  * Nearby is deliberately next to Beacon's row rather than beside it: it does
  * nothing unless Beacon is on, and reading downwards is the order you have to
  * turn them on in. */
 Rect SettingsGame::themeRect()  const { return Rect{8,    58, 144, 30}; }
 Rect SettingsGame::layoutRect() const { return Rect{164,  58, 144, 30}; }
-Rect SettingsGame::ntpRect()    const { return Rect{8,    92, 144, 30}; }
+Rect SettingsGame::lightRect()  const { return Rect{8,    92, 144, 30}; }
 Rect SettingsGame::bleRect()    const { return Rect{164,  92, 144, 30}; }
-Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 304, 30}; }
+Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 144, 30}; }
+Rect SettingsGame::ntpSyncRect() const { return Rect{164, 126, 144, 30}; }
 Rect SettingsGame::nearbyRect() const { return Rect{8,   160, 144, 30}; }
 Rect SettingsGame::resetRect()  const { return Rect{164, 160, 144, 30}; }
 Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
 
-/* Power tab: three full-width rows, so the labels have room to say what the
- * setting actually does rather than abbreviating to fit half a screen. */
+/* Power tab: four full-width rows, so the labels have room to say what the
+ * setting actually does rather than abbreviating to fit half a screen.
+ *
+ * Wake lock sits with them because it is the last thing in the idle sequence:
+ * saver, sleep, then what it takes to get back. */
 Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
 Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
 Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
+Rect SettingsGame::wakeLockRect()   const { return Rect{8, 160, 304, 30}; }
 
 /* Standard PIN pad, laid out against the live panel size so it works in both
  * orientations and, more importantly, so every row lands above the bottom
@@ -145,6 +151,14 @@ void SettingsGame::cycleIdleAction(Board& board) {
         default:
             board.setIdleAction(Board::IdleAction::SaverThenSleep); break;
     }
+}
+
+void SettingsGame::cycleNtpResyncHours(Board& board) {
+    const uint8_t current = board.ntpResyncHours();
+    const uint8_t next = current >= Board::NTP_RESYNC_MAX_HOURS
+        ? Board::NTP_RESYNC_MIN_HOURS
+        : static_cast<uint8_t>(current + 1);
+    board.setNtpResyncHours(next);
 }
 
 /* One pad, three jobs: unlock, enter a new PIN, confirm it. Keeping the hit
@@ -249,12 +263,12 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
 
     /* Anyone may look; only the admin may change anything. Tab switching is
-     * above this line so a child can still read every page.
+     * above this line so a player can still read every page.
      *
      * This gate is what actually enforces it. The two render paths grey the
      * controls out for a non-admin, but greying is a drawing decision -- until
      * this early return existed every one of those greyed rows was still live
-     * and a child could toggle the lot. */
+     * and a player could toggle the lot. */
     if (!isAdmin(board)) {
         host.beepError();
         return;
@@ -283,6 +297,10 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
             if (sleepRowActive(board)) { cycleSleepSeconds(board); markFullDirty(); }
             return;
         }
+        if (wakeLockRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.setWakeLockEnabled(!board.wakeLockEnabled());
+            markFullDirty(); return;
+        }
         return;
     }
 
@@ -298,7 +316,7 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
             ? Board::LayoutMode::Vertical : Board::LayoutMode::Horizontal);
         markDirty(); return;
     }
-    if (ntpRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (lightRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setRgbEnabled(!board.rgbEnabled()); markDirty(); return;
     }
     if (bleRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -330,6 +348,9 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     if (wifiRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.openWifi(); return;
     }
+    if (ntpSyncRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        cycleNtpResyncHours(board); markDirty(); return;
+    }
     if (brightRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setBrightness(Ui::sliderValueAt(brightRect(), touch.x, Board::BRIGHTNESS_MIN));
         markDirty(); return;
@@ -351,13 +372,16 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     Ui::drawButton(tft, layoutRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");
-    Ui::drawButton(tft, ntpRect(), label,
+    Ui::drawButton(tft, lightRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
     Ui::drawButton(tft, bleRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     Ui::drawButton(tft, wifiRect(), "Network", admin ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
                    Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+    snprintf(label, sizeof(label), "Sync: %uh", static_cast<unsigned>(board.ntpResyncHours()));
+    Ui::drawButton(tft, ntpSyncRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     /* Greyed, not hidden, when the beacon is off: the control is what tells
      * you the feature exists and what it depends on. */
     const bool beaconOn = board.bleBeaconEnabled();
@@ -428,6 +452,14 @@ void SettingsGame::renderPowerTab(GameHost& host) {
                    sleepLive ? Ui::panel() : Ui::surface(), Ui::outline(),
                    sleepLive ? Ui::text() : Ui::muted(), false, 2);
 
+    /* Always live: it guards the saver as well as sleep, so it means
+     * something under all three idle policies. */
+    snprintf(buf, sizeof(buf), "Hold to unlock: %s",
+             board.wakeLockEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, wakeLockRect(), buf,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   admin ? Ui::text() : Ui::muted(), false, 2);
+
     /* Say the resulting behaviour in plain words, composed from the live
      * values -- three settings that interact are hard to hold in your head. */
     char explain[64];
@@ -449,9 +481,14 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     }
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(explain, 8, 168, 1);
+    tft.drawString(explain, 8, 196, 1);
     if (admin) {
-        tft.drawString("Sleep blanks the screen. A touch wakes it.", 8, 184, 1);
+        /* Say what a touch actually does, because the row above changes it.
+         * A stray press in a bag is the case this exists for. */
+        tft.drawString(board.wakeLockEnabled()
+                           ? "A touch lights the screen; hold to go back."
+                           : "Any touch goes straight back to what you were doing.",
+                       8, 212, 1);
     }
 }
 

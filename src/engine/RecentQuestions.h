@@ -6,7 +6,7 @@
  * Keeps a question from coming back too soon, without falling into a cycle.
  *
  * A shuffle bag (permute the set, deal without replacement) avoids repeats but
- * becomes predictable: once a child has seen nine of ten, the tenth is certain.
+ * becomes predictable: once a player has seen nine of ten, the tenth is certain.
  * This instead draws uniformly at random and simply rejects anything in a short
  * history window, so there is no fixed order to learn while recent items still
  * cannot reappear.

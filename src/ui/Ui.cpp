@@ -1,6 +1,7 @@
 #include "Ui.h"
 #include "hal/Clock.h"
 #include "hal/Board.h"
+#include "ui/LauncherLayout.h"
 #include "ui/TftRenderer.h"
 #include <WiFi.h>
 #include "map_n_flag.h"
@@ -131,12 +132,52 @@ void clear(Ui::Renderer& tft) {
     tft.fillScreen(COLOR_BG);
 }
 
+/* Proportional to the rect since the top-bar slot narrowed to 32px to make
+ * room for the lock: the roof, the body and the door were all fixed insets off
+ * a 42px slot, and at 32px the door was as wide as the house. */
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r) {
     const int16_t cx = r.x + r.w / 2;
+    const int16_t inset = max<int16_t>(3, static_cast<int16_t>(r.w / 6));
     const int16_t roofY = r.y + 6;
-    tft.fillTriangle(cx, roofY, r.x + 8, r.y + 16, r.x + r.w - 8, r.y + 16, TFT_WHITE);
-    tft.fillRoundRect(r.x + 12, r.y + 15, r.w - 24, r.h - 20, 2, TFT_WHITE);
-    tft.fillRect(cx - 4, r.y + r.h - 12, 8, 7, COLOR_BAR);
+    tft.fillTriangle(cx, roofY, static_cast<int16_t>(r.x + inset), r.y + 16,
+                     static_cast<int16_t>(r.x + r.w - inset), r.y + 16, TFT_WHITE);
+    const int16_t bodyW = max<int16_t>(8, static_cast<int16_t>(r.w - 2 * inset - 6));
+    tft.fillRoundRect(static_cast<int16_t>(cx - bodyW / 2), r.y + 15, bodyW,
+                      static_cast<int16_t>(r.h - 20), 2, TFT_WHITE);
+    const int16_t doorW = max<int16_t>(4, static_cast<int16_t>(bodyW / 3));
+    tft.fillRect(static_cast<int16_t>(cx - doorW / 2),
+                 static_cast<int16_t>(r.y + r.h - 12), doorW, 7, COLOR_BAR);
+}
+
+void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg) {
+    const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
+    const int16_t bodyW = max<int16_t>(8, static_cast<int16_t>(r.w - r.w / 4));
+    const int16_t bodyH = max<int16_t>(7, static_cast<int16_t>(r.h * 5 / 11));
+    const int16_t bodyX = static_cast<int16_t>(cx - bodyW / 2);
+    const int16_t bodyY = static_cast<int16_t>(r.y + r.h - bodyH - r.h / 10);
+    const int16_t shackleW = max<int16_t>(6, static_cast<int16_t>(bodyW - bodyW / 3));
+    const int16_t shackleH = static_cast<int16_t>(bodyY - r.y + bodyH / 2);
+    const int16_t shackleX = static_cast<int16_t>(cx - shackleW / 2);
+    const int16_t stroke = max<int16_t>(1, static_cast<int16_t>(r.w / 12));
+
+    /* The shackle is the top half of a rounded rect; the body is painted over
+     * its lower half afterwards, which is what turns a ring into a hoop. */
+    for (int16_t i = 0; i < stroke; ++i) {
+        tft.drawRoundRect(static_cast<int16_t>(shackleX + i),
+                          static_cast<int16_t>(r.y + i),
+                          static_cast<int16_t>(shackleW - 2 * i),
+                          static_cast<int16_t>(shackleH - 2 * i),
+                          max<int16_t>(2, static_cast<int16_t>(shackleW / 2 - i)),
+                          color);
+    }
+    tft.fillRoundRect(bodyX, bodyY, bodyW, bodyH,
+                      max<int16_t>(2, static_cast<int16_t>(bodyW / 6)), color);
+
+    const int16_t keyR = max<int16_t>(1, static_cast<int16_t>(bodyW / 8));
+    const int16_t keyCy = static_cast<int16_t>(bodyY + bodyH / 2 - keyR / 2);
+    tft.fillCircle(cx, keyCy, keyR, bg);
+    tft.fillRect(static_cast<int16_t>(cx - max<int16_t>(1, keyR / 2)), keyCy,
+                 max<int16_t>(1, keyR), static_cast<int16_t>(bodyH / 3), bg);
 }
 
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
@@ -181,7 +222,11 @@ void drawTopBar(Board& board, const String& title) {
     // Raised edge: highlight along the top, shadow along the bottom seam.
     tft.drawFastHLine(0, 0, w, shade(COLOR_BAR, 145));
     tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, w, shade(COLOR_BAR, 60));
-    drawHomeIcon(tft, Rect{0, 0, 42, TOP_BAR_HEIGHT});
+    drawHomeIcon(tft, LauncherLayout::topBarHomeRect());
+    /* Lock beside Home: one tap blanks the panel and the next wake asks for a
+     * hold. The 18px it occupies come out of the title, which is why the
+     * title's start and its budget below both moved. */
+    drawLockIcon(tft, LauncherLayout::topBarLockRect(), COLOR_BAR_TEXT, COLOR_BAR);
     // The top bar stays dark in both themes, so this gear is always white.
     drawGearIcon(tft, Rect{static_cast<int16_t>(w - 34), 3, 26, 24}, COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
@@ -202,11 +247,11 @@ void drawTopBar(Board& board, const String& title) {
     String fitted = title;
     const int16_t statusLeft =
         static_cast<int16_t>(clockRight - tft.textWidth(Clock::timeText(), 2));
-    const int16_t titleMax = static_cast<int16_t>(max<int16_t>(32, statusLeft - 52));
+    const int16_t titleMax = static_cast<int16_t>(max<int16_t>(32, statusLeft - 66));
     while (fitted.length() > 2 && tft.textWidth(fitted, 2) > titleMax) {
         fitted.remove(fitted.length() - 1);
     }
-    tft.drawString(fitted, 48, TOP_BAR_HEIGHT / 2, 2);
+    tft.drawString(fitted, 62, TOP_BAR_HEIGHT / 2, 2);
     tft.setTextDatum(MR_DATUM);
     /* Right side: clock and its sync badge kept together (the badge describes
      * the clock), then the wifi badge, then the gear. */
@@ -218,7 +263,7 @@ void drawTopBar(Board& board, const String& title) {
 }
 
 void drawNotification(Ui::Renderer& tft, const char* text) {
-    if (text == nullptr || text[0] == ' ') {
+    if (text == nullptr || text[0] == '\0') {
         return;
     }
     const int16_t w = static_cast<int16_t>(tft.width());
@@ -374,8 +419,9 @@ PowerHint powerHint(Board& board) {
  *
  * The shell carries the number, the way both iOS and Android status bars do it:
  * a percentage a parent can read beats eleven pixels of fill they cannot. The
- * fill did not go away -- it became a two-pixel gauge along the inside bottom,
- * so the analogue cue and the digits are both there and neither is guessing.
+ * fill did not go away -- it became a bordered two-pixel gauge along the
+ * inside bottom, so the analogue cue and the digits are both there and neither
+ * is guessing.
  *
  * The badge is therefore VARIABLE WIDTH: "8" unplugged is 22px, "100" while
  * charging is 35px. Callers must lay out from batteryBadgeWidth() rather than
@@ -383,12 +429,13 @@ PowerHint powerHint(Board& board) {
  * widest state, and it is the surface that will break first. */
 namespace {
 
-constexpr int16_t BATT_H        = 13;   // shell height, outline included
+constexpr int16_t BATT_H        = 15;   // shell height, outline included
 constexpr int16_t BATT_PAD      = 3;    // inner padding, each side
 constexpr int16_t BATT_BOLT_W   = 6;
 constexpr int16_t BATT_BOLT_GAP = 2;
 constexpr int16_t BATT_TERM_W   = 2;    // the positive terminal nub
 constexpr int16_t BATT_MIN_INNER = 11;  // the no-battery case still needs a shell
+constexpr int16_t BATT_TRACK_H  = 4;    // border plus the two-pixel gauge fill
 
 /* One place decides what the badge says, so the width helper and the draw
  * routine cannot disagree about it -- which is the only way a measured layout
@@ -421,7 +468,6 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent, PowerHint power) {
 }
 
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, PowerHint power, uint16_t bg) {
-    (void)bg;
     const bool onCharger = power != PowerHint::OnBattery;
     char text[8];
     batteryText(text, sizeof(text), percent);
@@ -452,16 +498,27 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     }
 
     // Shell and positive terminal.
+    tft.fillRect(static_cast<int16_t>(bx + 1), static_cast<int16_t>(by + 1),
+                 static_cast<int16_t>(shellW - 2), static_cast<int16_t>(BATT_H - 2), bg);
     tft.drawRect(bx, by, shellW, BATT_H, outClr);
     tft.drawFastVLine(static_cast<int16_t>(bx + shellW), static_cast<int16_t>(cy - 3), 7, outClr);
     tft.drawFastVLine(static_cast<int16_t>(bx + shellW + 1), static_cast<int16_t>(cy - 2), 5, outClr);
 
+    const int16_t trackX = static_cast<int16_t>(bx + 2);
+    const int16_t trackY = static_cast<int16_t>(by + BATT_H - 1 - BATT_TRACK_H);
+    const int16_t trackW = static_cast<int16_t>(shellW - 4);
+    const uint16_t trackBorder = neutralClr;
+    if (trackW > 2) {
+        tft.drawRect(trackX, trackY, trackW, BATT_TRACK_H, trackBorder);
+    }
+
     // Gauge first, so the bolt and the digits sit over it rather than under.
-    if (percent > 0) {
-        const int16_t track = static_cast<int16_t>(shellW - 2);
-        int16_t gw = static_cast<int16_t>((static_cast<int32_t>(percent) * track) / 100);
+    if (percent > 0 && trackW > 2) {
+        const int16_t fillTrack = static_cast<int16_t>(trackW - 2);
+        int16_t gw = static_cast<int16_t>((static_cast<int32_t>(percent) * fillTrack) / 100);
         if (gw == 0) gw = 1;
-        tft.fillRect(static_cast<int16_t>(bx + 1), static_cast<int16_t>(cy + 4), gw, 2, levelCol);
+        tft.fillRect(static_cast<int16_t>(trackX + 1), static_cast<int16_t>(trackY + 1),
+                     gw, static_cast<int16_t>(BATT_TRACK_H - 2), levelCol);
     }
 
     int16_t penX = static_cast<int16_t>(bx + 1 + BATT_PAD);

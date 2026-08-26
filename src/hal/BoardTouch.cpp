@@ -72,25 +72,25 @@ void Board::saveTouchCalibration() {
 
 uint16_t Board::readTouchAdc(uint8_t command) {
     uint16_t raw = 0;
-    digitalWrite(PIN_TOUCH_CS, LOW);
+    digitalWrite(BOARD.touch.cs, LOW);
 
     for (int8_t bit = 7; bit >= 0; --bit) {
-        digitalWrite(PIN_TOUCH_MOSI, (command & (1 << bit)) ? HIGH : LOW);
-        digitalWrite(PIN_TOUCH_SCLK, HIGH);
+        digitalWrite(BOARD.touch.mosi, (command & (1 << bit)) ? HIGH : LOW);
+        digitalWrite(BOARD.touch.sclk, HIGH);
         delayMicroseconds(2);
-        digitalWrite(PIN_TOUCH_SCLK, LOW);
+        digitalWrite(BOARD.touch.sclk, LOW);
         delayMicroseconds(2);
     }
 
     for (uint8_t bit = 0; bit < 16; ++bit) {
-        digitalWrite(PIN_TOUCH_SCLK, HIGH);
+        digitalWrite(BOARD.touch.sclk, HIGH);
         delayMicroseconds(2);
-        raw = static_cast<uint16_t>((raw << 1) | (digitalRead(PIN_TOUCH_MISO) ? 1 : 0));
-        digitalWrite(PIN_TOUCH_SCLK, LOW);
+        raw = static_cast<uint16_t>((raw << 1) | (digitalRead(BOARD.touch.miso) ? 1 : 0));
+        digitalWrite(BOARD.touch.sclk, LOW);
         delayMicroseconds(2);
     }
 
-    digitalWrite(PIN_TOUCH_CS, HIGH);
+    digitalWrite(BOARD.touch.cs, HIGH);
     return static_cast<uint16_t>((raw >> 3) & 0x0FFF);
 }
 
@@ -103,8 +103,8 @@ Board::RawTouch Board::readRawTouch() {
         pressure = static_cast<uint16_t>(z1 + 4095 - z2);
     }
 
-    const bool irqDown = digitalRead(PIN_TOUCH_IRQ) == LOW;
-    if (!irqDown && pressure < TOUCH_PRESSURE_THRESHOLD) {
+    const bool irqDown = digitalRead(BOARD.touch.irq) == LOW;
+    if (!irqDown && pressure < BOARD.touch.pressureThreshold) {
         return touch;
     }
 

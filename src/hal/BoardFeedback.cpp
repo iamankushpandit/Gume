@@ -8,6 +8,18 @@ constexpr uint8_t RGB_CH_G = 6;
 constexpr uint8_t RGB_CH_B = 7;
 constexpr uint32_t RGB_PWM_HZ = 5000;
 constexpr uint8_t RGB_PWM_BITS = 8;
+
+void attachRgbChannel(int8_t pin, uint8_t channel) {
+    if (pin == PIN_NONE) return;
+    ledcSetup(channel, RGB_PWM_HZ, RGB_PWM_BITS);
+    ledcAttachPin(pin, channel);
+}
+
+/* Duty is inverted on a common-anode LED: full brightness is a line held low. */
+void writeRgbChannel(int8_t pin, uint8_t channel, uint8_t level) {
+    if (pin == PIN_NONE) return;
+    ledcWrite(channel, BOARD.rgb.commonAnode ? 255 - level : level);
+}
 }
 
 void Board::beep(uint16_t frequency, uint16_t ms) {
@@ -25,10 +37,15 @@ void Board::beepError() {
     beep(220, 120);
 }
 
+/* Common-anode boards sink current, so a channel lights when its line is
+ * driven LOW. A board that wires the LED the other way says so in its profile
+ * rather than needing this inverted here. */
 void Board::setRgb(bool red, bool green, bool blue) {
-    digitalWrite(PIN_RGB_R, red ? LOW : HIGH);
-    digitalWrite(PIN_RGB_G, green ? LOW : HIGH);
-    digitalWrite(PIN_RGB_B, blue ? LOW : HIGH);
+    const uint8_t on = BOARD.rgb.commonAnode ? LOW : HIGH;
+    const uint8_t off = BOARD.rgb.commonAnode ? HIGH : LOW;
+    if (BOARD.rgb.r != PIN_NONE) digitalWrite(BOARD.rgb.r, red ? on : off);
+    if (BOARD.rgb.g != PIN_NONE) digitalWrite(BOARD.rgb.g, green ? on : off);
+    if (BOARD.rgb.b != PIN_NONE) digitalWrite(BOARD.rgb.b, blue ? on : off);
 }
 
 void Board::setRgbEnabled(bool on) {
@@ -70,21 +87,19 @@ void Board::setNearbyEnabled(bool on) {
 }
 
 void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {
+    if (!BOARD.hasRgbLed()) return;
     if (!rgbReady_) {
-        ledcSetup(RGB_CH_R, RGB_PWM_HZ, RGB_PWM_BITS);
-        ledcSetup(RGB_CH_G, RGB_PWM_HZ, RGB_PWM_BITS);
-        ledcSetup(RGB_CH_B, RGB_PWM_HZ, RGB_PWM_BITS);
-        ledcAttachPin(PIN_RGB_R, RGB_CH_R);
-        ledcAttachPin(PIN_RGB_G, RGB_CH_G);
-        ledcAttachPin(PIN_RGB_B, RGB_CH_B);
+        attachRgbChannel(BOARD.rgb.r, RGB_CH_R);
+        attachRgbChannel(BOARD.rgb.g, RGB_CH_G);
+        attachRgbChannel(BOARD.rgb.b, RGB_CH_B);
         rgbReady_ = true;
     }
     rgbR_ = r;
     rgbG_ = g;
     rgbB_ = b;
-    ledcWrite(RGB_CH_R, 255 - r);
-    ledcWrite(RGB_CH_G, 255 - g);
-    ledcWrite(RGB_CH_B, 255 - b);
+    writeRgbChannel(BOARD.rgb.r, RGB_CH_R, r);
+    writeRgbChannel(BOARD.rgb.g, RGB_CH_G, g);
+    writeRgbChannel(BOARD.rgb.b, RGB_CH_B, b);
 }
 
 void Board::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {

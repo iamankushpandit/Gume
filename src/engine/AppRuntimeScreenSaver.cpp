@@ -4,9 +4,14 @@
 #include "AppVersion.h"
 #include "hal/Watchdog.h"
 
-void KidsPlatformApp::enterScreenSaver() {
+void BrainoApp::enterScreenSaver() {
     board_.setRgbColor(0, 140, 255);
-    ssavPrevView_ = view_;
+    /* Only a live screen is worth remembering. Coming back here from the lock
+     * screen -- which happens when nobody unlocks in time -- must not
+     * overwrite what we were doing with View::Locked. */
+    if (view_ == View::Game) {
+        ssavPrevView_ = view_;
+    }
     applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
     Watchdog::setContext("ScreenSaver");
     view_ = View::ScreenSaver;
@@ -14,8 +19,8 @@ void KidsPlatformApp::enterScreenSaver() {
     ssav_initialized_ = false;
 }
 
-void KidsPlatformApp::enterSleep() {
-    if (view_ != View::ScreenSaver) {
+void BrainoApp::enterSleep() {
+    if (view_ == View::Game) {
         ssavPrevView_ = view_;
     }
     board_.setRgbColor(0, 0, 0);
@@ -24,14 +29,58 @@ void KidsPlatformApp::enterSleep() {
     view_ = View::Asleep;
 }
 
-void KidsPlatformApp::wakeFromSleep() {
+/* Both wake paths keep the panel wake inside the Watchdog::Pause guard:
+ * Board::displayWake() blocks ~120ms for the ILI9341 guard time, which is
+ * otherwise indistinguishable from a stalled loop. */
+void BrainoApp::wakeFromSleep() {
+    /* lockOnWake_ is the Lock button asking for this one: an owner who has
+     * switched the wake lock off still gets the lock screen when they press
+     * Lock themselves, because that press is the request. */
+    const bool lock = board_.wakeLockEnabled() || lockOnWake_;
     {
         Watchdog::Pause guard;
         board_.displayWake();
+        /* The lock screen's first paint goes inside the guard as well. The
+         * panel has to be painted in the same frame it lights -- otherwise it
+         * shows the live screen underneath for a frame, which is the exact
+         * leak this feature exists to close -- and a full repaint on top of
+         * the 120ms panel wake is a known-slow section, not a hang.
+         *
+         * The press that woke the panel is the one we do not trust, so it
+         * buys a lit lock screen and nothing else. */
+        if (lock) {
+            enterLock();
+        }
+    }
+    if (lock) {
+        return;
     }
 
     lastActivityMs_ = millis();
+    resumeUnderlyingScreen();
+}
 
+void BrainoApp::exitScreenSaver() {
+    board_.setRgbColor(0, 0, 0);
+
+    /* Same gate as the wake path. It matters under SaverOnly: a deliberate
+     * lock that nobody unlocks hands over to the saver rather than blanking,
+     * and coming back out of that must still ask for the hold. */
+    if (board_.wakeLockEnabled() || lockOnWake_) {
+        enterLock();
+        return;
+    }
+
+    lastActivityMs_ = millis();
+    resumeUnderlyingScreen();
+}
+
+/* One place that decides what you come back to. It was two, and they agreed
+ * only by accident; the lock screen would have made it three. */
+void BrainoApp::resumeUnderlyingScreen() {
+    /* One place decides what you come back to, so it is also the one place
+     * that can say the deliberate lock is over. */
+    lockOnWake_ = false;
     if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
         applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
@@ -42,22 +91,7 @@ void KidsPlatformApp::wakeFromSleep() {
     }
 }
 
-void KidsPlatformApp::exitScreenSaver() {
-    board_.setRgbColor(0, 0, 0);
-
-    lastActivityMs_ = millis();
-
-    if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
-        applyRotation(rotationForActiveScreen());
-        Watchdog::setContext(activeAppTitle());
-        view_ = View::Game;
-        activeGame_->requestRender();
-    } else {
-        goHome();
-    }
-}
-
-void KidsPlatformApp::onScreenSaverHit() {
+void BrainoApp::onScreenSaverHit() {
     static const uint16_t RALLY_COLORS[6] = {
         Ui::rgb(80, 180, 255),
         Ui::rgb(80, 240, 160),
@@ -77,7 +111,7 @@ void KidsPlatformApp::onScreenSaverHit() {
     board_.setRgbColor(c[0], c[1], c[2]);
 }
 
-void KidsPlatformApp::resetScreenSaverRally(int16_t effW, int16_t effH) {
+void BrainoApp::resetScreenSaverRally(int16_t effW, int16_t effH) {
     ssav_bx_ = effW / 2.0f;
     ssav_by_ = effH / 2.0f;
     ssav_bvx_ = (random(2) ? 2.8f : -2.8f);
@@ -86,7 +120,7 @@ void KidsPlatformApp::resetScreenSaverRally(int16_t effW, int16_t effH) {
     ssav_color_ = Ui::rgb(80, 180, 255);
 }
 
-void KidsPlatformApp::renderScreenSaver() {
+void BrainoApp::renderScreenSaver() {
     Ui::Renderer& tft = display();
     const int16_t effW = static_cast<int16_t>(tft.width());
     const int16_t effH = static_cast<int16_t>(tft.height());

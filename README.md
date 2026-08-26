@@ -8,11 +8,11 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-74.6%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-74.8%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 31-game educational console for young children, running on an **ESP32-32E
+A 31-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,347,725 / 3,145,728 bytes (**74.6%**) |
-| RAM | 72,524 / 327,680 bytes (**22.1%**) |
+| Flash | 2,351,873 / 3,145,728 bytes (**74.8%**) |
+| RAM | 72,548 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -41,9 +41,25 @@ Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 **Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
 variant in progress. The CYD family has many variants whose differences fail
 silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
-but a light sensor on the ESP32-2432S028R. If you own a variant,
-[AGENTS.md](AGENTS.md) has the checklist: hardware reference first, then the
-PlatformIO env, then a verification app, then games.
+but a light sensor on the ESP32-2432S028R. A board is now described in two
+files and nowhere else: a profile header in `include/boards/` and a
+`[board_*]` section in `platformio.ini`. No file under `src/` names a GPIO,
+and the panel size the games draw on is derived from the profile rather than
+stated.
+
+Not every board can be supported. Braino needs a panel of at least 320×240
+in landscape, a touch controller (the only input it has), the backlight on a
+GPIO, and 4 MB of flash for the 3 MB app; a board missing one of those fails
+to compile with a message saying which, rather than flashing into something
+unreadable. An SD slot, an RGB LED, a speaker and battery sensing are all
+genuinely optional — the firmware does without them.
+
+And a board that *can* be supported has to be flashable from
+[the web installer](https://iamankushpandit.github.io/Gume/), not just from a
+toolchain: the page derives its board list from the same `[board_*]` sections,
+and the checks fail a port that CI does not build. [docs/PORTING.md](docs/PORTING.md)
+is the checklist, and [AGENTS.md](AGENTS.md) covers the hardware reference and
+bring-up app a port needs before it ships.
 
 **Cases.** A printable shell for the E32R28T-1 is in
 [`cases/`](cases/README.md), one folder per board. A case is not required for a
@@ -99,8 +115,8 @@ touch calibration, the profiles, the scores and the mastery data.
 
 ## The games
 
-Ages are a guide, not a gate. Every game can be hidden from a child's launcher
-in **Profiles → Edit → Games**, so you can pare the list down to what one child
+Ages are a guide, not a gate. Every game can be hidden from a player's launcher
+in **Profiles → Edit → Games**, so you can pare the list down to what one player
 needs without touching anyone else's. Only the admin can change it.
 
 ### Numbers and early maths
@@ -109,7 +125,7 @@ needs without touching anyone else's. Only the admin can change it.
 |---|---|---|---|
 | **Counting** | "How many objects?" — tap the matching number | One-to-one correspondence: the idea that counting means one number per object | 3–5 |
 | **Fingers** | Alternates *"How many fingers?"* (count what's raised) and *"Show me 7 fingers"* (raise that many) | Counting on hands in **both** directions — recognising a quantity and producing one | 3–6 |
-| **Shape Arith** | Objects appear one by one to add; subtraction splits left vs. take-away boxes | Makes arithmetic concrete before it's symbolic. The subtraction display keeps the removed group visible while the child counts what is left | 4–6 |
+| **Shape Arith** | Objects appear one by one to add; subtraction splits left vs. take-away boxes | Makes arithmetic concrete before it's symbolic. The subtraction display keeps the removed group visible while the player counts what is left | 4–6 |
 | **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic | 5–7 |
 | **Math** | "Tap the answer" — addition and subtraction, difficulty rises with level | Recall speed once the concept is solid | 5–8 |
 | **Multiply** | "Tap the product" — times tables | Multiplication facts | 7–10 |
@@ -128,7 +144,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition | 7–12 |
 | **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time | 4–7 |
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
-| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a child who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
+| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -142,12 +158,12 @@ uses **adaptive difficulty** — see below.
 | **Odd One** | "Tap the one that is different" | Categorisation — spotting the attribute that doesn't fit | 3–6 |
 | **Shapes** | Match a named shape *and* colour, e.g. "red circle" | Holding two attributes in mind at once | 3–6 |
 | **Color Mix** | "What do you get?" mixing two colours | Colour theory, and that mixing is predictable | 4–8 |
-| **Microku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a child's level | 6–12 |
+| **Microku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a player's level | 6–12 |
 | **Slide** | Slide numbered tiles into order | Planning several moves ahead | 6–12 |
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
-| **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, with Again and Next controls so a child can repeat any character | 3–6 |
+| **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, with Again and Next controls so a player can repeat any character | 3–6 |
 | **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older student, not a preschooler | 15+ |
 | **Dice** | Pick one, two or three dice and throw them | A physical randomiser to play board games with when the real dice are lost. Keeps no score, because a best total would be luck | 3+ |
 | **Coin Flip** | Spin a coin, best of one, three or five | Settling an argument fairly, and seeing that best-of-five is not the same as one toss. Keeps no score, for the same reason | 4+ |
@@ -158,7 +174,7 @@ uses **adaptive difficulty** — see below.
 
 ### Spaced repetition
 
-Questions used to be drawn uniformly at random, so a child saw Brazil exactly as
+Questions used to be drawn uniformly at random, so a player saw Brazil exactly as
 often as Bhutan and got no extra practice on the ones they missed.
 
 Flags and the US States games now keep a mastery score per item
@@ -169,8 +185,8 @@ for a mastered one — mastered items still appear, just rarely, so the mix stay
 varied.
 
 Each game tracks **separately**: recognising Italy's flag says little about
-recognising Texas's outline. Mastery is also stored **per child profile**, so
-one child's progress never moves another's.
+recognising Texas's outline. Mastery is also stored **per player profile**, so
+one player's progress never moves another's.
 
 ### Adaptive difficulty
 
@@ -180,18 +196,18 @@ overrides by hand, and the choice persists.
 
 ### Profiles
 
-Up to **five children plus a permanent Guest**, chosen at boot. Scores, mastery
+Up to **five players plus a permanent Guest**, chosen at boot. Scores, mastery
 data and per-game visibility are all scoped to the active profile automatically
 — games never do anything to opt in.
 
 **Guest deliberately persists nothing.** Every score and mastery write is
 dropped while Guest is active. That is what makes it a guest rather than a sixth
-child: a visitor can play without leaving results behind or disturbing anyone
+player: a visitor can play without leaving results behind or disturbing anyone
 else's records.
 
-Deleting a child deletes that child's profile-scoped NVS data and shifts later
-children down with their own scores, mastery and visibility intact; deleting the
-active child switches the device back to Guest.
+Deleting a player deletes that player's profile-scoped NVS data and shifts later
+players down with their own scores, mastery and visibility intact; deleting the
+active player switches the device back to Guest.
 
 Device settings — theme, layout, brightness, Wi-Fi, time zone, the BLE beacon —
 stay global.
@@ -299,19 +315,21 @@ One screen per game, in launcher order.
 </p>
 
 Three tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
-the Nearby switch, screen brightness, and a factory reset behind a two-tap
-confirm. Nearby greys out and reads *needs Beacon* while the radio is off — it
-rides on that radio, and a switch that flips without doing anything is worse
-than one that says why. **Power** holds
-the idle policy and its two delays — see [Screen saver and
-sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
+the Network button, the NTP resync interval, the Nearby switch, screen
+brightness, and a factory reset behind a two-tap confirm. Nearby greys out and
+reads *needs Beacon* while the radio is off — it rides on that radio, and a
+switch that flips without doing anything is worse than one that says why.
+Automatic NTP resync is **1–24 hours**, default **6 hours**; boot-time sync and
+the Network screen's **Sync now** action stay immediate. **Power** holds
+the idle policy, its two delays and the hold-to-unlock guard — see [Screen
+saver and sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
 arrived and there was nowhere left to put them.
 
-Game visibility is **not** here — it is per child, so it lives with the child,
+Game visibility is **not** here — it is per player, so it lives with the player,
 under *Profiles → Edit → Games*. See [The admin profile](#the-admin-profile).
 
 Brightness floors at **25%, not 0**, deliberately: at lower duty the panel is
-unreadable and a child who dragged the slider to the bottom could not see the
+unreadable and a player who dragged the slider to the bottom could not see the
 control needed to undo it.
 
 **Menu layout is launcher-only.** Every game is authored against the fixed
@@ -334,28 +352,28 @@ The PIN is asked for on the two routes *into* the admin profile:
 
 - switching to it,
 - opening its **Edit** menu — which reaches rename and that profile's
-  per-child game list.
+  per-player game list.
 
 It is asked **every time**, including immediately after a correct entry.
 "Already admin" is not evidence that the person now holding the device is the
 one who typed the PIN — which is the entire situation this guards against, a
-device handed to a child mid-session.
+device handed to a player mid-session.
 
-**The admin decides who plays what.** Game visibility is per child, set from
+**The admin decides who plays what.** Game visibility is per player, set from
 *Profiles → Edit → Games*, and only the admin can change it. Anyone can open
-the list and see which games are on or off — a child seeing that something is
+the list and see which games are on or off — a player seeing that something is
 switched off is fine, and better than a launcher that is mysteriously short —
 but the checkboxes only respond to the admin. Before this the feature enforced
-nothing: a child opened their own row and turned back on everything that had
+nothing: a player opened their own row and turned back on everything that had
 been hidden from them.
 
 **Removing a player is also the admin's call**, because it destroys that
-child's scores and mastery data permanently. Any child could previously delete
+player's scores and mastery data permanently. Any player could previously delete
 a sibling in two taps. Renaming is deliberately left open — it is harmless, and
-a child wanting their own name spelled properly is not a threat.
+a player wanting their own name spelled properly is not a threat.
 
 **Settings is not behind the PIN.** Anyone can open it and read every page —
-there is nothing secret there, and a child being unable to see why the screen
+there is nothing secret there, and a player being unable to see why the screen
 dims is worse than one who can look. What a non-admin cannot do is *change*
 anything: every control renders greyed, and every one of them is inert. The
 greying and the refusal are separate things, and it is the refusal that
@@ -378,7 +396,7 @@ factory reset.
 
 What the PIN is **not**: it is a parental control, not a security boundary. It
 is four digits, there is no attempt limiting, and anyone who can reflash the
-board can clear it. It is sized to stop a child changing settings, not an
+board can clear it. It is sized to stop a player changing settings, not an
 adversary.
 
 ### Nearby
@@ -394,9 +412,9 @@ header for a few seconds and is then removed.
 
 It is anonymous by construction. A peer is **four hex digits of its own
 Bluetooth MAC** — the same id already used to name the device — and the only
-other things that travel are a game index and a score. No child name, no
+other things that travel are a game index and a score. No player name, no
 profile name, nothing profile-scoped is read by the feature at all. Two
-children learn that *someone with a Braino nearby has 9 on Maze* and nothing
+players learn that *someone with a Braino nearby has 9 on Maze* and nothing
 whatever about each other.
 
 Two switches guard it, in this order: the **BLE beacon** must be on, and then
@@ -419,6 +437,8 @@ anyone touching it in March and November.
 
 <p align="center">
   <img src="docs/screens/screensaver.png" width="360" alt="Pong screen saver">
+  <img src="docs/screens/wakelock.png" width="360" alt="Hold to unlock">
+  <img src="docs/screens/wakelock-tall.png" width="200" alt="Hold to unlock, Tall layout">
 </p>
 
 Pong that plays itself. Paddles sweep opposite ways; every rally speeds the ball
@@ -447,6 +467,40 @@ panel — there is no wake source wired for a true deep sleep on this board. The
 main loop drops from 50 Hz to 10 Hz while asleep, and the battery still drains,
 just far more slowly than with the backlight on.
 
+#### Hold to unlock
+
+A console in a bag or a coat pocket gets pressed constantly. A touch therefore
+**lights the screen and nothing else**: it lands on a lock screen, and only a
+deliberate **press-and-hold of about a second** on the unlock button hands the
+device back to the screen underneath. A progress bar fills while you hold, so
+it is obvious what the device is waiting for.
+
+This is an accidental-touch guard, not a password. It is **nothing to do with
+the admin PIN** — unlocking neither grants nor revokes admin, and you come back
+to exactly the profile and screen you left, in the orientation you left them in.
+It guards the screen saver and panel sleep alike, and it is deliberately
+tolerant of the way a resistive panel drops contact mid-press: gaps of up to
+150 ms do not restart the hold. If nobody unlocks within 12 seconds the device
+goes back to sleep on its own.
+
+Turn it off in **Settings → Power → Hold to unlock** if you would rather any
+touch went straight through. It is on by default, and like every device
+setting it is global and admin-writable only.
+
+#### Lock now
+
+The padlock beside **Home** — and on the launcher's own header, in both
+layouts — blanks the screen at once, without waiting for an idle timeout. It
+is the same guard, reached deliberately: for a console being carried, handed
+across a car seat, or dropped into a bag with a game still open.
+
+The next touch lands on the same **Hold to unlock** screen above, and a
+completed hold puts back the exact screen that was open. Pressing Lock
+yourself is a request, so it produces the lock screen even if **Hold to
+unlock** is switched off. Nothing is stored, no profile or score is touched,
+and the tap is consumed by the shell — whatever sat under the padlock is not
+pressed as well.
+
 ### Scores, Profiles, About and System Info
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:
@@ -455,8 +509,8 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   the Braino! product mark in a branded header, with the GoodTime Micro
   copyright beside it.
 - **Scores** -- two tabs:
-  - **Mine** shows bests and worsts for the active child, per game.
-  - **Device** shows the device-wide best and its holder across every child on
+  - **Mine** shows bests and worsts for the active player, per game.
+  - **Device** shows the device-wide best and its holder across every player on
     the device. The holder's name appears in gold when it is the current player
     — a small recognition for being on top.
 - **About** -- what each game is for, in a parent's words, plus a **What the
@@ -546,7 +600,7 @@ The divider ratio itself is still an assumption pending a meter on the board.
 
 A background **watchdog** supervises the main loop (`src/hal/Watchdog.cpp`). The
 ESP32 hardware task watchdog reboots the device if any frame takes longer than
-12 seconds, so a hung game cannot leave a child staring at a frozen screen, and
+12 seconds, so a hung game cannot leave a player staring at a frozen screen, and
 a low-priority monitor task samples frame times and heap once a second, logging
 a stall long before that. After an unclean reset the breadcrumb -- which screen
 was up, uptime, heap low-water mark -- survives the reboot and is printed on the
@@ -562,7 +616,8 @@ and never leave it.
 
 Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip
-Wi-Fi entirely).
+Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
+from 1 to 24 hours and defaults to 6 hours.
 
 ### The BLE beacon
 
@@ -584,10 +639,10 @@ all:
 
 The id is the last two bytes of the factory Bluetooth MAC -- a hardware serial,
 stable so you can recognise your own device in a scanner. Nobody types it and it
-is not derived from anything a child entered. Advertising is **non-connectable**:
+is not derived from anything a player entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
-**Not broadcast:** child information, child name, profile name, location, Wi-Fi
+**Not broadcast:** player information, player name, profile name, location, Wi-Fi
 credentials, Wi-Fi SSID, IP address, game progress, usage history.
 
 That list is structural rather than a promise. `buildPayload()` emits a name AD
@@ -609,7 +664,7 @@ present and zeroed: the manufacturer block is five bytes shorter and the flag
 bit is clear. "Not transmitted" has to be structural to be worth claiming.
 
 Neither field says who is playing. There is no name, no profile, and no way to
-get from a score back to a child — the exchange is a leaderboard with nobody's
+get from a score back to a player — the exchange is a leaderboard with nobody's
 name on it. Listening is passive, so a console that is only watching transmits
 nothing extra.
 
@@ -711,6 +766,11 @@ The main firmware also traces the clock over serial at 115200:
 ## Layout of the code
 
 ```
+include/
+  BoardProfile.h        the contract every supported board fills in
+  BoardConfig.h         selects one board profile; derives the screen constants
+  boards/
+    e32r28t1.h          the 2.8-inch board: pins, rotations, battery divider
 src/
   main.cpp              bringup entrypoint + normal app setup/loop
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
@@ -721,6 +781,7 @@ src/
     AppRuntime.cpp      runtime loop, transitions, view state
     AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
+    AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     Game.h              base class; lifecycle + full vs partial invalidation
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view
@@ -764,6 +825,7 @@ tools/
   gen_screens.py        regenerates the images in this README
   gen_site.py           builds the GitHub Pages site and its flash manifests
   check_docs.py         fails if these docs have drifted from the code
+  check_boards.py       fails if a board is described inconsistently
 site/
   index.template.html   the landing page, with {{PLACEHOLDERS}} gen_site fills
 .github/workflows/
@@ -771,6 +833,7 @@ site/
   pages.yml             publishes the site with the same built firmware
 docs/
   BLE_BEACON_SPEC.md    what the beacon broadcasts, and why that is checkable
+  PORTING.md            adding a board: the two files, and the bring-up order
   SD_CONTENT_SPEC.md    optional SD content format
 cases/
   <BOARD_NAME>/         printable enclosure for that board -- STL, 3MF, print notes
@@ -792,7 +855,7 @@ Code in this repository is licensed **GPL-3.0-or-later** — see
 In short: you may use, study, modify and redistribute it, but if you
 distribute a modified version or a device running one, you must offer the
 corresponding source under the same terms. That is deliberate — this is a
-project for children's hardware that people are invited to port, and the ports
+project for players' hardware that people are invited to port, and the ports
 should stay available to the people who own the devices.
 
 The bundled artwork and libraries keep their own, more permissive licences, all

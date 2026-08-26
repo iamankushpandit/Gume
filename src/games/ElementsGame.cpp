@@ -117,7 +117,7 @@ Rect ElementsGame::cellRect(uint8_t col, uint8_t row) {
 
 Rect ElementsGame::optionRect(int16_t w, uint8_t index, uint8_t count) {
     /* Three options get the same slots as four, minus the last one, so the
-     * state question does not shuffle the buttons under a child's finger
+     * state question does not shuffle the buttons under a player's finger
      * relative to every other question. */
     (void)count;
     return Rect{10, static_cast<int16_t>(90 + index * 36),
@@ -289,7 +289,7 @@ void ElementsGame::update(AppContext& host, const TouchPoint& touch) {
             if (hit == 0xFF || hit == selected_) return;
             /* Two-step: the first tap only moves the selection, because a
              * 16x14 square is smaller than a fingertip and an accidental open
-             * would be a screen change the child did not ask for. */
+             * would be a screen change the player did not ask for. */
             lastSelected_ = selected_;
             selected_ = hit;
             markDirty();

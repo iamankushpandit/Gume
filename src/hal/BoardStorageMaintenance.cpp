@@ -340,7 +340,7 @@ void Board::logStorageUsage(const char* context) {
 }
 
 void Board::clearProfileSlot(uint8_t slot) {
-    if (slot >= MAX_KIDS) {
+    if (slot >= MAX_PLAYERS) {
         return;
     }
 
@@ -367,7 +367,7 @@ void Board::clearProfileSlot(uint8_t slot) {
 }
 
 void Board::moveProfileSlot(uint8_t fromSlot, uint8_t toSlot) {
-    if (fromSlot >= MAX_KIDS || toSlot >= MAX_KIDS || fromSlot == toSlot) {
+    if (fromSlot >= MAX_PLAYERS || toSlot >= MAX_PLAYERS || fromSlot == toSlot) {
         return;
     }
 

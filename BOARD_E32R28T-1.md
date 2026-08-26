@@ -180,7 +180,7 @@ Rotation is set at boot to value 3 (landscape, USB edge at bottom). `setDisplayR
 PWM brightness control on LEDC channel 4:
 - Frequency: 5 kHz
 - Depth: 8-bit (0–255)
-- Floor: `BRIGHTNESS_MIN = 25` (11%) — below this the panel is unreadable and a child cannot see the slider to undo it
+- Floor: `BRIGHTNESS_MIN = 25` (11%) — below this the panel is unreadable and a player cannot see the slider to undo it
 - Ceiling: 255 (100%)
 
 **Drive logic:** Common anode (`HIGH` = off, `LOW` = on), but LEDC inverts for convenience:
@@ -369,7 +369,7 @@ int16_t tzOffsetMin;  // offset in minutes (e.g., -300 = UTC-5)
 - **POSIX zone example:** `CST6CDT,M3.2.0,M11.1.0` (US Central with DST rules)
 
 ### Credentials
-Stored in NVS namespace `cydkids`:
+Stored in the application NVS namespace:
 - SSID
 - Password
 - Cached flag (`hasWifiCredentials()` reads RAM mirror after boot load)
@@ -404,7 +404,7 @@ Byte 7:     Flags (nearby flag, etc.)
 [Bytes 8–11 if Nearby: game index (2 bytes) + best score (2 bytes)]
 ```
 
-**Device ID:** Last 2 bytes of factory BT MAC (4 hex digits), stable across boots, not derived from any child input.
+**Device ID:** Last 2 bytes of factory BT MAC (4 hex digits), stable across boots, not derived from any player input.
 
 ### Nearby Play (Optional)
 
@@ -423,20 +423,20 @@ When on, appends to manufacturer data:
 ## 8. Memory and Storage
 
 ### NVS (Non-Volatile Storage)
-- **Namespace:** `cydkids` (game data, profiles, settings)
+- **Namespace:** application profile/settings store
 - **Secondary namespace:** `cydwdt` (watchdog crash breadcrumbs, separate to persist across factory reset)
 - **Partition:** Default NVS (not app-scoped)
 
 ### Profile Storage
 
-Five child slots (`p0_` through `p4_`) plus permanent Guest (`p5_`, writes dropped):
+Five player slots (`p0_` through `p4_`) plus permanent Guest (`p5_`, writes dropped):
 - Per-profile: scores, best/worst, mastery blobs, game visibility
 - Global: theme, layout, brightness, Wi-Fi credentials, timezone, BLE beacon state
 
 **Profile operations:**
-- `removeKid(index)` → clears `pN_` keys, shifts later slots down, clears old last slot
-- Deleting active child → switches to Guest
-- Deleting lower slot → active index shifts down (same real child stays active)
+- `removePlayer(index)` → clears `pN_` keys, shifts later slots down, clears old last slot
+- Deleting active player → switches to Guest
+- Deleting lower slot → active index shifts down (same real player stays active)
 
 ---
 
@@ -512,7 +512,7 @@ Five child slots (`p0_` through `p4_`) plus permanent Guest (`p5_`, writes dropp
 
 ### Touch Calibration Persistence
 - **Symptom:** Touch calibration lost after factory reset
-- **Root cause:** `factoryReset()` clears NVS `cydkids` namespace where calibration is stored
+- **Root cause:** `factoryReset()` clears the application NVS namespace where calibration is stored
 - **Fix:** Expected behavior (clean slate for re-sale/hand-off)
 - **Action:** Wizard re-runs automatically if calibration magic is missing
 
