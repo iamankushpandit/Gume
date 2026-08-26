@@ -151,7 +151,7 @@ def topbar(d, title, synced=True, bars=3):
     # title starts at 62 instead of 48. See LauncherLayout.
     d.rounded_rectangle([2, 5, 30, 24], 3, outline=MUTED)
     d.text((5, 9), "home", font=F1, fill=MUTED)
-    lock_icon(d, (40, 5, 18, 20))
+    lock_icon(d, (40, 6, 18, 18))
     d.text((62, 8), title, font=F2, fill=TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
@@ -498,9 +498,11 @@ def launcher_wide():
     sync_cx = wifi_cx - 8 - 6 - 6
     sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
     battery_badge(d, batt_right - batt_w // 2, 34)
-    d.line([(W - 116, 8), (W - 116, 40)], fill=OUTLINE)
+    d.line([(W - 138, 8), (W - 138, 40)], fill=OUTLINE)
     d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
-    lock_icon(d, (92, 8, 24, 24))
+    # Lock at the left-hand end of the badge row, inside the hairline, at badge
+    # size. See LauncherLayout::lockRect().
+    lock_icon(d, (W - 136, 25, 18, 18))
     tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
              ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
              ("Trace", "A-Z & 0-9"), ("Calendar", "days & months")]
@@ -536,7 +538,7 @@ def launcher_tall():
     battery_badge(d, batt_left + batt_w // 2, 60)
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
-    lock_icon(d, (170, 48, 24, 24))
+    lock_icon(d, (176, 51, 18, 18))
     tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
              ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]
     for slot, (title, sub, fill) in enumerate(tiles):
@@ -649,8 +651,16 @@ def wakelock():
     d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
     d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],
                 fill=SUCCESS)
-    centered_fitted(d, "Nothing under here can be touched yet", W / 2,
-                    H - 16, text_max, F1, MUTED)
+    # The longest form that fits whole, never a truncated sentence. Mirrors
+    # LOCK_FOOTERS in AppRuntimeLock.cpp.
+    footer = next((s for s in ("Nothing under here can be touched yet",
+                               "Nothing under here can be touched",
+                               "Nothing below can be touched",
+                               "Nothing below is live")
+                   if d.textlength(s, font=F1) <= text_max),
+                  "Nothing below is live")
+    d.text((W / 2 - d.textlength(footer, font=F1) / 2, H - 16), footer,
+           font=F1, fill=MUTED)
     return im
 
 

@@ -212,12 +212,13 @@ void LauncherGame::render(GameHost& host) {
                              14, Ui::surface());
         }
         /* Packed to the pixel, and now measured rather than assumed. The row
-         * runs from the hairline at lW-116 to the gear at lW-30. In the widest
-         * state -- "100" while charging, 35px -- the three badges plus their
-         * gaps come to 81px of the 86 available, so there is about 5px of
-         * slack. Anything else that wants to live on this row has to earn it.
-         * The hairline moved out from lW-110 to lW-116 to buy those pixels,
-         * which is why profileRect()'s right limit moved with it. */
+         * runs from the hairline at lW-138 to the gear at lW-30, and carries
+         * the Lock badge at its left-hand end. In the widest state -- "100"
+         * while charging, 35px -- the three status badges plus their gaps come
+         * to 81px, the padlock and its gap take another 25, and what is left
+         * is a few pixels. Anything else that wants to live on this row has to
+         * earn it. The hairline has moved out twice, lW-110 to lW-116 to lW-138,
+         * and profileRect()'s right limit moved with it both times. */
         const int8_t battPct = board.getBatteryPercent();
         const Ui::PowerHint battPower = Ui::powerHint(board);
         const int16_t battW = Ui::batteryBadgeWidth(tft, battPct, battPower);
@@ -228,7 +229,7 @@ void LauncherGame::render(GameHost& host) {
         Ui::drawWifiBadge(tft, wifiCx, 34, Ui::surface());
         Ui::drawBatteryBadge(tft, static_cast<int16_t>(battRight - battW / 2), 34,
                              battPct, battPower, Ui::surface());
-        tft.drawFastVLine(static_cast<int16_t>(lW - 116), 8, 32, Ui::outline());
+        tft.drawFastVLine(static_cast<int16_t>(lW - 138), 8, 32, Ui::outline());
     }
     Ui::drawGearIcon(tft, gearBtn, Ui::text());
     /* The launcher draws no top bar, so it carries its own Lock button. The

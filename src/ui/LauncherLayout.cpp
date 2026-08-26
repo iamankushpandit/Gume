@@ -20,21 +20,30 @@ Rect topBarHomeRect() {
 Rect topBarLockRect() {
     /* Starts at 40 so that home's 8px of touch slop -- which reaches exactly
      * 40 -- stops where the padlock starts drawing. The two targets overlap in
-     * slop only, never in pixels either of them paints. */
-    return Rect{40, 5, 18, 20};
+     * slop only, never in pixels either of them paints. Sized like a status
+     * badge rather than like the gear: it belongs to the same family as the
+     * battery and Wi-Fi glyphs, and a gear-sized padlock read as a control
+     * twice as important as anything else on the bar. */
+    return Rect{40, 6, 18, 18};
 }
 
+/* Both layouts put the padlock in the status cluster, at badge size, centred
+ * on the same row as the sync, Wi-Fi and battery glyphs. It sat beside
+ * "Braino!" first, on the far side of the header's hairline, where it read as
+ * part of the product name rather than as one of the device's indicators. */
 Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
     if (mode == Board::LayoutMode::Vertical) {
-        /* On the badge row, left of the gear. The badges before it end near
-         * x=155 in the widest state ("100" while charging, plus the beacon
-         * rune), and the gear starts at screenW-32. */
-        return Rect{static_cast<int16_t>(screenW - 70), 48, 24, 24};
+        /* Portrait badge row (centred on y=60), left of the gear. The badges
+         * before it end near x=155 in the widest state ("100" while charging,
+         * plus the beacon rune), and the gear starts at screenW-32. */
+        return Rect{static_cast<int16_t>(screenW - 64), 51, 18, 18};
     }
-    /* Wide: the air between "Braino!" -- which ends near x=80 at font 4 -- and
-     * the profile name at x=124. The badge row below is untouched; it is
-     * packed to the pixel and had nothing to give. */
-    return Rect{92, 8, 24, 24};
+    /* Landscape: the left-hand end of the badge row, inside the hairline.
+     * That row had about 4px spare, so the hairline moved out again -- from
+     * screenW-116 to screenW-138 -- and profileRect()'s right limit moved with
+     * it, exactly as it did when the battery badge grew. The name truncates
+     * gracefully; the badge row does not. */
+    return Rect{static_cast<int16_t>(screenW - 136), 25, 18, 18};
 }
 
 int16_t headerHeight(Board::LayoutMode mode) {
@@ -54,11 +63,12 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
         return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, screenW - 46)), 20};
     }
     const int16_t x = 124;
-    /* Stops short of the header's status hairline at lW-116. That hairline
-     * moved out by 6px when the battery badge grew to carry its percentage;
-     * the profile name gives up those pixels because it truncates gracefully
-     * and the badge row does not. */
-    const int16_t rightLimit = static_cast<int16_t>(screenW - 120);
+    /* Stops short of the header's status hairline at lW-138. That hairline has
+     * moved out twice now -- 6px when the battery badge grew to carry its
+     * percentage, then 22px again for the Lock badge -- and the profile name
+     * gives up those pixels both times, because it truncates gracefully and
+     * the badge row does not. */
+    const int16_t rightLimit = static_cast<int16_t>(screenW - 142);
     const int16_t w = static_cast<int16_t>(min<int16_t>(86, max<int16_t>(52, rightLimit - x)));
     return Rect{x, 30, w, 18};
 }
