@@ -120,10 +120,23 @@ squash rather than merging a stale branch into it. Repository admins can bypass
 these rules — that exists for an emergency such as a broken release, not as a
 normal route, and using it skips the CI that would have caught the problem.
 
-`verify` also runs on every push, to every branch, `main` included. That is
-deliberate belt-and-braces: the pull-request trigger alone left `main`
-unchecked, and it stayed red for weeks without anyone seeing it. If an admin
-bypass ever does land something on `main`, the push run is what says so.
+`verify` also runs on pushes to `main` and `dev`. That is deliberate
+belt-and-braces: the pull-request trigger alone left `main` unchecked, and it
+stayed red for weeks without anyone seeing it. If an admin bypass ever does
+land something on `main`, the push run is what says so. It is scoped to those
+two branches rather than to every branch because a topic branch with a pull
+request open matches both triggers, and ran the whole job twice for every
+commit.
+
+The job always runs on a pull request, whatever the change touches, because
+`verify` is the required check: a required check that never runs does not read
+as passed, it reads as still expected, and the pull request waits for a status
+that will never arrive. So the skipping happens a level down. A pull request
+touching only `docs/`, `cases/`, `site/`, `LICENSE` or Markdown skips the
+firmware build and reports on the repository checks alone; anything else
+builds all three environments as before. `paths-ignore:` on the trigger is the
+obvious way to do this and is the trap -- it would make every
+documentation-only pull request permanently unmergeable.
 
 `git push origin main` will be rejected. That is the protection working; open a
 pull request instead.
@@ -152,9 +165,9 @@ Keep the branch current — `git fetch upstream && git rebase upstream/dev` —
 because the protection rules will not let a stale branch merge. Leave "allow
 edits by maintainers" ticked so a maintainer can rebase or fix a check for you.
 
-CI runs on pull requests from forks with a read-only token, so `verify` (repo
-checks plus a build of every firmware environment) will report on your PR
-without any secret being exposed to it. What CI cannot do is flash a board:
+CI runs on pull requests from forks with a read-only token, so `verify` (the
+repository checks, plus a build of every firmware environment when your change
+touches code) will report on your PR without any secret being exposed to it. What CI cannot do is flash a board:
 anything touching hardware, touch, storage or a screen still needs a human with
 the device, so say in the PR what you tested and on which board.
 
