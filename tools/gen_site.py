@@ -89,6 +89,7 @@ BOARD_DETAILS = {
 
 SCREEN_CAPTIONS = {
     "about-radios": "About: what the radios do",
+    "about-build": "About: which build is on the device",
     "calendar": "Calendar",
     "cinnamon": "Cinnamon Says",
     "colormix": "Color Mix",
@@ -214,7 +215,7 @@ SYSTEM_SHOWCASE = (
     {
         "id": "about",
         "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
-        "stills": ("about-radios",),
+        "stills": ("about-radios", "about-build"),
     },
     {
         "id": "nearby",

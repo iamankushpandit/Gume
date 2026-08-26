@@ -1,5 +1,6 @@
 #include "SystemInfoGame.h"
 #include "AppVersion.h"
+#include "BuildStamp.h"
 #include "engine/AppRegistry.h"
 #include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
@@ -277,6 +278,21 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
     rows_.addRow("SDK", ESP.getSdkVersion());
     rows_.addRow("Firmware", BRAINO_VERSION);
+    /* Which build, not just which release: BRAINO_VERSION is identical
+     * across every flash of 5.0.0.
+     *
+     * Branch and commit get a row each rather than sharing one. RowList
+     * truncates a value at VALUE_MAX (34), and branch names here run to
+     * "claude/issue-7-backlog-reprioritize-0d7502" -- a combined row would
+     * cut off the commit, which is the half that actually identifies the
+     * build. Separate rows, and the commit is always whole.
+     *
+     * All three are const char* from BuildStamp, so none of them builds a
+     * String -- this screen is the worst place in the tree to churn the
+     * heap, being the one people read while chasing a slow frame. */
+    rows_.addRow("Branch", BuildStamp::branch());
+    rows_.addRow("Commit", BuildStamp::commit());
+    rows_.addRow("Built", BuildStamp::builtAt());
     rows_.addRow("Reset", Watchdog::resetReasonText(static_cast<int>(esp_reset_reason())));
     rows_.addRow("Uptime", uptimeText(millis() / 1000UL));
 
