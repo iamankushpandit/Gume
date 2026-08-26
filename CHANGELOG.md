@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,351,369 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
+Flash 2,351,873 / 3,145,728 (74.8%), RAM 72,548 / 327,680 (22.1%).
 
 ### Added
 
@@ -27,6 +27,17 @@ Flash 2,351,369 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
 
 ### Fixed
 
+- **The lock screen's footer is no longer cut mid-word on the device.** It went
+  through `Ui::fitted()`, which truncates and ends in a `.`; past that, a line
+  wider than the panel loses its tail silently, because TFT_eSPI drops
+  characters once x reaches the viewport's right edge. The footer now takes the
+  longest wording that measures whole against the live panel, wraps at a word
+  break if none fits, and clamps both lines inside the screen; `renderLock()`
+  also resets the viewport, since the lock screen owns the panel and should not
+  inherit another screen's clip. The mock-ups could not have caught this -- PIL
+  has its own metrics and clips nothing -- so the generator now draws the
+  portrait lock screen too, where the sentence is tightest, and the firmware
+  logs the panel size and the measured footer width once per lock paint.
 - **Profiles are players throughout the firmware, UI and docs.** The profile
   APIs are now `playerCount()`, `addPlayer()` and `removePlayer()`, the runtime
   singleton is `BrainoApp`, and on-device text talks about players. The

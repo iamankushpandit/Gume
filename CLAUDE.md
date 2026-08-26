@@ -280,8 +280,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,351,369 / 3,145,728 bytes,
-**74.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,351,873 / 3,145,728 bytes,
+**74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,548 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
@@ -328,6 +328,16 @@ orientation that were up before. Three things about it are load-bearing:
 - **The press that got you here is swallowed.** `enterLock()` sets
   `swallowTouch_`, so a press held through a bag can never complete the
   gesture however long it lasts.
+- **Text on this screen is measured against the live panel, never trusted.**
+  Two different things chop a line and they look different on the device:
+  `Ui::fitted()` truncates and ends in a `.`, while TFT_eSPI drops characters
+  outright once x reaches the viewport's right edge (`drawChar`: `if (xd >=
+  _vpW) return`) -- no mark, cut mid-word. **`tools/gen_screens.py` cannot
+  reproduce either**: PIL has its own font metrics and clips nothing, so a
+  mock-up showing a sentence whole is not evidence that the panel does. The
+  footer therefore picks the longest wording that measures whole and
+  `drawSentence()` wraps and clamps it, and `renderLock()` resets the viewport
+  because this screen owns the panel and must not inherit anybody's clip.
 - **The hold tolerates dropouts.** Resistive contact falls below
   `TOUCH_PRESSURE_THRESHOLD` mid-press as a matter of course, so gaps up to
   `LOCK_CONTACT_GRACE_MS` (150ms) do not restart the timer.

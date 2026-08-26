@@ -1,5 +1,8 @@
 #include "AppRuntime.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
 
@@ -10,11 +13,22 @@ void drawCenteredFitted(Ui::Renderer& tft, const char* text, int16_t cx,
                    cx, y, font);
 }
 
-/* The footer sentence, in descending lengths. Ui::fitted() truncates and ends
- * in a '.', which is right for a name in a row and wrong for a sentence: on a
- * 240px portrait panel the long form came out as a chopped phrase that reads
- * like a different, half-finished statement. So the longest form that fits
- * *whole* is the one drawn, and nothing is ever cut mid-word. */
+/* The footer sentence, in descending lengths.
+ *
+ * Two different things chop a line here, and they look different on the panel,
+ * which is what makes them worth separating:
+ *
+ *  - Ui::fitted() truncates and ends in a '.'. Right for a name in a row,
+ *    wrong for a sentence -- it reads as a shorter, half-finished statement.
+ *  - TFT_eSPI drops characters outright once x reaches the viewport's right
+ *    edge (drawChar: `if (xd >= _vpW) return`). No mark, no ellipsis, cut
+ *    mid-word. **The mock-up generator cannot reproduce this**: it draws with
+ *    PIL, which has no clip and no shared font metrics, so docs/screens shows
+ *    the sentence whole while the device shows it cut.
+ *
+ * So the footer never trusts a width: it takes the longest wording that
+ * measures whole against the live panel, and drawSentence() below wraps and
+ * clamps whatever it is given. */
 const char* const LOCK_FOOTERS[] = {
     "Nothing under here can be touched yet",
     "Nothing under here can be touched",
@@ -32,10 +46,65 @@ const char* lockFooterText(Ui::Renderer& tft, int16_t maxW, uint8_t font) {
     return LOCK_FOOTERS[count - 1];
 }
 
+constexpr int16_t GLCD_FONT_H = 8;
+
 int16_t lockFooterY(Ui::Renderer& tft) {
-    constexpr int16_t GLCD_FONT_H = 8;
     constexpr int16_t BOTTOM_PAD = 8;
     return static_cast<int16_t>(tft.height() - BOTTOM_PAD - GLCD_FONT_H);
+}
+
+/* Draw a whole sentence centred on cx, wrapped onto a second line at a word
+ * break if it does not fit, with both lines clamped inside the panel. Nothing
+ * is ever truncated and nothing is ever handed to the driver wider than the
+ * space it has, so neither of the two chops above can happen. */
+void drawSentence(Ui::Renderer& tft, const char* text, int16_t cx, int16_t y,
+                  int16_t maxW, uint8_t font) {
+    if (text == nullptr || text[0] == '\0') {
+        return;
+    }
+    const int16_t panelW = static_cast<int16_t>(tft.width());
+    tft.setTextDatum(TL_DATUM);
+
+    auto drawClamped = [&](const char* line, int16_t lineY) {
+        const int16_t w = tft.textWidth(line, font);
+        int16_t x = static_cast<int16_t>(cx - w / 2);
+        if (x < 2) x = 2;
+        if (x + w > panelW - 2) x = static_cast<int16_t>(max<int16_t>(2, panelW - 2 - w));
+        tft.drawString(line, x, lineY, font);
+    };
+
+    if (tft.textWidth(text, font) <= maxW) {
+        drawClamped(text, y);
+        return;
+    }
+
+    /* Split at the word break closest to the middle, so neither line is a
+     * stub. If there is no break at all -- a single long word -- it is drawn
+     * clamped and left alone: hyphenating a word is a bigger lie than a
+     * narrow margin. */
+    const size_t len = strlen(text);
+    size_t best = 0;
+    for (size_t i = 0; i < len; ++i) {
+        if (text[i] == ' ' &&
+            (best == 0 || labs(static_cast<long>(i) - static_cast<long>(len / 2)) <
+                          labs(static_cast<long>(best) - static_cast<long>(len / 2)))) {
+            best = i;
+        }
+    }
+    if (best == 0) {
+        drawClamped(text, y);
+        return;
+    }
+
+    char first[64];
+    char second[64];
+    const size_t firstLen = min<size_t>(best, sizeof(first) - 1);
+    memcpy(first, text, firstLen);
+    first[firstLen] = '\0';
+    snprintf(second, sizeof(second), "%s", text + best + 1);
+
+    drawClamped(first, static_cast<int16_t>(y - GLCD_FONT_H - 2));
+    drawClamped(second, y);
 }
 }
 
@@ -174,6 +243,13 @@ void BrainoApp::updateLock(const TouchPoint& touch, uint32_t nowMs) {
 
 void BrainoApp::renderLock() {
     Ui::Renderer& tft = renderer_;
+    /* The lock screen owns the whole panel, so it must not inherit anybody
+     * else's clip. RowList sets a viewport around its scrolling rows and
+     * resets it, but a viewport left set anywhere would silently crop this
+     * screen at that rect's edge rather than fail visibly -- and the cheapest
+     * defence against a silent clip is not to depend on someone else's
+     * bookkeeping. */
+    tft.resetViewport();
     const int16_t W = static_cast<int16_t>(tft.width());
     const Rect btn = lockButtonRect();
     const Rect bar = lockProgressRect();
@@ -206,8 +282,17 @@ void BrainoApp::renderLock() {
 
         tft.drawRoundRect(bar.x, bar.y, bar.w, bar.h, 4, Ui::outline());
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString(lockFooterText(tft, textMaxW, 1), W / 2,
-                       lockFooterY(tft), 1);
+        const char* footer = lockFooterText(tft, textMaxW, 1);
+        drawSentence(tft, footer, static_cast<int16_t>(W / 2), lockFooterY(tft),
+                     textMaxW, 1);
+        /* One line per lock paint, and the only way to tell from off the
+         * device which of the two chops was happening: it reports what the
+         * panel says it is and what the string actually measures on it. The
+         * mock-ups cannot answer either question. */
+        Serial.printf("[lock] panel=%dx%d footer=%dpx of %dpx '%s'\n",
+                      static_cast<int>(W), static_cast<int>(tft.height()),
+                      static_cast<int>(tft.textWidth(footer, 1)),
+                      static_cast<int>(textMaxW), footer);
         tft.setTextDatum(TL_DATUM);
         lockPaintedPct_ = -1;
     }
