@@ -280,7 +280,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,350,197 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,351,205 / 3,145,728 bytes,
 **74.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,548 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -335,6 +335,28 @@ orientation that were up before. Three things about it are load-bearing:
   and `Asleep`; it runs its own `LOCK_TIMEOUT_MS` and hands back to sleep (or
   to the saver under `SaverOnly`). Leaving it in that block re-arms the saver
   timer against an already-expired `lastActivityMs_`.
+
+`BrainoApp::lockAndSleepNow()` is the deliberate way in -- the Lock button --
+and it is the same guard, not a second one: it sleeps through the ordinary
+`enterSleep()`, leaves `activeGame_` alone and comes back through
+`resumeUnderlyingScreen()`. Two things go with it:
+
+- **`lockOnWake_` overrides the setting, one time.** Both wake paths gate on
+  `wakeLockEnabled() || lockOnWake_`, so pressing Lock produces the lock screen
+  even for an owner who has switched Hold to unlock off -- that press *is* the
+  request. `resumeUnderlyingScreen()` clears it, because that is already the
+  one place that decides the lock is over.
+- **The Lock tap is consumed by the runtime, above the active screen**, beside
+  the Home and gear routing and for the same reason: a tap delivered to the
+  screen as well would press whatever sat under the padlock, and the user would
+  find it done when they unlocked. Its slot comes from
+  `LauncherLayout::topBarLockRect()` (top bar) or `LauncherLayout::lockRect()`
+  (the launcher, which draws no top bar), and both the glyph and the hit test
+  read those same helpers.
+- **The top bar has no spare pixels, and Lock was paid for.** Home narrowed
+  from 42px to 32px and the title's start moved from 48 to 62, costing the
+  title 14px. The right-hand cluster is measured, not padded, and cannot give;
+  check the longest screen title ("Finger Counting") before spending any more.
 
 | Layer | Where | Responsibility |
 |---|---|---|

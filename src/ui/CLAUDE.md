@@ -22,6 +22,8 @@ Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI
 
 `drawBleBadge()` has **no "off" variant on purpose.** An icon that is always present but sometimes greyed turns "is it transmitting?" into a question of shade, and that is the one question the badge exists to answer at a glance — so callers draw it only while `BleBeacon::active()`. It is 10x16 centred on the given point; the launcher header has almost no slack in landscape, so position anything near it off measured text widths rather than fixed offsets.
 
+`drawTopBar()` carries Home, Lock, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's 18px came out of the title (Home narrowed to 32px, the title moved from x=48 to x=62). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
+
 `drawNotification()` paints a transient strip over the top of whatever header is already there, full width at `TOP_BAR_HEIGHT`, so it works over the top bar and over the launcher's taller header alike. It is painted by the runtime **after** the screen has drawn itself, and the screen is asked for a full repaint when the notification goes away — that repaint is what actually removes it. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
 
 ## RowList

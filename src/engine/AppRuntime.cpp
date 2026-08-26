@@ -6,9 +6,9 @@
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
 
-namespace {
-constexpr Rect HOME_BUTTON{0, 0, 44, TOP_BAR_HEIGHT};
-}
+// Home, Lock and the gear all come from LauncherLayout, so a hit target and
+// the glyph Ui paints into it cannot drift apart.
+
 
 Ui::Renderer& BrainoApp::display() {
     return renderer_;
@@ -215,12 +215,22 @@ void BrainoApp::loop() {
         }
     } else if (activeGame_ != nullptr) {
         const Rect settingsButton = LauncherLayout::topBarSettingsRect(display().width());
+        const Rect homeButton = LauncherLayout::topBarHomeRect();
+        const Rect lockButton = activeLockRect();
         if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
         } else if (activeGame_ != &launcher_ &&
-                   touch.justPressed && HOME_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                   touch.justPressed && homeButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             goHome();
+        /* Above the screen's own update(), so the tap that locks is consumed
+         * here and cannot also press whatever it landed on -- the user would
+         * find it done when they unlocked. Home is tested first: their touch
+         * slop overlaps even though the glyphs do not, and the older target
+         * keeps the ambiguous pixels. */
+        } else if (touch.justPressed &&
+                   lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            lockAndSleepNow();
         } else {
             activeGame_->update(*this, touch);
         }
