@@ -56,7 +56,7 @@
 namespace cfg {
 /* Everything a calibration session might need to change lives here, so no
  * measurement ever requires editing logic. */
-constexpr float DIVIDER_RATIO = 2.0f;      // vendor manual: "multiplied by 2"
+constexpr float DIVIDER_RATIO = BOARD.battery.dividerRatio;  // from the board profile
 constexpr float CAL_FACTOR = 1.0f;         // set from page CAL if the meter disagrees
 constexpr uint32_t ADC_VREF_MV = 1100;     // fallback only; eFuse overrides
 constexpr uint8_t BURST_SAMPLES = 32;      // per statistics burst
@@ -101,7 +101,7 @@ constexpr float CHARGE_SMOOTH_ALPHA = 0.30f;
  * V_SENSOR_MAX is the plausibility ceiling the firmware actually uses, and
  * means "the ADC is faulty", not "no pack". */
 constexpr float V_NO_BATTERY = 4.35f;
-constexpr float V_SENSOR_MAX = 4.50f;
+constexpr float V_SENSOR_MAX = BOARD.battery.sensorMaxVolts;
 constexpr float V_IMPLAUSIBLE = 3.00f;
 }   // namespace cfg
 
@@ -248,7 +248,7 @@ void sampleBurst() {
     uint16_t s[cfg::BURST_SAMPLES];
     uint32_t sum = 0;
     for (uint8_t i = 0; i < cfg::BURST_SAMPLES; ++i) {
-        s[i] = (uint16_t)analogRead(PIN_BAT_ADC);
+        s[i] = (uint16_t)analogRead(BOARD.battery.adcPin);
         sum += s[i];
     }
     qsort(s, cfg::BURST_SAMPLES, sizeof(uint16_t), cmpU16);
@@ -893,8 +893,8 @@ void setup() {
     pinMode(PIN_LED_GREEN, OUTPUT);
     pinMode(PIN_LED_BLUE, OUTPUT);
     led(false, false, false);
-    pinMode(PIN_BAT_ADC, INPUT);
-    analogSetPinAttenuation(PIN_BAT_ADC, ADC_11db);
+    pinMode(BOARD.battery.adcPin, INPUT);
+    analogSetPinAttenuation(BOARD.battery.adcPin, ADC_11db);
     /* Same characterisation the product uses: eFuse-backed, not a nominal
      * 3.3V reference. At 11dB the converter is linear only to ~2.45V, and a
      * 4.2V cell through a 2:1 divider lands at 2.1V -- comfortably inside it. */
@@ -902,9 +902,9 @@ void setup() {
                              cfg::ADC_VREF_MV, &adcChars);
 
     tft.init();
-    tft.setRotation(CYD_SCREEN_ROTATION);
-    pinMode(PIN_TFT_BACKLIGHT, OUTPUT);
-    digitalWrite(PIN_TFT_BACKLIGHT, HIGH);
+    tft.setRotation(BOARD.panel.landscapeRotation);
+    pinMode(BOARD.panel.backlightPin, OUTPUT);
+    digitalWrite(BOARD.panel.backlightPin, BOARD.panel.backlightActiveHigh ? HIGH : LOW);
 
     startedMs = millis();
     sampleBurst();

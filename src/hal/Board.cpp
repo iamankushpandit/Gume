@@ -9,30 +9,41 @@ void Board::begin() {
     Serial.begin(115200);
     delay(100);
 
-    pinMode(PIN_BAT_ADC, INPUT);
+    /* Every peripheral below is optional in the profile. A board that does not
+     * wire one sets PIN_NONE and skips it here -- that is what makes a port a
+     * header rather than a patch. Touch and the panel are not optional. */
+    if (BOARD.hasBatterySense()) {
+        pinMode(BOARD.battery.adcPin, INPUT);
+    }
 
-    pinMode(PIN_TFT_BACKLIGHT, OUTPUT);
-    digitalWrite(PIN_TFT_BACKLIGHT, HIGH);
+    if (BOARD.hasBacklightControl()) {
+        pinMode(BOARD.panel.backlightPin, OUTPUT);
+        digitalWrite(BOARD.panel.backlightPin, BOARD.panel.backlightActiveHigh ? HIGH : LOW);
+    }
 
-    pinMode(PIN_RGB_R, OUTPUT);
-    pinMode(PIN_RGB_G, OUTPUT);
-    pinMode(PIN_RGB_B, OUTPUT);
-    setRgb(false, false, false);
+    if (BOARD.hasRgbLed()) {
+        if (BOARD.rgb.r != PIN_NONE) pinMode(BOARD.rgb.r, OUTPUT);
+        if (BOARD.rgb.g != PIN_NONE) pinMode(BOARD.rgb.g, OUTPUT);
+        if (BOARD.rgb.b != PIN_NONE) pinMode(BOARD.rgb.b, OUTPUT);
+        setRgb(false, false, false);
+    }
 
-    pinMode(PIN_SPEAKER, OUTPUT);
-    digitalWrite(PIN_SPEAKER, LOW);
+    if (BOARD.hasSpeaker()) {
+        pinMode(BOARD.audio.speakerPin, OUTPUT);
+        digitalWrite(BOARD.audio.speakerPin, LOW);
+    }
 
-    pinMode(PIN_TOUCH_MOSI, OUTPUT);
-    pinMode(PIN_TOUCH_MISO, INPUT);
-    pinMode(PIN_TOUCH_SCLK, OUTPUT);
-    pinMode(PIN_TOUCH_CS, OUTPUT);
-    pinMode(PIN_TOUCH_IRQ, INPUT);
-    digitalWrite(PIN_TOUCH_CS, HIGH);
-    digitalWrite(PIN_TOUCH_SCLK, LOW);
+    pinMode(BOARD.touch.mosi, OUTPUT);
+    pinMode(BOARD.touch.miso, INPUT);
+    pinMode(BOARD.touch.sclk, OUTPUT);
+    pinMode(BOARD.touch.cs, OUTPUT);
+    pinMode(BOARD.touch.irq, INPUT);
+    digitalWrite(BOARD.touch.cs, HIGH);
+    digitalWrite(BOARD.touch.sclk, LOW);
 
     tft_.init();
-    tft_.setRotation(CYD_SCREEN_ROTATION);
-    displayRotation_ = CYD_SCREEN_ROTATION;
+    tft_.setRotation(BOARD.panel.landscapeRotation);
+    displayRotation_ = BOARD.panel.landscapeRotation;
     tft_.setTextWrap(false, false);
     tft_.fillScreen(Ui::bg());
 
@@ -52,8 +63,12 @@ bool Board::sdReady() const {
 }
 
 bool Board::mountSd() {
-    sdSpi_.begin(PIN_SD_SCLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS);
-    sdMounted_ = SD.begin(PIN_SD_CS, sdSpi_, 16000000);
+    if (!BOARD.hasSdSlot()) {
+        sdMounted_ = false;
+        return false;
+    }
+    sdSpi_.begin(BOARD.sd.sclk, BOARD.sd.miso, BOARD.sd.mosi, BOARD.sd.cs);
+    sdMounted_ = SD.begin(BOARD.sd.cs, sdSpi_, BOARD.sd.spiHz);
     setRgb(!sdMounted_, sdMounted_, false);
     Serial.printf("SD mount: %s\n", sdMounted_ ? "ok" : "failed");
     return sdMounted_;

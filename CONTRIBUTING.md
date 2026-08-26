@@ -79,10 +79,15 @@ add a second.
 **Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
 variant in progress. The CYD family has many variants whose differences fail
 silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
-but a light sensor on the ESP32-2432S028R. If you own a variant, the checklist
-is [AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
-hardware reference first, then the PlatformIO env, then a verification app,
-then games. The "known issues" section of the board doc is not optional.
+but a light sensor on the ESP32-2432S028R. A board is described in two files
+and nowhere else — a profile header in `include/boards/` and a `[board_*]`
+section in `platformio.ini` — and no file under `src/` names a GPIO. The
+mechanics are in [docs/PORTING.md](docs/PORTING.md); everything a port needs
+around the code is in
+[AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
+hardware reference first, then the profile and the PlatformIO env, then a
+verification app, then games. The "known issues" section of the board doc is
+not optional.
 
 **Tell us what's wrong with the code.** Much of this firmware was written by
 coding agents under human direction. Confident mistakes survive longer that

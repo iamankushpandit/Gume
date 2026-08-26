@@ -96,10 +96,12 @@ void BrainoApp::begin() {
      * engine/Entropy.h. */
     content_.begin(board_);
     Clock::begin();
-    Serial.printf("[boot] rot=%d layout=%s (CYD_SCREEN_ROTATION=%d)\n",
+    Serial.printf("[boot] board=%s rot=%d layout=%s (landscape=%d portrait=%d)\n",
+                  BOARD.name,
                   (int)board_.displayRotation(),
                   board_.layoutMode() == Board::LayoutMode::Vertical ? "Vertical" : "Horizontal",
-                  (int)CYD_SCREEN_ROTATION);
+                  (int)BOARD.panel.landscapeRotation,
+                  (int)BOARD.panel.portraitRotation);
     Serial.printf("[boot] ntp=%d creds=%d ssid='%s' tzmin=%d\n",
                   (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
                   board_.wifiSsid().c_str(), (int)board_.tzOffsetMinutes());
@@ -329,7 +331,9 @@ void BrainoApp::applyRotation(uint8_t rotation) {
 }
 
 uint8_t BrainoApp::effectiveRotation(bool landscape) {
-    return landscape ? CYD_SCREEN_ROTATION : CYD_PORTRAIT_ROTATION;
+    /* Which quarter-turn is "landscape" depends on where the board puts its
+     * USB socket, so both come from the board profile. */
+    return landscape ? BOARD.panel.landscapeRotation : BOARD.panel.portraitRotation;
 }
 
 /* One place that decides orientation, because it used to be three and one of
