@@ -1,6 +1,14 @@
 # Changelog
 
-## 5.0.0 — Unreleased
+## 5.0.1-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.0.0
+release, and About's **This build** page names the branch and commit.
+
+Build figures are those of 5.0.0 until something changes them.
+
+## 5.0.0 — 2026-08-26
 
 An admin profile behind a four-digit PIN, so device settings and one profile
 are out of a player's reach -- and Elements, the periodic table, as game 31.
@@ -11,7 +19,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,351,873 / 3,145,728 (74.8%), RAM 72,548 / 327,680 (22.1%).
+Flash 2,353,001 / 3,145,728 (74.8%), RAM 72,572 / 327,680 (22.1%).
 
 ### Added
 

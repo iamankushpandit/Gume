@@ -47,9 +47,14 @@ def check_version(problems):
     version = match.group(1)
 
     readme = read("README.md")
-    stated = re.search(r"Current release: \*\*([^*]+)\*\*", readme)
+    # Between releases the README says "In development", because a -SNAPSHOT is
+    # not a release and calling it one is the kind of small untruth this file
+    # exists to catch. Either wording is accepted; the version still has to
+    # match the firmware constant.
+    stated = re.search(r"(?:Current release|In development): \*\*([^*]+)\*\*", readme)
     if not stated:
-        fail(problems, "README.md: no 'Current release: **x.y.z**' line")
+        fail(problems, "README.md: no 'Current release: **x.y.z**' or "
+                       "'In development: **x.y.z**' line")
     elif stated.group(1) != version:
         fail(problems, "README.md says release %s, AppVersion.h says %s"
              % (stated.group(1), version))
@@ -351,8 +356,13 @@ def check_badges(problems):
     readme = read("README.md")
 
     match = re.search(r"BRAINO_VERSION\s+\"([^\"]+)\"", read("include", "AppVersion.h"))
-    badge = re.search(r"img\.shields\.io/badge/version-([\d.]+)-", readme)
-    if match and badge and badge.group(1) != match.group(1):
+    # A pre-release version carries a suffix -- "5.0.1-SNAPSHOT" -- and
+    # shields.io renders a literal dash only when it is doubled, so the badge
+    # spells that "5.0.1--SNAPSHOT". Undo the escaping before comparing, or
+    # every snapshot bump reads as a drifted badge and this check gets ignored.
+    badge = re.search(r"img\.shields\.io/badge/version-([\d.]+(?:--[A-Za-z][\w.]*)?)-",
+                      readme)
+    if match and badge and badge.group(1).replace("--", "-") != match.group(1):
         fail(problems, "README version badge says %s, AppVersion.h says %s"
              % (badge.group(1), match.group(1)))
 
