@@ -115,6 +115,11 @@ squash rather than merging a stale branch into it. Repository admins can bypass
 these rules — that exists for an emergency such as a broken release, not as a
 normal route, and using it skips the CI that would have caught the problem.
 
+`verify` also runs on every push, to every branch, `main` included. That is
+deliberate belt-and-braces: the pull-request trigger alone left `main`
+unchecked, and it stayed red for weeks without anyone seeing it. If an admin
+bypass ever does land something on `main`, the push run is what says so.
+
 `git push origin main` will be rejected. That is the protection working; open a
 pull request instead.
 
