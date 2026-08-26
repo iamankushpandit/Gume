@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,351,873 / 3,145,728 bytes (**74.8%**) |
-| RAM | 72,548 / 327,680 bytes (**22.1%**) |
+| Flash | 2,353,001 / 3,145,728 bytes (**74.8%**) |
+| RAM | 72,572 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -518,10 +518,16 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   rather than typed in: the playable app list comes from `AppRegistry`, the
   version from the firmware constant, Wi-Fi state from `Board`, and beacon
   state and the advertised name from `BleBeacon`. It cannot drift out of date.
+  The last page is **This build** -- the branch, the abbreviated commit and
+  the build time, stamped in at compile time by `tools/build_stamp.py`. The
+  version number cannot answer "which firmware is on this board?", because
+  it is identical across every flash of a release; this can. A build made
+  from a source tarball with no git says `unknown` rather than guessing.
 - **System Info** -- five tabs of live telemetry: board, memory, network, BLE
   and app state. This is a diagnostics screen, not a toy: chip and reset
   reason, heap with a fragmentation meter, NVS usage and namespace counts,
-  Wi-Fi throughput, watchdog stalls.
+  Wi-Fi throughput, watchdog stalls, and the branch, commit and build time
+  this firmware was built from.
 
 <p align="center">
   <img src="docs/screens/scores-mine.png" width="360" alt="Scores: this player">
@@ -531,6 +537,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
 <p align="center">
   <img src="docs/screens/profiles.png" width="360" alt="Profiles: who is playing">
   <img src="docs/screens/about-radios.png" width="360" alt="About: what the radios do">
+  <img src="docs/screens/about-build.png" width="360" alt="About: which build is on the device">
   <img src="docs/screens/systeminfo-memory.png" width="360" alt="System Info: heap and CPU">
 </p>
 
@@ -768,11 +775,13 @@ The main firmware also traces the clock over serial at 115200:
 ```
 include/
   BoardProfile.h        the contract every supported board fills in
+  BuildStamp.h          which build this is, and why the time is not a -D
   BoardConfig.h         selects one board profile; derives the screen constants
   boards/
     e32r28t1.h          the 2.8-inch board: pins, rotations, battery divider
 src/
   main.cpp              bringup entrypoint + normal app setup/loop
+  BuildStamp.cpp        branch/commit/build time; rebuilt every build
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   engine/

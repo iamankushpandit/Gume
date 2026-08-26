@@ -2,6 +2,8 @@
 
 #include <esp_system.h>
 #include "engine/NearbyPlay.h"
+#include "AppVersion.h"
+#include "BuildStamp.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
@@ -102,6 +104,11 @@ void BrainoApp::begin() {
                   board_.layoutMode() == Board::LayoutMode::Vertical ? "Vertical" : "Horizontal",
                   (int)BOARD.panel.landscapeRotation,
                   (int)BOARD.panel.portraitRotation);
+    /* Beside the board line, so a serial log pasted into an issue identifies
+     * the firmware that produced it. "Which build was that?" has cost more
+     * than one round trip on a bug report. */
+    Serial.printf("[boot] build=%s built=%s version=%s\n",
+                  BuildStamp::describe(), BuildStamp::builtAt(), BRAINO_VERSION);
     Serial.printf("[boot] ntp=%d creds=%d ssid='%s' tzmin=%d\n",
                   (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
                   board_.wifiSsid().c_str(), (int)board_.tzOffsetMinutes());

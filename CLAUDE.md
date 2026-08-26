@@ -50,6 +50,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
 | Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
 | Whether scores are being shared | `BleBeacon::configured().sharesActivity` |
+| Branch, commit and build time | `BuildStamp::branch()` / `commit()` / `builtAt()` |
 
 If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static â€” the credits, the
@@ -186,6 +187,37 @@ Three diagnostic environments exist for hardware triage:
   copied from `BoardPower.cpp` deliberately, so what it shows is what the
   product will do — **if you change one of those, change both.**
 
+### Every build is stamped, and the time is not a `-D`
+
+`tools/build_stamp.py` is a pre-build script wired in from `[esp32_common]`, so
+every environment gets it. It injects the branch and the abbreviated commit as
+`-D GUME_BUILD_BRANCH` / `-D GUME_BUILD_COMMIT`, and the firmware reads them
+through `BuildStamp::` -- never the macros directly, outside
+`include/BuildStamp.h`. About's last page, System Info's Device tab and the
+`[boot] build=` serial line all read the same three accessors, so the answer to
+"which firmware is on this board?" is one fact with three viewers.
+
+`BRAINO_VERSION` cannot answer that question: it is identical across every
+flash of a release, which is exactly the case where you need to know.
+
+**Do not add the build time as a third `-D`.** PlatformIO folds build flags into
+its build signature, so a flag whose value changes on every invocation -- which
+a clock does by definition -- invalidates every object in the tree and turns
+`pio run` into a permanent full rebuild: roughly 100 seconds instead of 25, for
+everyone, forever. The time comes from the compiler's own `__DATE__` and
+`__TIME__` inside `src/BuildStamp.cpp`, and the script deletes that one object
+file so they are always current. One file recompiles per build, not the tree.
+The consequence to know is that the stamp is the build machine's local clock in
+C's format, not UTC and not ISO -- it identifies a build, it is not a timestamp
+to compute with.
+
+Branch and commit *do* cost a full rebuild when they change, which is correct:
+that is when the tree needed rebuilding anyway. On GitHub Actions the checkout
+is a detached HEAD, so the script prefers `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`
+over `git rev-parse --abbrev-ref`, which would otherwise say "HEAD". A tree with
+no `.git` at all -- a source tarball -- is a supported way to build, and stamps
+"unknown" rather than inventing something plausible.
+
 ### Build gotchas
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
@@ -280,9 +312,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,351,873 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,353,001 / 3,145,728 bytes,
 **74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,548 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
+at 72,572 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -548,9 +580,11 @@ Playable games are authored against a fixed 320Ã—240 landscape canvas. Launch
 ```
 include/BoardProfile.h    the contract every board fills in
 include/BoardConfig.h     selects one profile; derives SCREEN_* from it
+include/BuildStamp.h      branch/commit/build-time accessors
 include/boards/           one header per supported board -- the ONLY place
                           in the tree that names a GPIO      include/AppVersion.h
 src/main.cpp              bringup entrypoint + normal app setup/loop
+src/BuildStamp.cpp        which build this is; recompiled every build
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,

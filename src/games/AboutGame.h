@@ -19,6 +19,7 @@ private:
     void renderGames(Ui::Renderer& tft, int16_t w);
     void renderRadios(Ui::Renderer& tft, Board& board);
     void renderCredits(Ui::Renderer& tft);
+    void renderBuild(Ui::Renderer& tft);
 
     uint8_t page_ = 0;
 };
