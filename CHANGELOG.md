@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.0.1-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.0.0
+release, and About's **This build** page names the branch and commit.
+
+Build figures are those of 5.0.0 until something changes them.
+
 ## 5.0.0 — 2026-08-26
 
 An admin profile behind a four-digit PIN, so device settings and one profile
