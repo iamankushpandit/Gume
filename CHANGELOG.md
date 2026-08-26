@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,350,141 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
+Flash 2,350,197 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
 
 ### Fixed
 
@@ -69,6 +69,42 @@ Flash 2,350,141 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
 
 ### Added
 
+- **Board profiles — a board is now two files, and nothing else.** The
+  firmware was tied to the E32R28T-1 by construction: `include/BoardConfig.h`
+  held one board's pins as global constants, `SCREEN_WIDTH`/`SCREEN_HEIGHT`
+  were literal 320 and 240, and a second board meant copying thirty `-D` flags
+  into a second `platformio.ini` section. Now `include/boards/<id>.h` holds the
+  whole board — pins, rotations, the battery divider, which peripherals exist
+  at all — and a `[board_<id>]` section carries only the macros TFT_eSPI
+  insists on being told at compile time. **No file under `src/` names a GPIO
+  number any more.** The landscape canvas is derived from the panel and its
+  rotation rather than stated, so a differently sized board gets the right
+  constants without an edit. A peripheral a board does not wire is `PIN_NONE`
+  and the firmware degrades quietly, so a board with no SD slot, no LED or no
+  battery needs no code change. `docs/PORTING.md` is the checklist.
+- **A statement of which boards *cannot* be supported.** Optional hardware and
+  missing hardware are different answers and used to be blurred together. Four
+  things are now hard requirements — a panel of at least 320×240 in landscape,
+  a touch controller, the backlight on a GPIO, and 4 MB of flash for the 3 MB
+  app — and a board missing one fails to compile with a message naming it,
+  rather than flashing into a screen nobody can read or press. The SD slot, the
+  RGB LED, the speaker and battery sensing stay genuinely optional.
+- **The web installer now derives its board list from `platformio.ini`.** A
+  board that can be supported has to be flashable by the person who owns it,
+  not only by someone with a toolchain, so "supported" and "offered on the
+  page" are now the same set by construction. `gen_site.py` reads the
+  `[board_*]` sections and refuses to generate until a new board has a label, a
+  firmware entry and a CI build behind it; `check_boards.py` reports the same
+  gaps without needing to build.
+- **`tools/check_boards.py`, and a compile-time cross-check.** The panel is
+  necessarily described twice — once to TFT_eSPI, once to us — so
+  `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against
+  the profile. The backlight one matters most: with the wrong `TFT_BL` the
+  panel is completely dark while Wi-Fi, BLE, NVS, the LED and the screen saver
+  all run perfectly, so it reads as a dead screen rather than a wrong pin. The
+  script catches what the compiler cannot — a profile field a board never
+  filled in, a header no section points at, a board-specific flag that has
+  drifted into `[common]` where it would silently apply to every board.
 - **Hold to unlock, coming out of the screen saver or panel sleep.** A single
   stray press used to dismiss the saver and land straight on whatever screen
   was underneath -- mid-game, or on Settings -- which in a bag or a coat

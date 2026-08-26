@@ -17,7 +17,8 @@ build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
 A README claiming the wrong game count or a stale flash figure is a defect
 belonging to whoever last changed the thing it describes.
 
-**Run `python tools/check_docs.py` before you commit.** It fails if the version,
+**Run `python tools/check_docs.py` and `python tools/check_boards.py` before
+you commit.** It fails if the version,
 the game count, the source-tree listing or the build figures have drifted, and
 if the About app has started restating facts instead of deriving them. These
 rules existed and the docs went stale anyway -- the README shipped claiming 23
@@ -180,15 +181,17 @@ Three diagnostic environments exist for hardware triage:
   watchdog and the 2s telemetry cache are all correct product decisions that
   get in the way of watching an ADC for an hour. BOOT cycles pages; CSV
   (`ms,raw,adc_mv,cell_mv,pct,state`) streams to serial for capturing a full
-  discharge. Its charge-inference constants are copied from `BoardPower.cpp`
-  deliberately, so what it shows is what the product will do — **if you change
-  one, change both.**
+  discharge. It reads the divider ratio and the ADC fault ceiling from the same
+  board profile the product does. Its charge-inference constants are still
+  copied from `BoardPower.cpp` deliberately, so what it shows is what the
+  product will do — **if you change one of those, change both.**
 
 ### Build gotchas
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
 - `lib_ldf_mode = deep+` is required on `env:app` â€” transitive library headers do not resolve without it.
 - **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` â€” editing one would do nothing.
+- **One board = one `[board_*]` section plus one profile header.** `platformio.ini` splits into `[common]` (true of every board), `[esp32_common]` (the MCU), and a `[board_*]` section per board holding only the TFT_eSPI macros, `BOARD_NAME` and `GUME_BOARD_HEADER`. An environment composes `${common.build_flags}` with exactly one `${board_*.build_flags}`. Put a board-specific `-D` in `[common]` and it becomes a claim about every board â€” `check_boards.py` fails on that. The panel is described twice, to TFT_eSPI and to us, and `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against the profile so the two cannot disagree past the compiler.
 - Partition is `huge_app.csv` (3 MB app). Flash is the scarce resource; artwork and data tables dominate.
 - `CYD_SCREEN_ROTATION=3` is landscape with the USB edge at the bottom. `Board::pollTouch()` compensates for every rotation, so don't hand-correct coordinates in game code.
 
@@ -277,7 +280,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,350,141 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,350,197 / 3,145,728 bytes,
 **74.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,548 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -348,6 +351,10 @@ orientation that were up before. Three things about it are load-bearing:
 
 ### Invariants worth knowing before editing
 
+- **The board is described in two files and nowhere else.** `include/boards/<id>.h` holds the whole board -- pins, rotations, the battery divider, which peripherals exist; the `[board_<id>]` section in `platformio.ini` holds only what TFT_eSPI must be told at compile time. **No file under `src/` may name a GPIO number, a panel size or a divider ratio.** If you need one, read it off `BOARD`; if `BOARD` does not have it, add the field to `include/BoardProfile.h` and fill it in for every existing board in the same commit. `tools/check_boards.py` enforces the completeness, and `BoardConfig.h` static_asserts the overlap with TFT_eSPI. See `docs/PORTING.md`.
+- **Some boards cannot be supported, and that is a compile error, not a degradation.** Braino needs a panel of at least `GAME_CANVAS_WIDTH`x`GAME_CANVAS_HEIGHT` in landscape, a touch controller, the backlight on a GPIO, and 4 MB of flash. `BoardConfig.h` static_asserts each with a message naming what is missing. Optional hardware -- SD slot, RGB LED, speaker, battery sense -- is `PIN_NONE` plus a `has...()` guard, and the firmware does without it. **Do not blur the two:** turning a requirement into a quiet degradation ships a board that flashes and then cannot be read or pressed.
+- **A supported board must be flashable from the web installer.** `tools/gen_site.py` derives the picker's board list from the `[board_*]` sections rather than a hand-kept list, and refuses to generate until a new board has a `BOARD_DETAILS` label, an offered environment and a CI build behind it. `tools/check_boards.py` reports the same gaps without a build. "Supported" means someone who owns the board can flash it from the page, not that it builds here.
+- **`SCREEN_WIDTH` / `SCREEN_HEIGHT` are derived, not stated.** They come out of `BOARD.screenWidth()` / `screenHeight()`, which rotate the panel's native size by the profile's landscape rotation. Do not reintroduce a literal 320 or 240 next to them; a board that states its size twice will eventually state it two different ways.
 - **Every screen is a `Game`.** Launcher, Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
 - **`end()` is called on every screen change** via `BrainoApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
@@ -507,7 +514,10 @@ Playable games are authored against a fixed 320Ã—240 landscape canvas. Launch
 ## Layout
 
 ```
-include/BoardConfig.h     pins + screen constants   include/AppVersion.h
+include/BoardProfile.h    the contract every board fills in
+include/BoardConfig.h     selects one profile; derives SCREEN_* from it
+include/boards/           one header per supported board -- the ONLY place
+                          in the tree that names a GPIO      include/AppVersion.h
 src/main.cpp              bringup entrypoint + normal app setup/loop
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
@@ -525,7 +535,7 @@ src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
                           the site from the same firmware set
-docs/                     SD_CONTENT_SPEC.md, screens/
+docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/
 ```
 
 ## The web installer is part of the deliverable
@@ -556,17 +566,22 @@ page. The flash button will 404 there â€” the binaries only exist in CI.
 
 ## Hardware notes
 
-Pins live in `include/BoardConfig.h`; read it rather than trusting generic ESP32 pinouts online.
+Pins live in `include/boards/<board>.h` -- one profile header per supported
+board, and the only place in the tree that names a GPIO. Read the profile
+rather than trusting generic ESP32 pinouts online, and never copy a pin map
+between CYD variants: GPIO34 is battery sense here and the light sensor on the
+ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 
-- **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `PIN_RGB_R = 16`, `PIN_RGB_G = 4`, `PIN_RGB_B = 17`. This is already corrected in `BoardConfig.h` and verified on hardware; do not "fix" it again. Common anode, so drive is inverted.
-- Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `TOUCH_PRESSURE_THRESHOLD = 350`, `TOUCH_HIT_SLOP = 8`.
+- **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
+- Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `PIN_SPEAKER = 26` exists but audio is stubbed; `beepOk()`/`beepError()` pulse the RGB LED instead.
+- `audio.speakerPin = 26` exists but audio is stubbed; `beepOk()`/`beepError()` pulse the RGB LED instead.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions
 
 - Hit testing: `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`. `Rect` is in `Ui.h`, `TouchPoint` in `hal/TouchTypes.h`.
+- Board facts come from `BOARD` (`include/BoardProfile.h`), never from a literal. A peripheral a board does not wire is `PIN_NONE`, and the caller guards with `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()` or `hasBacklightControl()`.
 - Feedback: `board.beepOk()` / `board.beepError()`.
 - Draw through `Ui::` helpers so the Dark/Light theme is respected; avoid hardcoded colours outside icon art.
 - `src/games/CountryDataTable.cpp` is generated â€” edit `tools/gen_country_facts.py` and regenerate.

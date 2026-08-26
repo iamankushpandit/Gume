@@ -2,6 +2,12 @@
 
 The only place that talks to hardware. Ordinary games should not reach this directly; system screens use `GameHost::board()` and should prefer the narrow access facets when they only need one concern.
 
+## Which board, and how this code knows
+
+**Nothing in here may name a GPIO number, a panel size or a divider ratio.** Every hardware fact comes from `BOARD`, the one `BoardProfile` constant selected at compile time by `GUME_BOARD_HEADER` and defined in `include/boards/<id>.h`. That is what lets a second board be a header rather than a patch, and it is the rule that stops this directory becoming board-specific again.
+
+A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()`, `hasBacklightControl()`. Degrade quietly rather than fail -- a board with no battery connector blanks the gauge's digits, which is the honest answer, and needs no code change here at all. Adding a field to the contract means filling it in for every existing board in the same commit; `tools/check_boards.py` is what notices when that did not happen. `docs/PORTING.md` has the rest.
+
 ## Board.* + BoardAccess.h + BoardStorage.cpp + BoardStorageMaintenance.cpp
 
 `Board.h` remains the legacy aggregate for existing call sites, but it also exposes no-vtable concern facades: `displayAccess()`, `touchAccess()`, `storageAccess()`, `powerAccess()`, `networkAccess()` and `feedbackAccess()`. New subsystem code should take the narrowest facade it can. The implementation is split by concern:
@@ -35,7 +41,7 @@ Deleting a player is a storage operation, not a name-list edit. `removePlayer()`
 
 ### Touch
 
-Bit-banged SPI to the XPT2046 (the TFT owns HSPI). `pollTouch()` averages samples, applies `TOUCH_PRESSURE_THRESHOLD`, maps through a 3-point affine calibration, and compensates for the active rotation — so game code should never adjust coordinates itself. Calibration persists in NVS behind a magic number; `runTouchCalibration()` re-runs the wizard.
+Bit-banged SPI to the XPT2046 (the TFT owns HSPI). `pollTouch()` averages samples, applies `BOARD.touch.pressureThreshold`, maps through a 3-point affine calibration, and compensates for the active rotation — so game code should never adjust coordinates itself. Calibration persists in NVS behind a magic number; `runTouchCalibration()` re-runs the wizard.
 
 `TouchPoint` lives in `TouchTypes.h` and carries `down`, `justPressed`, `justReleased`, `x`, `y`, `pressure`; edge flags come from diffing against `lastTouch_`.
 
@@ -47,9 +53,9 @@ Panel sleep/wake is observable: `displaySleepTelemetry()` reports sleep count, w
 
 ### RGB LED
 
-LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` are the game-facing wrappers — there is no audio despite the name; `PIN_SPEAKER` is stubbed.
+LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` are the game-facing wrappers — there is no audio despite the name; the speaker pin is stubbed. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
-The red and green GPIOs are physically crossed on this unit versus the standard pinout. `BoardConfig.h` already accounts for it (`PIN_RGB_R = 16`, `PIN_RGB_G = 4`) and it was verified on hardware — leave it alone.
+The red and green GPIOs are physically crossed on this unit versus the standard pinout. The E32R28T-1 profile already accounts for it (`rgb.r = 16`, `rgb.g = 4`) and it was verified on hardware — leave it alone.
 
 ### Wi-Fi and time
 
@@ -67,7 +73,7 @@ Time/date formatting and sync-state helpers over the ESP32 RTC.
 
 ## Battery sensing
 
-`PIN_BAT_ADC` is GPIO34 = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
+`BOARD.battery.adcPin` is GPIO34 on this board = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
 
 `readBatteryTelemetry()` caches one sample set for `BATTERY_SAMPLE_MS` (2s) and every other accessor — `getBatteryVoltage()`, `getPowerSource()`, `getBatteryPercent()` — reads through it. **Keep it that way.** Before this, each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. That is most of a frame, and it is what made scrolling feel sluggish.
 

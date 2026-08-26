@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,350,141 / 3,145,728 bytes (**74.7%**) |
+| Flash | 2,350,197 / 3,145,728 bytes (**74.7%**) |
 | RAM | 72,548 / 327,680 bytes (**22.1%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -41,9 +41,25 @@ Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 **Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
 variant in progress. The CYD family has many variants whose differences fail
 silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
-but a light sensor on the ESP32-2432S028R. If you own a variant,
-[AGENTS.md](AGENTS.md) has the checklist: hardware reference first, then the
-PlatformIO env, then a verification app, then games.
+but a light sensor on the ESP32-2432S028R. A board is now described in two
+files and nowhere else: a profile header in `include/boards/` and a
+`[board_*]` section in `platformio.ini`. No file under `src/` names a GPIO,
+and the panel size the games draw on is derived from the profile rather than
+stated.
+
+Not every board can be supported. Braino needs a panel of at least 320×240
+in landscape, a touch controller (the only input it has), the backlight on a
+GPIO, and 4 MB of flash for the 3 MB app; a board missing one of those fails
+to compile with a message saying which, rather than flashing into something
+unreadable. An SD slot, an RGB LED, a speaker and battery sensing are all
+genuinely optional — the firmware does without them.
+
+And a board that *can* be supported has to be flashable from
+[the web installer](https://iamankushpandit.github.io/Gume/), not just from a
+toolchain: the page derives its board list from the same `[board_*]` sections,
+and the checks fail a port that CI does not build. [docs/PORTING.md](docs/PORTING.md)
+is the checklist, and [AGENTS.md](AGENTS.md) covers the hardware reference and
+bring-up app a port needs before it ships.
 
 **Tell us what's wrong with the code.** Much of this firmware was written by
 coding agents under human direction. Confident mistakes survive longer that
@@ -728,6 +744,11 @@ The main firmware also traces the clock over serial at 115200:
 ## Layout of the code
 
 ```
+include/
+  BoardProfile.h        the contract every supported board fills in
+  BoardConfig.h         selects one board profile; derives the screen constants
+  boards/
+    e32r28t1.h          the 2.8-inch board: pins, rotations, battery divider
 src/
   main.cpp              bringup entrypoint + normal app setup/loop
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
@@ -782,6 +803,7 @@ tools/
   gen_screens.py        regenerates the images in this README
   gen_site.py           builds the GitHub Pages site and its flash manifests
   check_docs.py         fails if these docs have drifted from the code
+  check_boards.py       fails if a board is described inconsistently
 site/
   index.template.html   the landing page, with {{PLACEHOLDERS}} gen_site fills
 .github/workflows/
@@ -789,6 +811,7 @@ site/
   pages.yml             publishes the site with the same built firmware
 docs/
   BLE_BEACON_SPEC.md    what the beacon broadcasts, and why that is checkable
+  PORTING.md            adding a board: the two files, and the bring-up order
   SD_CONTENT_SPEC.md    optional SD content format
 ```
 

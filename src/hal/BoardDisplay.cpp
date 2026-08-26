@@ -90,7 +90,7 @@ bool Board::drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_
             }
             const int16_t px = x + col;
             const int16_t py = y + row;
-            if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
+            if (px >= 0 && px < tft_.width() && py >= 0 && py < tft_.height()) {
                 tft_.drawPixel(px, py, color);
             }
         }

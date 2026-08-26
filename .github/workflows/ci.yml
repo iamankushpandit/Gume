@@ -31,6 +31,7 @@ jobs:
       - name: Run repository checks
         run: |
           python tools/check_docs.py
+          python tools/check_boards.py
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 

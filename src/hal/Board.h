@@ -75,8 +75,8 @@ public:
 
     /* This board brings no charge-status line out to a GPIO: the TP4056-style
      * charger's CHRG pin is not wired to the ESP32, so the only thing the
-     * firmware can see is the cell voltage on PIN_BAT_ADC. Charging is
-     * therefore *inferred* from how that voltage moves, in BoardPower.cpp.
+     * firmware can see is the cell voltage on the profile's battery ADC pin.
+     * Charging is therefore *inferred* from how that voltage moves, in BoardPower.cpp.
      *
      * UNKNOWN is the honest answer for the first few seconds after boot, and
      * whenever the ADC reads outside a plausible range. It is NOT a no-battery

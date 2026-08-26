@@ -1,0 +1,136 @@
+#pragma once
+
+#include <stdint.h>
+
+/* The contract every supported board has to fill in.
+ *
+ * Everything the firmware needs to know about a *specific* piece of hardware
+ * lives in one `BoardProfile` constant, declared by one header in
+ * `include/boards/`. Nothing outside that header may name a GPIO number, a
+ * panel size or a divider ratio; the rest of the firmware reads `BOARD`.
+ *
+ * That is the whole point. Before this existed, supporting a second board
+ * meant copying thirty `-D` flags into a second platformio.ini section and
+ * hoping every `PIN_*` constant in `include/BoardConfig.h` still applied --
+ * and the constants were global, so it could only ever describe one board at
+ * a time. `docs/PORTING.md` is the checklist; this file is the shape.
+ *
+ * Not every board can be supported, and this file is where that is decided.
+ * Braino! needs a colour panel of at least the size the games are drawn at,
+ * touch as its only input, a controllable backlight, and a 4 MB part to hold
+ * the 3 MB app. A board missing any of those cannot run this firmware, and
+ * `include/BoardConfig.h` refuses to compile for it rather than producing
+ * something that boots into a screen nobody can read or press. Saying no at
+ * the compiler is the kindest place to say it.
+ *
+ * Everything else is genuinely optional -- SD slot, RGB LED, speaker, battery
+ * sense -- and a board without one sets `PIN_NONE` and gets a firmware that
+ * quietly does without. That distinction is the useful one: "degrades" and
+ * "cannot work" are different answers and must not be blurred into each other.
+ *
+ * Rules for adding a field:
+ *
+ * - It must be a property of the *hardware*, not a product decision. Screen
+ *   rotation belongs here (the USB socket is on a physical edge); the idle
+ *   timeout does not.
+ * - Decide, and write down, whether a board can be supported without it. If it
+ *   can, `PIN_NONE` plus a `has...()` guard at every call site. If it cannot,
+ *   a static_assert in `BoardConfig.h` with a message saying what is missing.
+ * - Fill it in for every existing board in the same commit.
+ *   `tools/check_boards.py` reads the field names out of this file, so an
+ *   unfilled field fails the check rather than defaulting to zero.
+ */
+
+/* A line the board does not wire. Signed, because a GPIO number is not. */
+constexpr int8_t PIN_NONE = -1;
+
+/* The panel, as the hardware presents it -- native (portrait) dimensions, not
+ * the landscape canvas the games draw on. `screenWidth()` derives that. */
+struct PanelProfile {
+    int16_t nativeWidth;          // TFT_WIDTH: the panel's own short edge
+    int16_t nativeHeight;         // TFT_HEIGHT: its own long edge
+    uint8_t landscapeRotation;    // rotation putting the USB edge at the bottom
+    uint8_t portraitRotation;     // the quarter-turn from that
+    int8_t  backlightPin;         // must equal TFT_BL; see BoardConfig.h
+    bool    backlightActiveHigh;
+};
+
+/* XPT2046 resistive touch. `mosi`/`miso`/`sclk` may repeat the display's SPI
+ * pins on boards that share the bus; the firmware bit-bangs either way. */
+struct TouchProfile {
+    int8_t   mosi;
+    int8_t   miso;
+    int8_t   sclk;
+    int8_t   cs;
+    int8_t   irq;
+    uint16_t pressureThreshold;   // below this, and with IRQ high, it is noise
+    int16_t  hitSlop;             // pixels of forgiveness on every hit test
+};
+
+struct SdProfile {
+    int8_t   cs;
+    int8_t   mosi;
+    int8_t   miso;
+    int8_t   sclk;
+    uint32_t spiHz;
+};
+
+/* Status LED. `commonAnode` boards sink current, so a channel lights when the
+ * line is driven LOW -- getting this backwards is a lit LED that never goes
+ * out, not a dark one. */
+struct RgbLedProfile {
+    int8_t r;
+    int8_t g;
+    int8_t b;
+    bool   commonAnode;
+};
+
+struct AudioProfile {
+    int8_t speakerPin;
+};
+
+/* What the part has, as distinct from what the PCB wires. `flashBytes` gates
+ * support outright: the app partition is 3 MB (huge_app.csv), so a 4 MB part
+ * is the floor and nothing smaller can hold this firmware. It is declared
+ * rather than probed because the answer has to be known before the build, not
+ * after it has failed to fit. */
+struct MemoryProfile {
+    uint32_t flashBytes;
+};
+
+/* Battery sense. `dividerRatio` is the multiplier from the voltage at the ADC
+ * to the voltage at the cell; `sensorMaxVolts` is a plausibility ceiling on
+ * the reading, above which the divider or the ADC is faulty. Neither is a
+ * "is a pack fitted?" test -- see the comment block in hal/BoardPower.cpp. */
+struct BatteryProfile {
+    int8_t adcPin;
+    float  dividerRatio;
+    float  sensorMaxVolts;
+};
+
+struct BoardProfile {
+    const char*   name;           // what About and System Info show the owner
+    PanelProfile  panel;
+    TouchProfile  touch;
+    SdProfile     sd;
+    RgbLedProfile rgb;
+    AudioProfile  audio;
+    BatteryProfile battery;
+    MemoryProfile memory;
+
+    /* The landscape canvas the games are authored against. Derived, because a
+     * board that states both its panel size and its screen size can state them
+     * inconsistently, and one of the two would then be a lie. */
+    constexpr int16_t screenWidth() const {
+        return (panel.landscapeRotation & 1) ? panel.nativeHeight : panel.nativeWidth;
+    }
+    constexpr int16_t screenHeight() const {
+        return (panel.landscapeRotation & 1) ? panel.nativeWidth : panel.nativeHeight;
+    }
+
+    constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
+    constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
+    constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }
+    constexpr bool hasSpeaker() const { return audio.speakerPin != PIN_NONE; }
+    constexpr bool hasBatterySense() const { return battery.adcPin != PIN_NONE; }
+};
