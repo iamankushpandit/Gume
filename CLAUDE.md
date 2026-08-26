@@ -597,14 +597,54 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
                           LauncherLayout
-                          gen_site.py, check_docs.py
+tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          check_boards.py, check_catalog.py,
+                          check_frame_rules.py, build_stamp.py,
+                          pack_release.py
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
-                          the site from the same firmware set
+                          the site from the same firmware set;
+                          release.yml publishes a tagged release with
+                          every firmware image attached
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/
 cases/                    printable enclosures, one folder per BOARD_NAME;
                           optional -- a board is supported without one
 ```
+
+## Cutting a release
+
+A release is a tag. Everything else is automatic:
+
+```bash
+git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
+```
+
+`.github/workflows/release.yml` then builds every environment
+`platformio.ini` declares, packs them with `tools/pack_release.py`, and
+publishes a GitHub release with all four parts plus a single `-merged.bin`
+per environment, `SHA256SUMS.txt` and `FLASHING.txt`.
+
+Before tagging, on `main`:
+
+1. `include/AppVersion.h` carries the real version -- **not** a `-SNAPSHOT`.
+   The workflow refuses to publish one, because `dev` carries a snapshot
+   between releases by design and the first mistaken tag would otherwise
+   publish a "release" the firmware itself calls unreleased.
+2. `CHANGELOG.md` has a `## <version>` section with that day's date. The
+   release notes are lifted from it verbatim -- notes written by hand are a
+   second changelog that agrees with the first only on the day it is written.
+3. The build figures in `README.md` and `CLAUDE.md` are from a build of the
+   branch being released. **`tools/build_stamp.py` compiles the branch name
+   into the image**, so a figure measured on a feature branch is a few bytes
+   out on `main`; measure with `GITHUB_REF_NAME=main pio run -e app`, which is
+   what CI does.
+
+The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
+not. That check exists because a published release cannot be quietly
+corrected: people have already downloaded it.
+
+Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
+flashed from `dev` cannot be mistaken for the release it is ahead of.
 
 ## The web installer is part of the deliverable
 

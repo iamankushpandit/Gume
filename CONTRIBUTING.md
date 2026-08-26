@@ -296,6 +296,48 @@ Profile prefixing, app scoping, guest write suppression and legacy migrations
 are owned by the HAL. If you change persisted formats, update the schema
 migration and test profile deletion and slot shifting.
 
+## Cutting a release
+
+A release is a tag, pushed on `main`. Everything else is automatic:
+
+```bash
+git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
+```
+
+`.github/workflows/release.yml` builds every environment `platformio.ini`
+declares, packs them with `tools/pack_release.py`, and publishes a GitHub
+release carrying, per environment, all four flash parts and a single
+`-merged.bin` to write at `0x0` -- plus `SHA256SUMS.txt` and `FLASHING.txt`.
+Release notes are lifted from the `CHANGELOG.md` section for that version, so
+there is no second set to keep in step.
+
+Check three things before tagging:
+
+1. `include/AppVersion.h` carries the real version, not a `-SNAPSHOT`. The
+   workflow refuses to publish a snapshot: `dev` carries one between releases
+   by design, and the first mistaken tag would otherwise publish a "release"
+   that the firmware itself calls unreleased.
+2. `CHANGELOG.md` has a `## <version>` section, dated.
+3. The build figures in `README.md` and `CLAUDE.md` came from a build of the
+   branch being released. `tools/build_stamp.py` compiles the branch name into
+   the image, so a figure measured on a topic branch is a few bytes out on
+   `main` -- measure with `GITHUB_REF_NAME=main pio run -e app`.
+
+The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
+not. A published release cannot be quietly corrected, because people have
+already downloaded it.
+
+To rehearse the packing without tagging anything, run it against a local
+build:
+
+```bash
+pio run -e app -e bringup -e wifidiag -e batdiag
+python tools/pack_release.py --out dist --strict
+```
+
+Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
+flashed from `dev` cannot be mistaken for the release it is ahead of.
+
 ## Pull Requests
 
 Open it against `dev` unless you are a maintainer cutting a release, which is
