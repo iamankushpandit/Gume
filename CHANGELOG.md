@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,351,205 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
+Flash 2,351,369 / 3,145,728 (74.7%), RAM 72,548 / 327,680 (22.1%).
 
 ### Added
 

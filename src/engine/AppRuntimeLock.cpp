@@ -10,6 +10,28 @@ void drawCenteredFitted(Ui::Renderer& tft, const char* text, int16_t cx,
                    cx, y, font);
 }
 
+/* The footer sentence, in descending lengths. Ui::fitted() truncates and ends
+ * in a '.', which is right for a name in a row and wrong for a sentence: on a
+ * 240px portrait panel the long form came out as a chopped phrase that reads
+ * like a different, half-finished statement. So the longest form that fits
+ * *whole* is the one drawn, and nothing is ever cut mid-word. */
+const char* const LOCK_FOOTERS[] = {
+    "Nothing under here can be touched yet",
+    "Nothing under here can be touched",
+    "Nothing below can be touched",
+    "Nothing below is live",
+};
+
+const char* lockFooterText(Ui::Renderer& tft, int16_t maxW, uint8_t font) {
+    const size_t count = sizeof(LOCK_FOOTERS) / sizeof(LOCK_FOOTERS[0]);
+    for (size_t i = 0; i < count; ++i) {
+        if (tft.textWidth(LOCK_FOOTERS[i], font) <= maxW) {
+            return LOCK_FOOTERS[i];
+        }
+    }
+    return LOCK_FOOTERS[count - 1];
+}
+
 int16_t lockFooterY(Ui::Renderer& tft) {
     constexpr int16_t GLCD_FONT_H = 8;
     constexpr int16_t BOTTOM_PAD = 8;
@@ -184,8 +206,8 @@ void BrainoApp::renderLock() {
 
         tft.drawRoundRect(bar.x, bar.y, bar.w, bar.h, 4, Ui::outline());
         tft.setTextColor(Ui::muted(), Ui::bg());
-        drawCenteredFitted(tft, "Nothing under here can be touched yet", W / 2,
-                           lockFooterY(tft), textMaxW, 1);
+        tft.drawString(lockFooterText(tft, textMaxW, 1), W / 2,
+                       lockFooterY(tft), 1);
         tft.setTextDatum(TL_DATUM);
         lockPaintedPct_ = -1;
     }

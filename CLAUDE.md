@@ -280,7 +280,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,351,205 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,351,369 / 3,145,728 bytes,
 **74.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,548 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -421,7 +421,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **`APP_REGISTRY` holds the 31 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
-- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-116` to the gear at `lW-30`. The battery badge is **variable width** -- it carries its own percentage, so it is 22px at `72` and 36px at `100` on the charger -- and in that widest state the row has about 4px spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline moved out from `lW-110` to buy those pixels, and `LauncherLayout::profileRect()`'s right limit moved with it. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it is 22px at `72` and 36px at `100` on the charger -- and in that widest state the row has about 4px spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
