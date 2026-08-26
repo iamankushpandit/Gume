@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.0.0 — Unreleased
+## 5.0.0 — 2026-08-26
 
 An admin profile behind a four-digit PIN, so device settings and one profile
 are out of a player's reach -- and Elements, the periodic table, as game 31.
@@ -11,7 +11,7 @@ A console that upgrades to this gains an Admin profile it did not have, stops
 booting into whatever profile was last used if that profile is the admin, and
 starts refusing settings changes to everyone else in the house.
 
-Flash 2,351,873 / 3,145,728 (74.8%), RAM 72,548 / 327,680 (22.1%).
+Flash 2,353,001 / 3,145,728 (74.8%), RAM 72,572 / 327,680 (22.1%).
 
 ### Added
 
