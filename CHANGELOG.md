@@ -15,6 +15,23 @@ Flash 2,351,873 / 3,145,728 (74.8%), RAM 72,548 / 327,680 (22.1%).
 
 ### Added
 
+- **Every build says which build it is.** `BRAINO_VERSION` is 5.0.0 across every
+  flash of this release, so it cannot answer the question anyone actually asks
+  of a board on a desk: *is this the release, or the branch I was part-way
+  through an hour ago?* A pre-build script now stamps the branch and the
+  abbreviated commit into the firmware, and the compiler supplies the build
+  time. Three places read it and none of them restates it: About's new last
+  page, **This build**; System Info's Device tab, as `Branch`, `Commit` and
+  `Built` rows; and a `[boot] build=` line in the serial log, so a log pasted
+  into an issue identifies its own firmware. A build from a source tarball with
+  no git reads `unknown` rather than inventing a plausible commit.
+
+  The build time is deliberately **not** a compiler flag like the other two.
+  PlatformIO folds build flags into its build signature, so a flag that changes
+  on every invocation would invalidate every object in the tree and make
+  `pio run` a permanent full rebuild -- about 100 seconds instead of 25, for
+  everyone. It comes from `__DATE__`/`__TIME__` in one small translation unit
+  that the script deletes before each build, so exactly one file recompiles.
 - **A Lock button.** A padlock beside Home on the top bar, and on the
   launcher's own header in both layouts, blanks the panel immediately; the next
   touch lands on the existing Hold to unlock screen and a completed hold

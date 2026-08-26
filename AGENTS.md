@@ -233,6 +233,10 @@ These derive from `GAME_CATALOG` and update themselves. Editing them by hand is
 how About fell six games behind in the first place:
 
 - the **About** app's game list, count and blurbs
+- the **About** app's *This build* page, System Info's `Branch`/`Commit`/
+  `Built` rows and the `[boot] build=` serial line -- all three read
+  `BuildStamp::`, which `tools/build_stamp.py` fills in from git at build
+  time. Never type a branch or a commit into a screen
 - the **Settings → Games** visibility list
 - the **launcher** tiles and paging
 - the **GitHub Pages site** — `tools/gen_site.py` reads the version from
