@@ -568,6 +568,8 @@ site/                     index.template.html â€” the GitHub Pages landing 
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
                           the site from the same firmware set
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/
+cases/                    printable enclosures, one folder per BOARD_NAME;
+                          optional -- a board is supported without one
 ```
 
 ## The web installer is part of the deliverable
