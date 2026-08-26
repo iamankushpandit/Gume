@@ -3,26 +3,24 @@
 GUme is the repository behind **Braino!**, a small firmware project with a
 large code surface: 31 built-in games, 7
 system apps, hardware drivers, generated screenshots, a web installer and CI.
-The code in this repo has largely been built with Claude or other coding agents
-under human direction, so the repo includes explicit instructions and machine
-checks for both people and agents. Read those instructions first; they are part
-of the engineering process, not side notes.
+The repo includes explicit instructions and machine checks to keep that
+surface consistent. Read those instructions first; they are part of the
+engineering process, not side notes.
 
 Start here:
 
-- `AGENTS.md`: repo-level rules that apply to every agent or assistant.
+- `AGENTS.md`: repo-level rules that apply to every contributor.
 - `CLAUDE.md`: architecture, build commands, invariants and workflow.
 - `src/engine/CLAUDE.md`: screen lifecycle, app registry, progress tracking.
 - `src/games/CLAUDE.md`: how games and system screens are structured.
 - `src/hal/CLAUDE.md`: board, storage, profiles, watchdog and hardware rules.
 - `src/ui/CLAUDE.md`: renderer, theme, widgets and drawing helpers.
 
-These files exist because multiple clients can work on this repo at the same
-time, but they are not agent-only paperwork: they are the rules for every
-contributor, and a pull request is reviewed against them whether a person or
-a model wrote the diff. Follow them even when you are not using Claude. They explain how to keep
-changes small, avoid stepping on another contributor's work and preserve the
-firmware's performance and memory constraints.
+These files exist because multiple contributors can work on this repo at the
+same time. They are the rules for every contributor, and a pull request is
+reviewed against them. They explain how to keep changes small, avoid stepping
+on another contributor's work and preserve the firmware's performance and
+memory constraints.
 
 ## No Data Collection
 
@@ -97,9 +95,8 @@ is a complete package rather than a bare board. Print notes, fastener sizes and
 "here is what I got wrong on the first print" are worth as much as the mesh
 itself. `cases/README.md` has the layout to follow.
 
-**Tell us what's wrong with the code.** Much of this firmware was written by
-coding agents under human direction. Confident mistakes survive longer that
-way, so bug reports and code critique are genuinely valuable — please
+**Tell us what's wrong with the code.** Bug reports and code critique are
+genuinely valuable — please
 [open an issue](https://github.com/iamankushpandit/Gume/issues), and if you
 can, say how you'd fix it. Hardware assumptions that were never measured are
 the most valuable of all.

@@ -68,9 +68,8 @@ not be left with a bare board and a battery taped to the back, so ports are
 encouraged to bring one. Print notes and fastener sizes are as valuable as the
 mesh.
 
-**Tell us what's wrong with the code.** Much of this firmware was written by
-coding agents under human direction. Confident mistakes survive longer that
-way, so bug reports and code critique are genuinely valuable — please
+**Tell us what's wrong with the code.** Bug reports and code critique are
+genuinely valuable — please
 [open an issue](https://github.com/iamankushpandit/Gume/issues), and if you
 can, say how you'd fix it. Hardware assumptions that were never measured are
 the most valuable of all.
