@@ -1,17 +1,50 @@
 # Changelog
 
-## 5.0.1-SNAPSHOT — Unreleased
+## 5.2.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.0.0
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.1.0
 release, and About's **This build** page names the branch and commit.
+`release.yml` refuses to publish a tag whose version carries this suffix.
 
-Getting the repository ready to be handed to strangers, plus the lock screen
-learning to say what device it is.
+Board support beyond the E32R28T-1 is the work in flight. It was held back from
+5.1.0 on purpose: supported means someone holding that board can flash it from
+the installer page and have it work, and a variant that has not been tested on
+real hardware has not met that bar. `docs/PORTING.md` is the checklist.
 
-Flash 2,353,037 / 3,145,728 (74.8%), RAM 72,572 / 327,680 (22.1%).
+### Fixed
 
-Flash 2,353,037 / 3,145,728 (74.8%), RAM 72,572 / 327,680 (22.1%).
+- **The installer page generates again with more than one board.** Generalising
+  `site/index.template.html` for multiple boards removed the `{{BOARD}}` and
+  `{{BOARD_BUY_URL}}` placeholders but left `tools/gen_site.py` substituting
+  them, so `check_docs.py` failed and `gen_site.py` itself refused to run --
+  its single-board guard fired the moment a second `[board_*]` section
+  appeared. Both halves are now consistent: the substitutions are gone, and so
+  is the guard, whose stated precondition was exactly the generalisation that
+  has since happened. The guards that matter are untouched -- a board still
+  needs an environment that builds it and a `BOARD_DETAILS` entry naming it,
+  so "supported" still means "flashable from the page".
+
+## 5.1.0 — 2026-08-27
+
+The release that opens the project up. Everything a stranger needs in order to
+build it, port it, report a fault or send a change is now in the repository:
+a security policy, a code of conduct, issue and pull-request templates, a
+licence split that says plainly what the GPL grants and what the name does not,
+and a release that is cut by pushing a tag rather than assembled by hand.
+
+Also here: the lock screen says which device it is, the battery reports its
+charging state honestly, and the firmware can say which build it is carrying.
+
+**Supported hardware is the E32R28T-1 / ESP32-32E alone.** Support for further
+CYD variants exists on `dev` and is deliberately held back from this release.
+Supported means someone holding that board can flash it from the installer page
+and have it work; no second board has cleared that bar yet, and shipping one
+that has not is how a project acquires users it cannot help. Porting is the
+single most useful thing a contributor can do here — see
+[docs/PORTING.md](docs/PORTING.md).
+
+Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%).
 
 ### Added
 
