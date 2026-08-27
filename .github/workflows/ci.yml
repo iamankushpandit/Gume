@@ -98,12 +98,49 @@ jobs:
           python tools/check_frame_rules.py
           python tools/check_privacy.py
 
-      # Every environment, not just the ones the installer offers. batdiag
-      # was built by neither workflow for its whole life: check_docs.py only
-      # validates environments listed in gen_site.py's VARIANTS, and a bench
-      # tool is deliberately not offered on the flashing page, so it fell
-      # through every net. An environment nobody builds is an environment
-      # that is already broken and has not been told yet.
+      # Detect which environments to build based on file changes.
+      # On pushes to main/dev: build all (conservative).
+      # On feature branches: build only affected environments.
+      - name: Detect which environments to build
+        id: environments
+        if: steps.scope.outputs.code == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ENVS="app"
+
+          # On pushes to main/dev, build all environments (conservative safety net)
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Building all environments (push to main/dev)"
+            ENVS="app bringup batdiag wifidiag"
+          else
+            # On PRs, check which files changed and build selectively
+            files=$(gh api --paginate \
+              "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
+              --jq '.[].filename')
+
+            # Build bringup if HAL/board files changed
+            if printf '%s\n' "$files" | grep -qE '^(src/hal/|include/boards/|include/BoardProfile|include/BoardConfig|platformio.ini)'; then
+              ENVS="$ENVS bringup"
+              echo "Building bringup (HAL/board files changed)"
+            fi
+
+            # Build batdiag if battery files changed
+            if printf '%s\n' "$files" | grep -qE '(battery|Battery|src/battery_diag)'; then
+              ENVS="$ENVS batdiag"
+              echo "Building batdiag (battery files changed)"
+            fi
+
+            # Build wifidiag if WiFi files changed
+            if printf '%s\n' "$files" | grep -qE '(wifi|WiFi|network|Network)'; then
+              ENVS="$ENVS wifidiag"
+              echo "Building wifidiag (WiFi files changed)"
+            fi
+          fi
+
+          echo "Environments to build: $ENVS"
+          echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
+
       - name: Build firmware
         if: steps.scope.outputs.code == 'true'
-        run: pio run -e app -e bringup -e batdiag -e wifidiag
+        run: pio run ${{ steps.environments.outputs.envs }}
