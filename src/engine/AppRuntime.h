@@ -192,4 +192,10 @@ private:
     uint32_t lastClockMinute_ = 0;
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
+
+    /* Track battery state to invalidate screens when charging state or
+     * percentage changes, so the battery badge updates in real-time without
+     * waiting for a screen switch. */
+    Board::ChargingState lastChargingState_ = Board::ChargingState::UNKNOWN;
+    int8_t lastBatteryPercent_ = -1;
 };

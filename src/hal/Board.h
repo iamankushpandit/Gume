@@ -500,6 +500,15 @@ private:
     uint32_t chargeRefMs_ = 0;
     bool chargeTracking_ = false;
 
+    /* Gauge smoothing: separate low-pass filter for the battery percentage
+     * display, with a much longer time constant than charge inference. This
+     * ignores load transients (SPI bursts, backlight steps, Wi-Fi activity)
+     * while still responding to real discharge over minutes. Updated once per
+     * fresh battery sample same as charge inference, in readBatteryTelemetry(). */
+    void updateGaugeFilter(float volts);
+    float gaugeFilteredV_ = 0.0f;
+    bool gaugeFilterReady_ = false;
+
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;

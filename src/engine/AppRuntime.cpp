@@ -127,6 +127,8 @@ void BrainoApp::begin() {
     lastBannerGeneration_ = NearbyPlay::bannerGeneration();
     lastClockMinute_ = Clock::minuteKey();
     lastActivityMs_ = millis();
+    lastChargingState_ = board_.getChargingState();
+    lastBatteryPercent_ = board_.getBatteryPercent();
     Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
 
     /* First-boot: automatically create default Admin profile with PIN 0000. */
@@ -208,6 +210,19 @@ void BrainoApp::loop() {
     const uint32_t minuteNow = Clock::minuteKey();
     if (minuteNow != lastClockMinute_) {
         lastClockMinute_ = minuteNow;
+        if (view_ == View::Game && activeGame_ != nullptr) {
+            activeGame_->requestRender();
+        }
+    }
+
+    /* Invalidate screens when battery state changes, so the badge updates
+     * in real-time instead of only on screen switches. Check both charging
+     * state and percentage since either can change independently. */
+    const Board::ChargingState chargingNow = board_.getChargingState();
+    const int8_t percentNow = board_.getBatteryPercent();
+    if (chargingNow != lastChargingState_ || percentNow != lastBatteryPercent_) {
+        lastChargingState_ = chargingNow;
+        lastBatteryPercent_ = percentNow;
         if (view_ == View::Game && activeGame_ != nullptr) {
             activeGame_->requestRender();
         }
