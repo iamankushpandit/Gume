@@ -14,6 +14,22 @@ real hardware has not met that bar. `docs/PORTING.md` is the checklist.
 
 ### Changed
 
+- **The build is reproducible.** `platform = espressif32` was bare and every
+  library carried a caret range, so a checkout of a fixed commit resolved to
+  whatever was newest that day -- a different Arduino core, a different Xtensa
+  toolchain, a different ArduinoJson. `^7.0.4` had already floated to 7.4.3 in
+  practice. Worse, `map-n-flag` tracked its default branch, so the flag and
+  outline artwork could change under a release build without a byte changing
+  here. Everything is now pinned to what the documented flash and RAM figures
+  were actually measured on: `platformio/espressif32@7.0.1` (Arduino core
+  3.20017.241212, toolchain-xtensa-esp32 8.4.0+2021r2-patch5), TFT_eSPI 2.5.43,
+  ArduinoJson 7.4.3, NimBLE-Arduino 1.4.3, and `map-n-flag` at commit
+  `3c412cb` -- the upstream carries no tags, so the commit is the only
+  immutable handle. Nothing is upgraded; this pins the known-working build so
+  the size figures in `README.md` and `CLAUDE.md` mean something to a
+  contributor who did not measure them. A clean-slate resolution reproduces
+  `env:app` at exactly 2,353,221 bytes flash and 72,588 bytes RAM.
+
 - **The privacy claim no longer overstates itself.** The README, the installer
   page and the About app's credits page each said some form of "the device
   sends nothing anywhere" -- while the same documents described NTP, the
