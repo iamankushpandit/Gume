@@ -101,7 +101,7 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
 
     if (!s_adcCharacterised) {
         analogSetPinAttenuation(BOARD.battery.adcPin, ADC_11db);
-        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12,
+        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12,
                                  ADC_DEFAULT_VREF_MV, &s_adcChars);
         s_adcCharacterised = true;
     }
