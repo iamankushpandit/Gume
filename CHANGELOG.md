@@ -12,6 +12,23 @@ Board support beyond the E32R28T-1 is the work in flight. It was held back from
 the installer page and have it work, and a variant that has not been tested on
 real hardware has not met that bar. `docs/PORTING.md` is the checklist.
 
+### Changed
+
+- **The installer's site generator now runs on every pull request.**
+  `tools/gen_site.py` writes the landing page and the esp-web-tools manifests
+  behind the flash button, and until now nothing but the Pages workflow ever
+  executed it -- so a generator failure was found after merge to `main`, as a
+  dead installer rather than a red pull request. It is now a step in the
+  required `verify` job, and deliberately **ungated**: it runs even when the
+  firmware build is skipped, because changes under `site/`, `docs/`, `tools/`
+  and `.github/` are both the ones that gate skips and the ones most likely to
+  break the installer. It needs no PlatformIO and adds seconds.
+
+- **Pages fails fast.** The Pages workflow generated the site *after* building
+  ten firmware environments. Site generation now runs first, so a missing
+  placeholder or an orphaned still is caught in seconds instead of after
+  twenty minutes of compiling. The firmware set it builds is unchanged.
+
 ### Fixed
 
 - **The installer page generates again with more than one board.** Generalising

@@ -41,6 +41,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Fail fast. Site generation runs BEFORE the expensive PlatformIO
+      # install and the ten-environment firmware build, so a structural
+      # failure -- a missing template placeholder, an orphaned still, a board
+      # with no BOARD_DETAILS entry, a VARIANTS environment that does not
+      # exist -- is discovered in seconds instead of after twenty minutes of
+      # compiling. None of those failures depend on a single byte of firmware,
+      # so there is nothing to be gained by finding them later.
+      #
+      # This writes the real _site directory that the rest of the job fills
+      # in: the steps below copy each environment's binaries next to the
+      # manifests laid down here, and then prove every manifest resolves.
+      - name: Generate the site
+        run: |
+          python tools/gen_site.py \
+            --out _site \
+            --repo "${{ github.server_url }}/${{ github.repository }}"
+
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
@@ -77,9 +94,6 @@ jobs:
                 "$(python -c "print($bytes / 3145728 * 100)")"
             done
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Generate the site
-        run: python tools/gen_site.py --out _site --repo "${{ github.server_url }}/${{ github.repository }}"
 
       # The env list is *derived* from what gen_site.py actually laid down,
       # never written out again here. Every environment is still built above --
