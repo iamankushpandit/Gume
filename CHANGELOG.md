@@ -34,7 +34,7 @@ Two boards sold under the same name can carry different display controllers, so
 the picker asks which variant you have. Flashing the wrong image gives inverted
 colours, dead touch or a blank screen — not an error message.
 
-Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%), measured on
+Flash 2,353,205 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%), measured on
 `env:app` for the E32R28T-1.
 
 ### Added
@@ -81,7 +81,13 @@ Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%), measured on
   immutable handle. Nothing is upgraded; this pins the known-working build so
   the size figures in `README.md` and `CLAUDE.md` mean something to a
   contributor who did not measure them. A clean-slate resolution reproduces
-  `env:app` at exactly 2,353,221 bytes flash and 72,588 bytes RAM.
+  `env:app` at 2,353,205 bytes flash and 72,588 bytes RAM on the machine the
+  documented figures were read from. It is not bit-identical across hosts: the
+  same commit built on the Linux runner comes out 172 bytes smaller in flash
+  and 48 smaller in RAM. Pinning fixes what the build is made of, not which
+  toolchain binary assembles it, and `check_docs.py` compares the documents
+  against your own `.pio` ELF -- so the figures here are a local reading, not a
+  claim about the image CI publishes.
 
 - **The privacy claim no longer overstates itself.** The README, the installer
   page and the About app's credits page each said some form of "the device
