@@ -33,6 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -58,11 +60,11 @@ jobs:
           echo "Files changed by this pull request:"
           printf '%s\n' "$files" | sed 's/^/  /'
           if printf '%s\n' "$files" \
-             | grep -qvE '^(docs/|cases/|site/)|\.md$|^LICENSE$'; then
-            echo "Code outside the documentation set changed -- building."
+             | grep -qvE '^(docs/|cases/|site/|tools/|\.github/)|\.md$|^LICENSE$'; then
+            echo "Source code changed -- building firmware."
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Documentation only -- skipping the firmware build."
+            echo "Non-source files only (docs, tools, CI config) -- skipping firmware build."
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -80,12 +82,21 @@ jobs:
         if: steps.scope.outputs.code == 'true'
         run: pip install --upgrade platformio
 
+      - name: Validate Python tools for syntax errors
+        run: |
+          python -m py_compile tools/check_docs.py
+          python -m py_compile tools/check_boards.py
+          python -m py_compile tools/check_catalog.py
+          python -m py_compile tools/check_frame_rules.py
+          python -m py_compile tools/check_privacy.py
+
       - name: Run repository checks
         run: |
           python tools/check_docs.py
           python tools/check_boards.py
           python tools/check_catalog.py
           python tools/check_frame_rules.py
+          python tools/check_privacy.py
 
       # Every environment, not just the ones the installer offers. batdiag
       # was built by neither workflow for its whole life: check_docs.py only
