@@ -96,10 +96,7 @@ jobs:
           python tools/check_boards.py
           python tools/check_catalog.py
           python tools/check_frame_rules.py
-
-      - name: Run privacy audit (code changes only)
-        if: steps.scope.outputs.code == 'true'
-        run: python tools/check_privacy.py
+          python tools/check_privacy.py
 
       # Every environment, not just the ones the installer offers. batdiag
       # was built by neither workflow for its whole life: check_docs.py only
