@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.3.0-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.2.0
+release, and About's **This build** page names the branch and commit.
+`release.yml` refuses to publish a tag whose version carries this suffix.
+
+The open question this cycle is the one 5.2.0 shipped without an answer to:
+the two ESP32-2432S028 variants are offered from the installer page and have
+never been run on the hardware they name. Confirming or correcting either is
+worth more than any feature here, and the report that does it is welcome from
+anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
+issue template asks for the pin map and its source.
+
 ## 5.2.0 — 2026-08-27
 
 The release that stops assuming one board. The installer picker now offers

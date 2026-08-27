@@ -3,7 +3,7 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.2.0-1f7a3d)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.3.0--SNAPSHOT-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-31-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
@@ -737,7 +737,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.2.0** — the previous release was **5.1.0**. See
+In development: **5.3.0-SNAPSHOT** — the last release was **5.2.0**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
