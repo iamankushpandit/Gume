@@ -1,17 +1,25 @@
 # Changelog
 
-## 5.0.1-SNAPSHOT — Unreleased
+## 5.1.0 — 2026-08-27
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.0.0
-release, and About's **This build** page names the branch and commit.
+The release that opens the project up. Everything a stranger needs in order to
+build it, port it, report a fault or send a change is now in the repository:
+a security policy, a code of conduct, issue and pull-request templates, a
+licence split that says plainly what the GPL grants and what the name does not,
+and a release that is cut by pushing a tag rather than assembled by hand.
 
-Getting the repository ready to be handed to strangers, plus the lock screen
-learning to say what device it is.
+Also here: the lock screen says which device it is, the battery reports its
+charging state honestly, and the firmware can say which build it is carrying.
 
-Flash 2,353,037 / 3,145,728 (74.8%), RAM 72,572 / 327,680 (22.1%).
+**Supported hardware is the E32R28T-1 / ESP32-32E alone.** Support for further
+CYD variants exists on `dev` and is deliberately held back from this release.
+Supported means someone holding that board can flash it from the installer page
+and have it work; no second board has cleared that bar yet, and shipping one
+that has not is how a project acquires users it cannot help. Porting is the
+single most useful thing a contributor can do here — see
+[docs/PORTING.md](docs/PORTING.md).
 
-Flash 2,353,037 / 3,145,728 (74.8%), RAM 72,572 / 327,680 (22.1%).
+Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%).
 
 ### Added
 
