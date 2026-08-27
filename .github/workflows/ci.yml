@@ -112,7 +112,7 @@ jobs:
           # On pushes to main/dev, build all environments (conservative safety net)
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "Building all environments (push to main/dev)"
-            ENVS="app bringup batdiag wifidiag"
+            ENVS="app bringup batdiag wifidiag app_esp32_2432s028 bringup_esp32_2432s028 batdiag_esp32_2432s028"
           else
             # On PRs, check which files changed and build selectively
             files=$(gh api --paginate \
@@ -143,4 +143,17 @@ jobs:
 
       - name: Build firmware
         if: steps.scope.outputs.code == 'true'
-        run: pio run ${{ steps.environments.outputs.envs }}
+        run: |
+          # Build environments with explicit -e flags for check_boards.py verification
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # On pushes to main/dev: build all environments
+            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028 -e bringup_esp32_2432s028 -e batdiag_esp32_2432s028
+          else
+            # On PR: build only affected environments
+            ENVS="${{ steps.environments.outputs.envs }}"
+            ARGS=""
+            for env in $ENVS; do
+              ARGS="$ARGS -e $env"
+            done
+            pio run $ARGS
+          fi

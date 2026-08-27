@@ -60,7 +60,7 @@ jobs:
       # through every net. An environment nobody builds is an environment
       # that is already broken and has not been told yet.
       - name: Build firmware
-        run: pio run -e app -e bringup -e batdiag -e wifidiag
+        run: pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028 -e bringup_esp32_2432s028 -e batdiag_esp32_2432s028
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -71,7 +71,7 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup batdiag wifidiag; do
+            for env in app bringup batdiag wifidiag app_esp32_2432s028 bringup_esp32_2432s028 batdiag_esp32_2432s028; do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"

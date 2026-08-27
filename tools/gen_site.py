@@ -65,6 +65,13 @@ VARIANTS = (
         "note": "The full console: {count} games, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon.",
     },
+    {
+        "env": "app_esp32_2432s028",
+        "label": "Braino! (the games) -- ESP32-2432S028",
+        "name": "Braino!",
+        "note": "The full console for the 2.4 inch board: {count} games, profiles, scores, settings, "
+                "Wi-Fi clock and the BLE beacon.",
+    },
 )
 
 # The pin map, screen rotation and touch controller are compile-time constants,
@@ -84,6 +91,11 @@ BOARD_DETAILS = {
         "chip": "ESP32",
         "buy": "https://www.amazon.com/dp/B0D92C9MMH"
                "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1",
+    },
+    "esp32_2432s028": {
+        "label": "ESP32-2432S028 -- 2.4 inch ST7789 + XPT2046 (resistive)",
+        "chip": "ESP32",
+        "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
     },
 }
 
