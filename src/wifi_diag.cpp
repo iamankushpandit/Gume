@@ -92,6 +92,11 @@ void loop() {
         Serial.println("           -> RF/antenna/power, not the scan API.");
     }
 
+    /* The one place in this tree that deliberately writes network names to
+     * serial. The product firmware never does -- see BrainoApp::begin() --
+     * but this environment is a bench radio test built alone, whose entire
+     * job is reporting what is on the air. A scanner that redacted its own
+     * results would answer nothing. It is not part of env:app. */
     for (int16_t i = 0; i < n; ++i) {
         Serial.printf("  %2d) ch%-3d %4d dBm  %-9s %s\n",
                       (int)i + 1, WiFi.channel(i), (int)WiFi.RSSI(i),

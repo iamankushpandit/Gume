@@ -87,6 +87,12 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 
+      # Every environment, not just the ones the installer offers. batdiag
+      # was built by neither workflow for its whole life: check_docs.py only
+      # validates environments listed in gen_site.py's VARIANTS, and a bench
+      # tool is deliberately not offered on the flashing page, so it fell
+      # through every net. An environment nobody builds is an environment
+      # that is already broken and has not been told yet.
       - name: Build firmware
         if: steps.scope.outputs.code == 'true'
-        run: pio run -e app -e bringup -e wifidiag
+        run: pio run -e app -e bringup -e batdiag -e wifidiag

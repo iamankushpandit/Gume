@@ -1,0 +1,64 @@
+name: Game or feature idea
+description: A new game, a new screen, or a change to how one works.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Flash is the binding constraint here — roughly 75% of a 3 MB partition
+        is already used, and artwork and data tables dominate. That is not a
+        reason not to propose something; it is the thing your proposal will be
+        weighed against, so it is better said up front.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What is it
+      description: What the player does, and what they get better at by doing it.
+    validations:
+      required: true
+
+  - type: input
+    id: age
+    attributes:
+      label: Who is it for
+      description: Roughly what age, and what they need to already know.
+      placeholder: 6-9, needs to be able to count to 20
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change
+      options:
+        - A new game
+        - A new system screen
+        - A change to an existing game or screen
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: transmits
+    attributes:
+      label: Does it transmit, store, or share anything?
+      description: >-
+        **Read this even if the answer is obviously no.** Exactly three things
+        leave the device — an NTP query, one `ip-api.com` timezone lookup, and
+        the opt-in BLE beacon — and
+        [that list is closed](../../CONTRIBUTING.md#no-data-collection). A
+        proposal that adds a fourth needs agreement in this issue before any
+        code exists, because it changes what the product promises rather than
+        adding a feature to be judged on merit. Scores and profiles staying in
+        the device's own NVS is not transmitting.
+      placeholder: >-
+        No — scores only, through the normal scoped storage API.
+    validations:
+      required: true
+
+  - type: textarea
+    id: cost
+    attributes:
+      label: Rough cost
+      description: >-
+        Optional, and a guess is fine. Mostly: does it need artwork or a data
+        table? Those are what actually consume the partition.

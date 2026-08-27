@@ -1,0 +1,84 @@
+name: Board port
+description: You want Braino! on a board it does not support yet.
+labels: ["board-port", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ports are the thing this project most wants from a contributor, so open
+        this even if you are not sure you will finish it — a filled-in pin map
+        with no code is genuinely useful to the next person.
+
+        Read [docs/PORTING.md](../../docs/PORTING.md) first. A board is
+        described in exactly two files: a profile header in `include/boards/`
+        and a `[board_*]` section in `platformio.ini`. No file under `src/` may
+        name a GPIO.
+
+  - type: input
+    id: board
+    attributes:
+      label: Which board
+      description: >-
+        The full variant name and, if you have it, a link to where it is sold.
+        "ESP32-2432S028R" and "E32R28T-1" look interchangeable and are not.
+      placeholder: ESP32-2432S028R (2.8 inch, ILI9341 + XPT2046)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Does it meet the hard requirements?
+      description: >-
+        Braino! refuses to compile rather than degrade when one of these is
+        missing — a board that flashes and then cannot be read or pressed is
+        worse than a build error. Tick what you have confirmed.
+      options:
+        - label: Panel is at least 320x240 in landscape
+        - label: Has a touch controller
+        - label: Backlight is on a GPIO
+        - label: At least 4 MB flash (the app partition is 3 MB)
+
+  - type: checkboxes
+    id: optional
+    attributes:
+      label: Which optional hardware does it have?
+      description: The firmware does without any of these; it just needs to be told.
+      options:
+        - label: SD slot
+        - label: RGB LED
+        - label: Speaker
+        - label: Battery sense (and a known divider ratio)
+
+  - type: textarea
+    id: pinmap
+    attributes:
+      label: Pin map
+      description: >-
+        From the vendor datasheet or a schematic where possible, not from a
+        generic ESP32 pinout found online. Say which source it came from —
+        that matters more than completeness, and a wrong-but-confident pin map
+        costs more time than a partial one.
+      render: text
+      placeholder: |
+        Source: LCDWIKI datasheet, rev 1.2
+        TFT: MOSI 13, SCLK 14, CS 15, DC 2, RST -1, BL 21
+        Touch: CLK 25, CS 33, MOSI 32, MISO 39, IRQ 36
+        Battery sense: 34, divider 2:1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hardware-access
+    attributes:
+      label: Do you have the board in hand?
+      description: >-
+        This decides whether the port can be finished. CI proves a build links
+        and fits in flash; it cannot prove a screen draws or a touch target is
+        reachable, so a port needs somebody holding the hardware.
+      options:
+        - "Yes, and I can test builds on it"
+        - "Yes, but I would rather someone else write the profile"
+        - "No — I am filing this so it is recorded"
+    validations:
+      required: true

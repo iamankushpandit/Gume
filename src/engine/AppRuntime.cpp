@@ -109,9 +109,17 @@ void BrainoApp::begin() {
      * than one round trip on a bug report. */
     Serial.printf("[boot] build=%s built=%s version=%s\n",
                   BuildStamp::describe(), BuildStamp::builtAt(), BRAINO_VERSION);
-    Serial.printf("[boot] ntp=%d creds=%d ssid='%s' tzmin=%d\n",
+    /* The saved SSID is deliberately absent from this line, and from every
+     * other Serial write in the tree. A serial log is the one artifact of
+     * this device that routinely leaves the house -- pasted into a bug
+     * report, captured by whoever plugs a cable in -- and the network's name
+     * belongs to the household, not to the firmware. `creds` answers the only
+     * question a log needs answered: whether a network is configured at all.
+     * The name itself is still on the device, in System Info and the network
+     * activity list, where the person reading it is the person holding it. */
+    Serial.printf("[boot] ntp=%d creds=%d tzmin=%d\n",
                   (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
-                  board_.wifiSsid().c_str(), (int)board_.tzOffsetMinutes());
+                  (int)board_.tzOffsetMinutes());
     board_.beginTimeSync();
     /* After Board::begin(), which is what brings the beacon up: Nearby play
      * rides on that radio and must not try to arm itself before it exists. */

@@ -145,8 +145,12 @@ void WifiGame::startConnect(GameHost& host) {
     if (ssid.length() == 0 && selectedNet_ >= 0) ssid = WiFi.SSID(selectedNet_);
     if (ssid.length() == 0) ssid = board.wifiSsid();
 
-    Serial.printf("[wifi] JOIN ssid='%s' (len %u) pass len %u\n",
-                  ssid.c_str(), (unsigned)ssid.length(), (unsigned)password_.length());
+    /* Lengths, not names. The network's name is the household's, and a
+     * serial log is the one thing here that gets pasted into bug reports --
+     * see the note in BrainoApp::begin(). A zero length is the failure this
+     * line exists to catch, and it survives the redaction intact. */
+    Serial.printf("[wifi] JOIN ssid len %u, pass len %u\n",
+                  (unsigned)ssid.length(), (unsigned)password_.length());
 
     if (ssid.length() > 0) {
         board.setWifiCredentials(ssid, password_);
@@ -154,7 +158,11 @@ void WifiGame::startConnect(GameHost& host) {
         Serial.println("[wifi] REFUSING to save an empty SSID");
     }
     saveReadback_ = board.wifiSsid();
-    Serial.printf("[wifi] readback='%s'\n", saveReadback_.c_str());
+    /* What this checks is that NVS round-tripped what we wrote, so the
+     * verdict is the diagnostic and the name was only ever how it was
+     * spelled. Comparing here says strictly more than printing it did. */
+    Serial.printf("[wifi] readback %s\n",
+                  saveReadback_ == ssid ? "matches" : "MISMATCH");
 
     WiFi.begin(ssid.c_str(), password_.c_str());
     connectStart_ = millis();
@@ -254,7 +262,7 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
             if (netRect(slot).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 selectedNet_ = netIdx_[idx];
                 selectedSsid_ = WiFi.SSID(netIdx_[idx]);   // capture now, not at JOIN
-                Serial.printf("[wifi] selected '%s'\n", selectedSsid_.c_str());
+                Serial.printf("[wifi] selected network %d\n", (int)selectedNet_);
                 password_ = "";
                 capsLock_ = false;
                 phase_ = Phase::Keyboard;

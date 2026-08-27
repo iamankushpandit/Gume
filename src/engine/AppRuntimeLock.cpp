@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "AppVersion.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
 
@@ -47,6 +48,23 @@ const char* lockFooterText(Ui::Renderer& tft, int16_t maxW, uint8_t font) {
 }
 
 constexpr int16_t GLCD_FONT_H = 8;
+
+/* The header row: the wordmark on the left, the battery on the right, a
+ * hairline under both. Someone who finds the device locked in a bag wants
+ * two things answered without unlocking it -- what it is, and whether it is
+ * about to die -- and this is the only screen they can see without touching
+ * anything.
+ *
+ * Unlike the screen saver, nothing here drifts. The saver moves its wordmark
+ * because it is up for hours and the panel would burn; the lock is up for
+ * LOCK_TIMEOUT_MS and then hands back to the saver or to sleep, so a fixed
+ * header costs nothing and reads as a header rather than as an animation. It
+ * is painted once, inside the lockFullPaint_ branch, and never touched again
+ * -- the progress bar stays the only thing this screen repaints per frame. */
+constexpr int16_t HEADER_H = 40;      // y of the hairline under the header
+constexpr int16_t HEADER_ROW1_CY = 14;  // wordmark and battery, centred
+constexpr int16_t HEADER_ROW2_Y = 26;   // copyright, top-aligned
+constexpr int16_t HEADER_PAD = 10;
 
 int16_t lockFooterY(Ui::Renderer& tft) {
     constexpr int16_t BOTTOM_PAD = 8;
@@ -151,13 +169,26 @@ void BrainoApp::lockAndSleepNow() {
     enterSleep();
 }
 
+/* Everything above the button hangs off this rect, so the whole stack is
+ * stated here in one place and measured for the worst case, which is
+ * landscape at 240px tall. The nudge below centre used to be +12; it became
+ * +25 when the header arrived, because the padlock sits 82px above this y
+ * and at +12 it would have collided with the hairline.
+ *
+ * Landscape, top to bottom: header 0..40 (two rows plus the hairline),
+ * padlock 46..76, "Locked" 84..110, the hint 112..120, this button 128..186,
+ * the progress bar 196..206, the footer at 224. That is the whole 240 with
+ * 18px spare above the footer. Portrait has 80px more and every gap simply
+ * grows. Move any of it and re-measure against 240, not against what looks
+ * right in portrait -- and remember the mock-ups cannot prove text fits (see
+ * the note on LOCK_FOOTERS). */
 Rect BrainoApp::lockButtonRect() {
     const int16_t w = static_cast<int16_t>(renderer_.width());
     const int16_t h = static_cast<int16_t>(renderer_.height());
     const int16_t bw = min<int16_t>(200, static_cast<int16_t>(w - 48));
     constexpr int16_t BH = 58;
     return Rect{static_cast<int16_t>((w - bw) / 2),
-                static_cast<int16_t>((h - BH) / 2 + 12), bw, BH};
+                static_cast<int16_t>((h - BH) / 2 + 37), bw, BH};
 }
 
 Rect BrainoApp::lockProgressRect() {
@@ -264,18 +295,48 @@ void BrainoApp::renderLock() {
          * ring-and-body built inline here; there are three of them now -- top
          * bar, launcher header and this screen -- so the glyph lives in Ui and
          * takes its proportions from the rect it is given. */
-        constexpr int16_t ICON = 34;
+        /* Two rows, not one. The launcher and Profiles both put the
+         * copyright on the wordmark's row, but they do not also carry the
+         * battery: the badge is variable width -- 22px at 72, 36px at 100 on
+         * the charger -- and on the 240px portrait panel a wordmark, a 114px
+         * copyright and a badge at its widest do not fit on one line with
+         * anything left for gaps. Giving the copyright its own row costs 10px
+         * of height, which this screen has, and removes the collision that
+         * would otherwise appear only on a charging device at full battery.
+         *
+         * Both rows are drawn off measured widths rather than constants, the
+         * same rule the launcher header follows. */
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.drawString(BRAINO_PRODUCT_NAME, HEADER_PAD, HEADER_ROW1_CY, 2);
+
+        const int8_t battPct = board_.getBatteryPercent();
+        const Ui::PowerHint battPower = Ui::powerHint(board_);
+        const int16_t battW = Ui::batteryBadgeWidth(tft, battPct, battPower);
+        Ui::drawBatteryBadge(tft,
+                             static_cast<int16_t>(W - HEADER_PAD - battW / 2),
+                             HEADER_ROW1_CY, battPct, battPower, Ui::bg());
+
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.drawString(BRAINO_COPYRIGHT, HEADER_PAD, HEADER_ROW2_Y, 1);
+
+        tft.drawFastHLine(HEADER_PAD, HEADER_H,
+                          static_cast<int16_t>(W - HEADER_PAD * 2),
+                          Ui::shade(Ui::bg(), 150));
+
+        constexpr int16_t ICON = 30;
         Ui::drawLockIcon(tft, Rect{static_cast<int16_t>(W / 2 - ICON / 2),
-                                   static_cast<int16_t>(btn.y - 74 - ICON / 2),
+                                   static_cast<int16_t>(btn.y - 82),
                                    ICON, ICON}, Ui::muted(), Ui::bg());
 
         tft.setTextDatum(TC_DATUM);
         tft.setTextColor(Ui::text(), Ui::bg());
         drawCenteredFitted(tft, "Locked", W / 2,
-                           static_cast<int16_t>(btn.y - 48), textMaxW, 4);
+                           static_cast<int16_t>(btn.y - 44), textMaxW, 4);
         tft.setTextColor(Ui::muted(), Ui::bg());
         drawCenteredFitted(tft, "Press and hold the button", W / 2,
-                           static_cast<int16_t>(btn.y - 22), textMaxW, 1);
+                           static_cast<int16_t>(btn.y - 16), textMaxW, 1);
 
         Ui::drawButton(tft, btn, "Hold to unlock", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);

@@ -312,7 +312,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,353,001 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,353,037 / 3,145,728 bytes,
 **74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,572 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -373,6 +373,18 @@ orientation that were up before. Three things about it are load-bearing:
 - **The hold tolerates dropouts.** Resistive contact falls below
   `TOUCH_PRESSURE_THRESHOLD` mid-press as a matter of course, so gaps up to
   `LOCK_CONTACT_GRACE_MS` (150ms) do not restart the timer.
+- **The header is fixed, and the vertical stack is measured against 240px.**
+  The wordmark and battery badge answer what a person finding a locked
+  device wants to know without touching it. Nothing drifts: the saver moves
+  its wordmark because it is up for hours, this screen for
+  `LOCK_TIMEOUT_MS`, so the header is painted once inside the
+  `lockFullPaint_` branch and the progress bar stays the only thing
+  repainted per frame. The whole stack hangs off `lockButtonRect()`, whose
+  offset below centre went from +12 to +25 to clear the new hairline;
+  landscape is the tight case and every gap is stated in the comment there.
+  The battery badge is variable width, so it is placed off
+  `Ui::batteryBadgeWidth()` rather than a constant -- same rule as the
+  launcher header.
 - **`Locked` is excluded from the idle-timeout block** alongside `ScreenSaver`
   and `Asleep`; it runs its own `LOCK_TIMEOUT_MS` and hands back to sleep (or
   to the saver under `SaverOnly`). Leaving it in that block re-arms the saver
@@ -649,7 +661,7 @@ flashed from `dev` cannot be mistaken for the release it is ahead of.
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all three PlatformIO
+Web Serial. `.github/workflows/pages.yml` builds all four PlatformIO
 environments on every push to `main`, runs `tools/gen_site.py`, and drops the
 resulting `.bin` files beside the manifest that points at them. Nobody
 regenerates it by hand, so it cannot go stale on its own â€” but three things
@@ -667,7 +679,7 @@ break it, and all three fail in someone else's browser rather than here:
 3. **Making CI unable to build.** `platformio.ini` is expected to build on a
    clean checkout, locally and in GitHub Actions. If `lib_deps` changes shape,
    keep both `.github/workflows/ci.yml` and `.github/workflows/pages.yml`
-   building all three environments in the same commit.
+   building all four environments in the same commit.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.

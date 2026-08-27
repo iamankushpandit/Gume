@@ -37,8 +37,10 @@ else:
 
 # Product identity, mirroring include/AppVersion.h. The mock-ups are the
 # fifth place the name used to be typed out; keep it in one name here too.
+# This file cannot include a C header, so the mirror is manual: change
+# either of these and change AppVersion.h in the same commit.
 PRODUCT = "Braino!"
-COPYRIGHT_SHORT = "(C) GoodTime Micro"
+COPYRIGHT_SHORT = "(C) iamankushpandit"
 
 W, H = 320, 240
 BG, SURFACE, PANEL = (18, 20, 26), (32, 36, 46), (52, 58, 72)
@@ -649,12 +651,24 @@ def wakelock(w=W, h=H):
     im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
     W, H = w, h
     bw, bh = min(200, W - 48), 58
-    bx, by = (W - bw) // 2, (H - bh) // 2 + 12
+    bx, by = (W - bw) // 2, (H - bh) // 2 + 37
     text_max = W - 16
-    icon_cy = by - 74
-    lock_icon(d, (W // 2 - 17, icon_cy - 17, 34, 34), MUTED, BG)
-    centered_fitted(d, "Locked", W / 2, by - 48, text_max, F4, TEXT)
-    centered_fitted(d, "Press and hold the button", W / 2, by - 22, text_max, F1, MUTED)
+
+    # Header, two rows: wordmark and battery, then the copyright, then a
+    # hairline. Fixed, not drifting like the saver's -- this screen is up for
+    # seconds, not hours. The copyright gets its own row because the badge is
+    # variable width and all three do not fit across 240px. Mirrors the
+    # HEADER_* constants in AppRuntimeLock.cpp.
+    header_h, header_pad, row1_cy, row2_y = 40, 10, 14, 26
+    d.text((header_pad, row1_cy - 8), PRODUCT, font=F2, fill=TEXT)
+    batt_w = battery_width()
+    battery_badge(d, W - header_pad - batt_w // 2, row1_cy)
+    d.text((header_pad, row2_y), COPYRIGHT_SHORT, font=F1, fill=MUTED)
+    d.line([(header_pad, header_h), (W - header_pad, header_h)], fill=OUTLINE)
+
+    lock_icon(d, (W // 2 - 15, by - 82, 30, 30), MUTED, BG)
+    centered_fitted(d, "Locked", W / 2, by - 44, text_max, F4, TEXT)
+    centered_fitted(d, "Press and hold the button", W / 2, by - 16, text_max, F1, MUTED)
     button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)
     barx, bary, barh = bx, by + bh + 10, 10
     d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
