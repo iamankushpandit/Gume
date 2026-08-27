@@ -14,6 +14,36 @@ real hardware has not met that bar. `docs/PORTING.md` is the checklist.
 
 ### Changed
 
+- **The privacy claim no longer overstates itself.** The README, the installer
+  page and the About app's credits page each said some form of "the device
+  sends nothing anywhere" -- while the same documents described NTP, the
+  `ip-api.com` time-zone lookup and the BLE beacon a few lines below, and
+  About's own radio page shows the beacon broadcasting live. Nothing about
+  what the firmware does has changed, and the strong claims are all still
+  made: no accounts, no analytics, no telemetry, no personal-data collection.
+  The absolute one is gone, replaced by wording that names the optional
+  exchanges it excepts. On the device, the credits page now points at *What
+  the radios do* rather than restating a promise -- the same derive-rather-
+  than-restate rule as the game list. `tools/check_privacy.py` now fails the
+  build on the absolute forms, and equally on a public document that drops the
+  strong claims instead of correcting them.
+
+- **Contributor build instructions match the tree again.** `CONTRIBUTING.md`
+  claimed `pio run -e app -e bringup -e wifidiag` built "every firmware
+  environment". It omitted `batdiag` for most of the project's life, and once
+  two more boards arrived it was missing seven of ten. The command is now
+  derived from `platformio.ini` the same way `release.yml` derives it, so it
+  cannot drift again, with the default board's four given separately for
+  everyday work.
+
+- **The site's board-porting guidance describes the current architecture.** It
+  said Braino targets one board and pointed at `AGENTS.md`; it now says a board
+  is a profile under `include/boards/<id>.h` plus a `[board_<id>]` section in
+  `platformio.ini`, and links `docs/PORTING.md`. Stale references calling
+  `include/BoardConfig.h` the place pins are defined are corrected in
+  `BOARD_E32R28T-1.md` and `cases/README.md` -- that file selects a profile and
+  static_asserts against it, and holds no pin of its own.
+
 - **The installer's site generator now runs on every pull request.**
   `tools/gen_site.py` writes the landing page and the esp-web-tools manifests
   behind the flash button, and until now nothing but the Pages workflow ever

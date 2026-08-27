@@ -175,9 +175,17 @@ void AboutGame::renderCredits(Ui::Renderer& tft) {
     drawLine(tft, 88, "State flags: fonttools/region-flags.", 1);
     drawLine(tft, 102, "State outlines: Natural Earth.", 1);
     drawLine(tft, 116, "Capitals: mledoze/countries (ODbL).", 1);
+    /* This page used to make an absolute claim of network silence, which the
+     * radio page two Prevs back disproves live on the same device: Wi-Fi
+     * reaches an NTP server, the time-zone lookup reaches ip-api.com, and the
+     * beacon broadcasts once it is switched on. A claim the firmware itself
+     * contradicts is worse than no claim, because it is the one a player
+     * believes. So point at the page that reads the real state rather than
+     * restating a promise here -- the same derive-do-not-restate rule as the
+     * game list. tools/check_privacy.py now fails on the absolute forms. */
     tft.setTextColor(Ui::text(), Ui::surface());
     drawLine(tft, 142, "No accounts. No tracking.", 1);
-    drawLine(tft, 156, "No data ever leaves the device.", 1);
+    drawLine(tft, 156, "See \"What the radios do\".", 1);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 176, "Scores and progress live in this", 1);
     drawLine(tft, 190, "device's own memory.", 1);

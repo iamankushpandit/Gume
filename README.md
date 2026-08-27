@@ -635,9 +635,10 @@ next boot.
 
 ## Privacy
 
-The device collects nothing and sends nothing anywhere. No accounts, no
-telemetry, no analytics. Scores and mastery data live in the ESP32's own flash
-and never leave it.
+No accounts, analytics, telemetry, or personal-data collection. The optional
+Wi-Fi and Bluetooth LE features make only the limited exchanges described
+below, and each one is listed. Scores and mastery data live in the ESP32's own
+flash and never leave it.
 
 Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip

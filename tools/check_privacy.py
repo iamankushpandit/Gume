@@ -15,6 +15,17 @@ No unauthorized data transmission is permitted:
 - No location tracking
 - No unauthorized HTTP/UDP/DNS endpoints
 - No dependencies that phone home
+
+It also polices the *wording* of the public privacy claim, which is a separate
+failure mode and the one that actually shipped. The README and the installer
+page both read "The device collects nothing and sends nothing anywhere" while
+going on to describe NTP, the ip-api.com time-zone lookup and the BLE beacon a
+few lines below, and the About app's credits page said "No data ever leaves the
+device" two screens along from a page that shows the beacon broadcasting. A
+privacy claim the firmware itself contradicts is worse than no claim, because it
+is the one a reader believes -- and it hands a critic the easiest possible way
+to discredit a project whose actual privacy posture is strong. The strong claims
+stay; only the absolute ones go.
 """
 
 import os
@@ -222,6 +233,86 @@ def check_file(filepath: Path) -> list:
     return issues
 
 
+# Public-facing documents whose privacy wording is audited below. These are
+# what a reader outside the project actually sees: the repository front page,
+# the installer landing page, the contributor rules, the security policy and
+# the About app on the device itself.
+PUBLIC_DOCS = (
+    "README.md",
+    "site/index.template.html",
+    "CONTRIBUTING.md",
+    "NOTICE.md",
+    "SECURITY.md",
+    "src/games/AboutGame.cpp",
+)
+
+# Absolute claims of network silence. Each is contradicted by the three
+# documented outbound flows, so none may appear in a public document.
+#
+# The patterns are deliberately narrow. "nothing about your device is sent
+# anywhere" on the installer page is about the *browser*, not the firmware, and
+# is true; "Never sent: names, scores, progress." in About is a scoped claim
+# about specific fields and is also true. Neither may be caught here. What is
+# banned is the unqualified form: the device sends nothing, no data ever leaves
+# it, there is no network traffic.
+BANNED_CLAIMS = (
+    (r"collects nothing and sends nothing",
+     'the absolute "collects nothing and sends nothing" claim'),
+    (r"\bsends? nothing anywhere",
+     'the absolute "sends nothing anywhere" claim'),
+    (r"[Nn]o data (?:ever )?leaves the device",
+     'the absolute "no data leaves the device" claim'),
+    (r"[Nn]othing (?:ever )?leaves the device",
+     'the absolute "nothing leaves the device" claim'),
+    (r"[Nn]o network traffic",
+     'the absolute "no network traffic" claim'),
+)
+
+# The replacement claim has to keep its teeth. A document that deleted the false
+# sentence and put nothing in its place would pass the rule above while being
+# less useful than what it replaced -- so the two headline documents must still
+# make the strong (and true) claims, and must still name the flows they except.
+_HEADLINE_CLAIMS = (
+    (r"[Nn]o accounts", "the no-accounts claim"),
+    (r"telemetry", "the no-telemetry claim"),
+    (r"analytics", "the no-analytics claim"),
+    (r"ip-api\.com", "the ip-api.com time-zone lookup it excepts"),
+)
+
+REQUIRED_CLAIMS = {
+    "README.md": _HEADLINE_CLAIMS,
+    "site/index.template.html": _HEADLINE_CLAIMS,
+}
+
+
+def check_public_privacy_claims() -> list:
+    """No public document may claim absolute network silence."""
+    issues = []
+
+    for rel in PUBLIC_DOCS:
+        path = REPO_ROOT / rel
+        if not path.exists():
+            issues.append("%s: listed in PUBLIC_DOCS but missing" % rel)
+            continue
+        content = path.read_text(encoding="utf-8", errors="ignore")
+
+        for line_num, line in enumerate(content.splitlines(), 1):
+            for pattern, description in BANNED_CLAIMS:
+                if re.search(pattern, line):
+                    issues.append(
+                        "%s: Line %d: %s -- the device makes three documented "
+                        "outbound exchanges (NTP, the ip-api.com time-zone "
+                        "lookup, the opt-in BLE beacon). Say what is not "
+                        "collected, and name the exchanges that do happen."
+                        % (rel, line_num, description))
+
+        for pattern, description in REQUIRED_CLAIMS.get(rel, ()):
+            if not re.search(pattern, content):
+                issues.append("%s: no longer states %s" % (rel, description))
+
+    return issues
+
+
 def main():
     """Run the privacy audit on all source files."""
     print("=" * 70)
@@ -256,6 +347,10 @@ def main():
             if lib.lower() in pio_content.lower():
                 all_issues.append(f"platformio.ini: Suspicious dependency: {lib}")
 
+    # The wording of the public claim, which is a different failure from a
+    # rogue endpoint and is not visible anywhere in src/.
+    all_issues.extend(check_public_privacy_claims())
+
     # Print results
     if all_issues:
         print("\n[FAILED] PRIVACY AUDIT FAILED\n")
@@ -272,6 +367,7 @@ def main():
         print("  1. NTP time synchronization")
         print("  2. One-time timezone lookup (ip-api.com)")
         print("  3. BLE beacon (opt-in, device ID + game/score only)")
+        print("Public privacy wording: no absolute network-silence claims.")
         print("\n" + "=" * 70)
         return 0
 

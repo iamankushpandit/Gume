@@ -3,7 +3,7 @@
 Printable enclosures, one folder per board.
 
 A case is **not required** for a board to be supported. Firmware support is
-decided by `platformio.ini` and `include/BoardConfig.h`, and a board with no
+decided by `platformio.ini` and `include/boards/<id>.h`, and a board with no
 folder here is a perfectly good port. This directory exists because the person
 most likely to build this is someone who has never designed an enclosure and
 does not want to — handing them a bare board with a battery taped to the back
