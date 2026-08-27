@@ -372,7 +372,7 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all three PlatformIO
+Web Serial. `.github/workflows/pages.yml` builds all four PlatformIO
 environments on every push to `main`, runs `tools/gen_site.py`, and drops the
 resulting `.bin` files beside the manifest that points at them. Nobody
 regenerates it by hand, so it cannot go stale on its own — but three things

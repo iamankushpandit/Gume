@@ -7,6 +7,13 @@ The repo includes explicit instructions and machine checks to keep that
 surface consistent. Read those instructions first; they are part of the
 engineering process, not side notes.
 
+Everyone taking part here is covered by the
+[Code of Conduct](CODE_OF_CONDUCT.md). Security problems go through
+[SECURITY.md](SECURITY.md), never a public issue. If you are looking for
+something to work on, the [open issues](https://github.com/iamankushpandit/Gume/issues) are the current list of
+what this firmware does not do yet -- and
+[#44](https://github.com/iamankushpandit/Gume/issues/44) needs no hardware at all.
+
 Start here:
 
 - `AGENTS.md`: repo-level rules that apply to every contributor.
@@ -375,7 +382,17 @@ somebody to hold the board.
 This project is licensed **GPL-3.0-or-later** — see [LICENSE](LICENSE).
 
 By opening a pull request you agree that your contribution is licensed under
-those same terms. There is no separate CLA. If you port Braino to another board
+those same terms. There is no separate CLA, and contributing to this
+repository needs no trademark permission -- the names stay where they are.
+
+Copyright in this source is held by iamankushpandit; **Braino!**, the game
+names and **GoodTime Micro Company™** are trademarks of GoodTime Micro
+Company™. Those are two different things under two different bodies of
+law, and [NOTICE.md](NOTICE.md) keeps them apart. The practical consequence
+is one line long and only applies if you *fork and ship*, not if you
+contribute here: rename the product before you distribute a build, which is
+an edit to a single header because the firmware spells its own name exactly
+once. If you port Braino to another board
 and distribute it, or ship a device running a modified build, GPL-3.0 requires
 you to make the corresponding source available under the same licence — which
 is the point: ports should stay available to the people holding the hardware.

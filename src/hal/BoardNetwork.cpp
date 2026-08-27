@@ -111,8 +111,11 @@ void Board::setWifiCredentials(const String& ssid, const String& password) {
     wifiSsidCache_ = ssid;
     wifiPassCache_ = password;
     wifiCacheLoaded_ = true;
-    Serial.printf("[wifi] saved '%s' -> ssid %u bytes, pass %u bytes\n",
-                  ssid.c_str(), (unsigned)nS, (unsigned)nP);
+    /* Byte counts, not the name -- see the note in BrainoApp::begin(). The
+     * counts are what this line was ever for: a zero means the NVS write
+     * failed, which is the failure that used to be silent. */
+    Serial.printf("[wifi] saved -> ssid %u bytes, pass %u bytes\n",
+                  (unsigned)nS, (unsigned)nP);
 }
 
 void Board::clearWifiCredentials() {
@@ -310,7 +313,9 @@ void Board::beginTimeSync() {
     WiFi.mode(WIFI_STA);
     const String ssid = wifiSsid();
     const String pass = wifiPassword();
-    Serial.printf("[time] connecting to %s\n", ssid.c_str());
+    Serial.println("[time] connecting to the saved network");
+    /* The activity list keeps the name: it is drawn on the panel for whoever
+     * is holding the device, and is never transmitted or written to serial. */
     logNetworkActivity("WiFi begin %s", ssid.c_str());
     WiFi.begin(ssid.c_str(), pass.c_str());
     lastWifiBeginMs_ = now;

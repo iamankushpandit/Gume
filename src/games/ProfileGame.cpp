@@ -502,7 +502,8 @@ void ProfileGame::render(GameHost& host) {
         tft.setTextDatum(ML_DATUM);
         tft.drawString(BRAINO_PRODUCT_NAME, 10, 15, 4);
 
-        // The product renamed, the owner did not: the copyright stays theirs.
+        // The mark is the brand's, the copyright is the author's -- two
+        // different facts, and AppVersion.h is where both are spelled.
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.setTextDatum(MR_DATUM);
         tft.drawString(BRAINO_COPYRIGHT_SHORT, W - 8, 15, 1);

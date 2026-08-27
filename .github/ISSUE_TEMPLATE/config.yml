@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/iamankushpandit/Gume/security/advisories/new
+    about: >-
+      Do not open a public issue. Report privately here, or email
+      esp32.gume@proton.me. See SECURITY.md.
+  - name: Question, idea, or "should I even try this board?"
+    url: https://github.com/iamankushpandit/Gume/discussions
+    about: >-
+      Anything that is not yet a bug or a port. Asking before building a
+      board port is encouraged rather than merely tolerated.
