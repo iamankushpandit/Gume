@@ -1,5 +1,30 @@
 # Changelog
 
+## 5.2.0-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.1.0
+release, and About's **This build** page names the branch and commit.
+`release.yml` refuses to publish a tag whose version carries this suffix.
+
+Board support beyond the E32R28T-1 is the work in flight. It was held back from
+5.1.0 on purpose: supported means someone holding that board can flash it from
+the installer page and have it work, and a variant that has not been tested on
+real hardware has not met that bar. `docs/PORTING.md` is the checklist.
+
+### Fixed
+
+- **The installer page generates again with more than one board.** Generalising
+  `site/index.template.html` for multiple boards removed the `{{BOARD}}` and
+  `{{BOARD_BUY_URL}}` placeholders but left `tools/gen_site.py` substituting
+  them, so `check_docs.py` failed and `gen_site.py` itself refused to run --
+  its single-board guard fired the moment a second `[board_*]` section
+  appeared. Both halves are now consistent: the substitutions are gone, and so
+  is the guard, whose stated precondition was exactly the generalisation that
+  has since happened. The guards that matter are untouched -- a board still
+  needs an environment that builds it and a `BOARD_DETAILS` entry naming it,
+  so "supported" still means "flashable from the page".
+
 ## 5.1.0 — 2026-08-27
 
 The release that opens the project up. Everything a stranger needs in order to
