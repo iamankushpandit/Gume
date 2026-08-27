@@ -1,0 +1,187 @@
+name: Release
+
+# Publishes a GitHub release with every firmware image attached, when a v* tag
+# is pushed. 5.0.0 was assembled by hand -- four builds, sixteen file copies,
+# four esptool invocations and a hand-written set of notes -- and every one of
+# those steps is a chance to publish a binary that does not match the tag.
+#
+# Cutting a release is now:
+#
+#     git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
+#
+# The tag is the trigger and the tag is the identity: the guard below refuses
+# to publish if it disagrees with BRAINO_VERSION, so a tag typed one digit
+# wrong fails here rather than becoming a permanent, downloadable lie.
+#
+# Everything between building and uploading lives in tools/pack_release.py,
+# which can be run against a local build. Workflow YAML is only ever executed
+# on a tag, which is the worst possible moment to discover it was wrong.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v5.0.1)"
+        required: true
+      draft:
+        description: "Publish as a draft"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write        # creating a release and uploading assets
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false   # never interrupt a half-uploaded release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Work out which tag is being released
+        id: which
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.which.outputs.tag }}
+          fetch-depth: 0     # build_stamp.py wants real git history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      # The tag is what people will trust; BRAINO_VERSION is what the device
+      # will say about itself. If those two disagree the release is a lie in
+      # one direction or the other, and it is unfixable after the fact because
+      # people have already downloaded it.
+      #
+      # A -SNAPSHOT is refused outright. dev carries one between releases by
+      # design, so without this the first mistaken tag on dev would publish a
+      # "release" that the firmware itself describes as unreleased.
+      - name: The tag and the firmware must agree
+        run: |
+          set -euo pipefail
+          tag="${{ steps.which.outputs.tag }}"
+          version="$(python -c "import re,io; print(re.search(r'BRAINO_VERSION\s+\"([^\"]+)\"', io.open('include/AppVersion.h', encoding='utf-8').read()).group(1))")"
+          echo "tag=$tag  BRAINO_VERSION=$version"
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::Tag $tag does not match BRAINO_VERSION $version (expected v$version). Fix AppVersion.h, or delete and re-cut the tag."
+            exit 1
+          fi
+          case "$version" in
+            *-SNAPSHOT*|*-snapshot*)
+              echo "::error::$version is a snapshot and must not be released. Bump AppVersion.h to a real version first."
+              exit 1
+              ;;
+          esac
+          echo "version=$version" >> "$GITHUB_ENV"
+
+      # Deliberately before the build. check_docs.py compares README and
+      # CLAUDE.md against whatever sits in .pio, and a release build is stamped
+      # with the tag rather than a branch -- a slightly different image, and so
+      # slightly different figures. With no build present that one comparison
+      # self-skips and everything that matters at release time still runs: the
+      # version matches, the CHANGELOG has a section for it, the badges agree,
+      # the site's firmware list is real. The figures are CI's job, on every
+      # push and pull request, before the tag ever exists.
+      - name: Run repository checks
+        run: |
+          python tools/check_docs.py
+          python tools/check_boards.py
+          python tools/check_catalog.py
+          python tools/check_frame_rules.py
+
+      # Every environment platformio.ini declares, derived rather than listed.
+      # pages.yml hard-coded its list once and deploys died silently for two
+      # pushes; the release equivalent is a download that is simply absent.
+      - name: Build every firmware environment
+        run: |
+          set -euo pipefail
+          envs="$(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")"
+          echo "Building: $envs"
+          pio run $envs
+
+      - name: Pack the release
+        run: |
+          set -euo pipefail
+          python tools/pack_release.py \
+            --out dist \
+            --strict \
+            --built "${{ steps.which.outputs.tag }} (commit $(git rev-parse --short=7 HEAD))"
+
+      # Sizes belong where a reviewer sees them without opening a build log,
+      # the same reasoning as the Pages workflow's summary.
+      - name: Report image sizes
+        run: |
+          {
+            echo "### ${{ steps.which.outputs.tag }} images"
+            echo
+            echo '| File | Bytes |'
+            echo '|---|---:|'
+            for f in dist/*-merged.bin; do
+              printf '| %s | %s |\n' "$(basename "$f")" "$(stat -c%s "$f")"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # A published release cannot be quietly corrected, so prove the payload
+      # before uploading rather than trusting that the copies worked.
+      - name: Verify the checksums
+        run: cd dist && sha256sum -c SHA256SUMS.txt
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.which.outputs.tag }}"
+          draft=""
+          if [ "${{ github.event.inputs.draft }}" = "true" ]; then
+            draft="--draft"
+          fi
+          # Notes are dist/NOTES.md, lifted from the CHANGELOG section for this
+          # version by pack_release.py. Hand-written notes are a second
+          # changelog that agrees with the first only on the day it is written.
+          {
+            cat dist/NOTES.md
+            echo
+            echo "## Flashing"
+            echo
+            echo "Easiest route is the [web installer](https://iamankushpandit.github.io/Gume/), which flashes over Web Serial from a Chromium browser and needs nothing downloaded from here."
+            echo
+            echo "The binaries below are for flashing by hand. \`FLASHING.txt\` has the commands, the offsets and a note on what an \`erase_flash\` costs you; \`SHA256SUMS.txt\` verifies a download. Each environment ships as a single \`-merged.bin\` to write at \`0x0\`, and as the four separate parts."
+            echo
+            echo "Built from \`$tag\`, commit \`$(git rev-parse --short=7 HEAD)\`. Every image reports that on About's **This build** page."
+          } > release-notes.md
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag exists; updating its notes and replacing assets."
+            gh release edit "$tag" --notes-file release-notes.md
+            gh release upload "$tag" dist/*.bin dist/SHA256SUMS.txt dist/FLASHING.txt --clobber
+          else
+            gh release create "$tag" \
+              --title "${{ env.version }} — Braino!" \
+              --notes-file release-notes.md \
+              $draft \
+              dist/*.bin dist/SHA256SUMS.txt dist/FLASHING.txt
+          fi
+          echo "Published: $(gh release view "$tag" --json url --jq .url)"

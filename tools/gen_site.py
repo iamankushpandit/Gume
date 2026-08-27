@@ -297,6 +297,12 @@ def boards():
 
     if not found:
         die("platformio.ini declares no [board_*] section")
+    if len(found) > 1:
+        die("more than one board is supported, but site/index.template.html "
+            "still describes a single board in prose ({{BOARD}}, "
+            "{{BOARD_BUY_URL}}). Generalise that copy before adding the "
+            "second board -- offering a firmware the page then mislabels is "
+            "worse than not offering it.")
     return found
 
 
@@ -534,8 +540,10 @@ def main():
     for key, value in (
         ("{{VERSION}}", release),
         ("{{GAME_COUNT}}", str(len(catalog))),
+        ("{{BOARD}}", escape(supported[0]["name"])),
         ("{{FLASH}}", escape(flash)),
         ("{{RAM}}", escape(ram)),
+        ("{{BOARD_BUY_URL}}", supported[0]["buy"]),
         ("{{BOARD_OPTIONS}}", board_options),
         ("{{VARIANT_OPTIONS}}", variant_options),
         ("{{SCREEN_COUNT}}", str(screen_count)),

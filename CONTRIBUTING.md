@@ -3,26 +3,31 @@
 GUme is the repository behind **Braino!**, a small firmware project with a
 large code surface: 31 built-in games, 7
 system apps, hardware drivers, generated screenshots, a web installer and CI.
-The code in this repo has largely been built with Claude or other coding agents
-under human direction, so the repo includes explicit instructions and machine
-checks for both people and agents. Read those instructions first; they are part
-of the engineering process, not side notes.
+The repo includes explicit instructions and machine checks to keep that
+surface consistent. Read those instructions first; they are part of the
+engineering process, not side notes.
+
+Everyone taking part here is covered by the
+[Code of Conduct](CODE_OF_CONDUCT.md). Security problems go through
+[SECURITY.md](SECURITY.md), never a public issue. If you are looking for
+something to work on, the [open issues](https://github.com/iamankushpandit/Gume/issues) are the current list of
+what this firmware does not do yet -- and
+[#44](https://github.com/iamankushpandit/Gume/issues/44) needs no hardware at all.
 
 Start here:
 
-- `AGENTS.md`: repo-level rules that apply to every agent or assistant.
+- `AGENTS.md`: repo-level rules that apply to every contributor.
 - `CLAUDE.md`: architecture, build commands, invariants and workflow.
 - `src/engine/CLAUDE.md`: screen lifecycle, app registry, progress tracking.
 - `src/games/CLAUDE.md`: how games and system screens are structured.
 - `src/hal/CLAUDE.md`: board, storage, profiles, watchdog and hardware rules.
 - `src/ui/CLAUDE.md`: renderer, theme, widgets and drawing helpers.
 
-These files exist because multiple clients can work on this repo at the same
-time, but they are not agent-only paperwork: they are the rules for every
-contributor, and a pull request is reviewed against them whether a person or
-a model wrote the diff. Follow them even when you are not using Claude. They explain how to keep
-changes small, avoid stepping on another contributor's work and preserve the
-firmware's performance and memory constraints.
+These files exist because multiple contributors can work on this repo at the
+same time. They are the rules for every contributor, and a pull request is
+reviewed against them. They explain how to keep changes small, avoid stepping
+on another contributor's work and preserve the firmware's performance and
+memory constraints.
 
 ## No Data Collection
 
@@ -97,9 +102,8 @@ is a complete package rather than a bare board. Print notes, fastener sizes and
 "here is what I got wrong on the first print" are worth as much as the mesh
 itself. `cases/README.md` has the layout to follow.
 
-**Tell us what's wrong with the code.** Much of this firmware was written by
-coding agents under human direction. Confident mistakes survive longer that
-way, so bug reports and code critique are genuinely valuable — please
+**Tell us what's wrong with the code.** Bug reports and code critique are
+genuinely valuable — please
 [open an issue](https://github.com/iamankushpandit/Gume/issues), and if you
 can, say how you'd fix it. Hardware assumptions that were never measured are
 the most valuable of all.
@@ -123,10 +127,23 @@ squash rather than merging a stale branch into it. Repository admins can bypass
 these rules — that exists for an emergency such as a broken release, not as a
 normal route, and using it skips the CI that would have caught the problem.
 
-`verify` also runs on every push, to every branch, `main` included. That is
-deliberate belt-and-braces: the pull-request trigger alone left `main`
-unchecked, and it stayed red for weeks without anyone seeing it. If an admin
-bypass ever does land something on `main`, the push run is what says so.
+`verify` also runs on pushes to `main` and `dev`. That is deliberate
+belt-and-braces: the pull-request trigger alone left `main` unchecked, and it
+stayed red for weeks without anyone seeing it. If an admin bypass ever does
+land something on `main`, the push run is what says so. It is scoped to those
+two branches rather than to every branch because a topic branch with a pull
+request open matches both triggers, and ran the whole job twice for every
+commit.
+
+The job always runs on a pull request, whatever the change touches, because
+`verify` is the required check: a required check that never runs does not read
+as passed, it reads as still expected, and the pull request waits for a status
+that will never arrive. So the skipping happens a level down. A pull request
+touching only `docs/`, `cases/`, `site/`, `LICENSE` or Markdown skips the
+firmware build and reports on the repository checks alone; anything else
+builds all three environments as before. `paths-ignore:` on the trigger is the
+obvious way to do this and is the trap -- it would make every
+documentation-only pull request permanently unmergeable.
 
 `git push origin main` will be rejected. That is the protection working; open a
 pull request instead.
@@ -155,9 +172,9 @@ Keep the branch current — `git fetch upstream && git rebase upstream/dev` —
 because the protection rules will not let a stale branch merge. Leave "allow
 edits by maintainers" ticked so a maintainer can rebase or fix a check for you.
 
-CI runs on pull requests from forks with a read-only token, so `verify` (repo
-checks plus a build of every firmware environment) will report on your PR
-without any secret being exposed to it. What CI cannot do is flash a board:
+CI runs on pull requests from forks with a read-only token, so `verify` (the
+repository checks, plus a build of every firmware environment when your change
+touches code) will report on your PR without any secret being exposed to it. What CI cannot do is flash a board:
 anything touching hardware, touch, storage or a screen still needs a human with
 the device, so say in the PR what you tested and on which board.
 
@@ -296,6 +313,48 @@ Profile prefixing, app scoping, guest write suppression and legacy migrations
 are owned by the HAL. If you change persisted formats, update the schema
 migration and test profile deletion and slot shifting.
 
+## Cutting a release
+
+A release is a tag, pushed on `main`. Everything else is automatic:
+
+```bash
+git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
+```
+
+`.github/workflows/release.yml` builds every environment `platformio.ini`
+declares, packs them with `tools/pack_release.py`, and publishes a GitHub
+release carrying, per environment, all four flash parts and a single
+`-merged.bin` to write at `0x0` -- plus `SHA256SUMS.txt` and `FLASHING.txt`.
+Release notes are lifted from the `CHANGELOG.md` section for that version, so
+there is no second set to keep in step.
+
+Check three things before tagging:
+
+1. `include/AppVersion.h` carries the real version, not a `-SNAPSHOT`. The
+   workflow refuses to publish a snapshot: `dev` carries one between releases
+   by design, and the first mistaken tag would otherwise publish a "release"
+   that the firmware itself calls unreleased.
+2. `CHANGELOG.md` has a `## <version>` section, dated.
+3. The build figures in `README.md` and `CLAUDE.md` came from a build of the
+   branch being released. `tools/build_stamp.py` compiles the branch name into
+   the image, so a figure measured on a topic branch is a few bytes out on
+   `main` -- measure with `GITHUB_REF_NAME=main pio run -e app`.
+
+The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
+not. A published release cannot be quietly corrected, because people have
+already downloaded it.
+
+To rehearse the packing without tagging anything, run it against a local
+build:
+
+```bash
+pio run -e app -e bringup -e wifidiag -e batdiag
+python tools/pack_release.py --out dist --strict
+```
+
+Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
+flashed from `dev` cannot be mistaken for the release it is ahead of.
+
 ## Pull Requests
 
 Open it against `dev` unless you are a maintainer cutting a release, which is
@@ -323,7 +382,17 @@ somebody to hold the board.
 This project is licensed **GPL-3.0-or-later** — see [LICENSE](LICENSE).
 
 By opening a pull request you agree that your contribution is licensed under
-those same terms. There is no separate CLA. If you port Braino to another board
+those same terms. There is no separate CLA, and contributing to this
+repository needs no trademark permission -- the names stay where they are.
+
+Copyright in this source is held by iamankushpandit; **Braino!**, the game
+names and **GoodTime Micro Company™** are trademarks of GoodTime Micro
+Company™. Those are two different things under two different bodies of
+law, and [NOTICE.md](NOTICE.md) keeps them apart. The practical consequence
+is one line long and only applies if you *fork and ship*, not if you
+contribute here: rename the product before you distribute a build, which is
+an edit to a single header because the firmware spells its own name exactly
+once. If you port Braino to another board
 and distribute it, or ship a device running a modified build, GPL-3.0 requires
 you to make the corresponding source available under the same licence — which
 is the point: ports should stay available to the people holding the hardware.

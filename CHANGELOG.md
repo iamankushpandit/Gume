@@ -1,5 +1,122 @@
 # Changelog
 
+## 5.1.0 — 2026-08-27
+
+The release that opens the project up. Everything a stranger needs in order to
+build it, port it, report a fault or send a change is now in the repository:
+a security policy, a code of conduct, issue and pull-request templates, a
+licence split that says plainly what the GPL grants and what the name does not,
+and a release that is cut by pushing a tag rather than assembled by hand.
+
+Also here: the lock screen says which device it is, the battery reports its
+charging state honestly, and the firmware can say which build it is carrying.
+
+**Supported hardware is the E32R28T-1 / ESP32-32E alone.** Support for further
+CYD variants exists on `dev` and is deliberately held back from this release.
+Supported means someone holding that board can flash it from the installer page
+and have it work; no second board has cleared that bar yet, and shipping one
+that has not is how a project acquires users it cannot help. Porting is the
+single most useful thing a contributor can do here — see
+[docs/PORTING.md](docs/PORTING.md).
+
+Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%).
+
+### Added
+
+- **Releasing is a tag now.** `.github/workflows/release.yml` builds every
+  environment `platformio.ini` declares, packs them with the new
+  `tools/pack_release.py`, and publishes a GitHub release carrying all four
+  flash parts plus a single `-merged.bin` per environment, `SHA256SUMS.txt`
+  and `FLASHING.txt`. 5.0.0 was assembled by hand -- four builds, sixteen
+  copies, four `esptool` invocations and notes typed out beside a changelog
+  that already said the same thing.
+
+  Two things are derived rather than restated, both because the hand-kept
+  version of each has already failed here. The environment list comes out of
+  `platformio.ini`, since `pages.yml` hard-coded its own and every Pages
+  deploy died silently for two pushes. The flash mode, frequency and size are
+  `keep`, so `esptool` reads them from the bootloader the build just produced
+  rather than from a fourth copy of the board's description -- verified
+  byte-identical to the explicit flags.
+
+  The packing is a script rather than workflow YAML so it can be run against a
+  local build: `python tools/pack_release.py --out dist`. YAML is only ever
+  executed on a tag, which is the worst moment to learn it was wrong.
+
+  The workflow refuses to publish if the tag disagrees with `BRAINO_VERSION`,
+  or if the version is a `-SNAPSHOT`. `dev` carries a snapshot between
+  releases by design, so without that guard the first mistaken tag would
+  publish a "release" the firmware itself describes as unreleased -- and a
+  published release cannot be quietly corrected.
+
+- **The lock screen carries a header.** The **Braino!** wordmark and the
+  battery level, with the copyright line beneath them. Somebody who finds the
+  device locked in a bag can now see what it is and whether it is about to die
+  without touching anything -- previously the only screen they could reach
+  without unlocking said nothing at all. Nothing drifts the way the screen
+  saver's wordmark does: the saver is up for hours and has to worry about the
+  panel, this screen is up for `LOCK_TIMEOUT_MS`, so the header is painted once
+  and the progress bar remains the only thing repainted per frame.
+
+  The copyright gets its own row rather than sharing the wordmark's, because
+  the battery badge is variable width -- 22px at 72%, 36px at 100% on the
+  charger -- and on the 240px portrait panel the three do not fit across one
+  line at the badge's widest. That collision would have appeared only on a
+  charging device at full battery, which is exactly the kind that ships.
+
+- **`SECURITY.md`**, with a private reporting route and, more usefully, an
+  explicit out-of-scope list. The admin PIN is a parental control and not a
+  security boundary; saying so in the policy is kinder than saying it in a
+  reply to somebody's first report.
+- **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1), with one addition
+  particular to this project: screenshots and issues here carry children's
+  profile names, so redaction is treated as an ordinary part of review.
+- **Issue and pull request templates.** The bug report asks which board and
+  which build, because those are the two things a firmware report is useless
+  without. The board-port template asks for a pin map and its *source*, since a
+  confident wrong pin map costs more time than a partial one.
+- **The open list moved to the issue tracker.**
+  `code_review_remaining_things_to_fix.md` is gone, and its contents were
+  re-checked against the tree and filed as #44-#51. Three of its twelve items
+  were already tracked (#7, #8, #30), one had quietly become true and was
+  dropped, and three others had partly landed and were narrowed to what is
+  actually still open. A file whose name read like leftover scaffolding was
+  holding the most contributor-facing content in the repository.
+
+### Changed
+
+- **The copyright holder is now stated as an individual**, in `AppVersion.h`,
+  on the device, and in every document. It named the brand before, which cannot
+  be right: a trading name that is not an incorporated entity cannot hold a
+  copyright, and a GPL notice naming a holder that does not legally exist is
+  precisely the notice a downstream user cannot rely on. `NOTICE.md` was
+  rewritten to keep copyright and trademark apart, and to state the one thing a
+  fork is asked to do before shipping -- rename, which is an edit to a single
+  header.
+- **CI builds `batdiag`.** All four PlatformIO environments now build in both
+  workflows. `batdiag` was built by neither for its whole life: `check_docs.py`
+  only validates environments the installer offers, and a bench tool is
+  deliberately not offered, so it fell through every net. It builds today; that
+  was luck, not a check.
+
+### Fixed
+
+- **Network names no longer reach the serial console.** The saved SSID was
+  printed at boot, on save, on connect, on the Wi-Fi join screen and on its
+  readback line, and the scan picker logged the *neighbours'* network names as
+  well. A serial log is the one artifact of this device that routinely leaves
+  the house -- pasted into a bug report, or read by whoever plugs in a cable --
+  and the network's name belongs to the household, not the firmware.
+
+  Every diagnostic those lines carried is preserved without the name: whether
+  credentials exist, the byte counts NVS actually wrote, and a round-trip
+  verdict on the readback that says strictly more than printing the name did.
+  The name is still on the device, in System Info and the network activity
+  list, where the person reading it is the person holding it. `env:wifidiag` is
+  the one deliberate exception and now says so in a comment: a bench radio
+  scanner that redacted its own results would answer nothing.
+
+
 ## 5.0.0 — 2026-08-26
 
 An admin profile behind a four-digit PIN, so device settings and one profile

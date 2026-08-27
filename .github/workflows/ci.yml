@@ -1,18 +1,34 @@
 name: CI
 
-# Runs on every branch, main included. It used to carry
-# `branches-ignore: [main]`, on the reasoning that main only ever receives pull
-# requests and so is covered by the pull_request trigger. It was not: work
-# reached main without a pull request, and four files sat over the frame-rule
-# baseline on main for weeks while every branch below it reported green. A
-# check that never runs on the branch it protects is a convention, not a check.
+# Runs on every pull request, and on pushes to the two protected branches.
+# It used to carry `branches-ignore: [main]`, on the reasoning that main only
+# ever receives pull requests and so is covered by the pull_request trigger. It
+# was not: work reached main without a pull request, and four files sat over the
+# frame-rule baseline on main for weeks while every branch below it reported
+# green. A check that never runs on the branch it protects is a convention, not
+# a check.
+#
+# The fix for that was `on: push` with no filter, which then ran the whole job
+# twice for every commit on a branch with a pull request open -- once for the
+# push, once for the pull request. Naming main and dev keeps the branch the
+# push trigger exists to protect, and drops the duplicate. A feature branch is
+# covered from the moment its pull request is opened, which is when its result
+# starts mattering to anyone else.
 
 on:
   push:
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
 jobs:
+  # `verify` is the required status check in the "Protect main" and
+  # "Protect dev" rulesets, so this job must report on EVERY pull request,
+  # including documentation-only ones. That is why the build is skipped with a
+  # step-level `if:` rather than by adding `paths-ignore:` to the trigger above:
+  # a required check that does not run is not "passed", it is "expected", and
+  # the pull request stays unmergeable forever waiting for a status that will
+  # never arrive. The job always runs; only the expensive half is conditional.
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +40,36 @@ jobs:
         with:
           python-version: "3.11"
 
+      # The repository checks below are cheap and run unconditionally -- a
+      # documentation-only change is exactly what check_docs.py exists to
+      # police. Compiling the firmware to prove that a paragraph in the README
+      # still compiles is the part with nothing to say.
+      - name: Decide whether the firmware needs building
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a pull request -- building."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(gh api --paginate \
+            "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
+            --jq '.[].filename')
+          echo "Files changed by this pull request:"
+          printf '%s\n' "$files" | sed 's/^/  /'
+          if printf '%s\n' "$files" \
+             | grep -qvE '^(docs/|cases/|site/|tools/|\.github/)|\.md$|^LICENSE$'; then
+            echo "Source code changed -- building firmware."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Non-source files only (docs, tools, CI config) -- skipping firmware build."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Cache PlatformIO
+        if: steps.scope.outputs.code == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -34,26 +79,16 @@ jobs:
           restore-keys: pio-
 
       - name: Install PlatformIO
+        if: steps.scope.outputs.code == 'true'
         run: pip install --upgrade platformio
 
-      - name: Check if code files changed
-        id: code_changed
+      - name: Validate Python tools for syntax errors
         run: |
-          # Get list of changed files
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD)
-          else
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
-          fi
-
-          # Check if any non-doc files changed
-          CODE_FILES=$(echo "$CHANGED_FILES" | grep -v -E '^\.(md|txt|png|jpg|svg)$|^(README|CHANGELOG|CONTRIBUTING|LICENSE|docs/|cases/|site/)' | grep -E '\.(cpp|h|ini|py)$' || true)
-
-          if [ -z "$CODE_FILES" ]; then
-            echo "has_code_changes=false" >> $GITHUB_OUTPUT
-          else
-            echo "has_code_changes=true" >> $GITHUB_OUTPUT
-          fi
+          python -m py_compile tools/check_docs.py
+          python -m py_compile tools/check_boards.py
+          python -m py_compile tools/check_catalog.py
+          python -m py_compile tools/check_frame_rules.py
+          python -m py_compile tools/check_privacy.py
 
       - name: Run repository checks
         run: |
@@ -61,11 +96,14 @@ jobs:
           python tools/check_boards.py
           python tools/check_catalog.py
           python tools/check_frame_rules.py
+          python tools/check_privacy.py
 
-      - name: Run privacy audit (code changes only)
-        if: steps.code_changed.outputs.has_code_changes == 'true'
-        run: python tools/check_privacy.py
-
-      - name: Build firmware (code changes only)
-        if: steps.code_changed.outputs.has_code_changes == 'true'
-        run: pio run -e app -e bringup -e wifidiag
+      # Every environment, not just the ones the installer offers. batdiag
+      # was built by neither workflow for its whole life: check_docs.py only
+      # validates environments listed in gen_site.py's VARIANTS, and a bench
+      # tool is deliberately not offered on the flashing page, so it fell
+      # through every net. An environment nobody builds is an environment
+      # that is already broken and has not been told yet.
+      - name: Build firmware
+        if: steps.scope.outputs.code == 'true'
+        run: pio run -e app -e bringup -e batdiag -e wifidiag

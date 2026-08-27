@@ -312,9 +312,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,353,001 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,353,221 / 3,145,728 bytes,
 **74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,572 / 327,680 (22.1%) -- higher than it was, deliberately: RowList traded
+at 72,588 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -373,6 +373,18 @@ orientation that were up before. Three things about it are load-bearing:
 - **The hold tolerates dropouts.** Resistive contact falls below
   `TOUCH_PRESSURE_THRESHOLD` mid-press as a matter of course, so gaps up to
   `LOCK_CONTACT_GRACE_MS` (150ms) do not restart the timer.
+- **The header is fixed, and the vertical stack is measured against 240px.**
+  The wordmark and battery badge answer what a person finding a locked
+  device wants to know without touching it. Nothing drifts: the saver moves
+  its wordmark because it is up for hours, this screen for
+  `LOCK_TIMEOUT_MS`, so the header is painted once inside the
+  `lockFullPaint_` branch and the progress bar stays the only thing
+  repainted per frame. The whole stack hangs off `lockButtonRect()`, whose
+  offset below centre went from +12 to +25 to clear the new hairline;
+  landscape is the tight case and every gap is stated in the comment there.
+  The battery badge is variable width, so it is placed off
+  `Ui::batteryBadgeWidth()` rather than a constant -- same rule as the
+  launcher header.
 - **`Locked` is excluded from the idle-timeout block** alongside `ScreenSaver`
   and `Asleep`; it runs its own `LOCK_TIMEOUT_MS` and hands back to sleep (or
   to the saver under `SaverOnly`). Leaving it in that block re-arms the saver
@@ -597,19 +609,59 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
                           LauncherLayout
-                          gen_site.py, check_docs.py
+tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          check_boards.py, check_catalog.py,
+                          check_frame_rules.py, build_stamp.py,
+                          pack_release.py
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
-                          the site from the same firmware set
+                          the site from the same firmware set;
+                          release.yml publishes a tagged release with
+                          every firmware image attached
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/
 cases/                    printable enclosures, one folder per BOARD_NAME;
                           optional -- a board is supported without one
 ```
 
+## Cutting a release
+
+A release is a tag. Everything else is automatic:
+
+```bash
+git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
+```
+
+`.github/workflows/release.yml` then builds every environment
+`platformio.ini` declares, packs them with `tools/pack_release.py`, and
+publishes a GitHub release with all four parts plus a single `-merged.bin`
+per environment, `SHA256SUMS.txt` and `FLASHING.txt`.
+
+Before tagging, on `main`:
+
+1. `include/AppVersion.h` carries the real version -- **not** a `-SNAPSHOT`.
+   The workflow refuses to publish one, because `dev` carries a snapshot
+   between releases by design and the first mistaken tag would otherwise
+   publish a "release" the firmware itself calls unreleased.
+2. `CHANGELOG.md` has a `## <version>` section with that day's date. The
+   release notes are lifted from it verbatim -- notes written by hand are a
+   second changelog that agrees with the first only on the day it is written.
+3. The build figures in `README.md` and `CLAUDE.md` are from a build of the
+   branch being released. **`tools/build_stamp.py` compiles the branch name
+   into the image**, so a figure measured on a feature branch is a few bytes
+   out on `main`; measure with `GITHUB_REF_NAME=main pio run -e app`, which is
+   what CI does.
+
+The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
+not. That check exists because a published release cannot be quietly
+corrected: people have already downloaded it.
+
+Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
+flashed from `dev` cannot be mistaken for the release it is ahead of.
+
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all three PlatformIO
+Web Serial. `.github/workflows/pages.yml` builds all four PlatformIO
 environments on every push to `main`, runs `tools/gen_site.py`, and drops the
 resulting `.bin` files beside the manifest that points at them. Nobody
 regenerates it by hand, so it cannot go stale on its own â€” but three things
@@ -627,7 +679,7 @@ break it, and all three fail in someone else's browser rather than here:
 3. **Making CI unable to build.** `platformio.ini` is expected to build on a
    clean checkout, locally and in GitHub Actions. If `lib_deps` changes shape,
    keep both `.github/workflows/ci.yml` and `.github/workflows/pages.yml`
-   building all three environments in the same commit.
+   building all four environments in the same commit.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.

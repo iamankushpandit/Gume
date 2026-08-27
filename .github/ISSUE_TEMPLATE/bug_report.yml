@@ -1,0 +1,84 @@
+name: Bug report
+description: Something the firmware does wrong on a board that is already supported.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things make a firmware bug report actionable, and both are easy to
+        forget: **which build** and **which board**. The `[boot]` lines on the
+        serial console answer both.
+
+        Please redact anything personal before posting — a profile name is a
+        child's name, and a photograph of the device shows a room in someone's
+        house. Network names are deliberately no longer printed to serial, so a
+        pasted log is safe on that count.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what the device did, and what you expected instead.
+      placeholder: |
+        1. Opened Settings -> Power
+        2. Dragged the brightness slider to minimum
+        3. Screen went black and did not come back
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: >-
+        The exact variant, not just "a CYD". These differ in ways that fail
+        silently — backlight pin and battery-sense pin especially.
+      placeholder: E32R28T-1 / ESP32-32E, 2.8 inch resistive
+    validations:
+      required: true
+
+  - type: textarea
+    id: build
+    attributes:
+      label: Firmware build
+      description: >-
+        Paste the `[boot]` lines from `pio device monitor`, or read
+        version / branch / commit off the last page of the About app. "Latest
+        from the installer" plus a date is fine if that is all you have.
+      render: text
+      placeholder: |
+        [boot] board=E32R28T-1 rot=3 layout=Horizontal (landscape=3 portrait=0)
+        [boot] build=main@a1b2c3d built=Aug 26 2026 14:02:11 version=5.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-flashed
+    attributes:
+      label: How was it flashed?
+      options:
+        - The web installer
+        - pio run -t upload
+        - Someone else flashed it for me / I do not know
+    validations:
+      required: true
+
+  - type: textarea
+    id: serial
+    attributes:
+      label: Serial log
+      description: >-
+        Optional but usually decisive, especially for anything involving Wi-Fi,
+        sleep or a reboot. A `[watchdog]` stall line or a panic backtrace is
+        worth more than any description.
+      render: text
+
+  - type: checkboxes
+    id: reproducible
+    attributes:
+      label: Before submitting
+      options:
+        - label: I can reproduce this, or I have said above that I cannot.
+          required: true
+        - label: I have redacted profile names and anything else personal.
+          required: true

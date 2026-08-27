@@ -53,8 +53,14 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      # Every environment, not just the ones the installer offers. batdiag
+      # was built by neither workflow for its whole life: check_docs.py only
+      # validates environments listed in gen_site.py's VARIANTS, and a bench
+      # tool is deliberately not offered on the flashing page, so it fell
+      # through every net. An environment nobody builds is an environment
+      # that is already broken and has not been told yet.
       - name: Build firmware
-        run: pio run -e app -e bringup -e wifidiag
+        run: pio run -e app -e bringup -e batdiag -e wifidiag
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -65,7 +71,7 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup wifidiag; do
+            for env in app bringup batdiag wifidiag; do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"

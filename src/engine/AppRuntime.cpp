@@ -109,9 +109,17 @@ void BrainoApp::begin() {
      * than one round trip on a bug report. */
     Serial.printf("[boot] build=%s built=%s version=%s\n",
                   BuildStamp::describe(), BuildStamp::builtAt(), BRAINO_VERSION);
-    Serial.printf("[boot] ntp=%d creds=%d ssid='%s' tzmin=%d\n",
+    /* The saved SSID is deliberately absent from this line, and from every
+     * other Serial write in the tree. A serial log is the one artifact of
+     * this device that routinely leaves the house -- pasted into a bug
+     * report, captured by whoever plugs a cable in -- and the network's name
+     * belongs to the household, not to the firmware. `creds` answers the only
+     * question a log needs answered: whether a network is configured at all.
+     * The name itself is still on the device, in System Info and the network
+     * activity list, where the person reading it is the person holding it. */
+    Serial.printf("[boot] ntp=%d creds=%d tzmin=%d\n",
                   (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
-                  board_.wifiSsid().c_str(), (int)board_.tzOffsetMinutes());
+                  (int)board_.tzOffsetMinutes());
     board_.beginTimeSync();
     /* After Board::begin(), which is what brings the beacon up: Nearby play
      * rides on that radio and must not try to arm itself before it exists. */
@@ -119,6 +127,8 @@ void BrainoApp::begin() {
     lastBannerGeneration_ = NearbyPlay::bannerGeneration();
     lastClockMinute_ = Clock::minuteKey();
     lastActivityMs_ = millis();
+    lastChargingState_ = board_.getChargingState();
+    lastBatteryPercent_ = board_.getBatteryPercent();
     Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
 
     /* First-boot: automatically create default Admin profile with PIN 0000. */
@@ -200,6 +210,19 @@ void BrainoApp::loop() {
     const uint32_t minuteNow = Clock::minuteKey();
     if (minuteNow != lastClockMinute_) {
         lastClockMinute_ = minuteNow;
+        if (view_ == View::Game && activeGame_ != nullptr) {
+            activeGame_->requestRender();
+        }
+    }
+
+    /* Invalidate screens when battery state changes, so the badge updates
+     * in real-time instead of only on screen switches. Check both charging
+     * state and percentage since either can change independently. */
+    const Board::ChargingState chargingNow = board_.getChargingState();
+    const int8_t percentNow = board_.getBatteryPercent();
+    if (chargingNow != lastChargingState_ || percentNow != lastBatteryPercent_) {
+        lastChargingState_ = chargingNow;
+        lastBatteryPercent_ = percentNow;
         if (view_ == View::Game && activeGame_ != nullptr) {
             activeGame_->requestRender();
         }
