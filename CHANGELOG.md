@@ -1,18 +1,57 @@
 # Changelog
 
-## 5.2.0-SNAPSHOT — Unreleased
+## 5.2.0 — 2026-08-27
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.1.0
-release, and About's **This build** page names the branch and commit.
-`release.yml` refuses to publish a tag whose version carries this suffix.
+The release that stops assuming one board. The installer picker now offers
+three, the build is pinned so the figures below mean something to somebody who
+did not measure them, and the privacy claim says what the firmware actually
+does rather than an absolute the same page then contradicts.
 
-Board support beyond the E32R28T-1 is the work in flight. It was held back from
-5.1.0 on purpose: supported means someone holding that board can flash it from
-the installer page and have it work, and a variant that has not been tested on
-real hardware has not met that bar. `docs/PORTING.md` is the checklist.
+**Read this before flashing a CYD.** The **E32R28T-1 / ESP32-32E** is the board
+this firmware is developed and tested against, and it is the only one that has
+been. The two **ESP32-2432S028** variants are ports built from published pin
+maps and vendor board definitions; nobody has run this build on either. They
+are offered rather than held back because a port that no owner can try never
+gets tested — but "offered" is not "supported", and the page and the README both
+say so. If you own one, a report either way is the most useful thing you can
+send. `docs/PORTING.md` is the checklist.
+
+Two boards sold under the same name can carry different display controllers, so
+the picker asks which variant you have. Flashing the wrong image gives inverted
+colours, dead touch or a blank screen — not an error message.
+
+Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%), measured on
+`env:app` for the E32R28T-1.
+
+### Added
+
+- **The ESP32-2432S028 joins the picker, as two entries rather than one.** The
+  marketplace name covers at least three display revisions, and they differ in
+  ways that fail silently: the original micro-USB board is an ILI9341 with the
+  backlight on GPIO21, MISO on GPIO12, SPI mode 0 and BGR order, while the Rv3
+  dual-USB board is an ST7789 with the backlight on GPIO27, no MISO wired, SPI
+  mode 3 and RGB. One profile covering both would be wrong for whoever owns the
+  other. Battery sense is GPIO35 on this family, not the GPIO34 the E32R28T-1
+  uses — GPIO34 is the light sensor there, which is exactly the class of
+  difference that produces a plausible wrong reading instead of a failure. The
+  classic variant also has the RGB LED and speaker the Rv3 lacks. Each is a
+  profile header under `include/boards/` plus a `[board_*]` section, per
+  `docs/PORTING.md`; no file under `src/` learned a new pin number.
+
+- **Ten environments, built and offered.** `app`, `bringup` and `batdiag` now
+  exist for each of the three boards, alongside the board-independent
+  `wifidiag`. CI and Pages build the set, and `gen_site.py` derives the picker
+  from the `[board_*]` sections, so a board cannot be added to the tree without
+  becoming flashable from the page — or failing the check that says it is not.
 
 ### Changed
+
+- **CI builds what the change can break, not everything, on a pull request.**
+  `app` always builds because it is the product; `bringup`, `batdiag` and
+  `wifidiag` build when HAL, board, battery or Wi-Fi files are touched. Pushes
+  to `main` and `dev` stay conservative and build the lot. Ten environments per
+  documentation typo was the alternative, and it is the reason nobody wanted to
+  wait for CI.
 
 - **The build is reproducible.** `platform = espressif32` was bare and every
   library carried a caret range, so a checkout of a fixed commit resolved to
