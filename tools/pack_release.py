@@ -64,6 +64,14 @@ FLASH_PARTS = (
 # An environment with no entry still ships -- it just gets no description, and
 # `--strict` turns that into an error so a new environment cannot arrive
 # unexplained.
+#
+# Keyed by the environment's *role*, not its full name. A board adds an
+# `app_<board>`, a `bringup_<board>` and a `batdiag_<board>`, and all three do
+# exactly what the unsuffixed ones do -- the board is already named separately,
+# on the same line. Keying on the full name meant three new entries per board
+# saying nothing new, and 5.2.0 found out the hard way: the six environments the
+# CYD variants added had no blurbs, so `--strict` refused to pack and the
+# failure landed on the tag rather than on the pull request.
 ENV_BLURBS = {
     "app": "The console -- the games, profiles, scores, settings, Wi-Fi clock "
            "and the BLE beacon. This is the firmware for normal use.",
@@ -74,6 +82,19 @@ ENV_BLURBS = {
     "batdiag": "Eight-page battery bring-up and calibration tool, with CSV "
                "over serial for capturing a full discharge.",
 }
+
+
+def env_role(env, board):
+    """The environment's role, with any board suffix stripped.
+
+    `app_esp32_2432s028r` on board `esp32_2432s028r` is the `app` role. The
+    board id is matched exactly rather than splitting on the first underscore,
+    so a role whose own name contains one cannot be truncated silently.
+    """
+    suffix = "_%s" % board
+    if board and env.endswith(suffix):
+        return env[:-len(suffix)]
+    return env
 
 
 def die(message):
@@ -216,19 +237,24 @@ def flashing_notes(version, built, entries):
     # image only when they differ. Repeating an identical line under each
     # environment is how a list stops being read.
     boards = {board for _env, board, _parts in entries if board}
+    # The name column is measured, not guessed. It was a literal 9, which fitted
+    # every environment there was until a board suffix made them 29 characters
+    # and every description after the first ran ragged.
+    column = max([len(env) for env, _board, _parts in entries] or [9])
     if len(boards) == 1:
         lines += ["  Board: %s" % boards.pop(), ""]
     for env, board, _parts in entries:
-        blurb = ENV_BLURBS.get(env, "(no description -- see platformio.ini)")
+        blurb = ENV_BLURBS.get(env_role(env, board),
+                               "(no description -- see platformio.ini)")
         if len(boards) > 1 and board:
             blurb = "%s [board: %s]" % (blurb, board)
         # break_on_hyphens=False, or "Wi-Fi" and "bring-up" get split
         # across lines at the hyphen.
         wrapped = textwrap.wrap(blurb, width=58,
                                 break_on_hyphens=False) or [""]
-        lines.append("  %-9s %s" % (env, wrapped[0]))
+        lines.append("  %-*s %s" % (column, env, wrapped[0]))
         for extra in wrapped[1:]:
-            lines.append("  %-9s %s" % ("", extra))
+            lines.append("  %-*s %s" % (column, "", extra))
     lines += [
         "",
         "The diagnostics are for hardware triage. Flashing one replaces the",
@@ -303,7 +329,7 @@ def pack(version, out_dir, built, strict):
         parts["merged_name"] = "%s-merged.bin" % label
         merge(env, parts, os.path.join(out_dir, parts["merged_name"]))
 
-        if env not in ENV_BLURBS:
+        if env_role(env, board) not in ENV_BLURBS:
             missing_blurb.append(env)
         entries.append((env, board, parts))
 
