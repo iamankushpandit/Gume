@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -34,6 +36,25 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      - name: Check if code files changed
+        id: code_changed
+        run: |
+          # Get list of changed files
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+
+          # Check if any non-doc files changed
+          CODE_FILES=$(echo "$CHANGED_FILES" | grep -v -E '^\.(md|txt|png|jpg|svg)$|^(README|CHANGELOG|CONTRIBUTING|LICENSE|docs/|cases/|site/)' | grep -E '\.(cpp|h|ini|py)$' || true)
+
+          if [ -z "$CODE_FILES" ]; then
+            echo "has_code_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_code_changes=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run repository checks
         run: |
           python tools/check_docs.py
@@ -41,5 +62,10 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 
-      - name: Build firmware
+      - name: Run privacy audit (code changes only)
+        if: steps.code_changed.outputs.has_code_changes == 'true'
+        run: python tools/check_privacy.py
+
+      - name: Build firmware (code changes only)
+        if: steps.code_changed.outputs.has_code_changes == 'true'
         run: pio run -e app -e bringup -e wifidiag
