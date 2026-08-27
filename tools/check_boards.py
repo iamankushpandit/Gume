@@ -52,6 +52,10 @@ REQUIRED_BOARD_MACROS = ("BOARD_NAME", "GUME_BOARD_HEADER",
 BOARDLESS_ENVS = ("wifidiag",)
 
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pack_release            # noqa: E402  (path set immediately above)
+
+
 def read(*parts):
     with open(os.path.join(ROOT, *parts), encoding="utf-8") as handle:
         return handle.read()
@@ -241,6 +245,16 @@ def check_reachable(problems, boards, board_envs):
                         ".github/workflows/%s never builds it -- its manifest "
                         "would point at binaries that do not exist"
                         % (board_id, env, name))
+
+        for env in envs:
+            role = pack_release.env_role(env, board_id)
+            if role not in pack_release.ENV_BLURBS:
+                problems.append(
+                    "board '%s' declares environment '%s', which "
+                    "pack_release.py has no description for -- "
+                    "`pack_release.py --strict` refuses to pack it, so the "
+                    "release workflow would fail on the tag, after the tag "
+                    "has already been pushed" % (board_id, env))
 
 
 def check_agreement(problems, section, body, relative):
