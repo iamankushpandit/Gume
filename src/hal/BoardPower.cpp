@@ -71,6 +71,12 @@ constexpr uint32_t CHARGE_WINDOW_MS = 45000;   // slow-trend window
 constexpr float CHARGE_TREND_V = 0.012f;       // movement that clears ADC noise
 constexpr float CHARGE_SMOOTH_ALPHA = 0.30f;   // low-pass on the trend input
 
+/* Gauge filter: separate from charge inference. Charge detection needs to
+ * notice a cable within ~2s (fast), while the gauge must ignore load transients
+ * over seconds (slow). A ~40s time constant at 2s sample rate (alpha ~0.05)
+ * ignores SPI bursts and backlight steps but still follows real discharge. */
+constexpr float GAUGE_SMOOTH_ALPHA = 0.05f;    // low-pass on displayed percentage
+
 constexpr uint8_t BL_CHANNEL = 4;
 constexpr uint32_t BL_PWM_HZ = 5000;
 constexpr uint8_t BL_PWM_BITS = 8;
@@ -120,6 +126,7 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
     batterySampleMs_ = now;
     batterySampled_ = true;
     updateChargeState(sample.batteryVoltage, now);
+    updateGaugeFilter(sample.batteryVoltage);
     return sample;
 }
 
@@ -166,6 +173,16 @@ void Board::updateChargeState(float volts, uint32_t nowMs) {
              * off. A pack resting at the same voltage off the cable reads the
              * same, which is why this is only reachable from CHARGING. */
             chargeState_ = ChargingState::FULL;
+        } else if (chargeState_ == ChargingState::FULL ||
+                   chargeState_ == ChargingState::CHARGING) {
+            /* Flat voltage, low level, and we thought we were charging: the
+             * charger must have been unplugged. Exit to DISCHARGING. This
+             * handles the case where USB is removed but voltage drops gradually
+             * (below V_CHARGER_HELD) without a large step, so the state must
+             * transition back based on the low level after a flat window. */
+            if (chargeSmoothV_ < CHARGE_FULL_V) {
+                chargeState_ = ChargingState::DISCHARGING;
+            }
         } else if (chargeState_ == ChargingState::UNKNOWN &&
                    chargeSmoothV_ < CHARGE_FULL_V) {
             /* Flat, low, and nothing has said charger: it is running on cell.
@@ -178,6 +195,20 @@ void Board::updateChargeState(float volts, uint32_t nowMs) {
 
     chargeRefV_ = chargeSmoothV_;
     chargeRefMs_ = nowMs;
+}
+
+/* Called only on a fresh sample (every BATTERY_SAMPLE_MS) to smooth the voltage
+ * that feeds the battery percentage display. Separate from charge inference:
+ * charge detection must be fast (~2s to notice a cable), while the gauge must
+ * be slow to ignore transients. Prime on first sample rather than converging
+ * from zero, so the gauge does not ramp for 30s after every boot. */
+void Board::updateGaugeFilter(float volts) {
+    if (!gaugeFilterReady_) {
+        gaugeFilteredV_ = volts;
+        gaugeFilterReady_ = true;
+        return;
+    }
+    gaugeFilteredV_ += (volts - gaugeFilteredV_) * GAUGE_SMOOTH_ALPHA;
 }
 
 float Board::getBatteryVoltage() {
@@ -201,7 +232,8 @@ Board::PowerState Board::getPowerSource() {
 }
 
 int8_t Board::getBatteryPercent() {
-    const float vBat = readBatteryTelemetry().batteryVoltage;
+    readBatteryTelemetry();  // Ensure sample and filters are advancing
+    const float vBat = gaugeFilteredV_;  // Use smoothed voltage for display
     if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
         return -1;   // sensor fault -- NOT "no pack", which is undetectable
     }
