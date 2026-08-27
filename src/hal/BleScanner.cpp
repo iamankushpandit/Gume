@@ -73,7 +73,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     }
 
     Sighting& s = table_[slot];
-    memset(&s, 0, sizeof(s));
+    s = Sighting();
     snprintf(s.deviceId, sizeof(s.deviceId), "%s", obs.deviceId);
     s.sharesActivity = obs.sharesActivity;
     s.gameIndex = obs.gameIndex;

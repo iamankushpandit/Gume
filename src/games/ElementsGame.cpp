@@ -425,7 +425,7 @@ void ElementsGame::renderCard(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     tft.drawString(e.symbol, 50, 84, 4);
     tft.setTextDatum(TL_DATUM);
-    char buf[16];
+    char buf[32];
     snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(e.z));
     tft.drawString(buf, 17, 48, 2);
 
