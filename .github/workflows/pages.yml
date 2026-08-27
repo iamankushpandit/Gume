@@ -41,6 +41,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Fail fast. Site generation runs BEFORE the expensive PlatformIO
+      # install and the ten-environment firmware build, so a structural
+      # failure -- a missing template placeholder, an orphaned still, a board
+      # with no BOARD_DETAILS entry, a VARIANTS environment that does not
+      # exist -- is discovered in seconds instead of after twenty minutes of
+      # compiling. None of those failures depend on a single byte of firmware,
+      # so there is nothing to be gained by finding them later.
+      #
+      # This writes the real _site directory that the rest of the job fills
+      # in: the steps below copy each environment's binaries next to the
+      # manifests laid down here, and then prove every manifest resolves.
+      - name: Generate the site
+        run: |
+          python tools/gen_site.py \
+            --out _site \
+            --repo "${{ github.server_url }}/${{ github.repository }}"
+
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
@@ -60,7 +77,7 @@ jobs:
       # through every net. An environment nobody builds is an environment
       # that is already broken and has not been told yet.
       - name: Build firmware
-        run: pio run -e app -e bringup -e batdiag -e wifidiag
+        run: pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -71,15 +88,12 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup batdiag wifidiag; do
+            for env in app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789; do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"
             done
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Generate the site
-        run: python tools/gen_site.py --out _site --repo "${{ github.server_url }}/${{ github.repository }}"
 
       # The env list is *derived* from what gen_site.py actually laid down,
       # never written out again here. Every environment is still built above --

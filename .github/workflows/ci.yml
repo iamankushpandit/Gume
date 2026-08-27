@@ -89,6 +89,7 @@ jobs:
           python -m py_compile tools/check_catalog.py
           python -m py_compile tools/check_frame_rules.py
           python -m py_compile tools/check_privacy.py
+          python -m py_compile tools/gen_site.py
 
       - name: Run repository checks
         run: |
@@ -98,12 +99,92 @@ jobs:
           python tools/check_frame_rules.py
           python tools/check_privacy.py
 
-      # Every environment, not just the ones the installer offers. batdiag
-      # was built by neither workflow for its whole life: check_docs.py only
-      # validates environments listed in gen_site.py's VARIANTS, and a bench
-      # tool is deliberately not offered on the flashing page, so it fell
-      # through every net. An environment nobody builds is an environment
-      # that is already broken and has not been told yet.
+      # Site generation is cheap -- seconds, pure standard library, no
+      # PlatformIO -- and it MUST run on every pull request. Do not put this
+      # step behind `steps.scope.outputs.code` or any other firmware-source
+      # gate.
+      #
+      # The reasoning is the whole point of the step. The firmware gate above
+      # deliberately skips changes under site/, docs/, tools/ and .github/,
+      # and to Markdown -- and those are exactly the changes most likely to
+      # break the installer: a renamed template placeholder, a new still that
+      # nothing references, a board section gen_site.py cannot label, a
+      # VARIANTS entry pointing at an environment no workflow builds. Gate
+      # this on firmware source and the only run that would have caught any of
+      # them is the one that never happens.
+      #
+      # gen_site.py is a headline path: it writes the landing page and the
+      # esp-web-tools manifests behind the flash button. When it fails, it
+      # fails in someone else's browser, and until now it was only ever
+      # executed by the Pages workflow -- after merge to main, where the cost
+      # of finding out is a dead installer rather than a red pull request.
+      #
+      # It runs before any firmware exists, which is why no build is needed:
+      # it lays down the manifests, and Pages later copies .bin files beside
+      # them. Output goes to a scratch directory outside the repository so the
+      # run cannot leave the working tree dirty.
+      - name: Generate the site and installer manifests
+        run: |
+          python tools/gen_site.py \
+            --out /tmp/gume-site-check \
+            --repo "${{ github.server_url }}/${{ github.repository }}"
+
+      # Detect which environments to build based on file changes.
+      # On pushes to main/dev: build all (conservative).
+      # On feature branches: build only affected environments.
+      - name: Detect which environments to build
+        id: environments
+        if: steps.scope.outputs.code == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ENVS="app"
+
+          # On pushes to main/dev, build all environments (conservative safety net)
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Building all environments (push to main/dev)"
+            ENVS="app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789"
+          else
+            # On PRs, check which files changed and build selectively
+            files=$(gh api --paginate \
+              "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
+              --jq '.[].filename')
+
+            # Build bringup if HAL/board files changed
+            if printf '%s\n' "$files" | grep -qE '^(src/hal/|include/boards/|include/BoardProfile|include/BoardConfig|platformio.ini)'; then
+              ENVS="$ENVS bringup"
+              echo "Building bringup (HAL/board files changed)"
+            fi
+
+            # Build batdiag if battery files changed
+            if printf '%s\n' "$files" | grep -qE '(battery|Battery|src/battery_diag)'; then
+              ENVS="$ENVS batdiag"
+              echo "Building batdiag (battery files changed)"
+            fi
+
+            # Build wifidiag if WiFi files changed
+            if printf '%s\n' "$files" | grep -qE '(wifi|WiFi|network|Network)'; then
+              ENVS="$ENVS wifidiag"
+              echo "Building wifidiag (WiFi files changed)"
+            fi
+          fi
+
+          echo "Environments to build: $ENVS"
+          echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
+
       - name: Build firmware
         if: steps.scope.outputs.code == 'true'
-        run: pio run -e app -e bringup -e batdiag -e wifidiag
+        run: |
+          # Build environments with explicit -e flags for check_boards.py verification
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # On pushes to main/dev: build all environments
+            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789
+          else
+            # On PR: build only affected environments
+            ENVS="${{ steps.environments.outputs.envs }}"
+            ARGS=""
+            for env in $ENVS; do
+              ARGS="$ARGS -e $env"
+            done
+            pio run $ARGS
+          fi

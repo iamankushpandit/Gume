@@ -1,5 +1,132 @@
 # Changelog
 
+## 5.2.0 — 2026-08-27
+
+The release that stops assuming one board. The installer picker now offers
+three, the build is pinned so the figures below mean something to somebody who
+did not measure them, and the privacy claim says what the firmware actually
+does rather than an absolute the same page then contradicts.
+
+**Read this before flashing a CYD.** The **E32R28T-1 / ESP32-32E** is the board
+this firmware is developed and tested against, and it is the only one that has
+been. The two **ESP32-2432S028** variants are ports built from published pin
+maps and vendor board definitions; nobody has run this build on either. They
+are offered rather than held back because a port that no owner can try never
+gets tested — but "offered" is not "supported", and the page and the README both
+say so. If you own one, a report either way is the most useful thing you can
+send. `docs/PORTING.md` is the checklist.
+
+Two boards sold under the same name can carry different display controllers, so
+the picker asks which variant you have. Flashing the wrong image gives inverted
+colours, dead touch or a blank screen — not an error message.
+
+Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%), measured on
+`env:app` for the E32R28T-1.
+
+### Added
+
+- **The ESP32-2432S028 joins the picker, as two entries rather than one.** The
+  marketplace name covers at least three display revisions, and they differ in
+  ways that fail silently: the original micro-USB board is an ILI9341 with the
+  backlight on GPIO21, MISO on GPIO12, SPI mode 0 and BGR order, while the Rv3
+  dual-USB board is an ST7789 with the backlight on GPIO27, no MISO wired, SPI
+  mode 3 and RGB. One profile covering both would be wrong for whoever owns the
+  other. Battery sense is GPIO35 on this family, not the GPIO34 the E32R28T-1
+  uses — GPIO34 is the light sensor there, which is exactly the class of
+  difference that produces a plausible wrong reading instead of a failure. The
+  classic variant also has the RGB LED and speaker the Rv3 lacks. Each is a
+  profile header under `include/boards/` plus a `[board_*]` section, per
+  `docs/PORTING.md`; no file under `src/` learned a new pin number.
+
+- **Ten environments, built and offered.** `app`, `bringup` and `batdiag` now
+  exist for each of the three boards, alongside the board-independent
+  `wifidiag`. CI and Pages build the set, and `gen_site.py` derives the picker
+  from the `[board_*]` sections, so a board cannot be added to the tree without
+  becoming flashable from the page — or failing the check that says it is not.
+
+### Changed
+
+- **CI builds what the change can break, not everything, on a pull request.**
+  `app` always builds because it is the product; `bringup`, `batdiag` and
+  `wifidiag` build when HAL, board, battery or Wi-Fi files are touched. Pushes
+  to `main` and `dev` stay conservative and build the lot. Ten environments per
+  documentation typo was the alternative, and it is the reason nobody wanted to
+  wait for CI.
+
+- **The build is reproducible.** `platform = espressif32` was bare and every
+  library carried a caret range, so a checkout of a fixed commit resolved to
+  whatever was newest that day -- a different Arduino core, a different Xtensa
+  toolchain, a different ArduinoJson. `^7.0.4` had already floated to 7.4.3 in
+  practice. Worse, `map-n-flag` tracked its default branch, so the flag and
+  outline artwork could change under a release build without a byte changing
+  here. Everything is now pinned to what the documented flash and RAM figures
+  were actually measured on: `platformio/espressif32@7.0.1` (Arduino core
+  3.20017.241212, toolchain-xtensa-esp32 8.4.0+2021r2-patch5), TFT_eSPI 2.5.43,
+  ArduinoJson 7.4.3, NimBLE-Arduino 1.4.3, and `map-n-flag` at commit
+  `3c412cb` -- the upstream carries no tags, so the commit is the only
+  immutable handle. Nothing is upgraded; this pins the known-working build so
+  the size figures in `README.md` and `CLAUDE.md` mean something to a
+  contributor who did not measure them. A clean-slate resolution reproduces
+  `env:app` at exactly 2,353,221 bytes flash and 72,588 bytes RAM.
+
+- **The privacy claim no longer overstates itself.** The README, the installer
+  page and the About app's credits page each said some form of "the device
+  sends nothing anywhere" -- while the same documents described NTP, the
+  `ip-api.com` time-zone lookup and the BLE beacon a few lines below, and
+  About's own radio page shows the beacon broadcasting live. Nothing about
+  what the firmware does has changed, and the strong claims are all still
+  made: no accounts, no analytics, no telemetry, no personal-data collection.
+  The absolute one is gone, replaced by wording that names the optional
+  exchanges it excepts. On the device, the credits page now points at *What
+  the radios do* rather than restating a promise -- the same derive-rather-
+  than-restate rule as the game list. `tools/check_privacy.py` now fails the
+  build on the absolute forms, and equally on a public document that drops the
+  strong claims instead of correcting them.
+
+- **Contributor build instructions match the tree again.** `CONTRIBUTING.md`
+  claimed `pio run -e app -e bringup -e wifidiag` built "every firmware
+  environment". It omitted `batdiag` for most of the project's life, and once
+  two more boards arrived it was missing seven of ten. The command is now
+  derived from `platformio.ini` the same way `release.yml` derives it, so it
+  cannot drift again, with the default board's four given separately for
+  everyday work.
+
+- **The site's board-porting guidance describes the current architecture.** It
+  said Braino targets one board and pointed at `AGENTS.md`; it now says a board
+  is a profile under `include/boards/<id>.h` plus a `[board_<id>]` section in
+  `platformio.ini`, and links `docs/PORTING.md`. Stale references calling
+  `include/BoardConfig.h` the place pins are defined are corrected in
+  `BOARD_E32R28T-1.md` and `cases/README.md` -- that file selects a profile and
+  static_asserts against it, and holds no pin of its own.
+
+- **The installer's site generator now runs on every pull request.**
+  `tools/gen_site.py` writes the landing page and the esp-web-tools manifests
+  behind the flash button, and until now nothing but the Pages workflow ever
+  executed it -- so a generator failure was found after merge to `main`, as a
+  dead installer rather than a red pull request. It is now a step in the
+  required `verify` job, and deliberately **ungated**: it runs even when the
+  firmware build is skipped, because changes under `site/`, `docs/`, `tools/`
+  and `.github/` are both the ones that gate skips and the ones most likely to
+  break the installer. It needs no PlatformIO and adds seconds.
+
+- **Pages fails fast.** The Pages workflow generated the site *after* building
+  ten firmware environments. Site generation now runs first, so a missing
+  placeholder or an orphaned still is caught in seconds instead of after
+  twenty minutes of compiling. The firmware set it builds is unchanged.
+
+### Fixed
+
+- **The installer page generates again with more than one board.** Generalising
+  `site/index.template.html` for multiple boards removed the `{{BOARD}}` and
+  `{{BOARD_BUY_URL}}` placeholders but left `tools/gen_site.py` substituting
+  them, so `check_docs.py` failed and `gen_site.py` itself refused to run --
+  its single-board guard fired the moment a second `[board_*]` section
+  appeared. Both halves are now consistent: the substitutions are gone, and so
+  is the guard, whose stated precondition was exactly the generalisation that
+  has since happened. The guards that matter are untouched -- a board still
+  needs an environment that builds it and a `BOARD_DETAILS` entry naming it,
+  so "supported" still means "flashable from the page".
+
 ## 5.1.0 — 2026-08-27
 
 The release that opens the project up. Everything a stranger needs in order to

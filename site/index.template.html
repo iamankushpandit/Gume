@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Braino! &mdash; {{GAME_COUNT}}-game console firmware for the ESP32</title>
-<meta name="description" content="Braino! is open ESP32 firmware: {{GAME_COUNT}} educational games for young players on a {{BOARD}} touchscreen board. Flash it from this page.">
+<meta name="description" content="Braino! is open ESP32 firmware: {{GAME_COUNT}} educational games for young players on supported ESP32 touchscreen boards. Flash it from this page.">
 <style>
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #14181d;
@@ -156,20 +156,19 @@ footer {
   <h1>Braino!</h1>
   <p class="tag">
     A {{GAME_COUNT}}-game educational console for young players, running as open
-    firmware on a {{BOARD}} touchscreen board. No accounts, no telemetry, no SD
+    firmware on supported ESP32 touchscreen boards. No accounts, no telemetry, no SD
     card &mdash; every game is baked into flash.
   </p>
   <div class="badges">
     <span class="badge">v{{VERSION}}</span>
     <span class="badge">{{GAME_COUNT}} games</span>
     <span class="badge">{{SCREEN_COUNT}} generated stills</span>
-    <span class="badge">ESP32 &middot; {{BOARD}}</span>
+    <span class="badge">ESP32 &middot; Multi-board support</span>
     <span class="badge">Flash {{FLASH}}</span>
     <span class="badge">RAM {{RAM}}</span>
   </div>
   <p class="hardware-pill">
-    Ready-made flashing is for the target board:
-    <a href="{{BOARD_BUY_URL}}">use this E32R28T-1 / ESP32-32E board</a>.
+    Select your board above to flash the right firmware for your hardware.
   </p>
 </header>
 
@@ -190,10 +189,9 @@ footer {
     PlatformIO, nothing to download by hand.
   </p>
   <p class="hardware-callout">
-    <b>Use the exact target board for the ready-made image.</b> The web flasher
-    below is built for the {{BOARD}} board. Buy or use
-    <a href="{{BOARD_BUY_URL}}">this Amazon listing</a>; other ESP32 boards may
-    flash, but the display and touch pins will not match this firmware.
+    <b>Select your board from the dropdown above before flashing.</b> Each firmware
+    image is built for specific pins and display drivers. Flashing the wrong image
+    for your board may result in a blank screen or non-responsive touch.
   </p>
 
   <div class="card">
@@ -257,11 +255,10 @@ footer {
       <tr>
         <th style="width:26%">Board</th>
         <td>
-          <b>{{BOARD}}</b> (ESP32-32E, sold as a 2.8-inch "cheap yellow display"):
-          ILI9341 320&times;240 panel, XPT2046 <b>resistive</b> touch, 4 MB flash,
-          no PSRAM, onboard single-cell Li-ion charging. For the ready-made
-          browser flash image, use
-          <a href="{{BOARD_BUY_URL}}">this board on Amazon</a>.
+          One of the supported ESP32 boards with a 320&times;240 or larger touchscreen
+          (see the board selector above for options). Common variants include the
+          E32R28T-1 (2.8-inch ILI9341) and ESP32-2432S028 (2.4-inch ST7789), both with
+          XPT2046 <b>resistive</b> touch, 4 MB flash, and onboard Li-ion charging.
         </td>
       </tr>
       <tr>
@@ -278,10 +275,11 @@ footer {
       </tr>
     </table>
     <p class="note" style="margin-bottom:0">
-      Other ESP32 boards will accept the binary, but the pin map, the screen
-      rotation and the touch controller are compiled in for this one, so a
-      different board most likely gives you a blank screen. Build from source
-      with your own pins in <code>include/BoardConfig.h</code> instead.
+      Make sure to select the correct board in the dropdown above. Each firmware image
+      is built for specific pins and display drivers; flashing the wrong image will
+      result in a blank screen or non-responsive touch. To support a board that is not
+      listed, add a profile for it and build from source &mdash;
+      <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a> is the checklist.
     </p>
   </div>
 </section>
@@ -323,9 +321,10 @@ footer {
   <h2>Privacy</h2>
   <div class="card">
     <p style="margin-top:0">
-      The device collects nothing and sends nothing anywhere. No accounts, no
-      telemetry, no analytics. Scores and mastery data live in the ESP32's own
-      flash and never leave it.
+      No accounts, analytics, telemetry, or personal-data collection. The
+      optional Wi-Fi and Bluetooth LE features make only the limited exchanges
+      listed below &mdash; that list is the complete one. Scores and mastery
+      data live in the ESP32's own flash and never leave it.
     </p>
     <ul class="tight">
       <li><b>Wi-Fi</b> connects only to reach an NTP server, plus one lookup to
@@ -356,11 +355,21 @@ footer {
   <h2>Help wanted</h2>
   <div class="card">
     <p style="margin-top:0">
-      Braino targets one board properly today. The CYD family has many variants
-      that differ in ways that fail quietly &mdash; different backlight pins,
-      different touch controllers, the same GPIO meaning different things. If
-      you own one and want it supported, <code>AGENTS.md</code> has a written
-      checklist for adding a board.
+      Braino supports three ESP32 touchscreen boards today, and the CYD family
+      has many more variants. They differ in ways that fail quietly &mdash;
+      different backlight pins, different display drivers, the same GPIO
+      meaning different things &mdash; which is why each one is described
+      explicitly rather than guessed at.
+    </p>
+    <p>
+      Adding a board is two files: a profile under
+      <code>include/boards/&lt;id&gt;.h</code> holding the pins, rotations and
+      which peripherals exist, and the matching <code>[board_&lt;id&gt;]</code>
+      section in <code>platformio.ini</code> holding what the display driver
+      must be told at compile time. Nothing under <code>src/</code> names a
+      GPIO. <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a> is
+      the full checklist, and it starts with the honest question of whether a
+      given board can run this firmware at all.
     </p>
     <p>
       <strong>Bug reports and code critique are especially welcome.</strong>
