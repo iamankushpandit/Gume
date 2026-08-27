@@ -60,11 +60,11 @@ jobs:
           echo "Files changed by this pull request:"
           printf '%s\n' "$files" | sed 's/^/  /'
           if printf '%s\n' "$files" \
-             | grep -qvE '^(docs/|cases/|site/|\.github/)|\.md$|^LICENSE$'; then
+             | grep -qvE '^(docs/|cases/|site/|tools/|\.github/)|\.md$|^LICENSE$'; then
             echo "Source code changed -- building firmware."
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Documentation or CI config only -- skipping the firmware build."
+            echo "Non-source files only (docs, tools, CI config) -- skipping firmware build."
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
