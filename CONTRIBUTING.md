@@ -172,11 +172,26 @@ Keep the branch current — `git fetch upstream && git rebase upstream/dev` —
 because the protection rules will not let a stale branch merge. Leave "allow
 edits by maintainers" ticked so a maintainer can rebase or fix a check for you.
 
-CI runs on pull requests from forks with a read-only token, so `verify` (the
-repository checks, plus a build of every firmware environment when your change
-touches code) will report on your PR without any secret being exposed to it. What CI cannot do is flash a board:
-anything touching hardware, touch, storage or a screen still needs a human with
-the device, so say in the PR what you tested and on which board.
+CI runs on pull requests from forks with a read-only token, so `verify` will
+report on your PR without any secret being exposed to it. That one job covers
+three things, and it is worth knowing which of them your change triggers:
+
+- **The repository checks and site generation always run**, on every pull
+  request, including a documentation-only one. `check_docs`, `check_boards`,
+  `check_catalog`, `check_frame_rules`, `check_privacy` and `gen_site.py` are
+  cheap and are exactly what a docs change can break.
+- **The firmware build is skipped** when a pull request touches only `docs/`,
+  `cases/`, `site/`, `tools/`, `.github/`, Markdown or `LICENSE`.
+- **When it does build, a pull request builds selectively** -- `app` always,
+  plus `bringup` if you touched the HAL or a board profile, `batdiag` for
+  battery files, `wifidiag` for Wi-Fi files. All ten environments are built on
+  a push to `main` or `dev`, which is the safety net rather than the first
+  line of defence. If your change touches something every board shares, build
+  the full derived set locally before opening the PR.
+
+What CI cannot do is flash a board: anything touching hardware, touch, storage
+or a screen still needs a human with the device, so say in the PR what you
+tested and on which board.
 
 Maintainers with push access can branch inside the repository instead of
 forking — the worktree flow below — but the pull request and CI requirements
