@@ -27,7 +27,8 @@ Complete hardware specification and driver configuration for the E32R28T-1 / ESP
 
 ## 2. GPIO Pinout
 
-All pins defined in `include/BoardConfig.h`.
+All pins defined in `include/boards/e32r28t1.h`, the board profile. `include/BoardConfig.h` only selects a profile and derives the screen
+constants from it -- it holds no pin of its own.
 
 ### Display (ILI9341) — HSPI Bus
 
@@ -121,7 +122,7 @@ V_cell = ADC_millivolts × 2.0  (DIVIDER_RATIO = 2.0f)
 - Expected: GPIO4 = red, GPIO16 = green.
 - Actual: GPIO4 = green, GPIO16 = red.
 - If you see orange (R255 G110) output as green and purple (R200 B255) as cyan, the swap is working correctly.
-- **DO NOT "FIX" THIS.** It is intentional in `BoardConfig.h` and verified on device. Any future board must have its own quirk check.
+- **DO NOT "FIX" THIS.** It is intentional in `include/boards/e32r28t1.h` and verified on device. Any future board must have its own quirk check.
 
 **PWM:** LEDC channel 4, 5 kHz PWM, 8-bit depth (0–255), PWM_HIGH_MODE.
 
@@ -340,7 +341,8 @@ Two thresholds, both disabled while charging (plugging in clears warning immedia
 ## 6. Radio: Wi-Fi (lwIP + SNTP)
 
 ### Purpose
-NTP time synchronization only. No telemetry, no data logging.
+NTP time synchronization, plus one `ip-api.com` lookup to guess the time
+zone on first connect. Nothing else. No telemetry, no data logging.
 
 ### State Machine (Non-blocking)
 - **Idle** → (credentials available) → **Connecting**
@@ -470,7 +472,7 @@ Five player slots (`p0_` through `p4_`) plus permanent Guest (`p5_`, writes drop
 ### Red/Green LED Crossing (HARDWARE QUIRK)
 - **Symptom:** Colors appear wrong (e.g., red looks green)
 - **Root cause:** Board schematic swapped GPIO16 (R) and GPIO4 (G)
-- **Fix:** Already applied in `BoardConfig.h` (`PIN_RGB_R = 16`, `PIN_RGB_G = 4`)
+- **Fix:** Already applied in `include/boards/e32r28t1.h`, in that profile's `RgbLedProfile` (red on 16, green on 4)
 - **Verification:** Tested on hardware; orange (R255 G110) output confirmed green
 - **Action:** DO NOT "FIX" this. Verify with hardware if porting.
 

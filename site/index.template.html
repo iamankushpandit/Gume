@@ -277,8 +277,9 @@ footer {
     <p class="note" style="margin-bottom:0">
       Make sure to select the correct board in the dropdown above. Each firmware image
       is built for specific pins and display drivers; flashing the wrong image will
-      result in a blank screen or non-responsive touch. Build from source if you need
-      to support a different board.
+      result in a blank screen or non-responsive touch. To support a board that is not
+      listed, add a profile for it and build from source &mdash;
+      <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a> is the checklist.
     </p>
   </div>
 </section>
@@ -320,9 +321,10 @@ footer {
   <h2>Privacy</h2>
   <div class="card">
     <p style="margin-top:0">
-      The device collects nothing and sends nothing anywhere. No accounts, no
-      telemetry, no analytics. Scores and mastery data live in the ESP32's own
-      flash and never leave it.
+      No accounts, analytics, telemetry, or personal-data collection. The
+      optional Wi-Fi and Bluetooth LE features make only the limited exchanges
+      listed below &mdash; that list is the complete one. Scores and mastery
+      data live in the ESP32's own flash and never leave it.
     </p>
     <ul class="tight">
       <li><b>Wi-Fi</b> connects only to reach an NTP server, plus one lookup to
@@ -353,11 +355,21 @@ footer {
   <h2>Help wanted</h2>
   <div class="card">
     <p style="margin-top:0">
-      Braino targets one board properly today. The CYD family has many variants
-      that differ in ways that fail quietly &mdash; different backlight pins,
-      different touch controllers, the same GPIO meaning different things. If
-      you own one and want it supported, <code>AGENTS.md</code> has a written
-      checklist for adding a board.
+      Braino supports three ESP32 touchscreen boards today, and the CYD family
+      has many more variants. They differ in ways that fail quietly &mdash;
+      different backlight pins, different display drivers, the same GPIO
+      meaning different things &mdash; which is why each one is described
+      explicitly rather than guessed at.
+    </p>
+    <p>
+      Adding a board is two files: a profile under
+      <code>include/boards/&lt;id&gt;.h</code> holding the pins, rotations and
+      which peripherals exist, and the matching <code>[board_&lt;id&gt;]</code>
+      section in <code>platformio.ini</code> holding what the display driver
+      must be told at compile time. Nothing under <code>src/</code> names a
+      GPIO. <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a> is
+      the full checklist, and it starts with the honest question of whether a
+      given board can run this firmware at all.
     </p>
     <p>
       <strong>Bug reports and code critique are especially welcome.</strong>

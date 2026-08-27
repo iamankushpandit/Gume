@@ -12,6 +12,69 @@ Board support beyond the E32R28T-1 is the work in flight. It was held back from
 the installer page and have it work, and a variant that has not been tested on
 real hardware has not met that bar. `docs/PORTING.md` is the checklist.
 
+### Changed
+
+- **The build is reproducible.** `platform = espressif32` was bare and every
+  library carried a caret range, so a checkout of a fixed commit resolved to
+  whatever was newest that day -- a different Arduino core, a different Xtensa
+  toolchain, a different ArduinoJson. `^7.0.4` had already floated to 7.4.3 in
+  practice. Worse, `map-n-flag` tracked its default branch, so the flag and
+  outline artwork could change under a release build without a byte changing
+  here. Everything is now pinned to what the documented flash and RAM figures
+  were actually measured on: `platformio/espressif32@7.0.1` (Arduino core
+  3.20017.241212, toolchain-xtensa-esp32 8.4.0+2021r2-patch5), TFT_eSPI 2.5.43,
+  ArduinoJson 7.4.3, NimBLE-Arduino 1.4.3, and `map-n-flag` at commit
+  `3c412cb` -- the upstream carries no tags, so the commit is the only
+  immutable handle. Nothing is upgraded; this pins the known-working build so
+  the size figures in `README.md` and `CLAUDE.md` mean something to a
+  contributor who did not measure them. A clean-slate resolution reproduces
+  `env:app` at exactly 2,353,221 bytes flash and 72,588 bytes RAM.
+
+- **The privacy claim no longer overstates itself.** The README, the installer
+  page and the About app's credits page each said some form of "the device
+  sends nothing anywhere" -- while the same documents described NTP, the
+  `ip-api.com` time-zone lookup and the BLE beacon a few lines below, and
+  About's own radio page shows the beacon broadcasting live. Nothing about
+  what the firmware does has changed, and the strong claims are all still
+  made: no accounts, no analytics, no telemetry, no personal-data collection.
+  The absolute one is gone, replaced by wording that names the optional
+  exchanges it excepts. On the device, the credits page now points at *What
+  the radios do* rather than restating a promise -- the same derive-rather-
+  than-restate rule as the game list. `tools/check_privacy.py` now fails the
+  build on the absolute forms, and equally on a public document that drops the
+  strong claims instead of correcting them.
+
+- **Contributor build instructions match the tree again.** `CONTRIBUTING.md`
+  claimed `pio run -e app -e bringup -e wifidiag` built "every firmware
+  environment". It omitted `batdiag` for most of the project's life, and once
+  two more boards arrived it was missing seven of ten. The command is now
+  derived from `platformio.ini` the same way `release.yml` derives it, so it
+  cannot drift again, with the default board's four given separately for
+  everyday work.
+
+- **The site's board-porting guidance describes the current architecture.** It
+  said Braino targets one board and pointed at `AGENTS.md`; it now says a board
+  is a profile under `include/boards/<id>.h` plus a `[board_<id>]` section in
+  `platformio.ini`, and links `docs/PORTING.md`. Stale references calling
+  `include/BoardConfig.h` the place pins are defined are corrected in
+  `BOARD_E32R28T-1.md` and `cases/README.md` -- that file selects a profile and
+  static_asserts against it, and holds no pin of its own.
+
+- **The installer's site generator now runs on every pull request.**
+  `tools/gen_site.py` writes the landing page and the esp-web-tools manifests
+  behind the flash button, and until now nothing but the Pages workflow ever
+  executed it -- so a generator failure was found after merge to `main`, as a
+  dead installer rather than a red pull request. It is now a step in the
+  required `verify` job, and deliberately **ungated**: it runs even when the
+  firmware build is skipped, because changes under `site/`, `docs/`, `tools/`
+  and `.github/` are both the ones that gate skips and the ones most likely to
+  break the installer. It needs no PlatformIO and adds seconds.
+
+- **Pages fails fast.** The Pages workflow generated the site *after* building
+  ten firmware environments. Site generation now runs first, so a missing
+  placeholder or an orphaned still is caught in seconds instead of after
+  twenty minutes of compiling. The firmware set it builds is unchanged.
+
 ### Fixed
 
 - **The installer page generates again with more than one board.** Generalising

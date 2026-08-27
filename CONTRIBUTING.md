@@ -172,11 +172,26 @@ Keep the branch current — `git fetch upstream && git rebase upstream/dev` —
 because the protection rules will not let a stale branch merge. Leave "allow
 edits by maintainers" ticked so a maintainer can rebase or fix a check for you.
 
-CI runs on pull requests from forks with a read-only token, so `verify` (the
-repository checks, plus a build of every firmware environment when your change
-touches code) will report on your PR without any secret being exposed to it. What CI cannot do is flash a board:
-anything touching hardware, touch, storage or a screen still needs a human with
-the device, so say in the PR what you tested and on which board.
+CI runs on pull requests from forks with a read-only token, so `verify` will
+report on your PR without any secret being exposed to it. That one job covers
+three things, and it is worth knowing which of them your change triggers:
+
+- **The repository checks and site generation always run**, on every pull
+  request, including a documentation-only one. `check_docs`, `check_boards`,
+  `check_catalog`, `check_frame_rules`, `check_privacy` and `gen_site.py` are
+  cheap and are exactly what a docs change can break.
+- **The firmware build is skipped** when a pull request touches only `docs/`,
+  `cases/`, `site/`, `tools/`, `.github/`, Markdown or `LICENSE`.
+- **When it does build, a pull request builds selectively** -- `app` always,
+  plus `bringup` if you touched the HAL or a board profile, `batdiag` for
+  battery files, `wifidiag` for Wi-Fi files. All ten environments are built on
+  a push to `main` or `dev`, which is the safety net rather than the first
+  line of defence. If your change touches something every board shares, build
+  the full derived set locally before opening the PR.
+
+What CI cannot do is flash a board: anything touching hardware, touch, storage
+or a screen still needs a human with the device, so say in the PR what you
+tested and on which board.
 
 Maintainers with push access can branch inside the repository instead of
 forking — the worktree flow below — but the pull request and CI requirements
@@ -205,11 +220,29 @@ Build the app:
 pio run
 ```
 
-Build every firmware environment:
+Build every firmware environment. The list is *derived* from `platformio.ini`
+rather than typed out, because typing it out is what went wrong: this section
+said `pio run -e app -e bringup -e wifidiag` for most of the project's life,
+which quietly omitted `batdiag`, and then three more boards arrived and it was
+missing seven. `.github/workflows/release.yml` builds the same set the same
+derived way.
 
 ```bash
-pio run -e app -e bringup -e wifidiag
+pio run $(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")
 ```
+
+That is currently ten environments: an `app`, a `bringup` and a `batdiag` for
+each of the three supported boards, plus the board-independent `wifidiag`. It
+takes a while. For everyday work, the default board's four are usually enough:
+
+```bash
+pio run -e app -e bringup -e batdiag -e wifidiag
+```
+
+Build the whole set before opening a pull request that touches the HAL, a board
+profile, `platformio.ini` or anything else every board shares -- CI builds all
+ten on a push to `main` or `dev`, and a break that only shows up on the third
+board is a break you want to find here.
 
 Before any build, upload or serial monitor session, take the shared board lock.
 It lives in the common git directory so every worktree sees the same lock:
@@ -239,8 +272,22 @@ Run the checks that match your change. For normal firmware work, run:
 python tools/check_catalog.py
 python tools/check_frame_rules.py
 python tools/check_docs.py
-pio run -e app -e bringup -e wifidiag
+python tools/check_boards.py
+python tools/check_privacy.py
+pio run -e app -e bringup -e batdiag -e wifidiag
 ```
+
+Those five checks plus site generation are what CI's required `verify` job runs
+on every pull request, so running them locally is running the gate:
+
+```bash
+python tools/gen_site.py --out /tmp/gume-site-check
+```
+
+`gen_site.py` writes the landing page and the installer's flash manifests. It
+is ungated in CI -- it runs even on a documentation-only pull request, because
+changes under `site/`, `docs/`, `tools/` and `.github/` are the ones most likely
+to break the installer, and they are exactly the ones the firmware build skips.
 
 If a screen layout changed, regenerate screenshots:
 
@@ -348,9 +395,12 @@ To rehearse the packing without tagging anything, run it against a local
 build:
 
 ```bash
-pio run -e app -e bringup -e wifidiag -e batdiag
+pio run $(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")
 python tools/pack_release.py --out dist --strict
 ```
+
+`--strict` wants every environment present, so this needs the full derived
+build above, not the four-environment shorthand.
 
 Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
 flashed from `dev` cannot be mistaken for the release it is ahead of.
