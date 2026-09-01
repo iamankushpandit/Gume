@@ -1,4 +1,5 @@
 #include "ProfileGame.h"
+#include "ProfileRename.h"
 #include "AppVersion.h"
 #include "engine/AppRegistry.h"
 #include "hal/Board.h"
@@ -382,28 +383,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
     }
 
     // ---- rename / create ----
-    for (uint8_t r = 0; r < KEY_ROWS; ++r) {
-        for (uint8_t c = 0; c < KEY_COLS; ++c) {
-            if (!keyRect(r, c, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
-            const char ch = KEYS[r][c];
-            if (ch == '<') {
-                if (draft_.length() > 0) draft_.remove(draft_.length() - 1);
-            } else if (ch == '>') {
-                if (editing_ == 0xFF) {
-                    board.addPlayer(draft_);
-                } else if (draft_.length() > 0) {
-                    board.setProfileName(editing_, draft_);
-                }
-                phase_ = Phase::Pick;
-                markFullDirty();
-                return;
-            } else if (draft_.length() < Board::PROFILE_NAME_MAX) {
-                draft_ += ch;
-            }
-            markDirty();
-            return;
-        }
-    }
+    updateRename(host, touch);
 }
 
 void ProfileGame::appendPinDigit(uint8_t digit) {
@@ -642,27 +622,5 @@ void ProfileGame::render(GameHost& host) {
     }
 
     // ---- rename / create ----
-    tft.drawString(editing_ == 0xFF ? "New player" : "Name", W / 2, 8, 2);
-    const int16_t fieldW = static_cast<int16_t>(min<int16_t>(240, W - 40));
-    const Rect field{static_cast<int16_t>((W - fieldW) / 2), 28, fieldW, 30};
-    tft.fillRoundRect(field.x, field.y, field.w, field.h, 4, Ui::surface());
-    tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::surface());
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString(draft_.length() ? draft_.c_str() : "...",
-                   W / 2, static_cast<int16_t>(field.y + field.h / 2), 4);
-
-    for (uint8_t r = 0; r < KEY_ROWS; ++r) {
-        for (uint8_t c = 0; c < KEY_COLS; ++c) {
-            const char ch = KEYS[r][c];
-            char keyLabel[2] = {ch, 0};
-            const char* label = keyLabel;
-            uint16_t fill = Ui::panel();
-            if (ch == '<') { label = "DEL"; fill = Ui::rgb(150, 60, 60); }
-            if (ch == '>') { label = "OK";  fill = Ui::rgb(45, 154, 96); }
-            if (ch == ' ') { label = "_"; }
-            Ui::drawButton(tft, keyRect(r, c, W, H), label, fill, Ui::outline(), Ui::text(), false, 2);
-        }
-    }
-    tft.setTextDatum(TL_DATUM);
+    renderRename(host);
 }

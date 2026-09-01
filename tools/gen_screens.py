@@ -1643,6 +1643,43 @@ def profiles_pick():
     return im
 
 
+def profiles_rename():
+    """Name entry, reached from Add Player or from Edit -> Rename.
+
+    Geometry follows ProfileGame: the centred title at y=8, the field at
+    ((W - fieldW) / 2, 28, fieldW, 30) with fieldW = min(240, W - 40), the
+    6x5 key pad from keyRect() in landscape, and the Cancel button from
+    renameCancelRect() -- the exit this screen used to not have."""
+    im, d = blank()
+    lab = "New player"
+    d.text((W / 2 - d.textlength(lab, font=F2) / 2, 8), lab, font=F2, fill=TEXT)
+    field_w = min(240, W - 40)
+    fx = (W - field_w) // 2
+    d.rounded_rectangle([fx, 28, fx + field_w, 58], 4, fill=SURFACE, outline=OUTLINE)
+    draft = "Ada"
+    d.text((W / 2 - d.textlength(draft, font=F4) / 2, 34), draft, font=F4, fill=TEXT)
+    # Cancel centred at the bottom of the screen (y=H-30), keyboard shifted up.
+    btn_w = 52
+    bx = (W - btn_w) // 2
+    button(d, (bx, H - 30, btn_w, 22), "Cancel", f=F1)
+    # Keyboard shifted up to make room for Cancel at bottom (landscape).
+    key_w = (W - 16 - 5 * 4) // 6
+    keys = ["ABCDEF", "GHIJKL", "MNOPQR", "STUVWX", "YZ -<>"]
+    # Cancel at y=210, gap=4, keyboard bottom=206, keyboard top=64
+    keyboard_y0 = 64
+    for r, row in enumerate(keys):
+        for c, ch in enumerate(row):
+            label = {"<": "DEL", ">": "OK", " ": "_"}.get(ch, ch)
+            if ch == "<":
+                fill, tc = (150, 60, 60), WHITE
+            elif ch == ">":
+                fill, tc = GREEN, WHITE
+            else:
+                fill, tc = PANEL, TEXT
+            button(d, (8 + c * (key_w + 4), keyboard_y0 + r * 29, key_w, 26), label, fill, tc, F2)
+    return im
+
+
 # Geometry below comes from DiceGame's and CoinFlipGame's own Rect helpers:
 # the count buttons at (86 + i*52, 46, 44, 26), the action button at
 # (85, 198, 150, 34), dice at 68px on a 14px gap, coin at r=34 centred on
@@ -1828,6 +1865,7 @@ EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
     ("profiles", profiles_pick, "Profiles: who is playing"),
+    ("profiles-rename", profiles_rename, "Profiles: the name entry for Add / Rename"),
     ("nearby", nearby, "Nearby: who else is playing"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),

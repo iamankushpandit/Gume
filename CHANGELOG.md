@@ -14,6 +14,18 @@ worth more than any feature here, and the report that does it is welcome from
 anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
 issue template asks for the pin map and its source.
 
+### Fixed
+
+- **The profile name entry has a way out.** The keyboard shared by **Add
+  Player** and **Rename** could only be left by committing: `DEL` clears
+  characters and `OK` commits, and `OK` on an empty field created a
+  default-named profile -- so the give-up gesture a player reaches for made
+  the very profile they were trying to avoid, and removal is admin-only. There
+  is now a **Cancel** in the corner the admin PIN's Back button already owns,
+  and `OK` on an empty field errors instead of writing. The name entry also
+  gets its first mock-up in `docs/screens/`, now on the site with the rest of
+  the Profiles screens.
+
 ## 5.2.0 — 2026-08-27
 
 The release that stops assuming one board. The installer picker now offers
