@@ -25,6 +25,7 @@ private:
     Rect pinDeleteRect(int16_t screenW, int16_t screenH) const;
     Rect pinConfirmRect(int16_t screenW, int16_t screenH) const;
     Rect pinCancelRect(int16_t screenW, int16_t screenH) const;
+    Rect renameCancelRect(int16_t screenW, int16_t screenH) const;
     Rect addRect(int16_t screenW, int16_t screenH) const;
     Rect doneRect(int16_t screenW, int16_t screenH) const;
     Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
@@ -41,6 +42,8 @@ private:
     void appendPinDigit(uint8_t digit);
     void deletePinDigit();
     void renderPinEntry(GameHost& host);
+    void updateRename(GameHost& host, const TouchPoint& touch);
+    void renderRename(GameHost& host);
 
     Phase phase_ = Phase::Pick;
     uint8_t editing_ = 0;

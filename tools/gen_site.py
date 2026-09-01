@@ -144,6 +144,7 @@ SCREEN_CAPTIONS = {
     "profiles": "Profiles",
     "scores-device": "Scores: device best",
     "scores-mine": "Scores: this player",
+    "profiles-rename": "Profiles: add or rename a player",
     "screensaver": "Screen saver",
     "wakelock": "Hold to unlock",
     "wakelock-tall": "Hold to unlock, Tall layout",
@@ -212,7 +213,7 @@ SYSTEM_SHOWCASE = (
         "id": "profiles",
         "subtitle": "Boot-time player choice, five players, Guest mode that deliberately saves nothing, "
                     "a PIN-guarded admin profile, and per-player game visibility only the admin can set.",
-        "stills": ("profiles", "profiles-pin", "profiles-games"),
+        "stills": ("profiles", "profiles-pin", "profiles-games", "profiles-rename"),
     },
     {
         "id": "settings",
