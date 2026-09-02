@@ -1,5 +1,9 @@
 #include "Board.h"
 
+#if GUME_TOUCH_CAPACITIVE
+#include <Wire.h>
+#endif
+
 #include "BleBeacon.h"
 #include "ui/Ui.h"
 
@@ -33,19 +37,55 @@ void Board::begin() {
         digitalWrite(BOARD.audio.speakerPin, LOW);
     }
 
-    pinMode(BOARD.touch.mosi, OUTPUT);
-    pinMode(BOARD.touch.miso, INPUT);
-    pinMode(BOARD.touch.sclk, OUTPUT);
-    pinMode(BOARD.touch.cs, OUTPUT);
-    pinMode(BOARD.touch.irq, INPUT);
-    digitalWrite(BOARD.touch.cs, HIGH);
-    digitalWrite(BOARD.touch.sclk, LOW);
+    /* Guarded by the preprocessor, not `if constexpr`: in a non-template
+     * function both arms of an `if constexpr` are still compiled, so the
+     * capacitive arm alone dragged Wire into every resistive build. */
+#if GUME_TOUCH_CAPACITIVE
+    {
+        pinMode(BOARD.touch.irq, INPUT_PULLUP);
+        /* ASSERT reset here and RELEASE it after the panel comes up.
+         *
+         * The controller must be brought out of reset before the first
+         * transaction, or a chip that is present answers nothing and the pins
+         * take the blame. It needs a hold low, then a settle before it
+         * acknowledges its own address -- but neither has to be a delay().
+         * tft_.init() runs a full panel init sequence between the two halves,
+         * which is tens of milliseconds of real work, and the NVS and profile
+         * setup below covers the settle before the first pollTouch(). Blocking
+         * boot for 320ms to wait for something the boot was going to do anyway
+         * would be waste, and check_frame_rules.py is right to refuse it. */
+        if (BOARD.touch.reset != PIN_NONE) {
+            pinMode(BOARD.touch.reset, OUTPUT);
+            digitalWrite(BOARD.touch.reset, LOW);
+        }
+    }
+#else
+    {
+        pinMode(BOARD.touch.mosi, OUTPUT);
+        pinMode(BOARD.touch.miso, INPUT);
+        pinMode(BOARD.touch.sclk, OUTPUT);
+        pinMode(BOARD.touch.cs, OUTPUT);
+        pinMode(BOARD.touch.irq, INPUT);
+        digitalWrite(BOARD.touch.cs, HIGH);
+        digitalWrite(BOARD.touch.sclk, LOW);
+    }
+#endif
 
     tft_.init();
     tft_.setRotation(BOARD.panel.landscapeRotation);
     displayRotation_ = BOARD.panel.landscapeRotation;
     tft_.setTextWrap(false, false);
     tft_.fillScreen(Ui::bg());
+
+#if GUME_TOUCH_CAPACITIVE
+    /* Release the touch controller. The panel init above was its reset pulse;
+     * everything below is its settling time, and the first pollTouch() does
+     * not happen until the loop starts. */
+    if (BOARD.touch.reset != PIN_NONE) {
+        digitalWrite(BOARD.touch.reset, HIGH);
+    }
+    Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+#endif
 
     prefs_.begin("cydkids", false);
     migrateStorageSchema();
@@ -54,6 +94,7 @@ void Board::begin() {
     loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
+    beginAudio();
     mountSd();
     BleBeacon::begin(bleBeaconEnabled());
 }

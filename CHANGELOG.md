@@ -14,6 +14,55 @@ worth more than any feature here, and the report that does it is welcome from
 anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
 issue template asks for the pin map and its source.
 
+### Added
+
+- **The Freenove FNK0104B is supported, on real hardware.** A 2.8-inch
+  ESP32-S3 board with the same ILI9341 240x320 panel, an FT6336U *capacitive*
+  touch controller, 16 MB flash and 8 MB PSRAM. It is offered by the web
+  installer and all 31 games run on it. Unlike the two CYD variants, this port
+  was brought up on a device rather than from a published pin map: display,
+  backlight, touch at all four rotations, battery sense and the audio path were
+  each confirmed by measurement.
+
+  Three peripherals are deliberately switched off rather than half-wired, each
+  because the board profile cannot yet describe the hardware: **sound** (an
+  ES8311 codec, not a speaker pin), the **status LED** (one WS2812, not three
+  PWM channels) and the **SD card** (SDMMC, not SPI). Each degrades quietly and
+  each has an issue with the pin map and the measurements needed to finish it.
+  The battery percentage is correct; the charging verdict is not yet validated
+  on this board's charger.
+
+- **Braino makes sounds, on a board whose profile describes a codec.**
+  `beepOk()` and `beepError()` play a rising two-tone and a low double buzz
+  through the ES8311 on the Freenove FNK0104B, as well as pulsing the LED where
+  one exists. `AudioProfile` grew from a single speaker pin to something that
+  can describe a codec: an I2C control address, the five I2S lines and an
+  amplifier enable with its polarity.
+
+  A beep is *rendered* into a static buffer when it is asked for and *fed* to
+  the I2S DMA a slice at a time by `tickAudio()`, which the runtime calls once
+  per frame beside `tickRgb()`. It has to work that way: `beepOk()` is called
+  from game code inside a 20ms frame budget, and playing a 200ms note the way
+  the bring-up probe does would blow that budget on every correct answer in
+  every game. Volume is capped at `AUDIO_VOLUME_MAX = 80` -- a ceiling in the
+  same spirit as `BRIGHTNESS_MIN`, for a handheld held near a child's ears --
+  and the amplifier is powered only while something is playing.
+
+  Boards with a bare `speakerPin` are unchanged: `beep()` is still a stub and
+  the LED pulse is still the whole of the feedback.
+
+- **The board contract describes capacitive touch.** `TouchProfile` carried an
+  XPT2046 and nothing else, so a board wiring an I2C controller could not be
+  described at all. It now carries a `TouchKind` and both pin sets, and
+  `BoardConfig.h` asserts per arm rather than demanding SPI lines of every
+  board. A capacitive panel reports pixels, so it never enters the calibration
+  wizard -- a screen its owner could not otherwise get past.
+
+- **`pio run -e s3diag`**, a standalone bring-up probe for ESP32-S3 boards:
+  panel, rotation, I2C scan, live touch mapping, battery, and the full audio
+  path including a record-and-playback microphone test. Built alone, in the
+  same spirit as `wifidiag` and `batdiag`.
+
 ### Fixed
 
 - **The profile name entry has a way out.** The keyboard shared by **Add

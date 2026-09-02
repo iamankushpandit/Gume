@@ -1,11 +1,20 @@
 #include "Board.h"
 
 #include <math.h>
+#if GUME_TOUCH_CAPACITIVE
+#include <Wire.h>
+#endif
 #include "Watchdog.h"
 #include "ui/Ui.h"
 
 namespace {
 constexpr uint32_t TOUCH_CAL_MAGIC = 0x43594431UL;
+
+/* FT6336U. Only the four registers this firmware needs; the part has many
+ * more and none of them are wanted. TD_STATUS is followed directly by the
+ * first touch point, so one 5-byte read gets the count and the coordinates
+ * without a second transaction per frame. */
+constexpr uint8_t FT_REG_TD_STATUS = 0x02;
 constexpr uint8_t CMD_READ_X = 0xD0;
 constexpr uint8_t CMD_READ_Y = 0x90;
 constexpr uint8_t CMD_READ_Z1 = 0xB0;
@@ -49,7 +58,16 @@ bool computeAffine(const int16_t raw[3][2], const int16_t screen[3][2], Board::T
 }
 
 bool Board::hasTouchCalibration() const {
+    /* A capacitive controller reports pixels; there is nothing to fit, so it
+     * is always "calibrated". This is not a convenience -- every caller that
+     * sees false offers or forces the wizard, and on this panel that wizard
+     * cannot be completed. Answering honestly here is what keeps a first boot
+     * from being a screen the owner cannot get past. */
+#if GUME_TOUCH_CAPACITIVE
+    return true;
+#else
     return cal_.magic == TOUCH_CAL_MAGIC;
+#endif
 }
 
 bool Board::loadTouchCalibration() {
@@ -70,6 +88,7 @@ void Board::saveTouchCalibration() {
     prefs_.putBytes("touchCal", &cal_, sizeof(TouchCalibration));
 }
 
+#if !GUME_TOUCH_CAPACITIVE
 uint16_t Board::readTouchAdc(uint8_t command) {
     uint16_t raw = 0;
     digitalWrite(BOARD.touch.cs, LOW);
@@ -94,7 +113,51 @@ uint16_t Board::readTouchAdc(uint8_t command) {
     return static_cast<uint16_t>((raw >> 3) & 0x0FFF);
 }
 
-Board::RawTouch Board::readRawTouch() {
+/* Read one point from an I2C capacitive controller.
+ *
+ * Returns coordinates in the panel's NATIVE portrait frame, which is what the
+ * chip reports and all it knows -- it has never heard of setRotation(). The
+ * rotation into screen space happens in mapTouch(), deliberately in the same
+ * place the resistive path applies its affine fit, so pollTouch() below sees
+ * one kind of coordinate whatever the board wires.
+ *
+ * `pressure` is synthesised: capacitive contact is binary, and every caller
+ * that reads a pressure only ever compares it against a threshold. Reporting
+ * a constant above every threshold is honest about that, where reporting 0
+ * would make a real press look like noise. */
+#endif  /* !GUME_TOUCH_CAPACITIVE -- end of the XPT2046 sampling half */
+
+#if GUME_TOUCH_CAPACITIVE
+Board::RawTouch Board::readCapacitiveTouch() {
+    RawTouch touch;
+    uint8_t buf[5];
+
+    Wire.beginTransmission(BOARD.touch.i2cAddress);
+    Wire.write(FT_REG_TD_STATUS);
+    if (Wire.endTransmission(false) != 0) {
+        return touch;
+    }
+    if (Wire.requestFrom(static_cast<int>(BOARD.touch.i2cAddress), 5) != 5) {
+        return touch;
+    }
+    for (uint8_t i = 0; i < 5; ++i) {
+        buf[i] = Wire.read();
+    }
+
+    if ((buf[0] & 0x0F) == 0) {
+        return touch;
+    }
+
+    touch.down = true;
+    touch.x = static_cast<int16_t>(((buf[1] & 0x0F) << 8) | buf[2]);
+    touch.y = static_cast<int16_t>(((buf[3] & 0x0F) << 8) | buf[4]);
+    touch.pressure = 0xFFFF;
+    return touch;
+}
+#endif
+
+#if !GUME_TOUCH_CAPACITIVE
+Board::RawTouch Board::readResistiveTouch() {
     RawTouch touch;
     const uint16_t z1 = readTouchAdc(CMD_READ_Z1);
     const uint16_t z2 = readTouchAdc(CMD_READ_Z2);
@@ -122,6 +185,16 @@ Board::RawTouch Board::readRawTouch() {
     touch.y = static_cast<int16_t>(y / samples);
     touch.pressure = pressure;
     return touch;
+}
+
+#endif  /* !GUME_TOUCH_CAPACITIVE -- end of the XPT2046 half */
+
+Board::RawTouch Board::readRawTouch() {
+#if GUME_TOUCH_CAPACITIVE
+    return readCapacitiveTouch();
+#else
+    return readResistiveTouch();
+#endif
 }
 
 bool Board::waitForStableRaw(int16_t& rawX, int16_t& rawY) {
@@ -158,6 +231,11 @@ bool Board::waitForStableRaw(int16_t& rawX, int16_t& rawY) {
 }
 
 void Board::runTouchCalibration() {
+    /* Reachable from Settings as well as from boot, so refusing here rather
+     * than only at the call sites is what makes it safe. */
+#if GUME_TOUCH_CAPACITIVE
+    return;
+#else
     const Watchdog::Pause wdtPause;
     const uint8_t savedRotation = displayRotation_;
     tft_.setRotation(1);
@@ -210,10 +288,36 @@ void Board::runTouchCalibration() {
 
     tft_.setRotation(savedRotation);
     displayRotation_ = savedRotation;
+#endif
 }
 
 bool Board::mapTouch(const RawTouch& raw, int16_t& x, int16_t& y) const {
-    if (!raw.down || cal_.magic != TOUCH_CAL_MAGIC) {
+    if (!raw.down) {
+        return false;
+    }
+
+    /* Capacitive: rotate the controller's native portrait coordinates into the
+     * landscape frame the resistive calibration also produces, so pollTouch()'s
+     * rotation switch below serves both without knowing which it has.
+     *
+     * The specific quarter-turn is a property of the panel, not a convention:
+     * it depends on which physical corner the controller calls its origin.
+     * This one was established on hardware rather than derived -- the FNK0104B
+     * probe drew a crosshair through this exact transform and it tracked a
+     * finger at all four rotations, with the opposite handedness available on
+     * a key and demonstrably wrong. See src/s3_diag.cpp. */
+#if GUME_TOUCH_CAPACITIVE
+    {
+        const int16_t lx = raw.y;
+        const int16_t ly = static_cast<int16_t>(BOARD.panel.nativeWidth - 1 - raw.x);
+        x = constrain(lx, static_cast<int16_t>(0),
+                      static_cast<int16_t>(SCREEN_WIDTH - 1));
+        y = constrain(ly, static_cast<int16_t>(0),
+                      static_cast<int16_t>(SCREEN_HEIGHT - 1));
+        return true;
+    }
+#else
+    if (cal_.magic != TOUCH_CAL_MAGIC) {
         return false;
     }
     const float mappedX = cal_.ax * raw.x + cal_.bx * raw.y + cal_.cx;
@@ -221,6 +325,7 @@ bool Board::mapTouch(const RawTouch& raw, int16_t& x, int16_t& y) const {
     x = constrain(static_cast<int16_t>(lroundf(mappedX)), 0, SCREEN_WIDTH - 1);
     y = constrain(static_cast<int16_t>(lroundf(mappedY)), 0, SCREEN_HEIGHT - 1);
     return true;
+#endif
 }
 
 TouchPoint Board::pollTouch() {

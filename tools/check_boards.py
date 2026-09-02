@@ -48,8 +48,16 @@ BOARD_SPECIFIC_MACRO = re.compile(
 REQUIRED_BOARD_MACROS = ("BOARD_NAME", "GUME_BOARD_HEADER",
                          "TFT_WIDTH", "TFT_HEIGHT", "TFT_BL")
 
-# Environments that build no board peripheral, so they need no board section.
-BOARDLESS_ENVS = ("wifidiag",)
+# Environments that need no [board_*] section.
+#
+# wifidiag builds no board peripheral at all. s3diag is a different case worth
+# stating: it drives a panel, but for a board this firmware cannot yet run on.
+# A [board_*] section is a claim of support, and check_reachable() below is
+# what that claim costs -- a web-installer label, an offered firmware, a CI
+# build. Making it before the capacitive touch path exists would advertise a
+# firmware that boots into a screen nobody can press, which is precisely the
+# outcome BoardProfile.h refuses to allow. The section arrives with the port.
+BOARDLESS_ENVS = ("wifidiag", "s3diag")
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

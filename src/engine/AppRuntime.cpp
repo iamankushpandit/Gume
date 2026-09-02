@@ -163,6 +163,7 @@ void BrainoApp::loop() {
 
     board_.tickTimeSync();
     board_.tickRgb();
+    board_.tickAudio();
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
 

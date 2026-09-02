@@ -79,6 +79,14 @@ VARIANTS = (
         "note": "The full console for newer 2.4 inch CYD variants (USB-C/dual-USB, ST7789): {count} games, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon.",
     },
+    {
+        "env": "app_fnk0104b",
+        "label": "Braino! (the games) -- Freenove FNK0104B (ESP32-S3, capacitive touch)",
+        "name": "Braino!",
+        "note": "The full console for the Freenove 2.8 inch ESP32-S3 display: {count} games, profiles, scores, settings, "
+                "Wi-Fi clock and the BLE beacon. This board has no SD, no status LED and no sound yet -- "
+                "everything else works. See the README for what is missing and why.",
+    },
 )
 
 # The pin map, screen rotation and touch controller are compile-time constants,
@@ -108,6 +116,11 @@ BOARD_DETAILS = {
         "label": "ESP32-2432S028Rv3 -- 2.4 inch newer CYD variant (ST7789 + XPT2046 resistive touch, USB-C/dual-USB)",
         "chip": "ESP32",
         "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
+    },
+    "fnk0104b": {
+        "label": "Freenove FNK0104B -- 2.8 inch ESP32-S3 (ILI9341 + FT6336U capacitive touch, USB-C)",
+        "chip": "ESP32-S3",
+        "buy": "https://store.freenove.com/products/fnk0104",
     },
 }
 

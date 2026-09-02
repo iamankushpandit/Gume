@@ -71,14 +71,37 @@ static_assert(BOARD.screenWidth() >= GAME_CANVAS_WIDTH
               "panel is smaller than the canvas the games are drawn on; this "
               "board cannot be supported");
 
-/* Touch is the only input this firmware has. There are no buttons. */
-static_assert(BOARD.touch.cs != PIN_NONE && BOARD.touch.irq != PIN_NONE,
+/* Touch is the only input this firmware has. There are no buttons.
+ *
+ * Which lines a board must bring out depends on its controller kind, so these
+ * assert per arm rather than demanding every line of every board. Asserting
+ * the union would have forced a capacitive board to invent an SPI chip select
+ * -- and a made-up pin that satisfies a checker is worse than a missing one,
+ * because it stops anybody noticing. */
+static_assert(BOARD.touch.kind == TouchKind::ResistiveXpt2046
+                  || BOARD.touch.kind == TouchKind::CapacitiveFt6336u,
+              "board profile does not say which touch controller it wires");
+
+static_assert(!BOARD.touch.isCapacitive()
+                  ? (BOARD.touch.cs != PIN_NONE && BOARD.touch.mosi != PIN_NONE
+                     && BOARD.touch.miso != PIN_NONE && BOARD.touch.sclk != PIN_NONE)
+                  : true,
+              "resistive touch board is missing an XPT2046 bus line");
+static_assert(!BOARD.touch.isCapacitive() ? BOARD.touch.pressureThreshold > 0 : true,
+              "resistive touch board needs a positive pressure threshold");
+
+static_assert(BOARD.touch.isCapacitive()
+                  ? (BOARD.touch.sda != PIN_NONE && BOARD.touch.scl != PIN_NONE
+                     && BOARD.touch.i2cAddress != 0 && BOARD.touch.i2cHz > 0)
+                  : true,
+              "capacitive touch board is missing an I2C line, address or rate");
+
+/* The one thing both kinds owe, and the thing that decides supportability: a
+ * controller at all. `irq` is common to both -- pen-down on the XPT2046, INT
+ * on the FT6336U. */
+static_assert(BOARD.touch.irq != PIN_NONE,
               "board has no touch controller; it is the only input the "
               "firmware has, so this board cannot be supported");
-static_assert(BOARD.touch.mosi != PIN_NONE && BOARD.touch.miso != PIN_NONE
-                  && BOARD.touch.sclk != PIN_NONE,
-              "board profile is missing a touch bus line");
-static_assert(BOARD.touch.pressureThreshold > 0, "touch pressure threshold must be positive");
 static_assert(BOARD.touch.hitSlop >= 0, "touch hit slop cannot be negative");
 
 /* A backlight the firmware can drive. Brightness is a setting with a
