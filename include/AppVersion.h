@@ -31,7 +31,7 @@
  * not go away -- it is waiting for the next name that does not fit. If you
  * change either, re-measure: the portrait launcher has about 38px of air
  * between the product name and this string, and that is the whole allowance. */
-#define BRAINO_VERSION          "5.3.0-SNAPSHOT"
+#define BRAINO_VERSION          "5.4.0-SNAPSHOT"
 #define BRAINO_PRODUCT_NAME     "Braino!"
 /** The brand that publishes the console, and the owner of the marks. */
 #define BRAINO_COMPANY          "GoodTime Micro Company"

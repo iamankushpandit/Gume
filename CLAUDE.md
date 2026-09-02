@@ -657,7 +657,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,353,881 on `5.3.0-SNAPSHOT` against 2,353,205 on `5.2.0` -- and that is
+   2,353,881 on `5.4.0-SNAPSHOT` against 2,353,865 on `5.3.0` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds

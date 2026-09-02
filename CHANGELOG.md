@@ -1,18 +1,46 @@
 # Changelog
 
-## 5.3.0-SNAPSHOT — Unreleased
+## 5.4.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.2.0
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.3.0
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
-The open question this cycle is the one 5.2.0 shipped without an answer to:
-the two ESP32-2432S028 variants are offered from the installer page and have
-never been run on the hardware they name. Confirming or correcting either is
-worth more than any feature here, and the report that does it is welcome from
-anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
-issue template asks for the pin map and its source.
+Two open questions this cycle. The two ESP32-2432S028 variants are still
+offered from the installer page having never been run on the hardware they
+name — that one has outlived two releases now. And the Freenove FNK0104B
+ships with three peripherals switched off: its WS2812 status LED (#72), its
+SDMMC card slot (#73), and a charging verdict measured against a different
+board's charger (#74). Each has an issue carrying the pin map and the
+measurements needed to finish it.
+
+## 5.3.0 — 2026-09-02
+
+A fourth board, and the first one this project can honestly say it has run.
+
+The Freenove FNK0104B is an ESP32-S3 with a capacitive touch panel, and
+supporting it meant the board contract had to stop assuming a resistive
+controller — so `TouchProfile` now describes either kind, and `AudioProfile`
+grew from a single speaker pin into something that can describe a codec.
+Braino makes sounds for the first time.
+
+Unlike the two ESP32-2432S028 variants, this port was not built from a
+published pin map. Display, backlight, touch at all four rotations, battery
+sense, the codec and the speaker were each confirmed on a device before the
+values were written down, using a new bring-up probe that ships with it.
+
+Three of that board's peripherals are switched off rather than half-wired,
+each because the profile cannot yet describe the hardware, and each with an
+issue carrying the pin map and the measurements needed to finish it. The
+README says plainly what a user will notice.
+
+The older open question is unchanged and still worth more than any feature
+here: the two ESP32-2432S028 variants are offered from the installer page and
+have never been run on the hardware they name. If you own one, telling us
+whether it works is the most useful thing you can send — `docs/PORTING.md` is
+the checklist, and the board-port issue template asks for the pin map and its
+source.
 
 ### Added
 
