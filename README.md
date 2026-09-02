@@ -135,6 +135,8 @@ the left.
 The battery **percentage** is correct, but the **charging/discharging verdict**
 is not yet validated on this board's charger — those constants were measured
 against the E32R28T-1's TP4054 ([#74](https://github.com/iamankushpandit/Gume/issues/74)).
+Partition sizing on the 16 MB part and a first-frame time worth checking are
+tracked in [#75](https://github.com/iamankushpandit/Gume/issues/75).
 
 `pio run -e s3diag` is a standalone bring-up probe for this board: panel,
 rotation, I²C scan, live touch, battery, and the full audio path including a
