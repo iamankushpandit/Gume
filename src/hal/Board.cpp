@@ -1,5 +1,9 @@
 #include "Board.h"
 
+#if GUME_TOUCH_CAPACITIVE
+#include <Wire.h>
+#endif
+
 #include "BleBeacon.h"
 #include "ui/Ui.h"
 
@@ -33,13 +37,36 @@ void Board::begin() {
         digitalWrite(BOARD.audio.speakerPin, LOW);
     }
 
-    pinMode(BOARD.touch.mosi, OUTPUT);
-    pinMode(BOARD.touch.miso, INPUT);
-    pinMode(BOARD.touch.sclk, OUTPUT);
-    pinMode(BOARD.touch.cs, OUTPUT);
-    pinMode(BOARD.touch.irq, INPUT);
-    digitalWrite(BOARD.touch.cs, HIGH);
-    digitalWrite(BOARD.touch.sclk, LOW);
+    /* Guarded by the preprocessor, not `if constexpr`: in a non-template
+     * function both arms of an `if constexpr` are still compiled, so the
+     * capacitive arm alone dragged Wire into every resistive build. */
+#if GUME_TOUCH_CAPACITIVE
+    {
+        pinMode(BOARD.touch.irq, INPUT_PULLUP);
+        /* The controller must be brought out of reset before the first
+         * transaction, or a chip that is present answers nothing and the pins
+         * take the blame. Measured on the FNK0104B: it needs the release plus
+         * a settling delay before it acknowledges its own address. */
+        if (BOARD.touch.reset != PIN_NONE) {
+            pinMode(BOARD.touch.reset, OUTPUT);
+            digitalWrite(BOARD.touch.reset, LOW);
+            delay(20);
+            digitalWrite(BOARD.touch.reset, HIGH);
+            delay(300);
+        }
+        Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }
+#else
+    {
+        pinMode(BOARD.touch.mosi, OUTPUT);
+        pinMode(BOARD.touch.miso, INPUT);
+        pinMode(BOARD.touch.sclk, OUTPUT);
+        pinMode(BOARD.touch.cs, OUTPUT);
+        pinMode(BOARD.touch.irq, INPUT);
+        digitalWrite(BOARD.touch.cs, HIGH);
+        digitalWrite(BOARD.touch.sclk, LOW);
+    }
+#endif
 
     tft_.init();
     tft_.setRotation(BOARD.panel.landscapeRotation);

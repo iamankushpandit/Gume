@@ -41,7 +41,16 @@ Deleting a player is a storage operation, not a name-list edit. `removePlayer()`
 
 ### Touch
 
-Bit-banged SPI to the XPT2046 (the TFT owns HSPI). `pollTouch()` averages samples, applies `BOARD.touch.pressureThreshold`, maps through a 3-point affine calibration, and compensates for the active rotation — so game code should never adjust coordinates itself. Calibration persists in NVS behind a magic number; `runTouchCalibration()` re-runs the wizard.
+**Two kinds of controller, one coordinate.** `BOARD.touch.kind` says which the board wires, and `pollTouch()`'s rotation switch is shared by both — game code never adjusts coordinates itself either way.
+
+*Resistive (XPT2046).* Bit-banged SPI (the TFT owns HSPI). `readResistiveTouch()` averages samples and applies `BOARD.touch.pressureThreshold`; `mapTouch()` runs the 3-point affine fit, which persists in NVS behind a magic number. `runTouchCalibration()` re-runs the wizard.
+
+*Capacitive (FT6336U).* I²C. `readCapacitiveTouch()` does one 5-byte read from `TD_STATUS`, which is immediately followed by the first touch point — count and coordinates in a single transaction per frame. Two things about it are load-bearing:
+
+- **It reports the panel's NATIVE portrait frame and has never heard of `setRotation()`.** `mapTouch()` rotates into the same landscape frame the affine fit produces, so everything downstream sees one kind of coordinate. **That quarter-turn is a property of the panel, not a convention** — it depends on which physical corner the controller calls its origin, and it was established on hardware, not derived: `src/s3_diag.cpp` drew a crosshair through this exact transform, tracked a finger at all four rotations, and carried the opposite handedness on a key to show it was wrong.
+- **`hasTouchCalibration()` returns true unconditionally, and `runTouchCalibration()` returns immediately.** There is nothing to fit. This is not a convenience: every caller that sees `false` offers or forces the wizard, and on a capacitive panel that wizard **cannot be completed** — the first crosshair is a screen the owner never gets past. `pressure` is synthesised as `0xFFFF` because capacitive contact is binary and every caller only ever compares it to a threshold; reporting 0 would make a real press look like noise.
+
+**Use `#if GUME_TOUCH_CAPACITIVE`, not `if constexpr`, to separate the two.** In a non-template function both arms of an `if constexpr` are still compiled, so the capacitive arm alone linked Wire into every resistive build — measured at **+4,476 bytes** of flash for code that can never run, on a budget already at 75%. The macro lives in the board header and the profile's `TouchKind` is *derived from it*, so there is still exactly one statement of the fact and the two cannot drift.
 
 `TouchPoint` lives in `TouchTypes.h` and carries `down`, `justPressed`, `justReleased`, `x`, `y`, `pressure`; edge flags come from diffing against `lastTouch_`.
 

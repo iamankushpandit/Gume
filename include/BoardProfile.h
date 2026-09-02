@@ -55,16 +55,56 @@ struct PanelProfile {
     bool    backlightActiveHigh;
 };
 
-/* XPT2046 resistive touch. `mosi`/`miso`/`sclk` may repeat the display's SPI
- * pins on boards that share the bus; the firmware bit-bangs either way. */
+/* Which kind of touch controller the board wires. This is a property of the
+ * hardware, and it decides more than a pin map: a resistive panel reports an
+ * ADC reading that means nothing until three points have been fitted to it,
+ * while a capacitive controller reports pixels and has nothing to calibrate.
+ * Running the calibration wizard on one is not a degraded experience, it is a
+ * screen the owner cannot get past. */
+enum class TouchKind : uint8_t {
+    ResistiveXpt2046,      // bit-banged SPI, needs the 3-point affine fit
+    CapacitiveFt6336u,     // I2C, reports panel-native pixels directly
+};
+
+/* Touch. One struct covers both kinds because a board has exactly one, and a
+ * discriminated flat record keeps `check_boards.py`'s field-by-label check
+ * working -- a variant type would let a board fill in the wrong arm and still
+ * compile.
+ *
+ * Lines the board's kind does not use are `PIN_NONE`, exactly as an absent
+ * peripheral is elsewhere in this file. `BoardConfig.h` static_asserts the
+ * lines each kind actually needs, so an unfilled one fails at the compiler
+ * rather than at the first press.
+ *
+ * Resistive: `mosi`/`miso`/`sclk` may repeat the display's SPI pins on boards
+ * that share the bus; the firmware bit-bangs either way.
+ *
+ * Capacitive: the controller reports coordinates in the panel's NATIVE
+ * (portrait) frame and knows nothing about `setRotation()`. Rotating them to
+ * match the display is the touch layer's job, and it is not optional -- the
+ * FNK0104B bring-up probe tracked a finger correctly at rotation 0 and not at
+ * any other, which is exactly this. */
 struct TouchProfile {
-    int8_t   mosi;
-    int8_t   miso;
-    int8_t   sclk;
-    int8_t   cs;
-    int8_t   irq;
-    uint16_t pressureThreshold;   // below this, and with IRQ high, it is noise
-    int16_t  hitSlop;             // pixels of forgiveness on every hit test
+    TouchKind kind;
+    int8_t   mosi;                // resistive only
+    int8_t   miso;                // resistive only
+    int8_t   sclk;                // resistive only
+    int8_t   cs;                  // resistive only
+    int8_t   irq;                 // both: pen-down / INT
+    int8_t   sda;                 // capacitive only
+    int8_t   scl;                 // capacitive only
+    int8_t   reset;               // capacitive only; held low then released
+    uint8_t  i2cAddress;          // capacitive only
+    uint32_t i2cHz;               // capacitive only
+    uint16_t pressureThreshold;   // resistive: below this, with IRQ high, noise
+    int16_t  hitSlop;             // both: pixels of forgiveness on a hit test
+
+    constexpr bool isCapacitive() const {
+        return kind == TouchKind::CapacitiveFt6336u;
+    }
+    /* A capacitive panel has nothing to fit, so the wizard must not run and
+     * `hasTouchCalibration()` must answer true without one having been done. */
+    constexpr bool needsCalibration() const { return !isCapacitive(); }
 };
 
 struct SdProfile {

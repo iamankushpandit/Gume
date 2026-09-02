@@ -364,7 +364,14 @@ private:
     };
 
     uint16_t readTouchAdc(uint8_t command);
+    /* One dispatcher, two implementations, chosen at compile time from the
+     * board's TouchKind -- so a board carries only the controller it wires. */
     RawTouch readRawTouch();
+#if GUME_TOUCH_CAPACITIVE
+    RawTouch readCapacitiveTouch();
+#else
+    RawTouch readResistiveTouch();
+#endif
     bool waitForStableRaw(int16_t& rawX, int16_t& rawY);
     bool loadTouchCalibration();
     void saveTouchCalibration();
