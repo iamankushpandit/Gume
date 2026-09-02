@@ -169,6 +169,7 @@ public:
         board_.pulseRgb(r, g, b, ms);
     }
     void tickRgb() { board_.tickRgb(); }
+    void tickAudio() { board_.tickAudio(); }
     void setRgbEnabled(bool on) { board_.setRgbEnabled(on); }
     bool rgbEnabled() { return board_.rgbEnabled(); }
 

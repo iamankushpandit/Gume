@@ -11,6 +11,11 @@
  * stated alongside it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 0
 
+/* No audio codec. Same reasoning as GUME_TOUCH_CAPACITIVE above: the
+ * codec path pulls in Wire and driver/i2s.h, and `if constexpr` would
+ * link both into a board that has neither. */
+#define GUME_HAS_AUDIO_CODEC 0
+
 /* HOSYOND / LCDWIKI E32R28T-1 (ESP32-32E) -- the 2.8-inch board Braino! ships
  * on. ILI9341 320x240 TFT, XPT2046 resistive touch on its own bit-banged bus,
  * micro-SD on VSPI, RGB status LED, and a TP4054 single-cell charger.
@@ -81,7 +86,15 @@ inline constexpr BoardProfile BOARD = {
 
     /* The pin exists; audio is stubbed. beepOk()/beepError() pulse the LED. */
     AudioProfile{
-        /* speakerPin */ 26,
+        /* speakerPin          */ 26,
+        /* codecI2cAddress     */ 0,
+        /* i2sMclk             */ PIN_NONE,
+        /* i2sBclk             */ PIN_NONE,
+        /* i2sWordSelect       */ PIN_NONE,
+        /* i2sDataOut          */ PIN_NONE,
+        /* i2sDataIn           */ PIN_NONE,
+        /* ampEnablePin        */ PIN_NONE,
+        /* ampEnableActiveLow  */ false,
     },
 
     /* Battery sense on IO34 (ADC1_CH6, input-only). The vendor manual states

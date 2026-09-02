@@ -136,6 +136,25 @@ public:
 
     void beepOk();
     void beepError();
+
+    /* Codec volume, 0-100.
+     *
+     * AUDIO_VOLUME_MAX is a product decision, and a ceiling rather than a
+     * default -- the mirror image of BRIGHTNESS_MIN below, which floors the
+     * backlight so a player cannot make the screen unreadable. This is a
+     * handheld held close to a young player's ears, and the last fifth of a
+     * small driver is mostly distortion anyway.
+     *
+     * Anything that ever exposes a volume control clamps to this rather than
+     * relabelling 80 as "100%": a control that lies about its range is worse
+     * than one with a shorter range. */
+    static constexpr uint8_t AUDIO_VOLUME_MAX = 80;
+    static constexpr uint8_t AUDIO_VOLUME_DEFAULT = 60;
+
+    /* Feeds queued audio to the I2S DMA without blocking. Called once per
+     * frame from the runtime, beside tickRgb(), and a no-op on a board with no
+     * codec. See BoardFeedback.cpp for why a beep cannot simply be played. */
+    void tickAudio();
     /* ---- Profiles -------------------------------------------------------
      * Scores, best/worst records and spaced-repetition data are stored per
      * player. Every key that goes through getScore/setScore/saveBestScore and
@@ -334,6 +353,10 @@ public:
     void setRgbColor(uint8_t r, uint8_t g, uint8_t b);
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms);
     void tickRgb();
+
+    /* Brings up the codec and the I2S stream. Called from begin(); a no-op
+     * where the profile describes no codec. */
+    void beginAudio();
     void setRgbEnabled(bool on);
     bool rgbEnabled();
 

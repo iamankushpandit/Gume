@@ -10,6 +10,11 @@
  * it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 1
 
+/* This board has an ES8311 codec. Same reasoning as the macro above:
+ * preprocessor, not `if constexpr`, so boards without one carry neither
+ * Wire nor driver/i2s.h. */
+#define GUME_HAS_AUDIO_CODEC 1
+
 /* Freenove FNK0104B -- 2.8-inch ESP32-S3 display board. ILI9341 240x320 IPS
  * panel, FT6336U CAPACITIVE touch over I2C, ES8311 audio codec with a speaker
  * connector, one WS2812 pixel, SDMMC card slot, and an MX1.25 battery header.
@@ -105,14 +110,25 @@ inline constexpr BoardProfile BOARD = {
         /* commonAnode */ false,
     },
 
-    /* There IS real audio here -- an ES8311 codec at I2C 0x18 with I2S on
-     * MCLK 4 / BCLK 5 / DIN 6 / WS 7 / DOUT 8 and an active-LOW amplifier
-     * enable on GPIO1 -- and env:s3diag plays through it. But AudioProfile
-     * describes a single speaker pin, which a codec is not, so this stays
-     * PIN_NONE until the profile can describe one. Claiming a speaker pin the
-     * firmware would then toggle uselessly is worse than admitting none. */
+    /* ES8311 codec on the SAME I2C bus as touch, at 0x18, plus a five-wire
+     * I2S path and an active-LOW amplifier enable on GPIO1.
+     *
+     * There is no bare speaker pin, and there must not be one: the transducer
+     * hangs off the codec's amplifier, not off a GPIO. Three things about this
+     * part were established on hardware with env:s3diag and are easy to get
+     * wrong -- the amplifier enable is active LOW, MCLK must come from the
+     * APLL because 160 MHz will not divide to 6.144 MHz, and the ADC volume
+     * register resets to minimum. See src/hal/BoardFeedback.cpp. */
     AudioProfile{
-        /* speakerPin */ PIN_NONE,
+        /* speakerPin          */ PIN_NONE,
+        /* codecI2cAddress     */ 0x18,
+        /* i2sMclk             */ 4,
+        /* i2sBclk             */ 5,
+        /* i2sWordSelect       */ 7,
+        /* i2sDataOut          */ 8,
+        /* i2sDataIn           */ 6,
+        /* ampEnablePin        */ 1,
+        /* ampEnableActiveLow  */ true,
     },
 
     /* Battery sense on GPIO9 = ADC1_CH8 on the S3, which matters: ADC2 is

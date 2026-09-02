@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,353,841 / 3,145,728 bytes (**74.8%**) |
+| Flash | 2,353,881 / 3,145,728 bytes (**74.8%**) |
 | RAM | 72,588 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -124,11 +124,10 @@ Its USB-C is on a short edge, so unlike the other boards no landscape rotation
 puts the socket at the bottom — Braino uses rotation 3, which puts the cable on
 the left.
 
-**Three things do not work yet, and they are switched off rather than broken:**
+**Sound works**: `beepOk()` and `beepError()` play through the ES8311 codec, capped at 80% volume. **Two things do not work yet, and they are switched off rather than broken:**
 
 | Not working | Why | Issue |
 |---|---|---|
-| Sound | The speaker is behind an **ES8311 codec** (I²C + I²S), and `AudioProfile` describes a single speaker pin. The codec itself works — `pio run -e s3diag` plays through it | [#71](https://github.com/iamankushpandit/Gume/issues/71) |
 | Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. `beepOk()`/`beepError()` are no-ops and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
 | SD card | The slot is **SDMMC 4-bit**; `SdProfile` describes an SPI card. Optional SD content is simply not loaded, which everything has defaults for | [#73](https://github.com/iamankushpandit/Gume/issues/73) |
 

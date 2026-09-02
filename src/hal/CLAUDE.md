@@ -62,7 +62,7 @@ Panel sleep/wake is observable: `displaySleepTelemetry()` reports sleep count, w
 
 ### RGB LED
 
-LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` are the game-facing wrappers — there is no audio despite the name; the speaker pin is stubbed. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
+LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` are the game-facing wrappers. On a board whose profile describes an audio codec they now play a real sound as well as pulsing the LED; on a board with only a bare `speakerPin` they remain LED-only and `beep()` is still a stub. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
 The red and green GPIOs are physically crossed on this unit versus the standard pinout. The E32R28T-1 profile already accounts for it (`rgb.r = 16`, `rgb.g = 4`) and it was verified on hardware — leave it alone.
 

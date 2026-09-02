@@ -125,8 +125,31 @@ struct RgbLedProfile {
     bool   commonAnode;
 };
 
+/* How a board makes a sound, if it can.
+ *
+ * `speakerPin` is a bare transducer on a GPIO -- what the CYD boards wire, and
+ * what this struct used to be able to describe on its own. It is stubbed on
+ * every board that has one.
+ *
+ * A codec is a different animal: an I2C control channel plus a five-wire I2S
+ * data path plus a separate amplifier enable, none of which is a "speaker
+ * pin". Describing one as a pin would have meant the firmware toggling a GPIO
+ * that does nothing, which is worse than admitting there is no speaker.
+ *
+ * Unused lines are PIN_NONE, as everywhere else here. `hasCodec()` and
+ * `hasSpeaker()` are separate questions and a board may answer no to both. */
 struct AudioProfile {
-    int8_t speakerPin;
+    int8_t   speakerPin;
+    int8_t   codecI2cAddress;   // 0 when there is no codec
+    int8_t   i2sMclk;
+    int8_t   i2sBclk;
+    int8_t   i2sWordSelect;
+    int8_t   i2sDataOut;        // ESP32 -> codec DAC (speaker)
+    int8_t   i2sDataIn;         // codec ADC -> ESP32 (microphone)
+    int8_t   ampEnablePin;
+    bool     ampEnableActiveLow;
+
+    constexpr bool hasCodec() const { return codecI2cAddress != 0; }
 };
 
 /* What the part has, as distinct from what the PCB wires. `flashBytes` gates
