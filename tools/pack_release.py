@@ -81,6 +81,8 @@ ENV_BLURBS = {
                 "interfere with the result.",
     "batdiag": "Eight-page battery bring-up and calibration tool, with CSV "
                "over serial for capturing a full discharge.",
+    "s3diag": "Bring-up probe for an unsupported ESP32-S3 board: panel, "
+              "rotation, I2C touch scan and battery divider. Not the console.",
 }
 
 

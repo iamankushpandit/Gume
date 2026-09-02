@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,353,221 / 3,145,728 bytes (**74.8%**) |
+| Flash | 2,353,841 / 3,145,728 bytes (**74.8%**) |
 | RAM | 72,588 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -814,6 +814,7 @@ src/
   BuildStamp.cpp        branch/commit/build time; rebuilt every build
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
+  s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
   engine/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
