@@ -2,6 +2,20 @@
 
 #include "BoardProfile.h"
 
+/* Which touch controller this board wires, as a macro so the preprocessor can
+ * act on it. It has to be a macro and not just the profile field: `if
+ * constexpr` does not discard in a non-template function, so a capacitive
+ * branch mentioning Wire links the whole I2C library into a resistive board --
+ * measured at +4,476 bytes of flash for code that can never run, on a budget
+ * already at 75%. The TouchKind below is derived from this macro rather than
+ * stated alongside it, so there is still exactly one statement of the fact. */
+#define GUME_TOUCH_CAPACITIVE 0
+
+/* No audio codec. Same reasoning as GUME_TOUCH_CAPACITIVE above: the
+ * codec path pulls in Wire and driver/i2s.h, and `if constexpr` would
+ * link both into a board that has neither. */
+#define GUME_HAS_AUDIO_CODEC 0
+
 /* HOSYOND / LCDWIKI E32R28T-1 (ESP32-32E) -- the 2.8-inch board Braino! ships
  * on. ILI9341 320x240 TFT, XPT2046 resistive touch on its own bit-banged bus,
  * micro-SD on VSPI, RGB status LED, and a TP4054 single-cell charger.
@@ -32,11 +46,19 @@ inline constexpr BoardProfile BOARD = {
      * src/hal/CLAUDE.md for why this is bit-banged rather than a second
      * hardware peripheral. */
     TouchProfile{
+        /* kind               */ (GUME_TOUCH_CAPACITIVE
+                                     ? TouchKind::CapacitiveFt6336u
+                                     : TouchKind::ResistiveXpt2046),
         /* mosi               */ 32,
         /* miso               */ 39,
         /* sclk               */ 25,
         /* cs                 */ 33,
         /* irq                */ 36,
+        /* sda                */ PIN_NONE,
+        /* scl                */ PIN_NONE,
+        /* reset              */ PIN_NONE,
+        /* i2cAddress         */ 0,
+        /* i2cHz              */ 0,
         /* pressureThreshold  */ 350,
         /* hitSlop            */ 8,
     },
@@ -64,7 +86,15 @@ inline constexpr BoardProfile BOARD = {
 
     /* The pin exists; audio is stubbed. beepOk()/beepError() pulse the LED. */
     AudioProfile{
-        /* speakerPin */ 26,
+        /* speakerPin          */ 26,
+        /* codecI2cAddress     */ 0,
+        /* i2sMclk             */ PIN_NONE,
+        /* i2sBclk             */ PIN_NONE,
+        /* i2sWordSelect       */ PIN_NONE,
+        /* i2sDataOut          */ PIN_NONE,
+        /* i2sDataIn           */ PIN_NONE,
+        /* ampEnablePin        */ PIN_NONE,
+        /* ampEnableActiveLow  */ false,
     },
 
     /* Battery sense on IO34 (ADC1_CH6, input-only). The vendor manual states

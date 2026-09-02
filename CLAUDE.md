@@ -312,7 +312,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,353,205 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,353,865 / 3,145,728 bytes,
 **74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,588 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -598,6 +598,7 @@ include/boards/           one header per supported board -- the ONLY place
 src/main.cpp              bringup entrypoint + normal app setup/loop
 src/BuildStamp.cpp        which build this is; recompiled every build
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
+src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
@@ -650,6 +651,24 @@ Before tagging, on `main`:
    into the image**, so a figure measured on a feature branch is a few bytes
    out on `main`; measure with `GITHUB_REF_NAME=main pio run -e app`, which is
    what CI does.
+
+   **`BRAINO_VERSION` is in the image too, so measure after the version bump,
+   not before.** Dropping `-SNAPSHOT` is nine characters and moved the 5.2.0
+   figure by 16 bytes, which shipped to `main` wrong because the build was run
+   on the tree as it stood before the release commit. The consequence is that
+   `dev` and `main` legitimately carry different numbers between releases --
+   2,353,865 on `5.3.0` against 2,353,205 on `5.2.0` -- and that is
+   not drift to be reconciled. `check_docs.py` compares each document against
+   whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
+   branch has to state its own figure or the checks fail for anyone who builds
+   it.
+
+   The figure is also not portable across hosts: the same commit is 172 bytes
+   smaller in flash and 48 smaller in RAM on the Linux runner than on the
+   Windows machine these numbers were read from. Pinning the platform and the
+   libraries fixes what the build is made of, not which toolchain binary
+   assembles it. Read the number from your own `pio run`; do not copy one out
+   of a CI log.
 
 The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
 not. That check exists because a published release cannot be quietly

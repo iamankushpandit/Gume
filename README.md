@@ -3,7 +3,7 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.2.0-1f7a3d)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.3.0-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-31-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,353,205 / 3,145,728 bytes (**74.8%**) |
+| Flash | 2,353,865 / 3,145,728 bytes (**74.8%**) |
 | RAM | 72,588 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -44,8 +44,10 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 
 **Board ports.** Braino is developed and tested against the E32R28T-1. Two
 ESP32-2432S028 CYD variants ship as ports built from published pin maps and
-have not been verified on real hardware, and a 4-inch ST7796 variant is in
-progress — if you own any of those, telling us whether it works is the single
+have not been verified on real hardware; the Freenove FNK0104B *has* been
+verified on hardware but ships with three peripherals switched off (see
+[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)), and a 4-inch ST7796
+variant is in progress — if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
@@ -108,6 +110,36 @@ The picker offers one image per board, and you have to choose the one that
 matches yours: two boards sold under the same name can carry different display
 controllers, and the wrong image gives inverted colours, dead touch or a blank
 screen rather than an error.
+
+### Freenove FNK0104B (ESP32-S3)
+
+**The Freenove FNK0104B** is a 2.8-inch ESP32-S3 board with the same ILI9341
+240×320 panel, an **FT6336U capacitive** touch controller, 16 MB flash and
+8 MB PSRAM. It is flashable from the web installer and every one of the 31
+games works on it. It was brought up on real hardware rather than from a
+published pin map: display, backlight, touch at all four rotations, battery
+sense and the audio path were each confirmed on a device.
+
+Its USB-C is on a short edge, so unlike the other boards no landscape rotation
+puts the socket at the bottom — Braino uses rotation 3, which puts the cable on
+the left.
+
+**Sound works**: `beepOk()` and `beepError()` play through the ES8311 codec, capped at 80% volume. **Two things do not work yet, and they are switched off rather than broken:**
+
+| Not working | Why | Issue |
+|---|---|---|
+| Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. `beepOk()`/`beepError()` are no-ops and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
+| SD card | The slot is **SDMMC 4-bit**; `SdProfile` describes an SPI card. Optional SD content is simply not loaded, which everything has defaults for | [#73](https://github.com/iamankushpandit/Gume/issues/73) |
+
+The battery **percentage** is correct, but the **charging/discharging verdict**
+is not yet validated on this board's charger — those constants were measured
+against the E32R28T-1's TP4054 ([#74](https://github.com/iamankushpandit/Gume/issues/74)).
+Partition sizing on the 16 MB part and a first-frame time worth checking are
+tracked in [#75](https://github.com/iamankushpandit/Gume/issues/75).
+
+`pio run -e s3diag` is a standalone bring-up probe for this board: panel,
+rotation, I²C scan, live touch, battery, and the full audio path including a
+record-and-playback microphone test.
 
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
@@ -737,8 +769,8 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.2.0** — the previous release was **5.1.0**. See
-[CHANGELOG.md](CHANGELOG.md) for what has changed since.
+Current release: **5.3.0**. See [CHANGELOG.md](CHANGELOG.md) for what
+changed.
 
 ---
 
@@ -814,6 +846,7 @@ src/
   BuildStamp.cpp        branch/commit/build time; rebuilt every build
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
+  s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
   engine/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
