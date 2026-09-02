@@ -88,6 +88,7 @@ void Board::saveTouchCalibration() {
     prefs_.putBytes("touchCal", &cal_, sizeof(TouchCalibration));
 }
 
+#if !GUME_TOUCH_CAPACITIVE
 uint16_t Board::readTouchAdc(uint8_t command) {
     uint16_t raw = 0;
     digitalWrite(BOARD.touch.cs, LOW);
@@ -124,6 +125,8 @@ uint16_t Board::readTouchAdc(uint8_t command) {
  * that reads a pressure only ever compares it against a threshold. Reporting
  * a constant above every threshold is honest about that, where reporting 0
  * would make a real press look like noise. */
+#endif  /* !GUME_TOUCH_CAPACITIVE -- end of the XPT2046 sampling half */
+
 #if GUME_TOUCH_CAPACITIVE
 Board::RawTouch Board::readCapacitiveTouch() {
     RawTouch touch;
@@ -153,6 +156,7 @@ Board::RawTouch Board::readCapacitiveTouch() {
 }
 #endif
 
+#if !GUME_TOUCH_CAPACITIVE
 Board::RawTouch Board::readResistiveTouch() {
     RawTouch touch;
     const uint16_t z1 = readTouchAdc(CMD_READ_Z1);
@@ -182,6 +186,8 @@ Board::RawTouch Board::readResistiveTouch() {
     touch.pressure = pressure;
     return touch;
 }
+
+#endif  /* !GUME_TOUCH_CAPACITIVE -- end of the XPT2046 half */
 
 Board::RawTouch Board::readRawTouch() {
 #if GUME_TOUCH_CAPACITIVE

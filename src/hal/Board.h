@@ -366,12 +366,14 @@ private:
     uint16_t readTouchAdc(uint8_t command);
     /* One dispatcher, two implementations, chosen at compile time from the
      * board's TouchKind -- so a board carries only the controller it wires. */
+    /* One dispatcher, two implementations. Both are DECLARED on every board --
+     * an unused member declaration costs nothing, and guarding the declaration
+     * as well as the definition just means the two guards can disagree, which
+     * they promptly did. Only the definitions are compiled conditionally, in
+     * BoardTouch.cpp, so a board still carries just the controller it wires. */
     RawTouch readRawTouch();
-#if GUME_TOUCH_CAPACITIVE
-    RawTouch readCapacitiveTouch();
-#else
     RawTouch readResistiveTouch();
-#endif
+    RawTouch readCapacitiveTouch();
     bool waitForStableRaw(int16_t& rawX, int16_t& rawY);
     bool loadTouchCalibration();
     void saveTouchCalibration();

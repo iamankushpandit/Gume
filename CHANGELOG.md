@@ -14,6 +14,36 @@ worth more than any feature here, and the report that does it is welcome from
 anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
 issue template asks for the pin map and its source.
 
+### Added
+
+- **The Freenove FNK0104B is supported, on real hardware.** A 2.8-inch
+  ESP32-S3 board with the same ILI9341 240x320 panel, an FT6336U *capacitive*
+  touch controller, 16 MB flash and 8 MB PSRAM. It is offered by the web
+  installer and all 31 games run on it. Unlike the two CYD variants, this port
+  was brought up on a device rather than from a published pin map: display,
+  backlight, touch at all four rotations, battery sense and the audio path were
+  each confirmed by measurement.
+
+  Three peripherals are deliberately switched off rather than half-wired, each
+  because the board profile cannot yet describe the hardware: **sound** (an
+  ES8311 codec, not a speaker pin), the **status LED** (one WS2812, not three
+  PWM channels) and the **SD card** (SDMMC, not SPI). Each degrades quietly and
+  each has an issue with the pin map and the measurements needed to finish it.
+  The battery percentage is correct; the charging verdict is not yet validated
+  on this board's charger.
+
+- **The board contract describes capacitive touch.** `TouchProfile` carried an
+  XPT2046 and nothing else, so a board wiring an I2C controller could not be
+  described at all. It now carries a `TouchKind` and both pin sets, and
+  `BoardConfig.h` asserts per arm rather than demanding SPI lines of every
+  board. A capacitive panel reports pixels, so it never enters the calibration
+  wizard -- a screen its owner could not otherwise get past.
+
+- **`pio run -e s3diag`**, a standalone bring-up probe for ESP32-S3 boards:
+  panel, rotation, I2C scan, live touch mapping, battery, and the full audio
+  path including a record-and-playback microphone test. Built alone, in the
+  same spirit as `wifidiag` and `batdiag`.
+
 ### Fixed
 
 - **The profile name entry has a way out.** The keyboard shared by **Add

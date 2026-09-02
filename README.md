@@ -44,8 +44,10 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 
 **Board ports.** Braino is developed and tested against the E32R28T-1. Two
 ESP32-2432S028 CYD variants ship as ports built from published pin maps and
-have not been verified on real hardware, and a 4-inch ST7796 variant is in
-progress — if you own any of those, telling us whether it works is the single
+have not been verified on real hardware; the Freenove FNK0104B *has* been
+verified on hardware but ships with three peripherals switched off (see
+[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)), and a 4-inch ST7796
+variant is in progress — if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
@@ -108,6 +110,35 @@ The picker offers one image per board, and you have to choose the one that
 matches yours: two boards sold under the same name can carry different display
 controllers, and the wrong image gives inverted colours, dead touch or a blank
 screen rather than an error.
+
+### Freenove FNK0104B (ESP32-S3)
+
+**The Freenove FNK0104B** is a 2.8-inch ESP32-S3 board with the same ILI9341
+240×320 panel, an **FT6336U capacitive** touch controller, 16 MB flash and
+8 MB PSRAM. It is flashable from the web installer and every one of the 31
+games works on it. It was brought up on real hardware rather than from a
+published pin map: display, backlight, touch at all four rotations, battery
+sense and the audio path were each confirmed on a device.
+
+Its USB-C is on a short edge, so unlike the other boards no landscape rotation
+puts the socket at the bottom — Braino uses rotation 3, which puts the cable on
+the left.
+
+**Three things do not work yet, and they are switched off rather than broken:**
+
+| Not working | Why | Issue |
+|---|---|---|
+| Sound | The speaker is behind an **ES8311 codec** (I²C + I²S), and `AudioProfile` describes a single speaker pin. The codec itself works — `pio run -e s3diag` plays through it | [#71](https://github.com/iamankushpandit/Gume/issues/71) |
+| Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. `beepOk()`/`beepError()` are no-ops and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
+| SD card | The slot is **SDMMC 4-bit**; `SdProfile` describes an SPI card. Optional SD content is simply not loaded, which everything has defaults for | [#73](https://github.com/iamankushpandit/Gume/issues/73) |
+
+The battery **percentage** is correct, but the **charging/discharging verdict**
+is not yet validated on this board's charger — those constants were measured
+against the E32R28T-1's TP4054 ([#74](https://github.com/iamankushpandit/Gume/issues/74)).
+
+`pio run -e s3diag` is a standalone bring-up probe for this board: panel,
+rotation, I²C scan, live touch, battery, and the full audio path including a
+record-and-playback microphone test.
 
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
