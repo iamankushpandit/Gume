@@ -65,6 +65,35 @@ issue template asks for the pin map and its source.
 
 ### Fixed
 
+- **Opening the Wi-Fi screen with the BLE beacon on rebooted the device.**
+  `WifiGame::runScan()` disabled Wi-Fi modem sleep before scanning, because a
+  sleeping radio misses probe responses and the network list came back short.
+  That is true, and esp_wifi also refuses to share the radio with a Bluetooth
+  controller unless Wi-Fi is power-saving -- and it does not degrade or return
+  an error, it calls `abort()`:
+
+  ```
+  E wifi: Should enable WiFi modem sleep when both WiFi and Bluetooth are enabled!!!!!!
+  abort() was called
+  ```
+
+  From the outside this looked like "Wi-Fi is broken": the console restarted
+  every time the owner tried to connect, and restarted again on the retry. The
+  beacon is off by default, which is why this survived since it was introduced
+  -- it only bites someone who turned the beacon on and then went to the Wi-Fi
+  screen, and then it bites every single time.
+
+  Modem sleep now stays on whenever the BT controller is up. The condition is
+  asked of the controller directly rather than of `BleBeacon`, because that is
+  the exact thing esp_wifi tests and the two cannot then drift; going through
+  the beacon's own state would leave a gap wherever the controller is up for
+  another reason, such as the Nearby scanner. The cost is a scan that may miss
+  a distant access point while the beacon is on, which is the right trade
+  against a reboot.
+
+  `src/wifi_diag.cpp` has the same line and keeps it: that environment is built
+  alone, with no BLE in the image, so there is no controller to conflict with.
+
 - **The profile name entry has a way out.** The keyboard shared by **Add
   Player** and **Rename** could only be left by committing: `DEL` clears
   characters and `OK` commits, and `OK` on an empty field created a
