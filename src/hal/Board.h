@@ -135,6 +135,27 @@ public:
     TouchPoint pollTouch();
     TouchPoint touch() const;
 
+    /* What the BOOT key did since the last call.
+     *
+     * Edge-detected here rather than at the call site, so "was it pressed this
+     * frame" has one answer however many places come to ask. No interrupt is
+     * used: this firmware runs no ISRs and no tasks of its own beyond the
+     * watchdog monitor, and the edge is consumed at a frame boundary anyway.
+     *
+     * The debounce is the sampling rate. The loop reads this once per frame --
+     * every FRAME_BUDGET_MS awake, every SLEEP_POLL_MS with the panel off --
+     * and a tactile switch settles well inside either. Poll it faster than
+     * that and it will need a real one.
+     *
+     * All-false on a board whose profile wires no BOOT key, so callers do not
+     * need their own `hasBootButton()` guard. */
+    struct ButtonEvent {
+        bool down = false;
+        bool justPressed = false;
+        bool justReleased = false;
+    };
+    ButtonEvent pollBootButton();
+
     void beepOk();
     void beepError();
 
@@ -462,6 +483,8 @@ private:
     Preferences prefs_;
     TouchCalibration cal_;
     TouchPoint lastTouch_;
+    /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
+    bool bootButtonDown_ = false;
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
 

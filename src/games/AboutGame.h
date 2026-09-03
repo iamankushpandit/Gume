@@ -18,6 +18,9 @@ private:
     void renderIntro(Ui::Renderer& tft);
     void renderGames(Ui::Renderer& tft, int16_t w);
     void renderRadios(Ui::Renderer& tft, Board& board);
+    /* Only reached on a board whose profile wires a BOOT key; see
+     * CONTROLS_PAGES in the .cpp. */
+    void renderControls(Ui::Renderer& tft);
     void renderCredits(Ui::Renderer& tft);
     void renderBuild(Ui::Renderer& tft);
 

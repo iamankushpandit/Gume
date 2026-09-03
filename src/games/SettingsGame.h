@@ -8,9 +8,9 @@
  *
  * Device holds what the console looks like; Power holds what it does when
  * nobody is touching it; Sound holds how loud it is, or whether it speaks at
- * all; Admin holds the PIN. They were one screen until the idle policy
- * arrived -- the grid was already seven buttons and a slider, with nowhere to
- * put three more controls.
+ * all; Admin holds the PIN and the touch calibration. They were one screen
+ * until the idle policy arrived -- the grid was already seven buttons and a
+ * slider, with nowhere to put three more controls.
  *
  * The implementation is split across three .cpp files by concern -- see the
  * header comment in SettingsGame.cpp. Every rect accessor is declared here,
@@ -41,6 +41,12 @@ private:
     Rect tabRect(uint8_t index) const;
     Rect tabRectFor(Tab tab) const;
     Rect changePinRect() const;
+    /* Re-runs the three-point touch wizard. It lives on Admin rather than
+     * Device because Device has no room left and because this is maintenance,
+     * not preference -- and it is the only way back from a calibration that
+     * is present but wrong, which `hasTouchCalibration()` reports as fine and
+     * so never re-runs on its own. */
+    Rect recalibrateRect() const;
     Rect pinCancelRect() const;
     Rect pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
     Rect pinDeleteRect(int16_t screenW, int16_t screenH) const;

@@ -37,6 +37,16 @@ void Board::begin() {
         digitalWrite(BOARD.audio.speakerPin, LOW);
     }
 
+    /* An input, and only ever an input. BOOT has an external pull-up on every
+     * board here, but asking for the internal one costs nothing and means the
+     * profile does not have to promise the external one exists. Driving this
+     * pin is what would be dangerous -- it is the ROM's download-mode strap --
+     * so nothing in this firmware ever makes it an OUTPUT. */
+    if (BOARD.hasBootButton()) {
+        pinMode(BOARD.button.bootPin,
+                BOARD.button.activeLow ? INPUT_PULLUP : INPUT_PULLDOWN);
+    }
+
     /* Guarded by the preprocessor, not `if constexpr`: in a non-template
      * function both arms of an `if constexpr` are still compiled, so the
      * capacitive arm alone dragged Wire into every resistive build. */

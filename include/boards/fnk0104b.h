@@ -80,6 +80,14 @@ inline constexpr BoardProfile BOARD = {
         /* hitSlop            */ 8,
     },
 
+    /* BOOT (IO0), the key the ROM uses to enter serial download mode. Read
+     * only at runtime, where it is an ordinary input with an internal
+     * pull-up. On this board it sits beside RESET on the long edge. */
+    ButtonProfile{
+        /* bootPin   */ 0,
+        /* activeLow */ true,
+    },
+
     /* No SD, deliberately, for now.
      *
      * The slot exists, but it is SDMMC 4-bit (CLK 38, CMD 40, D0 39, D1 41,

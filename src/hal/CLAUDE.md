@@ -150,6 +150,14 @@ Credentials and the NTP hot-path settings are cached in RAM because the state ma
 
 Timezone is stored in **minutes** to support :30 and :45 zones, and comes from a named POSIX zone or a public-IP lookup — DHCP options 100/101 exist but are essentially never implemented by routers.
 
+## BoardButton.cpp
+
+The BOOT key — the only input on these boards that is not the touchscreen. A GPIO with an internal pull-up, sampled once per frame by the runtime, edge-detected in `pollBootButton()`. No interrupt and no task: the debounce *is* the sampling rate, and a tactile switch settles well inside a 20 ms frame. Poll it faster and it will need a real one.
+
+Two things it deliberately does not do. It never reads the key during boot — BOOT is a strapping pin, the ROM samples it at reset to choose serial download mode, and that decision is made before `setup()` runs. And it does not time the press: a hold is not a gesture this firmware recognises, and a `heldMs` nobody reads would claim otherwise. The runtime acts on the press edge, so anyone adding a hold has to move that to the release edge first — you cannot both go home on the press and later decide the same press was the start of something longer.
+
+`PIN_NONE` is a supported profile. The event is all-false on a board with no key, so callers need no `hasBootButton()` guard of their own.
+
 ## Clock.{h,cpp}
 
 Time/date formatting and sync-state helpers over the ESP32 RTC.

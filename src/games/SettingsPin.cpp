@@ -24,6 +24,15 @@ constexpr uint8_t PIN_LENGTH   = 4;
 /* Admin tab: one action for now. Sized like a Device-tab row. */
 Rect SettingsGame::changePinRect() const { return Rect{8, 58, 304, 30}; }
 
+/* Below the PIN row and its explanation, clear of the footer.
+ *
+ * The vertical stack is measured against 240px: tab baseline at 52, the PIN
+ * row 58-88, two lines of explanation at 100 and 116, the admin's name at
+ * 140, this row 164-194, and the footer at 220. That leaves 26px between the
+ * button and the footer, which is the tightest gap on the tab -- check it
+ * before adding a fourth thing here. */
+Rect SettingsGame::recalibrateRect() const { return Rect{8, 164, 304, 30}; }
+
 /* Abandons a half-finished PIN change. Without it a mis-tap on Change PIN
  * traps the admin on the pad with no way back. */
 Rect SettingsGame::pinCancelRect() const { return Rect{6, 6, 52, 22}; }
@@ -214,8 +223,27 @@ void SettingsGame::renderAdminTab(GameHost& host) {
     }
     tft.drawString(who, 8, 140, 1);
 
+    /* Offered only where there is something to calibrate. A capacitive
+     * controller reports pixels, so the wizard returns immediately and the
+     * button would be a control that visibly does nothing -- the same reason
+     * the Sound tab refuses to draw its rows on a board with no codec. Say
+     * why rather than leaving a gap. */
+    if (BOARD.touch.needsCalibration()) {
+        Ui::drawButton(tft, recalibrateRect(), "Recalibrate touch",
+                       admin ? Ui::panel() : Ui::surface(), Ui::outline(),
+                       admin ? Ui::text() : Ui::muted(), false, 2);
+    } else {
+        tft.drawString("This panel needs no calibration.", 8, 172, 1);
+    }
+
     tft.setTextDatum(TC_DATUM);
-    tft.drawString(admin ? "Entered twice; only saved if both match."
+    /* Names the PIN now that it is not the only control on the tab. It used to
+     * read "Entered twice..." and sat directly under a Recalibrate button,
+     * where it looked like a caption for whichever row you had just read. At
+     * font 1 this is 44 characters against a 320px panel, which measures
+     * whole -- TFT_eSPI drops characters off the right edge without a mark,
+     * so check any rewording rather than assuming it fits. */
+    tft.drawString(admin ? "The PIN is entered twice, and must match."
                          : "Only the admin can change settings.",
                    W / 2, static_cast<int16_t>(tft.height() - 20), 1);
     tft.setTextDatum(TL_DATUM);

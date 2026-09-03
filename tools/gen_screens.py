@@ -731,14 +731,20 @@ def settings_sound():
 
 
 def settings_admin():
-    """Settings tab: the PIN that guards this screen and the admin profile."""
+    """Settings tab: the PIN that guards this screen, and touch calibration.
+
+    Geometry follows changePinRect() and recalibrateRect(). The Recalibrate
+    row is drawn because this mock-up stands for the resistive boards; a
+    capacitive panel has nothing to fit and the firmware puts a line of text
+    there instead."""
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 3)
     button(d, (8, 58, 304, 30), "Change admin PIN")
     d.text((8, 100), "The PIN guards the admin profile. It", font=F1, fill=MUTED)
     d.text((8, 116), "ships as 0000 -- change it.", font=F1, fill=MUTED)
     d.text((8, 140), "Admin profile: Admin", font=F1, fill=MUTED)
-    lab = "Entered twice; only saved if both match."
+    button(d, (8, 164, 304, 30), "Recalibrate touch")
+    lab = "The PIN is entered twice, and must match."
     d.text((160 - d.textlength(lab, font=F1) / 2, 220), lab, font=F1, fill=MUTED)
     return im
 
