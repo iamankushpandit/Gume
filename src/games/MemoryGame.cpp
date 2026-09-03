@@ -117,8 +117,11 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (allMatched()) {
+        /* Tapping past the finished board deals the next one. That is a
+         * choice being made, not an answer being marked -- Victory already
+         * sounded when the last pair went down. */
         newRound(host);
-        host.beepOk();
+        host.playSound(Sound::Select);
         markDirty();
         return;
     }
@@ -131,6 +134,10 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
     visible_[index] = true;
     if (first_ < 0) {
         first_ = index;
+        /* Turning the first card of a pair over. The second one is silent
+         * here because it is immediately followed by the match or the
+         * mismatch, and two sounds 30ms apart read as one bad one. */
+        host.playSound(Sound::Reveal);
     } else {
         second_ = index;
         ++moves_;
@@ -139,11 +146,21 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
             matched_[second_] = true;
             first_ = -1;
             second_ = -1;
-            host.beepOk();
             if (allMatched()) {
-                if (host.saveBestScore(memoryAppMetadata().score->bestKey, moves_, true)) {
+                /* The board is clear. HighScore if it took fewer moves than
+                 * ever before, Victory otherwise -- and neither is the Coin
+                 * that an ordinary pair gets, because finishing is not just
+                 * another match. */
+                const bool best =
+                    host.saveBestScore(memoryAppMetadata().score->bestKey, moves_, true);
+                if (best) {
                     bestMoves_ = moves_;
                 }
+                host.pulseRgb(0, 255, 40, 450);
+                host.playSound(best ? Sound::HighScore : Sound::Victory);
+            } else {
+                host.pulseRgb(0, 255, 40, 220);
+                host.playSound(Sound::Coin);
             }
         } else {
             resolving_ = true;

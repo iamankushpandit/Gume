@@ -94,7 +94,8 @@ void TicTacToeGame::handleCell(AppContext& host, uint8_t cell) {
             host.setScore("tttO", ++oWins_);
         }
         gameOver_ = true;
-        host.beepOk();
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::Victory);
         markDirty();
         return;
     }
@@ -102,13 +103,20 @@ void TicTacToeGame::handleCell(AppContext& host, uint8_t cell) {
         message_ = "Draw game";
         host.setScore("tttDraw", ++draws_);
         gameOver_ = true;
-        host.beepOk();
+        /* Both players are human here, so there is no losing side to console
+         * -- but a full board with no winner is still the game ending without
+         * anyone getting what they came for, and the falling cue is the only
+         * one that says so. */
+        host.playSound(Sound::GameOver);
         markDirty();
         return;
     }
 
     turn_ = turn_ == 'X' ? 'O' : 'X';
     message_ = String(turn_) + " turn";
+    /* A mark going down. Nine of these a game, alternating between two
+     * players, so it is the click and nothing more. */
+    host.playSound(Sound::Tap);
     markDirty();
 }
 
@@ -118,7 +126,7 @@ void TicTacToeGame::update(AppContext& host, const TouchPoint& touch) {
     }
     if (RESET_BUTTON.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         resetBoard();
-        host.beepOk();
+        host.playSound(Sound::Select);
         markDirty();
         return;
     }

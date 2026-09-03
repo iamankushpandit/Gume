@@ -312,9 +312,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,353,881 / 3,145,728 bytes,
-**74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,588 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,356,033 / 3,145,728 bytes,
+**74.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 72,596 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -420,6 +420,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
+| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudio.cpp` | The console's sound vocabulary, and the synthesiser that generates every one of them a sample at a time |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
@@ -436,7 +437,11 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
-- **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone. Per-profile: scores, mastery blobs, game visibility.
+- **Device settings are global, not per-profile**: theme, layout, brightness,
+  sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+  Sound belongs on that list for a reason worth stating: the speaker belongs to
+  whoever is in the room, and a console that came back loud because a different
+  player picked it up is a poor thing to hand a child in a quiet house. Per-profile: scores, mastery blobs, game visibility.
 - **The admin PIN gates the two routes into the admin profile**: switching to
   it, and opening its Edit menu (rename plus its per-player game list). One
   profile is admin (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it
@@ -487,6 +492,38 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **There are no audio files, and there must never be one.** Every sound the
+  console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
+  the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
+  from a script of oscillator, noise and formant segments. No WAV, no PCM
+  table, no sample bank, and nothing decoded at runtime. This is a flash rule
+  before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
+  the vocabulary as recordings would cost more than the whole game catalogue's
+  artwork, on a budget already at 74.9%. As synthesis it is under a kilobyte.
+  The spoken phrase is a phoneme table, not text-to-speech -- there is no
+  dictionary and there is no second phrase; adding one means writing its
+  phonemes out by hand, which is the intended cost.
+- **Mute is gated in exactly one place, `Board::playSound()`.** Every sound in
+  the firmware goes through that door -- both beeps and the boot phrase
+  included -- so a switch labelled Mute cannot leave something still audible.
+  The RGB pulse is deliberately *not* gated: `beepOk()`/`beepError()` pulse
+  before they call it, so muting takes the sound and leaves the light, which is
+  the whole of the feedback on a codec-less board anyway. `soundEnabled()` and
+  `volume()` are RAM-mirrored write-through settings because the first is on
+  the path of every cue in every game.
+- **A screen makes a noise through `playSound(Sound::...)` and nothing else.**
+  `Board::beep(freq, ms)` is private on purpose. A shared vocabulary is the
+  point -- `Coin` means the same thing in Whack-a-Mole as in Memory, and a game
+  picking its own frequencies is exactly how that stops being true. Cinnamon's
+  four pads are the one pitched exception and they are *in* the vocabulary for
+  that reason. Adding a cue is adding a word to a language: do it when a game
+  has something genuinely new to say, not when an existing cue is nearly right.
+- **A cue is armed, never played.** `playSound()` copies a script and returns
+  in microseconds; `Board::tickAudio()`, called once per frame beside
+  `tickRgb()`, generates only as many samples as the I2S DMA will take without
+  blocking. Never write a blocking `i2s_write` on a render path -- a 300ms note
+  is fifteen frame budgets and `Watchdog` will log the stall. `src/s3_diag.cpp`
+  does block, correctly, because a bring-up probe has no frame budget.
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game or an app â€” the whole checklist
@@ -603,9 +640,13 @@ src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPl
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
-                          Country/State, Maze and Trace data
+                          Country/State, Maze and Trace data.
+                          Settings is three .cpp against one header --
+                          SettingsGame (tabs + routing), SettingsPanels
+                          (the tab bodies), SettingsPin (the PIN pad)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
-                          per-concern HAL units, BoardStorage, storage
+                          per-concern HAL units, BoardAudio (the synthesiser),
+                          Sound.h (the cue vocabulary), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
@@ -657,7 +698,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,353,881 on `5.3.0-SNAPSHOT` against 2,353,205 on `5.2.0` -- and that is
+   2,356,033 on `5.3.0-SNAPSHOT` against 2,353,205 on `5.2.0` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds
@@ -714,7 +755,11 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` exists but audio is stubbed; `beepOk()`/`beepError()` pulse the RGB LED instead.
+- `audio.speakerPin = 26` on the E32R28T-1 is a bare pin with no codec behind
+  it, so `GUME_HAS_AUDIO_CODEC` is 0 there and the whole synthesiser compiles
+  out: `playSound()` is a no-op and `beepOk()`/`beepError()` are the RGB pulse
+  and nothing else. Sound is real only on a board whose profile describes a
+  codec -- today the Freenove FNK0104B.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions

@@ -164,6 +164,7 @@ SCREEN_CAPTIONS = {
     "settings-device": "Settings: device",
     "profiles-games": "Profiles: per-player games",
     "settings-power": "Settings: power",
+    "settings-sound": "Settings: sound and volume",
     "shapearith": "Shape Arith",
     "shapes": "Shapes",
     "slide": "Slide",
@@ -232,7 +233,7 @@ SYSTEM_SHOWCASE = (
         "id": "settings",
         "subtitle": "Device controls, brightness, screen saver and sleep policy -- "
                     "readable by anyone, changeable only by the admin.",
-        "stills": ("settings-device", "settings-power",
+        "stills": ("settings-device", "settings-power", "settings-sound",
                    "settings-admin", "settings-pin"),
     },
     {

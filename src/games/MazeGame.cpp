@@ -63,12 +63,14 @@ void MazeGame::loadBestForLevel(AppContext& host) {
     bestMoves_ = static_cast<uint16_t>(host.getScore(key, 0));
 }
 
-void MazeGame::saveProgress(AppContext& host) {
+bool MazeGame::saveProgress(AppContext& host) {
     char key[12];
     snprintf(key, sizeof(key), "mazeB%u", levelIndex_);
     if (host.saveBestScore(key, moves_, true)) {
         bestMoves_ = moves_;
+        return true;
     }
+    return false;
 }
 
 void MazeGame::reset() {
@@ -201,11 +203,20 @@ void MazeGame::tryMove(AppContext& host, int8_t targetCol, int8_t targetRow) {
     lastMoveAt_ = millis();
     if (maze_[playerRow_][playerCol_] == 'E') {
         won_ = true;
-        saveProgress(host);
+        /* HighScore when the level was walked in fewer steps than ever
+         * before, Victory when it was merely finished. The pulse is
+         * beepOk()'s, kept because on a codec-less board it is all there is. */
+        const bool best = saveProgress(host);
         if (levelIndex_ + 1 < MazeData::COUNT) {
             host.setScore(mazeAppMetadata().score->bestKey, levelIndex_ + 1);
         }
-        host.beepOk();
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(best ? Sound::HighScore : Sound::Victory);
+    } else {
+        /* Every step. Tap rather than Whoosh: a step is one cell, the moves
+         * come in quick succession while a finger is dragged, and anything
+         * longer than a click starts overlapping itself. */
+        host.playSound(Sound::Tap);
     }
     markDirty();
 }

@@ -118,8 +118,22 @@ void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
             selected_ = static_cast<int8_t>(i);
             answered_ = true;
             ++rounds_;
-            if (i == correctPos_) { ++score_; host.beepOk(); }
-            else { host.beepError(); }
+            if (i == correctPos_) {
+                ++score_;
+                /* Every fifth right answer in a row of them gets the level
+                 * flourish instead of the plain tick. There are no levels in
+                 * this game to mark otherwise, and a run of correct answers
+                 * is the thing worth noticing -- it is what turns a list of
+                 * questions into a streak. */
+                if (score_ % 5 == 0) {
+                    host.pulseRgb(0, 255, 40, 450);
+                    host.playSound(Sound::LevelUp);
+                } else {
+                    host.beepOk();
+                }
+            } else {
+                host.beepError();
+            }
             feedbackUntil_ = millis() + 1400UL;
             markDirty();
             return;
