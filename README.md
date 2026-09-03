@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,356,033 / 3,145,728 bytes (**74.9%**) |
+| Flash | 2,357,413 / 3,145,728 bytes (**74.9%**) |
 | RAM | 72,596 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -438,6 +438,16 @@ go. On a board with no audio codec the tab says so plainly rather than offering
 controls that do nothing — "this board cannot" and "you have muted it" are
 different things to tell an owner. See [Sound](#sound).
 
+**Admin** holds the PIN and **Recalibrate touch**. The calibration wizard runs
+on its own only when nothing is stored, which leaves one hole it cannot fill: a
+calibration that is *present but wrong* — drifted, or captured by a child
+tapping past the three targets — reports as fine and never re-runs, and the
+only cure was a factory reset behind a touch target nobody could hit. This is
+the way back. It is safe to press by mistake, because the wizard reads the
+panel raw and replaces what is stored only if the new three-point fit succeeds;
+time it out and the old calibration is still there. Boards with capacitive
+panels have nothing to fit and say so instead of offering the button.
+
 Game visibility is **not** here — it is per player, so it lives with the player,
 under *Profiles → Edit → Games*. See [The admin profile](#the-admin-profile).
 
@@ -621,6 +631,26 @@ yourself is a request, so it produces the lock screen even if **Hold to
 unlock** is switched off. Nothing is stored, no profile or score is touched,
 and the tap is consumed by the shell — whatever sat under the padlock is not
 pressed as well.
+
+### The BOOT key is a Home button
+
+The small **BOOT** key on the board — the one the ROM uses for serial download
+mode — goes back to the launcher from any screen. It also wakes the panel and
+dismisses the screen saver, exactly as a touch does. Useful when a small player
+has wandered into a game and cannot find the way out, or when the top bar's
+Home glyph is simply harder to hit than a physical key.
+
+It is a shortcut and never the only way to do anything. Everything it reaches
+is reachable by touch, so a board that does not wire the key behaves as it
+always did. Two places ignore it on purpose: the **Hold to unlock** screen,
+because a key pressed through the side of a bag is the accident that screen
+exists to catch, and the launcher, where you are already home.
+
+Holding it while the console starts is unchanged and has nothing to do with
+this — that is a message to the chip's own ROM, which reads the pin at reset,
+long before this firmware runs. **RESET**, beside it, cannot be given a job at
+all: it pulls the chip's enable line, so there is no software on either side of
+it to notice.
 
 ### Scores, Profiles, About and System Info
 
@@ -938,6 +968,7 @@ src/
     BoardAccess.h       narrow display/touch/storage/power/network/feedback facades
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
+    BoardButton.cpp     the BOOT key, debounced by the frame rate
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles

@@ -109,6 +109,19 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
             enteredPinDigits_ = 0;
             pendingPin_ = 0;
             markFullDirty();
+            return;
+        }
+        /* Blocking on purpose: the wizard owns the panel until it has three
+         * points or times out. It is safe to call from here -- it pauses the
+         * watchdog itself, saves and restores the rotation, reads the panel
+         * raw so the stored calibration cannot affect it, and replaces that
+         * calibration only if the new fit succeeds. A mis-tap therefore costs
+         * the owner some seconds, never the calibration they already had,
+         * which is why this needs no confirm step where factory reset does. */
+        if (BOARD.touch.needsCalibration() &&
+            recalibrateRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.runTouchCalibration();
+            markFullDirty();
         }
         return;
     }

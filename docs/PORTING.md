@@ -79,8 +79,8 @@ in every field the contract declares — without them, a field added later would
 compile on your board with a silent zero in it.
 
 **An optional peripheral the board does not wire gets `PIN_NONE`.** The
-firmware checks `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()` and
-`hasBatterySense()` and degrades quietly. A board with no battery connector
+firmware checks `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`,
+`hasBootButton()` and `hasBatterySense()` and degrades quietly. A board with no battery connector
 needs no code change; the gauge blanks its digits, which is the honest answer.
 `PIN_NONE` is not a way past the four hard requirements above — those are
 asserted, and a board that trips one is telling you it cannot run this
@@ -98,6 +98,13 @@ Things worth getting right the first time:
   twice; the second statement would eventually be the wrong one.
 - **`commonAnode`** on the LED means a channel lights when its line is driven
   LOW. Get it backwards and the LED is on and stays on.
+- **`bootPin`** is the BOOT key, which nearly every ESP32 board brings out on
+  GPIO0 because the ROM needs it for serial download mode. The firmware reads
+  it only at runtime, as a shortcut to Home; holding it while the board starts
+  is a message to the ROM, not to us. Set `activeLow` to match the wiring —
+  `true` for the usual pull-up-and-short-to-ground — because a board described
+  the wrong way round reads as a key held down forever. `PIN_NONE` is fine and
+  costs the owner nothing but the shortcut.
 - **`dividerRatio`** is the multiplier from the voltage at the ADC to the
   voltage at the cell. Read it off the vendor's own documentation, then confirm
   it against a meter with `pio run -e batdiag` — that tool reads the same

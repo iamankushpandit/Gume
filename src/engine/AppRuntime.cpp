@@ -170,6 +170,7 @@ void BrainoApp::begin() {
 void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
+    const Board::ButtonEvent boot = board_.pollBootButton();
     const uint32_t nowMs = millis();
 
     TouchPoint touch = rawTouch;
@@ -197,7 +198,12 @@ void BrainoApp::loop() {
         }
     }
 
-    if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased) {
+    /* The BOOT key counts as activity exactly as a touch does. Leaving it out
+     * would mean pressing Home and watching the saver arrive a moment later,
+     * because as far as the idle timer was concerned nobody had touched the
+     * device since before the press. */
+    if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased ||
+        boot.down || boot.justPressed || boot.justReleased) {
         lastActivityMs_ = nowMs;
     }
 
@@ -247,15 +253,21 @@ void BrainoApp::loop() {
     }
 
     if (view_ == View::Asleep) {
-        if (rawTouch.justPressed || rawTouch.down) {
+        if (rawTouch.justPressed || rawTouch.down || boot.justPressed) {
             wakeFromSleep();
         }
     } else if (view_ == View::Locked) {
         /* The swallowed touch, not the raw one: the press that lit the panel
-         * has to be released before a hold can start. */
+         * has to be released before a hold can start.
+         *
+         * The BOOT key is deliberately not offered here. This screen is the
+         * accidental-touch guard, and a button pressed through the side of a
+         * bag is exactly the accident it exists to catch -- a key that
+         * dismissed it would be a hole in the one thing it does. Unlocking
+         * stays the deliberate hold on the panel. */
         updateLock(touch, nowMs);
     } else if (view_ == View::ScreenSaver) {
-        if (touch.justPressed) {
+        if (touch.justPressed || boot.justPressed) {
             exitScreenSaver();
         } else if (nowMs - ssav_lastFrameMs_ >= 40) {
             ssav_lastFrameMs_ = nowMs;
@@ -265,7 +277,23 @@ void BrainoApp::loop() {
         const Rect settingsButton = LauncherLayout::topBarSettingsRect(display().width());
         const Rect homeButton = LauncherLayout::topBarHomeRect();
         const Rect lockButton = activeLockRect();
-        if (activeGame_ != &launcher_ &&
+        /* BOOT is Home. It is consumed here, above the active screen's
+         * update(), for the same reason the Home glyph is: a screen that also
+         * saw the press would act on it, and the player would find it done on
+         * their way back.
+         *
+         * On the launcher it is not consumed at all -- you are already home,
+         * and taking the frame would drop a simultaneous touch for no gain.
+         *
+         * This fires on the press rather than the release because a Home key
+         * that waits to see how long you held it feels broken. The cost is
+         * that a future hold gesture cannot be layered on top without moving
+         * this to the release edge first; hal/BoardButton.cpp says the same
+         * thing from the other end. */
+        const bool bootHome = boot.justPressed && activeGame_ != &launcher_;
+        if (bootHome) {
+            goHome();
+        } else if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
         } else if (activeGame_ != &launcher_ &&

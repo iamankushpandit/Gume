@@ -131,6 +131,36 @@ issue template asks for the pin map and its source.
   "this board cannot make a sound" and "you have muted it" are different things
   to tell an owner.
 
+- **Settings -> Admin can re-run the touch calibration.** There was no way to
+  do this from the device at all. The wizard runs on its own only when no
+  calibration is stored, so a calibration that was *present but wrong* --
+  drifted, or captured by a child tapping past the three targets -- left the
+  panel unusable with the only cure, factory reset, sitting behind a touch
+  target nobody could hit. Reflashing over USB was the whole recovery path.
+
+  It is safe to press by mistake: the wizard reads the panel raw, so a bad
+  stored calibration cannot affect it, and it replaces what is stored only if
+  the new three-point fit succeeds. Time it out or fail it and the old
+  calibration is still there. That is why it needs no confirm step where
+  factory reset, two rows away, does. It is admin-only like everything else
+  that writes here, and boards with capacitive panels say the calibration is
+  not needed rather than offering a button that does nothing.
+
+- **The BOOT key is a Home button.** Press it and the console goes back to the
+  launcher, from any screen, without finding the glyph in the top bar. It also
+  wakes the panel and dismisses the screen saver, exactly as a touch does.
+
+  It is a shortcut and never the only way to do anything -- touch remains the
+  input this console is designed around, and a board whose profile wires no key
+  (`ButtonProfile`, `PIN_NONE`) behaves as it always did. Two places
+  deliberately ignore it: the lock screen, because a key pressed through the
+  side of a bag is the accident that screen exists to catch, and the launcher,
+  where you are already home.
+
+  Nothing about the ROM's use of the pin changes. BOOT is a strapping pin and
+  holding it at reset still asks the ROM for serial download mode; the firmware
+  reads it only at runtime, long after that decision has been made.
+
 ### Changed
 
 - **The volume ceiling is 85%, not 80%, and the old 80 was measuring the bug.**

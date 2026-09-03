@@ -69,6 +69,14 @@ inline constexpr BoardProfile BOARD = {
         /* hitSlop            */ 8,
     },
 
+    /* BOOT (IO0), the key the ROM uses to enter serial download mode. Read
+     * only at runtime, where it is an ordinary input with an internal
+     * pull-up. */
+    ButtonProfile{
+        /* bootPin   */ 0,
+        /* activeLow */ true,
+    },
+
     SdProfile{
         /* cs    */ 5,
         /* mosi  */ 23,

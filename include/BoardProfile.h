@@ -107,6 +107,29 @@ struct TouchProfile {
     constexpr bool needsCalibration() const { return !isCapacitive(); }
 };
 
+/* The BOOT key, where a board brings one out as something a person can press.
+ *
+ * Every board here already has one, because the ROM needs it to enter serial
+ * download mode. That is also the whole caveat: it is a strapping pin, and the
+ * ROM samples it at reset. The firmware therefore only ever reads it at
+ * runtime, long after boot has committed -- holding it while the device starts
+ * is a request to the ROM, not to us, and nothing here can change that.
+ *
+ * It is optional in the same sense as the RGB LED: `PIN_NONE` for a board that
+ * does not wire one, every caller guarded by `BOARD.hasBootButton()`, and a
+ * board without one gets a firmware that is driven entirely by touch, exactly
+ * as it was before this existed. Touch remains the input this console is
+ * designed around; the button is a shortcut, never the only way to do
+ * anything. */
+struct ButtonProfile {
+    int8_t bootPin;
+    /* True when the line idles high through a pull-up and the switch shorts it
+     * to ground -- which is what BOOT is on every board here. Stated rather
+     * than assumed, because a board that wired it the other way would read as
+     * a button held down forever. */
+    bool   activeLow;
+};
+
 struct SdProfile {
     int8_t   cs;
     int8_t   mosi;
@@ -175,6 +198,7 @@ struct BoardProfile {
     const char*   name;           // what About and System Info show the owner
     PanelProfile  panel;
     TouchProfile  touch;
+    ButtonProfile button;         // beside touch: both are how a person acts
     SdProfile     sd;
     RgbLedProfile rgb;
     AudioProfile  audio;
@@ -191,6 +215,7 @@ struct BoardProfile {
         return (panel.landscapeRotation & 1) ? panel.nativeWidth : panel.nativeHeight;
     }
 
+    constexpr bool hasBootButton() const { return button.bootPin != PIN_NONE; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }

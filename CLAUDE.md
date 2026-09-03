@@ -312,7 +312,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,356,033 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,357,413 / 3,145,728 bytes,
 **74.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 72,596 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -411,6 +411,18 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   from 42px to 32px and the title's start moved from 48 to 62, costing the
   title 14px. The right-hand cluster is measured, not padded, and cannot give;
   check the longest screen title ("Finger Counting") before spending any more.
+- **The BOOT key is Home, and it is a shortcut rather than a route.** It is
+  consumed in the runtime above the active screen's `update()`, beside the
+  Home, gear and Lock routing and for the same reason. Three deliberate holes
+  in it: the launcher does not consume it (you are already home, and taking
+  the frame would drop a simultaneous touch), the lock screen ignores it
+  entirely (a key pressed through the side of a bag is the accident that
+  screen exists to catch), and `View::Asleep` and the saver treat it exactly
+  as a touch. It counts as activity, or the saver would arrive a moment after
+  you pressed Home. **Nothing may become reachable only through it** --
+  `BOARD.hasBootButton()` can be false and the console has to remain complete.
+  It fires on the press edge, which is what a hold gesture would have to
+  change first; see `src/hal/BoardButton.cpp`.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -646,7 +658,8 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           (the tab bodies), SettingsPin (the PIN pad)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
-                          Sound.h (the cue vocabulary), BoardStorage, storage
+                          Sound.h (the cue vocabulary), BoardButton (the BOOT
+                          key), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
@@ -698,7 +711,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,356,033 on `5.3.0-SNAPSHOT` against 2,353,205 on `5.2.0` -- and that is
+   2,357,413 on `5.3.0-SNAPSHOT` against 2,353,205 on `5.2.0` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds
