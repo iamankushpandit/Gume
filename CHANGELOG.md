@@ -39,17 +39,55 @@ issue template asks for the pin map and its source.
   can describe a codec: an I2C control address, the five I2S lines and an
   amplifier enable with its polarity.
 
-  A beep is *rendered* into a static buffer when it is asked for and *fed* to
-  the I2S DMA a slice at a time by `tickAudio()`, which the runtime calls once
-  per frame beside `tickRgb()`. It has to work that way: `beepOk()` is called
-  from game code inside a 20ms frame budget, and playing a 200ms note the way
-  the bring-up probe does would blow that budget on every correct answer in
-  every game. Volume is capped at `AUDIO_VOLUME_MAX = 80` -- a ceiling in the
-  same spirit as `BRIGHTNESS_MIN`, for a handheld held near a child's ears --
-  and the amplifier is powered only while something is playing.
+  A sound is *armed* when it is asked for and *generated* into the I2S DMA a
+  slice at a time by `tickAudio()`, which the runtime calls once per frame
+  beside `tickRgb()`. It has to work that way: `beepOk()` is called from game
+  code inside a 20ms frame budget, and playing a 200ms note the way the
+  bring-up probe does would blow that budget on every correct answer in every
+  game. Volume is capped at `AUDIO_VOLUME_MAX = 80` -- a ceiling in the same
+  spirit as `BRIGHTNESS_MIN`, for a handheld held near a child's ears -- and
+  the amplifier is powered only while something is playing.
 
   Boards with a bare `speakerPin` are unchanged: `beep()` is still a stub and
   the LED pulse is still the whole of the feedback.
+
+- **The console says "Let's play Braino!" when it starts.** Deliberately
+  robotic, and not a recording: the phrase is written down as the phonemes it
+  is made of -- L EH T S / P L EY / B R EY N OW -- and each phoneme is the
+  first three formant frequencies of a vocal tract shaped to say it. Three
+  resonators driven by a monotone buzz give the vowels and the same three
+  driven by noise give the consonants, which is the technique that made 1980s
+  home computers talk and is why it sounds like one. A second and a half of
+  speech costs about two hundred bytes of flash; as a recording it would have
+  cost fifty thousand.
+
+  It plays from `BrainoApp::begin()`, after the profile picker is up, so the
+  screen paints and takes touches all the way through it.
+
+- **A sound vocabulary, instead of two beeps.** `hal/Sound.h` names what the
+  console can say -- `Tap`, `Select`, `Correct`, `Wrong`, `Reveal`, `Coin`,
+  `LevelUp`, `Victory`, `GameOver`, `HighScore`, `Countdown`, `Whoosh`, `Pop`,
+  four pad notes and the boot phrase -- and `AppContext::playSound()` is how a
+  screen asks for one. Games cannot ask for a frequency: `Board::beep()` is
+  private, so `Coin` means the same thing in Whack-a-Mole as it does in Memory
+  and a player learns each sound once.
+
+  Nine screens now use it. **Cinnamon** gives each of its four pads a fixed
+  note, on the way in as well as on the way out, so the sequence is a tune that
+  can be followed by ear -- which is the point of the game, and for a player
+  who cannot easily tell the four colours apart it is the difference between
+  playable and not. **Whack-a-Mole** ticks when a mole is about to vanish,
+  scores a coin rather than a right-answer beep, and plays the losing cue when
+  the run ends. **Sliding Puzzle** and **Maze** distinguish "solved" from
+  "solved in fewer moves than ever before", and both now make a noise while
+  being played rather than only once at the end. **Memory**, **Sequence**,
+  **Tic-Tac-Toe**, **Coin Flip** and **Dice** each stopped marking every event
+  as though the player had got a question right.
+
+  Every one of these is synthesised from oscillator, noise and formant
+  segments -- there is no WAV, no PCM table and no sample bank anywhere in the
+  firmware, and `CLAUDE.md` now says there may not be one. The whole
+  vocabulary is under a kilobyte of const data.
 
 - **The board contract describes capacitive touch.** `TouchProfile` carried an
   XPT2046 and nothing else, so a board wiring an I2C controller could not be
@@ -63,7 +101,138 @@ issue template asks for the pin map and its source.
   path including a record-and-playback microphone test. Built alone, in the
   same spirit as `wifidiag` and `batdiag`.
 
+- **A Sound tab in Settings, with mute and volume.** Settings now has four
+  tabs. **Sound** holds a mute switch, a volume slider and two test buttons.
+
+  Mute is a switch of its own rather than volume zero, so the level survives
+  being silenced and comes back where it was. It is gated in exactly one place
+  -- `Board::playSound()`, the single door every sound goes through -- so it
+  takes the beeps and the startup phrase with it and cannot leave something
+  still audible. Muting also stops whatever is currently playing, because Mute
+  is the control somebody reaches for *while* the boot phrase is running. The
+  case LED still flashes green and red while muted, which on a board with no
+  codec is what it always did.
+
+  Volume is capped at `AUDIO_VOLUME_MAX = 85` and the slider **says 85**. It
+  would have read better relabelled as 100% and it would have been a lie; the
+  ceiling exists for a handheld held near a child's ears, in the same spirit as
+  the brightness floor. `Ui::drawSlider()` grew a `maxPct` to express it, since
+  a setting with a ceiling and a setting with a floor should be said the same
+  way. The 85 was set by listening on the FNK0104B's own driver -- it describes
+  one speaker in one case, and a board with a louder amplifier will need its
+  own figure. Dragging the slider plays a note at the new level as you go, and the two
+  test buttons play a cue and the spoken phrase, because setting a volume you
+  cannot hear while you set it is guesswork.
+
+  Both settings are global rather than per-profile, like theme and brightness:
+  the speaker belongs to whoever is in the room. Both are RAM-mirrored --
+  `soundEnabled()` is on the path of every cue in every game. And on a board
+  with no codec the tab says so plainly instead of offering dead controls:
+  "this board cannot make a sound" and "you have muted it" are different things
+  to tell an owner.
+
+### Changed
+
+- **The volume ceiling is 85%, not 80%, and the old 80 was measuring the bug.**
+  It was chosen against the broken curve, so it never described a
+  sound-pressure level -- it described a register value that happened to be
+  tolerable. 85 was set by listening on the device at the full range, which is
+  the only way this number can honestly be arrived at. It is a hearing-safety
+  limit for a handheld held near a young player's ears, the counterpart of the
+  25% brightness floor, and it describes one driver in one case: a board with a
+  louder amplifier needs its own figure, at which point the ceiling belongs in
+  `BoardProfile` rather than in `Board`.
+
+- **Settings is three files against one header.** `SettingsGame.cpp` had
+  reached 613 lines before the Sound tab was written and would have passed 700
+  after it. It is now `SettingsGame.cpp` (lifecycle, the tab strip, touch
+  routing), `SettingsPanels.cpp` (the Device, Power and Sound bodies and the
+  geometry of their rows) and `SettingsPin.cpp` (the PIN pad and the Admin tab
+  it belongs to). Every rect accessor stays declared in the one header, so a
+  control's geometry and the hit test that reads it still cannot drift apart.
+  The split landed before the feature and changed no behaviour.
+
+  The tab strip stopped being three hand-written thirds with the rounding
+  fudged into the last one, and became `tabRect(i)` over a `TAB_COUNT`.
+
+- **Audio moved out of `BoardFeedback.cpp` into `BoardAudio.cpp`.** Once a
+  beep stopped being two sine waves and became a synthesiser with a phoneme
+  table, the two concerns had nothing left in common but `beepOk()` pulsing
+  the LED, and the file was heading past the ~600-line mark the modularity
+  rule draws. `BoardFeedback.cpp` keeps the RGB LED and the two radio
+  switches. Behaviour is unchanged by the move itself.
+
+  The buffered renderer went with it. A sound used to be rendered whole into
+  10 KB of static PCM before it started, which capped a cue at 320ms and made
+  a spoken phrase impossible outright; it is now generated on demand into the
+  outgoing DMA block, which costs about 800 bytes of synthesiser state and has
+  no upper bound on length.
+
 ### Fixed
+
+- **Opening the Wi-Fi screen with the BLE beacon on rebooted the device.**
+  `WifiGame::runScan()` disabled Wi-Fi modem sleep before scanning, because a
+  sleeping radio misses probe responses and the network list came back short.
+  That is true, and esp_wifi also refuses to share the radio with a Bluetooth
+  controller unless Wi-Fi is power-saving -- and it does not degrade or return
+  an error, it calls `abort()`:
+
+  ```
+  E wifi: Should enable WiFi modem sleep when both WiFi and Bluetooth are enabled!!!!!!
+  abort() was called
+  ```
+
+  From the outside this looked like "Wi-Fi is broken": the console restarted
+  every time the owner tried to connect, and restarted again on the retry. The
+  beacon is off by default, which is why this survived since it was introduced
+  -- it only bites someone who turned the beacon on and then went to the Wi-Fi
+  screen, and then it bites every single time.
+
+  Modem sleep now stays on whenever the BT controller is up. The condition is
+  asked of the controller directly rather than of `BleBeacon`, because that is
+  the exact thing esp_wifi tests and the two cannot then drift; going through
+  the beacon's own state would leave a gap wherever the controller is up for
+  another reason, such as the Nearby scanner. The cost is a scan that may miss
+  a distant access point while the beacon is on, which is the right trade
+  against a reboot.
+
+  `src/wifi_diag.cpp` has the same line and keeps it: that environment is built
+  alone, with no BLE in the image, so there is no controller to conflict with.
+
+- **The console was almost inaudible, and it was a unit bug.** ES8311 register
+  0x32 is the DAC volume and it is linear in **decibels** -- half a decibel per
+  step, `0xBF` unity, `0x00` silence. Both the firmware and `src/s3_diag.cpp`
+  scaled the percentage straight onto the byte, which treats a logarithmic
+  register as a linear one and is wrong by up to 25 dB. The default 60% was
+  landing on `0x98`, which is **-19.5 dB** -- a tenth of the amplitude the
+  number implied, and too quiet to hear across a room. The error was worst
+  exactly where people leave a volume control, in the middle; at the far end it
+  failed the other way, with 100% mapping to `0xFF`, **+32 dB**, which would
+  have clipped every sound into a square wave.
+
+  A percentage is now a fraction of amplitude -- 100% unity, 50% -6 dB, 10%
+  -20 dB -- clamped at unity, since above 0 dB the register is digital gain on
+  a signal already near full scale and buys only clipping. The probe was
+  corrected in the same change: a bench instrument that disagrees with the
+  product about what "80" means is worse than no instrument.
+
+  Three other things were quiet independently, and all three are fixed:
+  the synthesiser's output scale (26000 to 32000, with every cue's amplitude
+  raised in proportion -- topping out at 55 on a 1-inch driver was leaving
+  range unused); the formant bandwidth (90 Hz to 60 Hz, which is a *loudness*
+  control here, because the excitation is one impulse every 143 samples and
+  what fills the gap is the resonators ringing -- at 90 Hz the ring had decayed
+  to a tenth before the next pulse, so most of every vowel was near-silence);
+  and the fricative makeup gain, which is what the S in "Let's" was losing.
+
+- **"Let's play Braino!" is slower, and now intelligible.** 1.45 to 2.4 seconds
+  for four syllables, about half conversational rate. Synthetic speech with no
+  pitch movement carries none of the prosody a listener leans on, so duration
+  is the only cue left for where one sound ends and the next begins. The
+  stressed vowels are now the long ones, and each diphthong is three steps
+  rather than two -- F2 climbs around 550 Hz across an "EY" and the ear tracks
+  that sweep, where a single jump was audible as a click at the join and read
+  as two vowels.
 
 - **The profile name entry has a way out.** The keyboard shared by **Add
   Player** and **Rename** could only be left by committing: `DEL` clears

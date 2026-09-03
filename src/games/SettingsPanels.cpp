@@ -1,0 +1,309 @@
+#include "SettingsGame.h"
+
+#include "engine/NearbyPlay.h"
+#include "hal/Board.h"
+
+/* The tab bodies -- Device, Power and Sound -- and the geometry of their rows.
+ *
+ * Every row here is a Rect accessor plus a renderer that draws into it, and
+ * the touch handler in SettingsGame.cpp reads the same accessor. That is the
+ * whole reason the geometry lives beside the drawing rather than in the
+ * handler: a control the player can see and cannot press is the failure this
+ * arrangement exists to make impossible.
+ *
+ * Admin lives in SettingsPin.cpp with the pad it opens. */
+
+/* Device tab: four rows of 30px, then the brightness slider.
+ *
+ * Network shares a row with the NTP resync cadence: both are clock-related
+ * global settings, and keeping the row compact leaves the brightness slider
+ * where the existing muscle memory expects it. Reset keeps a slot of its own
+ * on the last row rather than sitting beside a harmless toggle -- it is the
+ * one destructive control here.
+ *
+ * Nearby is deliberately next to Beacon's row rather than beside it: it does
+ * nothing unless Beacon is on, and reading downwards is the order you have to
+ * turn them on in. */
+Rect SettingsGame::themeRect()  const { return Rect{8,    58, 144, 30}; }
+Rect SettingsGame::layoutRect() const { return Rect{164,  58, 144, 30}; }
+Rect SettingsGame::lightRect()  const { return Rect{8,    92, 144, 30}; }
+Rect SettingsGame::bleRect()    const { return Rect{164,  92, 144, 30}; }
+Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 144, 30}; }
+Rect SettingsGame::ntpSyncRect() const { return Rect{164, 126, 144, 30}; }
+Rect SettingsGame::nearbyRect() const { return Rect{8,   160, 144, 30}; }
+Rect SettingsGame::resetRect()  const { return Rect{164, 160, 144, 30}; }
+Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
+
+/* Sound tab.
+ *
+ * Mute is a full-width row of its own because it is the control most people
+ * come to this tab for and it should not have to be found. Below it the
+ * volume slider, then the two test buttons side by side.
+ *
+ * The vertical stack is measured against 240px: tab baseline at 52, mute row
+ * 58-88, the level readout on its own line at 96, the slider 104-136, the test
+ * buttons 148-178, and two lines of explanation at 190 and 206 -- which leaves
+ * 34px of margin at the bottom. There is room for one more row here and not
+ * two. */
+Rect SettingsGame::muteRect()      const { return Rect{8,   58, 304, 30}; }
+Rect SettingsGame::volumeRect()    const { return Rect{8,  104, 304, 32}; }
+Rect SettingsGame::testCueRect()   const { return Rect{8,  148, 144, 30}; }
+Rect SettingsGame::testVoiceRect() const { return Rect{164, 148, 144, 30}; }
+
+/* Power tab: four full-width rows, so the labels have room to say what the
+ * setting actually does rather than abbreviating to fit half a screen.
+ *
+ * Wake lock sits with them because it is the last thing in the idle sequence:
+ * saver, sleep, then what it takes to get back. */
+Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
+Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
+Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
+Rect SettingsGame::wakeLockRect()   const { return Rect{8, 160, 304, 30}; }
+
+bool SettingsGame::sleepRowActive(Board& board) const {
+    return board.idleAction() == Board::IdleAction::SaverThenSleep;
+}
+
+void SettingsGame::cycleScreenSaver(Board& board) {
+    const uint16_t current = board.screenSaverSeconds();
+    const uint16_t next = current < 60 ? 60 : (current < 120 ? 120 : (current < 300 ? 300 : 30));
+    board.setScreenSaverSeconds(next);
+}
+
+void SettingsGame::cycleSleepSeconds(Board& board) {
+    const uint16_t current = board.sleepSeconds();
+    const uint16_t next = current < 30 ? 30 : (current < 60 ? 60 : (current < 120 ? 120 :
+                          (current < 300 ? 300 : 15)));
+    board.setSleepSeconds(next);
+}
+
+void SettingsGame::cycleIdleAction(Board& board) {
+    switch (board.idleAction()) {
+        case Board::IdleAction::SaverThenSleep:
+            board.setIdleAction(Board::IdleAction::SleepOnly); break;
+        case Board::IdleAction::SleepOnly:
+            board.setIdleAction(Board::IdleAction::SaverOnly); break;
+        default:
+            board.setIdleAction(Board::IdleAction::SaverThenSleep); break;
+    }
+}
+
+void SettingsGame::cycleNtpResyncHours(Board& board) {
+    const uint8_t current = board.ntpResyncHours();
+    const uint8_t next = current >= Board::NTP_RESYNC_MAX_HOURS
+        ? Board::NTP_RESYNC_MIN_HOURS
+        : static_cast<uint8_t>(current + 1);
+    board.setNtpResyncHours(next);
+}
+
+void SettingsGame::renderDeviceTab(GameHost& host) {
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const bool admin = isAdmin(board);
+
+    char label[28];
+    snprintf(label, sizeof(label), "Theme: %s",
+             board.themeMode() == Board::ThemeMode::Dark ? "Dark" : "Light");
+    Ui::drawButton(tft, themeRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    snprintf(label, sizeof(label), "Menu: %s",
+             board.layoutMode() == Board::LayoutMode::Horizontal ? "Horizontal" : "Vertical");
+    Ui::drawButton(tft, layoutRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, lightRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, bleRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    Ui::drawButton(tft, wifiRect(), "Network", admin ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
+                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+    snprintf(label, sizeof(label), "Sync: %uh", static_cast<unsigned>(board.ntpResyncHours()));
+    Ui::drawButton(tft, ntpSyncRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    /* Greyed, not hidden, when the beacon is off: the control is what tells
+     * you the feature exists and what it depends on. */
+    const bool beaconOn = board.bleBeaconEnabled();
+    snprintf(label, sizeof(label), "Nearby: %s",
+             !beaconOn ? "needs Beacon" : (NearbyPlay::enabled() ? "On" : "Off"));
+    const bool nearbyTextEnabled = admin && beaconOn;
+    Ui::drawButton(tft, nearbyRect(), label,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), nearbyTextEnabled ? Ui::text() : Ui::muted(), false, 2);
+    Ui::drawButton(tft, resetRect(),
+                   confirmReset_ ? "Tap to ERASE" : "Reset device",
+                   admin ? (confirmReset_ ? Ui::rgb(220, 40, 40) : Ui::rgb(120, 58, 58)) : Ui::rgb(80, 80, 80),
+                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.setTextDatum(TL_DATUM);
+    if (!admin) {
+        tft.drawString("Settings locked. Only Admin can change.", 8, 194, 1);
+    } else {
+        tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
+                                 : "Brightness", 8, 194, 1);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(label, sizeof(label), "%u%%", board.brightness());
+        tft.drawString(label, SCREEN_WIDTH - 8, 194, 1);
+        tft.setTextDatum(TL_DATUM);
+        Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
+    }
+}
+
+void SettingsGame::renderPowerTab(GameHost& host) {
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const bool admin = isAdmin(board);
+
+    const Board::IdleAction action = board.idleAction();
+    const uint16_t idleSecs  = board.screenSaverSeconds();
+    const uint16_t sleepSecs = board.sleepSeconds();
+
+    const char* actionName =
+        action == Board::IdleAction::SaverThenSleep ? "Saver then sleep" :
+        action == Board::IdleAction::SleepOnly      ? "Sleep only"       : "Saver only";
+
+    char buf[52];
+    snprintf(buf, sizeof(buf), "When idle: %s", actionName);
+    Ui::drawButton(tft, idleActionRect(), buf,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+
+    if (idleSecs >= 60 && idleSecs % 60 == 0) {
+        snprintf(buf, sizeof(buf), "Idle after: %um", idleSecs / 60);
+    } else {
+        snprintf(buf, sizeof(buf), "Idle after: %us", idleSecs);
+    }
+    Ui::drawButton(tft, idleAfterRect(), buf,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+
+    /* The sleep delay only means anything when the saver hands over to sleep.
+     * The other two policies say so on the button rather than leaving a live
+     * control that quietly does nothing. */
+    const bool sleepLive = sleepRowActive(board) && admin;
+    if (!sleepLive) {
+        snprintf(buf, sizeof(buf), "Sleep after: %s",
+                 action == Board::IdleAction::SleepOnly ? "(at idle)" : "--");
+    } else if (sleepSecs >= 60 && sleepSecs % 60 == 0) {
+        snprintf(buf, sizeof(buf), "Sleep after: %um", sleepSecs / 60);
+    } else {
+        snprintf(buf, sizeof(buf), "Sleep after: %us", sleepSecs);
+    }
+    Ui::drawButton(tft, sleepAfterRect(), buf,
+                   sleepLive ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   sleepLive ? Ui::text() : Ui::muted(), false, 2);
+
+    /* Always live: it guards the saver as well as sleep, so it means
+     * something under all three idle policies. */
+    snprintf(buf, sizeof(buf), "Hold to unlock: %s",
+             board.wakeLockEnabled() ? "On" : "Off");
+    Ui::drawButton(tft, wakeLockRect(), buf,
+                   admin ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   admin ? Ui::text() : Ui::muted(), false, 2);
+
+    /* Say the resulting behaviour in plain words, composed from the live
+     * values -- three settings that interact are hard to hold in your head. */
+    char explain[64];
+    if (!admin) {
+        snprintf(explain, sizeof(explain), "Settings locked. Only Admin can change.");
+    } else {
+        switch (action) {
+            case Board::IdleAction::SleepOnly:
+                snprintf(explain, sizeof(explain), "Screen off at %us. No screen saver.", idleSecs);
+                break;
+            case Board::IdleAction::SaverOnly:
+                snprintf(explain, sizeof(explain), "Saver at %us. Screen never turns off.", idleSecs);
+                break;
+            default:
+                snprintf(explain, sizeof(explain), "Saver at %us, screen off at %us.",
+                         idleSecs, static_cast<uint16_t>(idleSecs + sleepSecs));
+                break;
+        }
+    }
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString(explain, 8, 196, 1);
+    if (admin) {
+        /* Say what a touch actually does, because the row above changes it.
+         * A stray press in a bag is the case this exists for. */
+        tft.drawString(board.wakeLockEnabled()
+                           ? "A touch lights the screen; hold to go back."
+                           : "Any touch goes straight back to what you were doing.",
+                       8, 212, 1);
+    }
+}
+
+/* Sound.
+ *
+ * Three states, not two, and the difference matters to whoever is holding it:
+ * this board cannot make a sound at all; it can and is muted; it can and is
+ * not. Collapsing the first into the second would tell an owner their console
+ * is muted and leave them looking for the switch that would fix it.
+ *
+ * The level is shown as the number the codec is actually set to, and the
+ * slider's travel ends at AUDIO_VOLUME_MAX. Relabelling that ceiling as 100%
+ * would make the control read better and lie -- see the note on drawSlider's
+ * maxPct in Ui.h. */
+void SettingsGame::renderSoundTab(GameHost& host) {
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const bool admin = isAdmin(board);
+    const bool present = Board::hasSound();
+    const bool on = present && board.soundEnabled();
+    /* Live means "this control will do something if you press it": the board
+     * has a speaker, the sound is not muted, and you are the admin. */
+    const bool live = on && admin;
+
+    char label[40];
+    if (!present) {
+        snprintf(label, sizeof(label), "Sound: not on this board");
+    } else {
+        snprintf(label, sizeof(label), "Sound: %s", on ? "On" : "Muted");
+    }
+    Ui::drawButton(tft, muteRect(), label,
+                   (admin && present) ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   (admin && present) ? Ui::text() : Ui::muted(), false, 2);
+
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString("Volume", 8, 92, 1);
+    tft.setTextDatum(TR_DATUM);
+    if (!present) {
+        snprintf(label, sizeof(label), "--");
+    } else if (!on) {
+        /* The stored level is still shown while muted, greyed. It is what
+         * unmuting will come back to, and hiding it makes the switch look
+         * like it also reset the volume. */
+        snprintf(label, sizeof(label), "%u%% (muted)", board.volume());
+    } else {
+        snprintf(label, sizeof(label), "%u%%", board.volume());
+    }
+    tft.drawString(label, SCREEN_WIDTH - 8, 92, 1);
+    tft.setTextDatum(TL_DATUM);
+
+    Ui::drawSlider(tft, volumeRect(), present ? board.volume() : 0, 0,
+                   Board::AUDIO_VOLUME_MAX);
+
+    Ui::drawButton(tft, testCueRect(), "Test sound",
+                   live ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
+                   Ui::outline(), live ? TFT_WHITE : Ui::muted(), false, 2);
+    Ui::drawButton(tft, testVoiceRect(), "Say hello",
+                   live ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
+                   Ui::outline(), live ? TFT_WHITE : Ui::muted(), false, 2);
+
+    /* Two lines, and both are measured to fit 320px at font 1 -- the longest
+     * of them is the not-admin one. Keep any replacement under about 52
+     * characters: TFT_eSPI drops characters off the right edge silently. */
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    if (!admin) {
+        tft.drawString("Settings locked. Only Admin can change.", 8, 190, 1);
+    } else if (!present) {
+        tft.drawString("This board has no speaker or audio codec.", 8, 190, 1);
+        tft.drawString("The case LED still flashes for right and wrong.", 8, 206, 1);
+    } else if (!on) {
+        tft.drawString("Muted: no beeps, no cues, no startup voice.", 8, 190, 1);
+        tft.drawString("The case LED still flashes for right and wrong.", 8, 206, 1);
+    } else {
+        tft.drawString("Volume is capped for young ears.", 8, 190, 1);
+        tft.drawString("Every sound is made by the device, not a file.", 8, 206, 1);
+    }
+    tft.setTextDatum(TL_DATUM);
+}

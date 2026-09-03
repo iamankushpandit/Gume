@@ -116,10 +116,18 @@ bool wifiUp();
  * open; inactive tabs sit lower, darker and separated by the divider line.
  * Draw the tabs first, then call drawTabBaseline(). */
 /* Web-style slider: rounded track, filled portion, round handle.
- * `pct` and the returned value are both in [minPct, 100] -- the full travel
- * maps to that range, so the value can never fall below the floor. */
-void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct);
-uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct);
+ * `pct` and the returned value are both in [minPct, maxPct] -- the full travel
+ * maps to that range, so the value can never fall outside it.
+ *
+ * `maxPct` exists because a setting can have a ceiling as well as a floor, and
+ * the two must be expressed the same way. Volume is capped at
+ * `Board::AUDIO_VOLUME_MAX` for a handheld held near a child's ears; the
+ * honest way to show that is a slider whose travel ends at 80 and a readout
+ * that says 80, not a full-width slider relabelled so that 80 reads as 100.
+ * A control that lies about its range is worse than one with a shorter range. */
+void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct,
+                uint8_t maxPct = 100);
+uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct, uint8_t maxPct = 100);
 
 void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active);
 void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,

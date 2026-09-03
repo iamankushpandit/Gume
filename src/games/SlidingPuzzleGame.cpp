@@ -42,10 +42,12 @@ void SlidingPuzzleGame::loadBest(AppContext& host) {
     bestMoves_ = static_cast<uint16_t>(host.getScore(size_ == 2 ? "slideB2" : "slideB3", 0));
 }
 
-void SlidingPuzzleGame::saveBest(AppContext& host) {
+bool SlidingPuzzleGame::saveBest(AppContext& host) {
     if (host.saveBestScore(size_ == 2 ? "slideB2" : "slideB3", moves_, true)) {
         bestMoves_ = moves_;
+        return true;
     }
+    return false;
 }
 
 void SlidingPuzzleGame::setupSolved(uint8_t size) {
@@ -151,8 +153,18 @@ void SlidingPuzzleGame::update(AppContext& host, const TouchPoint& touch) {
     ++moves_;
     if (solved()) {
         won_ = true;
-        saveBest(host);
-        host.beepOk();
+        /* Two different things can have just happened -- the puzzle was
+         * solved, or it was solved in fewer moves than ever before -- and
+         * until now they made the same noise. The green pulse belongs to
+         * beepOk(), which this replaces, so it is kept by hand. */
+        const bool best = saveBest(host);
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(best ? Sound::HighScore : Sound::Victory);
+    } else {
+        /* A tile sliding. This game used to make exactly one sound, once, at
+         * the very end of a puzzle; the moves that make up the actual playing
+         * of it were silent. */
+        host.playSound(Sound::Whoosh);
     }
     markDirty();
 }

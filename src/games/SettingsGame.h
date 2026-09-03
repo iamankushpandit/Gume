@@ -4,12 +4,18 @@
 #include "ui/Ui.h"
 
 /*
- * Device preferences, in two tabs.
+ * Device preferences, in four tabs.
  *
  * Device holds what the console looks like; Power holds what it does when
- * nobody is touching it. They were one screen until the idle policy arrived --
- * the grid was already seven buttons and a slider, with nowhere to put three
- * more controls.
+ * nobody is touching it; Sound holds how loud it is, or whether it speaks at
+ * all; Admin holds the PIN. They were one screen until the idle policy
+ * arrived -- the grid was already seven buttons and a slider, with nowhere to
+ * put three more controls.
+ *
+ * The implementation is split across three .cpp files by concern -- see the
+ * header comment in SettingsGame.cpp. Every rect accessor is declared here,
+ * in one place, so a control's geometry and the hit test that reads it cannot
+ * drift apart however the files are arranged.
  */
 class SettingsGame : public Game {
 public:
@@ -19,16 +25,21 @@ public:
     void render(GameHost& host) override;
 
 private:
-    enum class Tab : uint8_t { Device, Power, Admin };
+    enum class Tab : uint8_t { Device, Power, Sound, Admin };
+    static constexpr uint8_t TAB_COUNT = 4;
 
     /* Settings is readable by everyone and writable only by the admin, so
      * there is no lock screen here -- the PIN pad exists purely to set a new
      * PIN, which is entered twice. */
     enum class PinTask : uint8_t { None, SetNew, ConfirmNew };
 
-    Rect deviceTabRect() const;
-    Rect powerTabRect() const;
-    Rect adminTabRect() const;
+    /* One accessor, four tabs: the strip is an even division of the width, so
+     * stating it once is what keeps them the same size. Adding a fifth tab is
+     * a change to TAB_COUNT and nothing else -- the previous version wrote
+     * SCREEN_WIDTH / 3 out three times with the last one fudged to absorb the
+     * rounding, which is a thing to get wrong once per tab. */
+    Rect tabRect(uint8_t index) const;
+    Rect tabRectFor(Tab tab) const;
     Rect changePinRect() const;
     Rect pinCancelRect() const;
     Rect pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
@@ -45,6 +56,15 @@ private:
     Rect resetRect() const;
     Rect brightRect() const;
 
+    /* Sound tab. Mute is a switch of its own rather than volume zero, so the
+     * level survives being silenced and comes back where it was. The two test
+     * buttons exist because a volume control you cannot hear while you set it
+     * is guesswork -- one plays a cue, the other says the boot phrase. */
+    Rect muteRect() const;
+    Rect volumeRect() const;
+    Rect testCueRect() const;
+    Rect testVoiceRect() const;
+
     Rect idleActionRect() const;
     Rect idleAfterRect() const;
     Rect sleepAfterRect() const;
@@ -56,6 +76,7 @@ private:
     void cycleNtpResyncHours(Board& board);
     void renderDeviceTab(GameHost& host);
     void renderPowerTab(GameHost& host);
+    void renderSoundTab(GameHost& host);
     void renderAdminTab(GameHost& host);
     void renderPinPad(GameHost& host, const char* heading);
 

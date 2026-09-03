@@ -88,6 +88,7 @@ void WhackAMoleGame::spawnMole() {
     activeCell_ = next;
     expiresAt_ = millis() + visibleMs();
     nextSpawnAt_ = 0;
+    warned_ = false;
 }
 
 void WhackAMoleGame::recordMiss() {
@@ -120,10 +121,21 @@ void WhackAMoleGame::update(AppContext& host, const TouchPoint& touch) {
         markDirty();
     } else if (activeCell_ >= 0 && now >= expiresAt_) {
         recordMiss();
-        if (!gameOver_) {
+        if (gameOver_) {
+            host.pulseRgb(255, 0, 0, 450);
+            host.playSound(Sound::GameOver);
+        } else {
             spawnMole();
         }
         markDirty();
+    } else if (activeCell_ >= 0 && !warned_ && now + WARN_MS >= expiresAt_) {
+        /* The mole is about to leave. At level 10 it is only visible for
+         * 360ms, and the miss that ends the run is otherwise the first thing
+         * the player hears about it -- a tick that says "now" is the
+         * difference between a game of reflexes and a game of luck. Once per
+         * mole: `warned_` is cleared by spawnMole(). */
+        warned_ = true;
+        host.playSound(Sound::Countdown);
     }
 
     if (!touch.justPressed) {
@@ -146,13 +158,25 @@ void WhackAMoleGame::update(AppContext& host, const TouchPoint& touch) {
         flashUntil_ = millis() + 160UL;
         activeCell_ = -1;
         nextSpawnAt_ = millis() + 180UL;
-        host.beepOk();
+        /* Coin, not the "correct answer" beep. A hit here is a point scored
+         * rather than a question marked, and a player racking up thirty of
+         * them a minute should not be hearing the same two notes that mean
+         * "yes, 7 x 8 is 56". The green pulse is beepOk()'s and is kept by
+         * hand: on a board with no codec the LED is the whole of the
+         * feedback. */
+        host.pulseRgb(0, 255, 40, 220);
+        host.playSound(Sound::Coin);
     } else {
         flashCell_ = cell;
         flashSuccess_ = false;
         flashUntil_ = millis() + 180UL;
         recordMiss();
-        host.beepError();
+        if (gameOver_) {
+            host.pulseRgb(255, 0, 0, 450);
+            host.playSound(Sound::GameOver);
+        } else {
+            host.beepError();
+        }
     }
     markDirty();
 }

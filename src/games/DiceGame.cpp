@@ -91,7 +91,10 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
             // it was only for show.
             reroll();
             rolling_ = false;
-            host.beepOk();
+            /* The dice settling. Reveal rather than the "correct" beep: a
+             * throw is not an answer, and this game had been marking every
+             * roll as though the player had got something right. */
+            host.playSound(Sound::Reveal);
             markDirty();
         } else if (now >= nextTumbleMs_) {
             nextTumbleMs_ = now + TUMBLE_STEP_MS;
@@ -113,7 +116,7 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
         if (picked != count_) {
             count_ = picked;
             thrown_ = false;   // the old total described a different throw
-            host.beepOk();
+            host.playSound(Sound::Select);
             markFullDirty();
         }
         return;
@@ -125,6 +128,7 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
         rollUntilMs_ = millis() + TUMBLE_MS;
         nextTumbleMs_ = 0;
         host.pulseRgb(255, 190, 60, 200);
+        host.playSound(Sound::Whoosh);   // the dice leaving the hand
         markDirty();
     }
 }

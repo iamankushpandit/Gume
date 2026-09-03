@@ -544,9 +544,11 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     }
 }
 
-void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct) {
+void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct,
+                uint8_t maxPct) {
+    if (maxPct < minPct) maxPct = minPct;
     if (pct < minPct) pct = minPct;
-    if (pct > 100) pct = 100;
+    if (pct > maxPct) pct = maxPct;
 
     const uint16_t accent = rgb(36, 132, 204);
     const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
@@ -555,7 +557,7 @@ void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct) {
     const int16_t x0 = static_cast<int16_t>(r.x + pad);
     const int16_t span = static_cast<int16_t>(r.w - 2 * pad);
 
-    const uint16_t range = static_cast<uint16_t>(100 - minPct);
+    const uint16_t range = static_cast<uint16_t>(maxPct - minPct);
     const int16_t fill = range == 0 ? span
         : static_cast<int16_t>((static_cast<int32_t>(pct - minPct) * span) / range);
 
@@ -571,7 +573,8 @@ void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct) {
     tft.fillCircle(hx, cy, 6, accent);
 }
 
-uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct) {
+uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct, uint8_t maxPct) {
+    if (maxPct < minPct) maxPct = minPct;
     const int16_t pad = 11;
     const int16_t x0 = static_cast<int16_t>(r.x + pad);
     const int16_t span = static_cast<int16_t>(r.w - 2 * pad);
@@ -580,7 +583,7 @@ uint8_t sliderValueAt(const Rect& r, int16_t x, uint8_t minPct) {
     int32_t rel = x - x0;
     if (rel < 0) rel = 0;
     if (rel > span) rel = span;
-    return static_cast<uint8_t>(minPct + (rel * (100 - minPct)) / span);
+    return static_cast<uint8_t>(minPct + (rel * (maxPct - minPct)) / span);
 }
 
 void drawPagerButton(Ui::Renderer& tft, const Rect& r, const String& label, bool enabled) {

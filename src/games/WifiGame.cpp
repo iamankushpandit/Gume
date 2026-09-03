@@ -1,5 +1,6 @@
 #include "WifiGame.h"
 #include <WiFi.h>
+#include <esp_bt.h>
 #include <esp_sntp.h>
 #include "hal/Board.h"
 #include "hal/Clock.h"
@@ -81,7 +82,38 @@ void WifiGame::runScan() {
     WiFi.mode(WIFI_OFF);
     delay(100);
     WiFi.mode(WIFI_STA);
-    WiFi.setSleep(false);       // a sleeping radio misses probe responses
+
+    /* MODEM SLEEP MUST STAY ON WHILE THE BLUETOOTH CONTROLLER IS UP.
+     *
+     * This line used to be an unconditional `setSleep(false)`, because a
+     * sleeping radio misses probe responses and the scan came back short.
+     * That is true, and on a board with the BLE beacon switched on it also
+     * PANICS THE DEVICE: esp_wifi refuses to share the radio with a
+     * Bluetooth controller unless Wi-Fi is power-saving, and it does not
+     * degrade or return an error --
+     *
+     *   E wifi: Should enable WiFi modem sleep when both WiFi and Bluetooth
+     *           are enabled!!!!!!
+     *   abort() was called
+     *
+     * The console reboots, which from the outside looks like "Wi-Fi is
+     * broken": the beacon is off by default, so this only bites an owner who
+     * turned it on and then opened this screen -- and then it bites every
+     * single time, in a loop, because the first thing they do on the way back
+     * is try again.
+     *
+     * The condition is asked of the BT controller directly rather than of
+     * BleBeacon, deliberately. It is the exact thing esp_wifi tests, so the
+     * two cannot drift; going through the beacon's own state would leave a
+     * gap wherever the controller is up for some other reason -- the Nearby
+     * scanner today, anything else later.
+     *
+     * The cost is a scan that may miss a distant access point while the
+     * beacon is on. That is the right trade against a reboot, and the scan is
+     * a list the owner picks from rather than a measurement. */
+    const bool btControllerUp =
+        esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED;
+    WiFi.setSleep(btControllerUp);
     delay(200);
     WiFi.scanDelete();
 

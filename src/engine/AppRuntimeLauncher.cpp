@@ -35,6 +35,12 @@ const AppDefinition& BrainoApp::launcherEntry(uint8_t filteredIndex) {
 }
 
 void BrainoApp::openApp(const AppDefinition& app) {
+    /* Opening a tile. This is the console's one confirmation noise and it is
+     * deliberately here rather than in launch(): launch() is also how the
+     * runtime returns to a screen after a lock or a wake, and a chirp on
+     * waking a device that has been in a bag is not a confirmation of
+     * anything. */
+    board_.playSound(Sound::Select);
     launch(app);
 }
 
@@ -100,12 +106,14 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
     const int16_t pY = static_cast<int16_t>(lH - 28);
     if (Rect{8, pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
         --page_;
+        host.playSound(Sound::Tap);
         markDirty();
         return;
     }
     if (Rect{static_cast<int16_t>(lW - 82), pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
         page_ + 1 < pages) {
         ++page_;
+        host.playSound(Sound::Tap);
         markDirty();
         return;
     }

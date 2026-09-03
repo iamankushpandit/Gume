@@ -87,7 +87,12 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
                 ++revealed_;
                 spinning_ = false;
                 phaseUntilMs_ = now + HOLD_MS;
-                host.beepOk();
+                /* A coin coming down. Reveal, not the "correct answer" beep
+                 * -- nothing here is right or wrong, a hidden thing has just
+                 * become visible, and with five coins in a row the old two
+                 * rising notes five times over sounded like five right
+                 * answers to a question nobody asked. */
+                host.playSound(Sound::Reveal);
                 markDirty();
             } else if (now >= nextSpinStepMs_) {
                 nextSpinStepMs_ = now + SPIN_STEP_MS;
@@ -122,7 +127,7 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
             choice_ = i;
             revealed_ = 0;
             finished_ = false;
-            host.beepOk();
+            host.playSound(Sound::Select);
             markFullDirty();
         }
         return;
@@ -136,6 +141,10 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
         spinFrame_ = 0;
         phaseUntilMs_ = now + SPIN_MS;
         nextSpinStepMs_ = 0;
+        /* The throw. It is the one moment the coin is in the air and the
+         * screen is showing frames that carry no state, so it is also the
+         * only thing here worth a noise of its own. */
+        host.playSound(Sound::Whoosh);
         markDirty();
     }
 }

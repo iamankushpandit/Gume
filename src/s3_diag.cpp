@@ -115,7 +115,9 @@ static constexpr int     AUDIO_MCLK_HZ = AUDIO_RATE * 384;   /* 6.144 MHz */
  * BRIGHTNESS_MIN, and any volume slider clamps to it rather than relabelling
  * 80 as "100%" -- a control that lies about its range is worse than one with
  * a shorter range. */
-static constexpr int AUDIO_VOLUME_MAX = 80;
+/* Keep in step with Board::AUDIO_VOLUME_MAX. Set by listening on the
+ * FNK0104B's own driver -- see the long note beside it in src/hal/Board.h. */
+static constexpr int AUDIO_VOLUME_MAX = 85;
 
 /* How long the REC button captures for. Declared up here because draw() paints
  * the button label and sits above the recorder. */
@@ -444,21 +446,41 @@ static bool esRead(uint8_t reg, uint8_t& value) {
  * and must NOT follow the codec driver into the firmware. */
 static constexpr int ECHO_PLAYBACK_VOLUME = 90;
 
+/* Register 0x32 is the DAC volume and it is linear in DECIBELS -- half a
+ * decibel per step, 0xBF is unity gain, 0x00 is silence.
+ *
+ * This probe and the firmware BOTH used to scale the percentage straight onto
+ * the byte, which treats a logarithmic register as a linear one and is wrong
+ * by up to 25 dB: "60%" was -19.5 dB and "100%" was +32 dB. It was found from
+ * the firmware side, where the console turned out to be nearly inaudible, and
+ * it is corrected here in the same change deliberately. A bench instrument
+ * that disagrees with the product about what a number means is worse than no
+ * instrument: the next person to bring up a board would set 80 here, hear it,
+ * and get something else entirely from the same 80 in Settings.
+ *
+ * Keep this identical to applyCodecVolume() in src/hal/BoardAudio.cpp. */
+static uint8_t es8311VolumeReg(int percent) {
+    if (percent <= 0) return 0;
+    if (percent > 100) percent = 100;
+    const float dB = 20.0f * log10f((float)percent / 100.0f);
+    int reg = (int)lroundf(0xBF + dB * 2.0f);
+    if (reg < 1) reg = 1;
+    if (reg > 0xBF) reg = 0xBF;
+    return (uint8_t)reg;
+}
+
 static void es8311SetVolumeRaw(int percent) {
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
     audioVolume = percent;
-    const uint8_t reg32 = percent == 0 ? 0 : (uint8_t)((percent * 256 / 100) - 1);
-    esWrite(0x32, reg32);
+    esWrite(0x32, es8311VolumeReg(percent));
 }
 
 static void es8311SetVolume(int percent) {
     if (percent < 0) percent = 0;
     if (percent > AUDIO_VOLUME_MAX) percent = AUDIO_VOLUME_MAX;
     audioVolume = percent;
-    /* Register 0x32 is 0..255 with 0 meaning silence, per es8311.c. */
-    const uint8_t reg32 = percent == 0 ? 0 : (uint8_t)((percent * 256 / 100) - 1);
-    esWrite(0x32, reg32);
+    esWrite(0x32, es8311VolumeReg(percent));
 }
 
 /* Dividers for MCLK 6.144 MHz / 16 kHz, taken from es8311.c's coeff_div table:

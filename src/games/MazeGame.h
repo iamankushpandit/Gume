@@ -23,7 +23,9 @@ private:
     bool findCell(char target, int8_t& col, int8_t& row) const;
     bool isActiveMazeSolvable() const;
     void loadBestForLevel(AppContext& host);
-    void saveProgress(AppContext& host);
+    /* Returns whether this run beat the stored best for the level, so the
+     * caller can sound the difference. */
+    bool saveProgress(AppContext& host);
     void drawHud(Ui::Renderer& tft) const;
     void drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const;
     void drawMaze(Ui::Renderer& tft) const;

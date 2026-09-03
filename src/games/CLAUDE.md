@@ -26,7 +26,28 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 - Draw with `Ui::` functions so the active Dark/Light theme applies.
 - Persist with `getScore()` / `setScore()` / `saveBestScore()` / `loadBlob()` / `saveBlob()` using a plain key: profile prefixing, app-scoped key translation and legacy-key migration all happen inside `Board`, and Guest writes are dropped automatically. Do not build storage keys yourself.
 - Hit test with `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`.
-- Feedback via `beepOk()` / `beepError()` (pulses the RGB LED; there is no audio).
+- Feedback via `beepOk()` / `beepError()` for a right and a wrong answer: each
+  pulses the RGB LED and plays its cue.
+- **Anything else a game wants to say goes through `playSound(Sound::...)`**,
+  from the fixed vocabulary in `hal/Sound.h` -- `Coin` for a point scored,
+  `Whoosh` for something sliding, `LevelUp` for a round cleared, `Victory` and
+  `GameOver` for the end of one, `HighScore` for a personal best, `Countdown`
+  for a timer running out. Pick the cue that matches what actually happened,
+  not the one that sounds nicest: the whole value of the vocabulary is that
+  `Coin` means the same thing in every game. There is no way for a game to ask
+  for a frequency, deliberately -- if none of the words fits, add one to
+  `Sound.h` rather than working around it.
+- `playSound()` does **not** pulse the LED. On a board with no codec that pulse
+  is the entire feedback, so a cue replacing a `beepOk()` at a moment that
+  deserves a colour must keep the `pulseRgb()` call by hand -- `MazeGame` and
+  `MemoryGame` are the worked examples.
+- Sound is silent on a board without an audio codec, which today is every board
+  but the Freenove FNK0104B, and silent again when the owner has muted it in
+  **Settings -> Sound**. Nothing may *depend* on a cue having been heard, and
+  no screen should consult `soundEnabled()` to decide what to do -- the gate is
+  inside `playSound()` and a second check outside it is how the two get to
+  disagree. The one exception is the Sound tab itself, which has to *describe*
+  the state it is offering to change.
 - Assume a fixed 320x240 landscape canvas: games do not run in portrait.
 - System/UI apps (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens) must support both landscape and portrait orientations. Read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
 - Never read a setting from `board` more than once per screen change in a hot path. `Preferences` is flash-backed, so every getter is an NVS lookup. The frequently-read settings have write-through RAM mirrors in `Board`; add to those rather than reaching for a fresh getter each frame. Never call anything containing a `delay()` from `render()` or `update()`.

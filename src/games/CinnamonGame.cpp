@@ -27,6 +27,20 @@ constexpr AppMetadata CINNAMON_METADATA = {
     6,
     true,
 };
+
+/* Each pad's note, in the same order as the colours: red, blue, green,
+ * yellow, rising in pitch left-to-right and top-to-bottom. The mapping is
+ * fixed for the life of the game and must stay that way -- the whole reason
+ * this game has sound is that the sequence becomes a tune a player can hear
+ * back, and a pad whose note moved between rounds would be worse than
+ * silence. The four pitches themselves live in hal/Sound.h with the rest of
+ * the vocabulary, so they stay in key with the cues around them. */
+Sound padSound(uint8_t pad) {
+    static constexpr Sound PAD_NOTE[4] = {
+        Sound::Pad1, Sound::Pad2, Sound::Pad3, Sound::Pad4
+    };
+    return PAD_NOTE[pad % 4];
+}
 }
 
 const AppMetadata& cinnamonAppMetadata() {
@@ -106,6 +120,7 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
             };
             const uint8_t* c = PAD_RGB[litPad_ % 4];
             host.pulseRgb(c[0], c[1], c[2], 600);
+            host.playSound(padSound(litPad_));
         }
         markDirty();
         return;
@@ -147,21 +162,37 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
 
     litPad_ = pad;
     nextAt_ = now + 120UL;
+    /* The pad's own note, on the way in as well as on the way out. This is
+     * the point of the game: the sequence is a tune, and a player who can
+     * hear it back is not relying on remembering four colours in order. It
+     * sounds before the right/wrong test so that pressing a pad always makes
+     * that pad's sound -- a wrong press that stayed silent would give the
+     * answer away before the screen did. */
+    host.playSound(padSound(static_cast<uint8_t>(pad)));
     if (pad == sequence_[inputIndex_]) {
         ++inputIndex_;
         if (inputIndex_ >= length_) {
             score_ = length_;
-            if (host.saveBestScore(cinnamonAppMetadata().score->bestKey, score_, false)) {
+            const bool newBest =
+                host.saveBestScore(cinnamonAppMetadata().score->bestKey, score_, false);
+            if (newBest) {
                 bestScore_ = score_;
             }
             phase_ = Phase::Good;
             litPad_ = pad;
             nextAt_ = now + 520UL;
-            host.beepOk();
+            /* The round was repeated back correctly, so the sequence is about
+             * to get one step longer. HighScore when that is a new personal
+             * length, LevelUp when it is not; both land after the pad's own
+             * note, which is the ordering a player expects. */
+            host.pulseRgb(0, 255, 40, 450);
+            host.playSound(newBest ? Sound::HighScore : Sound::LevelUp);
         }
     } else {
         phase_ = Phase::Failed;
         litPad_ = pad;
+        host.pulseRgb(255, 0, 0, 600);
+        host.playSound(Sound::GameOver);
         fullRedraw_ = true;   // the failure line needs a clean background
     }
     markDirty();
