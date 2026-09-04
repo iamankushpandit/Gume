@@ -55,7 +55,36 @@ public:
     virtual const char* title() const = 0;
     virtual void begin(GameHost& host) = 0;
     virtual void update(GameHost& host, const TouchPoint& touch) = 0;
-    virtual void render(GameHost& host) = 0;
+    /* TWO-PHASE RENDER. Override these two rather than render().
+     *
+     * renderStatic()  runs ONLY when needsFullRender(). Background, chrome,
+     *                 grid lines, fixed labels -- anything that does not change
+     *                 while the screen is up. Ui::clear() belongs here and
+     *                 ONLY here.
+     * renderDynamic() runs on EVERY repaint. It must not clear the screen, and
+     *                 it is responsible for erasing its own previous output --
+     *                 there is no framebuffer, so nothing else will.
+     *
+     * A full 320x240 repaint is ~150KB over SPI and about 30ms of blanking,
+     * against a 20ms frame budget; on the 480x320 board it is twice that, so
+     * three frame budgets to change one tile. The two-level dirty flags have
+     * always said which was needed and were ignored, because a single render()
+     * that opens with Ui::clear() throws the distinction away one line later.
+     * Splitting the method is what makes the model structural instead of
+     * advisory -- there are two functions, so a caller has to choose.
+     *
+     * The default render() below dispatches, so a screen that has not been
+     * converted yet keeps its own render() override and behaves exactly as it
+     * did. Conversion is per screen and both forms coexist. */
+    virtual void renderStatic(GameHost& host) { (void)host; }
+    virtual void renderDynamic(GameHost& host) { (void)host; }
+
+    virtual void render(GameHost& host) {
+        if (needsFullRender()) {
+            renderStatic(host);
+        }
+        renderDynamic(host);
+    }
 
     /* Called exactly once when the screen is left, before the next screen's
      * begin(). Default does nothing, which is correct for the games -- they
@@ -140,7 +169,17 @@ class AppGame : public Game {
 public:
     virtual void begin(AppContext& host) = 0;
     virtual void update(AppContext& host, const TouchPoint& touch) = 0;
-    virtual void render(AppContext& host) = 0;
+    /* The AppContext half of the two-phase render -- see Game. A catalog game
+     * overrides these two; the render() below dispatches. */
+    virtual void renderStatic(AppContext& host) { (void)host; }
+    virtual void renderDynamic(AppContext& host) { (void)host; }
+
+    virtual void render(AppContext& host) {
+        if (needsFullRender()) {
+            renderStatic(host);
+        }
+        renderDynamic(host);
+    }
     virtual void end(AppContext& host) { (void)host; }
 
     void begin(GameHost& host) final {

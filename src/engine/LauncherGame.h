@@ -7,7 +7,10 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    /* Two-phase: the header is static, the tile grid and pager are dynamic.
+     * Paging calls markDirty(), so next/previous repaints the grid alone. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
 
     /* The launcher draws no top bar -- it carries its own header, with the
      * wordmark, the profile name and the status badges -- so the base class's

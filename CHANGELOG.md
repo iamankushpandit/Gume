@@ -16,6 +16,37 @@ issue template asks for the pin map and its source.
 
 ### Added
 
+- **Screens repaint what changed, not the whole panel.** `Game` and `AppGame`
+  gained a two-phase render: `renderStatic()` runs only when the layout changed,
+  `renderDynamic()` runs on every repaint. `Ui::clear()` belongs in the first
+  and only the first. The old `render()` is now a default that dispatches
+  between them, so a screen that has not been converted behaves exactly as it
+  did and conversion happens per screen.
+
+  This was always the intent -- `markDirty()` and `markFullDirty()` have said
+  which was needed since the beginning -- but a single `render()` opening with
+  an unconditional `Ui::clear()` threw the distinction away one line later, on
+  29 of the 40 screens that clear. A full repaint is ~150KB over SPI and about
+  30ms of blanking against a 20ms budget; on the 480x320 board it is twice that,
+  so three frame budgets to change one tile. The bigger panel did not introduce
+  this, it removed the margin that was hiding it.
+
+  **The launcher is converted and is the reference for the pattern.** Paging
+  already called `markDirty()`, so the invalidation was correct and was being
+  discarded. Next/previous now leaves the header alone, and does not redraw the
+  tile chrome either: a tile's rect comes from its slot and its colour from
+  `slot % 3`, so the button is pixel-identical between pages while its contents
+  are not. `Ui::drawButton` pushes two full tile areas plus a bevel and an
+  outline; on a content change the interior is erased with one plain fillRect
+  instead.
+
+  Converting it turned up the two things that do not erase themselves once the
+  screen stops being wiped, which is what the per-screen work has to look for:
+  an empty tile slot on a short last page used to `break` out of the loop and
+  now has to be painted over, and the `"%u/%u"` pager text is drawn with an
+  opaque background that only covers the glyphs it draws, so `10/12` -> `9/12`
+  left the trailing character behind.
+
 - **Sound on the 4-inch E32R40T, from the same synthesiser as the Freenove.**
   GPIO26 is ESP32 DAC channel 2, and the LCDWIKI schematic for this board runs
   it through an RC filter into an onboard 8002-series mono power amp whose
