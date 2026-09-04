@@ -11,10 +11,12 @@
  * stated alongside it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 0
 
-/* No audio codec. Same reasoning as GUME_TOUCH_CAPACITIVE above: the
- * codec path pulls in Wire and driver/i2s.h, and `if constexpr` would
- * link both into a board that has neither. */
+/* No codec; DAC output on GPIO26 (ESP32 DAC2). The I2S peripheral drives it
+ * directly (I2S_DAC_BUILT_IN), which is why `driver/i2s.h` is still needed --
+ * same reasoning as the codec macro above: the DAC path would link the driver
+ * into every board if it were not guarded. GUME_HAS_AUDIO_CODEC stays 0. */
 #define GUME_HAS_AUDIO_CODEC 0
+#define GUME_HAS_AUDIO_DAC   1
 
 /* HOSYOND / LCDWIKI E32R28T-1 (ESP32-32E) -- the 2.8-inch board Braino! ships
  * on. ILI9341 320x240 TFT, XPT2046 resistive touch on its own bit-banged bus,
@@ -93,7 +95,16 @@ inline constexpr BoardProfile BOARD = {
         /* commonAnode */ true,
     },
 
-    /* The pin exists; audio is stubbed. beepOk()/beepError() pulse the LED. */
+    /* GPIO26 is ESP32 DAC channel 2. The I2S peripheral drives it directly
+     * (I2S_DAC_BUILT_IN) at 16 kHz; no codec or amplifier enable is wired.
+     * Volume is pure software gain -- there is no register.
+     *
+     * maxVolume is 75 rather than 100. The DAC feeds a 1-inch driver with no
+     * amplifier behind it, and above roughly 75% the output distorts audibly
+     * without getting meaningfully louder -- the headroom buys nothing. This
+     * was established by ear on a 2.8-inch CYD board; if a louder amplifier
+     * is ever wired behind GPIO26 on a future variant, raise the ceiling in
+     * that board's profile. */
     AudioProfile{
         /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
@@ -104,6 +115,7 @@ inline constexpr BoardProfile BOARD = {
         /* i2sDataIn           */ PIN_NONE,
         /* ampEnablePin        */ PIN_NONE,
         /* ampEnableActiveLow  */ false,
+        /* maxVolume           */ 75,
     },
 
     /* Battery sense on IO34 (ADC1_CH6, input-only). The vendor manual states

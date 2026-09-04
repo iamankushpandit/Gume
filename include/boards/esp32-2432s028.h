@@ -11,9 +11,8 @@
  * stated alongside it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 0
 
-/* No audio codec. Same reasoning as GUME_TOUCH_CAPACITIVE above: the
- * codec path pulls in Wire and driver/i2s.h, and `if constexpr` would
- * link both into a board that has neither. */
+/* No audio at all on this variant. No speaker pin, no codec.
+ * GUME_HAS_AUDIO_DAC is not defined; neither is GUME_HAS_AUDIO_CODEC. */
 #define GUME_HAS_AUDIO_CODEC 0
 
 /* Makerfabs / Sunton ESP32-2432S028Rv3 -- a 2.4-inch CYD variant (Rv3/dual-USB).
@@ -102,6 +101,7 @@ inline constexpr BoardProfile BOARD = {
         /* i2sDataIn           */ PIN_NONE,
         /* ampEnablePin        */ PIN_NONE,
         /* ampEnableActiveLow  */ false,
+        /* maxVolume           */ 0,
     },
 
     /* Battery sense on IO35 (ADC1_CH7, input-only). The divider ratio is
