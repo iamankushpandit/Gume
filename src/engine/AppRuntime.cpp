@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include <esp_system.h>
+#include <math.h>
 #include "engine/NearbyPlay.h"
 #include "AppVersion.h"
 #include "BuildStamp.h"
@@ -13,6 +14,9 @@
 
 
 Ui::Renderer& BrainoApp::display() {
+    if (activeAppIsPlayable()) {
+        return scaledRenderer_;
+    }
     return renderer_;
 }
 
@@ -89,6 +93,12 @@ void BrainoApp::drawTopBar(const char* title) {
 
 void BrainoApp::begin() {
     board_.begin();
+    /* Games always render landscape, so the panel's landscape extent is the
+     * physical size their fixed canvas has to fill. SCREEN_WIDTH/HEIGHT are
+     * exactly that -- BoardConfig.h derives them from the profile's panel size
+     * and landscape rotation -- so on a board that is already canvas-sized
+     * this configures a scale of 1.0 and the wrapper becomes a passthrough. */
+    scaledRenderer_.configure(SCREEN_WIDTH, SCREEN_HEIGHT);
     Watchdog::begin();
     if (!board_.hasTouchCalibration()) {
         board_.runTouchCalibration();
@@ -274,7 +284,13 @@ void BrainoApp::loop() {
             renderScreenSaver();
         }
     } else if (activeGame_ != nullptr) {
-        const Rect settingsButton = LauncherLayout::topBarSettingsRect(display().width());
+        /* The top bar -- home, gear, lock, clock, badges -- is drawn through
+         * the raw renderer, because it is shared chrome sized against the real
+         * panel rather than part of any game's canvas. Its hit rects and the
+         * touch coordinates tested against them must therefore stay in that
+         * same physical space, not display()'s, which is scaled while a
+         * playable game is active. */
+        const Rect settingsButton = LauncherLayout::topBarSettingsRect(renderer_.width());
         const Rect homeButton = LauncherLayout::topBarHomeRect();
         const Rect lockButton = activeLockRect();
         /* BOOT is Home. It is consumed here, above the active screen's
@@ -307,6 +323,18 @@ void BrainoApp::loop() {
         } else if (touch.justPressed &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
+        } else if (activeAppIsPlayable()) {
+            /* Below the chrome, a playable game hit-tests against its own
+             * fixed canvas, so the physical press has to be mapped back into
+             * that space or every target lands where the content used to be
+             * rather than where it is drawn. The inverse of ScaledRenderer's
+             * transform, and a no-op when the panel is canvas-sized. */
+            TouchPoint gameTouch = touch;
+            gameTouch.x = static_cast<int16_t>(lroundf(
+                touch.x * static_cast<float>(GAME_CANVAS_WIDTH) / SCREEN_WIDTH));
+            gameTouch.y = static_cast<int16_t>(lroundf(
+                touch.y * static_cast<float>(GAME_CANVAS_HEIGHT) / SCREEN_HEIGHT));
+            activeGame_->update(*this, gameTouch);
         } else {
             activeGame_->update(*this, touch);
         }

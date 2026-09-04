@@ -63,10 +63,17 @@ public:
     void setTextColor(uint16_t fg, uint16_t bg, bool bgFill = false) override {
         tft_.setTextColor(fg, bg, bgFill);
     }
+    void setTextSize(uint8_t size) override { tft_.setTextSize(size); }
+    /* Unconditionally 1x here, not "leave whatever was set before" -- this
+     * driver instance is shared with ScaledRenderer, which sets a bigger size
+     * for playable games. Without resetting it here, system-app text would
+     * inherit whatever a game left behind. */
     int16_t drawString(const char* text, int32_t x, int32_t y, uint8_t font = 2) override {
+        tft_.setTextSize(1);
         return static_cast<int16_t>(tft_.drawString(text, x, y, font));
     }
     int16_t textWidth(const char* text, uint8_t font = 2) override {
+        tft_.setTextSize(1);
         return static_cast<int16_t>(tft_.textWidth(text, font));
     }
 

@@ -7,6 +7,7 @@
 #include "engine/LauncherGame.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
+#include "ui/ScaledRenderer.h"
 #include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
@@ -137,12 +138,43 @@ private:
     static constexpr uint32_t BATTERY_REPEAT_MS = 120000;
 
     Board board_;
+    /* Playable games are drawn through scaledRenderer_; system screens draw
+     * through renderer_ directly. See display().
+     *
+     * The split exists because the two kinds of screen solve the size problem
+     * differently. System apps already lay themselves out against the live
+     * tft.width()/height(), so a bigger panel simply gives them more room.
+     * Playable games are authored against the fixed GAME_CANVAS and position
+     * everything by arithmetic on it -- there is no responsive layout to fall
+     * back on, so the canvas is stretched to fill the panel instead.
+     *
+     * textScale=2 is a legibility decision, not a scaling one. Glyph scale in
+     * TFT_eSPI is whole-number only, so on a 480x320 panel the layout grows
+     * ~1.4x while text at scale 2 grows exactly 2x -- text deliberately gains
+     * on its boxes rather than merely keeping up. That is the point: this
+     * board exists to serve players who need a bigger, plainer screen, and
+     * text that only kept pace with the layout would be no easier to read than
+     * on the 2.8in board. The cost is less slack inside tight boxes, which is
+     * a thing to check on the panel rather than reason about. */
     Ui::TftRenderer renderer_{board_.display()};
+    Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/2};
     ContentLoader content_;
     GameInstances games_;
     LauncherGame launcher_;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
+    /* True only while a playable game is the thing on screen.
+     *
+     * view_ == View::Game is load-bearing, not redundant. activeApp_ keeps
+     * pointing at the last-launched game while the saver, sleep or the lock
+     * screen is up -- none of those goes through launch(), so nothing clears
+     * it -- and all three lay themselves out against the real panel like any
+     * other system view. Without the view check they would inherit the scale
+     * of whichever game happened to be open beforehand. */
+    bool activeAppIsPlayable() const {
+        return view_ == View::Game && activeApp_ != nullptr && activeApp_->isCatalogApp();
+    }
+
     View view_ = View::Game;
     uint32_t heapAtLaunch_ = 0;
 
