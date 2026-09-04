@@ -1,5 +1,7 @@
 #include "ui/LauncherLayout.h"
 
+#include "BoardConfig.h"
+
 namespace {
 
 constexpr int16_t LAUNCHER_HEADER_H_TALL = 78;
@@ -17,14 +19,34 @@ Rect topBarHomeRect() {
     return Rect{0, 0, 32, TOP_BAR_HEIGHT};
 }
 
-Rect topBarLockRect() {
-    /* Starts at 40 so that home's 8px of touch slop -- which reaches exactly
-     * 40 -- stops where the padlock starts drawing. The two targets overlap in
-     * slop only, never in pixels either of them paints. Sized like a status
-     * badge rather than like the gear: it belongs to the same family as the
-     * battery and Wi-Fi glyphs, and a gear-sized padlock read as a control
-     * twice as important as anything else on the bar. */
-    return Rect{40, 6, 18, 18};
+Rect topBarLockRect(int16_t screenW) {
+    /* Sized like a status badge rather than like the gear: it belongs to the
+     * same family as the battery and Wi-Fi glyphs, and a gear-sized padlock
+     * read as a control twice as important as anything else on the bar.
+     *
+     * At 320px it starts at 40, where home's 8px of touch slop ends, so the
+     * two overlap in slop only and never in painted pixels. That was as far
+     * apart as they could be on a bar with no spare room -- and it is too
+     * close: Home and Lock do opposite things, and reaching for Home is the
+     * commonest thing anyone does up here. Landing on the padlock instead
+     * blanks the screen and demands a hold to get back, which is a harsh
+     * price for a few pixels of aim.
+     *
+     * A wider panel has room the 320px bar never did, so spend some of it on
+     * separating them. The offset is a quarter of the extra width, capped, so
+     * 320px is unchanged and 480px opens a clear gap between Home's slop and
+     * the padlock's. */
+    const int16_t extra = static_cast<int16_t>((screenW - GAME_CANVAS_WIDTH) / 4);
+    const int16_t offset = extra < 0 ? 0 : (extra > 30 ? 30 : extra);
+    return Rect{static_cast<int16_t>(40 + offset), 6, 18, 18};
+}
+
+/* Derived from the padlock rather than stated, so the title cannot creep back
+ * over it when the lock moves. At 320px this is 40 + 18 + 4 = 62, which is
+ * exactly where the title has always started. */
+int16_t topBarTitleLeft(int16_t screenW) {
+    const Rect lock = topBarLockRect(screenW);
+    return static_cast<int16_t>(lock.x + lock.w + 4);
 }
 
 /* Both layouts put the padlock in the status cluster, at badge size, centred

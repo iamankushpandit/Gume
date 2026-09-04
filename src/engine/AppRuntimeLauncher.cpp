@@ -250,6 +250,45 @@ void LauncherGame::render(GameHost& host) {
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t start = page_ * pageSize;
     const uint8_t total = host.launcherEntryCount();
+
+    /* One text size for the whole page, chosen so every label on it fits.
+     *
+     * Deciding per tile produced a grid of mixed sizes -- "Memory" large
+     * beside "Tic-Tac-Toe" small -- which reads as a fault rather than as
+     * fitting, because a grid implies its cells are alike. Worse, the test
+     * only measured the title, so "Math" qualified for 2x and its subtitle
+     * "addition & subtraction" was then quietly truncated to "addition &".
+     *
+     * So: measure BOTH strings of EVERY tile on the page, and take the larger
+     * size only if all of them fit. One tile with a long name holds the page
+     * to 1x, which is the right trade -- uniform and complete beats large and
+     * clipped. */
+    const Rect probe = LauncherLayout::tileRect(0, mode, lW, lH);
+    const float probeS = [&]() {
+        const float px = static_cast<float>(probe.w) / (tall ? 108.0f : 145.0f);
+        const float py = static_cast<float>(probe.h) / (tall ? 96.0f : 46.0f);
+        return px < py ? px : py;
+    }();
+    const int16_t titleRoom =
+        static_cast<int16_t>(tall ? probe.w - 8 : probe.w * 0.66f - 8);
+
+    uint8_t pageTextScale = probeS >= 1.45f ? 2 : 1;
+    if (pageTextScale > 1) {
+        tft.setTextSize(2);
+        for (uint8_t slot = 0; slot < pageSize && pageTextScale > 1; ++slot) {
+            const uint8_t index = start + slot;
+            if (index >= total) {
+                break;
+            }
+            const AppDefinition& e = host.launcherEntry(index);
+            if (tft.textWidth(e.title(), 2) > titleRoom ||
+                tft.textWidth(e.subtitle(), 1) > titleRoom) {
+                pageTextScale = 1;
+            }
+        }
+        tft.setTextSize(1);
+    }
+
     for (uint8_t slot = 0; slot < pageSize; ++slot) {
         const uint8_t index = start + slot;
         if (index >= total) {
@@ -280,25 +319,7 @@ void LauncherGame::render(GameHost& host) {
         const float sy = static_cast<float>(r.h) / (tall ? 96.0f : 46.0f);
         const float s = sx < sy ? sx : sy;
 
-        /* Ask for the larger font, then check it actually fits -- and take the
-         * smaller one when it does not.
-         *
-         * Deciding on the tile's growth alone was wrong in the wide layout.
-         * A tall tile gives the label the full tile width, but a wide one
-         * spends a third of it on the icon, so the same 2x that reads well
-         * in portrait truncates "Multiplication" to a few characters in
-         * landscape. The tile being bigger says the font may be bigger; only
-         * measuring the actual string says whether it is. Long names fall back
-         * on their own, per tile, with no list of exceptions to maintain. */
-        const int16_t titleRoom = static_cast<int16_t>(tall ? r.w - 8 : r.w * 0.66f - 8);
-        uint8_t textScale = s >= 1.45f ? 2 : 1;
-        if (textScale > 1) {
-            tft.setTextSize(2);
-            if (tft.textWidth(entry.title(), 2) > titleRoom) {
-                textScale = 1;
-            }
-            tft.setTextSize(1);
-        }
+        const uint8_t textScale = pageTextScale;
 
         /* Icons scale by WHOLE numbers only, or not at all.
          *

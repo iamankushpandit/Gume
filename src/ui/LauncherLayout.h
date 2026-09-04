@@ -13,7 +13,9 @@ Rect topBarSettingsRect(int16_t screenW);
  * the lock takes comes out of the title. Drawing and hit testing both read
  * these, so the glyph and its target cannot drift apart. */
 Rect topBarHomeRect();
-Rect topBarLockRect();
+Rect topBarLockRect(int16_t screenW);
+/** Where the top bar's title may start: clear of Home and the padlock. */
+int16_t topBarTitleLeft(int16_t screenW);
 
 /* Where the launcher draws its own Lock button. The launcher has no top bar,
  * so it needs its own slot: the air between the title and the profile name in

@@ -226,7 +226,7 @@ void drawTopBar(Board& board, const String& title) {
     /* Lock beside Home: one tap blanks the panel and the next wake asks for a
      * hold. The 18px it occupies come out of the title, which is why the
      * title's start and its budget below both moved. */
-    drawLockIcon(tft, LauncherLayout::topBarLockRect(), COLOR_BAR_TEXT, COLOR_BAR);
+    drawLockIcon(tft, LauncherLayout::topBarLockRect(w), COLOR_BAR_TEXT, COLOR_BAR);
     // The top bar stays dark in both themes, so this gear is always white.
     drawGearIcon(tft, Rect{static_cast<int16_t>(w - 34), 3, 26, 24}, COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
@@ -247,11 +247,13 @@ void drawTopBar(Board& board, const String& title) {
     String fitted = title;
     const int16_t statusLeft =
         static_cast<int16_t>(clockRight - tft.textWidth(Clock::timeText(), 2));
-    const int16_t titleMax = static_cast<int16_t>(max<int16_t>(32, statusLeft - 66));
+    const int16_t titleLeft = LauncherLayout::topBarTitleLeft(w);
+    const int16_t titleMax =
+        static_cast<int16_t>(max<int16_t>(32, statusLeft - titleLeft - 4));
     while (fitted.length() > 2 && tft.textWidth(fitted, 2) > titleMax) {
         fitted.remove(fitted.length() - 1);
     }
-    tft.drawString(fitted, 62, TOP_BAR_HEIGHT / 2, 2);
+    tft.drawString(fitted, titleLeft, TOP_BAR_HEIGHT / 2, 2);
     tft.setTextDatum(MR_DATUM);
     /* Right side: clock and its sync badge kept together (the badge describes
      * the clock), then the wifi badge, then the gear. */
