@@ -240,11 +240,7 @@ footer {
     Every build here is also a plain set of <code>.bin</code> files. With
     <a href="https://github.com/espressif/esptool">esptool</a> installed:
   </p>
-  <pre><code>esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash \
-  0x1000  bootloader.bin \
-  0x8000  partitions.bin \
-  0xe000  boot_app0.bin \
-  0x10000 firmware.bin</code></pre>
+  <pre><code id="esptool-cmd"></code></pre>
   <p class="note" id="download-links"></p>
 </section>
 
@@ -401,6 +397,7 @@ footer {
   var variantSel = document.getElementById('variant');
   var note      = document.getElementById('variant-note');
   var links     = document.getElementById('download-links');
+  var cmd       = document.getElementById('esptool-cmd');
   var installer = document.getElementById('installer');
 
   /* The firmware list belongs to the board, and only ever offers builds that
@@ -459,6 +456,28 @@ footer {
     links.innerHTML = 'Files for this build: ' + build.parts.map(function (part) {
       return '<a href="' + build.dir + '/' + part + '" download>' + part + '</a>';
     }).join(' &middot; ');
+
+    /* The terminal instructions are generated for the selected build too.
+     *
+     * They used to be one fixed block: --chip esp32 and four bare filenames.
+     * That chip is wrong for the Freenove board, which is an esp32s3 and will
+     * refuse the command outright, and the bare names do not match what the
+     * links above download -- those live under firmware/<board>/<env>/. So the
+     * reader who cannot use Web Serial, which is the only reader this section
+     * exists for, was handed a command that either failed or flashed nothing
+     * they had. */
+    if (cmd) {
+      var offsets = { 'bootloader.bin': '0x1000', 'partitions.bin': '0x8000',
+                      'boot_app0.bin': '0xe000', 'firmware.bin': '0x10000' };
+      var lines = build.parts.filter(function (part) {
+        return offsets[part];
+      }).map(function (part) {
+        return '  ' + offsets[part] + ' ' + build.dir + '/' + part;
+      });
+      cmd.textContent = 'esptool.py --chip ' + build.chip
+        + ' --port /dev/ttyUSB0 --baud 460800 write_flash \\\n'
+        + lines.join(' \\\n');
+    }
   }
 
   boardSel.addEventListener('change', function () { populateVariants(); apply(); });
