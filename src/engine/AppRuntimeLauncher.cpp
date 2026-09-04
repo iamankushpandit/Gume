@@ -133,20 +133,23 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void LauncherGame::render(GameHost& host) {
-    clampPage(host);
-
+/* Everything above the tile grid. Extracted from render() so that a change
+ * confined to the header -- the clock ticking over, the battery badge, a
+ * notification arriving -- repaints the header alone instead of wiping the
+ * panel and redrawing every tile with it. See Game::renderChrome().
+ *
+ * It paints its own background and takes nothing from the caller, so it is
+ * correct over a live screen as well as over a freshly cleared one. */
+void LauncherGame::drawHeader(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t lW = static_cast<int16_t>(tft.width());
-    const int16_t lH = static_cast<int16_t>(tft.height());
     const Board::LayoutMode mode = board.layoutMode();
     const bool tall = (mode == Board::LayoutMode::Vertical);
     const int16_t headerH = LauncherLayout::headerHeight(mode);
     const Rect gearBtn = LauncherLayout::gearRect(mode, lW);
     const Rect profileBtn = LauncherLayout::profileRect(mode, lW);
 
-    Ui::clear(tft);
     tft.fillRect(0, 0, lW, headerH, Ui::surface());
     tft.setTextColor(Ui::text(), Ui::surface());
     tft.setTextDatum(ML_DATUM);
@@ -246,6 +249,25 @@ void LauncherGame::render(GameHost& host) {
      * why nothing here hit-tests it. */
     Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(),
                      Ui::surface());
+}
+
+bool LauncherGame::renderChrome(GameHost& host) {
+    drawHeader(host);
+    return true;
+}
+
+void LauncherGame::render(GameHost& host) {
+    clampPage(host);
+
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const int16_t lW = static_cast<int16_t>(tft.width());
+    const int16_t lH = static_cast<int16_t>(tft.height());
+    const Board::LayoutMode mode = board.layoutMode();
+    const bool tall = (mode == Board::LayoutMode::Vertical);
+
+    Ui::clear(tft);
+    drawHeader(host);
 
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t start = page_ * pageSize;

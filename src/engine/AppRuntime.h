@@ -124,6 +124,11 @@ private:
      * the console is about to switch off. */
     void drawHeaderBanner(bool screenRepainted);
 
+    /* Ask for a header-only repaint. Cheap enough to call on every tick that
+     * changes a badge; the flag collapses several in one frame into one
+     * strip repaint, and a screen already due a full render absorbs it. */
+    void requestChromeRender();
+
     /* Raise, escalate and retire the "charge me" strip. Cheap enough to call
      * every frame -- it reads the cached battery sample and returns early
      * until BATTERY_CHECK_MS has passed. */
@@ -227,6 +232,12 @@ private:
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;
+
+    /* Something in the header changed -- the clock, the battery badge, a
+     * notification -- but nothing the screen itself draws. Answered by
+     * Game::renderChrome(), which repaints the 30px strip instead of the
+     * 240px panel. See requestChromeRender(). */
+    bool chromeNeedsPaint_ = false;
 
     /* The battery warning currently on screen, or nullptr. Points at a string
      * literal, so there is no buffer here to keep in step. */

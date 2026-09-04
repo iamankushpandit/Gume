@@ -1,9 +1,9 @@
 # Changelog
 
-## 5.3.0-SNAPSHOT — Unreleased
+## 5.5.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.2.0
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.4.0
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
@@ -199,6 +199,40 @@ issue template asks for the pin map and its source.
   no upper bound on length.
 
 ### Fixed
+
+- **Turning the BLE beacon on made the screen flash every couple of seconds.**
+  Three things change the header on their own schedule rather than the screen's
+  -- the clock, the battery badge and the notification banner -- and each was
+  answered with a full repaint: ~150 KB over SPI and about 30 ms of visible
+  blanking, to change something in the top 30 pixels of a 240-pixel panel.
+
+  The battery is what made it constant. One percent is roughly 2 mV on the
+  mid-discharge plateau, and with the divider halving the cell before the ADC
+  sees it, a single ADC count is worth most of a percentage point -- so the
+  mapped percentage crossed a boundary far more often than the pack actually
+  discharged. Switching the beacon on widened the supply ripple enough to make
+  that continuous, which is why it looked like a BLE fault rather than a gauge
+  one.
+
+  Both halves are fixed. `Game::renderChrome()` repaints the header strip
+  alone, an eighth of the panel and comfortably inside the 20 ms frame budget
+  where a full repaint is 150% of it; screens carrying their own header
+  override it, and one that cannot repaint its chrome in isolation asks for the
+  old behaviour. And the displayed percentage now carries a two-point deadband,
+  so the number itself stops twitching. Both endpoints are exempt -- "100%" on
+  the charger and "0%" about to die are the readings people act on. A side
+  effect worth having: the low-battery banner can no longer flap on and off
+  while the reading sits on its threshold.
+
+- **The battery gauge was sampled from the render path.** Eight ADC reads and
+  both filters ran inside whichever frame found the 2 s cache expired, and that
+  frame was almost always a top bar being drawn -- so the filters advanced on
+  the UI's cadence rather than on a clock. Sampling now runs on its own
+  priority-1 task pinned to core 0, the same shape as the watchdog monitor, and
+  every accessor does nothing but copy the published snapshot. Readers take the
+  voltage, the charge verdict and the percentage from one sample rather than
+  three, so a "battery low" can no longer be reported about a pack the same
+  sample knows is charging.
 
 - **Opening the Wi-Fi screen with the BLE beacon on rebooted the device.**
   `WifiGame::runScan()` disabled Wi-Fi modem sleep before scanning, because a
