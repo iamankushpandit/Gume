@@ -1,12 +1,5 @@
 #include "Board.h"
 
-/* GUME_HAS_AUDIO_DAC is defined in board headers that wire a speaker to a GPIO
- * that is also an ESP32 built-in DAC output. Board headers that do not define
- * it get 0 here so the #if blocks below are always valid. */
-#ifndef GUME_HAS_AUDIO_DAC
-#define GUME_HAS_AUDIO_DAC 0
-#endif
-
 #if GUME_HAS_AUDIO_CODEC
 #include <Wire.h>
 #endif
@@ -305,6 +298,21 @@ bool nextSample(int16_t& out) {
     return true;
 }
 
+/* When generation finished, so the amplifier can outlive it by the depth of
+ * the DMA. Zero means "still producing". */
+uint32_t ampIdleSinceMs = 0;
+
+/* Generation runs AHEAD of playback, and that is the whole point of the DMA:
+ * tickAudio() fills it as fast as it will take samples, so `playing` goes
+ * false when the last sample has been GENERATED, not when it has been HEARD.
+ * At 6 x 256 frames and 16kHz there is up to 96ms still queued at that moment.
+ *
+ * Dropping the amplifier there cuts the tail off every cue, and on the short
+ * ones -- which is most of the vocabulary -- it cuts off the whole thing: the
+ * sound is sitting in the DMA when the amp stops being able to reproduce it.
+ * So the amp is held for the DMA depth plus margin after generation ends. */
+constexpr uint32_t AMP_TAIL_MS = 150;
+
 void setAmp(bool on) {
     if (BOARD.audio.ampEnablePin == PIN_NONE || ampOn == on) return;
     ampOn = on;
@@ -399,6 +407,7 @@ void arm(const Segment* segments, uint8_t count) {
     pendingAt = 0;
     playing = true;
     startSegment();
+    ampIdleSinceMs = 0;   // producing again: the tail timer restarts from here
     setAmp(true);
 }
 
@@ -718,6 +727,17 @@ void Board::beginAudio() {
                   soundEnabled() ? "" : " (muted)");
 
 #elif GUME_HAS_AUDIO_DAC
+    /* The amplifier first, and the same way the codec board does it: brought
+     * up OFF, switched on only while something is playing. On this board that
+     * is not a power optimisation so much as the difference between working
+     * and silent -- see e32r40t.h, where IO4 was inherited as an LED channel
+     * and was therefore being driven to its shutdown level on every boot. */
+    if (BOARD.audio.ampEnablePin != PIN_NONE) {
+        pinMode(BOARD.audio.ampEnablePin, OUTPUT);
+        ampOn = true;
+        setAmp(false);
+    }
+
     /* CYD-family boards drive the speaker straight from an ESP32 built-in DAC.
      * There is no external codec and no amplifier enable; the I2S peripheral
      * drives the DAC via I2S_DAC_BUILT_IN mode with no pin configuration of
@@ -757,7 +777,19 @@ void Board::beginAudio() {
     cfg.sample_rate = AUDIO_RATE;
     cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
     cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
-    cfg.communication_format = I2S_COMM_FORMAT_STAND_PCM_SHORT;
+    /* MSB, not PCM_SHORT -- and this was the last thing standing between a
+     * correctly configured DAC and complete silence.
+     *
+     * In I2S_MODE_DAC_BUILT_IN the I2S framer is what latches each sample into
+     * the DAC. PCM short-frame sync does not present the word the way the DAC
+     * expects, so the driver installs, i2s_write() reports every byte
+     * accepted, the logs look perfect and nothing is audible. Confirmed on
+     * hardware with env:audiodiag: the same tone was silent under PCM_SHORT
+     * and audible under MSB, with nothing else changed.
+     *
+     * The codec path above uses STAND_I2S, which is right for the ES8311 and
+     * is a different question -- do not unify them. */
+    cfg.communication_format = I2S_COMM_FORMAT_STAND_MSB;
     cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
     cfg.dma_buf_count = 6;
     cfg.dma_buf_len = 256;
@@ -808,9 +840,13 @@ void Board::tickAudio() {
     if (!codecUp) return;
 
     if (!playing && pendingAt >= pendingLength) {
-        /* Nothing armed and nothing held back. Drop the amplifier so an idle
-         * console is not powering it. */
-        setAmp(false);
+        /* Nothing armed and nothing held back -- but the DMA may still be
+         * playing what was generated. See AMP_TAIL_MS. */
+        if (ampIdleSinceMs == 0) {
+            ampIdleSinceMs = millis();
+        } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
+            setAmp(false);
+        }
         return;
     }
 
@@ -851,8 +887,15 @@ void Board::tickAudio() {
     if (!dacUp) return;
 
     if (!playing && pendingAt >= pendingLength) {
-        /* Nothing to do this frame. The DAC holds the last mid-scale value
-         * written by beginAudio(), which is correct idle behaviour. */
+        /* Nothing armed and nothing held back -- but the DMA may still be
+         * playing what was generated, so the amplifier is held for the tail.
+         * See AMP_TAIL_MS. Once it does drop, the DAC keeps the mid-scale
+         * value written by beginAudio(), which is the right idle level. */
+        if (ampIdleSinceMs == 0) {
+            ampIdleSinceMs = millis();
+        } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
+            setAmp(false);
+        }
         return;
     }
 

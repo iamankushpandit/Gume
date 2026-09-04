@@ -218,6 +218,49 @@ Three fixes proven on hardware and now in both `BoardPower.cpp` and `battery_dia
 
 `isBatteryLow()` / `isBatteryCritical()` (≤15% / ≤5%) are both false while charging, so plugging in silences the warning at once instead of waiting for the reading to climb.
 
+### The built-in DAC backend, and four ways it produces perfect silence
+
+`GUME_HAS_AUDIO_DAC` boards have no codec: GPIO26 is ESP32 DAC channel 2, the
+I2S peripheral drives it via `I2S_DAC_BUILT_IN`, and an onboard 8002-series amp
+does the rest. The synthesiser above is untouched by this -- `nextSample()`
+produces mono int16 and knows nothing about which backend consumes it.
+
+Four separate faults were found bringing this up on the E32R40T, and **each one
+alone gives complete silence from a driver that reports success**. That is what
+makes this path expensive to debug and worth writing down.
+
+1. **`communication_format` must be `I2S_COMM_FORMAT_STAND_MSB`.** The framer
+   is what latches samples into the DAC, and PCM short-frame sync does not
+   present the word the way the DAC expects. Under `..._PCM_SHORT` the driver
+   installs, every `i2s_write()` reports all bytes accepted, and nothing is
+   audible. The codec path uses `STAND_I2S`, which is right for the ES8311 --
+   the two are different questions, do not unify them.
+2. **The channel enum names are inverted relative to the channel numbers.**
+   `I2S_DAC_CHANNEL_RIGHT_EN` is DAC1/GPIO25; `..._LEFT_EN` is DAC2/GPIO26.
+   `beginAudio()` derives the constant from `BOARD.audio.speakerPin` with a
+   `static_assert`, so this cannot be got wrong by memory again.
+3. **Do not call `i2s_set_pin(port, NULL)`.** It is the routing call most
+   examples use, and it enables *both* DAC channels -- GPIO25 as well. On this
+   board family GPIO25 is the resistive touch SPI clock, so it trades silence
+   for broken touch. `i2s_set_dac_mode()` alone is correct for one channel, and
+   the IDF header says so.
+4. **The amplifier outlives generation.** `playing` goes false when the last
+   sample is GENERATED, and the DMA still holds up to 96ms of it. Dropping the
+   amp there eats the tail, and on the short cues that is the whole cue.
+   `AMP_TAIL_MS` (150ms) holds it, reset by `arm()`. Both backends do this.
+
+Two consequences of an 8-bit DAC, neither a defect: samples are written as
+unsigned offset-binary (`sample + 32768`, only the high byte reaches the DAC),
+and **the spoken boot phrase does not survive the quantisation** -- the formant
+voice lives in quiet resonator ringing that 8 bits scaled by a volume setting
+throws away. Cues are fine. The codec board is 16-bit and genuinely sounds
+different; that gap cannot be tuned away.
+
+`env:audiodiag` is the probe. It gives an unambiguous A/B on one reset with no
+panel and no button: a PWM burst (no DAC at all) proves speaker, amp and enable
+line; an I2S tone proves the DAC path; a direct `dacWrite()` tone separates the
+I2S framing from the DAC peripheral.
+
 ## BleBeacon.{h,cpp}
 
 Opt-in, non-connectable BLE presence beacon in namespace `BleBeacon`. Off by default; `Board::bleBeaconEnabled()` / `setBleBeaconEnabled()` hold the switch in the application NVS namespace, so a factory reset clears it. `Board::begin()` calls `BleBeacon::begin()` which always builds the advertisement and only powers the radio when opted in.

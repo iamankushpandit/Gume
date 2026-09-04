@@ -18,6 +18,18 @@
 
 #include GUME_BOARD_HEADER
 
+/* Audio backend defaults, so every translation unit can test these without
+ * knowing which board it is compiling for. A board header states the backend
+ * it has; a board with no speaker path states neither and gets zero for both.
+ * Kept here rather than in BoardAudio.cpp because Board.cpp tests them too --
+ * the DAC owns its pad and must not have it configured as a plain GPIO first. */
+#ifndef GUME_HAS_AUDIO_CODEC
+#define GUME_HAS_AUDIO_CODEC 0
+#endif
+#ifndef GUME_HAS_AUDIO_DAC
+#define GUME_HAS_AUDIO_DAC 0
+#endif
+
 /* The canvas the playable games are drawn on. This is a property of the
  * *games*, not of any board -- they were authored against it and position
  * things by arithmetic on it. It is the floor a panel has to clear to be

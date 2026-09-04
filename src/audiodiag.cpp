@@ -75,6 +75,14 @@ static constexpr uint32_t SAMPLE_RATE = 16000;
 static constexpr i2s_port_t DAC_I2S_PORT = I2S_NUM_0;
 static constexpr int BOOT_PIN = 0;
 
+/* From the LCDWIKI pin table for this board family: IO26 is the DAC audio
+ * output, IO4 is the amplifier enable and is ACTIVE LOW. A probe states its
+ * own pins rather than reading a board profile -- it exists to check whether
+ * the profile is right, so taking them from it would prove nothing. */
+static constexpr int SPEAKER_PIN = 26;
+static constexpr int AMP_EN_PIN  = 4;
+static constexpr uint8_t PWM_TEST_CH = 7;
+
 /* The DAC channel that reaches GPIO26 on the classic ESP32.
  *
  * THE ENUM NAMES ARE INVERTED RELATIVE TO THE CHANNEL NUMBERS. Straight from
@@ -129,7 +137,11 @@ static bool dacBegin() {
     cfg.sample_rate = SAMPLE_RATE;
     cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
     cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
-    cfg.communication_format = I2S_COMM_FORMAT_STAND_PCM_SHORT;
+    /* MSB, not PCM_SHORT. In I2S_MODE_DAC_BUILT_IN the samples are latched
+     * into the DAC by the I2S framer, and PCM short-sync framing does not
+     * present them the way the DAC expects -- the peripheral runs, the writes
+     * succeed, and nothing audible comes out. */
+    cfg.communication_format = I2S_COMM_FORMAT_STAND_MSB;
     cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
     cfg.dma_buf_count = 6;
     cfg.dma_buf_len = 256;
@@ -369,6 +381,54 @@ void setup() {
     /* BOOT button. */
     pinMode(BOOT_PIN, INPUT_PULLUP);
 
+    /* AMPLIFIER ENABLE, AND THEN A TEST THAT DOES NOT USE THE DAC AT ALL.
+     *
+     * The LCDWIKI schematic and pin table for this board both say IO4 is
+     * `AUDIO_EN`, the active-low shutdown of the onboard 8002-series amp, and
+     * IO26 is the DAC output feeding it. MarioCruz/ESP32-EnvMonitor-v2 runs
+     * the same board and does the same thing, with one detail neither document
+     * states: it waits 20ms after enabling before making a sound. That settle
+     * is copied here rather than guessed at.
+     *
+     * The PWM burst below is the whole point of this block. It drives IO26
+     * with LEDC -- no I2S, no DAC, no sample pipeline -- which is what the
+     * vendor's own 17_Buzzer demo does. So it separates the two questions that
+     * silence cannot distinguish on its own:
+     *
+     *   heard  -> the speaker, the amp and the enable line are all fine, and
+     *             the fault is in how we drive the DAC.
+     *   silent -> the fault is before the DAC: no speaker plugged into JP1,
+     *             the amp not enabled, or the wrong pins entirely.
+     *
+     * It runs before the I2S driver is installed, because LEDC and
+     * I2S_DAC_BUILT_IN both want the same pad and the last one to claim it
+     * wins. */
+    pinMode(AMP_EN_PIN, OUTPUT);
+    digitalWrite(AMP_EN_PIN, HIGH);          /* active low: start disabled */
+    Serial.print("[audiodiag] amp enable (active low) on GPIO");
+    Serial.println(AMP_EN_PIN);
+
+    digitalWrite(AMP_EN_PIN, LOW);           /* enable */
+    delay(20);                               /* settle -- from the reference */
+    Serial.println("[audiodiag] PWM burst on the speaker pin: 440/880/1320 Hz");
+    ledcSetup(PWM_TEST_CH, 440, 10);
+    ledcAttachPin(SPEAKER_PIN, PWM_TEST_CH);
+    const uint16_t tones[3] = {440, 880, 1320};
+    for (uint8_t i = 0; i < 3; ++i) {
+        ledcWriteTone(PWM_TEST_CH, tones[i]);
+        ledcWrite(PWM_TEST_CH, 512);         /* 50% of 10-bit */
+        delay(400);
+    }
+    ledcWrite(PWM_TEST_CH, 0);
+    ledcDetachPin(SPEAKER_PIN);
+    /* The amplifier STAYS ENABLED from here on. Every page below drives the
+     * DAC, and a probe that silently switched the amp off between the PWM
+     * burst and the DAC tests would make a working DAC path look broken --
+     * which is the exact confusion this firmware exists to remove. */
+    digitalWrite(AMP_EN_PIN, LOW);
+    delay(20);
+    Serial.println("[audiodiag] PWM burst done -- heard it or not, say which");
+
     /* TFT. */
     tft.init();
     tft.setRotation(1);   /* landscape: USB edge at bottom on CYD 2.8" */
@@ -389,6 +449,59 @@ void setup() {
     tft.drawString("DAC ok -- press BOOT to start", 4, 40);
     Serial.printf("[audiodiag] board: %s\n", BOARD_NAME);
     Serial.printf("[audiodiag] GUME_HAS_AUDIO_DAC = %d\n", GUME_HAS_AUDIO_DAC);
+    /* A DAC tone, immediately, with no button and no screen.
+     *
+     * The panel is wrong on some boards this probe gets flashed to -- it is a
+     * boardless env, so its TFT config is one board's and the hardware may be
+     * another's -- and a blank screen must not stop the one measurement that
+     * matters. Reset therefore gives an unambiguous A/B by ear:
+     *
+     *   three short PWM tones  -- speaker, amp and enable line are good
+     *   one long steady tone   -- the I2S -> built-in DAC path is good too
+     *
+     * Hearing the first and not the second isolates the fault to how the DAC
+     * is driven, which is the only question left once the PWM burst sounds. */
+    Serial.println("[audiodiag] DAC tone: 1 kHz for 2 s -- long steady tone");
+    {
+        static int16_t tone[512];
+        for (int i = 0; i < 512; ++i) {
+            tone[i] = static_cast<int16_t>(
+                24000.0f * sinf(2.0f * PI * 1000.0f * i / SAMPLE_RATE));
+        }
+        const int blocks = (SAMPLE_RATE * 2) / 512;
+        for (int b = 0; b < blocks; ++b) dacWrite(tone, 512, 80);
+    }
+    Serial.println("[audiodiag] DAC tone done -- did you hear a LONG tone?");
+
+    /* Third test: the DAC pad driven DIRECTLY, with no I2S at all.
+     *
+     * PWM already proved the pad, the amp and the speaker. This proves the
+     * DAC peripheral itself. Software-timed, which is far too jittery for a
+     * product and perfectly adequate to answer one question:
+     *
+     *   heard, but the I2S tone was not -> the fault is the I2S framing
+     *   neither heard                    -> the DAC peripheral or its routing
+     *
+     * ::dacWrite is Arduino's 8-bit DAC write. It needs the global scope
+     * qualifier because this file already has a dacWrite of its own. */
+    Serial.println("[audiodiag] DIRECT DAC tone: 1 kHz for 2 s, no I2S");
+    {
+        i2s_driver_uninstall(DAC_I2S_PORT);   /* release the pad first */
+        static uint8_t wave[16];
+        for (int i = 0; i < 16; ++i) {
+            wave[i] = static_cast<uint8_t>(128 + 100 * sinf(2.0f * PI * i / 16));
+        }
+        const uint32_t until = millis() + 2000;
+        while (millis() < until) {
+            for (int i = 0; i < 16; ++i) {
+                ::dacWrite(SPEAKER_PIN, wave[i]);
+                delayMicroseconds(62);
+            }
+        }
+        ::dacWrite(SPEAKER_PIN, 128);   /* park at mid-scale */
+    }
+    Serial.println("[audiodiag] DIRECT DAC done -- third long tone?");
+
     Serial.println("[audiodiag] press BOOT to start");
     waitBootOrTimeout(60000);
     waitBootRelease();

@@ -32,10 +32,21 @@ void Board::begin() {
         setRgb(false, false, false);
     }
 
+    /* A speaker pin driven by the built-in DAC is claimed by beginAudio(), and
+     * must not be configured as a plain GPIO first: this ran long before
+     * beginAudio() and left the digital output driver enabled and holding the
+     * pin low, on the pad the DAC is about to take over. Idling it is the
+     * DAC's job, and it does that by writing mid-scale.
+     *
+     * On a board whose speaker is a bare pin with no DAC behind it, driving it
+     * low is still the right thing -- that is what stops a transducer sitting
+     * with a DC level across it. */
+#if !GUME_HAS_AUDIO_DAC
     if (BOARD.hasSpeaker()) {
         pinMode(BOARD.audio.speakerPin, OUTPUT);
         digitalWrite(BOARD.audio.speakerPin, LOW);
     }
+#endif
 
     /* An input, and only ever an input. BOOT has an external pull-up on every
      * board here, but asking for the internal one costs nothing and means the

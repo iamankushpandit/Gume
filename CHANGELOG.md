@@ -16,25 +16,50 @@ issue template asks for the pin map and its source.
 
 ### Added
 
-- **DAC audio on CYD-family boards (E32R28T-1, E32R40T, ESP32-2432S028R).**
-  GPIO26 is DAC channel 2 on the classic ESP32; the I2S peripheral drives it
-  directly via `I2S_DAC_BUILT_IN`, with no external codec and no extra wiring.
-  The full cue vocabulary from `Sound::` — every cue, the spoken "Let's play
-  Braino!" boot phrase and Cinnamon's four pitched pads — plays from the same
-  synthesiser the Freenove FNK0104B uses. Volume is applied as linear amplitude
-  scaling (not the dB conversion used for the ES8311 register).
+- **Sound on the 4-inch E32R40T, from the same synthesiser as the Freenove.**
+  GPIO26 is ESP32 DAC channel 2, and the LCDWIKI schematic for this board runs
+  it through an RC filter into an onboard 8002-series mono power amp whose
+  shutdown input is GPIO4, active low. So the I2S peripheral drives the DAC
+  directly via `I2S_DAC_BUILT_IN` and the amplifier does the rest -- no codec,
+  no extra wiring, and no second sound vocabulary: every cue in `Sound::` and
+  Cinnamon's four pitched pads come from the existing synthesiser, unchanged.
+  Volume is linear amplitude scaling, not the dB curve the ES8311 register
+  needs.
+
+  **Validated by ear on the E32R40T only.** The E32R28T-1 and ESP32-2432S028R
+  compile the same backend and are expected to work -- the vendor pin table is
+  the same family -- but neither has been heard, and neither has its amplifier
+  enable described yet. On the E32R28T-1 that is blocked on a real
+  contradiction: the vendor table gives RGB as IO22/IO16/IO17 with IO4 as the
+  audio enable, while this repo's profile claims IO4 is the green LED on
+  measured grounds. Both cannot be true, and until it is resolved that board
+  stays silent, because whatever drives IO4 as an LED holds the amplifier in
+  shutdown.
+
+  **The spoken boot phrase does not survive an 8-bit DAC.** The cue vocabulary
+  does. The voice is formant synthesis, and it depends on quiet resonator
+  ringing between excitation impulses; at 8 bits, scaled by a volume setting,
+  that detail quantises away. The Freenove's codec is 16-bit -- 256 times the
+  resolution -- so the two boards genuinely do not sound alike and no amount of
+  tuning here will make them. This is a property of the hardware, not a defect
+  to chase.
 
   The audio backend is now three-state rather than binary:
   `GUME_HAS_AUDIO_CODEC` for the codec path, `GUME_HAS_AUDIO_DAC` for the
-  built-in DAC, and neither for boards with no speaker path.
+  built-in DAC, and neither for boards with no speaker path. The two macros
+  default to 0 in `BoardConfig.h`, so any file can test them.
 
   `AUDIO_VOLUME_MAX` moved from a hard-coded constant into `BoardProfile`
-  (`audio.maxVolume`), so each board can state its own ceiling: 85 for the
-  Freenove (unchanged), 75 for CYD boards (bare DAC, small unamplifed driver).
+  (`audio.maxVolume`), so each board states its own ceiling: 85 for the
+  Freenove (unchanged, set by listening), 75 for the DAC boards (not yet set
+  by listening -- the vendor rates the amp at 1.5W into 8 ohms).
 
-  `env:audiodiag` is a new standalone probe (same pattern as `batdiag`) for
-  validating the DAC path on hardware: sine wave, frequency sweep, volume steps
-  and tone bursts approximating each cue.
+  `env:audiodiag` is a new standalone probe (same pattern as `batdiag`). It
+  answers the three questions silence cannot distinguish, in one reset and
+  without the panel or a button: a PWM burst that uses no DAC at all proves the
+  speaker, the amp and the enable line; an I2S tone proves the DAC path; and a
+  software-timed direct `dacWrite()` tone separates the I2S framing from the
+  DAC peripheral itself.
 
 - **The 4-inch E32R40T is supported, measured on hardware.** An ST7796
   320x480 panel running 480x320 in landscape, with XPT2046 resistive touch
