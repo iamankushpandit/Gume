@@ -16,6 +16,160 @@ issue template asks for the pin map and its source.
 
 ### Added
 
+- **DAC audio on CYD-family boards (E32R28T-1, E32R40T, ESP32-2432S028R).**
+  GPIO26 is DAC channel 2 on the classic ESP32; the I2S peripheral drives it
+  directly via `I2S_DAC_BUILT_IN`, with no external codec and no extra wiring.
+  The full cue vocabulary from `Sound::` — every cue, the spoken "Let's play
+  Braino!" boot phrase and Cinnamon's four pitched pads — plays from the same
+  synthesiser the Freenove FNK0104B uses. Volume is applied as linear amplitude
+  scaling (not the dB conversion used for the ES8311 register).
+
+  The audio backend is now three-state rather than binary:
+  `GUME_HAS_AUDIO_CODEC` for the codec path, `GUME_HAS_AUDIO_DAC` for the
+  built-in DAC, and neither for boards with no speaker path.
+
+  `AUDIO_VOLUME_MAX` moved from a hard-coded constant into `BoardProfile`
+  (`audio.maxVolume`), so each board can state its own ceiling: 85 for the
+  Freenove (unchanged), 75 for CYD boards (bare DAC, small unamplifed driver).
+
+  `env:audiodiag` is a new standalone probe (same pattern as `batdiag`) for
+  validating the DAC path on hardware: sine wave, frequency sweep, volume steps
+  and tone bursts approximating each cue.
+
+- **The 4-inch E32R40T is supported, measured on hardware.** An ST7796
+  320x480 panel running 480x320 in landscape, with XPT2046 resistive touch
+  sharing the display's SPI bus. It is offered by the web installer and all 31
+  games run on it.
+
+  This board is here for a particular audience: a physically bigger, plainer
+  screen for players who need one. That is also why playable games reach it
+  through `Ui::ScaledRenderer`, which stretches their fixed canvas to fill the
+  panel, and why the launcher grows its tiles and the type inside them rather
+  than leaving small writing in a large box.
+
+  Every panel fact was measured with a new standalone probe rather than
+  inherited: the display bus turns out to be identical to the 2.8-inch board's,
+  pin for pin, and **exactly one pin differs -- the backlight is GPIO27.**
+  GPIO21, the obvious assumption and the value the 2.8-inch board uses, was
+  measured dark twice. That is the pin that fails silently: with the wrong one
+  the panel is black while Wi-Fi, BLE, NVS and the screen saver all run
+  perfectly, so the log looks healthy and it reads as a dead screen.
+
+  Four peripherals are declared absent rather than guessed -- the SD slot,
+  and until measured the LED, speaker and battery sense, which are inherited
+  from the E32R28T-1 and annotated with what would disprove each. A wrong
+  battery pin does not fail loudly; it reports a plausible fiction.
+
+- **`env:diag4`, a bring-up probe for that board.** Eight pages over serial:
+  who is on the SPI bus, a backlight sweep across candidate pins in both
+  polarities, geometry and colour order, rotation, both touch wirings, ADC
+  candidates, and Wi-Fi and BLE separately and then together. It defines
+  neither `TFT_BL` nor `GUME_BOARD_HEADER` on purpose -- a probe must not
+  depend on the answer it exists to find.
+
+- **Braino has a voice and a sound vocabulary.** On a board whose profile
+  describes a codec it says "Let's play Braino!" at boot and has a vocabulary
+  beyond right and wrong. Nothing is a recording and nothing may become one:
+  every sound is generated a sample at a time, because a second of 16-bit
+  16kHz mono is 32 KB and the app partition is already three quarters full.
+  The voice is formant synthesis -- the phrase spelled out as phonemes, three
+  resonators driven by a buzz for vowels and by noise for consonants -- which
+  is why it sounds like a 1980s home computer. Boards with a bare speaker pin
+  are unchanged: the LED pulse is still the whole of the feedback.
+
+- **A way back from a bad touch calibration, and BOOT as a Home key.** The
+  wizard only ran when nothing was stored, so a calibration that was present
+  but wrong reported as fine and never re-ran -- leaving reflashing over USB
+  as the entire recovery path. Settings -> Admin -> Recalibrate touch is the
+  control. The BOOT key returns to the launcher, wakes the panel and dismisses
+  the saver; a board that wires no key behaves exactly as before.
+
+### Fixed
+
+- **Wi-Fi rebooted the console whenever the beacon was on.** `esp_wifi` will
+  not share the radio with a Bluetooth controller unless Wi-Fi is
+  power-saving, and it does not degrade or return an error -- it calls
+  `abort()`. Scanning disabled modem sleep to get a complete network list, so
+  opening the Wi-Fi screen with the beacon enabled rebooted the device, and
+  rebooted it again on the retry. The beacon is off by default, which is why
+  this survived: it only bit an owner who had turned it on.
+
+- **Games were laid out against the panel instead of their own canvas.** A
+  playable game draws into a fixed 320x240 canvas that is then stretched, so
+  `SCREEN_WIDTH / 2` asked for the panel's midpoint in canvas units and landed
+  half as far again across. Every centred element sat 120px right on the
+  4-inch board. Corrected across 29 files.
+
+- **The launcher tile grid never adapted.** Its gear, profile chip, lock and
+  top bar all measured the live panel; the tiles alone were fixed at the
+  320px geometry, so they stopped two-thirds of the way across on the first
+  screen anyone sees.
+
+- **Artwork tore into bands.** Image blits are one scanline per address
+  window, so through a scaling renderer each 1px row became 1.33px and
+  consecutive rows alternately overlapped and gapped. Flags and maps now blit
+  1:1 to the panel and are centred in the space the layout gives them; they
+  are never resampled, so an enlargement is a whole-pixel replication.
+
+- **Pie slices detached from their circles.** `fillCircle` uses the averaged
+  axis scale so it stays a circle, while the wedge points were scaled per axis
+  and landed on an ellipse -- bulging past the rim at the sides and falling
+  short top and bottom.
+
+- **Scores, Settings and Wi-Fi were drawn for one screen size.** Scores had
+  not a single reference to the panel's size. Wi-Fi wrote seventeen of its
+  rects out twice, once to hit-test and once to draw, so any change had two
+  places to go wrong -- its geometry is stated once now. All three fill the
+  panel, and portrait becomes possible for them for the first time.
+
+- **A sync badge that had been wrong since before this board.** Its x was a
+  design-space origin added to a measured text width. At 320 the two spaces
+  coincide and it looked right; anywhere else the badge lands short of the
+  text it belongs to.
+
+### Changed
+
+- `TouchProfile` gains `irqUsable`. The resistive gate accepts a press when
+  the IRQ reads low **or** pressure is high, so an IRQ with no pull-up fitted
+  does not degrade touch -- it defeats it, reporting a touch on every poll
+  forever. Whether the resistor is fitted is a property of the board, so it is
+  stated rather than inferred, and filled in for all five boards.
+
+- `CLAUDE.md` and `AGENTS.md` now say that features and fixes start from `dev`
+  and that the rule is not an agent's to overrule -- with the specific
+  instruction to `git fetch` before forming an opinion about a branch, after
+  an agent branched from `main` on the strength of local refs it had never
+  fetched.
+
+## 5.3.0 — 2026-09-02
+
+A fourth board, and the first one this project can honestly say it has run.
+
+The Freenove FNK0104B is an ESP32-S3 with a capacitive touch panel, and
+supporting it meant the board contract had to stop assuming a resistive
+controller — so `TouchProfile` now describes either kind, and `AudioProfile`
+grew from a single speaker pin into something that can describe a codec.
+Braino makes sounds for the first time.
+
+Unlike the two ESP32-2432S028 variants, this port was not built from a
+published pin map. Display, backlight, touch at all four rotations, battery
+sense, the codec and the speaker were each confirmed on a device before the
+values were written down, using a new bring-up probe that ships with it.
+
+Three of that board's peripherals are switched off rather than half-wired,
+each because the profile cannot yet describe the hardware, and each with an
+issue carrying the pin map and the measurements needed to finish it. The
+README says plainly what a user will notice.
+
+The older open question is unchanged and still worth more than any feature
+here: the two ESP32-2432S028 variants are offered from the installer page and
+have never been run on the hardware they name. If you own one, telling us
+whether it works is the most useful thing you can send — `docs/PORTING.md` is
+the checklist, and the board-port issue template asks for the pin map and its
+source.
+
+### Added
+
 - **The Freenove FNK0104B is supported, on real hardware.** A 2.8-inch
   ESP32-S3 board with the same ILI9341 240x320 panel, an FT6336U *capacitive*
   touch controller, 16 MB flash and 8 MB PSRAM. It is offered by the web

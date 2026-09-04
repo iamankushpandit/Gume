@@ -979,6 +979,7 @@ src/
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
   diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
+  audiodiag.cpp         standalone DAC audio bring-up probe (env:audiodiag only)
   engine/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
