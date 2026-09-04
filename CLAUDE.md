@@ -173,7 +173,7 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Three diagnostic environments exist for hardware triage:
+Five diagnostic environments exist for hardware triage:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
 - `pio run -e batdiag` — builds `src/battery_diag.cpp` **alone**, an eight-page
@@ -186,6 +186,23 @@ Three diagnostic environments exist for hardware triage:
   board profile the product does. Its charge-inference constants are still
   copied from `BoardPower.cpp` deliberately, so what it shows is what the
   product will do — **if you change one of those, change both.**
+- `pio run -e s3diag` -- builds `src/s3_diag.cpp` **alone**, a bring-up probe
+  for the Freenove FNK0104B. It skips the touch calibration wizard on purpose:
+  `env:bringup` runs that on a board with no stored calibration, which on a
+  capacitive panel the XPT2046 code cannot read strands the display check
+  behind a dead crosshair.
+- `pio run -e diag4` -- builds `src/diag4.cpp` **alone**, a seven-page bring-up
+  probe for the 4-inch ST7796 board. It exists because every fact that board
+  needs stated in a profile is still a guess, and the three ways of being wrong
+  -- wrong SPI bus, wrong driver, wrong backlight pin -- all produce the same
+  dark screen with a healthy serial log. Page ID reads the controller's ID
+  register back over MISO, which separates them without anything being visible;
+  page BL sweeps candidate backlight pins in both polarities. **It defines
+  neither `TFT_BL` nor `GUME_BOARD_HEADER`, deliberately** -- TFT_eSPI owning
+  the backlight would defeat the sweep, and a probe must not depend on the
+  board profile it exists to produce. Both are boardless envs, listed in
+  `check_boards.py`'s `BOARDLESS_ENVS`, because a `[board_*]` section is a
+  claim of support and neither board is supported yet.
 
 ### Every build is stamped, and the time is not a `-D`
 
@@ -678,6 +695,7 @@ src/main.cpp              bringup entrypoint + normal app setup/loop
 src/BuildStamp.cpp        which build this is; recompiled every build
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
+src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader

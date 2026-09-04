@@ -57,7 +57,7 @@ REQUIRED_BOARD_MACROS = ("BOARD_NAME", "GUME_BOARD_HEADER",
 # build. Making it before the capacitive touch path exists would advertise a
 # firmware that boots into a screen nobody can press, which is precisely the
 # outcome BoardProfile.h refuses to allow. The section arrives with the port.
-BOARDLESS_ENVS = ("wifidiag", "s3diag")
+BOARDLESS_ENVS = ("wifidiag", "s3diag", "diag4")
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

@@ -143,7 +143,7 @@ jobs:
           # On pushes to main/dev, build all environments (conservative safety net)
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "Building all environments (push to main/dev)"
-            ENVS="app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789 app_fnk0104b s3diag"
+            ENVS="app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789 app_fnk0104b s3diag diag4"
           else
             # On PRs, check which files changed and build selectively
             files=$(gh api --paginate \
@@ -178,7 +178,7 @@ jobs:
           # Build environments with explicit -e flags for check_boards.py verification
           if [ "${{ github.event_name }}" = "push" ]; then
             # On pushes to main/dev: build all environments
-            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e s3diag
+            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e s3diag -e diag4
           else
             # On PR: build only affected environments
             ENVS="${{ steps.environments.outputs.envs }}"
