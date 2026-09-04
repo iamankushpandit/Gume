@@ -399,12 +399,13 @@ void WifiGame::render(GameHost& host) {
         // ---------- Wi-Fi ----------
         tft.setTextDatum(TL_DATUM);
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("WI-FI", 14, 36, 1);
-        tft.drawFastHLine(52, 41, 254, Ui::outline());
+        tft.drawString("WI-FI", baseX(14), baseY(36), 1);
+        tft.drawFastHLine(baseX(52), baseY(41), static_cast<int16_t>(baseX(52 + 254) - baseX(52)),
+                          Ui::outline());
 
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(hasCreds ? ssid : String("No saved network"), 14, 48, 2);
-        Ui::drawWifiBadge(tft, 296, 54, Ui::bg());
+        tft.drawString(hasCreds ? ssid : String("No saved network"), baseX(14), baseY(48), 2);
+        Ui::drawWifiBadge(tft, baseX(296), baseY(54), Ui::bg());
 
         Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
         Ui::drawButton(tft, baseRect(166, 64, 140, 30), hasCreds ? "Forget" : "---",
@@ -413,8 +414,9 @@ void WifiGame::render(GameHost& host) {
 
         // ---------- Time ----------
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("TIME", 14, 104, 1);
-        tft.drawFastHLine(48, 109, 258, Ui::outline());
+        tft.drawString("TIME", baseX(14), baseY(104), 1);
+        tft.drawFastHLine(baseX(48), baseY(109), static_cast<int16_t>(baseX(48 + 258) - baseX(48)),
+                          Ui::outline());
 
         const bool synced = Clock::synced();
         // Date alongside the time: NTP delivers both, and seeing the date is
@@ -422,13 +424,18 @@ void WifiGame::render(GameHost& host) {
         const String stamp = synced ? (Clock::dateText() + "  " + Clock::timeText())
                                     : Clock::timeText();
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(stamp, 14, 116, 2);
+        tft.drawString(stamp, baseX(14), baseY(116), 2);
 
-        const int16_t badgeX = static_cast<int16_t>(14 + tft.textWidth(stamp, 2) + 12);
-        Ui::drawSyncBadge(tft, badgeX, 122, synced, Ui::bg());
+        /* Measured, so it lives in panel pixels -- the 14 it starts from is a
+         * design-space origin and has to be mapped before the two are added,
+         * or the badge lands short of the text it belongs to and the caption
+         * lands on top of it. */
+        const int16_t badgeX =
+            static_cast<int16_t>(baseX(14) + tft.textWidth(stamp, 2) + 12);
+        Ui::drawSyncBadge(tft, badgeX, baseY(122), synced, Ui::bg());
         tft.setTextColor(synced ? Ui::success() : Ui::warning(), Ui::bg());
         tft.drawString(synced ? "" : (up ? "not synced" : "needs Wi-Fi"),
-                       static_cast<int16_t>(badgeX + 12), 116, 2);
+                       static_cast<int16_t>(badgeX + 12), baseY(116), 2);
 
         Ui::drawButton(tft, baseRect(14, 132, 140, 30),
                        String("Auto time: ") + (board.ntpEnabled() ? "On" : "Off"),
@@ -456,7 +463,7 @@ void WifiGame::render(GameHost& host) {
     } else if (phase_ == Phase::TimeZone) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.drawString("Choose your time zone", 8, 34, 2);
+        tft.drawString("Choose your time zone", baseX(8), baseY(34), 2);
 
         const uint8_t n = Board::tzZoneCount();
         const uint8_t current = board.tzZoneChosen() ? board.tzZoneIndex() : 0xFF;
@@ -495,7 +502,7 @@ void WifiGame::render(GameHost& host) {
         // Header above list
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.drawString(netCount_ == 0 ? "No networks found" : String(netCount_) + " found - tap to connect", 8, 34, 2);
+        tft.drawString(netCount_ == 0 ? "No networks found" : String(netCount_) + " found - tap to connect", baseX(8), baseY(34), 2);
         if (netCount_ == 0) {
             // -1 = still running, -2 = scan failed, 0 = radio saw nothing.
             tft.setTextColor(Ui::muted(), Ui::bg());
@@ -542,14 +549,14 @@ void WifiGame::render(GameHost& host) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.drawString(String("< back   ") + ssid, 8, 36, 2);
+        tft.drawString(String("< back   ") + ssid, baseX(8), baseY(36), 2);
         tft.fillRoundRect(8, 54, 304, 34, 4, Ui::surface());
         tft.drawRoundRect(8, 54, 304, 34, 4, Ui::outline());
         tft.setTextColor(password_.length() > 0 ? Ui::text() : Ui::muted(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
         String shown = password_.length() > 0 ? password_ : "Password";
         while (shown.length() > 2 && tft.textWidth(shown, 2) > 280) shown.remove(shown.length() - 1);
-        tft.drawString(shown, 16, 71, 2);
+        tft.drawString(shown, baseX(16), baseY(71), 2);
         for (uint8_t row = 0; row < 4; ++row) {
             for (uint8_t col = 0; col < 10; ++col) {
                 char buf[2] = {keys[row][col], 0};

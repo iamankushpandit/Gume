@@ -197,10 +197,12 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
     if (!admin) {
-        tft.drawString("Settings locked. Only Admin can change.", 8, 194, 1);
+        tft.drawString("Settings locked. Only Admin can change.", 8,
+                       static_cast<int16_t>(brightRect().y - 10), 1);
     } else {
         tft.drawString(confirmReset_ ? "Erases scores, names, Wi-Fi and settings"
-                                 : "Brightness", 8, 194, 1);
+                                 : "Brightness", 8,
+                       static_cast<int16_t>(brightRect().y - 10), 1);
         tft.setTextDatum(TR_DATUM);
         snprintf(label, sizeof(label), "%u%%", board.brightness());
         tft.drawString(label, panelW_ - 8, static_cast<int16_t>(brightRect().y - 10), 1);
@@ -280,14 +282,16 @@ void SettingsGame::renderPowerTab(GameHost& host) {
     }
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(explain, 8, 196, 1);
+    const int16_t powerFootY =
+        static_cast<int16_t>(wakeLockRect().y + wakeLockRect().h + 6);
+    tft.drawString(explain, 8, powerFootY, 1);
     if (admin) {
         /* Say what a touch actually does, because the row above changes it.
          * A stray press in a bag is the case this exists for. */
         tft.drawString(board.wakeLockEnabled()
                            ? "A touch lights the screen; hold to go back."
                            : "Any touch goes straight back to what you were doing.",
-                       8, 212, 1);
+                       8, static_cast<int16_t>(powerFootY + 16), 1);
     }
 }
 
@@ -322,9 +326,15 @@ void SettingsGame::renderSoundTab(GameHost& host) {
                    (admin && present) ? Ui::panel() : Ui::surface(), Ui::outline(),
                    (admin && present) ? Ui::text() : Ui::muted(), false, 2);
 
+    /* The footnotes sit under the test buttons, so they move with them. They
+     * were at a fixed 190/206, which was under the buttons at 240 tall and
+     * straight through them on a taller panel. */
+    const int16_t soundFootY =
+        static_cast<int16_t>(testCueRect().y + testCueRect().h + 12);
+
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString("Volume", 8, 92, 1);
+    tft.drawString("Volume", 8, static_cast<int16_t>(volumeRect().y - 12), 1);
     tft.setTextDatum(TR_DATUM);
     if (!present) {
         snprintf(label, sizeof(label), "--");
@@ -354,16 +364,19 @@ void SettingsGame::renderSoundTab(GameHost& host) {
      * characters: TFT_eSPI drops characters off the right edge silently. */
     tft.setTextColor(Ui::muted(), Ui::bg());
     if (!admin) {
-        tft.drawString("Settings locked. Only Admin can change.", 8, 190, 1);
+        tft.drawString("Settings locked. Only Admin can change.", 8, soundFootY, 1);
     } else if (!present) {
-        tft.drawString("This board has no speaker or audio codec.", 8, 190, 1);
-        tft.drawString("The case LED still flashes for right and wrong.", 8, 206, 1);
+        tft.drawString("This board has no speaker or audio codec.", 8, soundFootY, 1);
+        tft.drawString("The case LED still flashes for right and wrong.", 8,
+                       static_cast<int16_t>(soundFootY + 16), 1);
     } else if (!on) {
-        tft.drawString("Muted: no beeps, no cues, no startup voice.", 8, 190, 1);
-        tft.drawString("The case LED still flashes for right and wrong.", 8, 206, 1);
+        tft.drawString("Muted: no beeps, no cues, no startup voice.", 8, soundFootY, 1);
+        tft.drawString("The case LED still flashes for right and wrong.", 8,
+                       static_cast<int16_t>(soundFootY + 16), 1);
     } else {
-        tft.drawString("Volume is capped for young ears.", 8, 190, 1);
-        tft.drawString("Every sound is made by the device, not a file.", 8, 206, 1);
+        tft.drawString("Volume is capped for young ears.", 8, soundFootY, 1);
+        tft.drawString("Every sound is made by the device, not a file.", 8,
+                       static_cast<int16_t>(soundFootY + 16), 1);
     }
     tft.setTextDatum(TL_DATUM);
 }
