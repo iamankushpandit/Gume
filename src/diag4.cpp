@@ -163,14 +163,32 @@ void runId() {
     Serial.printf("RDDIDIF (0xD3)     : %02X %02X %02X %02X\n", d3[0], d3[1], d3[2], d3[3]);
     Serial.printf("RDDID   (0x04)     : %02X %02X %02X %02X\n", d04[0], d04[1], d04[2], d04[3]);
 
-    const bool idle = (d3[1] == 0x00 && d3[2] == 0x00 && d04[1] == 0x00 && d04[2] == 0x00) ||
-                      (d3[1] == 0xFF && d3[2] == 0xFF && d04[1] == 0xFF && d04[2] == 0xFF);
+    /* Idle means every payload byte is a rail: all 0x00 or all 0xFF, in any
+     * mixture across the two commands. An earlier version of this required
+     * both commands to agree on WHICH rail, and so read 0xD3 = 00 00 00 00
+     * with 0x04 = FF FF FF FF as "something answered". Nothing answered. A
+     * floating MISO does not have to float to the same rail twice. */
+    bool idle = true;
+    for (uint8_t i = 1; i < 4 && idle; ++i) {
+        if (d3[i] != 0x00 && d3[i] != 0xFF) {
+            idle = false;
+        }
+        if (d04[i] != 0x00 && d04[i] != 0xFF) {
+            idle = false;
+        }
+    }
+
     if (idle) {
-        Serial.println("VERDICT: MISO is idle -- nothing answered. Either the SPI pins above");
-        Serial.println("         are wrong for this board, or MISO is not wired back at all");
-        Serial.println("         on this variant (some CYDs leave it unconnected). Try page");
-        Serial.println("         PATTERN: if a correct image appears anyway, the write path");
-        Serial.println("         is fine and only the read path is missing.");
+        Serial.println("VERDICT: MISO is idle -- nothing answered.");
+        Serial.println("         This is INCONCLUSIVE on this board family, not a failure.");
+        Serial.println("         The 2.8in E32R28T-1 drives an identical bus (MISO=12 MOSI=13");
+        Serial.println("         SCLK=14 CS=15 DC=2, HSPI) and works, and CYD boards commonly");
+        Serial.println("         do not wire the panel's MISO back to the MCU at all -- there");
+        Serial.println("         is nothing to read from even when every write lands.");
+        Serial.println("         So this does NOT tell you the pins are wrong. Page PATTERN");
+        Serial.println("         decides it: a correct image means the write path is right and");
+        Serial.println("         only the read path is missing, which costs this firmware");
+        Serial.println("         nothing -- Braino never reads the panel back.");
     } else if (d3[1] == 0x77 && d3[2] == 0x96) {
         Serial.println("VERDICT: ST7796 confirmed. Bus and driver are both right.");
     } else if (d3[1] == 0x93 && d3[2] == 0x41) {
