@@ -195,7 +195,7 @@ void ObjectAddGame::render(AppContext& host) {
     char scoreText[16];
     snprintf(scoreText, sizeof(scoreText), "%u/%u",
              static_cast<unsigned>(score_), static_cast<unsigned>(rounds_));
-    tft.drawString(scoreText, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(scoreText, GAME_CANVAS_WIDTH - 8, 34, 2);
 
     const char* shapeName = (shape_ % 4 == 0) ? "circles" :
                             (shape_ % 4 == 1) ? "squares" :
@@ -273,13 +273,13 @@ void ObjectAddGame::render(AppContext& host) {
     // "= ?" while animating, buttons when question/feedback
     if (phase_ == Phase::Showing || phase_ == Phase::AnimIn || phase_ == Phase::Flashing) {
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("= ?", SCREEN_WIDTH / 2, 162, 4);
+        tft.drawString("= ?", GAME_CANVAS_WIDTH / 2, 162, 4);
     }
     if (phase_ == Phase::Question || phase_ == Phase::Feedback) {
         if (op_ == OpType::Subtract) {
             tft.setTextColor(Ui::muted(), Ui::bg());
             tft.setTextDatum(MC_DATUM);
-            tft.drawString("How many are left?", SCREEN_WIDTH / 2, 162, 1);
+            tft.drawString("How many are left?", GAME_CANVAS_WIDTH / 2, 162, 1);
         }
         for (uint8_t i = 0; i < 4; ++i) {
             uint16_t fill = OBJ_BTN;

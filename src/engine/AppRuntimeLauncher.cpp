@@ -125,7 +125,7 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
         if (index >= count) {
             break;
         }
-        if (LauncherLayout::tileRect(slot, mode).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (LauncherLayout::tileRect(slot, mode, lW, lH).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.openApp(host.launcherEntry(index));
             return;
         }
@@ -255,7 +255,7 @@ void LauncherGame::render(GameHost& host) {
             break;
         }
         const AppDefinition& entry = host.launcherEntry(index);
-        const Rect r = LauncherLayout::tileRect(slot, mode);
+        const Rect r = LauncherLayout::tileRect(slot, mode, lW, lH);
         const uint16_t fill = slot % 3 == 0 ? Ui::rgb(36, 132, 204)
                             : (slot % 3 == 1 ? Ui::rgb(45, 154, 96)
                                              : Ui::rgb(222, 83, 83));

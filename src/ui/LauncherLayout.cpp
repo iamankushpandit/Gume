@@ -73,18 +73,34 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
     return Rect{x, 30, w, 18};
 }
 
-Rect tileRect(uint8_t slot, Board::LayoutMode mode) {
-    if (mode == Board::LayoutMode::Vertical) {
-        const uint8_t col = slot % 2;
-        const uint8_t row = slot / 2;
-        return Rect{static_cast<int16_t>(8 + col * 116),
-                    static_cast<int16_t>(LAUNCHER_HEADER_H_TALL + 8 + row * 104),
-                    108, 96};
-    }
+Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH) {
+    /* Divide what is actually there rather than stepping by a fixed pitch. The
+     * old form -- 10 + col * 155, 145 wide -- was a correct description of a
+     * 320px panel and a wrong one of anything else: on 480px it drew the same
+     * 300px of tiles and left 170px empty on the right, next to a header that
+     * had already adapted. The launcher is the first thing anyone sees, so it
+     * was also the most obvious way for a bigger board to look broken.
+     *
+     * Bigger tiles are the point on a larger panel, not a side effect: this
+     * board exists to give players who need one a plainer, easier screen, and
+     * a target that grows with the glass is easier to hit as well as to read. */
+    constexpr int16_t GAP = 8;
+    constexpr int16_t FOOTER_H = 32;  // the pager row
+
+    const bool tall = mode == Board::LayoutMode::Vertical;
+    const int16_t headerH = tall ? LAUNCHER_HEADER_H_TALL : LAUNCHER_HEADER_H_WIDE;
+    const uint8_t rows = tall ? 2 : 3;
+
+    // Two columns either way: three gaps across, one more than the row count down.
+    const int16_t tileW = static_cast<int16_t>((screenW - GAP * 3) / 2);
+    const int16_t tileH = static_cast<int16_t>(
+        (screenH - headerH - FOOTER_H - GAP * (rows + 1)) / rows);
 
     const uint8_t col = slot % 2;
     const uint8_t row = slot / 2;
-    return Rect{static_cast<int16_t>(10 + col * 155), static_cast<int16_t>(52 + row * 53), 145, 46};
+    return Rect{static_cast<int16_t>(GAP + col * (tileW + GAP)),
+                static_cast<int16_t>(headerH + GAP + row * (tileH + GAP)),
+                tileW, tileH};
 }
 
 uint8_t pageSize(Board::LayoutMode mode) {

@@ -147,7 +147,7 @@ void ColorMixGame::render(AppContext& host) {
     tft.setTextDatum(TL_DATUM);
     tft.drawString(String("Score ") + score_ + "/" + attempts_, 10, 35, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 35, 2);
+    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 35, 2);
     Ui::drawLabel(tft, Rect{10, 52, 300, 18}, "What do you get?", Ui::text(), 2, Align::Center);
 
     const Rect left{56, 78, 60, 44};
@@ -158,7 +158,7 @@ void ColorMixGame::render(AppContext& host) {
     tft.drawRoundRect(right.x, right.y, right.w, right.h, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("+", SCREEN_WIDTH / 2, 100, 4);
+    tft.drawString("+", GAME_CANVAS_WIDTH / 2, 100, 4);
     tft.drawString(active_->left, left.x + left.w / 2, left.y + left.h + 12, 1);
     tft.drawString(active_->right, right.x + right.w / 2, right.y + right.h + 12, 1);
 
@@ -178,7 +178,7 @@ void ColorMixGame::render(AppContext& host) {
         tft.fillRoundRect(96, 96, 128, 34, 8, color);
         tft.setTextColor(TFT_BLACK, color);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(correctFlash_ ? "Correct" : "Try again", SCREEN_WIDTH / 2, 113, 2);
+        tft.drawString(correctFlash_ ? "Correct" : "Try again", GAME_CANVAS_WIDTH / 2, 113, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

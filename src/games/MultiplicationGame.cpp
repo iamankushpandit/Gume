@@ -183,15 +183,15 @@ void MultiplicationGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 10, 35, 2);
     tft.drawString(String("Score ") + score_, 10, 52, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 10, 35, 2);
-    tft.drawString(bestStreak_ > 0 ? String("Best ") + bestStreak_ : "Best --", SCREEN_WIDTH - 10, 52, 1);
+    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 10, 35, 2);
+    tft.drawString(bestStreak_ > 0 ? String("Best ") + bestStreak_ : "Best --", GAME_CANVAS_WIDTH - 10, 52, 1);
 
     const String equation = String(left_) + " x " + right_ + " = ?";
     tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
     tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(equation, SCREEN_WIDTH / 2, 103, 4);
+    tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
@@ -211,11 +211,11 @@ void MultiplicationGame::render(AppContext& host) {
     if (answered_) {
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", GAME_CANVAS_WIDTH / 2, 136, 2);
     } else {
         tft.setTextColor(YELLOW, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap the product", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString("Tap the product", GAME_CANVAS_WIDTH / 2, 136, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

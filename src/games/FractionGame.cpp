@@ -290,7 +290,7 @@ void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t ra
 }
 
 void FractionGame::drawTextOptions(Ui::Renderer& tft) const {
-    drawPie(tft, SCREEN_WIDTH / 2, 115, 38, target_);
+    drawPie(tft, GAME_CANVAS_WIDTH / 2, 115, 38, target_);
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
@@ -310,7 +310,7 @@ void FractionGame::drawPieOptions(Ui::Renderer& tft) const {
     tft.drawRoundRect(96, 74, 128, 30, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(fractionText(target_), SCREEN_WIDTH / 2, 89, 4);
+    tft.drawString(fractionText(target_), GAME_CANVAS_WIDTH / 2, 89, 4);
     for (uint8_t i = 0; i < 4; ++i) {
         const Rect r = pieOptionRect(i);
         bool selected = roundComplete_ ? i == correctButton_ : flashIndex_ == i;
@@ -352,8 +352,8 @@ void FractionGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 8, 35, 2);
     tft.drawString(String("Score ") + score_, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 8, 35, 2);
+    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 51, 1);
 
     const char* prompt = mode_ == Mode::PickText ? "Pick the matching fraction" : (mode_ == Mode::PickPie ? "Pick the matching pie" : "Which fraction is bigger?");
     Ui::drawLabel(tft, Rect{8, 66, 304, 12}, prompt, Ui::muted(), 1, Align::Center);
@@ -373,7 +373,7 @@ void FractionGame::render(AppContext& host) {
     } else if (flashIndex_ >= 0) {
         tft.setTextColor(RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString("Try again", GAME_CANVAS_WIDTH / 2, 226, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

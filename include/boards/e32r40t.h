@@ -35,13 +35,18 @@
  *   - Touch is an XPT2046 sharing the display's bus with its own CS on 33.
  *   - Its IRQ on 36 cannot be used; see irqUsable below.
  *
- * NOT characterised, and therefore declared absent rather than guessed:
- * the SD slot, the RGB LED, the speaker and battery sense. The pins are
- * plausibly the same as the 2.8-inch board's, and "plausibly" is exactly the
- * reasoning that produced a backlight pin nobody had checked. PIN_NONE costs
- * a feature the firmware already knows how to do without; a wrong pin costs a
- * fictional battery percentage or a fight over a line something else owns.
- * Fill these in when someone measures them.
+ * INHERITED from the E32R28T-1 rather than measured here: the RGB LED, the
+ * speaker and battery sense. These began as PIN_NONE, which was right while
+ * nothing about the board was known -- but the display bus then turned out to
+ * be identical to the 2.8-inch board's, pin for pin, which makes "same
+ * reference PCB with a bigger panel" evidence rather than hope. Each is
+ * flagged below with what would prove it wrong, because they fail differently:
+ * a wrong LED or speaker pin drives a line something else may own, while a
+ * wrong battery pin reports a percentage that is pure fiction and looks
+ * entirely plausible.
+ *
+ * Still PIN_NONE: the SD slot, which nothing has needed yet and which shares a
+ * bus with the peripheral header.
  *
  * The display's own SPI pins are NOT here: TFT_eSPI is configured through -D
  * flags in platformio.ini, and BoardConfig.h cross-checks the two descriptions
@@ -99,18 +104,26 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
-    /* Not characterised on this board. beepOk()/beepError() fall back to
-     * doing nothing visible rather than driving lines we have not confirmed. */
+    /* Inherited from the E32R28T-1, including its crossed red/green lines,
+     * which were verified on that unit rather than assumed. Wrong here shows
+     * up immediately and harmlessly: a beep lights the wrong colour, or an LED
+     * that never goes out (common anode -- a channel lights when driven LOW).
+     * The vendor manual for the 2.8-inch board names IO16/IO17/IO22 instead,
+     * which the E32R28T-1 profile already contradicts on measured grounds; if
+     * this board disagrees with both, measure before believing either. */
     RgbLedProfile{
-        /* r           */ PIN_NONE,
-        /* g           */ PIN_NONE,
-        /* b           */ PIN_NONE,
+        /* r           */ 16,
+        /* g           */ 4,
+        /* b           */ 17,
         /* commonAnode */ true,
     },
 
-    /* Not characterised on this board. */
+    /* Inherited from the E32R28T-1. Audio is stubbed there too -- beepOk()
+     * and beepError() pulse the LED -- so this pin being wrong is quiet in
+     * both senses. If a speaker on GPIO26 stays silent, that is the thing to
+     * measure, not the codec fields below, which this board does not have. */
     AudioProfile{
-        /* speakerPin          */ PIN_NONE,
+        /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
         /* i2sMclk             */ PIN_NONE,
         /* i2sBclk             */ PIN_NONE,
@@ -121,13 +134,21 @@ inline constexpr BoardProfile BOARD = {
         /* ampEnableActiveLow  */ false,
     },
 
-    /* Not characterised on this board. A wrong adcPin here would not fail
-     * loudly -- it would report a battery percentage that is pure fiction,
-     * which is worse than showing no badge at all. */
+    /* Inherited from the E32R28T-1: IO34 (ADC1_CH6, input-only) behind the 2:1
+     * divider the vendor manual states plainly -- "the obtained voltage
+     * multiplied by 2 is the actual battery voltage". sensorMaxVolts is a
+     * fault ceiling on the ADC, NOT a pack-present test; like the 2.8-inch
+     * board this one cannot tell a missing pack from a present one.
+     *
+     * This is the one to distrust. A wrong adcPin does not fail loudly -- it
+     * reports a plausible-looking percentage that is fiction. Check it against
+     * a meter before believing the badge, and note GPIO34 is the light sensor
+     * rather than a battery sense on the ESP32-2432S028R, so this family
+     * resemblance does not extend to every CYD. */
     BatteryProfile{
-        /* adcPin        */ PIN_NONE,
-        /* dividerRatio  */ 0.0f,
-        /* sensorMaxVolts*/ 0.0f,
+        /* adcPin        */ 34,
+        /* dividerRatio  */ 2.0f,
+        /* sensorMaxVolts*/ 4.50f,
     },
 
     /* 4 MB part, partitioned huge_app.csv: 3 MB for the app. */

@@ -353,7 +353,7 @@ void PercentCircleGame::render(AppContext& host) {
         host.drawTopBar(title());
     }
 
-    tft.fillRect(0, 48, SCREEN_WIDTH, 34, Ui::bg());
+    tft.fillRect(0, 48, GAME_CANVAS_WIDTH, 34, Ui::bg());
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
     tft.drawString(promptBuffer_, 200, 60, 4);
@@ -369,7 +369,7 @@ void PercentCircleGame::render(AppContext& host) {
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.fillRect(0, 222, SCREEN_WIDTH, 18, Ui::bg());
+    tft.fillRect(0, 222, GAME_CANVAS_WIDTH, 18, Ui::bg());
     char scoreStr[48];
     snprintf(scoreStr, sizeof(scoreStr), "Score: %u  Streak: %u  Lvl: %u", score_, streak_, level());
     tft.drawString(scoreStr, 8, 226, 1);

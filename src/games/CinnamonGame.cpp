@@ -230,7 +230,7 @@ void CinnamonGame::render(AppContext& host) {
         tft.setTextDatum(TL_DATUM);
         tft.drawString(String("Score ") + score_, 10, 36, 2);
         tft.setTextDatum(TR_DATUM);
-        tft.drawString(String("Best ") + bestScore_, SCREEN_WIDTH - 10, 36, 2);
+        tft.drawString(String("Best ") + bestScore_, GAME_CANVAS_WIDTH - 10, 36, 2);
         for (uint8_t i = 0; i < 4; ++i) {
             const bool lit = (litPad_ == i) ||
                              (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
@@ -268,7 +268,7 @@ void CinnamonGame::render(AppContext& host) {
     if (phase_ == Phase::Failed) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Bright pad was next", SCREEN_WIDTH / 2, 214, 2);
+        tft.drawString("Bright pad was next", GAME_CANVAS_WIDTH / 2, 214, 2);
     }
     tft.setTextDatum(TL_DATUM);
     Ui::setTheme(savedTheme);

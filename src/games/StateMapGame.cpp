@@ -195,7 +195,7 @@ void StateMapGame::render(AppContext& host) {
     tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
     char bonusBuf[8];
     snprintf(bonusBuf, sizeof(bonusBuf), "+%u", capBonus_);
-    tft.drawString(bonusBuf, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(bonusBuf, GAME_CANVAS_WIDTH - 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
     Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
@@ -219,9 +219,9 @@ void StateMapGame::render(AppContext& host) {
     if (capitalRound) {
         char prompt[48];
         snprintf(prompt, sizeof(prompt), "Bonus! Capital of %s?", current_->name);
-        tft.drawString(prompt, SCREEN_WIDTH / 2, 150, 2);
+        tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 150, 2);
     } else {
-        tft.drawString("Which state?", SCREEN_WIDTH / 2, 176, 2);
+        tft.drawString("Which state?", GAME_CANVAS_WIDTH / 2, 176, 2);
     }
 
     const bool showingFeedback =

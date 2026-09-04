@@ -18,7 +18,7 @@ constexpr AppMetadata COIN_FLIP_METADATA = {
     true,
 };
 
-constexpr int16_t COIN_CX = SCREEN_WIDTH / 2;
+constexpr int16_t COIN_CX = GAME_CANVAS_WIDTH / 2;
 constexpr int16_t COIN_CY = 116;
 constexpr int16_t COIN_R = 34;
 
@@ -61,7 +61,7 @@ Rect CoinFlipGame::flipRect() const {
 }
 
 Rect CoinFlipGame::activeBand() const {
-    return Rect{0, 78, SCREEN_WIDTH, 118};
+    return Rect{0, 78, GAME_CANVAS_WIDTH, 118};
 }
 
 uint8_t CoinFlipGame::headsCount() const {
@@ -190,7 +190,7 @@ void CoinFlipGame::render(AppContext& host) {
 
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        tft.drawString("Best of how many?", SCREEN_WIDTH / 2, 34, 1);
+        tft.drawString("Best of how many?", GAME_CANVAS_WIDTH / 2, 34, 1);
 
         for (uint8_t i = 0; i < CHOICES; ++i) {
             const bool on = (i == choice_);
@@ -224,7 +224,7 @@ void CoinFlipGame::render(AppContext& host) {
     // ---- one pip per flip in the round, filled as each lands ----
     const int16_t pitch = 28;
     const int16_t span = static_cast<int16_t>((flips - 1) * pitch);
-    const int16_t px0 = static_cast<int16_t>((SCREEN_WIDTH - span) / 2);
+    const int16_t px0 = static_cast<int16_t>((GAME_CANVAS_WIDTH - span) / 2);
     tft.setTextDatum(MC_DATUM);
     for (uint8_t i = 0; i < flips; ++i) {
         const int16_t px = static_cast<int16_t>(px0 + i * pitch);
@@ -261,6 +261,6 @@ void CoinFlipGame::render(AppContext& host) {
         snprintf(line, sizeof(line), "Tap Flip to spin");
         tft.setTextColor(Ui::muted(), Ui::bg());
     }
-    tft.drawString(line, SCREEN_WIDTH / 2, 187, 2);
+    tft.drawString(line, GAME_CANVAS_WIDTH / 2, 187, 2);
     tft.setTextDatum(TL_DATUM);
 }

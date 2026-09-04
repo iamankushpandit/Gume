@@ -203,7 +203,7 @@ void FingerCountGame::render(AppContext& host) {
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String(score_) + "/" + rounds_, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(String(score_) + "/" + rounds_, GAME_CANVAS_WIDTH - 8, 33, 2);
 
     const bool done = (phase_ == Phase::Feedback);
     const uint8_t up = raisedCount();
@@ -212,26 +212,26 @@ void FingerCountGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     if (mode_ == Mode::Count) {
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString("How many fingers?", SCREEN_WIDTH / 2, 50, 4);
+        tft.drawString("How many fingers?", GAME_CANVAS_WIDTH / 2, 50, 4);
         if (done) {
             tft.setTextColor(lastCorrect_ ? Ui::success() : Ui::error(), Ui::bg());
             tft.drawString(lastCorrect_ ? String("Yes! ") + target_
                                         : String("It was ") + target_,
-                           SCREEN_WIDTH / 2, 78, 2);
+                           GAME_CANVAS_WIDTH / 2, 78, 2);
         } else {
             tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.drawString("Count them, then tap the number", SCREEN_WIDTH / 2, 78, 2);
+            tft.drawString("Count them, then tap the number", GAME_CANVAS_WIDTH / 2, 78, 2);
         }
     } else {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.drawString(String("Show me ") + target_ + (target_ == 1 ? " finger" : " fingers"),
-                       SCREEN_WIDTH / 2, 50, 4);
+                       GAME_CANVAS_WIDTH / 2, 50, 4);
         if (done) {
             tft.setTextColor(Ui::success(), Ui::bg());
-            tft.drawString("That's it!", SCREEN_WIDTH / 2, 78, 2);
+            tft.drawString("That's it!", GAME_CANVAS_WIDTH / 2, 78, 2);
         } else {
             tft.setTextColor(up == target_ ? Ui::success() : Ui::muted(), Ui::bg());
-            tft.drawString(String("Up: ") + up, SCREEN_WIDTH / 2, 78, 2);
+            tft.drawString(String("Up: ") + up, GAME_CANVAS_WIDTH / 2, 78, 2);
         }
     }
 
@@ -260,7 +260,7 @@ void FingerCountGame::render(AppContext& host) {
     } else {
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap a finger to raise or lower it", SCREEN_WIDTH / 2, 212, 2);
+        tft.drawString("Tap a finger to raise or lower it", GAME_CANVAS_WIDTH / 2, 212, 2);
     }
 
     tft.setTextDatum(TL_DATUM);
