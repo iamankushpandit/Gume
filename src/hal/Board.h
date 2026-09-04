@@ -595,11 +595,30 @@ private:
 
     /* One battery sample shared by every accessor. getPowerSource() and
      * getBatteryPercent() are both called while drawing a single top bar, and
-     * each used to run its own blocking 10ms conversion. */
+     * each used to run its own blocking 10ms conversion.
+     *
+     * The sampling then became a 2s cache, which was cheap on average but paid
+     * for by whichever frame happened to find it expired -- almost always a
+     * top bar being drawn. It now runs on its own task at this period, and the
+     * accessors do nothing but copy the snapshot below. See sampleBattery(). */
     static constexpr uint32_t BATTERY_SAMPLE_MS = 2000;
-    BatteryTelemetry batterySample_{};
-    uint32_t batterySampleMs_ = 0;
-    bool batterySampled_ = false;
+
+    /* What the readers see: one sample, its charge verdict and its percentage,
+     * swapped together so a caller cannot mix a voltage from one sample with a
+     * verdict from the next. Written only by the battery task. */
+    struct BatteryPublic {
+        BatteryTelemetry sample{};
+        ChargingState state = ChargingState::UNKNOWN;
+        int8_t pct = -1;
+    };
+    BatteryPublic batteryPublished_{};
+    portMUX_TYPE batteryMux_ = portMUX_INITIALIZER_UNLOCKED;
+    TaskHandle_t batteryTaskHandle_ = nullptr;
+
+    void beginBatteryMonitor();
+    void sampleBattery();
+    BatteryPublic batterySnapshot();
+    static void batteryTask(void* arg);
 
     /* Charge inference state, advanced once per *fresh* battery sample (so at
      * BATTERY_SAMPLE_MS, not per frame). chargeSmoothV_ is a low-pass of the
@@ -621,6 +640,16 @@ private:
     void updateGaugeFilter(float volts);
     float gaugeFilteredV_ = 0.0f;
     bool gaugeFilterReady_ = false;
+
+    /* Display deadband, on top of the gauge filter. One percent is about 2mV
+     * on the mid-discharge plateau -- under two ADC counts -- so the mapped
+     * percentage crosses a boundary far more often than the pack discharges.
+     * getBatteryPercent() explains what this costs and why the endpoints are
+     * exempt. It holds back the percentage only -- the voltage, the charge
+     * verdict and the gauge filter are all untouched by it. */
+    static constexpr int8_t PERCENT_DEADBAND = 2;
+    int8_t curvePercent(float vBat) const;
+    int8_t displayPct_ = -1;   // -1 until the first good sample
 
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;

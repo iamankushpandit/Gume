@@ -3,12 +3,12 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.4.0-9a6700)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.5.0--SNAPSHOT-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-31-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-75.2%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.3%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,365,349 / 3,145,728 bytes (**74.9%**) |
-| RAM | 72,628 / 327,680 bytes (**22.2%**) |
+| Flash | 2,367,181 / 3,145,728 bytes (**75.3%**) |
+| RAM | 72,636 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -900,7 +900,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.4.0** — the previous release was **5.3.0**. See
+In development: **5.5.0-SNAPSHOT** — the last release was **5.4.0**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---

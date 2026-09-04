@@ -81,6 +81,30 @@ public:
         fullRedraw_ = true;   // coming back from elsewhere: repaint everything
     }
 
+    /* Repaint the header strip alone, leaving the screen under it untouched.
+     *
+     * The battery badge, the clock and the notification banner all change on
+     * their own schedule rather than the screen's, and the runtime used to
+     * answer that with requestRender() -- a full 320x240 wipe, ~150KB over SPI
+     * and roughly 30ms of visible blanking, for a change confined to the top
+     * 30 pixels. The strip is an eighth of the panel, so this costs about 4ms
+     * and fits inside the frame budget where a full repaint is 150% of it.
+     *
+     * It mattered most for the battery: one percent is about 2mV on the LiPo
+     * plateau, under two ADC counts, so the reading crosses a boundary every
+     * couple of seconds -- and with the BLE beacon advertising, its supply
+     * ripple made that constant. The whole screen flashed each time.
+     *
+     * The default is the standard top bar, which is what every screen that has
+     * one draws, always with title(). A screen carrying its own header --
+     * LauncherGame, ProfileGame -- overrides this. Returning false means "I
+     * cannot repaint my chrome in isolation"; the runtime falls back to a full
+     * repaint, so a screen that is unsure should say so rather than guess. */
+    virtual bool renderChrome(GameHost& host) {
+        host.drawTopBar(title());
+        return true;
+    }
+
 protected:
     /* Two levels of invalidation.
      *

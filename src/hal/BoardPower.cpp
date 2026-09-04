@@ -90,19 +90,35 @@ uint32_t backlightDuty(uint8_t percent) {
 }
 }
 
-Board::BatteryTelemetry Board::readBatteryTelemetry() {
+/* ---- Sampling, on a task of its own -------------------------------------
+ *
+ * This used to be lazy: the first caller after the 2s cache expired paid for
+ * the conversion. That caller was almost always Ui::drawTopBar(), so eight
+ * analogRead()s and both filters ran inside a frame, on the render path, and
+ * the filters advanced on whatever cadence the UI happened to ask on rather
+ * than on a clock. Caching made it cheap on average and unpredictable in the
+ * particular frame that paid.
+ *
+ * It belongs on a timer, so it is on one. Watchdog's monitor task is the
+ * precedent: priority 1 on core 0, out of the way of the Arduino loop task on
+ * core 1. The loop now only ever reads a settled snapshot, and cannot be the
+ * thing that makes the gauge advance.
+ *
+ * Everything the filters carry -- chargeState_, chargeSmoothV_, gaugeFilteredV_,
+ * displayPct_ -- is touched by this task alone once begin() has returned.
+ * Readers see only batteryPublished_, swapped under a spinlock, so a snapshot
+ * is always one consistent sample rather than a voltage from one and a
+ * percentage from the next. */
+void Board::sampleBattery() {
     const uint32_t now = millis();
-    if (batterySampled_ && now - batterySampleMs_ < BATTERY_SAMPLE_MS) {
-        return batterySample_;
-    }
 
     /* No sense line means no reading. A zeroed sample reads as implausible
      * downstream, which is already how the gauge says "I cannot see this". */
     if (!BOARD.hasBatterySense()) {
-        batterySample_ = BatteryTelemetry{};
-        batterySampleMs_ = now;
-        batterySampled_ = true;
-        return batterySample_;
+        portENTER_CRITICAL(&batteryMux_);
+        batteryPublished_ = BatteryPublic{};
+        portEXIT_CRITICAL(&batteryMux_);
+        return;
     }
 
     if (!s_adcCharacterised) {
@@ -122,12 +138,66 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
     sample.adcVoltage = esp_adc_cal_raw_to_voltage(sample.rawAdc, &s_adcChars) / 1000.0f;
     sample.batteryVoltage = sample.adcVoltage * DIVIDER_RATIO;
 
-    batterySample_ = sample;
-    batterySampleMs_ = now;
-    batterySampled_ = true;
     updateChargeState(sample.batteryVoltage, now);
     updateGaugeFilter(sample.batteryVoltage);
-    return sample;
+
+    /* The deadband is applied here, once per sample, rather than in the getter.
+     * The getter is called several times per frame and this has memory in it;
+     * advancing it on a reader's cadence is the mistake this whole task exists
+     * to stop making. */
+    const float vBat = gaugeFilteredV_;
+    if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
+        displayPct_ = -1;   // a fault is reported at once, never held back
+    } else {
+        const int8_t raw = curvePercent(vBat);
+        const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
+                                                                   : displayPct_ - raw);
+        if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
+            displayPct_ = raw;
+        }
+    }
+
+    portENTER_CRITICAL(&batteryMux_);
+    batteryPublished_.sample = sample;
+    batteryPublished_.state = chargeState_;
+    batteryPublished_.pct = displayPct_;
+    portEXIT_CRITICAL(&batteryMux_);
+}
+
+Board::BatteryPublic Board::batterySnapshot() {
+    portENTER_CRITICAL(&batteryMux_);
+    const BatteryPublic copy = batteryPublished_;
+    portEXIT_CRITICAL(&batteryMux_);
+    return copy;
+}
+
+void Board::batteryTask(void* arg) {
+    Board* self = static_cast<Board*>(arg);
+    for (;;) {
+        self->sampleBattery();
+        vTaskDelay(pdMS_TO_TICKS(BATTERY_SAMPLE_MS));
+    }
+}
+
+void Board::beginBatteryMonitor() {
+    if (batteryTaskHandle_ != nullptr) {
+        return;
+    }
+    /* One synchronous sample before the task exists, so the first screen drawn
+     * has a real reading rather than the -1 that means "sensor fault". Priming
+     * the gauge filter here is also what stops the badge ramping up from zero
+     * for the first half-minute after every boot. */
+    sampleBattery();
+
+    if (!BOARD.hasBatterySense()) {
+        return;   // nothing to poll; the zeroed snapshot above is the answer
+    }
+    xTaskCreatePinnedToCore(batteryTask, "battery", 2560, this, 1,
+                            &batteryTaskHandle_, 0);
+}
+
+Board::BatteryTelemetry Board::readBatteryTelemetry() {
+    return batterySnapshot().sample;
 }
 
 /* Called only on a fresh sample, so "the previous sample" is BATTERY_SAMPLE_MS
@@ -216,14 +286,15 @@ float Board::getBatteryVoltage() {
 }
 
 Board::PowerState Board::getPowerSource() {
-    const float vBat = readBatteryTelemetry().batteryVoltage;
+    const BatteryPublic snap = batterySnapshot();
+    const float vBat = snap.sample.batteryVoltage;
     if (vBat >= V_IMPLAUSIBLE && vBat <= V_SENSOR_MAX) {
         /* The cell voltage is all there is to go on, and it sits in the same
          * range whether the cable is in, out, or there is no pack at all -- so
          * the charge verdict is the only thing that tells them apart. There is
          * deliberately no "no pack" answer here; see V_SENSOR_MAX above. */
-        if (chargeState_ == ChargingState::CHARGING ||
-            chargeState_ == ChargingState::FULL) {
+        if (snap.state == ChargingState::CHARGING ||
+            snap.state == ChargingState::FULL) {
             return PowerState::EXTERNAL_POWER;
         }
         return PowerState::BATTERY;
@@ -231,12 +302,9 @@ Board::PowerState Board::getPowerSource() {
     return PowerState::UNKNOWN;
 }
 
-int8_t Board::getBatteryPercent() {
-    readBatteryTelemetry();  // Ensure sample and filters are advancing
-    const float vBat = gaugeFilteredV_;  // Use smoothed voltage for display
-    if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
-        return -1;   // sensor fault -- NOT "no pack", which is undetectable
-    }
+/* The curve mapping alone, with no memory in it. getBatteryPercent() is what
+ * the screens read, and it adds the deadband described there. */
+int8_t Board::curvePercent(float vBat) const {
     if (vBat >= LIPO_CURVE[0].volts) {
         return 100;
     }
@@ -252,29 +320,66 @@ int8_t Board::getBatteryPercent() {
     return 0;
 }
 
-Board::ChargingState Board::getChargingState() {
-    readBatteryTelemetry();   // keeps the verdict advancing off the render path
-    return chargeState_;
+/* The displayed charge, with a deadband, because one percent is smaller than
+ * this hardware can actually resolve.
+ *
+ * Mid-discharge the curve above spends 10 percentage points on 20mV -- 2mV per
+ * percent. The divider halves the cell before the ADC sees it and one count at
+ * 11dB is a bit over a millivolt, so a single count of noise is worth most of a
+ * percentage point, and the plateau is where the pack sits for most of its
+ * life. The gauge filter (~40s) kills the fast noise but cannot stop a value
+ * resting on a boundary from crossing it, so the reading flapped between two
+ * neighbouring percentages indefinitely. With the BLE beacon advertising, its
+ * supply ripple made that continuous.
+ *
+ * Every crossing invalidated the header, and until the chrome repaint landed
+ * that meant wiping the whole panel -- so the console visibly flashed every
+ * couple of seconds. The repaint is cheap now; this stops the number itself
+ * from twitching, which is the other half of the same complaint.
+ *
+ * The band is applied to the percentage, not to the measurement: the voltage,
+ * the charge verdict and the gauge filter all still read the filtered value
+ * directly. A real discharge still tracks, in steps of PERCENT_DEADBAND rather
+ * than one at a time.
+ *
+ * isBatteryLow() and isBatteryCritical() do read through this, so a warning
+ * can arrive a percent later than it once would. That is the right way round:
+ * they were previously free to flap on and off while the reading sat on their
+ * threshold, and a low-battery banner that appears and vanishes every two
+ * seconds is worse than one that arrives a moment late.
+ *
+ * Both endpoints are exempt. "100%" on the charger and "0%" about to die are
+ * the two readings a person acts on, and a deadband that could leave the badge
+ * showing 99 on a full pack would be trading a true number for a still one. */
+int8_t Board::getBatteryPercent() {
+    return batterySnapshot().pct;   // -1 means sensor fault, NOT "no pack"
 }
 
+Board::ChargingState Board::getChargingState() {
+    return batterySnapshot().state;
+}
+
+/* One snapshot for both reads: taking the percentage from one sample and the
+ * charge verdict from the next could report a low battery that the same
+ * snapshot says is on the charger. */
 bool Board::isBatteryLow() {
-    const int8_t pct = getBatteryPercent();
-    if (pct < 0) return false;
-    if (chargeState_ == ChargingState::CHARGING ||
-        chargeState_ == ChargingState::FULL) {
+    const BatteryPublic snap = batterySnapshot();
+    if (snap.pct < 0) return false;
+    if (snap.state == ChargingState::CHARGING ||
+        snap.state == ChargingState::FULL) {
         return false;
     }
-    return pct <= BATTERY_LOW_PERCENT;
+    return snap.pct <= BATTERY_LOW_PERCENT;
 }
 
 bool Board::isBatteryCritical() {
-    const int8_t pct = getBatteryPercent();
-    if (pct < 0) return false;
-    if (chargeState_ == ChargingState::CHARGING ||
-        chargeState_ == ChargingState::FULL) {
+    const BatteryPublic snap = batterySnapshot();
+    if (snap.pct < 0) return false;
+    if (snap.state == ChargingState::CHARGING ||
+        snap.state == ChargingState::FULL) {
         return false;
     }
-    return pct <= BATTERY_CRITICAL_PERCENT;
+    return snap.pct <= BATTERY_CRITICAL_PERCENT;
 }
 
 uint8_t Board::brightness() {
