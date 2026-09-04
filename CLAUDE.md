@@ -838,11 +838,15 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` on the E32R28T-1 is a bare pin with no codec behind
-  it, so `GUME_HAS_AUDIO_CODEC` is 0 there and the whole synthesiser compiles
-  out: `playSound()` is a no-op and `beepOk()`/`beepError()` are the RGB pulse
-  and nothing else. Sound is real only on a board whose profile describes a
-  codec -- today the Freenove FNK0104B.
+- `audio.speakerPin = 26` on the E32R28T-1, E32R40T and ESP32-2432S028R
+  reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
+  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on those boards; the I2S
+  peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
+  codec. The full cue vocabulary and the spoken boot phrase play from the same
+  synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
+  1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
+  `BoardProfile.audio` is 85 for the codec board and 75 for the bare-DAC CYD
+  boards (unamplifed driver distorts above 75%). See `src/hal/CLAUDE.md`.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions

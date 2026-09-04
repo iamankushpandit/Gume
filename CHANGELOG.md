@@ -9,6 +9,26 @@ release, and About's **This build** page names the branch and commit.
 
 ### Added
 
+- **DAC audio on CYD-family boards (E32R28T-1, E32R40T, ESP32-2432S028R).**
+  GPIO26 is DAC channel 2 on the classic ESP32; the I2S peripheral drives it
+  directly via `I2S_DAC_BUILT_IN`, with no external codec and no extra wiring.
+  The full cue vocabulary from `Sound::` — every cue, the spoken "Let's play
+  Braino!" boot phrase and Cinnamon's four pitched pads — plays from the same
+  synthesiser the Freenove FNK0104B uses. Volume is applied as linear amplitude
+  scaling (not the dB conversion used for the ES8311 register).
+
+  The audio backend is now three-state rather than binary:
+  `GUME_HAS_AUDIO_CODEC` for the codec path, `GUME_HAS_AUDIO_DAC` for the
+  built-in DAC, and neither for boards with no speaker path.
+
+  `AUDIO_VOLUME_MAX` moved from a hard-coded constant into `BoardProfile`
+  (`audio.maxVolume`), so each board can state its own ceiling: 85 for the
+  Freenove (unchanged), 75 for CYD boards (bare DAC, small unamplifed driver).
+
+  `env:audiodiag` is a new standalone probe (same pattern as `batdiag`) for
+  validating the DAC path on hardware: sine wave, frequency sweep, volume steps
+  and tone bursts approximating each cue.
+
 - **The 4-inch E32R40T is supported, measured on hardware.** An ST7796
   320x480 panel running 480x320 in landscape, with XPT2046 resistive touch
   sharing the display's SPI bus. It is offered by the web installer and all 31

@@ -104,8 +104,31 @@ responsiveness rule is about. The mute gate lives in `Board::playSound()` and
 nowhere else, which is what makes it true of the beeps and the boot phrase as
 well as of the cues; `setSoundEnabled(false)` also stops whatever is currently
 sounding, because Mute is the control somebody reaches for *while* the boot
-phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (85) and writes codec register 0x32
-live.
+phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
+`BOARD.audio.maxVolume`).
+
+**The audio backend is now three-state, not binary.**
+
+- `GUME_HAS_AUDIO_CODEC 1` — ES8311 codec (Freenove FNK0104B). Requires
+  `Wire` + `driver/i2s.h`. Volume via register 0x32 (logarithmic — see
+  `applyCodecVolume()`). `maxVolume` = 85 on this board.
+- `GUME_HAS_AUDIO_DAC 1` — ESP32 built-in DAC via `I2S_DAC_BUILT_IN` (CYD
+  boards: E32R28T-1, E32R40T, ESP32-2432S028R). Requires `driver/i2s.h`
+  only; no Wire. Volume is linear amplitude scaling applied at sample time in
+  `tickAudio()` — do **not** copy the dB conversion from `applyCodecVolume()`,
+  which is correct only for a logarithmic register. Samples must be converted
+  from signed int16 to unsigned offset-binary: `(sample * vol/100) + 32768`.
+  Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
+  75 on CYD boards (bare DAC, unamplifed 1-inch driver distorts above 75%).
+- Neither defined — no audio (e.g. esp32-2432s028 ST7789 variant).
+
+`AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
+`BoardProfile`. A board that gains a louder amplifier sets its own ceiling;
+a board with no speaker path sets it to 0.
+
+`Board::hasSound()` covers both codec and DAC: a settings screen can offer
+the mute switch and volume slider on any audio-capable board, not just
+codec boards.
 
 **Register 0x32 is logarithmic and was being driven as if it were linear.**
 Half a decibel per step, `0xBF` unity, `0x00` silence -- so scaling the
@@ -119,11 +142,10 @@ both**, for the same reason the battery constants carry that rule: a bench
 instrument that disagrees with the product about what "80" means is worse than
 no instrument.
 
-`AUDIO_VOLUME_MAX` was 80 and is now 85, and the change is not a relaxation --
-the old 80 was measuring the bug, not the hardware. 85 was set by listening on
-the FNK0104B's driver. It describes one speaker in one case: a board with a
-louder amplifier needs its own figure, and at that point the ceiling belongs in
-`BoardProfile` rather than in `Board`.
+**IDF version dependency.** `I2S_DAC_BUILT_IN` and `i2s_set_dac_mode()` are
+IDF 4.4 (Arduino core 2.0.17) APIs. They were removed in IDF 5.x. If the
+platform is ever bumped, the DAC backend in `beginAudio()` and `tickAudio()`
+and the whole of `src/audiodiag.cpp` need rewriting with the new driver.
 
 The knobs for retuning by ear are the formant numbers, the segment lengths,
 `VOICE_PITCH_HZ` (monotone, which is what makes it robotic) and `NOISE_MAKEUP`
@@ -134,9 +156,15 @@ active-low amplifier enable, MCLK from the APLL, ADC volume resetting to
 minimum -- came from `env:s3diag` on real hardware and are documented at the
 top of the file.
 
+**`env:audiodiag`** is a standalone DAC bring-up probe (same pattern as
+`batdiag`): builds `src/audiodiag.cpp` alone, no frame budget, no watchdog.
+Sine wave at a configurable frequency, frequency sweep, volume steps and tone
+bursts approximating each cue. The three questions it answers: does GPIO26
+reach the speaker? Is output level audible? Where does distortion begin?
+
 ### RGB LED
 
-LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no codec the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
+LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
 The red and green GPIOs are physically crossed on this unit versus the standard pinout. The E32R28T-1 profile already accounts for it (`rgb.r = 16`, `rgb.g = 4`) and it was verified on hardware — leave it alone.
 
