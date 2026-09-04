@@ -566,6 +566,9 @@ def main():
             builds.append({
                 "board": target["id"],
                 "env": env,
+                # The page rebuilds the firmware dropdown from this list when a
+                # board is chosen, so each build has to carry its own label.
+                "label": variant["label"],
                 "dir": directory,
                 "manifest": directory + "/manifest.json",
                 "note": variant["note"].format(count=len(catalog)),
@@ -575,9 +578,11 @@ def main():
     board_options = "\n".join(
         '          <option value="%s">%s</option>' % (t["id"], escape(t["label"]))
         for t in supported)
-    variant_options = "\n".join(
-        '          <option value="%s">%s</option>' % (v["env"], escape(v["label"]))
-        for v in VARIANTS)
+    # Deliberately empty: the page fills it from BUILDS for whichever board is
+    # selected. Offering every firmware regardless of board and trusting the
+    # reader to pair them is how somebody flashes the 2.8-inch build onto a
+    # 4-inch board and gets a black screen that looks like a dead device.
+    variant_options = ""
     game_cards = render_game_cards(catalog)
     system_cards = render_system_cards()
     still_wall = render_still_wall()
