@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BoardConfig.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
@@ -38,6 +39,26 @@ private:
      * a change to TAB_COUNT and nothing else -- the previous version wrote
      * SCREEN_WIDTH / 3 out three times with the last one fudged to absorb the
      * rounding, which is a thing to get wrong once per tab. */
+    /* The live panel, refreshed at the top of update() and render().
+     *
+     * The rect helpers below are shared by hit testing and drawing -- which is
+     * what keeps a control's target under its glyph -- so they must all agree
+     * about the panel. Passing two arguments through forty call sites would
+     * have said the same thing forty times and given forty chances to say it
+     * differently; caching it once per frame says it in one place. Seeded with
+     * the board's landscape size so the helpers are sane before the first
+     * paint, and refreshed on entry so a rotation is picked up. */
+    int16_t panelW_ = SCREEN_WIDTH;
+    int16_t panelH_ = SCREEN_HEIGHT;
+    void syncPanel(GameHost& host);
+
+    /* Shared grid, measured against the cached panel. Two columns for the
+     * paired controls, one full-width row for the rest. */
+    int16_t gridRowPitch() const;
+    int16_t gridRowHeight() const;
+    Rect gridCell(uint8_t row, uint8_t col) const;   // col 0/1
+    Rect gridWide(uint8_t row) const;                // spans both columns
+
     Rect tabRect(uint8_t index) const;
     Rect tabRectFor(Tab tab) const;
     Rect changePinRect() const;

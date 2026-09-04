@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BoardConfig.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
@@ -47,6 +48,23 @@ private:
     void runScan();
     void startConnect(GameHost& host);
     void checkConnect(GameHost& host);
+
+    /* This screen was drawn against 320x240 and says so in every rect. Rather
+     * than restate ~17 literals -- which are duplicated between the hit tests
+     * and the drawing, so each would have had to be found twice and could be
+     * fixed in one place and not the other -- everything goes through one
+     * mapping from that design size onto the live panel.
+     *
+     * At 320x240 it is the identity, so the board this was drawn for keeps the
+     * exact numbers it had. On a larger panel the layout fills it and the
+     * targets grow, while the text stays its own size: this is a system app,
+     * so it gets more room rather than bigger type. */
+    int16_t panelW_ = SCREEN_WIDTH;
+    int16_t panelH_ = SCREEN_HEIGHT;
+    void syncPanel(GameHost& host);
+    Rect baseRect(int16_t x, int16_t y, int16_t w, int16_t h) const;
+    int16_t baseX(int16_t x) const;
+    int16_t baseY(int16_t y) const;
 
     Rect netRect(uint8_t slot) const;
     Rect zoneRect(uint8_t slot) const;

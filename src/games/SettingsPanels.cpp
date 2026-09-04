@@ -24,15 +24,72 @@
  * Nearby is deliberately next to Beacon's row rather than beside it: it does
  * nothing unless Beacon is on, and reading downwards is the order you have to
  * turn them on in. */
-Rect SettingsGame::themeRect()  const { return Rect{8,    58, 144, 30}; }
-Rect SettingsGame::layoutRect() const { return Rect{164,  58, 144, 30}; }
-Rect SettingsGame::lightRect()  const { return Rect{8,    92, 144, 30}; }
-Rect SettingsGame::bleRect()    const { return Rect{164,  92, 144, 30}; }
-Rect SettingsGame::wifiRect()   const { return Rect{8,   126, 144, 30}; }
-Rect SettingsGame::ntpSyncRect() const { return Rect{164, 126, 144, 30}; }
-Rect SettingsGame::nearbyRect() const { return Rect{8,   160, 144, 30}; }
-Rect SettingsGame::resetRect()  const { return Rect{164, 160, 144, 30}; }
-Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
+/* ---- the shared grid -------------------------------------------------
+ *
+ * Every control on every tab sits on one grid, so a taller or wider panel
+ * moves them all together rather than one tab at a time. The arithmetic is
+ * chosen to reproduce the original 320x240 numbers exactly: at that size the
+ * pitch works out to 34 and the columns to 144 wide at x = 8 and x = 164,
+ * which is where they have always been.
+ *
+ * On a bigger panel the rows spread and the buttons grow with them, capped so
+ * a very tall screen does not turn four controls into four slabs. Larger
+ * targets are the point on this board -- it is here for players who want a
+ * plainer screen and an easier thing to hit. */
+namespace {
+constexpr int16_t SETTINGS_MARGIN = 8;
+constexpr int16_t SETTINGS_GAP = 12;
+constexpr int16_t SETTINGS_TOP = 58;
+constexpr int16_t SETTINGS_BOTTOM_RESERVE = 36;   // the brightness bar
+constexpr int16_t SETTINGS_MIN_PITCH = 34;
+constexpr int16_t SETTINGS_MAX_ROW_H = 44;
+}  // namespace
+
+int16_t SettingsGame::gridRowPitch() const {
+    const int16_t avail = static_cast<int16_t>(
+        panelH_ - SETTINGS_BOTTOM_RESERVE - SETTINGS_MARGIN - SETTINGS_TOP);
+    const int16_t pitch = static_cast<int16_t>(avail / 4);
+    return pitch < SETTINGS_MIN_PITCH ? SETTINGS_MIN_PITCH : pitch;
+}
+
+int16_t SettingsGame::gridRowHeight() const {
+    const int16_t h = static_cast<int16_t>(gridRowPitch() - 4);
+    return h > SETTINGS_MAX_ROW_H ? SETTINGS_MAX_ROW_H : h;
+}
+
+Rect SettingsGame::gridCell(uint8_t row, uint8_t col) const {
+    const int16_t colW = static_cast<int16_t>(
+        (panelW_ - SETTINGS_MARGIN - SETTINGS_GAP - SETTINGS_GAP) / 2);
+    const int16_t x = col == 0
+        ? SETTINGS_MARGIN
+        : static_cast<int16_t>(SETTINGS_MARGIN + colW + SETTINGS_GAP);
+    return Rect{x, static_cast<int16_t>(SETTINGS_TOP + row * gridRowPitch()),
+                colW, gridRowHeight()};
+}
+
+Rect SettingsGame::gridWide(uint8_t row) const {
+    return Rect{SETTINGS_MARGIN,
+                static_cast<int16_t>(SETTINGS_TOP + row * gridRowPitch()),
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                gridRowHeight()};
+}
+
+Rect SettingsGame::themeRect()   const { return gridCell(0, 0); }
+Rect SettingsGame::layoutRect()  const { return gridCell(0, 1); }
+Rect SettingsGame::lightRect()   const { return gridCell(1, 0); }
+Rect SettingsGame::bleRect()     const { return gridCell(1, 1); }
+Rect SettingsGame::wifiRect()    const { return gridCell(2, 0); }
+Rect SettingsGame::ntpSyncRect() const { return gridCell(2, 1); }
+Rect SettingsGame::nearbyRect()  const { return gridCell(3, 0); }
+Rect SettingsGame::resetRect()   const { return gridCell(3, 1); }
+
+/* The brightness bar is pinned to the bottom rather than following the grid:
+ * it is the only continuous control here and it reads as a footer. */
+Rect SettingsGame::brightRect() const {
+    return Rect{SETTINGS_MARGIN,
+                static_cast<int16_t>(panelH_ - SETTINGS_BOTTOM_RESERVE),
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2), 32};
+}
 
 /* Sound tab.
  *
@@ -45,20 +102,23 @@ Rect SettingsGame::brightRect() const { return Rect{8,   204, 304, 32}; }
  * buttons 148-178, and two lines of explanation at 190 and 206 -- which leaves
  * 34px of margin at the bottom. There is room for one more row here and not
  * two. */
-Rect SettingsGame::muteRect()      const { return Rect{8,   58, 304, 30}; }
-Rect SettingsGame::volumeRect()    const { return Rect{8,  104, 304, 32}; }
-Rect SettingsGame::testCueRect()   const { return Rect{8,  148, 144, 30}; }
-Rect SettingsGame::testVoiceRect() const { return Rect{164, 148, 144, 30}; }
+Rect SettingsGame::muteRect()      const { return gridWide(0); }
+Rect SettingsGame::volumeRect()    const {
+    const Rect r = gridWide(1);
+    return Rect{r.x, r.y, r.w, static_cast<int16_t>(r.h + 2)};
+}
+Rect SettingsGame::testCueRect()   const { return gridCell(2, 0); }
+Rect SettingsGame::testVoiceRect() const { return gridCell(2, 1); }
 
 /* Power tab: four full-width rows, so the labels have room to say what the
  * setting actually does rather than abbreviating to fit half a screen.
  *
  * Wake lock sits with them because it is the last thing in the idle sequence:
  * saver, sleep, then what it takes to get back. */
-Rect SettingsGame::idleActionRect() const { return Rect{8,  58, 304, 30}; }
-Rect SettingsGame::idleAfterRect()  const { return Rect{8,  92, 304, 30}; }
-Rect SettingsGame::sleepAfterRect() const { return Rect{8, 126, 304, 30}; }
-Rect SettingsGame::wakeLockRect()   const { return Rect{8, 160, 304, 30}; }
+Rect SettingsGame::idleActionRect() const { return gridWide(0); }
+Rect SettingsGame::idleAfterRect()  const { return gridWide(1); }
+Rect SettingsGame::sleepAfterRect() const { return gridWide(2); }
+Rect SettingsGame::wakeLockRect()   const { return gridWide(3); }
 
 bool SettingsGame::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
@@ -143,7 +203,7 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
                                  : "Brightness", 8, 194, 1);
         tft.setTextDatum(TR_DATUM);
         snprintf(label, sizeof(label), "%u%%", board.brightness());
-        tft.drawString(label, SCREEN_WIDTH - 8, 194, 1);
+        tft.drawString(label, panelW_ - 8, static_cast<int16_t>(brightRect().y - 10), 1);
         tft.setTextDatum(TL_DATUM);
         Ui::drawSlider(tft, brightRect(), board.brightness(), Board::BRIGHTNESS_MIN);
     }
@@ -276,7 +336,7 @@ void SettingsGame::renderSoundTab(GameHost& host) {
     } else {
         snprintf(label, sizeof(label), "%u%%", board.volume());
     }
-    tft.drawString(label, SCREEN_WIDTH - 8, 92, 1);
+    tft.drawString(label, panelW_ - 8, static_cast<int16_t>(volumeRect().y - 12), 1);
     tft.setTextDatum(TL_DATUM);
 
     Ui::drawSlider(tft, volumeRect(), present ? board.volume() : 0, 0,
