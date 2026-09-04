@@ -718,14 +718,39 @@ void Board::beginAudio() {
                   soundEnabled() ? "" : " (muted)");
 
 #elif GUME_HAS_AUDIO_DAC
-    /* CYD-family boards drive the speaker directly from the ESP32 built-in
-     * DAC on GPIO26 (DAC channel 2). There is no external codec and no
-     * amplifier enable pin; the I2S peripheral drives the DAC via
-     * I2S_DAC_BUILT_IN mode without any external pin configuration.
+    /* CYD-family boards drive the speaker straight from an ESP32 built-in DAC.
+     * There is no external codec and no amplifier enable; the I2S peripheral
+     * drives the DAC via I2S_DAC_BUILT_IN mode with no pin configuration of
+     * its own -- which is exactly why the channel has to be chosen correctly,
+     * because nothing here can be told a pin number.
+     *
+     * WHICH CHANNEL IS NOT A FREE CHOICE, AND THE NAMES ARE A TRAP.
+     * From the IDF's own hal/i2s_types.h:
+     *
+     *   I2S_DAC_CHANNEL_RIGHT_EN = 1   maps to DAC channel 1 on GPIO25
+     *   I2S_DAC_CHANNEL_LEFT_EN  = 2   maps to DAC channel 2 on GPIO26
+     *
+     * So "RIGHT" is GPIO25 and "LEFT" is GPIO26 -- the opposite of what the
+     * numbering suggests, since DAC *channel 2* is the *left* enum. Picking
+     * RIGHT for a speaker on GPIO26 puts the audio on the wrong pin and leaves
+     * the speaker silent, which is indistinguishable from a wiring fault on a
+     * board whose speaker path has never been measured. Deriving it from the
+     * profile is what stops that being a matter of memory.
      *
      * NOTE: I2S_DAC_BUILT_IN and i2s_set_dac_mode() are IDF 4.4 (Arduino core
      * 2.0.17) APIs. They were removed in IDF 5.x. If the toolchain version is
      * ever bumped, this path will need rewriting with the new driver API. */
+    constexpr int8_t DAC1_GPIO = 25;   // ESP32 DAC channel 1
+    constexpr int8_t DAC2_GPIO = 26;   // ESP32 DAC channel 2
+    static_assert(BOARD.audio.speakerPin == DAC1_GPIO ||
+                  BOARD.audio.speakerPin == DAC2_GPIO,
+                  "GUME_HAS_AUDIO_DAC needs a speakerPin on GPIO25 or GPIO26 -- "
+                  "those are the only two ESP32 pins the built-in DAC reaches. "
+                  "A speaker on any other pin needs a different backend, not a "
+                  "different constant here.");
+    const i2s_dac_mode_t dacChannel = (BOARD.audio.speakerPin == DAC2_GPIO)
+                                          ? I2S_DAC_CHANNEL_LEFT_EN
+                                          : I2S_DAC_CHANNEL_RIGHT_EN;
     i2s_config_t cfg = {};
     cfg.mode = static_cast<i2s_mode_t>(
         I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN);
@@ -744,8 +769,9 @@ void Board::beginAudio() {
         return;
     }
 
-    /* Route I2S output to DAC channel 2 (right channel = GPIO26). */
-    if (i2s_set_dac_mode(I2S_DAC_CHANNEL_RIGHT_EN) != ESP_OK) {
+    /* Route I2S output to the DAC channel this board's speaker actually hangs
+     * off -- see the mapping above. */
+    if (i2s_set_dac_mode(dacChannel) != ESP_OK) {
         Serial.println("[audio] I2S DAC mode failed; console will be silent");
         i2s_driver_uninstall(I2S_NUM_0);
         return;
@@ -766,8 +792,14 @@ void Board::beginAudio() {
     }
 
     dacUp = true;
-    Serial.printf("[audio] DAC up at %d Hz (GPIO26), volume %u%%%s\n",
-                  AUDIO_RATE, volume(), soundEnabled() ? "" : " (muted)");
+    /* The pin comes from the profile rather than the format string: this line
+     * is the first thing anybody reads when the speaker is silent, and a log
+     * that names a pin the firmware did not actually drive sends them to a
+     * meter instead of to the mapping above. */
+    Serial.printf("[audio] DAC up at %d Hz (GPIO%d, DAC ch%d), volume %u%%%s\n",
+                  AUDIO_RATE, static_cast<int>(BOARD.audio.speakerPin),
+                  BOARD.audio.speakerPin == DAC2_GPIO ? 2 : 1,
+                  volume(), soundEnabled() ? "" : " (muted)");
 #endif
 }
 

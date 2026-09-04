@@ -72,14 +72,23 @@
 
 /* ---- constants -------------------------------------------------------- */
 static constexpr uint32_t SAMPLE_RATE = 16000;
-static constexpr uint32_t DAC_I2S_PORT = I2S_NUM_0;
+static constexpr i2s_port_t DAC_I2S_PORT = I2S_NUM_0;
 static constexpr int BOOT_PIN = 0;
 
 /* The DAC channel that reaches GPIO26 on the classic ESP32.
- * GPIO25 = DAC1 = I2S_DAC_CHANNEL_LEFT_EN.
- * GPIO26 = DAC2 = I2S_DAC_CHANNEL_RIGHT_EN.
- * These are the only two pins the built-in DAC can use. */
-static constexpr i2s_dac_mode_t DAC_CHANNEL = I2S_DAC_CHANNEL_RIGHT_EN;
+ *
+ * THE ENUM NAMES ARE INVERTED RELATIVE TO THE CHANNEL NUMBERS. Straight from
+ * the IDF's hal/i2s_types.h, which is the only authority worth quoting here:
+ *
+ *   I2S_DAC_CHANNEL_RIGHT_EN = 1   maps to DAC channel 1 on GPIO25
+ *   I2S_DAC_CHANNEL_LEFT_EN  = 2   maps to DAC channel 2 on GPIO26
+ *
+ * So DAC channel 2 -- the one wired to the speaker on these boards -- is the
+ * *LEFT* enum. This probe exists to answer "does GPIO26 reach the speaker?",
+ * and picking the wrong constant here makes it answer "no" for a board that is
+ * wired perfectly well: the instrument would confirm a fault it caused itself.
+ * Keep this in step with Board::beginAudio() -- change one, change both. */
+static constexpr i2s_dac_mode_t DAC_CHANNEL = I2S_DAC_CHANNEL_LEFT_EN;
 
 /* Same value that will go into boardProfile.audio.maxVolume for the CYD.
  * This is 75 by default; raise it to find the distortion threshold. If
@@ -158,9 +167,10 @@ static bool dacBegin() {
  * register and would give the wrong curve here.
  *
  * I2S in RIGHT_LEFT stereo format expects TWO 16-bit words per audio frame.
- * With I2S_DAC_CHANNEL_RIGHT_EN, DAC2 (GPIO26) gets the right channel word.
- * Both words are set to the same value so the left-channel slot (unused) is
- * also mid-scale rather than leaving it undefined. */
+ * Both words are set to the same value, so it does not matter which slot the
+ * enabled DAC channel takes its sample from and the unused one is never left
+ * undefined. That is deliberate: it makes the output correct whichever of the
+ * two DAC pins a board turns out to use. */
 static void dacWrite(const int16_t* samples, size_t count, uint8_t volumePct) {
     static uint16_t buf[128 * 2];   /* 128 stereo frames = 512 bytes */
     while (count > 0) {
@@ -172,8 +182,8 @@ static void dacWrite(const int16_t* samples, size_t count, uint8_t volumePct) {
              * Only the high 8 bits reach the DAC in I2S_DAC_BUILT_IN mode,
              * so the offset must go in the high byte. */
             const uint16_t val = static_cast<uint16_t>(scaled + 32768);
-            buf[i * 2]     = val;   /* left  channel (unused on CYD)     */
-            buf[i * 2 + 1] = val;   /* right channel = DAC2 = GPIO26     */
+            buf[i * 2]     = val;   /* left  slot -> DAC2 / GPIO26       */
+            buf[i * 2 + 1] = val;   /* right slot -> DAC1 / GPIO25       */
         }
         size_t written = 0;
         i2s_write(DAC_I2S_PORT, buf, chunk * 2 * sizeof(uint16_t),
