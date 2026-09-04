@@ -118,8 +118,22 @@ void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
             selected_ = static_cast<int8_t>(i);
             answered_ = true;
             ++rounds_;
-            if (i == correctPos_) { ++score_; host.beepOk(); }
-            else { host.beepError(); }
+            if (i == correctPos_) {
+                ++score_;
+                /* Every fifth right answer in a row of them gets the level
+                 * flourish instead of the plain tick. There are no levels in
+                 * this game to mark otherwise, and a run of correct answers
+                 * is the thing worth noticing -- it is what turns a list of
+                 * questions into a streak. */
+                if (score_ % 5 == 0) {
+                    host.pulseRgb(0, 255, 40, 450);
+                    host.playSound(Sound::LevelUp);
+                } else {
+                    host.beepOk();
+                }
+            } else {
+                host.beepError();
+            }
             feedbackUntil_ = millis() + 1400UL;
             markDirty();
             return;
@@ -146,7 +160,7 @@ void SequenceGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char scoreBuf[16];
     snprintf(scoreBuf, sizeof(scoreBuf), "%u/%u", score_, rounds_);
-    tft.drawString(scoreBuf, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(scoreBuf, GAME_CANVAS_WIDTH - 8, 34, 2);
 
     // Question text
     tft.setTextDatum(MC_DATUM);
@@ -154,7 +168,7 @@ void SequenceGame::render(AppContext& host) {
     const char* qtypeStr = qtype_ == QType::After ? "AFTER" : "BEFORE";
     char prompt[32];
     snprintf(prompt, sizeof(prompt), "What comes %s:", qtypeStr);
-    tft.drawString(prompt, SCREEN_WIDTH / 2, 70, 2);
+    tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 70, 2);
 
     // Subject highlight box
     tft.fillRoundRect(60, 84, 200, 52, 8, Ui::surface());
@@ -164,11 +178,11 @@ void SequenceGame::render(AppContext& host) {
     // Fit long names
     uint8_t subjectFont = 4;
     if (tft.textWidth(subj, 4) > 180) subjectFont = 2;
-    tft.drawString(subj, SCREEN_WIDTH / 2, 110, subjectFont);
+    tft.drawString(subj, GAME_CANVAS_WIDTH / 2, 110, subjectFont);
 
     // "?" label
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString("?", SCREEN_WIDTH / 2, 140, 2);
+    tft.drawString("?", GAME_CANVAS_WIDTH / 2, 140, 2);
 
     // Answer tiles
     for (uint8_t i = 0; i < 4; ++i) {

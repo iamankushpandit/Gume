@@ -154,7 +154,7 @@ Rect BrainoApp::activeLockRect() {
     if (activeGame_ == &launcher_) {
         return LauncherLayout::lockRect(board_.layoutMode(), renderer_.width());
     }
-    return LauncherLayout::topBarLockRect();
+    return LauncherLayout::topBarLockRect(static_cast<int16_t>(renderer_.width()));
 }
 
 /* The deliberate way in. Everything else here is reached by a timeout; this is

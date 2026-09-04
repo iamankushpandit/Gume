@@ -18,7 +18,11 @@ A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOAR
 - `BoardTouch.cpp` - touch ADC, calibration, coordinate mapping
 - `BoardPower.cpp` - battery telemetry, backlight brightness, panel sleep/wake
 - `BoardNetwork.cpp` - Wi-Fi credentials, timezone, NTP sync, network activity log
-- `BoardFeedback.cpp` - semantic beeps, RGB LED, BLE enable switch
+- `BoardFeedback.cpp` - RGB LED, BLE and Nearby enable switches
+- `BoardAudio.cpp` - the sound engine: codec bring-up, the cue tables, the
+  phoneme table for the spoken boot phrase, and the per-sample synthesiser
+- `Sound.h` - the cue vocabulary, shared with app code without pulling in
+  `Board.h`
 - `BoardStorage.cpp` - scoped persistence, schema versioning, migration
 - `BoardStorageMaintenance.cpp` - profile-slot moves, NVS usage telemetry
 - `TouchTypes.h` - `TouchPoint` shared with app code without pulling in `Board.h` or the TFT driver
@@ -60,9 +64,79 @@ Owns the `TFT_eSPI` instance. Calibration is captured in rotation 1 and derived 
 
 Panel sleep/wake is observable: `displaySleepTelemetry()` reports sleep count, wake count, last sleep/wake times, last sleep duration and panel wake delay. `BoardPower.cpp` also logs `[display] sleep ...` and `[display] wake ...` lines over serial, and System Info shows the same counters under App -> Display sleep. This is instrumentation for soak testing, not a substitute for a physical long-duration run.
 
+### Sound
+
+`Sound.h` is the vocabulary; `BoardAudio.cpp` is everything else. Read the
+header comment in that file before changing it -- three of its decisions look
+arbitrary and are not.
+
+**Nothing here is a recording and nothing here may become one.** Every sound is
+generated a sample at a time from a script of `Segment`s: sine or square with
+an optional linear sweep, band-passed noise, and three formant resonators
+driven either by a monotone impulse train (voiced) or by noise (unvoiced).
+That is a flash decision -- a second of 16-bit 16 kHz mono is 32 KB against a
+budget already at 74.9% -- and it is also what makes a spoken phrase possible
+at all. The whole vocabulary plus the phrase is under a kilobyte of const data.
+
+**`playSound()` arms a script; it does not play it.** `tickAudio()` runs once
+per frame from `BrainoApp::loop()` and writes only what the DMA will accept
+with a zero timeout. The DMA is 6 x 256 frames, 96 ms at 16 kHz, so it stays
+comfortably ahead of a 20 ms frame. Samples the DMA would not take are held in
+`pending` and written first next frame rather than dropped: the synthesiser
+cannot be run backwards, and dropping them is audible as a stutter on anything
+long enough to fill the DMA -- which is exactly the boot phrase. Never make
+this blocking. `src/s3_diag.cpp` does block, and is right to: a bring-up probe
+has no frame budget.
+
+**The voice is a phoneme table, not text-to-speech.** `PHRASE_LETS_PLAY_BRAINO`
+spells "Let's play Braino!" out as L EH T S / P L EY / B R EY N OW, each entry
+being the first three formant frequencies of a vocal tract shaped to say it.
+There is no dictionary and no grapheme rules, so a second phrase means writing
+its phonemes by hand -- which is the intended cost, not an oversight. Three
+things in that table are load-bearing and are commented as such: a diphthong is
+two segments, a stop is a silence *and then* a burst, and the fricative has to
+be longer than a vowel to be audible at all.
+
+**Mute and volume are global device settings, and both are RAM-mirrored.**
+`soundEnabled()` sits on the path of every cue in every game, so reading it
+from flash-backed Preferences per call is exactly the hot-path NVS read the
+responsiveness rule is about. The mute gate lives in `Board::playSound()` and
+nowhere else, which is what makes it true of the beeps and the boot phrase as
+well as of the cues; `setSoundEnabled(false)` also stops whatever is currently
+sounding, because Mute is the control somebody reaches for *while* the boot
+phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (85) and writes codec register 0x32
+live.
+
+**Register 0x32 is logarithmic and was being driven as if it were linear.**
+Half a decibel per step, `0xBF` unity, `0x00` silence -- so scaling the
+percentage onto the byte, which is what both this and `src/s3_diag.cpp` did,
+is wrong by up to 25 dB. The default 60% was landing on -19.5 dB and the
+console was nearly inaudible across a room; 100% would have been +32 dB and
+clipped everything. `applyCodecVolume()` now converts a percentage of
+amplitude (100% unity, 50% -6 dB, 10% -20 dB) and clamps at unity, and
+`es8311VolumeReg()` in the probe is the same function -- **change one, change
+both**, for the same reason the battery constants carry that rule: a bench
+instrument that disagrees with the product about what "80" means is worse than
+no instrument.
+
+`AUDIO_VOLUME_MAX` was 80 and is now 85, and the change is not a relaxation --
+the old 80 was measuring the bug, not the hardware. 85 was set by listening on
+the FNK0104B's driver. It describes one speaker in one case: a board with a
+louder amplifier needs its own figure, and at that point the ceiling belongs in
+`BoardProfile` rather than in `Board`.
+
+The knobs for retuning by ear are the formant numbers, the segment lengths,
+`VOICE_PITCH_HZ` (monotone, which is what makes it robotic) and `NOISE_MAKEUP`
+(raise it if the fricatives vanish under the vowels). Nothing else.
+
+The codec register values and the three findings that are easy to get wrong --
+active-low amplifier enable, MCLK from the APLL, ADC volume resetting to
+minimum -- came from `env:s3diag` on real hardware and are documented at the
+top of the file.
+
 ### RGB LED
 
-LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` are the game-facing wrappers. On a board whose profile describes an audio codec they now play a real sound as well as pulsing the LED; on a board with only a bare `speakerPin` they remain LED-only and `beep()` is still a stub. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
+LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no codec the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
 The red and green GPIOs are physically crossed on this unit versus the standard pinout. The E32R28T-1 profile already accounts for it (`rgb.r = 16`, `rgb.g = 4`) and it was verified on hardware — leave it alone.
 
@@ -75,6 +149,14 @@ Wi-Fi exists only to set the clock. `tickTimeSync()` drives a non-blocking `Idle
 Credentials and the NTP hot-path settings are cached in RAM because the state machine polls them at ~27 Hz and hitting NVS that often wasted cycles and flooded the log with `nvs_get_str NOT_FOUND`.
 
 Timezone is stored in **minutes** to support :30 and :45 zones, and comes from a named POSIX zone or a public-IP lookup — DHCP options 100/101 exist but are essentially never implemented by routers.
+
+## BoardButton.cpp
+
+The BOOT key — the only input on these boards that is not the touchscreen. A GPIO with an internal pull-up, sampled once per frame by the runtime, edge-detected in `pollBootButton()`. No interrupt and no task: the debounce *is* the sampling rate, and a tactile switch settles well inside a 20 ms frame. Poll it faster and it will need a real one.
+
+Two things it deliberately does not do. It never reads the key during boot — BOOT is a strapping pin, the ROM samples it at reset to choose serial download mode, and that decision is made before `setup()` runs. And it does not time the press: a hold is not a gesture this firmware recognises, and a `heldMs` nobody reads would claim otherwise. The runtime acts on the press edge, so anyone adding a hold has to move that to the release edge first — you cannot both go home on the press and later decide the same press was the start of something longer.
+
+`PIN_NONE` is a supported profile. The event is all-false on a board with no key, so callers need no `hasBootButton()` guard of their own.
 
 ## Clock.{h,cpp}
 

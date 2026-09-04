@@ -115,7 +115,7 @@ void NumberLineGame::render(AppContext& host) {
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(String(score_) + "/" + rounds_, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(String(score_) + "/" + rounds_, GAME_CANVAS_WIDTH - 8, 34, 2);
 
     // Equation display
     const uint8_t curPos = (phase_ == Phase::Pause) ? n1_
@@ -125,18 +125,18 @@ void NumberLineGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     if (phase_ == Phase::Feedback && lastCorrect_) {
         tft.setTextColor(Ui::success(), Ui::bg());
-        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = " + answer, SCREEN_WIDTH/2, 52, 4);
+        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = " + answer, GAME_CANVAS_WIDTH/2, 52, 4);
     } else {
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = ?", SCREEN_WIDTH/2, 52, 4);
+        tft.drawString(String(n1_) + (isAdd_ ? " + " : " - ") + n2_ + " = ?", GAME_CANVAS_WIDTH/2, 52, 4);
     }
 
     // Instruction
     tft.setTextColor(Ui::muted(), Ui::bg());
     if (phase_ == Phase::Pause) {
-        tft.drawString(isAdd_ ? "Watch the frog jump right!" : "Watch the frog jump left!", SCREEN_WIDTH/2, 78, 2);
+        tft.drawString(isAdd_ ? "Watch the frog jump right!" : "Watch the frog jump left!", GAME_CANVAS_WIDTH/2, 78, 2);
     } else if (phase_ == Phase::Jumping) {
-        tft.drawString(String("Jump ") + animStep_ + " of " + n2_, SCREEN_WIDTH/2, 78, 2);
+        tft.drawString(String("Jump ") + animStep_ + " of " + n2_, GAME_CANVAS_WIDTH/2, 78, 2);
     }
 
     // Jump arcs (show previous jumps)

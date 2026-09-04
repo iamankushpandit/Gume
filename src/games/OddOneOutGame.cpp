@@ -184,7 +184,7 @@ void OddOneOutGame::render(AppContext& host) {
     tft.setTextDatum(TL_DATUM);
     tft.drawString(String("Score ") + score_, 10, 35, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 35, 2);
+    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 35, 2);
     Ui::drawLabel(tft, Rect{8, 52, 304, 16}, "Tap the one that is different", Ui::muted(), 1, Align::Center);
 
     for (uint8_t i = 0; i < 9; ++i) {
@@ -196,7 +196,7 @@ void OddOneOutGame::render(AppContext& host) {
         tft.fillRoundRect(84, 196, 152, 30, 8, color);
         tft.setTextColor(TFT_BLACK, color);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(flashCorrect_ ? "Correct" : "Try again", SCREEN_WIDTH / 2, 211, 2);
+        tft.drawString(flashCorrect_ ? "Correct" : "Try again", GAME_CANVAS_WIDTH / 2, 211, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

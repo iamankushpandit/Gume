@@ -71,7 +71,13 @@ static_assert(BOARD.screenWidth() >= GAME_CANVAS_WIDTH
               "panel is smaller than the canvas the games are drawn on; this "
               "board cannot be supported");
 
-/* Touch is the only input this firmware has. There are no buttons.
+/* Touch is the input this firmware is designed around, and the only one it
+ * requires. A board may also wire the BOOT key (`ButtonProfile`), which the
+ * runtime reads as a shortcut to Home -- but it is optional, guarded by
+ * `BOARD.hasBootButton()`, and nothing can be reached only through it. That
+ * is why there is no assert for it below and why the touch asserts stay
+ * unconditional: a board with no key is supported, a board with no touch
+ * controller is not.
  *
  * Which lines a board must bring out depends on its controller kind, so these
  * assert per arm rather than demanding every line of every board. Asserting

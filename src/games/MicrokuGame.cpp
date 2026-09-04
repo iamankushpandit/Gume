@@ -119,14 +119,14 @@ void MicrokuGame::loadStage(uint8_t stageIndex) {
 Rect MicrokuGame::cellRect(uint8_t row, uint8_t col) const {
     const int16_t cell = size_ == 6 ? 23 : (size_ == 4 ? 32 : 54);
     const int16_t gridSize = cell * size_;
-    const int16_t startX = (SCREEN_WIDTH - gridSize) / 2;
+    const int16_t startX = (GAME_CANVAS_WIDTH - gridSize) / 2;
     const int16_t startY = 58;
     return Rect{static_cast<int16_t>(startX + col * cell), static_cast<int16_t>(startY + row * cell), cell, cell};
 }
 
 Rect MicrokuGame::numberRect(uint8_t value) const {
     const int16_t gap = 4;
-    const int16_t w = (SCREEN_WIDTH - 16 - gap * (size_ - 1)) / size_;
+    const int16_t w = (GAME_CANVAS_WIDTH - 16 - gap * (size_ - 1)) / size_;
     return Rect{static_cast<int16_t>(8 + (value - 1) * (w + gap)), 205, w, 30};
 }
 
@@ -237,7 +237,7 @@ void MicrokuGame::render(AppContext& host) {
     tft.setTextDatum(TL_DATUM);
     tft.drawString(String("Board ") + size_ + "x" + size_, 8, 34, 2);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(bestSize_ > 0 ? String("Best ") + bestSize_ + "x" + bestSize_ : "Best --", SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(bestSize_ > 0 ? String("Best ") + bestSize_ + "x" + bestSize_ : "Best --", GAME_CANVAS_WIDTH - 8, 34, 2);
     Ui::drawLabel(tft, Rect{24, 46, 272, 16}, message_, message_ == "Try again" ? RED : Ui::text(), 1, Align::Center);
 
     for (uint8_t row = 0; row < size_; ++row) {
@@ -283,8 +283,8 @@ void MicrokuGame::render(AppContext& host) {
         tft.drawRoundRect(62, 93, 196, 48, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Microku solved", SCREEN_WIDTH / 2, 111, 4);
-        tft.drawString(stageIndex_ + 1 < STAGE_COUNT ? "Tap next" : "Tap restart", SCREEN_WIDTH / 2, 134, 2);
+        tft.drawString("Microku solved", GAME_CANVAS_WIDTH / 2, 111, 4);
+        tft.drawString(stageIndex_ + 1 < STAGE_COUNT ? "Tap next" : "Tap restart", GAME_CANVAS_WIDTH / 2, 134, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

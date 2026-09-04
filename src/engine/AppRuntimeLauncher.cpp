@@ -7,6 +7,7 @@
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherIcons.h"
+#include "ui/ScaledRenderer.h"
 #include "ui/LauncherLayout.h"
 
 namespace {
@@ -35,6 +36,12 @@ const AppDefinition& BrainoApp::launcherEntry(uint8_t filteredIndex) {
 }
 
 void BrainoApp::openApp(const AppDefinition& app) {
+    /* Opening a tile. This is the console's one confirmation noise and it is
+     * deliberately here rather than in launch(): launch() is also how the
+     * runtime returns to a screen after a lock or a wake, and a chirp on
+     * waking a device that has been in a bag is not a confirmation of
+     * anything. */
+    board_.playSound(Sound::Select);
     launch(app);
 }
 
@@ -100,12 +107,14 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
     const int16_t pY = static_cast<int16_t>(lH - 28);
     if (Rect{8, pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
         --page_;
+        host.playSound(Sound::Tap);
         markDirty();
         return;
     }
     if (Rect{static_cast<int16_t>(lW - 82), pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
         page_ + 1 < pages) {
         ++page_;
+        host.playSound(Sound::Tap);
         markDirty();
         return;
     }
@@ -117,7 +126,7 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
         if (index >= count) {
             break;
         }
-        if (LauncherLayout::tileRect(slot, mode).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (LauncherLayout::tileRect(slot, mode, lW, lH).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.openApp(host.launcherEntry(index));
             return;
         }
@@ -241,46 +250,148 @@ void LauncherGame::render(GameHost& host) {
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t start = page_ * pageSize;
     const uint8_t total = host.launcherEntryCount();
+
+    /* One text size for the whole page, chosen so every label on it fits.
+     *
+     * Deciding per tile produced a grid of mixed sizes -- "Memory" large
+     * beside "Tic-Tac-Toe" small -- which reads as a fault rather than as
+     * fitting, because a grid implies its cells are alike. Worse, the test
+     * only measured the title, so "Math" qualified for 2x and its subtitle
+     * "addition & subtraction" was then quietly truncated to "addition &".
+     *
+     * So: measure BOTH strings of EVERY tile on the page, and take the larger
+     * size only if all of them fit. One tile with a long name holds the page
+     * to 1x, which is the right trade -- uniform and complete beats large and
+     * clipped. */
+    const Rect probe = LauncherLayout::tileRect(0, mode, lW, lH);
+    const float probeS = [&]() {
+        const float px = static_cast<float>(probe.w) / (tall ? 108.0f : 145.0f);
+        const float py = static_cast<float>(probe.h) / (tall ? 96.0f : 46.0f);
+        return px < py ? px : py;
+    }();
+    const int16_t titleRoom =
+        static_cast<int16_t>(tall ? probe.w - 8 : probe.w * 0.66f - 8);
+
+    uint8_t pageTextScale = probeS >= 1.45f ? 2 : 1;
+    if (pageTextScale > 1) {
+        tft.setTextSize(2);
+        for (uint8_t slot = 0; slot < pageSize && pageTextScale > 1; ++slot) {
+            const uint8_t index = start + slot;
+            if (index >= total) {
+                break;
+            }
+            const AppDefinition& e = host.launcherEntry(index);
+            if (tft.textWidth(e.title(), 2) > titleRoom ||
+                tft.textWidth(e.subtitle(), 1) > titleRoom) {
+                pageTextScale = 1;
+            }
+        }
+        tft.setTextSize(1);
+    }
+
     for (uint8_t slot = 0; slot < pageSize; ++slot) {
         const uint8_t index = start + slot;
         if (index >= total) {
             break;
         }
         const AppDefinition& entry = host.launcherEntry(index);
-        const Rect r = LauncherLayout::tileRect(slot, mode);
+        const Rect r = LauncherLayout::tileRect(slot, mode, lW, lH);
         const uint16_t fill = slot % 3 == 0 ? Ui::rgb(36, 132, 204)
                             : (slot % 3 == 1 ? Ui::rgb(45, 154, 96)
                                              : Ui::rgb(222, 83, 83));
         Ui::drawButton(tft, r, "", fill, TFT_DARKGREY, TFT_WHITE);
 
+        /* Place the contents as fractions of the tile, and scale them with it.
+         *
+         * These offsets used to be constants -- icon at r.x + 24, title at
+         * r.y + 17 -- which described the old 145x46 tile and nothing else.
+         * Once the grid started dividing the real panel, the tiles grew and
+         * their contents stayed put in the top-left corner of them, which
+         * looked worse than the un-scaled grid had: a big empty box with small
+         * writing in it. The fractions below are the old constants divided by
+         * the old tile size, so the 2.8-inch board gets what it always got.
+         *
+         * The text scale is the whole reason this board is here. A larger
+         * panel that renders the same small label is no easier for the players
+         * this is meant to serve; the tile has to carry bigger writing, not
+         * just more space around it. */
+        const float sx = static_cast<float>(r.w) / (tall ? 108.0f : 145.0f);
+        const float sy = static_cast<float>(r.h) / (tall ? 96.0f : 46.0f);
+        const float s = sx < sy ? sx : sy;
+
+        const uint8_t textScale = pageTextScale;
+
+        /* Icons scale by WHOLE numbers only, or not at all.
+         *
+         * The tile grows by a fraction -- about 1.37 in portrait here -- and
+         * feeding that to the icon art was wrong. These are drawn shapes, not
+         * bitmaps, but they are built from small integers: 1px strokes, a 17px
+         * radius, triangle vertices a dozen pixels from centre. Multiply those
+         * by 1.37 and each rounds independently: strokes land on 1px in one
+         * place and 2px in another, outlines lose corners, and any lettering
+         * inside stays 1x while its box grows. Tic-Tac-Toe came through it
+         * intact because its features are coarse -- a 34px plate and 30px
+         * strokes have room to absorb a rounding error -- which is exactly why
+         * it looked fixed while the detailed icons did not.
+         *
+         * So: an integer multiple when one fits, otherwise native size, and
+         * centred in the tile either way. The same rule the flags follow. A
+         * crisp icon in a roomy tile reads better than a smeared one that
+         * fills it. */
+        const uint8_t iconScale = (s >= 2.0f) ? 2 : 1;
+        Ui::ScaledRenderer icon{tft};
+        icon.setScale(static_cast<float>(iconScale), static_cast<float>(iconScale));
+
         char label[24];
         if (tall) {
-            drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + r.w / 2),
-                             static_cast<int16_t>(r.y + 30));
+            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
+            const int16_t iconY = static_cast<int16_t>(r.y + r.h * 0.3125f);
+            drawLauncherIcon(icon, entry.icon(), r, fill,
+                             static_cast<int16_t>(cxT / iconScale),
+                             static_cast<int16_t>(iconY / iconScale));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(MC_DATUM);
-            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
+            tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 2);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 68), 2);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.708f), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 1);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 87), 1);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.906f), 1);
+            tft.setTextSize(1);
         } else {
-            drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + 24),
-                             static_cast<int16_t>(r.y + 22));
+            /* Everything hangs off the tile's own centre line.
+             *
+             * The first version kept the old proportions -- icon at 0.478 of
+             * the height, title at 0.37, subtitle at 0.74 -- which were fine
+             * in a 46px tile and drift visibly in a 69px one: the pair sits
+             * low, and the icon a shade above it, so nothing lines up with
+             * anything. Measuring the text block from the middle outwards
+             * keeps it centred at any tile height, and puts the icon on the
+             * same line rather than near it. */
+            const int16_t midY = static_cast<int16_t>(r.y + r.h / 2);
+            const int16_t iconX = static_cast<int16_t>(r.x + r.w * 0.18f);
+            drawLauncherIcon(icon, entry.icon(), r, fill,
+                             static_cast<int16_t>(iconX / iconScale),
+                             static_cast<int16_t>(midY / iconScale));
+
+            /* Title above the line and subtitle below it, each by half its own
+             * height, so the gap between them does not grow with the tile. */
+            const int16_t titleH = static_cast<int16_t>(16 * textScale);
+            const int16_t subH = static_cast<int16_t>(8 * textScale);
+            const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.34f);
+            const int16_t textW = static_cast<int16_t>(r.w - (r.x + r.w * 0.34f - r.x) - 8);
+
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(ML_DATUM);
-            copyFittedText(tft, entry.title(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 2);
-            tft.drawString(label, r.x + 48, r.y + 17, 2);
+            tft.setTextSize(textScale);
+            copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
+            tft.drawString(label, textX, static_cast<int16_t>(midY - subH / 2 - 2), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
-            copyFittedText(tft, entry.subtitle(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 1);
-            tft.drawString(label, r.x + 48, r.y + 34, 1);
+            copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
+            tft.drawString(label, textX, static_cast<int16_t>(midY + titleH / 2 + 2), 1);
+            tft.setTextSize(1);
         }
     }
 

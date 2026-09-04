@@ -6,6 +6,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 
 class BoardDisplayAccess;
@@ -134,26 +135,100 @@ public:
     TouchPoint pollTouch();
     TouchPoint touch() const;
 
+    /* What the BOOT key did since the last call.
+     *
+     * Edge-detected here rather than at the call site, so "was it pressed this
+     * frame" has one answer however many places come to ask. No interrupt is
+     * used: this firmware runs no ISRs and no tasks of its own beyond the
+     * watchdog monitor, and the edge is consumed at a frame boundary anyway.
+     *
+     * The debounce is the sampling rate. The loop reads this once per frame --
+     * every FRAME_BUDGET_MS awake, every SLEEP_POLL_MS with the panel off --
+     * and a tactile switch settles well inside either. Poll it faster than
+     * that and it will need a real one.
+     *
+     * All-false on a board whose profile wires no BOOT key, so callers do not
+     * need their own `hasBootButton()` guard. */
+    struct ButtonEvent {
+        bool down = false;
+        bool justPressed = false;
+        bool justReleased = false;
+    };
+    ButtonEvent pollBootButton();
+
     void beepOk();
     void beepError();
 
-    /* Codec volume, 0-100.
+    /* Play one cue from the console's sound vocabulary. See hal/Sound.h for
+     * what the words mean and BoardAudio.cpp for how they are synthesised.
+     * Silent on a board with no codec.
      *
-     * AUDIO_VOLUME_MAX is a product decision, and a ceiling rather than a
-     * default -- the mirror image of BRIGHTNESS_MIN below, which floors the
-     * backlight so a player cannot make the screen unreadable. This is a
-     * handheld held close to a young player's ears, and the last fifth of a
-     * small driver is mostly distortion anyway.
+     * This is the ONLY way a screen makes a noise. `beep()` stays private
+     * because a game choosing its own frequency is how a shared vocabulary
+     * stops being shared. */
+    void playSound(Sound cue);
+
+    /* Codec volume, 0-100, as a fraction of amplitude: 100 is the codec's
+     * unity gain, 50 is -6 dB, 10 is -20 dB. See applyCodecVolume() in
+     * BoardAudio.cpp -- the register underneath is logarithmic, and treating
+     * it as linear is what made the first version of this nearly inaudible.
      *
-     * Anything that ever exposes a volume control clamps to this rather than
-     * relabelling 80 as "100%": a control that lies about its range is worse
-     * than one with a shorter range. */
-    static constexpr uint8_t AUDIO_VOLUME_MAX = 80;
-    static constexpr uint8_t AUDIO_VOLUME_DEFAULT = 60;
+     * AUDIO_VOLUME_MAX IS 85, AND IT WAS SET BY LISTENING.
+     *
+     * It is a hearing-safety ceiling for a handheld held near a young player's
+     * ears, in the same spirit as BRIGHTNESS_MIN below -- one floors what a
+     * player can do to the screen, the other caps what they can do to their
+     * hearing.
+     *
+     * The previous value, 80, was measuring the bug rather than the hardware:
+     * it was chosen against a volume curve that was wrong by up to 25 dB, so
+     * it never described a sound-pressure level at all. 85 was picked on the
+     * device, on the Freenove FNK0104B's driver, after listening at the full
+     * range -- which is the only way this number can honestly be arrived at.
+     * It is -1.4 dB from the codec's unity gain, so the headroom it holds back
+     * is small; what the ceiling really buys on this board is a defined stop
+     * rather than a large margin.
+     *
+     * IF THE DRIVER CHANGES, THIS NUMBER IS WRONG AGAIN. It describes one
+     * speaker in one case. A board with a louder amplifier needs its own
+     * figure, arrived at the same way, and at that point the ceiling belongs
+     * in BoardProfile rather than here.
+     *
+     * A volume control clamps to it rather than relabelling it as "100%": a
+     * control that lies about its range is worse than one with a shorter
+     * range. The default sits AT the ceiling because the console's whole
+     * problem in testing was being too quiet to hear across a room, and the
+     * ceiling is now the level someone judged comfortable. */
+    static constexpr uint8_t AUDIO_VOLUME_MAX = 85;
+    static constexpr uint8_t AUDIO_VOLUME_DEFAULT = 85;
+
+    /* The mute switch and the output level. Both are GLOBAL device settings,
+     * like theme and brightness and unlike anything profile-scoped: the
+     * speaker belongs to whoever is in the room, not to whoever is signed in,
+     * and a console that came back loud because a different player picked it
+     * up would be a poor thing to hand a child in a quiet house.
+     *
+     * Both are mirrored in RAM. `soundEnabled()` is consulted on EVERY cue and
+     * cues fire several times a second in a game like Whack-a-Mole, so reading
+     * it from flash-backed Preferences each time is exactly the hot-path NVS
+     * read CLAUDE.md's responsiveness rule is about.
+     *
+     * `setVolume()` clamps to AUDIO_VOLUME_MAX rather than rescaling, so the
+     * number a control shows is the number the codec is set to. */
+    bool soundEnabled();
+    void setSoundEnabled(bool on);
+    uint8_t volume();
+    void setVolume(uint8_t percent);
+
+    /* Whether this board can make a sound at all. Distinct from the mute
+     * switch: a muted console could be unmuted, a board with no codec could
+     * not, and a settings screen has to say which of the two it is looking
+     * at rather than offering controls that do nothing. */
+    static constexpr bool hasSound() { return GUME_HAS_AUDIO_CODEC != 0; }
 
     /* Feeds queued audio to the I2S DMA without blocking. Called once per
      * frame from the runtime, beside tickRgb(), and a no-op on a board with no
-     * codec. See BoardFeedback.cpp for why a beep cannot simply be played. */
+     * codec. See BoardAudio.cpp for why a sound cannot simply be played. */
     void tickAudio();
     /* ---- Profiles -------------------------------------------------------
      * Scores, best/worst records and spaced-repetition data are stored per
@@ -408,6 +483,8 @@ private:
     Preferences prefs_;
     TouchCalibration cal_;
     TouchPoint lastTouch_;
+    /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
+    bool bootButtonDown_ = false;
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
 
@@ -472,6 +549,10 @@ private:
     uint8_t cachedNtpResyncHours_ = NTP_RESYNC_DEFAULT_HOURS;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
+    bool soundCached_ = false;
+    bool cachedSound_ = true;
+    bool volumeCached_ = false;
+    uint8_t cachedVolume_ = AUDIO_VOLUME_DEFAULT;
     bool adminIdxCached_ = false;
     uint8_t cachedAdminIdx_ = 0;
     bool adminPinCached_ = false;

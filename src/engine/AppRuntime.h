@@ -7,6 +7,7 @@
 #include "engine/LauncherGame.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
+#include "ui/ScaledRenderer.h"
 #include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
@@ -16,6 +17,9 @@ public:
     void loop();
 
     Ui::Renderer& display() override;
+
+    /** Reset per-paint renderer state so no screen inherits another's. */
+    void beginScreenPaint();
     Board& board() override;
     bool hasCapability(uint32_t capability) const override;
     bool requireCapability(uint32_t capability, const char* action) override;
@@ -31,6 +35,7 @@ public:
     void saveBlob(const char* key, const void* src, size_t len) override;
     void beepOk() override;
     void beepError() override;
+    void playSound(Sound cue) override;
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) override;
     void drawTopBar(const char* title) override;
     void goHome() override;
@@ -136,12 +141,54 @@ private:
     static constexpr uint32_t BATTERY_REPEAT_MS = 120000;
 
     Board board_;
+    /* Playable games are drawn through scaledRenderer_; system screens draw
+     * through renderer_ directly. See display().
+     *
+     * The split exists because the two kinds of screen solve the size problem
+     * differently. System apps already lay themselves out against the live
+     * tft.width()/height(), so a bigger panel simply gives them more room.
+     * Playable games are authored against the fixed GAME_CANVAS and position
+     * everything by arithmetic on it -- there is no responsive layout to fall
+     * back on, so the canvas is stretched to fill the panel instead.
+     *
+     * textScale is 1, and the reasoning that said 2 was wrong on hardware.
+     *
+     * The argument for 2 was that this board exists for players who need
+     * bigger, plainer text, so text should gain on its boxes rather than
+     * merely keep pace. The flaw is that glyph scale is whole-number only:
+     * the layout grows ~1.4x here, so 2x is not "a bit bigger", it is 43%
+     * bigger than its box, and text overflowed or was truncated across the
+     * games. A label that does not fit is not more legible.
+     *
+     * The value went untested for a while because TftRenderer::drawString
+     * forced setTextSize(1), so this 2 never reached the panel -- the games
+     * had always drawn at 1x. Fixing that so the launcher could scale its own
+     * text let the 2 through for the first time, and it broke every screen at
+     * once. Two lessons, both worth keeping: a setting that cannot take effect
+     * is not a tested setting, and legibility on this board has to come from
+     * layouts that can carry a larger font, not from multiplying the font
+     * under a layout that cannot. The launcher does it properly -- it grows
+     * its tiles first and only then asks for larger text, and falls back when
+     * the label would not fit. */
     Ui::TftRenderer renderer_{board_.display()};
+    Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/1};
     ContentLoader content_;
     GameInstances games_;
     LauncherGame launcher_;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
+    /* True only while a playable game is the thing on screen.
+     *
+     * view_ == View::Game is load-bearing, not redundant. activeApp_ keeps
+     * pointing at the last-launched game while the saver, sleep or the lock
+     * screen is up -- none of those goes through launch(), so nothing clears
+     * it -- and all three lay themselves out against the real panel like any
+     * other system view. Without the view check they would inherit the scale
+     * of whichever game happened to be open beforehand. */
+    bool activeAppIsPlayable() const {
+        return view_ == View::Game && activeApp_ != nullptr && activeApp_->isCatalogApp();
+    }
+
     View view_ = View::Game;
     uint32_t heapAtLaunch_ = 0;
 

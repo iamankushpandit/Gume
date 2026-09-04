@@ -177,7 +177,7 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void TimeGame::drawClock(Ui::Renderer& tft) const {
-    constexpr int16_t cx = SCREEN_WIDTH / 2;
+    constexpr int16_t cx = GAME_CANVAS_WIDTH / 2;
     constexpr int16_t cy = 91;
     constexpr int16_t radius = 49;
 
@@ -231,9 +231,9 @@ void TimeGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char rightBuf[20];
     snprintf(rightBuf, sizeof(rightBuf), "Streak %u", streak_);
-    tft.drawString(rightBuf, SCREEN_WIDTH - 10, 35, 2);
+    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 10, 35, 2);
     snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestStreak_);
-    tft.drawString(rightBuf, SCREEN_WIDTH - 10, 52, 2);
+    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 10, 52, 2);
 
     drawClock(tft);
     Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?", Ui::text(), 2, Align::Center);
@@ -256,7 +256,7 @@ void TimeGame::render(AppContext& host) {
     if (answered_) {
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Try the green time next", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Try the green time next", GAME_CANVAS_WIDTH / 2, 226, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

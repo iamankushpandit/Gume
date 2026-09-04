@@ -355,7 +355,7 @@ void TraceGame::drawProgress(Ui::Renderer& tft) {
 
     uint8_t pct = totalPoints > 0 ? (uint8_t)((uint32_t)claimedPoints * 100 / totalPoints) : 0;
     int16_t barW = 120;
-    int16_t barX = (SCREEN_WIDTH - barW) / 2;
+    int16_t barX = (GAME_CANVAS_WIDTH - barW) / 2;
     int16_t barY = 222;
 
     tft.fillRoundRect(barX, barY, barW, 10, 4, Ui::panel());

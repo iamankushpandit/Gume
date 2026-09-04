@@ -173,7 +173,7 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Three diagnostic environments exist for hardware triage:
+Five diagnostic environments exist for hardware triage:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
 - `pio run -e batdiag` — builds `src/battery_diag.cpp` **alone**, an eight-page
@@ -186,6 +186,23 @@ Three diagnostic environments exist for hardware triage:
   board profile the product does. Its charge-inference constants are still
   copied from `BoardPower.cpp` deliberately, so what it shows is what the
   product will do — **if you change one of those, change both.**
+- `pio run -e s3diag` -- builds `src/s3_diag.cpp` **alone**, a bring-up probe
+  for the Freenove FNK0104B. It skips the touch calibration wizard on purpose:
+  `env:bringup` runs that on a board with no stored calibration, which on a
+  capacitive panel the XPT2046 code cannot read strands the display check
+  behind a dead crosshair.
+- `pio run -e diag4` -- builds `src/diag4.cpp` **alone**, a eight-page bring-up
+  probe for the 4-inch ST7796 board. It exists because every fact that board
+  needs stated in a profile is still a guess, and the three ways of being wrong
+  -- wrong SPI bus, wrong driver, wrong backlight pin -- all produce the same
+  dark screen with a healthy serial log. Page ID reads the controller's ID
+  register back over MISO, which separates them without anything being visible;
+  page BL sweeps candidate backlight pins in both polarities. **It defines
+  neither `TFT_BL` nor `GUME_BOARD_HEADER`, deliberately** -- TFT_eSPI owning
+  the backlight would defeat the sweep, and a probe must not depend on the
+  board profile it exists to produce. Both are boardless envs, listed in
+  `check_boards.py`'s `BOARDLESS_ENVS`, because a `[board_*]` section is a
+  claim of support and neither board is supported yet.
 
 ### Every build is stamped, and the time is not a `-D`
 
@@ -247,7 +264,37 @@ Then work entirely in `../GUme-<slug>`. Branch names: `feat/<game-id>` for a new
 
 A separate worktree also gives you your own `.pio/` build directory, which removes the concurrent-build race described below.
 
-Base new work on `dev`, not `main`. Keep branches short-lived and rebase onto `dev` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
+**Every feature and every fix starts from `dev`.** Not `main`, not a release
+branch, not whatever the last worktree happened to be sitting on. The only
+exceptions are a change the maintainer has explicitly asked to be based
+elsewhere, and a hotfix onto a release branch that has already been agreed --
+in both cases said out loud, in the request, before the work starts. If nobody
+said otherwise, the answer is `dev`.
+
+**This rule is not yours to overrule, and in particular it is not overruled by
+`dev` looking wrong.** It has already failed once exactly that way: an agent
+saw `dev` sitting 55 commits behind `main`, concluded it was stale and
+therefore the wrong base, branched from `main` instead, and wrote a paragraph
+justifying it. The refs were local and had never been fetched. One
+`git fetch origin` showed `dev` was five commits *ahead* with work `main` did
+not have -- the reasoning was confident, articulate and built entirely on stale
+data. So:
+
+- **`git fetch origin` before you form any opinion about a branch.** A local
+  ref is a memory of the remote, not the remote. Compare with
+  `git rev-list --left-right --count origin/dev...origin/main`.
+- **If `dev` still looks like the wrong base after fetching, stop and ask.**
+  Say what you measured and why it looks wrong. Do not decide it yourself, and
+  do not proceed while explaining the decision -- an explanation is not an
+  approval.
+- **Basing on `main` and rebasing onto `dev` later is not a shortcut, it is
+  extra work with a hazard in it.** The release commits in `main`'s history
+  come along for the ride, so the feature branch quietly carries the version
+  bump that drops `-SNAPSHOT` into `dev`, which is meant to keep it. Recovering
+  from that means replaying your own commits with `--onto`, and knowing you had
+  to is not something the rebase tells you.
+
+Keep branches short-lived and rebase onto `dev` often -- Keep branches short-lived and rebase onto `dev` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
 
 **Branching moves the risk rather than removing it.** More parallel branches means more merges, and the failure below is a merge-time failure â€” so it gets *more* important, not less.
 
@@ -312,9 +359,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,353,865 / 3,145,728 bytes,
-**74.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,588 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,365,349 / 3,145,728 bytes,
+**74.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 72,628 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -411,6 +458,18 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   from 42px to 32px and the title's start moved from 48 to 62, costing the
   title 14px. The right-hand cluster is measured, not padded, and cannot give;
   check the longest screen title ("Finger Counting") before spending any more.
+- **The BOOT key is Home, and it is a shortcut rather than a route.** It is
+  consumed in the runtime above the active screen's `update()`, beside the
+  Home, gear and Lock routing and for the same reason. Three deliberate holes
+  in it: the launcher does not consume it (you are already home, and taking
+  the frame would drop a simultaneous touch), the lock screen ignores it
+  entirely (a key pressed through the side of a bag is the accident that
+  screen exists to catch), and `View::Asleep` and the saver treat it exactly
+  as a touch. It counts as activity, or the saver would arrive a moment after
+  you pressed Home. **Nothing may become reachable only through it** --
+  `BOARD.hasBootButton()` can be false and the console has to remain complete.
+  It fires on the press edge, which is what a hold gesture would have to
+  change first; see `src/hal/BoardButton.cpp`.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -420,6 +479,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
+| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudio.cpp` | The console's sound vocabulary, and the synthesiser that generates every one of them a sample at a time |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
@@ -436,7 +496,11 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
-- **Device settings are global, not per-profile**: theme, layout, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone. Per-profile: scores, mastery blobs, game visibility.
+- **Device settings are global, not per-profile**: theme, layout, brightness,
+  sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+  Sound belongs on that list for a reason worth stating: the speaker belongs to
+  whoever is in the room, and a console that came back loud because a different
+  player picked it up is a poor thing to hand a child in a quiet house. Per-profile: scores, mastery blobs, game visibility.
 - **The admin PIN gates the two routes into the admin profile**: switching to
   it, and opening its Edit menu (rename plus its per-player game list). One
   profile is admin (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it
@@ -487,6 +551,38 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **There are no audio files, and there must never be one.** Every sound the
+  console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
+  the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
+  from a script of oscillator, noise and formant segments. No WAV, no PCM
+  table, no sample bank, and nothing decoded at runtime. This is a flash rule
+  before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
+  the vocabulary as recordings would cost more than the whole game catalogue's
+  artwork, on a budget already at 74.9%. As synthesis it is under a kilobyte.
+  The spoken phrase is a phoneme table, not text-to-speech -- there is no
+  dictionary and there is no second phrase; adding one means writing its
+  phonemes out by hand, which is the intended cost.
+- **Mute is gated in exactly one place, `Board::playSound()`.** Every sound in
+  the firmware goes through that door -- both beeps and the boot phrase
+  included -- so a switch labelled Mute cannot leave something still audible.
+  The RGB pulse is deliberately *not* gated: `beepOk()`/`beepError()` pulse
+  before they call it, so muting takes the sound and leaves the light, which is
+  the whole of the feedback on a codec-less board anyway. `soundEnabled()` and
+  `volume()` are RAM-mirrored write-through settings because the first is on
+  the path of every cue in every game.
+- **A screen makes a noise through `playSound(Sound::...)` and nothing else.**
+  `Board::beep(freq, ms)` is private on purpose. A shared vocabulary is the
+  point -- `Coin` means the same thing in Whack-a-Mole as in Memory, and a game
+  picking its own frequencies is exactly how that stops being true. Cinnamon's
+  four pads are the one pitched exception and they are *in* the vocabulary for
+  that reason. Adding a cue is adding a word to a language: do it when a game
+  has something genuinely new to say, not when an existing cue is nearly right.
+- **A cue is armed, never played.** `playSound()` copies a script and returns
+  in microseconds; `Board::tickAudio()`, called once per frame beside
+  `tickRgb()`, generates only as many samples as the I2S DMA will take without
+  blocking. Never write a blocking `i2s_write` on a render path -- a 300ms note
+  is fifteen frame budgets and `Watchdog` will log the stall. `src/s3_diag.cpp`
+  does block, correctly, because a bring-up probe has no frame budget.
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game or an app â€” the whole checklist
@@ -599,13 +695,19 @@ src/main.cpp              bringup entrypoint + normal app setup/loop
 src/BuildStamp.cpp        which build this is; recompiled every build
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
+src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
-                          Country/State, Maze and Trace data
+                          Country/State, Maze and Trace data.
+                          Settings is three .cpp against one header --
+                          SettingsGame (tabs + routing), SettingsPanels
+                          (the tab bodies), SettingsPin (the PIN pad)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
-                          per-concern HAL units, BoardStorage, storage
+                          per-concern HAL units, BoardAudio (the synthesiser),
+                          Sound.h (the cue vocabulary), BoardButton (the BOOT
+                          key), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
@@ -657,7 +759,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,353,865 on `5.3.0` against 2,353,205 on `5.2.0` -- and that is
+   2,365,349 on `5.4.0` against 2,353,205 on `5.2.0` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds
@@ -714,7 +816,11 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` exists but audio is stubbed; `beepOk()`/`beepError()` pulse the RGB LED instead.
+- `audio.speakerPin = 26` on the E32R28T-1 is a bare pin with no codec behind
+  it, so `GUME_HAS_AUDIO_CODEC` is 0 there and the whole synthesiser compiles
+  out: `playSound()` is a no-op and `beepOk()`/`beepError()` are the RGB pulse
+  and nothing else. Sound is real only on a board whose profile describes a
+  codec -- today the Freenove FNK0104B.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions

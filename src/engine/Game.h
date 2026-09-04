@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "engine/AppCapabilities.h"
+#include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 #include "ui/Renderer.h"
 
@@ -21,6 +22,11 @@ public:
     virtual void saveBlob(const char* key, const void* src, size_t len) = 0;
     virtual void beepOk() = 0;
     virtual void beepError() = 0;
+    /* The rest of the console's sound vocabulary -- hal/Sound.h says what
+     * each cue means, and a game should pick the one that matches what just
+     * happened rather than the one that sounds nicest. Silent on a board with
+     * no codec, so nothing may depend on it having been heard. */
+    virtual void playSound(Sound cue) = 0;
     virtual void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) = 0;
     virtual void drawTopBar(const char* title) = 0;
     virtual void goHome() = 0;

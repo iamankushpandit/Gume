@@ -34,12 +34,18 @@ private:
         uint8_t holder;  // profile index, 0xFF = nobody
     };
 
-    Rect rowRect(uint8_t row) const;
+    /* Every rect is measured against the live panel. This screen had not one
+     * reference to the panel's size -- 302 lines of literals describing a
+     * 320x240 board -- so on anything larger it drew itself into the top-left
+     * corner and left the rest empty. The formulas below reproduce the old
+     * numbers exactly at 320x240, so the board this was written for is
+     * unchanged. */
+    Rect rowRect(uint8_t row, int16_t screenW, int16_t screenH) const;
     Rect mineTabRect() const;
     Rect deviceTabRect() const;
-    Rect prevRect() const;
-    Rect nextRect() const;
-    Rect switchRect() const;
+    Rect prevRect(int16_t screenW, int16_t screenH) const;
+    Rect nextRect(int16_t screenW, int16_t screenH) const;
+    Rect switchRect(int16_t screenW, int16_t screenH) const;
     uint8_t playedCount(GameHost& host) const;
     void buildDeviceTable(GameHost& host);
     uint8_t deviceRowCount() const;

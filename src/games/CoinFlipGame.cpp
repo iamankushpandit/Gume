@@ -18,7 +18,7 @@ constexpr AppMetadata COIN_FLIP_METADATA = {
     true,
 };
 
-constexpr int16_t COIN_CX = SCREEN_WIDTH / 2;
+constexpr int16_t COIN_CX = GAME_CANVAS_WIDTH / 2;
 constexpr int16_t COIN_CY = 116;
 constexpr int16_t COIN_R = 34;
 
@@ -61,7 +61,7 @@ Rect CoinFlipGame::flipRect() const {
 }
 
 Rect CoinFlipGame::activeBand() const {
-    return Rect{0, 78, SCREEN_WIDTH, 118};
+    return Rect{0, 78, GAME_CANVAS_WIDTH, 118};
 }
 
 uint8_t CoinFlipGame::headsCount() const {
@@ -87,7 +87,12 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
                 ++revealed_;
                 spinning_ = false;
                 phaseUntilMs_ = now + HOLD_MS;
-                host.beepOk();
+                /* A coin coming down. Reveal, not the "correct answer" beep
+                 * -- nothing here is right or wrong, a hidden thing has just
+                 * become visible, and with five coins in a row the old two
+                 * rising notes five times over sounded like five right
+                 * answers to a question nobody asked. */
+                host.playSound(Sound::Reveal);
                 markDirty();
             } else if (now >= nextSpinStepMs_) {
                 nextSpinStepMs_ = now + SPIN_STEP_MS;
@@ -122,7 +127,7 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
             choice_ = i;
             revealed_ = 0;
             finished_ = false;
-            host.beepOk();
+            host.playSound(Sound::Select);
             markFullDirty();
         }
         return;
@@ -136,6 +141,10 @@ void CoinFlipGame::update(AppContext& host, const TouchPoint& touch) {
         spinFrame_ = 0;
         phaseUntilMs_ = now + SPIN_MS;
         nextSpinStepMs_ = 0;
+        /* The throw. It is the one moment the coin is in the air and the
+         * screen is showing frames that carry no state, so it is also the
+         * only thing here worth a noise of its own. */
+        host.playSound(Sound::Whoosh);
         markDirty();
     }
 }
@@ -181,7 +190,7 @@ void CoinFlipGame::render(AppContext& host) {
 
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        tft.drawString("Best of how many?", SCREEN_WIDTH / 2, 34, 1);
+        tft.drawString("Best of how many?", GAME_CANVAS_WIDTH / 2, 34, 1);
 
         for (uint8_t i = 0; i < CHOICES; ++i) {
             const bool on = (i == choice_);
@@ -215,7 +224,7 @@ void CoinFlipGame::render(AppContext& host) {
     // ---- one pip per flip in the round, filled as each lands ----
     const int16_t pitch = 28;
     const int16_t span = static_cast<int16_t>((flips - 1) * pitch);
-    const int16_t px0 = static_cast<int16_t>((SCREEN_WIDTH - span) / 2);
+    const int16_t px0 = static_cast<int16_t>((GAME_CANVAS_WIDTH - span) / 2);
     tft.setTextDatum(MC_DATUM);
     for (uint8_t i = 0; i < flips; ++i) {
         const int16_t px = static_cast<int16_t>(px0 + i * pitch);
@@ -252,6 +261,6 @@ void CoinFlipGame::render(AppContext& host) {
         snprintf(line, sizeof(line), "Tap Flip to spin");
         tft.setTextColor(Ui::muted(), Ui::bg());
     }
-    tft.drawString(line, SCREEN_WIDTH / 2, 187, 2);
+    tft.drawString(line, GAME_CANVAS_WIDTH / 2, 187, 2);
     tft.setTextDatum(TL_DATUM);
 }

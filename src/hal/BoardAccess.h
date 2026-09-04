@@ -163,6 +163,11 @@ public:
 
     void beepOk() { board_.beepOk(); }
     void beepError() { board_.beepError(); }
+    void playSound(Sound cue) { board_.playSound(cue); }
+    bool soundEnabled() { return board_.soundEnabled(); }
+    void setSoundEnabled(bool on) { board_.setSoundEnabled(on); }
+    uint8_t volume() { return board_.volume(); }
+    void setVolume(uint8_t percent) { board_.setVolume(percent); }
     void setRgb(bool red, bool green, bool blue) { board_.setRgb(red, green, blue); }
     void setRgbColor(uint8_t r, uint8_t g, uint8_t b) { board_.setRgbColor(r, g, b); }
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {

@@ -33,4 +33,13 @@ private:
     uint32_t flashUntil_ = 0;
     bool flashSuccess_ = false;
     bool gameOver_ = false;
+    /* Whether the about-to-vanish tick has already sounded for the mole that
+     * is currently up. Cleared by spawnMole(), so it is once per mole rather
+     * than once per frame for the last quarter-second of its life. */
+    bool warned_ = false;
+
+    /* How long before a mole vanishes the warning tick sounds. It has to be
+     * shorter than the fastest mole's whole visible time (360ms at level 10)
+     * by enough to still be a warning. */
+    static constexpr uint16_t WARN_MS = 260;
 };

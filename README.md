@@ -3,12 +3,12 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.3.0-9a6700)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.4.0-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-31-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-74.8%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.2%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,353,865 / 3,145,728 bytes (**74.8%**) |
-| RAM | 72,588 / 327,680 bytes (**22.2%**) |
+| Flash | 2,365,349 / 3,145,728 bytes (**74.9%**) |
+| RAM | 72,628 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -46,8 +46,10 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 ESP32-2432S028 CYD variants ship as ports built from published pin maps and
 have not been verified on real hardware; the Freenove FNK0104B *has* been
 verified on hardware but ships with three peripherals switched off (see
-[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)), and a 4-inch ST7796
-variant is in progress — if you own any of those, telling us whether it works is the single
+[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
+has had its panel, backlight and touch confirmed on hardware but ships with four
+peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796))
+— if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
@@ -124,11 +126,15 @@ Its USB-C is on a short edge, so unlike the other boards no landscape rotation
 puts the socket at the bottom — Braino uses rotation 3, which puts the cable on
 the left.
 
-**Sound works**: `beepOk()` and `beepError()` play through the ES8311 codec, capped at 80% volume. **Two things do not work yet, and they are switched off rather than broken:**
+**Sound works**, and on this board it is the whole of the
+[sound vocabulary](#sound) rather than two beeps — including the spoken
+"Let's play Braino!" at boot. It plays through the ES8311 codec, capped at 80%
+volume. **Two things do not work yet, and they are switched off rather than
+broken:**
 
 | Not working | Why | Issue |
 |---|---|---|
-| Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. `beepOk()`/`beepError()` are no-ops and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
+| Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. The colour half of the feedback is a no-op — the sounds still play — and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
 | SD card | The slot is **SDMMC 4-bit**; `SdProfile` describes an SPI card. Optional SD content is simply not loaded, which everything has defaults for | [#73](https://github.com/iamankushpandit/Gume/issues/73) |
 
 The battery **percentage** is correct, but the **charging/discharging verdict**
@@ -140,6 +146,44 @@ tracked in [#75](https://github.com/iamankushpandit/Gume/issues/75).
 `pio run -e s3diag` is a standalone bring-up probe for this board: panel,
 rotation, I²C scan, live touch, battery, and the full audio path including a
 record-and-playback microphone test.
+
+### E32R40T (4-inch ST7796)
+
+**The E32R40T** is the 4-inch board, and it is here for a reason the other
+ports are not: a physically bigger, plainer screen for players who need one.
+Braino stretches the games onto it rather than leaving them small in a corner
+— playable games draw through `Ui::ScaledRenderer`, which maps the fixed
+320×240 game canvas onto the panel's 480×320 and renders text at double glyph
+scale, so text gains on its boxes rather than merely keeping pace.
+
+It is the same reference PCB family as the E32R28T-1 and shares its display bus
+exactly — MISO 12, MOSI 13, SCLK 14, CS 15, DC 2, HSPI at 40 MHz. **One pin
+differs, and it is the one that fails silently: the backlight is GPIO27, not
+GPIO21.** With the wrong value the panel is black while Wi-Fi, BLE, NVS and the
+screen saver all run perfectly, so the serial log looks healthy and it reads as
+a dead screen. Both values were measured rather than assumed — 21 was confirmed
+dark from a clean reset — and `BoardConfig.h` static_asserts the profile
+against `TFT_BL` so they cannot drift apart again.
+
+Touch is an XPT2046 **sharing the display's SPI bus** with its own CS on
+GPIO33, driven through TFT_eSPI's touch extension rather than a bit-banged bus
+of its own. Its IRQ on GPIO36 is wired but **unusable** — an input-only pin
+with no internal pull and no external pull-up fitted, so it floats low and
+reports a permanent false pen-down. The profile says so (`irqUsable`) and the
+firmware gates on pressure alone, which is clean here: idle noise reads 10–20
+and a real press 2000+.
+
+**Four peripherals are switched off rather than broken**, because nobody has
+measured them on this board yet: the SD slot, the RGB LED, the speaker and
+battery sense. They are plausibly wired like the 2.8-inch board's — and
+"plausibly" is exactly the reasoning that produced a backlight pin nobody had
+checked. `PIN_NONE` costs a feature the firmware already does without; a wrong
+pin costs a fictional battery percentage. If you own one and can measure them,
+that is the most useful thing you can send.
+
+`pio run -e diag4` is the standalone bring-up probe for this board: panel
+identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
+wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
 
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
@@ -274,13 +318,50 @@ Cinnamon originally repainted the **whole screen** on every step, producing a
 full-screen flash roughly once a second — uncomfortable generally and a genuine
 risk for photosensitive players. It now repaints only the pads that changed, so
 there is **no full-area luminance change at all**, and mirrors each colour on
-the case LED so the cue doesn't depend on the screen flashing.
+the case LED so the cue doesn't depend on the screen flashing. On a board with
+a codec each pad also has its own fixed note, so the sequence can be followed
+by ear alone — which is the point of the game and, for a player who cannot
+easily tell the four colours apart, the difference between playable and not.
 
 <p align="center">
   <img src="docs/screens/cinnamon.png" width="360" alt="Cinnamon Says">
 </p>
 
 ---
+
+### Sound
+
+On a board with an audio codec — today that is the
+[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) — the console has a small
+fixed vocabulary of sounds rather than a beep for yes and a buzz for no. A
+point scored, a tile sliding, a level cleared, a personal best beaten, a mole
+about to vanish and a game lost each sound different, and they sound the same
+in every game that uses them, so a player learns them once.
+
+**None of it is a recording.** There is no WAV, no MP3 and no sample bank
+anywhere in this firmware, and there is not going to be one: a single second of
+audio would cost more flash than several games. Every sound is generated as it
+plays, from a few oscillators, a noise source and three formant filters. The
+whole vocabulary — fourteen cues, four pad notes and a spoken phrase — costs
+under a kilobyte.
+
+The formant filters are there because the console says **"Let's play Braino!"**
+when it starts up, in a deliberately robotic voice. That phrase is not a clip
+either. It is written down as the phonemes it is made of, and each phoneme is
+the first three resonances of a mouth shaped to say it; drive those with a
+steady buzz and you get a vowel, drive them with noise and you get a
+consonant. It is the same technique that made 1980s home computers talk, which
+is exactly why it sounds like one.
+
+All of it can be turned off. **Settings → Sound** holds a mute switch and a
+volume slider capped at 85% for a device held near a child's ears, plus two
+buttons to hear the level while you set it — because setting a volume you
+cannot hear while you set it is guesswork.
+
+A board with no codec is unchanged: the RGB case LED still flashes green for
+right and red for wrong, and every call to play a sound is silently a no-op.
+The Sound tab says which of those two situations you are in rather than showing
+a muted switch for a speaker that was never there.
 
 ---
 
@@ -367,10 +448,11 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/settings-device.png" width="360" alt="Settings: device">
   <img src="docs/screens/settings-power.png" width="360" alt="Settings: power and sleep">
+  <img src="docs/screens/settings-sound.png" width="360" alt="Settings: sound and volume">
   <img src="docs/screens/settings-admin.png" width="360" alt="Settings: the admin PIN">
 </p>
 
-Three tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
+Four tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
 the Network button, the NTP resync interval, the Nearby switch, screen
 brightness, and a factory reset behind a two-tap confirm. Nearby greys out and
 reads *needs Beacon* while the radio is off — it rides on that radio, and a
@@ -380,6 +462,31 @@ the Network screen's **Sync now** action stay immediate. **Power** holds
 the idle policy, its two delays and the hold-to-unlock guard — see [Screen
 saver and sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
 arrived and there was nowhere left to put them.
+
+**Sound** holds the mute switch and the volume. Mute is a switch of its own
+rather than volume zero, so the level survives being silenced and comes back
+where it was; muting takes *everything*, including the startup phrase, and
+leaves the case LED still flashing green and red. The volume slider is capped
+at **85%** and says 85 — a control that relabelled its ceiling as 100% would
+read better and lie. That ceiling is a hearing-safety limit for a device held
+near a young player's ears, the counterpart of the 25% brightness floor, and it
+was set by listening on the Freenove's own driver rather than picked as a round
+number. Two test buttons sit under it, because setting a volume
+you cannot hear while you set it is guesswork: one plays a cue, the other says
+"Let's play Braino!". Dragging the slider plays a note at the new level as you
+go. On a board with no audio codec the tab says so plainly rather than offering
+controls that do nothing — "this board cannot" and "you have muted it" are
+different things to tell an owner. See [Sound](#sound).
+
+**Admin** holds the PIN and **Recalibrate touch**. The calibration wizard runs
+on its own only when nothing is stored, which leaves one hole it cannot fill: a
+calibration that is *present but wrong* — drifted, or captured by a child
+tapping past the three targets — reports as fine and never re-runs, and the
+only cure was a factory reset behind a touch target nobody could hit. This is
+the way back. It is safe to press by mistake, because the wizard reads the
+panel raw and replaces what is stored only if the new three-point fit succeeds;
+time it out and the old calibration is still there. Boards with capacitive
+panels have nothing to fit and say so instead of offering the button.
 
 Game visibility is **not** here — it is per player, so it lives with the player,
 under *Profiles → Edit → Games*. See [The admin profile](#the-admin-profile).
@@ -392,6 +499,10 @@ control needed to undo it.
 320×240 landscape canvas, so Tall changes the home screen and nothing else.
 
 **Admin** holds the PIN that guards the admin profile. See below.
+
+Like everything else in Settings, the sound controls are **readable by anyone
+and changeable only by the admin** — the speaker belongs to whoever is in the
+room, so volume is a device setting rather than a per-player one.
 
 ### The admin profile
 
@@ -560,6 +671,26 @@ yourself is a request, so it produces the lock screen even if **Hold to
 unlock** is switched off. Nothing is stored, no profile or score is touched,
 and the tap is consumed by the shell — whatever sat under the padlock is not
 pressed as well.
+
+### The BOOT key is a Home button
+
+The small **BOOT** key on the board — the one the ROM uses for serial download
+mode — goes back to the launcher from any screen. It also wakes the panel and
+dismisses the screen saver, exactly as a touch does. Useful when a small player
+has wandered into a game and cannot find the way out, or when the top bar's
+Home glyph is simply harder to hit than a physical key.
+
+It is a shortcut and never the only way to do anything. Everything it reaches
+is reachable by touch, so a board that does not wire the key behaves as it
+always did. Two places ignore it on purpose: the **Hold to unlock** screen,
+because a key pressed through the side of a bag is the accident that screen
+exists to catch, and the launcher, where you are already home.
+
+Holding it while the console starts is unchanged and has nothing to do with
+this — that is a message to the chip's own ROM, which reads the pin at reset,
+long before this firmware runs. **RESET**, beside it, cannot be given a job at
+all: it pulls the chip's enable line, so there is no software on either side of
+it to notice.
 
 ### Scores, Profiles, About and System Info
 
@@ -769,8 +900,8 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.3.0**. See [CHANGELOG.md](CHANGELOG.md) for what
-changed.
+Current release: **5.4.0** — the previous release was **5.3.0**. See
+[CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
 
@@ -847,6 +978,7 @@ src/
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
+  diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
   engine/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
@@ -862,6 +994,9 @@ src/
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
+    SettingsGame.cpp    Settings: lifecycle, the four tabs, touch routing
+    SettingsPanels.cpp  the Device, Power and Sound tab bodies
+    SettingsPin.cpp     the admin PIN pad and the Admin tab
     CountryData.cpp     capitals, continents, difficulty tiers
     CountryDataTable.cpp  generated -- see tools/gen_country_facts.py
     ElementData.cpp     lookups over the 118-element table
@@ -874,9 +1009,12 @@ src/
     BoardAccess.h       narrow display/touch/storage/power/network/feedback facades
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
+    BoardButton.cpp     the BOOT key, debounced by the frame rate
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
-    BoardFeedback.cpp   RGB LED, semantic beeps, BLE toggle
+    BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
+    BoardAudio.cpp      the whole sound engine: cues and the spoken phrase
+    Sound.h             the console's sound vocabulary, as an enum
     BoardStorage.cpp    schema migration + app-scoped NVS keys
     BoardStorageMaintenance.cpp  profile moves + NVS telemetry
     TouchTypes.h        TouchPoint event type shared without display deps

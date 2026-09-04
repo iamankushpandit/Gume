@@ -23,7 +23,9 @@ private:
     void slide(uint8_t index);
     int8_t touchedTile(int16_t x, int16_t y) const;
     void loadBest(AppContext& host);
-    void saveBest(AppContext& host);
+    /* Returns whether this solve beat the stored best, so the caller can
+     * tell the player which of the two things happened. */
+    bool saveBest(AppContext& host);
 
     uint8_t size_ = 2;
     uint8_t tiles_[9] = {};

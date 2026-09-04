@@ -124,12 +124,12 @@ void CountingGame::render(AppContext& host) {
      * right-aligned "Score n/m" at the same y started around 213 -- they
      * overlapped. Score and streak now share one small line underneath. */
     tft.setTextDatum(TC_DATUM);
-    tft.drawString("How many objects?", SCREEN_WIDTH / 2, 32, 4);
+    tft.drawString("How many objects?", GAME_CANVAS_WIDTH / 2, 32, 4);
     tft.setTextColor(Ui::muted(), Ui::bg());
     char stats[48];
     snprintf(stats, sizeof(stats), "Score %u/%u   Streak %u   Best %u",
              score_, rounds_, streak_, bestStreak_);
-    tft.drawString(stats, SCREEN_WIDTH / 2, 60, 1);
+    tft.drawString(stats, GAME_CANVAS_WIDTH / 2, 60, 1);
     tft.setTextColor(Ui::text(), Ui::bg());
 
     const Rect area{18, 76, 284, 98};
@@ -164,7 +164,7 @@ void CountingGame::render(AppContext& host) {
     if (answered_) {
         tft.setTextDatum(MC_DATUM);
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer", SCREEN_WIDTH / 2, 178, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer", GAME_CANVAS_WIDTH / 2, 178, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

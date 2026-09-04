@@ -416,7 +416,7 @@ void MoneyGame::drawMake(Ui::Renderer& tft) const {
     drawCoinGroup(tft, Rect{18, 82, 284, 54}, makeCoins_, makeCount_);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(String("Make ") + centsText(target_) + "   Built " + centsText(built_), SCREEN_WIDTH / 2, 70, 2);
+    tft.drawString(String("Make ") + centsText(target_) + "   Built " + centsText(built_), GAME_CANVAS_WIDTH / 2, 70, 2);
 
     const uint8_t allowed = allowedCoinCount();
     for (uint8_t i = 0; i < allowed; ++i) {
@@ -455,8 +455,8 @@ void MoneyGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 8, 35, 2);
     tft.drawString(String("Score ") + score_, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 8, 35, 2);
+    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 51, 1);
 
     if (mode_ != Mode::Make) {
         Ui::drawLabel(tft, Rect{8, 58, 304, 12}, modeName(), Ui::muted(), 1, Align::Center);
@@ -473,8 +473,8 @@ void MoneyGame::render(AppContext& host) {
         tft.drawRoundRect(32, 82, 256, 56, 6, Ui::outline());
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(String("Price ") + centsText(price_), SCREEN_WIDTH / 2, 99, 2);
-        tft.drawString(String("Pay ") + centsText(paid_), SCREEN_WIDTH / 2, 123, 2);
+        tft.drawString(String("Price ") + centsText(price_), GAME_CANVAS_WIDTH / 2, 99, 2);
+        tft.drawString(String("Pay ") + centsText(paid_), GAME_CANVAS_WIDTH / 2, 123, 2);
         drawOptions(tft);
     }
 
@@ -485,7 +485,7 @@ void MoneyGame::render(AppContext& host) {
     } else if (flashIndex_ >= 0) {
         tft.setTextColor(RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString("Try again", GAME_CANVAS_WIDTH / 2, 226, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

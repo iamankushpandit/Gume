@@ -259,14 +259,33 @@ void FractionGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void FractionGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
+    /* Pre-correct the radius per axis so the wedge lands on the circle that
+     * fillCircle actually drew.
+     *
+     * The renderer may scale x and y by different amounts -- on a 480x320
+     * panel the game canvas stretches 1.5 across and 1.333 down. fillCircle
+     * takes a single radius and uses the average of the two, so it stays a
+     * circle. These wedge points are computed here in canvas space and then
+     * scaled independently, so without this they land on an ellipse instead:
+     * the fill bulges past the rim at the sides and falls short at the top and
+     * bottom, which is what made the arcs look wrong rather than merely
+     * mis-sized. Dividing by each axis and multiplying by the average puts
+     * both back on the same circle. On a board where the scales are equal --
+     * every board today -- avg/sx and avg/sy are 1 and this is the old code. */
+    const float avg = tft.imageScale();
+    const float sxAxis = tft.imageScaleX();
+    const float syAxis = tft.imageScaleY();
+    const float rx = (sxAxis > 0.0f) ? radius * avg / sxAxis : static_cast<float>(radius);
+    const float ry = (syAxis > 0.0f) ? radius * avg / syAxis : static_cast<float>(radius);
+
     const float step = PI / 24.0f;
     float angle = startAngle;
     while (angle < endAngle) {
         const float next = min(endAngle, angle + step);
-        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * radius);
-        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * radius);
-        const int16_t x2 = cx + static_cast<int16_t>(cosf(next) * radius);
-        const int16_t y2 = cy + static_cast<int16_t>(sinf(next) * radius);
+        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * rx);
+        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * ry);
+        const int16_t x2 = cx + static_cast<int16_t>(cosf(next) * rx);
+        const int16_t y2 = cy + static_cast<int16_t>(sinf(next) * ry);
         tft.fillTriangle(cx, cy, x1, y1, x2, y2, color);
         angle = next;
     }
@@ -290,7 +309,7 @@ void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t ra
 }
 
 void FractionGame::drawTextOptions(Ui::Renderer& tft) const {
-    drawPie(tft, SCREEN_WIDTH / 2, 115, 38, target_);
+    drawPie(tft, GAME_CANVAS_WIDTH / 2, 115, 38, target_);
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
@@ -310,7 +329,7 @@ void FractionGame::drawPieOptions(Ui::Renderer& tft) const {
     tft.drawRoundRect(96, 74, 128, 30, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(fractionText(target_), SCREEN_WIDTH / 2, 89, 4);
+    tft.drawString(fractionText(target_), GAME_CANVAS_WIDTH / 2, 89, 4);
     for (uint8_t i = 0; i < 4; ++i) {
         const Rect r = pieOptionRect(i);
         bool selected = roundComplete_ ? i == correctButton_ : flashIndex_ == i;
@@ -352,8 +371,8 @@ void FractionGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 8, 35, 2);
     tft.drawString(String("Score ") + score_, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 8, 35, 2);
+    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 51, 1);
 
     const char* prompt = mode_ == Mode::PickText ? "Pick the matching fraction" : (mode_ == Mode::PickPie ? "Pick the matching pie" : "Which fraction is bigger?");
     Ui::drawLabel(tft, Rect{8, 66, 304, 12}, prompt, Ui::muted(), 1, Align::Center);
@@ -373,7 +392,7 @@ void FractionGame::render(AppContext& host) {
     } else if (flashIndex_ >= 0) {
         tft.setTextColor(RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", SCREEN_WIDTH / 2, 226, 2);
+        tft.drawString("Try again", GAME_CANVAS_WIDTH / 2, 226, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

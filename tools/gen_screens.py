@@ -578,13 +578,17 @@ def tabs(d, active_device):
     d.line([(ax + 152, 60), (316, 60)], fill=OUTLINE)
 
 
+SETTINGS_TABS = ("Device", "Power", "Sound", "Admin")
+
+
 def settings_tabs(d, active_index):
-    """Three tabs, each SCREEN_WIDTH/3 wide -- mirrors deviceTabRect() and
-    friends, which divide the live width rather than assuming 160px halves."""
-    third = 320 // 3
-    for i, lab in enumerate(("Device", "Power", "Admin")):
-        x = i * third
-        w = (320 - x) if i == 2 else third
+    """Four tabs, each SCREEN_WIDTH/4 wide -- mirrors SettingsGame::tabRect(),
+    which divides the live width rather than assuming fixed halves, and gives
+    the last tab the rounding so the strip reaches the right edge."""
+    each = 320 // len(SETTINGS_TABS)
+    for i, lab in enumerate(SETTINGS_TABS):
+        x = i * each
+        w = (320 - x) if i == len(SETTINGS_TABS) - 1 else each
         active = (i == active_index)
         top = 30 if active else 34
         h = 22 if active else 18
@@ -692,15 +696,55 @@ def wakelock_tall():
     return wakelock(240, 320)
 
 
-def settings_admin():
-    """Settings tab: the PIN that guards this screen and the admin profile."""
+def settings_sound():
+    """Settings tab: the mute switch and the volume, with the two test buttons.
+
+    Geometry from muteRect() / volumeRect() / testCueRect() / testVoiceRect().
+
+    Drawn mid-travel rather than at the default. The default is AT the ceiling
+    (Board::AUDIO_VOLUME_MAX, 85), and a slider drawn full-width would show
+    nothing about the range -- a picture of a handle at the right-hand end
+    looks like 100% whatever the readout says. The ceiling is a fact for the
+    prose to carry; what the picture is for is the layout.
+    """
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 2)
+    button(d, (8, 58, 304, 30), "Sound: On")
+    d.text((8, 92), "Volume", font=F1, fill=MUTED)
+    d.text((312 - d.textlength("70%", font=F1), 92), "70%", font=F1, fill=MUTED)
+    r = (8, 104, 304, 32)
+    cy = r[1] + r[3] // 2
+    pad, span = 11, r[2] - 22
+    fill = int(70 / 85 * span)          # value / AUDIO_VOLUME_MAX
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + span, cy + 4], 4,
+                        fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=BLUE)
+    hx = r[0] + pad + fill
+    d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
+    button(d, (8, 148, 144, 30), "Test sound", BLUE, WHITE)
+    button(d, (164, 148, 144, 30), "Say hello", BLUE, WHITE)
+    d.text((8, 190), "Volume is capped for young ears.", font=F1, fill=MUTED)
+    d.text((8, 206), "Every sound is made by the device, not a file.",
+           font=F1, fill=MUTED)
+    return im
+
+
+def settings_admin():
+    """Settings tab: the PIN that guards this screen, and touch calibration.
+
+    Geometry follows changePinRect() and recalibrateRect(). The Recalibrate
+    row is drawn because this mock-up stands for the resistive boards; a
+    capacitive panel has nothing to fit and the firmware puts a line of text
+    there instead."""
+    im, d = blank(); topbar(d, "Settings")
+    settings_tabs(d, 3)
     button(d, (8, 58, 304, 30), "Change admin PIN")
     d.text((8, 100), "The PIN guards the admin profile. It", font=F1, fill=MUTED)
     d.text((8, 116), "ships as 0000 -- change it.", font=F1, fill=MUTED)
     d.text((8, 140), "Admin profile: Admin", font=F1, fill=MUTED)
-    lab = "Entered twice; only saved if both match."
+    button(d, (8, 164, 304, 30), "Recalibrate touch")
+    lab = "The PIN is entered twice, and must match."
     d.text((160 - d.textlength(lab, font=F1) / 2, 220), lab, font=F1, fill=MUTED)
     return im
 
@@ -854,6 +898,7 @@ SCREENS = [
     ("cinnamon", cinnamon, "Cinnamon Says"),
     ("settings-device", settings_device, "Settings: device"),
     ("settings-power", settings_power, "Settings: power and sleep"),
+    ("settings-sound", settings_sound, "Settings: sound and volume"),
     ("settings-admin", settings_admin, "Settings: the admin PIN"),
     ("settings-pin", settings_pin, "Settings: setting a new admin PIN"),
     ("profiles-pin", profiles_pin, "Profiles: the admin PIN prompt"),

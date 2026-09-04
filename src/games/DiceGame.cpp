@@ -65,13 +65,13 @@ Rect DiceGame::dieRect(uint8_t index) const {
     constexpr int16_t size = 68;
     constexpr int16_t gap = 14;
     const int16_t span = static_cast<int16_t>(count_ * size + (count_ - 1) * gap);
-    const int16_t x0 = static_cast<int16_t>((SCREEN_WIDTH - span) / 2);
+    const int16_t x0 = static_cast<int16_t>((GAME_CANVAS_WIDTH - span) / 2);
     return Rect{static_cast<int16_t>(x0 + index * (size + gap)), 88, size, size};
 }
 
 Rect DiceGame::activeBand() const {
     // Dice (88..156) plus the total line below them, but not the Roll button.
-    return Rect{0, 84, SCREEN_WIDTH, 112};
+    return Rect{0, 84, GAME_CANVAS_WIDTH, 112};
 }
 
 /* Hardware entropy, not Arduino random(): on a dice game the draw is the
@@ -91,7 +91,10 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
             // it was only for show.
             reroll();
             rolling_ = false;
-            host.beepOk();
+            /* The dice settling. Reveal rather than the "correct" beep: a
+             * throw is not an answer, and this game had been marking every
+             * roll as though the player had got something right. */
+            host.playSound(Sound::Reveal);
             markDirty();
         } else if (now >= nextTumbleMs_) {
             nextTumbleMs_ = now + TUMBLE_STEP_MS;
@@ -113,7 +116,7 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
         if (picked != count_) {
             count_ = picked;
             thrown_ = false;   // the old total described a different throw
-            host.beepOk();
+            host.playSound(Sound::Select);
             markFullDirty();
         }
         return;
@@ -125,6 +128,7 @@ void DiceGame::update(AppContext& host, const TouchPoint& touch) {
         rollUntilMs_ = millis() + TUMBLE_MS;
         nextTumbleMs_ = 0;
         host.pulseRgb(255, 190, 60, 200);
+        host.playSound(Sound::Whoosh);   // the dice leaving the hand
         markDirty();
     }
 }
@@ -159,7 +163,7 @@ void DiceGame::render(AppContext& host) {
 
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
-        tft.drawString("How many dice?", SCREEN_WIDTH / 2, 34, 1);
+        tft.drawString("How many dice?", GAME_CANVAS_WIDTH / 2, 34, 1);
 
         for (uint8_t i = 0; i < MAX_DICE; ++i) {
             const bool on = (i + 1) == count_;
@@ -187,15 +191,15 @@ void DiceGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     if (rolling_) {
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("Rolling...", SCREEN_WIDTH / 2, 178, 4);
+        tft.drawString("Rolling...", GAME_CANVAS_WIDTH / 2, 178, 4);
     } else if (thrown_) {
         char line[16];
         snprintf(line, sizeof(line), "Total %u", static_cast<unsigned>(total));
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(line, SCREEN_WIDTH / 2, 178, 4);
+        tft.drawString(line, GAME_CANVAS_WIDTH / 2, 178, 4);
     } else {
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("Tap Roll to throw", SCREEN_WIDTH / 2, 178, 2);
+        tft.drawString("Tap Roll to throw", GAME_CANVAS_WIDTH / 2, 178, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

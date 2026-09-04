@@ -13,7 +13,9 @@ Rect topBarSettingsRect(int16_t screenW);
  * the lock takes comes out of the title. Drawing and hit testing both read
  * these, so the glyph and its target cannot drift apart. */
 Rect topBarHomeRect();
-Rect topBarLockRect();
+Rect topBarLockRect(int16_t screenW);
+/** Where the top bar's title may start: clear of Home and the padlock. */
+int16_t topBarTitleLeft(int16_t screenW);
 
 /* Where the launcher draws its own Lock button. The launcher has no top bar,
  * so it needs its own slot: the air between the title and the profile name in
@@ -22,7 +24,15 @@ Rect lockRect(Board::LayoutMode mode, int16_t screenW);
 int16_t headerHeight(Board::LayoutMode mode);
 Rect gearRect(Board::LayoutMode mode, int16_t screenW);
 Rect profileRect(Board::LayoutMode mode, int16_t screenW);
-Rect tileRect(uint8_t slot, Board::LayoutMode mode);
+/* The launcher's tile grid, measured against the live panel.
+ *
+ * screenW/screenH are required rather than defaulted. Everything else on this
+ * screen -- gear, profile, lock, the top bar -- already takes a width and
+ * adapts; the tiles alone were fixed at the 320x240 geometry, so on a 480x320
+ * panel they stopped two-thirds of the way across and left a dead band while
+ * the header and pager correctly reached the edges. A default of 320/240 here
+ * would be that same literal, just hidden where nobody would look for it. */
+Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH);
 uint8_t pageSize(Board::LayoutMode mode);
 
 }  // namespace LauncherLayout

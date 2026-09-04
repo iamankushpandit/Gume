@@ -210,7 +210,7 @@ void StatesGame::render(AppContext& host) {
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::rgb(90, 170, 255), Ui::bg());
     tft.drawString(mode_ == Mode::CapitalOf ? current_->name : current_->capital,
-                   SCREEN_WIDTH / 2, 72, 4);
+                   GAME_CANVAS_WIDTH / 2, 72, 4);
 
     const bool done = (phase_ == Phase::Feedback);
     tft.setTextColor(done ? (lastCorrect_ ? Ui::success() : Ui::error()) : Ui::text(), Ui::bg());
@@ -223,7 +223,7 @@ void StatesGame::render(AppContext& host) {
         prompt = (mode_ == Mode::CapitalOf) ? String("What is its capital?")
                                             : String("is the capital of which state?");
     }
-    tft.drawString(fitLabel(tft, prompt, SCREEN_WIDTH - 16, 2), SCREEN_WIDTH / 2, 112, 2);
+    tft.drawString(fitLabel(tft, prompt, GAME_CANVAS_WIDTH - 16, 2), GAME_CANVAS_WIDTH / 2, 112, 2);
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         const StateFact* opt = options_[i];

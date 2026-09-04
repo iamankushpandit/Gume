@@ -265,7 +265,7 @@ void FlagGame::render(AppContext& host) {
 
     tft.setTextDatum(TR_DATUM);
     tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
-    tft.drawString(String("+") + capBonus_, SCREEN_WIDTH - 8, 33, 2);
+    tft.drawString(String("+") + capBonus_, GAME_CANVAS_WIDTH - 8, 33, 2);
 
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
     Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
@@ -291,7 +291,7 @@ void FlagGame::render(AppContext& host) {
     tft.drawString(capitalRound
                        ? String("Bonus! Capital of ") + (countryName ? countryName : current_->iso2) + "?"
                        : String("Which country?"),
-                   SCREEN_WIDTH / 2, 176, 2);
+                   GAME_CANVAS_WIDTH / 2, 176, 2);
 
     // --- answers ---------------------------------------------------------
     const bool showingFeedback =

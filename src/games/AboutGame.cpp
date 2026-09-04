@@ -19,7 +19,13 @@ constexpr uint8_t GAME_PAGES =
     (playableAppCount() + GAMES_PER_PAGE - 1) / GAMES_PER_PAGE;
 constexpr uint8_t PAGE_INTRO = 0;
 constexpr uint8_t PAGE_FIRST_GAME = 1;
-constexpr uint8_t PAGE_RADIOS = PAGE_FIRST_GAME + GAME_PAGES;
+/* The controls page exists only where there is a control to describe. A board
+ * whose profile wires no BOOT key does not get a page explaining a key it does
+ * not have -- the same derive-do-not-restate rule as the game list, applied to
+ * hardware: ask the profile rather than typing in what this board has. */
+constexpr uint8_t CONTROLS_PAGES = BOARD.hasBootButton() ? 1 : 0;
+constexpr uint8_t PAGE_CONTROLS = PAGE_FIRST_GAME + GAME_PAGES;
+constexpr uint8_t PAGE_RADIOS = PAGE_CONTROLS + CONTROLS_PAGES;
 constexpr uint8_t PAGE_CREDITS = PAGE_RADIOS + 1;
 /* The build stamp gets a page of its own rather than a line on the intro.
  * The intro page already runs to y=190 and the panel bottom is y=196 in
@@ -168,6 +174,29 @@ void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
                  : "Never sent: names, scores, progress.", 1);
 }
 
+/* What the physical keys do -- which is the one thing About cannot leave to the
+ * launcher to explain, because there is nothing on screen to point at. A key
+ * nobody knows about is the same as no key.
+ *
+ * RESET is named here despite doing nothing of ours, because an owner looking
+ * at two identical buttons will press both and deserves to know why only one
+ * of them appears to work. */
+void AboutGame::renderControls(Ui::Renderer& tft) {
+    drawLine(tft, 48, "The buttons on the board", 2);
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 76, "BOOT  goes back to the menu.", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 90, "It also wakes the screen, just", 1);
+    drawLine(tft, 104, "as touching it does.", 1);
+    drawLine(tft, 124, "Everything it does can be done", 1);
+    drawLine(tft, 138, "by touch as well.", 1);
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 158, "RESET  restarts the console.", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 172, "Scores and settings are kept.", 1);
+    drawLine(tft, 190, "Neither button erases anything.", 1);
+}
+
 void AboutGame::renderCredits(Ui::Renderer& tft) {
     drawLine(tft, 48, "Artwork credits", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
@@ -237,6 +266,10 @@ void AboutGame::render(GameHost& host) {
 
     if (page_ == PAGE_INTRO) {
         renderIntro(tft);
+    /* Ahead of the game-page range, which is "everything below PAGE_RADIOS"
+     * and would otherwise swallow this one. */
+    } else if (CONTROLS_PAGES != 0 && page_ == PAGE_CONTROLS) {
+        renderControls(tft);
     } else if (page_ < PAGE_RADIOS) {
         renderGames(tft, w);
     } else if (page_ == PAGE_RADIOS) {

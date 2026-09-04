@@ -71,6 +71,7 @@ inline constexpr BoardProfile BOARD = {
         /* sclk               */ PIN_NONE,
         /* cs                 */ PIN_NONE,
         /* irq                */ 17,
+/* irqUsable         */ true,
         /* sda                */ 16,
         /* scl                */ 15,
         /* reset              */ 18,
@@ -78,6 +79,14 @@ inline constexpr BoardProfile BOARD = {
         /* i2cHz              */ 400000,
         /* pressureThreshold  */ 0,
         /* hitSlop            */ 8,
+    },
+
+    /* BOOT (IO0), the key the ROM uses to enter serial download mode. Read
+     * only at runtime, where it is an ordinary input with an internal
+     * pull-up. On this board it sits beside RESET on the long edge. */
+    ButtonProfile{
+        /* bootPin   */ 0,
+        /* activeLow */ true,
     },
 
     /* No SD, deliberately, for now.
