@@ -138,6 +138,7 @@ inline constexpr BoardProfile BOARD = {
         /* i2sDataIn           */ 6,
         /* ampEnablePin        */ 1,
         /* ampEnableActiveLow  */ true,
+        /* maxVolume           */ 85,
     },
 
     /* Battery sense on GPIO9 = ADC1_CH8 on the S3, which matters: ADC2 is
