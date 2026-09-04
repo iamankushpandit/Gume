@@ -95,6 +95,16 @@ inline constexpr BoardProfile BOARD = {
         /* hitSlop            */ 8,
     },
 
+    /* BOOT (IO0), the key the ROM uses to enter serial download mode; read at
+     * runtime as an ordinary input with an internal pull-up. This is the one
+     * fact here that is not a guess about the board's layout: IO0 is the ESP32
+     * strapping pin, so the ROM's own boot behaviour already proves the button
+     * is on it and pulls the line low. */
+    ButtonProfile{
+        /* bootPin   */ 0,
+        /* activeLow */ true,
+    },
+
     /* Not characterised on this board. See the header comment. */
     SdProfile{
         /* cs    */ PIN_NONE,
