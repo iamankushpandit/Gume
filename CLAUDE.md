@@ -247,7 +247,37 @@ Then work entirely in `../GUme-<slug>`. Branch names: `feat/<game-id>` for a new
 
 A separate worktree also gives you your own `.pio/` build directory, which removes the concurrent-build race described below.
 
-Base new work on `dev`, not `main`. Keep branches short-lived and rebase onto `dev` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
+**Every feature and every fix starts from `dev`.** Not `main`, not a release
+branch, not whatever the last worktree happened to be sitting on. The only
+exceptions are a change the maintainer has explicitly asked to be based
+elsewhere, and a hotfix onto a release branch that has already been agreed --
+in both cases said out loud, in the request, before the work starts. If nobody
+said otherwise, the answer is `dev`.
+
+**This rule is not yours to overrule, and in particular it is not overruled by
+`dev` looking wrong.** It has already failed once exactly that way: an agent
+saw `dev` sitting 55 commits behind `main`, concluded it was stale and
+therefore the wrong base, branched from `main` instead, and wrote a paragraph
+justifying it. The refs were local and had never been fetched. One
+`git fetch origin` showed `dev` was five commits *ahead* with work `main` did
+not have -- the reasoning was confident, articulate and built entirely on stale
+data. So:
+
+- **`git fetch origin` before you form any opinion about a branch.** A local
+  ref is a memory of the remote, not the remote. Compare with
+  `git rev-list --left-right --count origin/dev...origin/main`.
+- **If `dev` still looks like the wrong base after fetching, stop and ask.**
+  Say what you measured and why it looks wrong. Do not decide it yourself, and
+  do not proceed while explaining the decision -- an explanation is not an
+  approval.
+- **Basing on `main` and rebasing onto `dev` later is not a shortcut, it is
+  extra work with a hazard in it.** The release commits in `main`'s history
+  come along for the ride, so the feature branch quietly carries the version
+  bump that drops `-SNAPSHOT` into `dev`, which is meant to keep it. Recovering
+  from that means replaying your own commits with `--onto`, and knowing you had
+  to is not something the rebase tells you.
+
+Keep branches short-lived and rebase onto `dev` often -- Keep branches short-lived and rebase onto `dev` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
 
 **Branching moves the risk rather than removing it.** More parallel branches means more merges, and the failure below is a merge-time failure â€” so it gets *more* important, not less.
 
