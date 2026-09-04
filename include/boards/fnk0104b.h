@@ -71,6 +71,7 @@ inline constexpr BoardProfile BOARD = {
         /* sclk               */ PIN_NONE,
         /* cs                 */ PIN_NONE,
         /* irq                */ 17,
+/* irqUsable         */ true,
         /* sda                */ 16,
         /* scl                */ 15,
         /* reset              */ 18,

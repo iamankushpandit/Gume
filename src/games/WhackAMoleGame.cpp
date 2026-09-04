@@ -4,7 +4,7 @@
 namespace {
 constexpr uint8_t GRID = 9;
 constexpr int16_t CELL = 20;
-constexpr int16_t GRID_X = (SCREEN_WIDTH - GRID * CELL) / 2;
+constexpr int16_t GRID_X = (GAME_CANVAS_WIDTH - GRID * CELL) / 2;
 constexpr int16_t GRID_Y = TOP_BAR_HEIGHT + 28;
 constexpr uint16_t CELL_FILL = 0x1085;
 constexpr uint16_t SMILE = 0xFFE6;
@@ -208,9 +208,9 @@ void WhackAMoleGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char rightBuf[24];
     snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestScore_);
-    tft.drawString(rightBuf, SCREEN_WIDTH - 8, 35, 2);
+    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 8, 35, 2);
     snprintf(rightBuf, sizeof(rightBuf), "Speed %ums", visibleMs());
-    tft.drawString(rightBuf, SCREEN_WIDTH - 8, 51, 1);
+    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 8, 51, 1);
 
     for (uint8_t i = 0; i < GRID * GRID; ++i) {
         const Rect r = cellRect(i);
@@ -230,9 +230,9 @@ void WhackAMoleGame::render(AppContext& host) {
         tft.drawRoundRect(46, 88, 228, 72, 8, Ui::error());
         tft.setTextColor(Ui::error(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Game over", SCREEN_WIDTH / 2, 110, 4);
+        tft.drawString("Game over", GAME_CANVAS_WIDTH / 2, 110, 4);
         tft.setTextColor(Ui::text(), Ui::panel());
-        tft.drawString("Tap to restart", SCREEN_WIDTH / 2, 140, 2);
+        tft.drawString("Tap to restart", GAME_CANVAS_WIDTH / 2, 140, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

@@ -159,6 +159,28 @@ Board::RawTouch Board::readCapacitiveTouch() {
 #if !GUME_TOUCH_CAPACITIVE
 Board::RawTouch Board::readResistiveTouch() {
     RawTouch touch;
+
+#if defined(TOUCH_CS)
+    /* This board's XPT2046 shares the display's hardware SPI bus, arbitrated
+     * by its own CS, rather than having a bit-banged bus of its own. Use
+     * TFT_eSPI's built-in touch extension -- activated by TOUCH_CS in
+     * platformio.ini, and the same path the panel vendor's reference firmware
+     * takes -- rather than hand-rolling shared-bus transactions, because it
+     * already arbitrates correctly with the display driver. Bit-banging these
+     * lines as plain GPIO would fight that driver for pins it owns. */
+    const uint16_t pressure = tft_.getTouchRawZ();
+    if (pressure < BOARD.touch.pressureThreshold) {
+        return touch;
+    }
+    uint16_t sharedX = 0;
+    uint16_t sharedY = 0;
+    tft_.getTouchRaw(&sharedX, &sharedY);
+    touch.down = true;
+    touch.x = static_cast<int16_t>(sharedX);
+    touch.y = static_cast<int16_t>(sharedY);
+    touch.pressure = pressure;
+    return touch;
+#else
     const uint16_t z1 = readTouchAdc(CMD_READ_Z1);
     const uint16_t z2 = readTouchAdc(CMD_READ_Z2);
     uint16_t pressure = 0;
@@ -166,7 +188,13 @@ Board::RawTouch Board::readResistiveTouch() {
         pressure = static_cast<uint16_t>(z1 + 4095 - z2);
     }
 
-    const bool irqDown = digitalRead(BOARD.touch.irq) == LOW;
+    /* An IRQ this board cannot believe is worse than none. Where no pull-up is
+     * fitted the line floats LOW, and since this gate accepts a press when the
+     * IRQ is low OR pressure is high, trusting it would report a touch on
+     * every poll forever -- not degraded input, no input. Boards that say so
+     * gate on pressure alone, which is clean here: idle noise 10-20, a real
+     * press 2000+. */
+    const bool irqDown = BOARD.touch.irqUsable && digitalRead(BOARD.touch.irq) == LOW;
     if (!irqDown && pressure < BOARD.touch.pressureThreshold) {
         return touch;
     }
@@ -185,6 +213,7 @@ Board::RawTouch Board::readResistiveTouch() {
     touch.y = static_cast<int16_t>(y / samples);
     touch.pressure = pressure;
     return touch;
+#endif
 }
 
 #endif  /* !GUME_TOUCH_CAPACITIVE -- end of the XPT2046 half */

@@ -6,7 +6,7 @@ namespace {
 constexpr uint8_t MAZE_COLS = MazeData::COLS;
 constexpr uint8_t MAZE_ROWS = MazeData::ROWS;
 constexpr int16_t CELL = 22;
-constexpr int16_t MAZE_X = (SCREEN_WIDTH - MAZE_COLS * CELL) / 2;
+constexpr int16_t MAZE_X = (GAME_CANVAS_WIDTH - MAZE_COLS * CELL) / 2;
 constexpr int16_t MAZE_Y = TOP_BAR_HEIGHT + 28;
 constexpr uint16_t WALL = 0x4A49;
 constexpr uint16_t PATH = 0xFFFF;
@@ -244,7 +244,7 @@ void MazeGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void MazeGame::drawHud(Ui::Renderer& tft) const {
-    tft.fillRect(0, 42, SCREEN_WIDTH, 18, Ui::bg());
+    tft.fillRect(0, 42, GAME_CANVAS_WIDTH, 18, Ui::bg());
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
     char hud[48];
@@ -257,7 +257,7 @@ void MazeGame::drawHud(Ui::Renderer& tft) const {
                  static_cast<unsigned>(levelIndex_ + 1), static_cast<unsigned>(MazeData::COUNT),
                  static_cast<unsigned>(moves_));
     }
-    tft.drawString(hud, SCREEN_WIDTH / 2, 50, 1);
+    tft.drawString(hud, GAME_CANVAS_WIDTH / 2, 50, 1);
 }
 
 void MazeGame::drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const {
@@ -314,8 +314,8 @@ void MazeGame::render(AppContext& host) {
         tft.drawRoundRect(58, 86, 204, 58, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Maze solved!", SCREEN_WIDTH / 2, 106, 4);
-        tft.drawString(levelIndex_ + 1 < MazeData::COUNT ? "Tap for next maze" : "Tap to play again", SCREEN_WIDTH / 2, 132, 2);
+        tft.drawString("Maze solved!", GAME_CANVAS_WIDTH / 2, 106, 4);
+        tft.drawString(levelIndex_ + 1 < MazeData::COUNT ? "Tap for next maze" : "Tap to play again", GAME_CANVAS_WIDTH / 2, 132, 2);
         tft.setTextDatum(TL_DATUM);
     }
 }

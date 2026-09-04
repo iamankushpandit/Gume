@@ -168,7 +168,7 @@ void TicTacToeGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char scoreBuf[32];
     snprintf(scoreBuf, sizeof(scoreBuf), "X %u  O %u  D %u", xWins_, oWins_, draws_);
-    tft.drawString(scoreBuf, SCREEN_WIDTH - 8, 40, 1);
+    tft.drawString(scoreBuf, GAME_CANVAS_WIDTH - 8, 40, 1);
     tft.setTextDatum(TL_DATUM);
 
     tft.fillRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8, BOARD_RECT.h + 8, 8, Ui::panel());

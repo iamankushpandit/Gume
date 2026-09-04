@@ -192,8 +192,8 @@ void MathGame::render(AppContext& host) {
     tft.drawString(String("Level ") + level(), 10, 35, 2);
     tft.drawString(String("Correct ") + score_ + "  " + formatSeconds(elapsedSeconds()), 10, 52, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, SCREEN_WIDTH - 10, 35, 2);
-    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", SCREEN_WIDTH - 10, 52, 1);
+    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 10, 35, 2);
+    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", GAME_CANVAS_WIDTH - 10, 52, 1);
 
     const char symbol = operation_ == Operation::Add ? '+' : '-';
     const String equation = String(left_) + " " + symbol + " " + right_ + " = ?";
@@ -201,7 +201,7 @@ void MathGame::render(AppContext& host) {
     tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(equation, SCREEN_WIDTH / 2, 103, 4);
+    tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
@@ -221,11 +221,11 @@ void MathGame::render(AppContext& host) {
     if (answered_) {
         tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", GAME_CANVAS_WIDTH / 2, 136, 2);
     } else {
         tft.setTextColor(YELLOW, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap the answer", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString("Tap the answer", GAME_CANVAS_WIDTH / 2, 136, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

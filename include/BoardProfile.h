@@ -91,6 +91,22 @@ struct TouchProfile {
     int8_t   sclk;                // resistive only
     int8_t   cs;                  // resistive only
     int8_t   irq;                 // both: pen-down / INT
+    /* Whether that IRQ line can actually be believed.
+     *
+     * It is wired on every board here, and on one of them it is useless: the
+     * 4-inch E32R40T brings it out on GPIO36, an input-only pin with no
+     * internal pull, and populates no external pull-up. It therefore floats
+     * LOW and reports a permanent, false pen-down. The resistive gate accepts
+     * a press when the IRQ is low OR pressure is high, so an unusable IRQ does
+     * not degrade touch -- it defeats it entirely, reporting a touch on every
+     * poll forever.
+     *
+     * This is a property of the board (is the resistor fitted?), not of the
+     * controller, which is why it lives here rather than being inferred. A
+     * board setting this false is telling the firmware to gate on pressure
+     * alone, which is a clean signal on these panels: idle noise reads 10-20
+     * and a real press 2000+. */
+    bool     irqUsable;
     int8_t   sda;                 // capacitive only
     int8_t   scl;                 // capacitive only
     int8_t   reset;               // capacitive only; held low then released

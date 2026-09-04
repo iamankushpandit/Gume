@@ -184,7 +184,7 @@ void ShapeColorGame::render(AppContext& host) {
     } else {
         snprintf(stats, sizeof(stats), "Taps %u", taps_);
     }
-    tft.drawString(stats, SCREEN_WIDTH - 8, 50, 1);
+    tft.drawString(stats, GAME_CANVAS_WIDTH - 8, 50, 1);
 
     for (uint8_t i = 0; i < 4; ++i) {
         const Rect choice = choiceRect(i);
@@ -212,8 +212,8 @@ void ShapeColorGame::render(AppContext& host) {
         tft.drawRoundRect(54, 94, 212, 52, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Great matching!", SCREEN_WIDTH / 2, 112, 4);
-        tft.drawString("Tap to play again", SCREEN_WIDTH / 2, 137, 2);
+        tft.drawString("Great matching!", GAME_CANVAS_WIDTH / 2, 112, 4);
+        tft.drawString("Tap to play again", GAME_CANVAS_WIDTH / 2, 137, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-74.9%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.2%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,357,413 / 3,145,728 bytes (**74.9%**) |
-| RAM | 72,596 / 327,680 bytes (**22.2%**) |
+| Flash | 2,365,381 / 3,145,728 bytes (**74.9%**) |
+| RAM | 72,628 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -46,8 +46,10 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 ESP32-2432S028 CYD variants ship as ports built from published pin maps and
 have not been verified on real hardware; the Freenove FNK0104B *has* been
 verified on hardware but ships with three peripherals switched off (see
-[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)), and a 4-inch ST7796
-variant is in progress — if you own any of those, telling us whether it works is the single
+[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
+has had its panel, backlight and touch confirmed on hardware but ships with four
+peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796))
+— if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
@@ -144,6 +146,44 @@ tracked in [#75](https://github.com/iamankushpandit/Gume/issues/75).
 `pio run -e s3diag` is a standalone bring-up probe for this board: panel,
 rotation, I²C scan, live touch, battery, and the full audio path including a
 record-and-playback microphone test.
+
+### E32R40T (4-inch ST7796)
+
+**The E32R40T** is the 4-inch board, and it is here for a reason the other
+ports are not: a physically bigger, plainer screen for players who need one.
+Braino stretches the games onto it rather than leaving them small in a corner
+— playable games draw through `Ui::ScaledRenderer`, which maps the fixed
+320×240 game canvas onto the panel's 480×320 and renders text at double glyph
+scale, so text gains on its boxes rather than merely keeping pace.
+
+It is the same reference PCB family as the E32R28T-1 and shares its display bus
+exactly — MISO 12, MOSI 13, SCLK 14, CS 15, DC 2, HSPI at 40 MHz. **One pin
+differs, and it is the one that fails silently: the backlight is GPIO27, not
+GPIO21.** With the wrong value the panel is black while Wi-Fi, BLE, NVS and the
+screen saver all run perfectly, so the serial log looks healthy and it reads as
+a dead screen. Both values were measured rather than assumed — 21 was confirmed
+dark from a clean reset — and `BoardConfig.h` static_asserts the profile
+against `TFT_BL` so they cannot drift apart again.
+
+Touch is an XPT2046 **sharing the display's SPI bus** with its own CS on
+GPIO33, driven through TFT_eSPI's touch extension rather than a bit-banged bus
+of its own. Its IRQ on GPIO36 is wired but **unusable** — an input-only pin
+with no internal pull and no external pull-up fitted, so it floats low and
+reports a permanent false pen-down. The profile says so (`irqUsable`) and the
+firmware gates on pressure alone, which is clean here: idle noise reads 10–20
+and a real press 2000+.
+
+**Four peripherals are switched off rather than broken**, because nobody has
+measured them on this board yet: the SD slot, the RGB LED, the speaker and
+battery sense. They are plausibly wired like the 2.8-inch board's — and
+"plausibly" is exactly the reasoning that produced a backlight pin nobody had
+checked. `PIN_NONE` costs a feature the firmware already does without; a wrong
+pin costs a fictional battery percentage. If you own one and can measure them,
+that is the most useful thing you can send.
+
+`pio run -e diag4` is the standalone bring-up probe for this board: panel
+identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
+wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
 
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
@@ -938,6 +978,7 @@ src/
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
+  diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
   engine/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings

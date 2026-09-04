@@ -70,13 +70,13 @@ void MemoryGame::newRound(AppContext& host) {
 Rect MemoryGame::cardRect(uint8_t index) const {
     const uint8_t totalCols = config_.cols;
     const uint8_t totalRows = config_.rows;
-    const int16_t maxCellW = (SCREEN_WIDTH - 20 - GRID_GAP * (totalCols - 1)) / totalCols;
-    const int16_t maxCellH = (SCREEN_HEIGHT - GRID_TOP - 4 - GRID_GAP * (totalRows - 1)) / totalRows;
+    const int16_t maxCellW = (GAME_CANVAS_WIDTH - 20 - GRID_GAP * (totalCols - 1)) / totalCols;
+    const int16_t maxCellH = (GAME_CANVAS_HEIGHT - GRID_TOP - 4 - GRID_GAP * (totalRows - 1)) / totalRows;
     const int16_t cell = min<int16_t>(maxCellW, maxCellH);
     const int16_t gridW = totalCols * cell + (totalCols - 1) * GRID_GAP;
     const int16_t gridH = totalRows * cell + (totalRows - 1) * GRID_GAP;
-    const int16_t startX = (SCREEN_WIDTH - gridW) / 2;
-    const int16_t startY = GRID_TOP + (SCREEN_HEIGHT - GRID_TOP - gridH) / 2;
+    const int16_t startX = (GAME_CANVAS_WIDTH - gridW) / 2;
+    const int16_t startY = GRID_TOP + (GAME_CANVAS_HEIGHT - GRID_TOP - gridH) / 2;
     const uint8_t row = index / totalCols;
     const uint8_t col = index % totalCols;
     return Rect{static_cast<int16_t>(startX + col * (cell + GRID_GAP)), static_cast<int16_t>(startY + row * (cell + GRID_GAP)), cell, cell};
@@ -205,8 +205,8 @@ void MemoryGame::render(AppContext& host) {
         tft.drawRoundRect(50, 92, 220, 56, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("You matched all!", SCREEN_WIDTH / 2, 112, 4);
-        tft.drawString("Tap to play again", SCREEN_WIDTH / 2, 136, 2);
+        tft.drawString("You matched all!", GAME_CANVAS_WIDTH / 2, 112, 4);
+        tft.drawString("Tap to play again", GAME_CANVAS_WIDTH / 2, 136, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

@@ -154,7 +154,7 @@ void SortGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char bestBuf[24];
     snprintf(bestBuf, sizeof(bestBuf), "Best streak %u", bestStreak_);
-    tft.drawString(bestBuf, SCREEN_WIDTH - 8, 35, 2);
+    tft.drawString(bestBuf, GAME_CANVAS_WIDTH - 8, 35, 2);
     Ui::drawLabel(tft, Rect{10, 55, 300, 18}, ascending_ ? "Tap smallest to largest" : "Tap largest to smallest", Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < count_; ++i) {

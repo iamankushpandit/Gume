@@ -105,7 +105,7 @@ void SlidingPuzzleGame::shuffle() {
 Rect SlidingPuzzleGame::tileRect(uint8_t index) const {
     const int16_t cell = size_ == 2 ? 58 : 48;
     const int16_t grid = cell * size_;
-    const int16_t startX = (SCREEN_WIDTH - grid) / 2;
+    const int16_t startX = (GAME_CANVAS_WIDTH - grid) / 2;
     const int16_t startY = size_ == 2 ? 80 : 68;
     return Rect{static_cast<int16_t>(startX + (index % size_) * cell), static_cast<int16_t>(startY + (index / size_) * cell), cell, cell};
 }
@@ -186,7 +186,7 @@ void SlidingPuzzleGame::render(AppContext& host) {
     } else {
         snprintf(bestBuf, sizeof(bestBuf), "Best --");
     }
-    tft.drawString(bestBuf, SCREEN_WIDTH - 8, 36, 2);
+    tft.drawString(bestBuf, GAME_CANVAS_WIDTH - 8, 36, 2);
     Ui::drawLabel(tft, Rect{8, 54, 304, 16}, "Slide tiles into order", Ui::muted(), 1, Align::Center);
 
     const uint8_t total = size_ * size_;

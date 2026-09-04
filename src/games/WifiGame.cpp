@@ -40,21 +40,45 @@ void WifiGame::begin(GameHost& host) {
     markDirty();
 }
 
+namespace {
+/* The size this screen's geometry was authored against. */
+constexpr int16_t WIFI_BASE_W = 320;
+constexpr int16_t WIFI_BASE_H = 240;
+}  // namespace
+
+void WifiGame::syncPanel(GameHost& host) {
+    panelW_ = static_cast<int16_t>(host.display().width());
+    panelH_ = static_cast<int16_t>(host.display().height());
+}
+
+/* Map a rect from the design size onto the panel. Exact identity at 320x240. */
+Rect WifiGame::baseRect(int16_t x, int16_t y, int16_t w, int16_t h) const {
+    return Rect{static_cast<int16_t>(static_cast<int32_t>(x) * panelW_ / WIFI_BASE_W),
+                static_cast<int16_t>(static_cast<int32_t>(y) * panelH_ / WIFI_BASE_H),
+                static_cast<int16_t>(static_cast<int32_t>(w) * panelW_ / WIFI_BASE_W),
+                static_cast<int16_t>(static_cast<int32_t>(h) * panelH_ / WIFI_BASE_H)};
+}
+
+int16_t WifiGame::baseX(int16_t x) const {
+    return static_cast<int16_t>(static_cast<int32_t>(x) * panelW_ / WIFI_BASE_W);
+}
+
+int16_t WifiGame::baseY(int16_t y) const {
+    return static_cast<int16_t>(static_cast<int32_t>(y) * panelH_ / WIFI_BASE_H);
+}
+
 Rect WifiGame::netRect(uint8_t slot) const {
     // 31px pitch keeps all five rows clear of the Prev/Back/Next row at y=206.
-    return Rect{8, static_cast<int16_t>(48 + slot * 31), 304, 29};
+    return baseRect(8, static_cast<int16_t>(48 + slot * 31), 304, 29);
 }
 
 Rect WifiGame::zoneRect(uint8_t slot) const {
-    return Rect{8, static_cast<int16_t>(46 + slot * 28), 304, 26};
+    return baseRect(8, static_cast<int16_t>(46 + slot * 28), 304, 26);
 }
 
 Rect WifiGame::keyRect(uint8_t row, uint8_t col) const {
-    return Rect{
-        static_cast<int16_t>(2 + col * 32),
-        static_cast<int16_t>(96 + row * 28),
-        28, 24
-    };
+    return baseRect(static_cast<int16_t>(2 + col * 32),
+                    static_cast<int16_t>(96 + row * 28), 28, 24);
 }
 
 void WifiGame::startScan(GameHost& host) {
@@ -228,6 +252,7 @@ void WifiGame::checkConnect(GameHost& host) {
 }
 
 void WifiGame::update(GameHost& host, const TouchPoint& touch) {
+    syncPanel(host);
     if (phase_ == Phase::Idle) {
         // Repaint when the link or sync state changes, so the badges and the
         // status line do not sit stale while the user watches them.
@@ -259,33 +284,33 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
 
     if (phase_ == Phase::Idle) {
         // --- Wi-Fi section ---
-        if (Rect{14, 64, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startScan(host); return; }
-        if (Rect{166, 64, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && board.hasWifiCredentials()) {
+        if (baseRect(14, 64, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startScan(host); return; }
+        if (baseRect(166, 64, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && board.hasWifiCredentials()) {
             board.clearWifiCredentials(); markDirty(); return;
         }
         // --- Time section ---
-        if (Rect{14, 132, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(14, 132, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             board.setNtpEnabled(!board.ntpEnabled()); markDirty(); return;
         }
-        if (Rect{166, 132, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(166, 132, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             zonePage_ = static_cast<uint8_t>(board.tzZoneIndex() / 5);
             phase_ = Phase::TimeZone; markDirty(); return;
         }
-        if (Rect{14, 172, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(14, 172, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (Ui::wifiUp()) { board.syncTimeNow(); markDirty(); }
             return;
         }
-        if (Rect{166, 172, 140, 30}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { host.openSettings(); return; }
+        if (baseRect(166, 172, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { host.openSettings(); return; }
 
     } else if (phase_ == Phase::List) {
         const uint8_t pages = max<uint8_t>(1, (netCount_ + 4) / 5);
-        if (Rect{8, 206, 84, 26}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && listPage_ > 0) {
+        if (baseRect(8, 206, 84, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && listPage_ > 0) {
             --listPage_; markDirty(); return;
         }
-        if (Rect{228, 206, 84, 26}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && listPage_ + 1 < pages) {
+        if (baseRect(228, 206, 84, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && listPage_ + 1 < pages) {
             ++listPage_; markDirty(); return;
         }
-        if (Rect{104, 206, 112, 26}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(104, 206, 112, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             phase_ = Phase::Idle; markDirty(); return;
         }
         for (uint8_t slot = 0; slot < 5; ++slot) {
@@ -314,33 +339,33 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
                 }
             }
         }
-        if (Rect{2, 208, 52, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(2, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             capsLock_ = !capsLock_; symbols_ = false; markDirty(); return;
         }
-        if (Rect{58, 208, 52, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(58, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             symbols_ = !symbols_; markDirty(); return;
         }
-        if (Rect{114, 208, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(114, 208, 74, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (password_.length() < 63) password_ += ' ';
             markDirty(); return;
         }
-        if (Rect{192, 208, 50, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(192, 208, 50, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (password_.length() > 0) password_.remove(password_.length() - 1);
             markDirty(); return;
         }
-        if (Rect{246, 208, 72, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startConnect(host); return; }
-        if (Rect{8, 34, 60, 20}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { phase_ = Phase::List; markDirty(); }
+        if (baseRect(246, 208, 72, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startConnect(host); return; }
+        if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { phase_ = Phase::List; markDirty(); }
 
     } else if (phase_ == Phase::TimeZone) {
         const uint8_t n = Board::tzZoneCount();
         const uint8_t pages = static_cast<uint8_t>((n + 4) / 5);
-        if (Rect{8, 208, 90, 26}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && zonePage_ > 0) {
+        if (baseRect(8, 208, 90, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && zonePage_ > 0) {
             --zonePage_; markDirty(); return;
         }
-        if (Rect{222, 208, 90, 26}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && zonePage_ + 1 < pages) {
+        if (baseRect(222, 208, 90, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && zonePage_ + 1 < pages) {
             ++zonePage_; markDirty(); return;
         }
-        if (Rect{106, 208, 108, 26}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (baseRect(106, 208, 108, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             phase_ = Phase::Idle; markDirty(); return;
         }
         for (uint8_t slot = 0; slot < 5; ++slot) {
@@ -360,6 +385,7 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
 }
 
 void WifiGame::render(GameHost& host) {
+    syncPanel(host);
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
@@ -373,22 +399,24 @@ void WifiGame::render(GameHost& host) {
         // ---------- Wi-Fi ----------
         tft.setTextDatum(TL_DATUM);
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("WI-FI", 14, 36, 1);
-        tft.drawFastHLine(52, 41, 254, Ui::outline());
+        tft.drawString("WI-FI", baseX(14), baseY(36), 1);
+        tft.drawFastHLine(baseX(52), baseY(41), static_cast<int16_t>(baseX(52 + 254) - baseX(52)),
+                          Ui::outline());
 
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(hasCreds ? ssid : String("No saved network"), 14, 48, 2);
-        Ui::drawWifiBadge(tft, 296, 54, Ui::bg());
+        tft.drawString(hasCreds ? ssid : String("No saved network"), baseX(14), baseY(48), 2);
+        Ui::drawWifiBadge(tft, baseX(296), baseY(54), Ui::bg());
 
-        Ui::drawButton(tft, Rect{14, 64, 140, 30}, "Scan Wi-Fi", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
-        Ui::drawButton(tft, Rect{166, 64, 140, 30}, hasCreds ? "Forget" : "---",
+        Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, baseRect(166, 64, 140, 30), hasCreds ? "Forget" : "---",
                        hasCreds ? Ui::panel() : Ui::surface(), Ui::outline(),
                        hasCreds ? Ui::text() : Ui::muted(), false, 2);
 
         // ---------- Time ----------
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("TIME", 14, 104, 1);
-        tft.drawFastHLine(48, 109, 258, Ui::outline());
+        tft.drawString("TIME", baseX(14), baseY(104), 1);
+        tft.drawFastHLine(baseX(48), baseY(109), static_cast<int16_t>(baseX(48 + 258) - baseX(48)),
+                          Ui::outline());
 
         const bool synced = Clock::synced();
         // Date alongside the time: NTP delivers both, and seeing the date is
@@ -396,41 +424,46 @@ void WifiGame::render(GameHost& host) {
         const String stamp = synced ? (Clock::dateText() + "  " + Clock::timeText())
                                     : Clock::timeText();
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(stamp, 14, 116, 2);
+        tft.drawString(stamp, baseX(14), baseY(116), 2);
 
-        const int16_t badgeX = static_cast<int16_t>(14 + tft.textWidth(stamp, 2) + 12);
-        Ui::drawSyncBadge(tft, badgeX, 122, synced, Ui::bg());
+        /* Measured, so it lives in panel pixels -- the 14 it starts from is a
+         * design-space origin and has to be mapped before the two are added,
+         * or the badge lands short of the text it belongs to and the caption
+         * lands on top of it. */
+        const int16_t badgeX =
+            static_cast<int16_t>(baseX(14) + tft.textWidth(stamp, 2) + 12);
+        Ui::drawSyncBadge(tft, badgeX, baseY(122), synced, Ui::bg());
         tft.setTextColor(synced ? Ui::success() : Ui::warning(), Ui::bg());
         tft.drawString(synced ? "" : (up ? "not synced" : "needs Wi-Fi"),
-                       static_cast<int16_t>(badgeX + 12), 116, 2);
+                       static_cast<int16_t>(badgeX + 12), baseY(116), 2);
 
-        Ui::drawButton(tft, Rect{14, 132, 140, 30},
+        Ui::drawButton(tft, baseRect(14, 132, 140, 30),
                        String("Auto time: ") + (board.ntpEnabled() ? "On" : "Off"),
                        board.ntpEnabled() ? Ui::rgb(45, 154, 96) : Ui::panel(),
                        Ui::outline(), board.ntpEnabled() ? TFT_WHITE : Ui::text(), false, 2);
         // Say "Auto" until a zone is picked by hand, rather than showing the
         // index-0 default ("UTC") as though it were a deliberate choice.
-        Ui::drawButton(tft, Rect{166, 132, 140, 30},
+        Ui::drawButton(tft, baseRect(166, 132, 140, 30),
                        board.tzZoneChosen() ? Board::tzZoneName(board.tzZoneIndex())
                                             : String("Zone: Auto"),
                        Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
-        Ui::drawButton(tft, Rect{14, 172, 140, 30}, "Sync now",
+        Ui::drawButton(tft, baseRect(14, 172, 140, 30), "Sync now",
                        up ? Ui::rgb(45, 154, 96) : Ui::surface(), Ui::outline(),
                        up ? TFT_WHITE : Ui::muted(), false, 2);
-        Ui::drawButton(tft, Rect{166, 172, 140, 30}, "Back", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        Ui::drawButton(tft, baseRect(166, 172, 140, 30), "Back", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
 
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.setTextDatum(TC_DATUM);
         tft.drawString(board.tzAutoDetected() ? "Zone detected automatically"
                                               : "Tap the zone to change it",
-                       SCREEN_WIDTH / 2, 210, 1);
+                       baseX(WIFI_BASE_W / 2), baseY(210), 1);
         tft.setTextDatum(TL_DATUM);
 
     } else if (phase_ == Phase::TimeZone) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.drawString("Choose your time zone", 8, 34, 2);
+        tft.drawString("Choose your time zone", baseX(8), baseY(34), 2);
 
         const uint8_t n = Board::tzZoneCount();
         const uint8_t current = board.tzZoneChosen() ? board.tzZoneIndex() : 0xFF;
@@ -447,9 +480,9 @@ void WifiGame::render(GameHost& host) {
         }
 
         const uint8_t pages = static_cast<uint8_t>((n + 4) / 5);
-        Ui::drawPagerButton(tft, Rect{8, 208, 90, 26}, "Prev", zonePage_ > 0);
-        Ui::drawButton(tft, Rect{106, 208, 108, 26}, "Cancel", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-        Ui::drawPagerButton(tft, Rect{222, 208, 90, 26}, "Next", zonePage_ + 1 < pages);
+        Ui::drawPagerButton(tft, baseRect(8, 208, 90, 26), "Prev", zonePage_ > 0);
+        Ui::drawButton(tft, baseRect(106, 208, 108, 26), "Cancel", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        Ui::drawPagerButton(tft, baseRect(222, 208, 90, 26), "Next", zonePage_ + 1 < pages);
 
     } else if (phase_ == Phase::Scanning) {
 
@@ -458,26 +491,26 @@ void WifiGame::render(GameHost& host) {
         const uint32_t dots = (millis() / 450) % 4;
         String s = "Scanning";
         for (uint32_t i = 0; i < dots; ++i) s += '.';
-        tft.drawString(s, SCREEN_WIDTH / 2, 90, 4);
+        tft.drawString(s, baseX(WIFI_BASE_W / 2), baseY(90), 4);
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("Looking for networks", SCREEN_WIDTH / 2, 130, 2);
+        tft.drawString("Looking for networks", baseX(WIFI_BASE_W / 2), baseY(130), 2);
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString("Please wait...", SCREEN_WIDTH / 2, 160, 2);
+        tft.drawString("Please wait...", baseX(WIFI_BASE_W / 2), baseY(160), 2);
         markDirty(); // keep refreshing for animation
 
     } else if (phase_ == Phase::List) {
         // Header above list
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.drawString(netCount_ == 0 ? "No networks found" : String(netCount_) + " found - tap to connect", 8, 34, 2);
+        tft.drawString(netCount_ == 0 ? "No networks found" : String(netCount_) + " found - tap to connect", baseX(8), baseY(34), 2);
         if (netCount_ == 0) {
             // -1 = still running, -2 = scan failed, 0 = radio saw nothing.
             tft.setTextColor(Ui::muted(), Ui::bg());
             tft.setTextDatum(TR_DATUM);
-            tft.drawString(String("code ") + lastScanCode_, SCREEN_WIDTH - 8, 34, 1);
+            tft.drawString(String("code ") + lastScanCode_, baseX(WIFI_BASE_W - 8), baseY(34), 1);
             tft.setTextDatum(TL_DATUM);
             tft.setTextColor(Ui::text(), Ui::bg());
-            Ui::drawLabel(tft, Rect{20, 96, 280, 20},
+            Ui::drawLabel(tft, baseRect(20, 96, 280, 20),
                           "2.4GHz only - a 5GHz-only network will not appear",
                           Ui::muted(), 2, Align::Center);
         }
@@ -506,9 +539,9 @@ void WifiGame::render(GameHost& host) {
             }
         }
         const uint8_t pages = max<uint8_t>(1, (netCount_ + 4) / 5);
-        Ui::drawPagerButton(tft, Rect{8, 206, 84, 26}, "Prev", listPage_ > 0);
-        Ui::drawButton(tft, Rect{104, 206, 112, 26}, "Back", Ui::panel(), Ui::outline(), Ui::text());
-        Ui::drawPagerButton(tft, Rect{228, 206, 84, 26}, "Next", listPage_ + 1 < pages);
+        Ui::drawPagerButton(tft, baseRect(8, 206, 84, 26), "Prev", listPage_ > 0);
+        Ui::drawButton(tft, baseRect(104, 206, 112, 26), "Back", Ui::panel(), Ui::outline(), Ui::text());
+        Ui::drawPagerButton(tft, baseRect(228, 206, 84, 26), "Next", listPage_ + 1 < pages);
 
     } else if (phase_ == Phase::Keyboard) {
         const char (*keys)[11] = symbols_ ? KEYS_SYMBOL
@@ -516,56 +549,67 @@ void WifiGame::render(GameHost& host) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.drawString(String("< back   ") + ssid, 8, 36, 2);
-        tft.fillRoundRect(8, 54, 304, 34, 4, Ui::surface());
-        tft.drawRoundRect(8, 54, 304, 34, 4, Ui::outline());
+        tft.drawString(String("< back   ") + ssid, baseX(8), baseY(36), 2);
+        /* The one shape on this screen that is not built from a Rect, and so
+         * the one the mapping pass missed: it was still drawn at the design
+         * size while the text inside it had moved, which put the caption
+         * below the box it belongs in. */
+        const Rect field = baseRect(8, 54, 304, 34);
+        tft.fillRoundRect(field.x, field.y, field.w, field.h, 4, Ui::surface());
+        tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
         tft.setTextColor(password_.length() > 0 ? Ui::text() : Ui::muted(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
         String shown = password_.length() > 0 ? password_ : "Password";
-        while (shown.length() > 2 && tft.textWidth(shown, 2) > 280) shown.remove(shown.length() - 1);
-        tft.drawString(shown, 16, 71, 2);
+        const int16_t fieldTextMax = static_cast<int16_t>(field.w - 16);
+        while (shown.length() > 2 && tft.textWidth(shown, 2) > fieldTextMax) {
+            shown.remove(shown.length() - 1);
+        }
+        /* Centred in the field rather than at a mapped y of its own, so the
+         * two cannot drift apart again. */
+        tft.drawString(shown, static_cast<int16_t>(field.x + 8),
+                       static_cast<int16_t>(field.y + field.h / 2), 2);
         for (uint8_t row = 0; row < 4; ++row) {
             for (uint8_t col = 0; col < 10; ++col) {
                 char buf[2] = {keys[row][col], 0};
                 Ui::drawButton(tft, keyRect(row, col), String(buf), Ui::surface(), Ui::outline(), Ui::text(), false, 2);
             }
         }
-        Ui::drawButton(tft, Rect{2, 208, 52, 24}, "CAPS",
+        Ui::drawButton(tft, baseRect(2, 208, 52, 24), "CAPS",
                        capsLock_ ? Ui::rgb(36, 132, 204) : Ui::surface(), Ui::outline(),
                        capsLock_ ? TFT_WHITE : Ui::text(), false, 1);
-        Ui::drawButton(tft, Rect{58, 208, 52, 24}, symbols_ ? "abc" : "!#$",
+        Ui::drawButton(tft, baseRect(58, 208, 52, 24), symbols_ ? "abc" : "!#$",
                        symbols_ ? Ui::rgb(36, 132, 204) : Ui::surface(), Ui::outline(),
                        symbols_ ? TFT_WHITE : Ui::text(), false, 1);
-        Ui::drawButton(tft, Rect{114, 208, 74, 24}, "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, Rect{192, 208, 50, 24}, "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, Rect{246, 208, 72, 24}, "JOIN", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, baseRect(114, 208, 74, 24), "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
+        Ui::drawButton(tft, baseRect(192, 208, 50, 24), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
 
     } else if (phase_ == Phase::Connecting) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("Connecting to", SCREEN_WIDTH / 2, 88, 2);
-        tft.drawString(ssid, SCREEN_WIDTH / 2, 112, 4);
+        tft.drawString("Connecting to", baseX(WIFI_BASE_W / 2), baseY(88), 2);
+        tft.drawString(ssid, baseX(WIFI_BASE_W / 2), baseY(112), 4);
         const uint32_t dots = (millis() - connectStart_) / 500 % 4;
         String prog;
         for (uint32_t i = 0; i < dots + 1; ++i) prog += "...";
-        tft.drawString(prog, SCREEN_WIDTH / 2, 152, 2);
+        tft.drawString(prog, baseX(WIFI_BASE_W / 2), baseY(152), 2);
         markDirty();
 
     } else if (phase_ == Phase::Done) {
         tft.setTextColor(connectOk_ ? Ui::success() : Ui::error(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(connectOk_ ? "Connected!" : "Connection failed", SCREEN_WIDTH / 2, 96, 4);
+        tft.drawString(connectOk_ ? "Connected!" : "Connection failed", baseX(WIFI_BASE_W / 2), baseY(96), 4);
         tft.setTextColor(saveReadback_.length() ? Ui::success() : Ui::error(), Ui::bg());
         tft.drawString(saveReadback_.length() ? String("Saved: ") + saveReadback_
                                               : String("NOT saved - empty SSID"),
-                       SCREEN_WIDTH / 2, 122, 2);
+                       baseX(WIFI_BASE_W / 2), baseY(122), 2);
         if (connectOk_ && board.ntpEnabled()) {
             tft.setTextColor(Ui::text(), Ui::bg());
-            tft.drawString("Clock sync started", SCREEN_WIDTH / 2, 136, 2);
+            tft.drawString("Clock sync started", baseX(WIFI_BASE_W / 2), baseY(136), 2);
         }
         tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString("Tap to return", SCREEN_WIDTH / 2, 200, 2);
+        tft.drawString("Tap to return", baseX(WIFI_BASE_W / 2), baseY(200), 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

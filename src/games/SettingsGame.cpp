@@ -39,10 +39,10 @@ void SettingsGame::begin(GameHost& host) {
  * -- 320 / 4 is exact, 320 / 3 was not, and the fudge belongs in one place
  * rather than in each tab's own accessor. */
 Rect SettingsGame::tabRect(uint8_t index) const {
-    const int16_t w = static_cast<int16_t>(SCREEN_WIDTH / TAB_COUNT);
+    const int16_t w = static_cast<int16_t>(panelW_ / TAB_COUNT);
     const int16_t x = static_cast<int16_t>(index * w);
     const int16_t last = index + 1 >= TAB_COUNT;
-    return Rect{x, 30, last ? static_cast<int16_t>(SCREEN_WIDTH - x) : w, 22};
+    return Rect{x, 30, last ? static_cast<int16_t>(panelW_ - x) : w, 22};
 }
 
 Rect SettingsGame::tabRectFor(Tab tab) const {
@@ -53,7 +53,17 @@ bool SettingsGame::isAdmin(Board& board) const {
     return board.isAdminProfile(board.activeProfile());
 }
 
+/* Read the panel once per entry point. Every rect helper on this screen is
+ * shared between hit testing and drawing, so they have to agree; caching it
+ * here is what lets them, and picks up a rotation without any of them
+ * knowing about it. */
+void SettingsGame::syncPanel(GameHost& host) {
+    panelW_ = static_cast<int16_t>(host.display().width());
+    panelH_ = static_cast<int16_t>(host.display().height());
+}
+
 void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
+    syncPanel(host);
     if (!touch.justPressed) return;
 
     Board& board = host.board();
@@ -244,6 +254,7 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
 }
 
 void SettingsGame::render(GameHost& host) {
+    syncPanel(host);
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
@@ -267,7 +278,7 @@ void SettingsGame::render(GameHost& host) {
     for (uint8_t i = 0; i < TAB_COUNT; ++i) {
         Ui::drawTab(tft, tabRect(i), TAB_LABELS[i], static_cast<Tab>(i) == tab_);
     }
-    Ui::drawTabBaseline(tft, 52, 0, SCREEN_WIDTH, tabRectFor(tab_));
+    Ui::drawTabBaseline(tft, 52, 0, panelW_, tabRectFor(tab_));
 
     switch (tab_) {
         case Tab::Device: renderDeviceTab(host); break;

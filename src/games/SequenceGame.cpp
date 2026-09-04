@@ -160,7 +160,7 @@ void SequenceGame::render(AppContext& host) {
     tft.setTextDatum(TR_DATUM);
     char scoreBuf[16];
     snprintf(scoreBuf, sizeof(scoreBuf), "%u/%u", score_, rounds_);
-    tft.drawString(scoreBuf, SCREEN_WIDTH - 8, 34, 2);
+    tft.drawString(scoreBuf, GAME_CANVAS_WIDTH - 8, 34, 2);
 
     // Question text
     tft.setTextDatum(MC_DATUM);
@@ -168,7 +168,7 @@ void SequenceGame::render(AppContext& host) {
     const char* qtypeStr = qtype_ == QType::After ? "AFTER" : "BEFORE";
     char prompt[32];
     snprintf(prompt, sizeof(prompt), "What comes %s:", qtypeStr);
-    tft.drawString(prompt, SCREEN_WIDTH / 2, 70, 2);
+    tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 70, 2);
 
     // Subject highlight box
     tft.fillRoundRect(60, 84, 200, 52, 8, Ui::surface());
@@ -178,11 +178,11 @@ void SequenceGame::render(AppContext& host) {
     // Fit long names
     uint8_t subjectFont = 4;
     if (tft.textWidth(subj, 4) > 180) subjectFont = 2;
-    tft.drawString(subj, SCREEN_WIDTH / 2, 110, subjectFont);
+    tft.drawString(subj, GAME_CANVAS_WIDTH / 2, 110, subjectFont);
 
     // "?" label
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString("?", SCREEN_WIDTH / 2, 140, 2);
+    tft.drawString("?", GAME_CANVAS_WIDTH / 2, 140, 2);
 
     // Answer tiles
     for (uint8_t i = 0; i < 4; ++i) {

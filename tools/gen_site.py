@@ -80,6 +80,15 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon.",
     },
     {
+        "env": "app_e32r40t",
+        "label": "Braino! (the games) -- E32R40T (4 inch ST7796)",
+        "name": "Braino!",
+        "note": "The full console on a 4 inch screen: {count} games, profiles, scores, settings, "
+                "Wi-Fi clock and the BLE beacon. The bigger panel is the point -- games are "
+                "scaled up with larger text, for players who want a plainer, easier screen to "
+                "read. This board has no SD, status LED, sound or battery gauge yet.",
+    },
+    {
         "env": "app_fnk0104b",
         "label": "Braino! (the games) -- Freenove FNK0104B (ESP32-S3, capacitive touch)",
         "name": "Braino!",
@@ -116,6 +125,11 @@ BOARD_DETAILS = {
         "label": "ESP32-2432S028Rv3 -- 2.4 inch newer CYD variant (ST7789 + XPT2046 resistive touch, USB-C/dual-USB)",
         "chip": "ESP32",
         "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
+    },
+    "e32r40t": {
+        "label": "E32R40T / ESP32-32E -- 4 inch ST7796 + XPT2046 (resistive)",
+        "chip": "ESP32",
+        "buy": "https://www.lcdwiki.com/4.0inch_ESP32-32E_Display",
     },
     "fnk0104b": {
         "label": "Freenove FNK0104B -- 2.8 inch ESP32-S3 (ILI9341 + FT6336U capacitive touch, USB-C)",
