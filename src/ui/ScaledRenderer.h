@@ -45,6 +45,18 @@ public:
         scaleY_ = static_cast<float>(physicalHeight) / GAME_CANVAS_HEIGHT;
     }
 
+    /* Scale directly, for callers that are not stretching the game canvas.
+     *
+     * The launcher icons use this. They are vector art with their geometry
+     * written inline across thirty-odd cases, so there is no size argument to
+     * pass and adding one would mean editing every icon. Drawing them through
+     * a renderer scaled by s, with the centre point divided by s, scales the
+     * art about that centre and leaves the icon code untouched. */
+    void setScale(float x, float y) {
+        scaleX_ = x;
+        scaleY_ = y;
+    }
+
     // Games only ever know about the fixed logical canvas.
     int16_t width() override { return GAME_CANVAS_WIDTH; }
     int16_t height() override { return GAME_CANVAS_HEIGHT; }
@@ -121,9 +133,23 @@ public:
 
     void startWrite() override { inner_.startWrite(); }
     void endWrite() override { inner_.endWrite(); }
-    // Only the origin moves -- w/h stay native pixel dimensions (see class comment).
+    /* Images keep their native pixel size and are CENTRED in the space the
+     * layout gave them.
+     *
+     * Scaling the origin alone was wrong, and visibly so on flags and maps: the
+     * artwork stayed its true size while the box around it grew, so its centre
+     * drifted up and to the left by half the growth and it sat in the corner of
+     * its own frame rather than in the middle of it. Resampling the pixels
+     * instead would be worse -- these are small bitmaps and stretching them by
+     * 1.5 with no filtering turns a flag's stripes into ragged steps.
+     *
+     * So: place the unscaled image at the centre of the scaled rect. On a panel
+     * that is already canvas-sized both terms are zero and this is the old
+     * behaviour exactly. */
     void setAddrWindow(int32_t x, int32_t y, int32_t w, int32_t h) override {
-        inner_.setAddrWindow(sx(x), sy(y), w, h);
+        const int32_t offsetX = (sw(w) - w) / 2;
+        const int32_t offsetY = (sh(h) - h) / 2;
+        inner_.setAddrWindow(sx(x) + offsetX, sy(y) + offsetY, w, h);
     }
     bool getSwapBytes() override { return inner_.getSwapBytes(); }
     void setSwapBytes(bool swap) override { inner_.setSwapBytes(swap); }

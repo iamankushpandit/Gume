@@ -178,14 +178,33 @@ void PercentCircleGame::markWrong() {
 }
 
 void PercentCircleGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
+    /* Pre-correct the radius per axis so the wedge lands on the circle that
+     * fillCircle actually drew.
+     *
+     * The renderer may scale x and y by different amounts -- on a 480x320
+     * panel the game canvas stretches 1.5 across and 1.333 down. fillCircle
+     * takes a single radius and uses the average of the two, so it stays a
+     * circle. These wedge points are computed here in canvas space and then
+     * scaled independently, so without this they land on an ellipse instead:
+     * the fill bulges past the rim at the sides and falls short at the top and
+     * bottom, which is what made the arcs look wrong rather than merely
+     * mis-sized. Dividing by each axis and multiplying by the average puts
+     * both back on the same circle. On a board where the scales are equal --
+     * every board today -- avg/sx and avg/sy are 1 and this is the old code. */
+    const float avg = tft.imageScale();
+    const float sxAxis = tft.imageScaleX();
+    const float syAxis = tft.imageScaleY();
+    const float rx = (sxAxis > 0.0f) ? radius * avg / sxAxis : static_cast<float>(radius);
+    const float ry = (syAxis > 0.0f) ? radius * avg / syAxis : static_cast<float>(radius);
+
     const float step = PI / 24.0f;
     float angle = startAngle;
     while (angle < endAngle) {
         const float next = min(endAngle, angle + step);
-        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * radius);
-        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * radius);
-        const int16_t x2 = cx + static_cast<int16_t>(cosf(next) * radius);
-        const int16_t y2 = cy + static_cast<int16_t>(sinf(next) * radius);
+        const int16_t x1 = cx + static_cast<int16_t>(cosf(angle) * rx);
+        const int16_t y1 = cy + static_cast<int16_t>(sinf(angle) * ry);
+        const int16_t x2 = cx + static_cast<int16_t>(cosf(next) * rx);
+        const int16_t y2 = cy + static_cast<int16_t>(sinf(next) * ry);
         tft.fillTriangle(cx, cy, x1, y1, x2, y2, color);
         angle = next;
     }

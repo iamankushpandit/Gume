@@ -7,6 +7,7 @@
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherIcons.h"
+#include "ui/ScaledRenderer.h"
 #include "ui/LauncherLayout.h"
 
 namespace {
@@ -261,34 +262,63 @@ void LauncherGame::render(GameHost& host) {
                                              : Ui::rgb(222, 83, 83));
         Ui::drawButton(tft, r, "", fill, TFT_DARKGREY, TFT_WHITE);
 
+        /* Place the contents as fractions of the tile, and scale them with it.
+         *
+         * These offsets used to be constants -- icon at r.x + 24, title at
+         * r.y + 17 -- which described the old 145x46 tile and nothing else.
+         * Once the grid started dividing the real panel, the tiles grew and
+         * their contents stayed put in the top-left corner of them, which
+         * looked worse than the un-scaled grid had: a big empty box with small
+         * writing in it. The fractions below are the old constants divided by
+         * the old tile size, so the 2.8-inch board gets what it always got.
+         *
+         * The text scale is the whole reason this board is here. A larger
+         * panel that renders the same small label is no easier for the players
+         * this is meant to serve; the tile has to carry bigger writing, not
+         * just more space around it. */
+        const float sx = static_cast<float>(r.w) / (tall ? 108.0f : 145.0f);
+        const float sy = static_cast<float>(r.h) / (tall ? 96.0f : 46.0f);
+        const float s = sx < sy ? sx : sy;
+        const uint8_t textScale = s >= 1.45f ? 2 : 1;
+
+        Ui::ScaledRenderer icon{tft};
+        icon.setScale(s, s);
+
         char label[24];
         if (tall) {
-            drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + r.w / 2),
-                             static_cast<int16_t>(r.y + 30));
+            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
+            const int16_t iconY = static_cast<int16_t>(r.y + r.h * 0.3125f);
+            drawLauncherIcon(icon, entry.icon(), r, fill,
+                             static_cast<int16_t>(cxT / s),
+                             static_cast<int16_t>(iconY / s));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(MC_DATUM);
-            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
+            tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 2);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 68), 2);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.708f), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label),
                            static_cast<int16_t>(r.w - 8), 1);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + 87), 1);
+            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.906f), 1);
+            tft.setTextSize(1);
         } else {
-            drawLauncherIcon(tft, entry.icon(), r, fill,
-                             static_cast<int16_t>(r.x + 24),
-                             static_cast<int16_t>(r.y + 22));
+            const int16_t iconX = static_cast<int16_t>(r.x + r.w * 0.166f);
+            const int16_t iconY = static_cast<int16_t>(r.y + r.h * 0.478f);
+            drawLauncherIcon(icon, entry.icon(), r, fill,
+                             static_cast<int16_t>(iconX / s),
+                             static_cast<int16_t>(iconY / s));
+            const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.33f);
+            const int16_t textW = static_cast<int16_t>(r.w - r.w * 0.33f - 6);
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(ML_DATUM);
-            copyFittedText(tft, entry.title(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 2);
-            tft.drawString(label, r.x + 48, r.y + 17, 2);
+            tft.setTextSize(textScale);
+            copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
+            tft.drawString(label, textX, static_cast<int16_t>(r.y + r.h * 0.37f), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
-            copyFittedText(tft, entry.subtitle(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 54), 1);
-            tft.drawString(label, r.x + 48, r.y + 34, 1);
+            copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
+            tft.drawString(label, textX, static_cast<int16_t>(r.y + r.h * 0.74f), 1);
+            tft.setTextSize(1);
         }
     }
 

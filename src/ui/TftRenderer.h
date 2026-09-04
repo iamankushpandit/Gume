@@ -63,17 +63,24 @@ public:
     void setTextColor(uint16_t fg, uint16_t bg, bool bgFill = false) override {
         tft_.setTextColor(fg, bg, bgFill);
     }
-    void setTextSize(uint8_t size) override { tft_.setTextSize(size); }
-    /* Unconditionally 1x here, not "leave whatever was set before" -- this
-     * driver instance is shared with ScaledRenderer, which sets a bigger size
-     * for playable games. Without resetting it here, system-app text would
-     * inherit whatever a game left behind. */
+    /* Remembered rather than pushed straight at the driver, and re-applied
+     * before every text op.
+     *
+     * The driver instance is shared with ScaledRenderer, which sets a bigger
+     * size for playable games, so a screen that never asks for a size must not
+     * inherit whatever a game left behind. The first version of this forced 1x
+     * inside drawString to guarantee that -- which also made setTextSize()
+     * impossible to use, silently: callers set a size, the next drawString
+     * threw it away, and text came out 1x with no error anywhere. Tracking it
+     * here gives both properties: an explicit size is honoured, and the
+     * default is always 1x rather than a leftover. */
+    void setTextSize(uint8_t size) override { textSize_ = size < 1 ? 1 : size; }
     int16_t drawString(const char* text, int32_t x, int32_t y, uint8_t font = 2) override {
-        tft_.setTextSize(1);
+        tft_.setTextSize(textSize_);
         return static_cast<int16_t>(tft_.drawString(text, x, y, font));
     }
     int16_t textWidth(const char* text, uint8_t font = 2) override {
-        tft_.setTextSize(1);
+        tft_.setTextSize(textSize_);
         return static_cast<int16_t>(tft_.textWidth(text, font));
     }
 
@@ -94,6 +101,7 @@ public:
 
 private:
     TFT_eSPI& tft_;
+    uint8_t textSize_ = 1;
 };
 
 }  // namespace Ui
