@@ -1,10 +1,11 @@
 # Changelog
 
-## 5.4.0 — 2026-09-04
+## 5.5.0-SNAPSHOT — Unreleased
 
-A fifth board, and the first one bigger than the canvas the games are drawn
-on. Supporting it meant finding every place the firmware had quietly assumed
-those two were the same size, which was most of the places that draw.
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.4.0
+release, and About's **This build** page names the branch and commit.
+`release.yml` refuses to publish a tag whose version carries this suffix.
 
 ### Added
 
@@ -190,6 +191,104 @@ source.
   same spirit as `wifidiag` and `batdiag`.
 
 ### Fixed
+
+- **Turning the BLE beacon on made the screen flash every couple of seconds.**
+  Three things change the header on their own schedule rather than the screen's
+  -- the clock, the battery badge and the notification banner -- and each was
+  answered with a full repaint: ~150 KB over SPI and about 30 ms of visible
+  blanking, to change something in the top 30 pixels of a 240-pixel panel.
+
+  The battery is what made it constant. One percent is roughly 2 mV on the
+  mid-discharge plateau, and with the divider halving the cell before the ADC
+  sees it, a single ADC count is worth most of a percentage point -- so the
+  mapped percentage crossed a boundary far more often than the pack actually
+  discharged. Switching the beacon on widened the supply ripple enough to make
+  that continuous, which is why it looked like a BLE fault rather than a gauge
+  one.
+
+  Both halves are fixed. `Game::renderChrome()` repaints the header strip
+  alone, an eighth of the panel and comfortably inside the 20 ms frame budget
+  where a full repaint is 150% of it; screens carrying their own header
+  override it, and one that cannot repaint its chrome in isolation asks for the
+  old behaviour. And the displayed percentage now carries a two-point deadband,
+  so the number itself stops twitching. Both endpoints are exempt -- "100%" on
+  the charger and "0%" about to die are the readings people act on. A side
+  effect worth having: the low-battery banner can no longer flap on and off
+  while the reading sits on its threshold.
+
+- **The battery gauge was sampled from the render path.** Eight ADC reads and
+  both filters ran inside whichever frame found the 2 s cache expired, and that
+  frame was almost always a top bar being drawn -- so the filters advanced on
+  the UI's cadence rather than on a clock. Sampling now runs on its own
+  priority-1 task pinned to core 0, the same shape as the watchdog monitor, and
+  every accessor does nothing but copy the published snapshot. Readers take the
+  voltage, the charge verdict and the percentage from one sample rather than
+  three, so a "battery low" can no longer be reported about a pack the same
+  sample knows is charging.
+
+- **Opening the Wi-Fi screen with the BLE beacon on rebooted the device.**
+  `WifiGame::runScan()` disabled Wi-Fi modem sleep before scanning, because a
+  sleeping radio misses probe responses and the network list came back short.
+  That is true, and esp_wifi also refuses to share the radio with a Bluetooth
+  controller unless Wi-Fi is power-saving -- and it does not degrade or return
+  an error, it calls `abort()`:
+
+  ```
+  E wifi: Should enable WiFi modem sleep when both WiFi and Bluetooth are enabled!!!!!!
+  abort() was called
+  ```
+
+  From the outside this looked like "Wi-Fi is broken": the console restarted
+  every time the owner tried to connect, and restarted again on the retry. The
+  beacon is off by default, which is why this survived since it was introduced
+  -- it only bites someone who turned the beacon on and then went to the Wi-Fi
+  screen, and then it bites every single time.
+
+  Modem sleep now stays on whenever the BT controller is up. The condition is
+  asked of the controller directly rather than of `BleBeacon`, because that is
+  the exact thing esp_wifi tests and the two cannot then drift; going through
+  the beacon's own state would leave a gap wherever the controller is up for
+  another reason, such as the Nearby scanner. The cost is a scan that may miss
+  a distant access point while the beacon is on, which is the right trade
+  against a reboot.
+
+  `src/wifi_diag.cpp` has the same line and keeps it: that environment is built
+  alone, with no BLE in the image, so there is no controller to conflict with.
+
+- **The console was almost inaudible, and it was a unit bug.** ES8311 register
+  0x32 is the DAC volume and it is linear in **decibels** -- half a decibel per
+  step, `0xBF` unity, `0x00` silence. Both the firmware and `src/s3_diag.cpp`
+  scaled the percentage straight onto the byte, which treats a logarithmic
+  register as a linear one and is wrong by up to 25 dB. The default 60% was
+  landing on `0x98`, which is **-19.5 dB** -- a tenth of the amplitude the
+  number implied, and too quiet to hear across a room. The error was worst
+  exactly where people leave a volume control, in the middle; at the far end it
+  failed the other way, with 100% mapping to `0xFF`, **+32 dB**, which would
+  have clipped every sound into a square wave.
+
+  A percentage is now a fraction of amplitude -- 100% unity, 50% -6 dB, 10%
+  -20 dB -- clamped at unity, since above 0 dB the register is digital gain on
+  a signal already near full scale and buys only clipping. The probe was
+  corrected in the same change: a bench instrument that disagrees with the
+  product about what "80" means is worse than no instrument.
+
+  Three other things were quiet independently, and all three are fixed:
+  the synthesiser's output scale (26000 to 32000, with every cue's amplitude
+  raised in proportion -- topping out at 55 on a 1-inch driver was leaving
+  range unused); the formant bandwidth (90 Hz to 60 Hz, which is a *loudness*
+  control here, because the excitation is one impulse every 143 samples and
+  what fills the gap is the resonators ringing -- at 90 Hz the ring had decayed
+  to a tenth before the next pulse, so most of every vowel was near-silence);
+  and the fricative makeup gain, which is what the S in "Let's" was losing.
+
+- **"Let's play Braino!" is slower, and now intelligible.** 1.45 to 2.4 seconds
+  for four syllables, about half conversational rate. Synthetic speech with no
+  pitch movement carries none of the prosody a listener leans on, so duration
+  is the only cue left for where one sound ends and the next begins. The
+  stressed vowels are now the long ones, and each diphthong is three steps
+  rather than two -- F2 climbs around 550 Hz across an "EY" and the ear tracks
+  that sweep, where a single jump was audible as a click at the join and read
+  as two vowels.
 
 - **The profile name entry has a way out.** The keyboard shared by **Add
   Player** and **Rename** could only be left by committing: `DEL` clears

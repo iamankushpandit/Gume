@@ -569,13 +569,6 @@ def main():
                 # The page rebuilds the firmware dropdown from this list when a
                 # board is chosen, so each build has to carry its own label.
                 "label": variant["label"],
-                # esptool needs the right chip, and the S3 board is not an
-                # esp32. The manual instructions are generated per build for
-                # that reason -- a single hard-coded command was wrong for it.
-                # esptool spells it esp32s3, with no hyphen; BOARD_DETAILS
-                # spells it ESP32-S3 for people to read. Getting this wrong
-                # fails the same way the hard-coded command did.
-                "chip": target["chip"].lower().replace("-", ""),
                 "dir": directory,
                 "manifest": directory + "/manifest.json",
                 "note": variant["note"].format(count=len(catalog)),

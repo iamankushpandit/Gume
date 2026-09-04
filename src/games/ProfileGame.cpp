@@ -457,6 +457,11 @@ void ProfileGame::renderPinEntry(GameHost& host) {
     tft.setTextDatum(TL_DATUM);
 }
 
+bool ProfileGame::renderChrome(GameHost& host) {
+    (void)host;
+    return false;   // see the header -- nothing here to repaint in isolation
+}
+
 void ProfileGame::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
