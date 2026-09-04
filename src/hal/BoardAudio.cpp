@@ -312,6 +312,7 @@ void setAmp(bool on) {
     digitalWrite(BOARD.audio.ampEnablePin, low ? LOW : HIGH);
 }
 
+#if GUME_HAS_AUDIO_CODEC
 void esWrite(uint8_t reg, uint8_t value) {
     Wire.beginTransmission(static_cast<uint8_t>(BOARD.audio.codecI2cAddress));
     Wire.write(reg);
@@ -355,6 +356,7 @@ void applyCodecVolume(uint8_t percent) {
     if (reg > ES8311_UNITY_REG) reg = ES8311_UNITY_REG;
     esWrite(0x32, static_cast<uint8_t>(reg));
 }
+#endif  /* GUME_HAS_AUDIO_CODEC */
 
 /* Samples that were generated but that the DMA would not take this frame.
  *
