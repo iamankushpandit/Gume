@@ -48,7 +48,7 @@
  *   pio run -e diag4 -t upload && pio device monitor
  *
  * BOOT (IO0) cycles pages. Over serial: 'n' next page, 'p' previous, 'r'
- * re-run the current page, '0'-'6' jump to a page directly.
+ * re-run the current page, '0'-'7' jump to a page directly.
  *
  * Everything reports on serial. Nothing here requires the screen to work,
  * which is the point -- report what you see, including "still dark".
@@ -56,6 +56,11 @@
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <WiFi.h>
+#include <esp_system.h>
+#include <esp_heap_caps.h>
+
+#include <NimBLEDevice.h>
 
 // ---------------------------------------------------------------- candidates
 
@@ -103,6 +108,7 @@ enum Page : uint8_t {
     PAGE_TOUCH_SHARED,
     PAGE_TOUCH_BITBANG,
     PAGE_PINS,
+    PAGE_RADIO,
     PAGE_COUNT
 };
 
@@ -114,6 +120,7 @@ const char* const PAGE_NAMES[PAGE_COUNT] = {
     "TOUCH-S  -- touch sharing the display SPI bus",
     "TOUCH-B  -- touch on its own bit-banged bus (2.8-inch wiring)",
     "PINS     -- ADC on candidate battery-sense pins",
+    "RADIO    -- Wi-Fi and BLE, separately and then together",
 };
 
 uint8_t page = PAGE_ID;
@@ -208,6 +215,19 @@ void runBacklightSweep() {
     Serial.println("Filling the panel white first, so a lit backlight is unmistakable.");
     Serial.println("Watch the screen. Report the pin AND polarity that lit it.");
     tft.fillScreen(TFT_WHITE);
+
+    /* Release every candidate before testing any of them. setup() holds 21 and
+     * 27 high so the panel has a chance of being visible on arrival, and
+     * without this the sweep would test 21 while 27 was still driven -- the
+     * screen stays lit throughout and the page cannot tell the two apart. They
+     * are the two pins the sweep most exists to separate, so leaving them held
+     * would defeat the whole page. */
+    for (uint8_t pin : cfg::BACKLIGHT_CANDIDATES) {
+        pinMode(pin, INPUT);
+    }
+    Serial.println("All candidates released -- the panel should now be DARK. If it is");
+    Serial.println("still lit, the backlight is not on any pin in this list.");
+    delay(1500);
 
     for (uint8_t pin : cfg::BACKLIGHT_CANDIDATES) {
         pinMode(pin, OUTPUT);
@@ -433,6 +453,106 @@ void runPinScan() {
     Serial.println("      may be this firmware's own output rather than a sensor.");
 }
 
+
+/* PAGE RADIO -- Wi-Fi and BLE, apart and then together.
+ *
+ * Braino runs both: Wi-Fi for NTP, and an opt-in non-connectable BLE beacon.
+ * On the ESP32 those share one 2.4GHz radio and contend for the same heap, and
+ * the coexistence failure is not a compile error or a scan that returns
+ * nothing -- it is a crash minutes in, under load, which neither env:wifidiag
+ * (Wi-Fi alone) nor a quick app smoke test would ever show.
+ *
+ * So this runs three phases and prints free heap either side of each, and the
+ * page opens with the reset reason: if the board comes back up saying
+ * PANIC/TASK_WDT rather than the reason you flashed it with, the previous run
+ * of this page is what killed it, and the last phase printed is where.
+ *
+ * NimBLE rather than Bluedroid, matching the product -- coexistence behaviour
+ * is a property of the host stack, so testing the other one would prove
+ * nothing about what ships. */
+void reportHeap(const char* label) {
+    Serial.printf("    %-22s free=%7u  min=%7u  largest=%7u\n", label,
+                  static_cast<unsigned>(ESP.getFreeHeap()),
+                  static_cast<unsigned>(ESP.getMinFreeHeap()),
+                  static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+}
+
+void runRadio() {
+    const esp_reset_reason_t reason = esp_reset_reason();
+    Serial.printf("Reset reason at boot: %d ", static_cast<int>(reason));
+    switch (reason) {
+        case ESP_RST_POWERON: Serial.println("(power-on -- clean)"); break;
+        case ESP_RST_SW: Serial.println("(software reset -- clean)"); break;
+        case ESP_RST_PANIC: Serial.println("(PANIC -- something crashed last run)"); break;
+        case ESP_RST_TASK_WDT: Serial.println("(TASK WATCHDOG -- something hung last run)"); break;
+        case ESP_RST_INT_WDT: Serial.println("(INT WATCHDOG -- something hung last run)"); break;
+        case ESP_RST_BROWNOUT: Serial.println("(BROWNOUT -- power, not software)"); break;
+        default: Serial.println("(other)"); break;
+    }
+    reportHeap("at page entry");
+
+    // ---- Phase 1: Wi-Fi alone -------------------------------------------
+    Serial.println("PHASE 1: Wi-Fi alone (scan).");
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true);
+    delay(200);
+    reportHeap("wifi up");
+    const int found = WiFi.scanNetworks(false, false, false, 200);
+    Serial.printf("    scan found %d network(s)\n", found);
+    const int show = found < 4 ? found : 4;
+    for (int i = 0; i < show; ++i) {
+        Serial.printf("      %-24s ch%-3d %4d dBm\n",
+                      WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
+    }
+    WiFi.scanDelete();
+    reportHeap("after scan");
+    WiFi.mode(WIFI_OFF);
+    delay(200);
+    reportHeap("wifi off");
+
+    // ---- Phase 2: BLE alone ---------------------------------------------
+    Serial.println("PHASE 2: BLE alone (non-connectable advertising).");
+    NimBLEDevice::init("Braino-diag4");
+    reportHeap("nimble init");
+    NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
+    adv->setScanResponse(false);
+    /* Non-connectable, because the product's beacon is presence-only. A
+     * connectable advertisement would be testing something Braino never does,
+     * and it is the advertising duty cycle that contends with Wi-Fi anyway. */
+    adv->setAdvertisementType(BLE_GAP_CONN_MODE_NON);
+    adv->start();
+    Serial.println("    advertising as \"Braino-diag4\" -- visible to any BLE scanner.");
+    delay(3000);
+    reportHeap("advertising");
+
+    // ---- Phase 3: both at once ------------------------------------------
+    Serial.println("PHASE 3: BOTH -- BLE keeps advertising while Wi-Fi scans repeatedly.");
+    Serial.println("         This is the combination that has crashed before.");
+    WiFi.mode(WIFI_STA);
+    delay(200);
+    reportHeap("wifi up beside ble");
+    for (uint8_t round = 1; round <= 5; ++round) {
+        const int n = WiFi.scanNetworks(false, false, false, 200);
+        Serial.printf("    round %u: scan=%d  advertising=%s\n",
+                      static_cast<unsigned>(round), n,
+                      NimBLEDevice::getAdvertising()->isAdvertising() ? "yes" : "NO -- it stopped");
+        WiFi.scanDelete();
+        reportHeap("after round");
+        delay(500);
+    }
+
+    Serial.println("Survived all five rounds. Tearing down.");
+    NimBLEDevice::getAdvertising()->stop();
+    NimBLEDevice::deinit(true);
+    WiFi.mode(WIFI_OFF);
+    delay(300);
+    reportHeap("both torn down");
+    Serial.println("VERDICT: if you are reading this line, Wi-Fi and BLE coexisted without");
+    Serial.println("         crashing. Compare free at page entry against both torn down --");
+    Serial.println("         a large shortfall is a leak, and on this device fragmentation");
+    Serial.println("         matters more than the total, so watch largest too.");
+}
+
 void runPage() {
     banner(PAGE_NAMES[page]);
     switch (page) {
@@ -443,9 +563,10 @@ void runPage() {
         case PAGE_TOUCH_SHARED: runTouchShared(); break;
         case PAGE_TOUCH_BITBANG: runTouchBitbang(); break;
         case PAGE_PINS: runPinScan(); break;
+        case PAGE_RADIO: runRadio(); break;
         default: break;
     }
-    Serial.println("-- BOOT or 'n' for the next page, 'p' back, 'r' repeat, 0-6 to jump.");
+    Serial.println("-- BOOT or 'n' for the next page, 'p' back, 'r' repeat, 0-7 to jump.");
 }
 
 // ---------------------------------------------------------------- lifecycle
@@ -470,6 +591,30 @@ void setup() {
     digitalWrite(21, HIGH);
     pinMode(27, OUTPUT);
     digitalWrite(27, HIGH);
+
+    /* Clear the panel and say something on it, before any page runs.
+     *
+     * This is not decoration. Page ID -- the page this tool opens on -- reads
+     * registers and prints; it draws nothing. Without this the panel comes up
+     * showing uninitialised GRAM, which is random noise, and a cold boot is
+     * indistinguishable from a broken driver. That cost a real misdiagnosis:
+     * page RADIO panicked, the board rebooted into exactly this state, and the
+     * resulting noise was reported as a "jumbled screen" and very nearly sent
+     * the whole bring-up down a wrong-controller hunt. The panel was correct
+     * the entire time; nothing had drawn on it.
+     *
+     * So: a boot screen that is unmistakably OURS. Anything else on this panel
+     * is the hardware talking, not us. */
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("Braino bring-up probe", tft.width() / 2, tft.height() / 2 - 30, 4);
+    char boot[48];
+    snprintf(boot, sizeof(boot), "%dx%d  rot%d", tft.width(), tft.height(), tft.getRotation());
+    tft.drawString(boot, tft.width() / 2, tft.height() / 2 + 6, 2);
+    tft.drawString("press 2 for the test pattern",
+                   tft.width() / 2, tft.height() / 2 + 34, 2);
+    tft.drawRect(0, 0, tft.width(), tft.height(), TFT_DARKGREY);
 
     runPage();
 }

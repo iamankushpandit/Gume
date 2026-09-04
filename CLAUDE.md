@@ -191,7 +191,7 @@ Five diagnostic environments exist for hardware triage:
   `env:bringup` runs that on a board with no stored calibration, which on a
   capacitive panel the XPT2046 code cannot read strands the display check
   behind a dead crosshair.
-- `pio run -e diag4` -- builds `src/diag4.cpp` **alone**, a seven-page bring-up
+- `pio run -e diag4` -- builds `src/diag4.cpp` **alone**, a eight-page bring-up
   probe for the 4-inch ST7796 board. It exists because every fact that board
   needs stated in a profile is still a guess, and the three ways of being wrong
   -- wrong SPI bus, wrong driver, wrong backlight pin -- all produce the same
