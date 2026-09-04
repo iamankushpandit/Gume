@@ -11,8 +11,29 @@ void ScoresGame::begin(GameHost& host) {
     markFullDirty();
 }
 
-Rect ScoresGame::rowRect(uint8_t row) const {
-    return Rect{8, static_cast<int16_t>(56 + row * 30), 304, 28};
+namespace {
+/* The footer sits a fixed distance off the bottom; rows fill what is left
+ * between the tab baseline and it. */
+constexpr int16_t SCORES_ROWS_TOP = 56;
+constexpr int16_t SCORES_FOOTER_H = 32;
+constexpr int16_t SCORES_MARGIN = 8;
+}  // namespace
+
+/* Rows share the height between the tabs and the footer, but never get
+ * tighter than the 30px pitch this screen was designed with -- so 320x240
+ * yields exactly the old 56 + row * 30, and a taller panel spends its extra
+ * height on taller rows, which are also easier to hit. */
+Rect ScoresGame::rowRect(uint8_t row, int16_t screenW, int16_t screenH) const {
+    const int16_t footerY = static_cast<int16_t>(screenH - SCORES_FOOTER_H);
+    const int16_t avail = static_cast<int16_t>(footerY - SCORES_ROWS_TOP - 4);
+    int16_t pitch = static_cast<int16_t>(avail / ROWS_PER_PAGE);
+    if (pitch < 30) {
+        pitch = 30;
+    }
+    return Rect{SCORES_MARGIN,
+                static_cast<int16_t>(SCORES_ROWS_TOP + row * pitch),
+                static_cast<int16_t>(screenW - SCORES_MARGIN * 2),
+                static_cast<int16_t>(pitch - 2)};
 }
 Rect ScoresGame::mineTabRect() const {
     return Rect{8, 34, 64, 18};
@@ -20,9 +41,24 @@ Rect ScoresGame::mineTabRect() const {
 Rect ScoresGame::deviceTabRect() const {
     return Rect{80, 34, 80, 18};
 }
-Rect ScoresGame::prevRect()   const { return Rect{8, 208, 88, 26}; }
-Rect ScoresGame::switchRect() const { return Rect{104, 208, 112, 26}; }
-Rect ScoresGame::nextRect()   const { return Rect{224, 208, 88, 26}; }
+
+/* Prev and Next hug the edges, Switch is centred between them. The fractions
+ * are the old widths over 320, so the original board keeps 88 / 112 / 88 at
+ * x = 8 / 104 / 224 exactly. */
+Rect ScoresGame::prevRect(int16_t screenW, int16_t screenH) const {
+    return Rect{SCORES_MARGIN, static_cast<int16_t>(screenH - SCORES_FOOTER_H),
+                static_cast<int16_t>(screenW * 0.275f), 26};
+}
+Rect ScoresGame::switchRect(int16_t screenW, int16_t screenH) const {
+    const int16_t w = static_cast<int16_t>(screenW * 0.35f);
+    return Rect{static_cast<int16_t>((screenW - w) / 2),
+                static_cast<int16_t>(screenH - SCORES_FOOTER_H), w, 26};
+}
+Rect ScoresGame::nextRect(int16_t screenW, int16_t screenH) const {
+    const int16_t w = static_cast<int16_t>(screenW * 0.275f);
+    return Rect{static_cast<int16_t>(screenW - SCORES_MARGIN - w),
+                static_cast<int16_t>(screenH - SCORES_FOOTER_H), w, 26};
+}
 
 uint8_t ScoresGame::playedCount(GameHost& host) const {
     uint8_t n = 0;
@@ -104,6 +140,9 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
 
+    const int16_t sW = static_cast<int16_t>(host.display().width());
+    const int16_t sH = static_cast<int16_t>(host.display().height());
+
     // Tab switching
     if (mineTabRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (activeTab_ != Tab::Mine) {
@@ -130,25 +169,25 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
         const uint8_t total = playedCount(host);
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
 
-        if (prevRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
+        if (prevRect(sW, sH).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
             --page_; markFullDirty(); return;
         }
-        if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
+        if (nextRect(sW, sH).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
             ++page_; markFullDirty(); return;
         }
     } else {
         const uint8_t total = deviceRowCount_;
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
 
-        if (prevRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
+        if (prevRect(sW, sH).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
             --page_; markFullDirty(); return;
         }
-        if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
+        if (nextRect(sW, sH).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ + 1 < pages) {
             ++page_; markFullDirty(); return;
         }
     }
 
-    if (switchRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (switchRect(sW, sH).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.openProfiles();
         return;
     }
@@ -157,6 +196,8 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
 void ScoresGame::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
+    const int16_t sW = static_cast<int16_t>(tft.width());
+    const int16_t sH = static_cast<int16_t>(tft.height());
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 
@@ -186,7 +227,7 @@ void ScoresGame::render(GameHost& host) {
 
         const uint8_t total = playedCount(host);
         if (total == 0) {
-            Ui::drawLabel(tft, Rect{20, 110, 280, 20},
+            Ui::drawLabel(tft, Rect{static_cast<int16_t>(sW * 0.0625f), static_cast<int16_t>(sH * 0.458f), static_cast<int16_t>(sW * 0.875f), 20},
                           "No games played yet", Ui::muted(), 2, Align::Center);
         }
 
@@ -200,7 +241,7 @@ void ScoresGame::render(GameHost& host) {
             if (score == nullptr || !board.hasScore(score->bestKey)) continue;
             if (seen++ < first) continue;
 
-            const Rect r = rowRect(drawn++);
+            const Rect r = rowRect(drawn++, sW, sH);
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
 
@@ -230,10 +271,10 @@ void ScoresGame::render(GameHost& host) {
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
         const bool canPrev = page_ > 0;
         const bool canNext = page_ + 1 < pages;
-        Ui::drawPagerButton(tft, prevRect(), "Prev", canPrev);
-        Ui::drawButton(tft, switchRect(), "Switch player", Ui::rgb(36, 132, 204),
+        Ui::drawPagerButton(tft, prevRect(sW, sH), "Prev", canPrev);
+        Ui::drawButton(tft, switchRect(sW, sH), "Switch player", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
-        Ui::drawPagerButton(tft, nextRect(), "Next", canNext);
+        Ui::drawPagerButton(tft, nextRect(sW, sH), "Next", canNext);
     } else {
         // Device tab: device-wide best
         const uint8_t playerCount = board.playerCount();
@@ -249,7 +290,7 @@ void ScoresGame::render(GameHost& host) {
 
         const uint8_t total = deviceRowCount_;
         if (total == 0) {
-            Ui::drawLabel(tft, Rect{20, 110, 280, 20},
+            Ui::drawLabel(tft, Rect{static_cast<int16_t>(sW * 0.0625f), static_cast<int16_t>(sH * 0.458f), static_cast<int16_t>(sW * 0.875f), 20},
                           "No games played yet", Ui::muted(), 2, Align::Center);
         } else {
             uint8_t drawn = 0;
@@ -261,7 +302,7 @@ void ScoresGame::render(GameHost& host) {
                     continue;
                 }
 
-                const Rect r = rowRect(drawn++);
+                const Rect r = rowRect(drawn++, sW, sH);
                 tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
                 tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
 
@@ -292,10 +333,10 @@ void ScoresGame::render(GameHost& host) {
         const uint8_t pages = max<uint8_t>(1, (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
         const bool canPrev = page_ > 0;
         const bool canNext = page_ + 1 < pages;
-        Ui::drawPagerButton(tft, prevRect(), "Prev", canPrev);
-        Ui::drawButton(tft, switchRect(), "Switch player", Ui::rgb(36, 132, 204),
+        Ui::drawPagerButton(tft, prevRect(sW, sH), "Prev", canPrev);
+        Ui::drawButton(tft, switchRect(sW, sH), "Switch player", Ui::rgb(36, 132, 204),
                        Ui::outline(), TFT_WHITE, false, 2);
-        Ui::drawPagerButton(tft, nextRect(), "Next", canNext);
+        Ui::drawPagerButton(tft, nextRect(sW, sH), "Next", canNext);
     }
 
     tft.setTextDatum(TL_DATUM);

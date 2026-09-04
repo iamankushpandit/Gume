@@ -17,6 +17,9 @@ public:
     void loop();
 
     Ui::Renderer& display() override;
+
+    /** Reset per-paint renderer state so no screen inherits another's. */
+    void beginScreenPaint();
     Board& board() override;
     bool hasCapability(uint32_t capability) const override;
     bool requireCapability(uint32_t capability, const char* action) override;

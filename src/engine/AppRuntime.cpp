@@ -13,6 +13,23 @@
 // the glyph Ui paints into it cannot drift apart.
 
 
+/* Hand every screen the same starting state for text.
+ *
+ * TftRenderer remembers the glyph size it was last given, which is what lets
+ * the launcher ask for larger labels. The cost is that the size outlives the
+ * screen that set it: a playable game drawing through ScaledRenderer sets a
+ * size on every string, and a system app -- which draws through the same
+ * renderer and never asks for a size at all -- would then inherit whatever the
+ * last game left behind. That is not hypothetical; it is why text came out
+ * enlarged in screens that do no scaling of their own.
+ *
+ * Resetting here rather than trusting each screen to tidy up after itself
+ * makes the whole class of fault impossible: any screen wanting something
+ * other than 1x sets it, and no screen can be affected by one that did. */
+void BrainoApp::beginScreenPaint() {
+    renderer_.setTextSize(1);
+}
+
 Ui::Renderer& BrainoApp::display() {
     if (activeAppIsPlayable()) {
         return scaledRenderer_;
@@ -281,6 +298,7 @@ void BrainoApp::loop() {
             exitScreenSaver();
         } else if (nowMs - ssav_lastFrameMs_ >= 40) {
             ssav_lastFrameMs_ = nowMs;
+            beginScreenPaint();
             renderScreenSaver();
         }
     } else if (activeGame_ != nullptr) {
@@ -340,6 +358,7 @@ void BrainoApp::loop() {
         }
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
+            beginScreenPaint();
             activeGame_->render(*this);
             activeGame_->clearDirty();
             repainted = true;
@@ -490,6 +509,7 @@ void BrainoApp::goHome() {
     applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
+    beginScreenPaint();
     activeGame_->render(*this);
     activeGame_->clearDirty();
 }
