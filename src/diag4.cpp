@@ -94,6 +94,21 @@ constexpr uint32_t ROT_DWELL_MS = 3000;
 
 constexpr uint8_t PIN_BOOT = 0;
 
+/* The pin setup() drives to light the panel, and the pin the sweep restores
+ * when it finishes.
+ *
+ * ONE pin, not two. Holding 21 and 27 together lights the panel whichever of
+ * them is really the backlight, which is convenient on arrival and useless as
+ * evidence -- it is exactly why the backlight pin was still unknown after a
+ * full sweep. Driving one at a time turns a 40-second sweep somebody has to
+ * watch continuously into a single glance: lit means this pin, dark means it
+ * is the other one. Override from platformio.ini to test the alternative:
+ *   -D DIAG4_BOOT_BL_PIN=27 */
+#ifndef DIAG4_BOOT_BL_PIN
+#define DIAG4_BOOT_BL_PIN 21
+#endif
+constexpr uint8_t BOOT_BACKLIGHT_PIN = DIAG4_BOOT_BL_PIN;
+
 }  // namespace cfg
 
 // ---------------------------------------------------------------- state
@@ -246,6 +261,15 @@ void runBacklightSweep() {
     Serial.println("Sweep complete. If NOTHING lit the panel at any point, the backlight is");
     Serial.println("not on any of these pins -- or the panel is not being driven at all,");
     Serial.println("which page ID would already have told you.");
+    /* Restore the boot pin. Leaving every candidate released turned the panel
+     * off for good, and the next three pages plus everything after them ran
+     * against a dark screen -- which was then reported, reasonably, as the
+     * board having gone blank. A diagnostic must not leave the thing it is
+     * diagnosing in a worse state than it found it. */
+    pinMode(cfg::BOOT_BACKLIGHT_PIN, OUTPUT);
+    digitalWrite(cfg::BOOT_BACKLIGHT_PIN, HIGH);
+    Serial.printf("Restored GPIO%u HIGH so the panel is usable again.\n",
+                  static_cast<unsigned>(cfg::BOOT_BACKLIGHT_PIN));
     Serial.println("Once you know the pin, say so: pages PATTERN and ROT need the light on.");
 }
 
@@ -584,13 +608,14 @@ void setup() {
     tft.init();
     tft.setRotation(3);
 
-    /* Hold the two most likely backlight pins up front, so the panel has a
-     * chance of being visible before the sweep is reached. Page BL releases
-     * and tests them properly. */
-    pinMode(21, OUTPUT);
-    digitalWrite(21, HIGH);
-    pinMode(27, OUTPUT);
-    digitalWrite(27, HIGH);
+    /* Light the panel from exactly one candidate, so that whether it lights
+     * is itself the answer. See BOOT_BACKLIGHT_PIN. */
+    pinMode(cfg::BOOT_BACKLIGHT_PIN, OUTPUT);
+    digitalWrite(cfg::BOOT_BACKLIGHT_PIN, HIGH);
+    Serial.printf("Backlight: driving GPIO%u HIGH and nothing else.\n",
+                  static_cast<unsigned>(cfg::BOOT_BACKLIGHT_PIN));
+    Serial.println("If the panel is LIT, that pin is the backlight. If it is DARK, it");
+    Serial.println("is not -- rebuild with -D DIAG4_BOOT_BL_PIN=<other> and look again.");
 
     /* Clear the panel and say something on it, before any page runs.
      *
