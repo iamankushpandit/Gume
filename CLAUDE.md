@@ -105,6 +105,13 @@ call site:
 3. **Rebuilding content that did not change.** System Info reassembled every
    row on every frame while scrolling. Scrolling changes an offset, not
    content. Gate rebuilds behind a stale flag.
+4. **Sampling a sensor from a getter.** The battery gauge cached for 2s, which
+   made the conversion rare without making it predictable: whichever frame
+   found the cache expired paid for it, and that frame was almost always a top
+   bar being drawn. **A cache moves the cost off most frames, not off the
+   render path.** Sampling belongs on a task -- `Board::sampleBattery()` and
+   `Watchdog`'s monitor are the two examples -- publishing a snapshot the loop
+   only reads.
 
 Before claiming a screen is fast: System Info's Memory tab shows loop load,
 worst work, worst frame and NVS usage, and the watchdog logs a stall past
@@ -113,6 +120,21 @@ worst work, worst frame and NVS usage, and the watchdog logs a stall past
 Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
 which is why `Game` has two levels of invalidation. Guard static chrome behind
 `needsFullRender()` and repaint only what moved.
+
+**And ask whether the screen needs to repaint at all.** Three things change the
+header on their own schedule rather than the screen's -- the clock, the battery
+badge and the notification banner -- and the runtime used to answer each with
+`requestRender()`, wiping all 240 rows to change something in the top 30. The
+battery made that constant: one percent is about 2mV on the LiPo plateau, under
+two ADC counts, so the reading crossed a boundary every couple of seconds and
+turning the BLE beacon on -- whose supply ripple widened the noise -- made the
+console visibly flash. `Game::renderChrome()` repaints the strip alone, an
+eighth of the panel and inside the frame budget where a full repaint is 150% of
+it, and `PERCENT_DEADBAND` stops the number twitching underneath it. A screen
+with its own header overrides `renderChrome()`; one that cannot repaint its
+chrome in isolation returns false and gets the old behaviour. **If you add
+something to the top bar, route its invalidation through
+`requestChromeRender()`, not `requestRender()`.**
 
 ## Memory rule â€” there is no garbage collector
 
@@ -759,7 +781,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,365,381 on `5.3.0-SNAPSHOT` against 2,353,205 on `5.2.0` -- and that is
+   2,367,181 on `5.5.0-SNAPSHOT` against 2,365,349 on `5.4.0` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds

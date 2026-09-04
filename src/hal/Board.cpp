@@ -19,6 +19,10 @@ void Board::begin() {
     if (BOARD.hasBatterySense()) {
         pinMode(BOARD.battery.adcPin, INPUT);
     }
+    /* Takes the first reading synchronously and then hands the gauge to its own
+     * task, so no frame ever pays for a conversion. Safe on a board with no
+     * sense line: it publishes the zeroed snapshot and starts nothing. */
+    beginBatteryMonitor();
 
     if (BOARD.hasBacklightControl()) {
         pinMode(BOARD.panel.backlightPin, OUTPUT);
