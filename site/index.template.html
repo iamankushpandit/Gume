@@ -403,6 +403,38 @@ footer {
   var links     = document.getElementById('download-links');
   var installer = document.getElementById('installer');
 
+  /* The firmware list belongs to the board, and only ever offers builds that
+   * exist for it.
+   *
+   * It used to list every firmware regardless of board and leave the reader to
+   * pair them. Choosing a board whose name did not match the firmware still
+   * selected simply found no build -- and the old code returned at that point,
+   * leaving the install button pointing at whichever manifest had been set
+   * last. So picking the 4-inch board while the default 2.8-inch firmware was
+   * selected flashed the 2.8-inch image onto it: a silent mismatch, and the
+   * worst possible symptom, because the wrong backlight pin gives a black
+   * panel on a device that is otherwise running perfectly. */
+  function buildsForBoard(board) {
+    return BUILDS.filter(function (b) { return b.board === board; });
+  }
+
+  function populateVariants() {
+    var available = buildsForBoard(boardSel.value);
+    var wanted = variantSel.value;
+    variantSel.innerHTML = '';
+    available.forEach(function (b) {
+      var opt = document.createElement('option');
+      opt.value = b.env;
+      opt.textContent = b.label;
+      variantSel.appendChild(opt);
+    });
+    /* Keep the reader's choice when the new board also offers it -- switching
+     * between two boards should not silently move them from the diagnostic
+     * build back to the games. */
+    var keep = available.some(function (b) { return b.env === wanted; });
+    variantSel.value = keep ? wanted : (available.length ? available[0].env : '');
+  }
+
   function apply() {
     var build = null;
     for (var i = 0; i < BUILDS.length; i++) {
@@ -411,7 +443,17 @@ footer {
         break;
       }
     }
-    if (!build) return;
+    /* Should be unreachable now that the list is filtered, so say so loudly
+     * rather than leaving a stale manifest armed behind a live button. */
+    if (!build) {
+      note.textContent = 'No firmware is published for this combination. '
+                       + 'Please report this — do not flash.';
+      installer.removeAttribute('manifest');
+      installer.setAttribute('disabled', 'disabled');
+      links.innerHTML = '';
+      return;
+    }
+    installer.removeAttribute('disabled');
     note.textContent = build.note;
     installer.setAttribute('manifest', build.manifest);
     links.innerHTML = 'Files for this build: ' + build.parts.map(function (part) {
@@ -419,8 +461,9 @@ footer {
     }).join(' &middot; ');
   }
 
-  boardSel.addEventListener('change', apply);
+  boardSel.addEventListener('change', function () { populateVariants(); apply(); });
   variantSel.addEventListener('change', apply);
+  populateVariants();
   apply();
 </script>
 </body>
