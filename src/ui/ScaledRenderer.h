@@ -133,23 +133,17 @@ public:
 
     void startWrite() override { inner_.startWrite(); }
     void endWrite() override { inner_.endWrite(); }
-    /* Images keep their native pixel size and are CENTRED in the space the
-     * layout gave them.
+    /* Only the origin moves; w/h stay native pixel dimensions.
      *
-     * Scaling the origin alone was wrong, and visibly so on flags and maps: the
-     * artwork stayed its true size while the box around it grew, so its centre
-     * drifted up and to the left by half the growth and it sat in the corner of
-     * its own frame rather than in the middle of it. Resampling the pixels
-     * instead would be worse -- these are small bitmaps and stretching them by
-     * 1.5 with no filtering turns a flag's stripes into ragged steps.
-     *
-     * So: place the unscaled image at the centre of the scaled rect. On a panel
-     * that is already canvas-sized both terms are zero and this is the old
-     * behaviour exactly. */
+     * Nothing in the firmware should reach this while scaling is active, and
+     * that is deliberate. A blit is one scanline per call, so a fractional row
+     * pitch makes consecutive rows overlap and gap and the image tears into
+     * bands. Ui.cpp's image helpers therefore compute a physical destination
+     * once and write through physicalRenderer(), which keeps rows 1:1 and
+     * centres the artwork properly -- see physicalImageOrigin() there. This
+     * override remains only so the interface is honoured. */
     void setAddrWindow(int32_t x, int32_t y, int32_t w, int32_t h) override {
-        const int32_t offsetX = (sw(w) - w) / 2;
-        const int32_t offsetY = (sh(h) - h) / 2;
-        inner_.setAddrWindow(sx(x) + offsetX, sy(y) + offsetY, w, h);
+        inner_.setAddrWindow(sx(x), sy(y), w, h);
     }
     bool getSwapBytes() override { return inner_.getSwapBytes(); }
     void setSwapBytes(bool swap) override { inner_.setSwapBytes(swap); }

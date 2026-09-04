@@ -812,21 +812,58 @@ constexpr int16_t MNF_MAX_ROW = (MNF_FLAG_WIDTH > MNF_MAP_BOX) ? MNF_FLAG_WIDTH 
  * Save/restore rather than setting it globally, so we do not disturb any other
  * drawing code that relies on the current setting.
  */
+/* Where a native-size image goes on the real panel.
+ *
+ * Artwork is never resampled: these are small bitmaps and stretching them by a
+ * non-integer factor with no filtering turns a flag's stripes into ragged
+ * steps. So the pixels keep their size and only the destination moves -- but
+ * that destination has to be computed here, against the physical panel, for
+ * two separate reasons.
+ *
+ * The blit is row by row, one scanline per setAddrWindow. Sent through a
+ * scaling renderer each 1px row becomes 1.33px, so consecutive rows
+ * alternately overlap and leave gaps and the image tears into bands. That is
+ * the distortion; it is not a scaling artefact of the artwork but of the
+ * addressing. Writing straight to the physical renderer keeps rows 1:1.
+ *
+ * And the image is CENTRED in the scaled rect rather than placed at a scaled
+ * origin. Scaling the origin alone leaves it short of centre by a quarter of
+ * its own width -- correct-looking on a board that does not scale, visibly
+ * off on one that does.
+ *
+ * On a board whose panel is the canvas both scales are 1 and this returns
+ * exactly the coordinates it was given. */
+static void physicalImageOrigin(Ui::Renderer& tft, const Rect& r,
+                                int16_t imgW, int16_t imgH,
+                                Ui::Renderer** phys, int32_t* px, int32_t* py) {
+    *phys = tft.physicalRenderer();
+    const float sxAxis = tft.imageScaleX();
+    const float syAxis = tft.imageScaleY();
+    *px = static_cast<int32_t>(lroundf(r.x * sxAxis + (r.w * sxAxis - imgW) / 2.0f));
+    *py = static_cast<int32_t>(lroundf(r.y * syAxis + (r.h * syAxis - imgH) / 2.0f));
+}
+
 void drawCountryImage(Ui::Renderer& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor) {
     const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
     if (im == nullptr) return;
 
+    Ui::Renderer* phys = nullptr;
+    int32_t px = 0;
+    int32_t py = 0;
+    physicalImageOrigin(tft, Rect{x, y, static_cast<int16_t>(im->w), static_cast<int16_t>(im->h)},
+                        static_cast<int16_t>(im->w), static_cast<int16_t>(im->h), &phys, &px, &py);
+
     uint16_t row[MNF_MAX_ROW];
-    const bool prevSwap = tft.getSwapBytes();
-    tft.setSwapBytes(true);
-    tft.startWrite();
+    const bool prevSwap = phys->getSwapBytes();
+    phys->setSwapBytes(true);
+    phys->startWrite();
     for (uint16_t yy = 0; yy < im->h; ++yy) {
         mnf_row_rgb565(im, yy, row, bgColor);
-        tft.setAddrWindow(x, static_cast<int16_t>(y + yy), im->w, 1);
-        tft.pushPixels(row, im->w);
+        phys->setAddrWindow(px, py + yy, im->w, 1);
+        phys->pushPixels(row, im->w);
     }
-    tft.endWrite();
-    tft.setSwapBytes(prevSwap);
+    phys->endWrite();
+    phys->setSwapBytes(prevSwap);
 }
 
 bool drawCountryImageCentred(Ui::Renderer& tft, const void* img, const Rect& r, uint16_t bgColor) {
@@ -843,20 +880,23 @@ bool drawCountryImageTinted(Ui::Renderer& tft, const void* img, const Rect& r,
     const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
     if (im == nullptr) return false;
 
-    const int16_t x = static_cast<int16_t>(r.x + (r.w - im->w) / 2);
-    const int16_t y = static_cast<int16_t>(r.y + (r.h - im->h) / 2);
+    Ui::Renderer* phys = nullptr;
+    int32_t px = 0;
+    int32_t py = 0;
+    physicalImageOrigin(tft, r, static_cast<int16_t>(im->w), static_cast<int16_t>(im->h),
+                        &phys, &px, &py);
 
     uint16_t row[MNF_MAX_ROW];
-    const bool prevSwap = tft.getSwapBytes();
-    tft.setSwapBytes(true);
-    tft.startWrite();
+    const bool prevSwap = phys->getSwapBytes();
+    phys->setSwapBytes(true);
+    phys->startWrite();
     for (uint16_t yy = 0; yy < im->h; ++yy) {
         mnf_row_rgb565_tint(im, yy, row, bgColor, inkColor);
-        tft.setAddrWindow(x, static_cast<int16_t>(y + yy), im->w, 1);
-        tft.pushPixels(row, im->w);
+        phys->setAddrWindow(px, py + yy, im->w, 1);
+        phys->pushPixels(row, im->w);
     }
-    tft.endWrite();
-    tft.setSwapBytes(prevSwap);
+    phys->endWrite();
+    phys->setSwapBytes(prevSwap);
     return true;
 }
 
@@ -866,13 +906,18 @@ bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
     if (im == nullptr) return false;
     if (scale < 1) scale = 1;
 
-    // Cap the scale so the result still fits the target rect.
-    while (scale > 1 && (im->w * scale > r.w || im->h * scale > r.h)) --scale;
+    /* Cap the scale against the rect as it exists ON THE PANEL, not in canvas
+     * units. The artwork is enlarged by whole-pixel replication, so a board
+     * with a physically bigger rect can carry a bigger multiple -- which is
+     * the one way this artwork gets larger at all, since it is never resampled.
+     * On a board where the canvas is the panel both are the same number. */
+    const int16_t availW = static_cast<int16_t>(r.w * tft.imageScaleX());
+    const int16_t availH = static_cast<int16_t>(r.h * tft.imageScaleY());
+    while (scale > 1 && (im->w * scale > availW || im->h * scale > availH)) --scale;
     if (scale == 1) return drawCountryImageCentred(tft, im, r, bgColor);
 
     const int16_t outW = static_cast<int16_t>(im->w * scale);
-    const int16_t x = static_cast<int16_t>(r.x + (r.w - outW) / 2);
-    const int16_t y = static_cast<int16_t>(r.y + (r.h - im->h * scale) / 2);
+    const int16_t outH = static_cast<int16_t>(im->h * scale);
 
     uint16_t src[MNF_MAX_ROW];
     uint16_t dst[MNF_MAX_ROW * 3];   // scale is clamped to 3 by the rect check below
@@ -880,21 +925,29 @@ bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
         return drawCountryImageCentred(tft, im, r, bgColor);
     }
 
-    const bool prevSwap = tft.getSwapBytes();
-    tft.setSwapBytes(true);
-    tft.startWrite();
+    Ui::Renderer* phys = nullptr;
+    int32_t px = 0;
+    int32_t py = 0;
+    physicalImageOrigin(tft, r, outW, outH, &phys, &px, &py);
+
+    const bool prevSwap = phys->getSwapBytes();
+    phys->setSwapBytes(true);
+    phys->startWrite();
     for (uint16_t yy = 0; yy < im->h; ++yy) {
         mnf_row_rgb565(im, yy, src, bgColor);
         for (uint16_t xx = 0; xx < im->w; ++xx) {
             for (uint8_t s = 0; s < scale; ++s) dst[xx * scale + s] = src[xx];
         }
+        /* Integer row replication, straight to the panel: every output row is
+         * a whole pixel tall, so the nearest-neighbour enlargement stays clean
+         * instead of tearing the way a fractional row pitch does. */
         for (uint8_t s = 0; s < scale; ++s) {
-            tft.setAddrWindow(x, static_cast<int16_t>(y + yy * scale + s), outW, 1);
-            tft.pushPixels(dst, outW);
+            phys->setAddrWindow(px, py + yy * scale + s, outW, 1);
+            phys->pushPixels(dst, outW);
         }
     }
-    tft.endWrite();
-    tft.setSwapBytes(prevSwap);
+    phys->endWrite();
+    phys->setSwapBytes(prevSwap);
     return true;
 }
 

@@ -148,16 +148,27 @@ private:
      * everything by arithmetic on it -- there is no responsive layout to fall
      * back on, so the canvas is stretched to fill the panel instead.
      *
-     * textScale=2 is a legibility decision, not a scaling one. Glyph scale in
-     * TFT_eSPI is whole-number only, so on a 480x320 panel the layout grows
-     * ~1.4x while text at scale 2 grows exactly 2x -- text deliberately gains
-     * on its boxes rather than merely keeping up. That is the point: this
-     * board exists to serve players who need a bigger, plainer screen, and
-     * text that only kept pace with the layout would be no easier to read than
-     * on the 2.8in board. The cost is less slack inside tight boxes, which is
-     * a thing to check on the panel rather than reason about. */
+     * textScale is 1, and the reasoning that said 2 was wrong on hardware.
+     *
+     * The argument for 2 was that this board exists for players who need
+     * bigger, plainer text, so text should gain on its boxes rather than
+     * merely keep pace. The flaw is that glyph scale is whole-number only:
+     * the layout grows ~1.4x here, so 2x is not "a bit bigger", it is 43%
+     * bigger than its box, and text overflowed or was truncated across the
+     * games. A label that does not fit is not more legible.
+     *
+     * The value went untested for a while because TftRenderer::drawString
+     * forced setTextSize(1), so this 2 never reached the panel -- the games
+     * had always drawn at 1x. Fixing that so the launcher could scale its own
+     * text let the 2 through for the first time, and it broke every screen at
+     * once. Two lessons, both worth keeping: a setting that cannot take effect
+     * is not a tested setting, and legibility on this board has to come from
+     * layouts that can carry a larger font, not from multiplying the font
+     * under a layout that cannot. The launcher does it properly -- it grows
+     * its tiles first and only then asks for larger text, and falls back when
+     * the label would not fit. */
     Ui::TftRenderer renderer_{board_.display()};
-    Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/2};
+    Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/1};
     ContentLoader content_;
     GameInstances games_;
     LauncherGame launcher_;

@@ -279,18 +279,55 @@ void LauncherGame::render(GameHost& host) {
         const float sx = static_cast<float>(r.w) / (tall ? 108.0f : 145.0f);
         const float sy = static_cast<float>(r.h) / (tall ? 96.0f : 46.0f);
         const float s = sx < sy ? sx : sy;
-        const uint8_t textScale = s >= 1.45f ? 2 : 1;
 
+        /* Ask for the larger font, then check it actually fits -- and take the
+         * smaller one when it does not.
+         *
+         * Deciding on the tile's growth alone was wrong in the wide layout.
+         * A tall tile gives the label the full tile width, but a wide one
+         * spends a third of it on the icon, so the same 2x that reads well
+         * in portrait truncates "Multiplication" to a few characters in
+         * landscape. The tile being bigger says the font may be bigger; only
+         * measuring the actual string says whether it is. Long names fall back
+         * on their own, per tile, with no list of exceptions to maintain. */
+        const int16_t titleRoom = static_cast<int16_t>(tall ? r.w - 8 : r.w * 0.66f - 8);
+        uint8_t textScale = s >= 1.45f ? 2 : 1;
+        if (textScale > 1) {
+            tft.setTextSize(2);
+            if (tft.textWidth(entry.title(), 2) > titleRoom) {
+                textScale = 1;
+            }
+            tft.setTextSize(1);
+        }
+
+        /* Icons scale by WHOLE numbers only, or not at all.
+         *
+         * The tile grows by a fraction -- about 1.37 in portrait here -- and
+         * feeding that to the icon art was wrong. These are drawn shapes, not
+         * bitmaps, but they are built from small integers: 1px strokes, a 17px
+         * radius, triangle vertices a dozen pixels from centre. Multiply those
+         * by 1.37 and each rounds independently: strokes land on 1px in one
+         * place and 2px in another, outlines lose corners, and any lettering
+         * inside stays 1x while its box grows. Tic-Tac-Toe came through it
+         * intact because its features are coarse -- a 34px plate and 30px
+         * strokes have room to absorb a rounding error -- which is exactly why
+         * it looked fixed while the detailed icons did not.
+         *
+         * So: an integer multiple when one fits, otherwise native size, and
+         * centred in the tile either way. The same rule the flags follow. A
+         * crisp icon in a roomy tile reads better than a smeared one that
+         * fills it. */
+        const uint8_t iconScale = (s >= 2.0f) ? 2 : 1;
         Ui::ScaledRenderer icon{tft};
-        icon.setScale(s, s);
+        icon.setScale(static_cast<float>(iconScale), static_cast<float>(iconScale));
 
         char label[24];
         if (tall) {
             const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
             const int16_t iconY = static_cast<int16_t>(r.y + r.h * 0.3125f);
             drawLauncherIcon(icon, entry.icon(), r, fill,
-                             static_cast<int16_t>(cxT / s),
-                             static_cast<int16_t>(iconY / s));
+                             static_cast<int16_t>(cxT / iconScale),
+                             static_cast<int16_t>(iconY / iconScale));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(MC_DATUM);
             tft.setTextSize(textScale);
@@ -303,21 +340,36 @@ void LauncherGame::render(GameHost& host) {
             tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.906f), 1);
             tft.setTextSize(1);
         } else {
-            const int16_t iconX = static_cast<int16_t>(r.x + r.w * 0.166f);
-            const int16_t iconY = static_cast<int16_t>(r.y + r.h * 0.478f);
+            /* Everything hangs off the tile's own centre line.
+             *
+             * The first version kept the old proportions -- icon at 0.478 of
+             * the height, title at 0.37, subtitle at 0.74 -- which were fine
+             * in a 46px tile and drift visibly in a 69px one: the pair sits
+             * low, and the icon a shade above it, so nothing lines up with
+             * anything. Measuring the text block from the middle outwards
+             * keeps it centred at any tile height, and puts the icon on the
+             * same line rather than near it. */
+            const int16_t midY = static_cast<int16_t>(r.y + r.h / 2);
+            const int16_t iconX = static_cast<int16_t>(r.x + r.w * 0.18f);
             drawLauncherIcon(icon, entry.icon(), r, fill,
-                             static_cast<int16_t>(iconX / s),
-                             static_cast<int16_t>(iconY / s));
-            const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.33f);
-            const int16_t textW = static_cast<int16_t>(r.w - r.w * 0.33f - 6);
+                             static_cast<int16_t>(iconX / iconScale),
+                             static_cast<int16_t>(midY / iconScale));
+
+            /* Title above the line and subtitle below it, each by half its own
+             * height, so the gap between them does not grow with the tile. */
+            const int16_t titleH = static_cast<int16_t>(16 * textScale);
+            const int16_t subH = static_cast<int16_t>(8 * textScale);
+            const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.34f);
+            const int16_t textW = static_cast<int16_t>(r.w - (r.x + r.w * 0.34f - r.x) - 8);
+
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(ML_DATUM);
             tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
-            tft.drawString(label, textX, static_cast<int16_t>(r.y + r.h * 0.37f), 2);
+            tft.drawString(label, textX, static_cast<int16_t>(midY - subH / 2 - 2), 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
-            tft.drawString(label, textX, static_cast<int16_t>(r.y + r.h * 0.74f), 1);
+            tft.drawString(label, textX, static_cast<int16_t>(midY + titleH / 2 + 2), 1);
             tft.setTextSize(1);
         }
     }
