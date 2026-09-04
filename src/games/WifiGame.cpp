@@ -550,13 +550,24 @@ void WifiGame::render(GameHost& host) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
         tft.drawString(String("< back   ") + ssid, baseX(8), baseY(36), 2);
-        tft.fillRoundRect(8, 54, 304, 34, 4, Ui::surface());
-        tft.drawRoundRect(8, 54, 304, 34, 4, Ui::outline());
+        /* The one shape on this screen that is not built from a Rect, and so
+         * the one the mapping pass missed: it was still drawn at the design
+         * size while the text inside it had moved, which put the caption
+         * below the box it belongs in. */
+        const Rect field = baseRect(8, 54, 304, 34);
+        tft.fillRoundRect(field.x, field.y, field.w, field.h, 4, Ui::surface());
+        tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
         tft.setTextColor(password_.length() > 0 ? Ui::text() : Ui::muted(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
         String shown = password_.length() > 0 ? password_ : "Password";
-        while (shown.length() > 2 && tft.textWidth(shown, 2) > 280) shown.remove(shown.length() - 1);
-        tft.drawString(shown, baseX(16), baseY(71), 2);
+        const int16_t fieldTextMax = static_cast<int16_t>(field.w - 16);
+        while (shown.length() > 2 && tft.textWidth(shown, 2) > fieldTextMax) {
+            shown.remove(shown.length() - 1);
+        }
+        /* Centred in the field rather than at a mapped y of its own, so the
+         * two cannot drift apart again. */
+        tft.drawString(shown, static_cast<int16_t>(field.x + 8),
+                       static_cast<int16_t>(field.y + field.h / 2), 2);
         for (uint8_t row = 0; row < 4; ++row) {
             for (uint8_t col = 0; col < 10; ++col) {
                 char buf[2] = {keys[row][col], 0};

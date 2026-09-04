@@ -103,9 +103,17 @@ Rect SettingsGame::brightRect() const {
  * 34px of margin at the bottom. There is room for one more row here and not
  * two. */
 Rect SettingsGame::muteRect()      const { return gridWide(0); }
+/* Takes the grid's position but keeps its designed height.
+ *
+ * A button gets easier to hit as it grows; a slider does not -- what matters
+ * is the length of its travel, which is already the full width. Letting it
+ * take the grid's row height made the rect 46px tall, and drawSlider centres
+ * the track inside the rect, so the track sank while the "Volume" caption
+ * stayed pinned above the rect's top edge and was left floating in the gap.
+ * The brightness bar has always been a fixed 32 for the same reason. */
 Rect SettingsGame::volumeRect()    const {
     const Rect r = gridWide(1);
-    return Rect{r.x, r.y, r.w, static_cast<int16_t>(r.h + 2)};
+    return Rect{r.x, r.y, r.w, 32};
 }
 Rect SettingsGame::testCueRect()   const { return gridCell(2, 0); }
 Rect SettingsGame::testVoiceRect() const { return gridCell(2, 1); }
