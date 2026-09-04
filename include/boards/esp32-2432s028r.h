@@ -11,10 +11,11 @@
  * stated alongside it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 0
 
-/* No audio codec. Same reasoning as GUME_TOUCH_CAPACITIVE above: the
- * codec path pulls in Wire and driver/i2s.h, and `if constexpr` would
- * link both into a board that has neither. */
+/* No codec; DAC output on GPIO26 (ESP32 DAC2). Same reasoning as the touch
+ * macro above: the DAC path pulls in driver/i2s.h and `if constexpr` would
+ * link it into boards without one. GUME_HAS_AUDIO_CODEC stays 0. */
 #define GUME_HAS_AUDIO_CODEC 0
+#define GUME_HAS_AUDIO_DAC   1
 
 /* Makerfabs / Sunton ESP32-2432S028R -- the original/classic 2.4-inch CYD.
  * Micro-USB connector, ILI9341 240x320 TFT, XPT2046 resistive touch, RGB LED, LDR.
@@ -94,7 +95,8 @@ inline constexpr BoardProfile BOARD = {
         /* commonAnode */ true,
     },
 
-    /* Audio amplifier input on GPIO26. */
+    /* Audio amplifier input on GPIO26 (ESP32 DAC2). No amplifier enable wired.
+     * maxVolume 75 -- same reasoning as the 2.8-inch board. */
     AudioProfile{
         /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
@@ -105,6 +107,7 @@ inline constexpr BoardProfile BOARD = {
         /* i2sDataIn           */ PIN_NONE,
         /* ampEnablePin        */ PIN_NONE,
         /* ampEnableActiveLow  */ false,
+        /* maxVolume           */ 75,
     },
 
     /* Battery sense on IO35 (ADC1_CH7, input-only). Divider ratio is 2:1. */

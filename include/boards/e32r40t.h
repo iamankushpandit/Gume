@@ -6,8 +6,9 @@
  * act on it -- see e32r28t1.h for why this cannot just be the profile field. */
 #define GUME_TOUCH_CAPACITIVE 0
 
-/* No audio codec. */
+/* No codec; DAC output on GPIO26 (ESP32 DAC2), same as the 2.8-inch board. */
 #define GUME_HAS_AUDIO_CODEC 0
+#define GUME_HAS_AUDIO_DAC   1
 
 /* LCDWIKI E32R40T (ESP32-32E) -- the 4-inch board. ST7796 320x480 panel,
  * XPT2046 resistive touch sharing the display's SPI bus.
@@ -128,10 +129,10 @@ inline constexpr BoardProfile BOARD = {
         /* commonAnode */ true,
     },
 
-    /* Inherited from the E32R28T-1. Audio is stubbed there too -- beepOk()
-     * and beepError() pulse the LED -- so this pin being wrong is quiet in
-     * both senses. If a speaker on GPIO26 stays silent, that is the thing to
-     * measure, not the codec fields below, which this board does not have. */
+    /* GPIO26 is ESP32 DAC channel 2; I2S_DAC_BUILT_IN drives it directly.
+     * No amplifier enable wired. maxVolume 75 -- same reasoning as the
+     * 2.8-inch board (see e32r28t1.h); validated once GPIO26 connectivity
+     * on this board is confirmed by audiodiag. */
     AudioProfile{
         /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
@@ -142,6 +143,7 @@ inline constexpr BoardProfile BOARD = {
         /* i2sDataIn           */ PIN_NONE,
         /* ampEnablePin        */ PIN_NONE,
         /* ampEnableActiveLow  */ false,
+        /* maxVolume           */ 75,
     },
 
     /* Inherited from the E32R28T-1: IO34 (ADC1_CH6, input-only) behind the 2:1
