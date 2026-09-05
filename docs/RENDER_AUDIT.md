@@ -80,7 +80,7 @@ usually is one.
 | SystemInfo | **converted** | Group E. Mechanical -- it was already careful. |
 | Settings | **converted** | Group E. Clears the body region, not the screen. |
 | Profiles | analysed | Group E. |
-| Wi-Fi | deferred | Group E — fix its blocking scan first. |
+| Wi-Fi | **migrated, full-repaint on purpose** | Group E. Scan now watchdog-guarded. Keyboard is the one partial left. |
 | ScreenSaver | **already correct, now cheaper** | Group F. Text, net and badge repaint on change. |
 | Locked | **already correct** | Group F — not a Game. |
 
