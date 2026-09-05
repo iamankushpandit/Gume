@@ -136,8 +136,6 @@ void BrainoApp::renderScreenSaver() {
         ssav_hits_ = 0;
         ssav_color_ = Ui::rgb(80, 180, 255);
         ssav_textCy_ = -1;
-        ssav_battPct_ = -2;
-        ssav_battPower_ = 0xFF;
         ssav_initialized_ = true;
     }
 
@@ -250,21 +248,23 @@ void BrainoApp::renderScreenSaver() {
         ssav_textCy_ = cy;
     }
 
-    /* The net never moves. It was redrawn every frame only because the ball and
-     * the text band punch holes in it, so now each segment is redrawn only if
-     * one of them actually did. */
+    /* THE NET AND THE BADGE ARE REDRAWN EVERY FRAME, DELIBERATELY.
+     *
+     * Both were gated on "did something erase you" and both were wrong for it.
+     * The net was tested against the band's NEW position while the erase had
+     * used the OLD one, so the segments actually removed were not the ones put
+     * back. The badge sits at rows 6..22 and the wordmark's bob carries its
+     * 48px band up to row 14 at the top of the swing -- so the band wipes the
+     * badge, and nothing in the ball test noticed.
+     *
+     * They are also nearly free: twenty-three 2x8 fills and one small badge,
+     * against the 23,040-pixel band erase that gating the TEXT actually saves.
+     * That was the win worth having; these two were greed, and they cost a net
+     * with holes in it and a battery that kept vanishing. */
     for (int16_t y = 0; y < effH; y += 14) {
-        const bool holed = hitsBall(static_cast<int16_t>(effW / 2 - 1), y, 2, 8) ||
-                           ((textMoved || textHit) &&
-                            y + 8 > bandY && y < bandY + TEXT_BAND_H);
-        if (holed) {
-            tft.fillRect(effW / 2 - 1, y, 2, 8, Ui::rgb(40, 40, 40));
-        }
+        tft.fillRect(effW / 2 - 1, y, 2, 8, Ui::rgb(40, 40, 40));
     }
 
-    /* Same reasoning for the badge: it changes when the charge does, which with
-     * the display deadband is minutes apart, and otherwise only when the ball
-     * has been through it. */
     const int16_t batCx = effW / 2;
     const int16_t batCy = 14;
     const int8_t batPct = board_.getBatteryPercent();
@@ -272,16 +272,10 @@ void BrainoApp::renderScreenSaver() {
     const int16_t batW = Ui::batteryBadgeWidth(tft, batPct, batPower);
     const int16_t batX = static_cast<int16_t>(batCx - batW / 2 - 2);
     const int16_t batY = static_cast<int16_t>(batCy - 8);
-    if (batPct != ssav_battPct_ || static_cast<uint8_t>(batPower) != ssav_battPower_ ||
-        hitsBall(batX, batY, static_cast<int16_t>(batW + 6), 16)) {
-        /* Cleared to the badge's own width: it is variable, and a fixed 24px
-         * wipe would leave the tail of a wider one behind as the ball goes
-         * past. */
-        tft.fillRect(batX, batY, static_cast<int16_t>(batW + 6), 16, TFT_BLACK);
-        Ui::drawBatteryBadge(tft, batCx, batCy, batPct, batPower, TFT_BLACK);
-        ssav_battPct_ = batPct;
-        ssav_battPower_ = static_cast<uint8_t>(batPower);
-    }
+    /* Cleared to the badge's own width: it is variable, and a fixed 24px wipe
+     * would leave the tail of a wider one behind as the ball goes past. */
+    tft.fillRect(batX, batY, static_cast<int16_t>(batW + 6), 16, TFT_BLACK);
+    Ui::drawBatteryBadge(tft, batCx, batCy, batPct, batPower, TFT_BLACK);
 
     tft.fillRoundRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);
     tft.fillRoundRect(RX - PAD_W / 2, static_cast<int16_t>(ssav_ry_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);

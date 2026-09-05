@@ -81,7 +81,7 @@ usually is one.
 | Settings | **converted** | Group E. Clears the body region, not the screen. |
 | Profiles | analysed | Group E. |
 | Wi-Fi | **migrated, full-repaint on purpose** | Group E. Scan now watchdog-guarded. Keyboard is the one partial left. |
-| ScreenSaver | **already correct, now cheaper** | Group F. Text, net and badge repaint on change. |
+| ScreenSaver | **already correct, text gated** | Group F. Net and badge stay unconditional -- gating them was wrong. |
 | Locked | **already correct** | Group F — not a Game. |
 
 ---

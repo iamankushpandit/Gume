@@ -229,10 +229,6 @@ private:
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;
     int16_t ssav_textCy_ = -1;
-    /* What the badge last showed. The saver runs for hours, so anything it
-     * repaints per frame it repaints a quarter of a million times an hour. */
-    int8_t ssav_battPct_ = -2;
-    uint8_t ssav_battPower_ = 0xFF;
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;
