@@ -12,7 +12,10 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. Placing a mark changes one cell of nine; the board panel and
+     * its grid bars are position-indexed constants. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     void resetBoard();
@@ -29,4 +32,13 @@ private:
     uint32_t xWins_ = 0;
     uint32_t oWins_ = 0;
     uint32_t draws_ = 0;
+
+    /* What is on the panel. A cell is repainted only when its mark changes,
+     * which on this screen means exactly one cell per move. */
+    char drawnCells_[9] = {};
+    String drawnMessage_;
+    uint32_t drawnX_ = 0xFFFFFFFF;
+    uint32_t drawnO_ = 0xFFFFFFFF;
+    uint32_t drawnD_ = 0xFFFFFFFF;
+    bool drawnOver_ = false;
 };

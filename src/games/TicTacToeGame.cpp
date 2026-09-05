@@ -49,6 +49,11 @@ void TicTacToeGame::resetBoard() {
     turn_ = 'X';
     gameOver_ = false;
     message_ = "X turn";
+    /* A layout change, and it lives here rather than at the call sites so that
+     * no future caller can clear the board and forget. Every mark comes off,
+     * which is the one thing renderDynamic() cannot do -- it only ever ADDS a
+     * mark to an empty cell -- and the red game-over outline has to go too. */
+    markFullDirty();
 }
 
 char TicTacToeGame::winner() const {
@@ -158,29 +163,76 @@ void TicTacToeGame::drawMark(Ui::Renderer& tft, uint8_t cell, char mark) {
     }
 }
 
-void TicTacToeGame::render(AppContext& host) {
+void TicTacToeGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
     Ui::drawButton(tft, RESET_BUTTON, "Reset", YELLOW, Ui::outline(), TFT_BLACK);
-    Ui::drawLabel(tft, Rect{94, 36, 72, 24}, message_, Ui::text(), 2, Align::Center);
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TR_DATUM);
-    char scoreBuf[32];
-    snprintf(scoreBuf, sizeof(scoreBuf), "X %u  O %u  D %u", xWins_, oWins_, draws_);
-    tft.drawString(scoreBuf, GAME_CANVAS_WIDTH - 8, 40, 1);
-    tft.setTextDatum(TL_DATUM);
 
-    tft.fillRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8, BOARD_RECT.h + 8, 8, Ui::panel());
+    /* The board and its grid bars. Their rects come from BOARD_RECT and their
+     * colours are constants -- neither depends on what has been played. */
+    tft.fillRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8,
+                      BOARD_RECT.h + 8, 8, Ui::panel());
     const int16_t cellSize = BOARD_RECT.w / 3;
     for (uint8_t i = 1; i < 3; ++i) {
         tft.fillRect(BOARD_RECT.x + i * cellSize - 2, BOARD_RECT.y, 4, BOARD_RECT.h, TFT_DARKGREY);
         tft.fillRect(BOARD_RECT.x, BOARD_RECT.y + i * cellSize - 2, BOARD_RECT.w, 4, TFT_DARKGREY);
     }
+
     for (uint8_t i = 0; i < 9; ++i) {
-        drawMark(tft, i, cells_[i]);
+        drawnCells_[i] = ' ';
     }
-    if (gameOver_) {
-        tft.drawRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8, BOARD_RECT.h + 8, 8, RED);
+    drawnMessage_ = "";
+    drawnX_ = 0xFFFFFFFF;
+    drawnO_ = 0xFFFFFFFF;
+    drawnD_ = 0xFFFFFFFF;
+    drawnOver_ = false;
+}
+
+void TicTacToeGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    /* One cell per move. A mark is only ever ADDED to an empty cell -- the
+     * board is never cleared in play, only by Reset, which is a full repaint --
+     * so a changed cell never needs erasing first. */
+    for (uint8_t i = 0; i < 9; ++i) {
+        if (cells_[i] == drawnCells_[i]) {
+            continue;
+        }
+        drawMark(tft, i, cells_[i]);
+        drawnCells_[i] = cells_[i];
+    }
+
+    /* "X turn" -> "Draw game" -> "O wins" are different lengths, and drawLabel
+     * paints only what it draws, so the box is cleared first. */
+    if (message_ != drawnMessage_) {
+        tft.fillRect(94, 36, 72, 24, Ui::bg());
+        Ui::drawLabel(tft, Rect{94, 36, 72, 24}, message_, Ui::text(), 2, Align::Center);
+        drawnMessage_ = message_;
+    }
+
+    /* TR_DATUM, so it grows leftwards: "X 10  O 9  D 2" -> "X 0  O 0  D 0"
+     * would leave its old left-hand end behind. The rect is measured leftward
+     * from the right margin. */
+    if (xWins_ != drawnX_ || oWins_ != drawnO_ || draws_ != drawnD_) {
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 150, 38, 150, 12, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TR_DATUM);
+        char scoreBuf[32];
+        snprintf(scoreBuf, sizeof(scoreBuf), "X %u  O %u  D %u",
+                 static_cast<unsigned>(xWins_), static_cast<unsigned>(oWins_),
+                 static_cast<unsigned>(draws_));
+        tft.drawString(scoreBuf, GAME_CANVAS_WIDTH - 8, 40, 1);
+        tft.setTextDatum(TL_DATUM);
+        drawnX_ = xWins_;
+        drawnO_ = oWins_;
+        drawnD_ = draws_;
+    }
+
+    /* Drawn once. Reset is a full repaint, so it never needs taking off. */
+    if (gameOver_ && !drawnOver_) {
+        tft.drawRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8,
+                          BOARD_RECT.h + 8, 8, RED);
+        drawnOver_ = true;
     }
 }
