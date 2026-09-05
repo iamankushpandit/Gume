@@ -748,7 +748,9 @@ src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_boards.py, check_catalog.py,
                           check_frame_rules.py, build_stamp.py,
-                          pack_release.py
+                          pack_release.py, split_render.py,
+                          identify_boards.py + board_registry.json
+                          (which board is on which port, keyed by MAC)
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
                           the site from the same firmware set;

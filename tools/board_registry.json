@@ -1,0 +1,48 @@
+{
+  "_comment": [
+    "Which physical board is which, keyed by the ESP32's factory MAC.",
+    "",
+    "The COM port a board appears on is not a property of the board -- it is",
+    "assigned by Windows in whatever order things were plugged in, and it moves.",
+    "Four boards were identified by hand three times in one session because of",
+    "that. The MAC is burned into eFuse, is unique per chip, and is readable in",
+    "two seconds from a blank board with no firmware on it at all, which is",
+    "exactly the case where the banner cannot help.",
+    "",
+    "So: identify once, record here, never ask again.",
+    "",
+    "'board' is BOARD_NAME as platformio.ini spells it; 'env' is the PlatformIO",
+    "environment to flash it with; 'how' records what the identification was",
+    "actually based on, because 'someone assumed' and 'the panel was looked at'",
+    "are very different levels of confidence and the file should not hide which."
+  ],
+  "boards": {
+    "14:c1:9f:d2:3a:5c": {
+      "board": "Freenove-FNK0104B",
+      "env": "app_fnk0104b",
+      "note": "ESP32-S3, 8MB PSRAM. The only S3 in the set -- chip type alone identifies it.",
+      "how": "chip type + boot banner"
+    },
+    "a4:f0:0f:8e:3b:d0": {
+      "board": "E32R40T",
+      "env": "app_e32r40t",
+      "note": "4-inch ST7796. Different OUI from the two 2.8-inch boards.",
+      "how": "boot banner, then confirmed on the panel by the owner"
+    },
+    "8c:94:df:4e:6e:e8": {
+      "board": "E32R28T-1",
+      "env": "app",
+      "note": "2.8-inch ILI9341.",
+      "how": "boot banner"
+    },
+    "8c:94:df:4e:a9:9c": {
+      "board": "E32R28T-1",
+      "env": "app",
+      "note": "2.8-inch ILI9341. Same OUI as 6e:e8 -- the pair of identical 2.8s.",
+      "how": "boot banner"
+    }
+  },
+  "skip_ports": {
+    "COM3": "Not a board. A component of the laptop itself -- do not open it, do not flash it."
+  }
+}
