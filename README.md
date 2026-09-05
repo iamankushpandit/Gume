@@ -900,7 +900,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.5.0**. See
+Current release: **5.5.0** — the previous release was **5.4.0**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
