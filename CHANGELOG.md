@@ -1,18 +1,32 @@
 # Changelog
 
-## 5.5.0-SNAPSHOT — Unreleased
+## 5.5.0 — 2026-09-05
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.4.0
-release, and About's **This build** page names the branch and commit.
-`release.yml` refuses to publish a tag whose version carries this suffix.
+Sound on a second family of boards, and a console that stops redrawing the
+whole screen to change one thing on it.
 
-The open question this cycle is the one 5.2.0 shipped without an answer to:
-the two ESP32-2432S028 variants are offered from the installer page and have
-never been run on the hardware they name. Confirming or correcting either is
-worth more than any feature here, and the report that does it is welcome from
-anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
-issue template asks for the pin map and its source.
+The 4-inch E32R40T now makes noise. It has no codec -- GPIO26 is an ESP32
+built-in DAC feeding an onboard power amplifier -- so the existing synthesiser
+gained a second output backend rather than a second voice: every cue, and
+Cinnamon's pitched pads, come from the same code the Freenove uses. The spoken
+boot phrase does not survive 8-bit quantisation and is not expected to.
+
+Every screen used to wipe and redraw all of itself for any change at all. A
+full repaint is about 150 KB over SPI and 30 ms of blanking against a 20 ms
+frame budget, and twice that on the 4-inch panel -- so three frame budgets to
+recolour one button. Screens now paint what changed: one card of twenty-four in
+Memory, one cell of eighty-one in Whack-a-Mole, the tiles but not the header
+when the launcher pages.
+
+The open question from 5.2.0 is still open: the two ESP32-2432S028 variants are
+offered from the installer page and have never been run on the hardware they
+name. A report from anybody who owns one is worth more than any feature here --
+`docs/PORTING.md` is the checklist.
+
+Known: the E32R28T-1 and ESP32-2432S028R compile the DAC backend but stay
+silent, because IO4 is declared as the RGB green channel there and the vendor
+pin table calls it the amplifier enable. The two cannot both be true, and it is
+not resolved on hardware yet.
 
 ### Added
 
