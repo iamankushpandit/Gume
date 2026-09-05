@@ -72,7 +72,8 @@ usually is one.
 | Cinnamon | migrate only | Already partial by hand. |
 | Nearby | **converted** | Group E. |
 | SystemInfo | **converted** | Group E. Mechanical -- it was already careful. |
-| Settings, Profiles | analysed | Group E. |
+| Settings | **converted** | Group E. Clears the body region, not the screen. |
+| Profiles | analysed | Group E. |
 | Wi-Fi | deferred | Group E — fix its blocking scan first. |
 | ScreenSaver, Locked | **already correct** | Group F — not Games. The existing exemplars. |
 
