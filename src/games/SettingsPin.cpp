@@ -146,7 +146,20 @@ bool SettingsGame::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
     return false;
 }
 
-void SettingsGame::renderPinPad(GameHost& host, const char* heading) {
+/* THE PAD IS DRAWN IN TWO HALVES, AND THE DIVIDING LINE IS "DOES A DIGIT
+ * CHANGE IT?".
+ *
+ * Typing a digit changes four small circles and nothing else. The heading, the
+ * Back button and all twelve keys are identical before and after. Repainting
+ * them anyway cost a fill of the whole body plus twelve drawButton calls per
+ * keypress, which on this panel is visible as a flash on every tap -- on a
+ * screen where the player is deliberately tapping four times in a row, so it
+ * is the most-noticed flicker in the firmware.
+ *
+ * The heading is chrome rather than content because it only changes between
+ * PIN tasks (Enter new -> Re-enter new), and that transition already asks for
+ * a full repaint. If a third task is ever added, check that it does too. */
+void SettingsGame::renderPinPadChrome(GameHost& host, const char* heading) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
@@ -157,17 +170,6 @@ void SettingsGame::renderPinPad(GameHost& host, const char* heading) {
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TC_DATUM);
     tft.drawString(heading, W / 2, 38, 2);
-
-    /* Dots, not the digits: the PIN is masked. The previous version printed
-     * it in plain text in a box, which defeats the point of having one. */
-    const int16_t dotPitch = 26;
-    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
-    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
-        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
-        const uint16_t fill = i < enteredPinDigits_ ? Ui::success() : Ui::panel();
-        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
-        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
-    }
 
     /* Rows 0-2 are 1-9; row 3 is DEL / 0 / OK. */
     for (uint8_t row = 0; row < PIN_PAD_ROWS; ++row) {
@@ -195,6 +197,29 @@ void SettingsGame::renderPinPad(GameHost& host, const char* heading) {
         }
     }
     tft.setTextDatum(TL_DATUM);
+}
+
+/* The only thing a keypress changes.
+ *
+ * Dots, not the digits: the PIN is masked. The previous version printed it in
+ * plain text in a box, which defeats the point of having one.
+ *
+ * These need no erase and must not be given one. Each is a filled circle drawn
+ * at a fixed centre and radius, so the fill covers its own predecessor exactly
+ * -- including the backwards case, a dot going from filled to empty on DEL.
+ * Clearing a rect around them first would only add a flash of background. */
+void SettingsGame::renderPinDots(GameHost& host) {
+    Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+
+    const int16_t dotPitch = 26;
+    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
+    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
+        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
+        const uint16_t fill = i < enteredPinDigits_ ? Ui::success() : Ui::panel();
+        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
+        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
+    }
 }
 
 void SettingsGame::renderAdminTab(GameHost& host) {

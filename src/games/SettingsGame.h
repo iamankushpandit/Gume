@@ -111,7 +111,11 @@ private:
     void renderPowerTab(GameHost& host);
     void renderSoundTab(GameHost& host);
     void renderAdminTab(GameHost& host);
-    void renderPinPad(GameHost& host, const char* heading);
+    /* Split by "does a digit change it?": the keys, heading and Back are
+     * chrome and painted once; the four dots are the only thing a keypress
+     * touches. See the note in SettingsPin.cpp. */
+    void renderPinPadChrome(GameHost& host, const char* heading);
+    void renderPinDots(GameHost& host);
 
     /* Shared by the unlock screen and the change-PIN flow. Returns true if the
      * touch landed on the pad, so callers can stop looking. */

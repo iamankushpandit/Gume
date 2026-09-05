@@ -418,6 +418,30 @@ it already returns `false` from `renderChrome()`. Phase changes are layout
 changes; within the picker, only the selected row changes. Convert after the
 games.
 
+**The PIN pad is done.** It was the worst single case in the firmware and the
+audit under-rated it: `renderPinEntry()` opened with `Ui::clear()`, and every
+digit called `markFullDirty()`, so a full 320x240 wipe — ~150 KB over SPI, ~30
+ms of blanking — was paid once per keypress on the one screen where the player
+is deliberately tapping four times in a row. It is now split by the question
+this document asks of everything: *does a digit change it?* The heading, the
+Back button and all twelve keys do not, so they are chrome painted once by
+`renderStatic()`; the four dots do, and they are the whole of `renderDynamic()`
+in that phase.
+
+The dots need no erase and must not be given one — each is a filled circle at a
+fixed centre and radius, so the fill covers its predecessor exactly, including
+the backwards case of a dot emptying on DEL or on a rejected PIN. That is the
+disappearing-thing trap not applying, which is worth stating because it usually
+does.
+
+Settings' pad had the same defect and the same fix; it was slightly cheaper
+only because it filled the body rather than the whole screen. Its heading
+varies (Enter new / Re-enter new) and so is chrome that depends on the task —
+safe because every task transition already asks for a full repaint. **If a
+third PIN task is added, check that it does too.**
+
+Still only recorded, not done: a single visibility row in the Games list.
+
 ### WifiGame — leave until last
 
 229 lines of render, 30 `markDirty()` sites, five timers, and a ~4.3 second
