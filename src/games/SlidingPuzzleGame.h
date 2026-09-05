@@ -12,7 +12,10 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. A slide swaps a tile with the gap, so exactly two of the
+     * four, nine or sixteen change. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     Rect tileRect(uint8_t index) const;
@@ -33,5 +36,17 @@ private:
     uint16_t moves_ = 0;
     uint16_t bestMoves_ = 0;
     bool won_ = false;
+
+    /* What is on the panel. Note drawnSize_ as well as the tiles: this is the
+     * one screen whose board geometry is not constant for the life of the
+     * screen -- solving the 2x2 promotes it to 3x3 -- so a size change has to
+     * be a full repaint rather than a tile-by-tile one. */
+    uint8_t drawnTiles_[9] = {};
+    uint8_t drawnSize_ = 0;
+    uint16_t drawnMoves_ = 0xFFFF;
+    uint16_t drawnBest_ = 0xFFFF;
+    bool drawnWon_ = false;
+
+    void drawTile(Ui::Renderer& tft, uint8_t index);
 };
 

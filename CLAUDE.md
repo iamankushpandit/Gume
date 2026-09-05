@@ -381,9 +381,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,386,881 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,387,393 / 3,145,728 bytes,
 **75.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 73,820 / 327,680 (22.5%) -- higher than it was, deliberately: RowList traded
+at 73,836 / 327,680 (22.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.

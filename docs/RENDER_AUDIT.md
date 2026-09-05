@@ -62,7 +62,7 @@ usually is one.
 | WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
 | *quiz screens (19)* | analysed | Group A — same layout, one answer. |
 | TicTacToe | **converted** | Group B. |
-| SlidingPuzzle | analysed | Group B. |
+| SlidingPuzzle | **converted** | Group B. |
 | Maze | **converted** | Group C. |
 | Trace | **analysed — needs a decision** | Group C. See the correction below. |
 | ColorMix, Microku, Sort, OddOneOut, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
