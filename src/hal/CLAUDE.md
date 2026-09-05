@@ -75,7 +75,7 @@ generated a sample at a time from a script of `Segment`s: sine or square with
 an optional linear sweep, band-passed noise, and three formant resonators
 driven either by a monotone impulse train (voiced) or by noise (unvoiced).
 That is a flash decision -- a second of 16-bit 16 kHz mono is 32 KB against a
-budget already at 75.9% -- and it is also what makes a spoken phrase possible
+budget already at 76.0% -- and it is also what makes a spoken phrase possible
 at all. The whole vocabulary plus the phrase is under a kilobyte of const data.
 
 **`playSound()` arms a script; it does not play it.** `tickAudio()` runs once

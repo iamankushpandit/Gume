@@ -12,7 +12,11 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase render. renderStatic() is the clear and the top bar;
+     * renderDynamic() is everything else. Split mechanically by
+     * tools/split_render.py -- see the note in the .cpp. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     enum class Mode : uint8_t {

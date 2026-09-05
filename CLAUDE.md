@@ -381,8 +381,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,388,621 / 3,145,728 bytes,
-**75.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,389,949 / 3,145,728 bytes,
+**76.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 73,860 / 327,680 (22.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
@@ -580,7 +580,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 75.9%. As synthesis it is under a kilobyte.
+  artwork, on a budget already at 76.0%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.

@@ -60,7 +60,7 @@ usually is one.
 | LauncherGame | **converted, verified** | Reference for the pattern. Paging on the 4-inch. |
 | MemoryGame | **converted, verified** | Below. Checked on hardware (2.8-inch). |
 | WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
-| *quiz screens (19)* | analysed | Group A — same layout, one answer. |
+| *quiz screens (14)* | **half split** | Group A. tools/split_render.py did the safe half; the question panel still repaints. |
 | TicTacToe | **converted** | Group B. |
 | SlidingPuzzle | **converted** | Group B. |
 | Maze | **converted** | Group C. |

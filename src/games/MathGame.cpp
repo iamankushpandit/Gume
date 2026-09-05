@@ -182,10 +182,30 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void MathGame::render(AppContext& host) {
+void MathGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
+}
+
+void MathGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    /* Split mechanically, and only half done.
+     *
+     * What this saves is the top bar -- a battery read and five glyphs -- and
+     * the strip of clear above the content, on every repaint that is not a
+     * full one. What it does NOT yet do is leave the question panel alone when
+     * only the answer buttons change, which is the win this screen actually
+     * has: answering recolours four buttons and rewrites one line, and the
+     * question above them does not move.
+     *
+     * Doing that needs the region cleared below to shrink to the parts that
+     * change, and the next-question path to call markFullDirty(). See this
+     * screen's entry in docs/RENDER_AUDIT.md before attempting it: the traps
+     * are text that gets narrower, things that stop being drawn, and
+     * right-aligned text whose stale characters are left at the LEFT end. */
+    tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH,
+                 GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
