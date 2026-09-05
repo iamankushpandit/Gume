@@ -67,7 +67,8 @@ usually is one.
 | Trace | **analysed — needs a decision** | Group C. See the correction below. |
 | Sort | **converted** | Group C. |
 | OddOneOut | **converted** | Group C. First real flash-panel erase. |
-| ColorMix, Microku, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
+| Dice | **converted** | Group C. Was already banded; the band narrows mid-roll. |
+| ColorMix, Microku, CoinFlip | analysed | Group C — timer-driven, higher priority. |
 | About, Scores, GreWords, States, StateFlag, StateMap | **no change needed** | Group D — they only ever full-repaint. |
 | Cinnamon | migrate only | Already partial by hand. |
 | Nearby | **converted** | Group E. |
