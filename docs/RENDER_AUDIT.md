@@ -62,7 +62,8 @@ usually is one.
 | WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
 | MathGame | **converted** | Group A reference. Question panel static, buttons tracked. |
 | Multiplication | **converted** | Group A, follows Math. |
-| *quiz screens (12 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
+| Counting | **converted** | Group A. Up to 21 dots now static. |
+| *quiz screens (11 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
 | TicTacToe | **converted** | Group B. |
 | SlidingPuzzle | **converted** | Group B. |
 | Maze | **converted** | Group C. |

@@ -89,7 +89,9 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
     }
     if (answered_) {
         newQuestion();
-        markDirty();
+        /* A new count means a different number of objects in the panel, which
+         * is static -- only a full repaint replaces it. */
+        markFullDirty();
         return;
     }
     for (uint8_t i = 0; i < 4; ++i) {
@@ -119,39 +121,15 @@ void CountingGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
-}
 
-void CountingGame::renderDynamic(AppContext& host) {
-    Ui::Renderer& tft = host.display();
-    /* Split mechanically, and only half done.
-     *
-     * What this saves is the top bar -- a battery read and five glyphs -- and
-     * the strip of clear above the content, on every repaint that is not a
-     * full one. What it does NOT yet do is leave the question panel alone when
-     * only the answer buttons change, which is the win this screen actually
-     * has: answering recolours four buttons and rewrites one line, and the
-     * question above them does not move.
-     *
-     * Doing that needs the region cleared below to shrink to the parts that
-     * change, and the next-question path to call markFullDirty(). See this
-     * screen's entry in docs/RENDER_AUDIT.md before attempting it: the traps
-     * are text that gets narrower, things that stop being drawn, and
-     * right-aligned text whose stale characters are left at the LEFT end. */
-    tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH,
-                 GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
     tft.setTextColor(Ui::text(), Ui::bg());
-    /* The font-4 question spans roughly 60..260px when centred, and a
-     * right-aligned "Score n/m" at the same y started around 213 -- they
-     * overlapped. Score and streak now share one small line underneath. */
     tft.setTextDatum(TC_DATUM);
     tft.drawString("How many objects?", GAME_CANVAS_WIDTH / 2, 32, 4);
-    tft.setTextColor(Ui::muted(), Ui::bg());
-    char stats[48];
-    snprintf(stats, sizeof(stats), "Score %u/%u   Streak %u   Best %u",
-             score_, rounds_, streak_, bestStreak_);
-    tft.drawString(stats, GAME_CANVAS_WIDTH / 2, 60, 1);
-    tft.setTextColor(Ui::text(), Ui::bg());
 
+    /* The objects belong to the round. There are up to 21 of them, each a
+     * filled circle and an outline, and not one of them moves while the player
+     * is choosing -- so the whole panel is drawn once and a new round, which
+     * changes the count, is a full repaint. */
     const Rect area{18, 76, 284, 98};
     tft.fillRoundRect(area.x, area.y, area.w, area.h, 8, Ui::panel());
     tft.drawRoundRect(area.x, area.y, area.w, area.h, 8, Ui::outline());
@@ -163,28 +141,68 @@ void CountingGame::renderDynamic(AppContext& host) {
         tft.fillCircle(x, y, 10, DOT_COLORS[i % 5]);
         tft.drawCircle(x, y, 10, TFT_DARKGREY);
     }
+    tft.setTextDatum(TL_DATUM);
 
     for (uint8_t i = 0; i < 4; ++i) {
-        uint16_t fill = BLUE;
-        uint16_t text = TFT_WHITE;
+        drawnButton_[i] = 0xFF;
+    }
+    drawnScore_ = 0xFFFF;
+    drawnStreak_ = 0xFFFF;
+    drawnAnswered_ = !answered_;
+    drawnStats_ = false;
+}
+
+void CountingGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    /* One centred line, so it grows both ways from the middle and a shorter
+     * one leaves tails at BOTH ends. Cleared across its whole width first;
+     * it sits at y=60 and the object panel starts at 76, so this cannot reach
+     * the objects. */
+    if (!drawnStats_ || score_ != drawnScore_ || streak_ != drawnStreak_) {
+        tft.fillRect(20, 58, GAME_CANVAS_WIDTH - 40, 12, Ui::bg());
+        char stats[48];
+        snprintf(stats, sizeof(stats), "Score %u/%u   Streak %u   Best %u",
+                 score_, rounds_, streak_, bestStreak_);
+        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.setTextDatum(TC_DATUM);
+        tft.drawString(stats, GAME_CANVAS_WIDTH / 2, 60, 1);
+        tft.setTextDatum(TL_DATUM);
+        drawnScore_ = score_;
+        drawnStreak_ = streak_;
+        drawnStats_ = true;
+    }
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        uint8_t state = 0;
         if (answered_) {
-            if (i == correctButton_) {
-                fill = GREEN;
-                text = TFT_BLACK;
-            } else if (i == selected_) {
-                fill = RED;
-                text = TFT_BLACK;
-            }
+            if (i == correctButton_) state = 1;
+            else if (i == selected_) state = 2;
         }
+        if (state == drawnButton_[i]) {
+            continue;
+        }
+        const uint16_t fill = state == 1 ? GREEN : (state == 2 ? RED : BLUE);
+        const uint16_t text = state == 0 ? TFT_WHITE : TFT_BLACK;
         char label[4];
         snprintf(label, sizeof(label), "%u", options_[i]);
         Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
+        drawnButton_[i] = state;
     }
 
-    if (answered_) {
-        tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is the answer", GAME_CANVAS_WIDTH / 2, 178, 2);
+    /* Stops at 186, two rows above answerRect(0) at 188 -- this runs after the
+     * button loop, so a rect reaching into them would erase rows nothing puts
+     * back. The two wordings are different lengths, hence the clear. */
+    if (answered_ != drawnAnswered_) {
+        tft.fillRect(20, 168, GAME_CANVAS_WIDTH - 40, 18, Ui::bg());
+        if (answered_) {
+            tft.setTextDatum(MC_DATUM);
+            tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
+            tft.drawString(selected_ == correctButton_ ? "Correct - tap for next"
+                                                       : "Green is the answer",
+                           GAME_CANVAS_WIDTH / 2, 178, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
+        drawnAnswered_ = answered_;
     }
-    tft.setTextDatum(TL_DATUM);
 }
