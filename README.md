@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-76.0%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.4%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,389,941 / 3,145,728 bytes (**76.0%**) |
-| RAM | 73,916 / 327,680 bytes (**22.5%**) |
+| Flash | 2,371,997 / 3,145,728 bytes (**75.4%**) |
+| RAM | 72,900 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -900,7 +900,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-In development: **5.6.0-SNAPSHOT** — the last release was **5.5.0**. See
+In development: **5.6.0-SNAPSHOT** — the last release was **5.5.1**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---

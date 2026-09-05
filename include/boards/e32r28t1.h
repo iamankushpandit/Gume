@@ -16,7 +16,26 @@
  * same reasoning as the codec macro above: the DAC path would link the driver
  * into every board if it were not guarded. GUME_HAS_AUDIO_CODEC stays 0. */
 #define GUME_HAS_AUDIO_CODEC 0
-#define GUME_HAS_AUDIO_DAC   1
+/* NO DAC AUDIO ON THIS BOARD: ITS TOUCH CLOCK IS A DAC PAD.
+ *
+ * The XPT2046's bit-banged SPI clock is GPIO25, and GPIO25 is ESP32 DAC
+ * channel 1. Bringing up I2S in I2S_MODE_DAC_BUILT_IN takes the DAC pads over
+ * from the GPIO matrix, so Board::begin() -- which configures touch first and
+ * calls beginAudio() forty lines later -- ended up handing the touch clock to
+ * the audio peripheral. The panel drew perfectly and nothing responded to a
+ * finger.
+ *
+ * That shipped in 5.5.0 and is why 5.5.1 exists. Do not re-enable this without
+ * moving the touch clock, which is a hardware fact and cannot be moved.
+ *
+ * Nothing is lost by it: the speaker on this board never worked anyway, because
+ * IO4 is declared here as the RGB green channel while the vendor pin table
+ * calls it the amplifier enable -- so the amp sat in shutdown. Sound on this
+ * board needs that resolved AND a touch clock that is not a DAC pad.
+ *
+ * BoardConfig.h now refuses this combination at compile time rather than
+ * leaving it to whoever flashes it. */
+#define GUME_HAS_AUDIO_DAC   0
 
 /* HOSYOND / LCDWIKI E32R28T-1 (ESP32-32E) -- the 2.8-inch board Braino! ships
  * on. ILI9341 320x240 TFT, XPT2046 resistive touch on its own bit-banged bus,
