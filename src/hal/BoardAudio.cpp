@@ -2,6 +2,9 @@
 
 #if GUME_HAS_AUDIO_CODEC
 #include <Wire.h>
+#endif
+
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
 #include <driver/i2s.h>
 #include <math.h>
 #endif
@@ -60,7 +63,7 @@
  *     add capture will lose an afternoon to it.
  */
 
-#if GUME_HAS_AUDIO_CODEC
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
 namespace {
 
 constexpr int AUDIO_RATE = 16000;
@@ -104,6 +107,7 @@ int32_t segLeft = 0;         // samples of it still to generate
 bool playing = false;
 
 bool codecUp = false;
+bool dacUp = false;
 bool ampOn = false;
 
 /* A two-pole resonator. The input coefficient is sin(theta) rather than the
@@ -294,6 +298,21 @@ bool nextSample(int16_t& out) {
     return true;
 }
 
+/* When generation finished, so the amplifier can outlive it by the depth of
+ * the DMA. Zero means "still producing". */
+uint32_t ampIdleSinceMs = 0;
+
+/* Generation runs AHEAD of playback, and that is the whole point of the DMA:
+ * tickAudio() fills it as fast as it will take samples, so `playing` goes
+ * false when the last sample has been GENERATED, not when it has been HEARD.
+ * At 6 x 256 frames and 16kHz there is up to 96ms still queued at that moment.
+ *
+ * Dropping the amplifier there cuts the tail off every cue, and on the short
+ * ones -- which is most of the vocabulary -- it cuts off the whole thing: the
+ * sound is sitting in the DMA when the amp stops being able to reproduce it.
+ * So the amp is held for the DMA depth plus margin after generation ends. */
+constexpr uint32_t AMP_TAIL_MS = 150;
+
 void setAmp(bool on) {
     if (BOARD.audio.ampEnablePin == PIN_NONE || ampOn == on) return;
     ampOn = on;
@@ -301,6 +320,7 @@ void setAmp(bool on) {
     digitalWrite(BOARD.audio.ampEnablePin, low ? LOW : HIGH);
 }
 
+#if GUME_HAS_AUDIO_CODEC
 void esWrite(uint8_t reg, uint8_t value) {
     Wire.beginTransmission(static_cast<uint8_t>(BOARD.audio.codecI2cAddress));
     Wire.write(reg);
@@ -344,6 +364,7 @@ void applyCodecVolume(uint8_t percent) {
     if (reg > ES8311_UNITY_REG) reg = ES8311_UNITY_REG;
     esWrite(0x32, static_cast<uint8_t>(reg));
 }
+#endif  /* GUME_HAS_AUDIO_CODEC */
 
 /* Samples that were generated but that the DMA would not take this frame.
  *
@@ -365,7 +386,7 @@ size_t pendingAt = 0;
  * frame would be a use-after-free waiting for someone to write a cue with a
  * local table. */
 void arm(const Segment* segments, uint8_t count) {
-    if (!codecUp || count == 0) return;
+    if ((!codecUp && !dacUp) || count == 0) return;
     if (count > MAX_SEGMENTS) count = MAX_SEGMENTS;
     for (uint8_t i = 0; i < count; ++i) script[i] = segments[i];
     scriptLength = count;
@@ -386,6 +407,7 @@ void arm(const Segment* segments, uint8_t count) {
     pendingAt = 0;
     playing = true;
     startSegment();
+    ampIdleSinceMs = 0;   // producing again: the tail timer restarts from here
     setAmp(true);
 }
 
@@ -612,7 +634,7 @@ void armCue(const Segment (&segments)[N]) {
 }
 
 }  // namespace
-#endif  /* GUME_HAS_AUDIO_CODEC */
+#endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
 
 void Board::beginAudio() {
 #if GUME_HAS_AUDIO_CODEC
@@ -703,6 +725,113 @@ void Board::beginAudio() {
     Serial.printf("[audio] codec 0x%02X up at %d Hz, volume %u%%%s\n",
                   BOARD.audio.codecI2cAddress, AUDIO_RATE, level,
                   soundEnabled() ? "" : " (muted)");
+
+#elif GUME_HAS_AUDIO_DAC
+    /* The amplifier first, and the same way the codec board does it: brought
+     * up OFF, switched on only while something is playing. On this board that
+     * is not a power optimisation so much as the difference between working
+     * and silent -- see e32r40t.h, where IO4 was inherited as an LED channel
+     * and was therefore being driven to its shutdown level on every boot. */
+    if (BOARD.audio.ampEnablePin != PIN_NONE) {
+        pinMode(BOARD.audio.ampEnablePin, OUTPUT);
+        ampOn = true;
+        setAmp(false);
+    }
+
+    /* CYD-family boards drive the speaker straight from an ESP32 built-in DAC.
+     * There is no external codec and no amplifier enable; the I2S peripheral
+     * drives the DAC via I2S_DAC_BUILT_IN mode with no pin configuration of
+     * its own -- which is exactly why the channel has to be chosen correctly,
+     * because nothing here can be told a pin number.
+     *
+     * WHICH CHANNEL IS NOT A FREE CHOICE, AND THE NAMES ARE A TRAP.
+     * From the IDF's own hal/i2s_types.h:
+     *
+     *   I2S_DAC_CHANNEL_RIGHT_EN = 1   maps to DAC channel 1 on GPIO25
+     *   I2S_DAC_CHANNEL_LEFT_EN  = 2   maps to DAC channel 2 on GPIO26
+     *
+     * So "RIGHT" is GPIO25 and "LEFT" is GPIO26 -- the opposite of what the
+     * numbering suggests, since DAC *channel 2* is the *left* enum. Picking
+     * RIGHT for a speaker on GPIO26 puts the audio on the wrong pin and leaves
+     * the speaker silent, which is indistinguishable from a wiring fault on a
+     * board whose speaker path has never been measured. Deriving it from the
+     * profile is what stops that being a matter of memory.
+     *
+     * NOTE: I2S_DAC_BUILT_IN and i2s_set_dac_mode() are IDF 4.4 (Arduino core
+     * 2.0.17) APIs. They were removed in IDF 5.x. If the toolchain version is
+     * ever bumped, this path will need rewriting with the new driver API. */
+    constexpr int8_t DAC1_GPIO = 25;   // ESP32 DAC channel 1
+    constexpr int8_t DAC2_GPIO = 26;   // ESP32 DAC channel 2
+    static_assert(BOARD.audio.speakerPin == DAC1_GPIO ||
+                  BOARD.audio.speakerPin == DAC2_GPIO,
+                  "GUME_HAS_AUDIO_DAC needs a speakerPin on GPIO25 or GPIO26 -- "
+                  "those are the only two ESP32 pins the built-in DAC reaches. "
+                  "A speaker on any other pin needs a different backend, not a "
+                  "different constant here.");
+    const i2s_dac_mode_t dacChannel = (BOARD.audio.speakerPin == DAC2_GPIO)
+                                          ? I2S_DAC_CHANNEL_LEFT_EN
+                                          : I2S_DAC_CHANNEL_RIGHT_EN;
+    i2s_config_t cfg = {};
+    cfg.mode = static_cast<i2s_mode_t>(
+        I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN);
+    cfg.sample_rate = AUDIO_RATE;
+    cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+    cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
+    /* MSB, not PCM_SHORT -- and this was the last thing standing between a
+     * correctly configured DAC and complete silence.
+     *
+     * In I2S_MODE_DAC_BUILT_IN the I2S framer is what latches each sample into
+     * the DAC. PCM short-frame sync does not present the word the way the DAC
+     * expects, so the driver installs, i2s_write() reports every byte
+     * accepted, the logs look perfect and nothing is audible. Confirmed on
+     * hardware with env:audiodiag: the same tone was silent under PCM_SHORT
+     * and audible under MSB, with nothing else changed.
+     *
+     * The codec path above uses STAND_I2S, which is right for the ES8311 and
+     * is a different question -- do not unify them. */
+    cfg.communication_format = I2S_COMM_FORMAT_STAND_MSB;
+    cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
+    cfg.dma_buf_count = 6;
+    cfg.dma_buf_len = 256;
+    cfg.tx_desc_auto_clear = true;
+    cfg.use_apll = false;          /* built-in DAC does not need APLL       */
+
+    if (i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr) != ESP_OK) {
+        Serial.println("[audio] I2S DAC install failed; console will be silent");
+        return;
+    }
+
+    /* Route I2S output to the DAC channel this board's speaker actually hangs
+     * off -- see the mapping above. */
+    if (i2s_set_dac_mode(dacChannel) != ESP_OK) {
+        Serial.println("[audio] I2S DAC mode failed; console will be silent");
+        i2s_driver_uninstall(I2S_NUM_0);
+        return;
+    }
+
+    /* Write mid-scale (0x8000) to silence the DAC output without snapping it
+     * to zero (which would DC-bias the speaker through the ground reference)
+     * or to full scale (which would pop). Mid-scale is the natural "nothing
+     * playing" level for an unsigned 8-bit DAC driven by offset-binary 16-bit
+     * words. The DMA will hold this value until the first real sample arrives,
+     * rather than leaving the DAC in the undefined state from boot. */
+    {
+        const uint16_t silence = 0x8000;
+        uint16_t buf[32];
+        for (int i = 0; i < 32; ++i) buf[i] = silence;
+        size_t written = 0;
+        i2s_write(I2S_NUM_0, buf, sizeof(buf), &written, 0);
+    }
+
+    dacUp = true;
+    /* The pin comes from the profile rather than the format string: this line
+     * is the first thing anybody reads when the speaker is silent, and a log
+     * that names a pin the firmware did not actually drive sends them to a
+     * meter instead of to the mapping above. */
+    Serial.printf("[audio] DAC up at %d Hz (GPIO%d, DAC ch%d), volume %u%%%s\n",
+                  AUDIO_RATE, static_cast<int>(BOARD.audio.speakerPin),
+                  BOARD.audio.speakerPin == DAC2_GPIO ? 2 : 1,
+                  volume(), soundEnabled() ? "" : " (muted)");
 #endif
 }
 
@@ -711,9 +840,13 @@ void Board::tickAudio() {
     if (!codecUp) return;
 
     if (!playing && pendingAt >= pendingLength) {
-        /* Nothing armed and nothing held back. Drop the amplifier so an idle
-         * console is not powering it. */
-        setAmp(false);
+        /* Nothing armed and nothing held back -- but the DMA may still be
+         * playing what was generated. See AMP_TAIL_MS. */
+        if (ampIdleSinceMs == 0) {
+            ampIdleSinceMs = millis();
+        } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
+            setAmp(false);
+        }
         return;
     }
 
@@ -749,11 +882,71 @@ void Board::tickAudio() {
         pendingAt += written;
         if (pendingAt < pendingLength) break;   /* DMA full; finish next frame */
     }
+
+#elif GUME_HAS_AUDIO_DAC
+    if (!dacUp) return;
+
+    if (!playing && pendingAt >= pendingLength) {
+        /* Nothing armed and nothing held back -- but the DMA may still be
+         * playing what was generated, so the amplifier is held for the tail.
+         * See AMP_TAIL_MS. Once it does drop, the DAC keeps the mid-scale
+         * value written by beginAudio(), which is the right idle level. */
+        if (ampIdleSinceMs == 0) {
+            ampIdleSinceMs = millis();
+        } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
+            setAmp(false);
+        }
+        return;
+    }
+
+    /* Same non-blocking DMA pattern as the codec path, but the DAC requires
+     * unsigned 16-bit words in offset-binary format (sample + 32768), not
+     * signed I2S. Volume is applied here via linear amplitude scaling -- there
+     * is no register to write, unlike the ES8311.
+     *
+     * The 16-bit word layout for I2S_DAC_BUILT_IN with RIGHT_LEFT format is:
+     * two 16-bit words per sample pair (L then R), and only the high 8 bits
+     * of each reach the DAC. So we write the DAC value in the high byte and
+     * zeros in the low byte, giving 8 bits of resolution. */
+    const uint8_t vol = cachedVolume_;
+    for (;;) {
+        if (pendingAt >= pendingLength) {
+            if (!playing) break;
+            uint16_t* slots = reinterpret_cast<uint16_t*>(pending);
+            int n = 0;
+            for (; n < 128; ++n) {
+                int16_t sample = 0;
+                if (!nextSample(sample)) break;
+                /* Apply software gain (linear amplitude, not dB), then shift
+                 * to unsigned offset-binary. The DAC only sees the top 8 bits
+                 * of a 16-bit word, so the +32768 offset goes in the high byte.
+                 * This is genuinely linear -- do NOT copy the dB conversion
+                 * from applyCodecVolume(); that is correct for a logarithmic
+                 * register, not for a linear multiplier. */
+                const int32_t scaled = static_cast<int32_t>(sample) * vol / 100;
+                const uint16_t dac = static_cast<uint16_t>(
+                    static_cast<int32_t>(scaled) + 32768);
+                slots[n * 2] = dac;
+                slots[n * 2 + 1] = dac;   // mono on both DAC channels
+            }
+            if (n == 0) break;
+            pendingLength = static_cast<size_t>(n) * 2 * sizeof(uint16_t);
+            pendingAt = 0;
+        }
+
+        size_t written = 0;
+        if (i2s_write(I2S_NUM_0, pending + pendingAt, pendingLength - pendingAt,
+                      &written, 0) != ESP_OK) {
+            break;
+        }
+        pendingAt += written;
+        if (pendingAt < pendingLength) break;   /* DMA full; finish next frame */
+    }
 #endif
 }
 
 void Board::beep(uint16_t frequency, uint16_t ms) {
-#if GUME_HAS_AUDIO_CODEC
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
     if (!soundEnabled()) return;
     const Segment one[] = {tone(frequency, ms, 90)};
     armCue(one);
@@ -770,7 +963,7 @@ void Board::beep(uint16_t frequency, uint16_t ms) {
  * case on purpose -- adding a Sound without a cue is then a build warning
  * rather than a screen that silently makes no noise. */
 void Board::playSound(Sound cue) {
-#if GUME_HAS_AUDIO_CODEC
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
     /* The mute gate is here, at the one door every sound goes through --
      * including the boot phrase and both beeps. A switch labelled Mute that
      * left something still audible would be exactly the kind of half-truth
@@ -828,7 +1021,7 @@ void Board::setSoundEnabled(bool on) {
     cachedSound_ = on;
     soundCached_ = true;
     prefs_.putBool("sndOn", on);
-#if GUME_HAS_AUDIO_CODEC
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
     /* Muting stops what is already sounding rather than letting it finish.
      * The boot phrase is a second and a half long and Mute is exactly the
      * control somebody reaches for while it is playing; "it will stop shortly"
@@ -862,6 +1055,8 @@ void Board::setVolume(uint8_t percent) {
     prefs_.putUChar("sndVol", percent);
 #if GUME_HAS_AUDIO_CODEC
     if (codecUp) applyCodecVolume(percent);
+    /* DAC backend: volume is applied at sample-generation time in tickAudio()
+     * from cachedVolume_, so no register write is needed here. */
 #endif
 }
 

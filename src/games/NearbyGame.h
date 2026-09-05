@@ -28,7 +28,11 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    /* Two-phase. The list wipes and redraws its own content rect, so the win
+     * here is not repainting it at all when nothing on it can have changed.
+     * See docs/RENDER_AUDIT.md. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
     void end(GameHost& host) override;
 
 private:
@@ -48,6 +52,12 @@ private:
     uint32_t lastRefreshMs_ = 0;
     int16_t scrollOffset_ = 0;
     bool scrolling_ = false;
+
+    /* The toggle only changes when somebody presses it or the beacon is turned
+     * off underneath us -- never on the one-second tick. */
+    bool drawnRadio_ = false;
+    bool drawnSharing_ = false;
+    bool drawnToggle_ = false;
     int16_t scrollAnchorY_ = 0;
     int16_t scrollStartOffset_ = 0;
 };

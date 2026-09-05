@@ -8,7 +8,20 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    /* Two-phase, but deliberately NOT a partial-repaint screen -- see the
+     * note above renderStatic() in the .cpp, and its entry in
+     * docs/RENDER_AUDIT.md. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
+
+    /* This screen draws no top bar -- it carries its own wordmark header, and
+     * nothing on it tracks the clock or the battery, so the badge ticks that
+     * make renderChrome() worth having have nothing to update here. The one
+     * chrome event that can reach it is a notification landing on the header,
+     * which is rare enough that a full repaint is the honest answer. Returning
+     * false asks the runtime for exactly that, and keeps the base class from
+     * painting a top bar this screen does not own. */
+    bool renderChrome(GameHost& host) override;
 
 private:
     enum class Phase : uint8_t { Pick, Menu, Rename, Games, PinEntry };

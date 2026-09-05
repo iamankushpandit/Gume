@@ -4,23 +4,39 @@
 
 namespace {
 
-constexpr int16_t DRAW_X = 80;
-constexpr int16_t DRAW_Y = 58;
-constexpr int16_t DRAW_W = 160;
-constexpr int16_t DRAW_H = 132;
+/* EVERY CONTROL LIVES IN A SIDE COLUMN, AND NONE ABOVE OR BELOW THE CANVAS.
+ *
+ * They used to sit in a strip 4px above the tracing area and another 12px
+ * below it. A child tracing the top of a letter runs a finger straight off the
+ * top edge into the mode tabs and lands on a different alphabet mid-stroke;
+ * the same happens at the bottom with Prev and Next. The buttons were sitting
+ * in the natural overshoot of the gesture the game exists to teach.
+ *
+ * Side columns put them where the hand is not. That also frees the strips
+ * above and below, so the canvas grows from 160x132 to 164x160 -- worth having
+ * on its own, because the glyph coordinate space is COORD_MAX square. Mapping
+ * a 200x200 design into 160x132 squashed every letter vertically; 164x160 is
+ * nearly square, so the letters a child copies are the shape they should be. */
+constexpr int16_t DRAW_X = 78;
+constexpr int16_t DRAW_Y = 36;
+constexpr int16_t DRAW_W = 164;
+constexpr int16_t DRAW_H = 160;
 constexpr int16_t COORD_MAX = 200;
 constexpr int16_t WAYPOINT_SPACING = 20;
 constexpr int16_t HIT_RADIUS = 16;
 constexpr uint32_t PULSE_PERIOD_MS = 500;
 
-constexpr Rect PREV_BTN{8,   202, 60, 30};
-constexpr Rect NEXT_BTN{252, 202, 60, 30};
+/* Left column: the three alphabets, then Prev. Right column: Again and Next. */
+constexpr int16_t COL_W = 68;
+constexpr Rect PREV_BTN{4, 160, COL_W, 30};
+constexpr Rect NEXT_BTN{248, 72, COL_W, 26};
 
-constexpr Rect MODE_ABC{38,  32, 50, 22};
-constexpr Rect MODE_abc{92,  32, 50, 22};
-constexpr Rect MODE_123{146, 32, 50, 22};
-constexpr Rect RETRY_BTN{204, 32, 52, 22};
-constexpr Rect TOP_NEXT_BTN{260, 32, 52, 22};
+constexpr Rect MODE_ABC{4,  40, COL_W, 26};
+constexpr Rect MODE_abc{4,  72, COL_W, 26};
+constexpr Rect MODE_123{4, 104, COL_W, 26};
+constexpr Rect RETRY_BTN{248, 40, COL_W, 26};
+/* TOP_NEXT_BTN is gone: it did exactly what NEXT_BTN does, and two buttons
+ * both labelled "Next" was one more thing to hit by accident. */
 
 constexpr AppMetadata TRACE_METADATA = {
     "trace",
@@ -195,10 +211,6 @@ void TraceGame::update(AppContext& host, const TouchPoint& touch) {
             loadGlyph();
             return;
         }
-        if (TOP_NEXT_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            nextGlyph();
-            return;
-        }
         if (PREV_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             previousGlyph();
             return;
@@ -268,7 +280,8 @@ void TraceGame::drawModeTabs(Ui::Renderer& tft) {
     drawTab(MODE_abc, "abc", glyphSet_ == TraceGame::GlyphSet::Lower);
     drawTab(MODE_123, "123", glyphSet_ == TraceGame::GlyphSet::Digit);
     drawTab(RETRY_BTN, "Again", false);
-    drawTab(TOP_NEXT_BTN, "Next", false);
+    drawTab(NEXT_BTN, "Next", false);
+    drawTab(PREV_BTN, "Prev", false);
 }
 
 void TraceGame::drawGuide(Ui::Renderer& tft) {
@@ -368,7 +381,9 @@ void TraceGame::drawProgress(Ui::Renderer& tft) {
 }
 
 void TraceGame::drawCompleteStatus(Ui::Renderer& tft) {
-    constexpr Rect STATUS{82, 196, 156, 21};
+    /* Below the canvas, which now ends at DRAW_Y + DRAW_H, and above the
+     * progress bar at y=222. */
+    constexpr Rect STATUS{82, 198, 156, 21};
     tft.fillRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::success());
     tft.drawRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::outline());
     tft.setTextColor(TFT_BLACK, Ui::success());
@@ -386,10 +401,8 @@ void TraceGame::render(AppContext& host) {
         host.drawTopBar(title());
         drawModeTabs(tft);
 
-        Ui::drawPagerButton(tft, PREV_BTN, "Prev", true);
-        Ui::drawPagerButton(tft, NEXT_BTN, "Next", true);
     } else {
-        tft.fillRect(76, 194, 168, 44, Ui::bg());
+        tft.fillRect(76, 197, 168, 26, Ui::bg());
     }
 
     tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());

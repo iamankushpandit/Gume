@@ -12,7 +12,12 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. This screen invented the pattern -- litDrawn_[] is where the
+     * "track what is on the panel" idea in docs/RENDER_AUDIT.md came from --
+     * so this only moves it onto the base class's flags. Note each half does
+     * its own theme save/force/restore; see the .cpp. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     enum class Phase : uint8_t {
@@ -29,7 +34,6 @@ private:
      * the sequence produced a full-screen flash -- uncomfortable generally and
      * a real risk for anyone photosensitive. We now redraw only the pads whose
      * state actually changed, plus the one-line status strip. */
-    bool fullRedraw_ = true;
     bool litDrawn_[4] = {false, false, false, false};
     String statusDrawn_;
     void appendStep();

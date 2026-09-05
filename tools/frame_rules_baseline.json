@@ -35,7 +35,7 @@
       "heap": 0
     },
     "src/games/CinnamonGame.cpp": {
-      "String": 4,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },
@@ -55,7 +55,7 @@
       "heap": 0
     },
     "src/games/FlagGame.cpp": {
-      "String": 6,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },
@@ -70,7 +70,7 @@
       "heap": 0
     },
     "src/games/MathGame.cpp": {
-      "String": 8,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },
@@ -80,7 +80,7 @@
       "heap": 0
     },
     "src/games/MemoryGame.cpp": {
-      "String": 3,
+      "String": 1,
       "delay": 0,
       "heap": 0
     },
@@ -104,18 +104,8 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/MultiplicationGame.cpp": {
-      "String": 6,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/NumberLineGame.cpp": {
       "String": 7,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/OddOneOutGame.cpp": {
-      "String": 2,
       "delay": 0,
       "heap": 0
     },

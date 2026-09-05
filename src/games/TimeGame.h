@@ -12,7 +12,11 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. The clock face belongs to the question and is static. Note
+     * this screen cannot do the two-button trick the others do -- its prompt
+     * overlaps the lower buttons. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     Rect answerRect(uint8_t index) const;
@@ -26,6 +30,13 @@ private:
     uint16_t answerMinutes_ = 0;
     uint16_t options_[4] = {};
     uint8_t correctButton_ = 0;
+
+    /* What each button shows: 0 unanswered, 1 correct, 2 wrong. */
+    uint8_t drawnButton_[4] = {};
+    uint16_t drawnScore_ = 0xFFFF;
+    uint16_t drawnStreak_ = 0xFFFF;
+    bool drawnAnswered_ = false;
+    bool drawnHeader_ = false;
     uint16_t score_ = 0;
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;

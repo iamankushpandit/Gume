@@ -166,14 +166,19 @@ struct RgbLedProfile {
 
 /* How a board makes a sound, if it can.
  *
- * `speakerPin` is a bare transducer on a GPIO -- what the CYD boards wire, and
- * what this struct used to be able to describe on its own. It is stubbed on
- * every board that has one.
+ * `speakerPin` is a bare transducer on a GPIO -- what the CYD boards wire.
+ * On those boards GPIO26 is ESP32 DAC channel 2, so the I2S peripheral can
+ * drive it directly (I2S_DAC_BUILT_IN) without a codec. GUME_HAS_AUDIO_DAC
+ * selects that backend; GUME_HAS_AUDIO_CODEC selects the ES8311 backend.
+ * Both pull in driver/i2s.h; the codec path additionally needs Wire. Neither
+ * macro is present on a board with no audio path at all.
  *
- * A codec is a different animal: an I2C control channel plus a five-wire I2S
- * data path plus a separate amplifier enable, none of which is a "speaker
- * pin". Describing one as a pin would have meant the firmware toggling a GPIO
- * that does nothing, which is worse than admitting there is no speaker.
+ * `maxVolume` is the ceiling for the volume slider. It lives here because it
+ * is set by listening on real hardware and differs by amplifier: the codec
+ * board's ES8311 + class-D amp peaks at 85, and the bare-pin DAC path is
+ * limited to 100 (pure linear gain -- there is no register to write). A board
+ * without audio sets it to 0; that is guarded in setVolume() so nothing
+ * crashes if the default NVS value exceeds 0 on a boardless build.
  *
  * Unused lines are PIN_NONE, as everywhere else here. `hasCodec()` and
  * `hasSpeaker()` are separate questions and a board may answer no to both. */
@@ -187,6 +192,7 @@ struct AudioProfile {
     int8_t   i2sDataIn;         // codec ADC -> ESP32 (microphone)
     int8_t   ampEnablePin;
     bool     ampEnableActiveLow;
+    uint8_t  maxVolume;         // ceiling for the volume slider (0–100)
 
     constexpr bool hasCodec() const { return codecI2cAddress != 0; }
 };

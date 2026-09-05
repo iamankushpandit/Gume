@@ -12,7 +12,11 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. Within a round the nine shapes never change -- a new round is
+     * a full repaint -- so the only thing moving is the flash panel on its
+     * timer. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     enum class Shape : uint8_t {
@@ -45,6 +49,13 @@ private:
     Difference difference_ = Difference::Color;
     uint8_t oddIndex_ = 0;
     uint16_t score_ = 0;
+
+    /* Whether the flash panel is currently painted. It is the only thing on
+     * this screen that both appears AND disappears without a new round, so it
+     * is the only thing that has to erase itself. */
+    bool drawnFlash_ = false;
+    uint16_t drawnScore_ = 0xFFFF;
+    uint16_t drawnBest_ = 0xFFFF;
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;
     bool flashError_ = false;

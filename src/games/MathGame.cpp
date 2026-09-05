@@ -159,7 +159,10 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (answered_) {
         newQuestion();
-        markDirty();
+        /* A new sum, four new options and the prompt back to "Tap the answer".
+         * That is a layout change -- the equation panel is static, so only a
+         * full repaint replaces it. */
+        markFullDirty();
         return;
     }
 
@@ -182,50 +185,109 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void MathGame::render(AppContext& host) {
+void MathGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Level ") + level(), 10, 35, 2);
-    tft.drawString(String("Correct ") + score_ + "  " + formatSeconds(elapsedSeconds()), 10, 52, 1);
-    tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 10, 35, 2);
-    tft.drawString(bestCorrect_ > 0 ? String("Best ") + bestCorrect_ + " / " + formatSeconds(bestSeconds_) : "Best --", GAME_CANVAS_WIDTH - 10, 52, 1);
-
+    /* The equation belongs to the question, and a new question is a full
+     * repaint -- so this panel is static even though it is not constant. It is
+     * also the largest single block on the screen, which is what made
+     * repainting it to recolour one button worth stopping. */
+    char equation[24];
     const char symbol = operation_ == Operation::Add ? '+' : '-';
-    const String equation = String(left_) + " " + symbol + " " + right_ + " = ?";
+    snprintf(equation, sizeof(equation), "%d %c %d = ?",
+             static_cast<int>(left_), symbol, static_cast<int>(right_));
     tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
     tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
     tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
+    tft.setTextDatum(TL_DATUM);
 
     for (uint8_t i = 0; i < 4; ++i) {
-        uint16_t fill = BLUE;
-        uint16_t text = TFT_WHITE;
-        if (answered_) {
-            if (i == correctButton_) {
-                fill = GREEN;
-                text = TFT_BLACK;
-            } else if (i == selected_) {
-                fill = RED;
-                text = TFT_BLACK;
-            }
+        drawnButton_[i] = 0xFF;   // nothing painted there yet
+    }
+    drawnScore_ = 0xFFFF;
+    drawnStreak_ = 0xFFFF;
+    drawnAnswered_ = !answered_;   // force the feedback line on the first pass
+    drawnHeader_ = false;
+}
+
+void MathGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    /* Four counters, two of them TR_DATUM. Level and the clock only move with
+     * a new question, but Correct and Streak change on an answer, and Streak
+     * resets to 0 -- so the pair is cleared before either is written and the
+     * right-hand rect is measured leftward from the margin, where a shrinking
+     * right-aligned string leaves its stale characters. */
+    if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_) {
+        tft.fillRect(10, 33, 150, 36, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 10 - 170, 33, 170, 36, Ui::bg());
+        char buf[32];
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(level()));
+        tft.drawString(buf, 10, 35, 2);
+        snprintf(buf, sizeof(buf), "Correct %u  %s", static_cast<unsigned>(score_),
+                 formatSeconds(elapsedSeconds()).c_str());
+        tft.drawString(buf, 10, 52, 1);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "Streak %u", static_cast<unsigned>(streak_));
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 35, 2);
+        if (bestCorrect_ > 0) {
+            snprintf(buf, sizeof(buf), "Best %u / %s", static_cast<unsigned>(bestCorrect_),
+                     formatSeconds(bestSeconds_).c_str());
+        } else {
+            snprintf(buf, sizeof(buf), "Best --");
         }
-        Ui::drawButton(tft, answerRect(i), String(options_[i]), fill, TFT_DARKGREY, text, false, 4);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 52, 1);
+        tft.setTextDatum(TL_DATUM);
+        drawnScore_ = score_;
+        drawnStreak_ = streak_;
+        drawnHeader_ = true;
     }
 
-    if (answered_) {
-        tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Green is correct - tap next", GAME_CANVAS_WIDTH / 2, 136, 2);
-    } else {
-        tft.setTextColor(YELLOW, Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Tap the answer", GAME_CANVAS_WIDTH / 2, 136, 2);
+    /* Only the buttons whose colour changed. drawButton fills its rect
+     * opaquely, so a recolour erases what was there and none of this needs a
+     * clear of its own. */
+    for (uint8_t i = 0; i < 4; ++i) {
+        uint8_t state = 0;
+        if (answered_) {
+            if (i == correctButton_) state = 1;
+            else if (i == selected_) state = 2;
+        }
+        if (state == drawnButton_[i]) {
+            continue;
+        }
+        const uint16_t fill = state == 1 ? GREEN : (state == 2 ? RED : BLUE);
+        const uint16_t text = state == 0 ? TFT_WHITE : TFT_BLACK;
+        char label[12];
+        snprintf(label, sizeof(label), "%d", static_cast<int>(options_[i]));
+        Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
+        drawnButton_[i] = state;
     }
-    tft.setTextDatum(TL_DATUM);
+
+    /* "Tap the answer" and "Green is correct - tap next" are different lengths,
+     * so the line is cleared before either is written. */
+    if (answered_ != drawnAnswered_) {
+        /* Stops at 143, one row above answerRect(0) at y=144. A 20px rect from
+         * 126 would reach into the top two buttons and erase two rows of them
+         * -- and this block runs AFTER the button loop, so nothing would put
+         * them back on a repaint where the buttons themselves had not changed. */
+        tft.fillRect(20, 125, GAME_CANVAS_WIDTH - 40, 18, Ui::bg());
+        tft.setTextDatum(MC_DATUM);
+        if (answered_) {
+            tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
+            tft.drawString(selected_ == correctButton_ ? "Correct - tap for next"
+                                                       : "Green is correct - tap next",
+                           GAME_CANVAS_WIDTH / 2, 136, 2);
+        } else {
+            tft.setTextColor(YELLOW, Ui::bg());
+            tft.drawString("Tap the answer", GAME_CANVAS_WIDTH / 2, 136, 2);
+        }
+        tft.setTextDatum(TL_DATUM);
+        drawnAnswered_ = answered_;
+    }
 }

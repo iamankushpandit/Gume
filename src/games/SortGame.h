@@ -12,7 +12,10 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. Tapping a tile locks one of up to six; the flash timer
+     * touches one. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     Rect tileRect(uint8_t index) const;
@@ -31,6 +34,12 @@ private:
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;
     int8_t flashTile_ = -1;
+
+    /* What is on the panel: locked state and flash state per tile, packed. */
+    uint8_t drawnTile_[6] = {};
+    uint16_t drawnScore_ = 0xFFFF;
+    uint16_t drawnBest_ = 0xFFFF;
+    bool drawnSorted_ = false;
     bool flashError_ = false;
     uint32_t flashUntil_ = 0;
 };
