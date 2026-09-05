@@ -1,5 +1,30 @@
 # Changelog
 
+## 5.6.0-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.5.0
+release, and About's **This build** page names the branch and commit.
+`release.yml` refuses to publish a tag whose version carries this suffix.
+
+Two things 5.5.0 left open, both worth more than a feature:
+
+The **E32R28T-1 and ESP32-2432S028R are silent** even though they compile the
+DAC audio backend. IO4 is declared as the RGB green channel in their board
+profiles while the vendor pin table calls it the amplifier enable, and both
+cannot be true. Whatever drives IO4 as an LED holds the amplifier in shutdown,
+exactly as it did on the 4-inch before that board was fixed. It needs a meter
+or one test build, not an argument.
+
+The **two ESP32-2432S028 variants have still never been run** on the hardware
+they name, and are still offered from the installer page. That has been open
+since 5.2.0.
+
+Also outstanding, and recorded in `docs/RENDER_AUDIT.md`: nine quiz screens
+carry only the mechanical half of the render split and still redraw their whole
+body on a tap, and the Wi-Fi keyboard repaints thirty keys to change one
+character of a password.
+
 ## 5.5.0 — 2026-09-05
 
 Sound on a second family of boards, and a console that stops redrawing the
