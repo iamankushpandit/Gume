@@ -114,11 +114,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/OddOneOutGame.cpp": {
-      "String": 2,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/ProfileGame.h": {
       "String": 1,
       "delay": 0,

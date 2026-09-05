@@ -189,9 +189,20 @@ static const int16_t z_s0[] = {40,50, 150,50, 40,160, 150,160};
 static const TraceGame::Stroke z_strokes[] = {{z_s0,4}};
 
 // --- Digits 0-9 (unchanged) ---
-static const int16_t D0_s0[] = {100,10, 50,10, 20,50, 20,160, 50,200, 150,200, 180,160, 180,50, 150,10, 100,10};
-static const int16_t D0_s1[] = {150,40, 50,170};
-static const TraceGame::Stroke D0_strokes[] = {{D0_s0,10},{D0_s1,2}};
+/* THE DIGIT ZERO IS A PLAIN NARROW OVAL, NOT A SLASHED ONE.
+ *
+ * It used to be O_s0 exactly -- the same points, the same width -- with a
+ * diagonal stroke added through it. That is the programmer's zero, and it is
+ * the wrong thing to put in front of a child learning to form letters: nobody
+ * is taught to draw a line through a nought, and a tracing game teaches the
+ * shape it draws.
+ *
+ * Handwriting separates them by WIDTH instead. A letter O is round and fills
+ * its space; a digit zero is a narrow ellipse. So this is O's outline pulled
+ * in to x 50..150 against O's 20..180, over the same height, which is the
+ * distinction a child is actually taught to make. */
+static const int16_t D0_s0[] = {100,10, 75,15, 50,60, 50,150, 75,195, 125,195, 150,150, 150,60, 125,15, 100,10};
+static const TraceGame::Stroke D0_strokes[] = {{D0_s0,10}};
 
 static const int16_t D1_s0[] = {60,50, 100,10, 100,200};
 static const int16_t D1_s1[] = {60,200, 140,200};
@@ -245,7 +256,7 @@ const TraceGame::Glyph TRACE_GLYPHS[] = {
     {'v', v_strokes, 1}, {'w', w_strokes, 1}, {'x', x_strokes, 2},
     {'y', y_strokes, 2}, {'z', z_strokes, 1},
     // Digits
-    {'0', D0_strokes, 2}, {'1', D1_strokes, 2}, {'2', D2_strokes, 1},
+    {'0', D0_strokes, 1}, {'1', D1_strokes, 2}, {'2', D2_strokes, 1},
     {'3', D3_strokes, 2}, {'4', D4_strokes, 1}, {'5', D5_strokes, 1},
     {'6', D6_strokes, 1}, {'7', D7_strokes, 1}, {'8', D8_strokes, 2},
     {'9', D9_strokes, 1},

@@ -36,7 +36,11 @@ private:
     /* What is on the panel. A cell is repainted only when its mark changes,
      * which on this screen means exactly one cell per move. */
     char drawnCells_[9] = {};
-    String drawnMessage_;
+    /* A fixed buffer, not a String. message_ is one already -- that is the
+     * screen's own long-standing debt -- but a SECOND one rewritten on every
+     * message change is heap churn the memory rule exists to refuse, and
+     * check_frame_rules.py caught it as soon as it was written. */
+    char drawnMessage_[16] = {0};
     uint32_t drawnX_ = 0xFFFFFFFF;
     uint32_t drawnO_ = 0xFFFFFFFF;
     uint32_t drawnD_ = 0xFFFFFFFF;
