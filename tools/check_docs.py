@@ -321,7 +321,39 @@ def check_site(problems):
                            "workflow never builds it -- its manifest would "
                            "point at binaries that do not exist" % env)
 
+    check_older_versions(problems)
     check_site_screens(problems)
+
+
+def check_older_versions(problems):
+    """The installer must keep being able to offer more than the newest build.
+
+    5.5.0 shipped a defect that made two boards untouchable, and the page could
+    install nothing but that build -- there was no way back for anyone holding
+    the hardware. Three pieces have to stay joined up for that not to recur,
+    and each of them is a plausible thing for a later change to drop quietly,
+    because dropping any one of them leaves a page that still generates, still
+    deploys and still flashes the current version perfectly well. The symptom
+    only appears on the day somebody needs an older one.
+    """
+    workflow = read(".github", "workflows", "pages.yml")
+    template = read("site", "index.template.html")
+    generator = read("tools", "gen_site.py")
+
+    if "fetch_release_firmware.py" not in workflow:
+        fail(problems, "the Pages workflow no longer runs "
+                       "tools/fetch_release_firmware.py -- the installer would "
+                       "silently drop back to offering only the newest build")
+
+    if 'id="release"' not in template:
+        fail(problems, "site/index.template.html has no version selector "
+                       "(id=\"release\") -- older releases would be published "
+                       "and unreachable")
+
+    if "cached_releases" not in generator:
+        fail(problems, "gen_site.py no longer reads the cached release index -- "
+                       "tools/fetch_release_firmware.py would download binaries "
+                       "the site never publishes")
 
 
 def check_site_screens(problems):
