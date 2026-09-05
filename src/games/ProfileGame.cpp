@@ -295,12 +295,12 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
         }
         if (gamesPrevRect(H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && gameScroll_ > 0) {
             gameScroll_ = static_cast<uint8_t>(gameScroll_ >= visible ? gameScroll_ - visible : 0);
-            markDirty(); return;
+            markFullDirty(); return;
         }
         if (gamesNextRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
             gameScroll_ + visible < playableAppCount()) {
             gameScroll_ = static_cast<uint8_t>(gameScroll_ + visible);
-            markDirty(); return;
+            markFullDirty(); return;
         }
         for (uint8_t row = 0; row < visible; ++row) {
             const uint8_t gi = gameScroll_ + row;
@@ -320,7 +320,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
                 const AppDefinition& app = playableAppAt(gi);
                 board.setGameVisibleFor(app.launcherIndex(), menuFor_,
                     !board.gameVisibleFor(app.launcherIndex(), menuFor_, app.defaultVisible()));
-                markDirty(); return;
+                markFullDirty(); return;
             }
         }
         return;
@@ -347,7 +347,13 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
 
             if (!ok) {
                 board.beepError();
-                markDirty();
+                /* The entered digits have just been reset, so the dots have to
+                 * go. renderPinEntry() clears the panel itself, so markDirty()
+                 * happened to work -- but this screen is uniformly
+                 * full-repaint now, and a partial that only works because
+                 * something else clears is the kind of coupling that breaks
+                 * the next time either side moves. */
+                markFullDirty();
                 return;
             }
             board.beepOk();
@@ -390,7 +396,7 @@ void ProfileGame::appendPinDigit(uint8_t digit) {
     if (adminPinDigitCount_ < PIN_LENGTH) {
         adminPinAttempt_ = adminPinAttempt_ * 10 + digit;
         adminPinDigitCount_++;
-        markDirty();
+        markFullDirty();
     }
 }
 
@@ -398,7 +404,7 @@ void ProfileGame::deletePinDigit() {
     if (adminPinDigitCount_ > 0) {
         adminPinAttempt_ /= 10;
         adminPinDigitCount_--;
-        markDirty();
+        markFullDirty();
     }
 }
 
@@ -462,7 +468,26 @@ bool ProfileGame::renderChrome(GameHost& host) {
     return false;   // see the header -- nothing here to repaint in isolation
 }
 
-void ProfileGame::render(GameHost& host) {
+/* PROFILES IS A FULL-REPAINT SCREEN, ON PURPOSE.
+ *
+ * It has five phases with different layouts, it carries the admin PIN pad, and
+ * it is the first screen the device shows at boot -- so a stale row here is
+ * worse than anywhere else in the firmware, and there is nothing to be gained
+ * for it: nothing on this screen is driven by a timer and nobody is waiting on
+ * a tap. Its three partial repaints were a page of the games list scrolling
+ * (every row changes), a visibility toggle, and a PIN digit; all three now ask
+ * for a full repaint, which is exactly what render() already did for them by
+ * opening with Ui::clear().
+ *
+ * So the split here is a migration onto the base class's methods and not an
+ * optimisation. The two that could be made partial later -- the PIN dots and a
+ * single visibility row -- are recorded in the audit rather than attempted on
+ * the screen where getting it wrong is least acceptable. */
+void ProfileGame::renderStatic(GameHost& host) {
+    Ui::clear(host.display());
+}
+
+void ProfileGame::renderDynamic(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
@@ -473,8 +498,6 @@ void ProfileGame::render(GameHost& host) {
         renderPinEntry(host);
         return;
     }
-
-    Ui::clear(tft);
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TC_DATUM);
