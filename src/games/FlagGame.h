@@ -24,9 +24,10 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    /* Two-phase render. renderStatic() is the clear and the top bar;
-     * renderDynamic() is everything else. Split mechanically by
-     * tools/split_render.py -- see the note in the .cpp. */
+    /* Two-phase. The flag is a 160x120 scaled blit and it does NOT change when
+     * the round moves on to the capital bonus -- same country, same flag -- so
+     * it belongs to the question rather than to the phase. See
+     * docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
     void end(AppContext& host) override;
@@ -41,6 +42,17 @@ private:
 
     static constexpr uint8_t OPTION_COUNT = 4;
     static constexpr uint8_t RECENT_COUNT = 8;
+
+    /* What is on the panel. drawnCapital_ matters as much as the button
+     * states: moving from the country round to the capital bonus keeps every
+     * button in place and changes every LABEL, which a fill-colour comparison
+     * alone would miss. */
+    uint8_t drawnBtn_[OPTION_COUNT] = {};
+    bool drawnCapital_ = false;
+    bool drawnPrompt_ = false;
+    uint16_t drawnScore_ = 0xFFFF;
+    uint16_t drawnRounds_ = 0xFFFF;
+    uint16_t drawnCapBonus_ = 0xFFFF;
 
     Rect answerRect(uint8_t i) const;
     Rect tierRect() const;
