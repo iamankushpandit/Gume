@@ -54,7 +54,7 @@ const char* CinnamonGame::title() const {
 }
 
 void CinnamonGame::begin(AppContext& host) {
-    fullRedraw_ = true;
+    markFullDirty();
     statusDrawn_ = "";
     bestScore_ = static_cast<uint16_t>(host.getScore(cinnamonAppMetadata().score->bestKey, 0));
     length_ = 0;
@@ -193,7 +193,7 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
         litPad_ = pad;
         host.pulseRgb(255, 0, 0, 600);
         host.playSound(Sound::GameOver);
-        fullRedraw_ = true;   // the failure line needs a clean background
+        markFullDirty();   // the failure line needs a clean background
     }
     markDirty();
 }
@@ -218,36 +218,52 @@ void CinnamonGame::drawPad(Ui::Renderer& tft, uint8_t index, bool lit) const {
     }
 }
 
-void CinnamonGame::render(AppContext& host) {
+/* CINNAMON ALWAYS RENDERS LIGHT, AND EACH HALF HAS TO SAY SO SEPARATELY.
+ *
+ * The theme is global state in Ui, and the two halves are two calls: on a
+ * partial repaint renderStatic() does not run at all, so a save/force in one
+ * and a restore in the other would leave the rest of the firmware drawing in
+ * Cinnamon's theme. Each brackets its own drawing instead. */
+void CinnamonGame::renderStatic(AppContext& host) {
     const Ui::Theme savedTheme = Ui::currentTheme();
-    Ui::setTheme(Ui::Theme::Light);          // Cinnamon always renders light
+    Ui::setTheme(Ui::Theme::Light);
     Ui::Renderer& tft = host.display();
 
-    if (fullRedraw_) {
-        Ui::clear(tft);
-        host.drawTopBar(title());
-        tft.setTextColor(Ui::text(), Ui::bg());
-        tft.setTextDatum(TL_DATUM);
-        tft.drawString(String("Score ") + score_, 10, 36, 2);
-        tft.setTextDatum(TR_DATUM);
-        tft.drawString(String("Best ") + bestScore_, GAME_CANVAS_WIDTH - 10, 36, 2);
-        for (uint8_t i = 0; i < 4; ++i) {
-            const bool lit = (litPad_ == i) ||
-                             (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
+    Ui::clear(tft);
+    host.drawTopBar(title());
+    tft.setTextColor(Ui::text(), Ui::bg());
+    tft.setTextDatum(TL_DATUM);
+    char buf[20];
+    snprintf(buf, sizeof(buf), "Score %u", static_cast<unsigned>(score_));
+    tft.drawString(buf, 10, 36, 2);
+    tft.setTextDatum(TR_DATUM);
+    snprintf(buf, sizeof(buf), "Best %u", static_cast<unsigned>(bestScore_));
+    tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 36, 2);
+    for (uint8_t i = 0; i < 4; ++i) {
+        const bool lit = (litPad_ == i) ||
+                         (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
+        drawPad(tft, i, lit);
+        litDrawn_[i] = lit;
+    }
+    statusDrawn_ = "";
+    tft.setTextDatum(TL_DATUM);
+    Ui::setTheme(savedTheme);
+}
+
+void CinnamonGame::renderDynamic(AppContext& host) {
+    const Ui::Theme savedTheme = Ui::currentTheme();
+    Ui::setTheme(Ui::Theme::Light);
+    Ui::Renderer& tft = host.display();
+
+    /* Only the pads that actually changed state get touched -- and on a full
+     * paint renderStatic() has just set litDrawn_[] to what it drew, so this
+     * loop correctly finds nothing to do. */
+    for (uint8_t i = 0; i < 4; ++i) {
+        const bool lit = (litPad_ == i) ||
+                         (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
+        if (lit != litDrawn_[i]) {
             drawPad(tft, i, lit);
             litDrawn_[i] = lit;
-        }
-        statusDrawn_ = "";
-        fullRedraw_ = false;
-    } else {
-        // Only the pads that actually changed state get touched.
-        for (uint8_t i = 0; i < 4; ++i) {
-            const bool lit = (litPad_ == i) ||
-                             (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
-            if (lit != litDrawn_[i]) {
-                drawPad(tft, i, lit);
-                litDrawn_[i] = lit;
-            }
         }
     }
 
