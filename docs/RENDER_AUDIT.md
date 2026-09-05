@@ -10,6 +10,11 @@ A screen whose honest answer is "a full repaint is correct here" is a valid
 result, recorded with its reason. What is not acceptable is converting a screen
 without having asked.
 
+**A conversion is not done until it has been seen on a panel.** Every defect
+this refactor can introduce -- a trail, a stale digit, a mark left on a cell it
+has moved off -- compiles cleanly and passes every checker. The build tells you
+nothing about whether it worked.
+
 ## The method
 
 Three questions, in this order.
@@ -52,9 +57,9 @@ usually is one.
 
 | Screen | State | Notes |
 |---|---|---|
-| LauncherGame | **converted** | Reference for the pattern. |
-| MemoryGame | **converted** | Below. |
-| WhackAMoleGame | **converted** | Below. Worst offender found so far. |
+| LauncherGame | **converted, verified** | Reference for the pattern. Paging on the 4-inch. |
+| MemoryGame | **converted, verified** | Below. Checked on hardware (2.8-inch). |
+| WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
 | *quiz screens (19)* | analysed | Group A — same layout, one answer. |
 | TicTacToe, SlidingPuzzle | analysed | Group B — boards. |
 | ColorMix, Microku, Sort, OddOneOut, Maze, Trace, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
