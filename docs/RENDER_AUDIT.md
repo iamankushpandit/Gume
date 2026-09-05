@@ -54,7 +54,7 @@ usually is one.
 |---|---|---|
 | LauncherGame | **converted** | Reference for the pattern. |
 | MemoryGame | **converted** | Below. |
-| WhackAMoleGame | analysed | Below. Worst offender found so far. |
+| WhackAMoleGame | **converted** | Below. Worst offender found so far. |
 | *(29 others)* | not started | |
 
 ---
@@ -145,7 +145,7 @@ showing the wrong face.
 
 ---
 
-## WhackAMoleGame — analysed, not yet converted
+## WhackAMoleGame — converted
 
 **The worst case found so far, and the first one that is not paced by the
 player.** The grid is `GRID * GRID` where `GRID = 9` — **81 cells** of 20x20 —
