@@ -62,6 +62,7 @@ usually is one.
 | Cinnamon | migrate only | Already partial by hand. |
 | Settings, SystemInfo, Profiles, Nearby | analysed | Group E. |
 | Wi-Fi | deferred | Group E — fix its blocking scan first. |
+| ScreenSaver, Locked | **already correct** | Group F — not Games. The existing exemplars. |
 
 ---
 
@@ -424,3 +425,78 @@ rows that vanish need erasing, or the list needs a full repaint whenever its
    done. Pay off the `String` churn at the same time.
 5. **Settings, SystemInfo, Profiles, Nearby.**
 6. **Wi-Fi**, after its blocking scan is fixed.
+
+---
+
+# Group F — the views that are not screens
+
+`View::ScreenSaver` and `View::Locked` are not `Game` subclasses and have no
+`render()`, so they fall outside every sweep of `src/games/`. They are also the
+two things on this device that draw *continuously* for the longest, so leaving
+them out would have been the worst possible omission.
+
+Both are **already partial**, and both were written that way deliberately. They
+are the existing exemplars, not work items.
+
+## ScreenSaver — read this before converting anything else
+
+`BrainoApp::renderScreenSaver()` is the best worked example of partial redraw in
+the tree, and every technique the rest of this audit prescribes is already in
+it. It runs at ~25fps for hours; a full repaint per frame was never an option.
+
+What it does, and what to copy:
+
+- **Clears once.** `fillScreen(TFT_BLACK)` happens only under
+  `!ssav_initialized_`. Nothing else ever wipes the panel.
+- **Erase-then-move-then-draw.** The paddles and the ball are filled with black
+  at their *current* positions, then the physics advances, then they are drawn
+  at the new ones. This is the answer to "a moving element leaves a trail",
+  written out plainly.
+- **It tracks the previous position of a thing that moves independently.**
+  `ssav_textCy_` holds where the bobbing wordmark was last frame, and the band is
+  erased at *that* y before the text is drawn at the new one. `-1` means "not
+  drawn yet". This is exactly the `drawnFace_[]` / `drawnCell_[]` idea, one
+  scalar instead of an array.
+- **It already knows about the variable-width trap**, and says so in a comment:
+  the battery badge is cleared to `Ui::batteryBadgeWidth()` rather than a fixed
+  24px, because *"a fixed 24px wipe would leave the tail of a wider one behind
+  as the ball goes past."* That is the shrinking-text trap, found and fixed here
+  before this audit existed.
+
+**The one thing it does redraw needlessly:** the dashed centre line, about
+seventeen `fillRect`s, every frame. It never moves and nothing erases it — it is
+repainted because the ball and the text band punch holes through it. Repainting
+only the segments those two erased would remove it from the frame, but the win
+is small and the risk of an off-by-one leaving a gap in the net is real. Low
+priority; note it and leave it.
+
+**Do not "convert" this screen.** It has no `Game` lifecycle to split, and its
+structure is already the target.
+
+## Locked
+
+Also already partial, by the same reasoning and with the same shape:
+`lockFullPaint_` gates the header and the chrome, and the hold-progress bar is
+the only thing repainted per frame. `CLAUDE.md` documents why — the wordmark and
+battery badge are painted once because this screen is up for `LOCK_TIMEOUT_MS`
+rather than for hours, so unlike the saver it does not need to move anything to
+avoid burn-in.
+
+It also carries a warning worth repeating here, because it applies to every
+screen in this audit: **it resets the viewport on entry**, because it owns the
+panel and must not inherit a clip from whatever drew before it. `SystemInfoGame`
+is the screen that can leave one behind.
+
+**No work needed.** Migrating `lockFullPaint_` to the base class's
+`needsFullRender()` would be tidy but is not a redraw change, and the lock screen
+is not a `Game`, so it has no base class flag to migrate to.
+
+## Coverage
+
+With these two, every drawing path in the firmware is accounted for:
+
+- 31 playable games — Groups A, B, C, D, plus Memory and Whack-a-Mole converted
+- 7 system apps — Groups D and E
+- the launcher — converted, reference
+- the screen saver and the lock screen — this group, already correct
+- the top bar and notification banner — `Game::renderChrome()`, done separately
