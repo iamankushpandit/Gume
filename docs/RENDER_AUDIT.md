@@ -71,7 +71,8 @@ usually is one.
 | About, Scores, GreWords, States, StateFlag, StateMap | **no change needed** | Group D — they only ever full-repaint. |
 | Cinnamon | migrate only | Already partial by hand. |
 | Nearby | **converted** | Group E. |
-| Settings, SystemInfo, Profiles | analysed | Group E. |
+| SystemInfo | **converted** | Group E. Mechanical -- it was already careful. |
+| Settings, Profiles | analysed | Group E. |
 | Wi-Fi | deferred | Group E — fix its blocking scan first. |
 | ScreenSaver, Locked | **already correct** | Group F — not Games. The existing exemplars. |
 
