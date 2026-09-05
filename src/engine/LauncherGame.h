@@ -26,4 +26,15 @@ private:
     void drawHeader(GameHost& host);
 
     uint8_t page_ = 0;
+
+    /* Whether each slot currently has a tile BUTTON painted in it, as opposed
+     * to bare background. renderDynamic() skips the button chrome on a content
+     * change because a tile's frame is identical from page to page -- but that
+     * is only true of a slot that already has one. A slot that was empty on the
+     * previous page has no frame to reuse, and drawing only its interior leaves
+     * a bare rectangle with no rounded edge, border or shadow.
+     *
+     * Six tiles in landscape, four in portrait; eight is room to spare. */
+    static constexpr uint8_t MAX_TILES = 8;
+    bool slotHasButton_[MAX_TILES] = {};
 };

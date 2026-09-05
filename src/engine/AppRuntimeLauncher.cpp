@@ -260,6 +260,10 @@ bool LauncherGame::renderChrome(GameHost& host) {
 void LauncherGame::renderStatic(GameHost& host) {
     Ui::clear(host.display());
     drawHeader(host);
+    /* The panel has just been wiped, so no slot has a frame on it any more. */
+    for (uint8_t i = 0; i < MAX_TILES; ++i) {
+        slotHasButton_[i] = false;
+    }
 }
 
 /* The tile grid and the pager. This is what next/previous changes, and it is
@@ -336,6 +340,9 @@ void LauncherGame::renderDynamic(GameHost& host) {
              * player is no longer on. */
             const Rect empty = LauncherLayout::tileRect(slot, mode, lW, lH);
             tft.fillRect(empty.x, empty.y, empty.w, empty.h, Ui::bg());
+            if (slot < MAX_TILES) {
+                slotHasButton_[slot] = false;
+            }
             continue;
         }
         const AppDefinition& entry = host.launcherEntry(index);
@@ -356,8 +363,18 @@ void LauncherGame::renderDynamic(GameHost& host) {
          * top. The erase is not optional: glyph widths and icon shapes differ
          * between entries, so drawing the new content over the old leaves
          * fragments of it behind. */
-        if (fullPaint) {
+        /* The frame is only reusable if there IS one. A slot that was empty on
+         * the page before this holds bare background, so skipping the chrome
+         * would leave a square of tile colour with no rounded edge, no border
+         * and no shadow -- which is what "the tiles overlap" looks like. The
+         * last page is a partial one whenever the app count is not a multiple
+         * of the page size, so paging to the end and back is all it takes. */
+        const bool hasFrame = (slot < MAX_TILES) && slotHasButton_[slot];
+        if (fullPaint || !hasFrame) {
             Ui::drawButton(tft, r, "", fill, TFT_DARKGREY, TFT_WHITE);
+            if (slot < MAX_TILES) {
+                slotHasButton_[slot] = true;
+            }
         } else {
             tft.fillRect(static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2),
                          static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4),
