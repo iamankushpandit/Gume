@@ -1,5 +1,32 @@
 # Changelog
 
+## 5.5.1 — 2026-09-05
+
+**Fixes a 5.5.0 defect that made the two 2.8-inch boards untouchable.** If you
+flashed 5.5.0 to an E32R28T-1 or an ESP32-2432S028R, the screen drew correctly
+and nothing responded to a finger. Flash this.
+
+GPIO25 is ESP32 DAC channel 1, and it is also the bit-banged SPI clock for the
+XPT2046 resistive touch controller on both of those boards. 5.5.0 enabled the
+built-in DAC audio backend on them; bringing I2S up in I2S_MODE_DAC_BUILT_IN
+routes the DAC subsystem onto both of its pads and takes them off the GPIO
+matrix. Narrowing the channel with `i2s_set_dac_mode()` picks which pad carries
+samples, not which pads are claimed. `Board::begin()` configures touch and then
+calls `beginAudio()` forty lines later, so audio took the touch clock.
+
+Nothing is lost by turning it off there: the speaker on those boards never
+worked anyway, because IO4 is declared as the RGB green channel while the
+vendor pin table calls it the amplifier enable, so the amplifier sat in
+shutdown. Sound on them needs both facts resolved on hardware.
+
+**The combination is now a compile error.** `BoardConfig.h` refuses any board
+that enables `GUME_HAS_AUDIO_DAC` while a touch, SD, backlight, RGB, battery or
+BOOT pin sits on GPIO25 or GPIO26, and requires the speaker to be on one of
+them. The 4-inch E32R40T keeps its audio -- its touch clock is GPIO14.
+
+The 4-inch was the only board the audio work was tested on, and it is the one
+board this could not happen to. That is the whole lesson.
+
 ## 5.5.0 — 2026-09-05
 
 Sound on a second family of boards, and a console that stops redrawing the

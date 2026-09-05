@@ -30,6 +30,56 @@
 #define GUME_HAS_AUDIO_DAC 0
 #endif
 
+/* ---- The built-in DAC claims BOTH of its pads, not just the one you asked for
+ *
+ * GPIO25 is DAC channel 1 and GPIO26 is DAC channel 2. Bringing I2S up in
+ * I2S_MODE_DAC_BUILT_IN routes the DAC subsystem onto those pads and takes
+ * them off the GPIO matrix -- narrowing the channel with i2s_set_dac_mode()
+ * chooses which one carries the samples, NOT which one is claimed.
+ *
+ * 5.5.0 shipped with DAC audio enabled on the E32R28T-1 and ESP32-2432S028R,
+ * whose resistive touch clock is GPIO25. Board::begin() configures touch and
+ * then calls beginAudio() forty lines later, so audio quietly took the touch
+ * clock: a console that drew perfectly and could not be touched. It reached a
+ * public release because the only board the audio work was tested on was the
+ * 4-inch, whose touch is on GPIO14 -- the board that would have shown the
+ * fault was the one nobody flashed.
+ *
+ * So it is a compile error now. A board may put its SPEAKER on a DAC pad --
+ * that is the whole point -- and nothing else may go near either of them. */
+#if GUME_HAS_AUDIO_DAC
+constexpr bool gumeOnDacPad(int8_t pin) { return pin == 25 || pin == 26; }
+
+static_assert(!gumeOnDacPad(BOARD.touch.sclk),
+    "GUME_HAS_AUDIO_DAC: touch.sclk is on a DAC pad (GPIO25/26). Enabling the "
+    "built-in DAC claims both pads and the touch clock stops working. This is "
+    "the 5.5.0 defect. Either the board cannot have DAC audio, or the pin is "
+    "wrong.");
+static_assert(!gumeOnDacPad(BOARD.touch.mosi),
+    "GUME_HAS_AUDIO_DAC: touch.mosi is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.touch.miso),
+    "GUME_HAS_AUDIO_DAC: touch.miso is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.touch.cs),
+    "GUME_HAS_AUDIO_DAC: touch.cs is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.touch.irq),
+    "GUME_HAS_AUDIO_DAC: touch.irq is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.panel.backlightPin),
+    "GUME_HAS_AUDIO_DAC: the backlight is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.sd.cs) && !gumeOnDacPad(BOARD.sd.mosi) &&
+              !gumeOnDacPad(BOARD.sd.miso) && !gumeOnDacPad(BOARD.sd.sclk),
+    "GUME_HAS_AUDIO_DAC: an SD pin is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.rgb.r) && !gumeOnDacPad(BOARD.rgb.g) &&
+              !gumeOnDacPad(BOARD.rgb.b),
+    "GUME_HAS_AUDIO_DAC: an RGB LED pin is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.battery.adcPin),
+    "GUME_HAS_AUDIO_DAC: battery sense is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnDacPad(BOARD.button.bootPin),
+    "GUME_HAS_AUDIO_DAC: the BOOT key is on a DAC pad (GPIO25/26).");
+static_assert(BOARD.audio.speakerPin == 25 || BOARD.audio.speakerPin == 26,
+    "GUME_HAS_AUDIO_DAC needs a speakerPin on GPIO25 or GPIO26 -- those are the "
+    "only two pins the ESP32 built-in DAC reaches.");
+#endif
+
 /* The canvas the playable games are drawn on. This is a property of the
  * *games*, not of any board -- they were authored against it and position
  * things by arithmetic on it. It is the floor a panel has to clear to be
