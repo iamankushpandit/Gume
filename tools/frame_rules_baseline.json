@@ -104,11 +104,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/MultiplicationGame.cpp": {
-      "String": 6,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/NumberLineGame.cpp": {
       "String": 7,
       "delay": 0,

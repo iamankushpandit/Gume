@@ -61,7 +61,8 @@ usually is one.
 | MemoryGame | **converted, verified** | Below. Checked on hardware (2.8-inch). |
 | WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
 | MathGame | **converted** | Group A reference. Question panel static, buttons tracked. |
-| *quiz screens (13 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
+| Multiplication | **converted** | Group A, follows Math. |
+| *quiz screens (12 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
 | TicTacToe | **converted** | Group B. |
 | SlidingPuzzle | **converted** | Group B. |
 | Maze | **converted** | Group C. |
