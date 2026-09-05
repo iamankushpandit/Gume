@@ -53,7 +53,8 @@ usually is one.
 | Screen | State | Notes |
 |---|---|---|
 | LauncherGame | **converted** | Reference for the pattern. |
-| MemoryGame | analysed | Below. |
+| MemoryGame | **converted** | Below. |
+| WhackAMoleGame | analysed | Below. Worst offender found so far. |
 | *(29 others)* | not started | |
 
 ---
@@ -80,7 +81,7 @@ erased with one plain `fillRect` inside the border instead.
 
 ---
 
-## MemoryGame — analysed, not yet converted
+## MemoryGame — converted
 
 A 4×6 board: **24 cards**. Every state change currently redraws all 24, and
 each card costs two full-card `fillRoundRect`s plus an outline plus its symbol.
@@ -140,3 +141,80 @@ showing the wrong face.
 
 **Risk:** low. No scrolling, no viewport, no theme override, fixed geometry from
 `cardRect()`.
+
+
+---
+
+## WhackAMoleGame — analysed, not yet converted
+
+**The worst case found so far, and the first one that is not paced by the
+player.** The grid is `GRID * GRID` where `GRID = 9` — **81 cells** of 20x20 —
+and every repaint redraws all of them: 81 `fillRect`s, 81 `drawRect`s, four
+strings and a full clear.
+
+What actually changes:
+
+| Event | Cells that change |
+|---|---|
+| A mole spawns | **2** — the old cell loses its smile, the new one gains it |
+| A hit or a miss | 1–2, plus the counters |
+| The flash timer expiring | **1** |
+
+So one or two of eighty-one. That is a 40–80x over-draw.
+
+**And it repaints on timers, not on touches.** Memory only redraws when the
+player does something; this screen has three independent clocks — the spawn
+timer, the mole's expiry, and `flashUntil_` — each calling `markDirty()`. So the
+full-screen cost is paid several times a second for the whole game, which is why
+this one will feel worst on the 480x320 panel: ~60ms of blanking, repeatedly,
+while the player is trying to react to a mole.
+
+**Static**
+- Background, top bar.
+- **All 81 cell outlines.** `drawRect(r.x, r.y, r.w, r.h, Ui::outline())` —
+  position-indexed, constant colour. Better than Memory's case: the interior
+  fill is already **inset by one pixel** (`fillRect(r.x + 1, r.y + 1, r.w - 2,
+  r.h - 2, …)`), so a cell repaint cannot touch its own outline. The grid can be
+  drawn once and never again.
+
+**Dynamic**
+| Element | Changes when |
+|---|---|
+| A cell's interior (fill + smile) | a mole appears or leaves it, or it flashes hit/miss |
+| `Score N` | a hit |
+| `Level N Miss N/10` | a hit or a miss |
+| `Best N` | a new best |
+| `Speed Nms` | the level changes |
+| Game-over panel | the tenth miss / a restart |
+
+**Tracking:** `drawnCell_[81]`, one byte encoding what is painted there — fill
+kind (normal / hit / miss) plus whether the smile is on it. Repaint only where
+it disagrees with live state. Same reasoning as Memory's `drawnFace_[]`.
+
+**Erase**
+- **Cell interior** — self-erasing. The inset `fillRect` covers the whole
+  interior including any smile that was on it, so a cell always repaints from a
+  clean fill and the smile goes back on top.
+- **The two left-aligned strings** (`Score`, `Level … Miss …`) — both shrink.
+  `Score` resets to 0 on restart; `Miss 10/10` -> `Miss 0/10` loses a character.
+  Fill first.
+- **The two right-aligned strings** (`Best`, `Speed`) — these are `TR_DATUM`,
+  and that is a trap of its own: a right-aligned string grows **leftwards**, so
+  when it shrinks the stale characters are left at the LEFT end, not the right.
+  `Speed 1000ms` -> `Speed 900ms` is the normal case, because the mole gets
+  faster as the level rises. The erase rect has to cover the old extent measured
+  leftward from the right margin, not a fixed box anchored at the text origin.
+- **Game-over panel** — a thing that stops being drawn. Restart reshuffles
+  everything and resets both counters, so it is a layout change: the restart
+  path should `markFullDirty()`, exactly as Memory's `newRound()` now does.
+
+**Invalidation changes**
+- The restart branch → `markFullDirty()`.
+- The three timer paths stay `markDirty()` — they are the whole point of the
+  exercise.
+
+**Risk:** low-moderate. No scrolling or viewport, fixed geometry, but 81 cells
+means the tracking array is the largest so far and the timer-driven paths make
+a missed repaint more visible than on a screen the player is stepping through.
+This is the screen where `drawnCell_[]` being self-correcting rather than
+flag-driven earns its keep.
