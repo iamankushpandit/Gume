@@ -136,6 +136,8 @@ void BrainoApp::renderScreenSaver() {
         ssav_hits_ = 0;
         ssav_color_ = Ui::rgb(80, 180, 255);
         ssav_textCy_ = -1;
+        ssav_battPct_ = -2;
+        ssav_battPower_ = 0xFF;
         ssav_initialized_ = true;
     }
 
@@ -147,7 +149,13 @@ void BrainoApp::renderScreenSaver() {
 
     tft.fillRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2 - 2), PAD_W, PAD_H + 4, TFT_BLACK);
     tft.fillRect(RX - PAD_W / 2, static_cast<int16_t>(ssav_ry_ - PAD_H / 2 - 2), PAD_W, PAD_H + 4, TFT_BLACK);
-    tft.fillRect(static_cast<int16_t>(ssav_bx_ - BALL), static_cast<int16_t>(ssav_by_ - BALL), BALL * 2, BALL * 2, TFT_BLACK);
+    /* Kept, because everything below has to know where the hole is. The ball is
+     * the only thing that moves across the whole panel, so it is the only
+     * thing that can punch through the text, the net or the badge -- and those
+     * three are now repainted only when it has. */
+    const int16_t ballEraseX = static_cast<int16_t>(ssav_bx_ - BALL);
+    const int16_t ballEraseY = static_cast<int16_t>(ssav_by_ - BALL);
+    tft.fillRect(ballEraseX, ballEraseY, BALL * 2, BALL * 2, TFT_BLACK);
 
     ssav_bx_ += ssav_bvx_;
     ssav_by_ += ssav_bvy_;
@@ -206,33 +214,74 @@ void BrainoApp::renderScreenSaver() {
     const int16_t cy = static_cast<int16_t>(effH / 2.0f + bob);
     constexpr int16_t TEXT_BAND_TOP = 26;
     constexpr int16_t TEXT_BAND_BOTTOM = 22;
-    if (ssav_textCy_ >= 0) {
-        tft.fillRect(0, static_cast<int16_t>(ssav_textCy_ - TEXT_BAND_TOP), effW,
-                     TEXT_BAND_TOP + TEXT_BAND_BOTTOM, TFT_BLACK);
-    }
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(Ui::rgb(120, 128, 150), TFT_BLACK);
-    tft.drawString(BRAINO_PRODUCT_NAME, effW / 2, static_cast<int16_t>(cy - 10), 4);
-    tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
-    tft.drawString(BRAINO_COPYRIGHT, effW / 2, static_cast<int16_t>(cy + 14), 1);
-    tft.setTextDatum(TL_DATUM);
-    ssav_textCy_ = cy;
+    constexpr int16_t TEXT_BAND_H = TEXT_BAND_TOP + TEXT_BAND_BOTTOM;
 
+    auto hitsBall = [&](int16_t x, int16_t y, int16_t w, int16_t h) {
+        return ballEraseX < x + w && ballEraseX + BALL * 2 > x &&
+               ballEraseY < y + h && ballEraseY + BALL * 2 > y;
+    };
+
+    /* THE WORDMARK IS REPAINTED WHEN IT MOVES, NOT WHEN A FRAME HAPPENS.
+     *
+     * The bob is a sine with an eighteen-second period, and on a 480x320 panel
+     * an amplitude of 120px. That is about one pixel per frame at the fastest
+     * part of the swing and none at all at the turns -- yet the old code erased
+     * a full-width 48px band and redrew both strings every frame, which on that
+     * panel is 23,040 pixels pushed to move text by nothing. Over an hour of
+     * screen saver it is the single largest thing this device does.
+     *
+     * The integer y is what matters, so the band is only touched when THAT
+     * changes -- or when the ball has gone through the text, which is the one
+     * other thing that can damage it. */
+    const int16_t bandY = static_cast<int16_t>(cy - TEXT_BAND_TOP);
+    const bool textMoved = (cy != ssav_textCy_);
+    const bool textHit = hitsBall(0, bandY, effW, TEXT_BAND_H);
+    if (textMoved || textHit) {
+        if (ssav_textCy_ >= 0) {
+            tft.fillRect(0, static_cast<int16_t>(ssav_textCy_ - TEXT_BAND_TOP), effW,
+                         TEXT_BAND_H, TFT_BLACK);
+        }
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(Ui::rgb(120, 128, 150), TFT_BLACK);
+        tft.drawString(BRAINO_PRODUCT_NAME, effW / 2, static_cast<int16_t>(cy - 10), 4);
+        tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
+        tft.drawString(BRAINO_COPYRIGHT, effW / 2, static_cast<int16_t>(cy + 14), 1);
+        tft.setTextDatum(TL_DATUM);
+        ssav_textCy_ = cy;
+    }
+
+    /* The net never moves. It was redrawn every frame only because the ball and
+     * the text band punch holes in it, so now each segment is redrawn only if
+     * one of them actually did. */
     for (int16_t y = 0; y < effH; y += 14) {
-        tft.fillRect(effW / 2 - 1, y, 2, 8, Ui::rgb(40, 40, 40));
+        const bool holed = hitsBall(static_cast<int16_t>(effW / 2 - 1), y, 2, 8) ||
+                           ((textMoved || textHit) &&
+                            y + 8 > bandY && y < bandY + TEXT_BAND_H);
+        if (holed) {
+            tft.fillRect(effW / 2 - 1, y, 2, 8, Ui::rgb(40, 40, 40));
+        }
     }
 
+    /* Same reasoning for the badge: it changes when the charge does, which with
+     * the display deadband is minutes apart, and otherwise only when the ball
+     * has been through it. */
     const int16_t batCx = effW / 2;
     const int16_t batCy = 14;
     const int8_t batPct = board_.getBatteryPercent();
     const Ui::PowerHint batPower = Ui::powerHint(board_);
-    /* Clear to the badge's own width: it is variable now, and a fixed 24px
-     * wipe would leave the tail of a wider one behind as the ball goes past. */
     const int16_t batW = Ui::batteryBadgeWidth(tft, batPct, batPower);
-    tft.fillRect(static_cast<int16_t>(batCx - batW / 2 - 2),
-                 static_cast<int16_t>(batCy - 8),
-                 static_cast<int16_t>(batW + 6), 16, TFT_BLACK);
-    Ui::drawBatteryBadge(tft, batCx, batCy, batPct, batPower, TFT_BLACK);
+    const int16_t batX = static_cast<int16_t>(batCx - batW / 2 - 2);
+    const int16_t batY = static_cast<int16_t>(batCy - 8);
+    if (batPct != ssav_battPct_ || static_cast<uint8_t>(batPower) != ssav_battPower_ ||
+        hitsBall(batX, batY, static_cast<int16_t>(batW + 6), 16)) {
+        /* Cleared to the badge's own width: it is variable, and a fixed 24px
+         * wipe would leave the tail of a wider one behind as the ball goes
+         * past. */
+        tft.fillRect(batX, batY, static_cast<int16_t>(batW + 6), 16, TFT_BLACK);
+        Ui::drawBatteryBadge(tft, batCx, batCy, batPct, batPower, TFT_BLACK);
+        ssav_battPct_ = batPct;
+        ssav_battPower_ = static_cast<uint8_t>(batPower);
+    }
 
     tft.fillRoundRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);
     tft.fillRoundRect(RX - PAD_W / 2, static_cast<int16_t>(ssav_ry_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);
