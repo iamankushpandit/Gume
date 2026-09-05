@@ -121,6 +121,17 @@ Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
 which is why `Game` has two levels of invalidation. Guard static chrome behind
 `needsFullRender()` and repaint only what moved.
 
+**A screen transition is always a full repaint.** Every screen is a `static`
+instance reused for the life of the device, so it arrives carrying the dirty
+flags its last visit left behind -- and the last thing that visit did was
+`clearDirty()`. `launch()`, `goHome()` and `relaunchActiveGame()` therefore all
+call `requestRender()`; a screen's `begin()` must never be relied on for it.
+Getting this wrong does not look like a lost optimisation, it looks like a
+screen with no top bar and the previous one showing through, because
+`renderStatic()` is where both `Ui::clear()` and the chrome live. **Partial
+repaint is an optimisation within a screen's lifetime. Entering one is not the
+place to be greedy** -- a stable picture is worth more than the frame it costs.
+
 **And ask whether the screen needs to repaint at all.** Three things change the
 header on their own schedule rather than the screen's -- the clock, the battery
 badge and the notification banner -- and the runtime used to answer each with
@@ -381,7 +392,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,389,869 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,389,905 / 3,145,728 bytes,
 **76.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 73,916 / 327,680 (22.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their

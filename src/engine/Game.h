@@ -76,6 +76,19 @@ public:
      * The default render() below dispatches, so a screen that has not been
      * converted yet keeps its own render() override and behaves exactly as it
      * did. Conversion is per screen and both forms coexist. */
+    /* A SCREEN TRANSITION IS ALWAYS A FULL REPAINT, AND THAT IS NOT
+     * NEGOTIABLE. Every screen is a static instance reused for the life of the
+     * device, so it arrives carrying the flags its LAST visit left -- and the
+     * last thing that visit did was clearDirty(). The runtime therefore calls
+     * requestRender() on every entry path (launch, goHome, relaunch); a
+     * screen's begin() must never be relied on to do it.
+     *
+     * Getting this wrong does not look like a missing optimisation. It looks
+     * like a screen with no top bar and the previous screen showing through
+     * it, because renderStatic() is where both Ui::clear() and the chrome
+     * live. Partial repaint is an optimisation WITHIN a screen's lifetime.
+     * Entering one is not the place to be greedy: a stable picture is worth
+     * more than the frame it costs. */
     virtual void renderStatic(GameHost& host) { (void)host; }
     virtual void renderDynamic(GameHost& host) { (void)host; }
 

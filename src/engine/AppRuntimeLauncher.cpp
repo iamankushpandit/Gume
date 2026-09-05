@@ -58,6 +58,20 @@ void BrainoApp::launch(const AppDefinition& app) {
     applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
+    /* A SCREEN TRANSITION IS ALWAYS A WHOLE-SCREEN REPAINT.
+     *
+     * Every screen is a static instance reused for the life of the device, so
+     * it arrives here carrying the dirty flags the LAST visit left behind --
+     * and the last thing that visit did was clearDirty(). Without this, a
+     * screen whose begin() happens to call only markDirty() renders without
+     * its renderStatic(), which is where both Ui::clear() and the top bar
+     * live: no chrome, and the previous screen still showing underneath it.
+     *
+     * It belongs here rather than in each begin(). Fourteen screens would each
+     * have to remember, and the one that forgot would be found by eye on a
+     * panel rather than by any build. Partial repaint is an optimisation
+     * WITHIN a screen's lifetime; entering one is not the place to be greedy. */
+    activeGame_->requestRender();
     activeGame_->render(*this);
     activeGame_->clearDirty();
 }
