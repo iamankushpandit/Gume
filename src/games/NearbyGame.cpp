@@ -153,12 +153,23 @@ void NearbyGame::rebuildRows(GameHost& host) {
 
 void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
     const uint32_t now = millis();
-    if (NearbyPlay::peerGeneration() != lastPeerGeneration_ ||
-        now - lastRefreshMs_ >= REFRESH_MS) {
+    const bool peersChanged = NearbyPlay::peerGeneration() != lastPeerGeneration_;
+    if (peersChanged || now - lastRefreshMs_ >= REFRESH_MS) {
         lastPeerGeneration_ = NearbyPlay::peerGeneration();
         lastRefreshMs_ = now;
         rowsStale_ = true;
-        markDirty();
+        /* Repaint on the clock only when there is something on screen that the
+         * clock can change -- which means a peer, whose score and state are
+         * re-read on the tick. With no peers every row rebuildRows() produces
+         * is fixed text: the beacon is off, sharing is off, or nobody is here.
+         * Those are the three states this screen spends almost all its life in,
+         * and the default one is the first, so the old unconditional tick
+         * wiped and redrew the whole content panel once a second, forever, for
+         * text that cannot change. The rebuild still runs; only the repaint is
+         * withheld. */
+        if (peersChanged || NearbyPlay::peerCount() > 0) {
+            markDirty();
+        }
     }
 
     Board& board = host.board();
@@ -207,34 +218,44 @@ void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void NearbyGame::render(GameHost& host) {
+void NearbyGame::renderStatic(GameHost& host) {
+    Ui::clear(host.display());
+    Ui::drawTopBar(host.board(), title());
+    drawnToggle_ = false;
+}
+
+void NearbyGame::renderDynamic(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
 
-    if (needsFullRender()) {
-        Ui::clear(tft);
-        Ui::drawTopBar(board, title());
-    }
-
     const bool radioOn = board.bleBeaconEnabled();
     const bool sharing = NearbyPlay::enabled();
-    char label[32];
-    if (!radioOn) {
-        snprintf(label, sizeof(label), "Needs Beacon in Settings");
-    } else {
-        snprintf(label, sizeof(label), "Sharing: %s", sharing ? "On" : "Off");
+    if (!drawnToggle_ || radioOn != drawnRadio_ || sharing != drawnSharing_) {
+        char label[32];
+        if (!radioOn) {
+            snprintf(label, sizeof(label), "Needs Beacon in Settings");
+        } else {
+            snprintf(label, sizeof(label), "Sharing: %s", sharing ? "On" : "Off");
+        }
+        const uint16_t fill = !radioOn ? Ui::panel()
+                                       : (sharing ? Ui::success() : Ui::panel());
+        Ui::drawButton(tft, toggleRect(W), label, fill, Ui::outline(),
+                       radioOn ? Ui::text() : Ui::muted());
+        drawnRadio_ = radioOn;
+        drawnSharing_ = sharing;
+        drawnToggle_ = true;
     }
-    const uint16_t fill = !radioOn ? Ui::panel()
-                                   : (sharing ? Ui::success() : Ui::panel());
-    Ui::drawButton(tft, toggleRect(W), label, fill, Ui::outline(),
-                   radioOn ? Ui::text() : Ui::muted());
 
     const Rect cr = contentRect(W, H);
     if (rowsStale_) {
         rebuildRows(host);
     }
     rows_.clampScroll(scrollOffset_, cr.h);
+    /* RowList::draw() opens by filling the whole content rect, so it erases
+     * itself -- a peer leaving and the list getting shorter needs nothing from
+     * us. That also makes it the expensive part of this screen, which is why
+     * update() is careful about when it asks for a repaint at all. */
     rows_.draw(tft, cr, scrollOffset_);
 }

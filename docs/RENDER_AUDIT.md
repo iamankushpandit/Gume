@@ -70,7 +70,8 @@ usually is one.
 | ColorMix, Microku, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
 | About, Scores, GreWords, States, StateFlag, StateMap | **no change needed** | Group D — they only ever full-repaint. |
 | Cinnamon | migrate only | Already partial by hand. |
-| Settings, SystemInfo, Profiles, Nearby | analysed | Group E. |
+| Nearby | **converted** | Group E. |
+| Settings, SystemInfo, Profiles | analysed | Group E. |
 | Wi-Fi | deferred | Group E — fix its blocking scan first. |
 | ScreenSaver, Locked | **already correct** | Group F — not Games. The existing exemplars. |
 
