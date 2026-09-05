@@ -12,7 +12,10 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. The maze walls are drawn once; a step repaints the two cells
+     * the dot moved between. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     void chooseMaze();
@@ -27,6 +30,15 @@ private:
      * caller can sound the difference. */
     bool saveProgress(AppContext& host);
     void drawHud(Ui::Renderer& tft) const;
+
+    /* What the HUD strip and the win panel currently show. drawHud() wipes a
+     * full-width 18px band before it writes, so calling it on every repaint --
+     * which the old partial branch did -- cost that band several times a second
+     * for a line that changes once per step at most. */
+    uint16_t drawnMoves_ = 0xFFFF;
+    uint16_t drawnBest_ = 0xFFFF;
+    uint8_t drawnLevel_ = 0xFF;
+    bool drawnWon_ = false;
     void drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const;
     void drawMaze(Ui::Renderer& tft) const;
     void drawPlayer(Ui::Renderer& tft) const;

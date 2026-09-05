@@ -62,7 +62,9 @@ usually is one.
 | WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
 | *quiz screens (19)* | analysed | Group A — same layout, one answer. |
 | TicTacToe, SlidingPuzzle | analysed | Group B — boards. |
-| ColorMix, Microku, Sort, OddOneOut, Maze, Trace, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
+| Maze | **converted** | Group C. |
+| Trace | **analysed — needs a decision** | Group C. See the correction below. |
+| ColorMix, Microku, Sort, OddOneOut, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
 | About, Scores, GreWords, States, StateFlag, StateMap | **no change needed** | Group D — they only ever full-repaint. |
 | Cinnamon | migrate only | Already partial by hand. |
 | Settings, SystemInfo, Profiles, Nearby | analysed | Group E. |
@@ -505,3 +507,47 @@ With these two, every drawing path in the firmware is accounted for:
 - the launcher — converted, reference
 - the screen saver and the lock screen — this group, already correct
 - the top bar and notification banner — `Game::renderChrome()`, done separately
+
+
+---
+
+## Correction — Trace is not append-only
+
+The Group C entry above said Maze and Trace *"draw a persistent trail... append
+only, nothing ever needs erasing"*. **That is wrong for Trace**, and the reason
+is worth recording because it is the kind of thing only reading the code finds.
+
+`TraceGame::render()` already has a partial branch, and that branch begins by
+wiping the entire glyph canvas:
+
+    tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());
+
+then redraws the glyph letter, every completed stroke, every waypoint of the
+active stroke, every faint dot of the unclaimed strokes, and the progress bar.
+The trail is not appended; it is reconstructed from scratch on every repaint.
+
+**And it repaints on a timer.** `pulseState_` toggles to make the next waypoint
+pulse, and the pulse is a *size* change: `fillCircle(x, y, 6, warning)` while
+pulsing against `fillCircle(x, y, 4, warning)` while not. A circle that shrinks
+cannot erase itself -- going from r=6 to r=4 leaves a two-pixel ring behind --
+which is exactly why the canvas wipe is there. The wipe is not laziness, it is
+load-bearing.
+
+So Trace pays a full canvas rebuild several times a second purely so that one
+dot can breathe.
+
+**This needs a decision, not a refactor.** The options are not equivalent:
+
+1. **Make the pulse a colour change rather than a size change.** A constant r=6
+   disc alternating between two colours erases itself, so a pulse tick becomes
+   a single `fillCircle` and the canvas wipe is needed only when a point is
+   actually claimed. Much the largest win available here -- but it changes how
+   the game looks, and that is a design call rather than a refactoring one.
+2. **Erase the pulse dot to background and redraw it.** Keeps the size pulse,
+   but the glyph letter underneath is punched out inside that 12px disc,
+   because nothing restores it.
+3. **Leave it.** The wipe is correct, the screen is small, and only the pulse
+   cadence is wasteful.
+
+Recorded rather than chosen. Everything else in this audit preserves behaviour
+exactly; this one cannot, so it is the maintainer's call.
