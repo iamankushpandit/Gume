@@ -749,6 +749,8 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_boards.py, check_catalog.py,
                           check_frame_rules.py, build_stamp.py,
                           pack_release.py, split_render.py,
+                          fetch_release_firmware.py (past releases, for the
+                          installer's version picker),
                           identify_boards.py + board_registry.json
                           (which board is on which port, keyed by MAC)
 site/                     index.template.html â€” the GitHub Pages landing page
@@ -839,6 +841,42 @@ break it, and all three fail in someone else's browser rather than here:
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
+
+### The page offers older releases, and must keep doing so
+
+The installer used to offer exactly one firmware: whatever `main` last built.
+When 5.5.0 shipped a defect that made the two 2.8-inch boards untouchable, the
+only thing anyone could install was the broken one. **A page that can only
+install the newest build has no way back from a bad release**, which is the one
+moment somebody needs one.
+
+`tools/fetch_release_firmware.py` downloads recent published releases' binaries
+into `site/_releases/`; `gen_site.py` publishes each under
+`firmware/<board>/<env>/v/<version>/` with its own manifest, and the page grows
+a Version selector. Four things about it are load-bearing:
+
+- **The bytes are copied, never rebuilt.** What is served for 5.4.0 is what was
+  published as 5.4.0, so an old version cannot quietly become a new build of
+  old source, and a tag that no longer compiles today is still installable.
+- **They are copied rather than linked because of CORS.** The obvious
+  implementation -- a manifest pointing at
+  `github.com/.../releases/download/...` -- does not work: GitHub's asset host
+  sends no `Access-Control-Allow-Origin` header at either hop (measured), so
+  esp-web-tools' `fetch()` is blocked *after* the board is connected and the
+  flash has begun. Serving from the Pages origin removes the question.
+- **The version list belongs to the board, not the page.** A board added in
+  5.4.0 has no 5.2.0 build, and a release that predates it must not appear in
+  its dropdown. Switching to a board that lacks the selected version falls back
+  to latest rather than leaving a stale manifest armed -- the same failure the
+  firmware dropdown had once already.
+- **A release missing any of the four parts is skipped entirely** rather than
+  half-published. A partial build fails after the erase has started.
+
+`check_docs.py` enforces the three pieces staying joined up: the workflow step,
+the template's selector, and `gen_site.py` reading the cache. Dropping any one
+of them leaves a page that still generates, still deploys and still flashes the
+current version perfectly; the symptom appears only on the day somebody needs
+an older one.
 
 ## Hardware notes
 

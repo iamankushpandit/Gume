@@ -33,6 +33,11 @@ from app_registry_parser import playable_apps, system_apps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Where tools/fetch_release_firmware.py leaves the binaries it pulled from
+# published GitHub releases. Absent on a plain local run, which is fine -- the
+# page then offers only the version in this tree, exactly as it always did.
+RELEASE_CACHE = os.path.join(ROOT, "site", "_releases")
+
 # Offsets are the standard Arduino-ESP32 layout, and match what `pio run
 # -t upload` sends. huge_app.csv moves the partition *contents*, not these.
 PARTS = (
@@ -519,6 +524,38 @@ def validate_site_screens(apps):
         die("docs/screens still(s) not represented on the site: %s" % ", ".join(sorted(unused)))
 
 
+def cached_releases():
+    """What fetch_release_firmware.py pulled, newest first. [] if it never ran.
+
+    Older versions are a recovery path, not the product: if the cache is not
+    there -- a local run, or a GitHub outage during the Pages build -- the page
+    still generates with the current firmware alone rather than failing.
+    """
+    index = os.path.join(RELEASE_CACHE, "index.json")
+    if not os.path.exists(index):
+        return []
+    with open(index, encoding="utf-8") as handle:
+        return json.load(handle).get("versions", [])
+
+
+def publish_cached_version(out, entry, board, env, directory):
+    """Copy one cached release's four parts into the site. None if incomplete.
+
+    Returns the site-relative directory it wrote, so the caller can point a
+    manifest at it. A version whose parts are not all present is not published
+    at all -- a partially-written build is the one thing worse than no build,
+    because it fails after the board is already being erased.
+    """
+    source = os.path.join(RELEASE_CACHE, entry["version"], board, env)
+    if not all(os.path.exists(os.path.join(source, name)) for name, _ in PARTS):
+        return None
+    dest = os.path.join(out, *directory.split("/"))
+    os.makedirs(dest, exist_ok=True)
+    for name, _offset in PARTS:
+        shutil.copyfile(os.path.join(source, name), os.path.join(dest, name))
+    return directory
+
+
 def manifest_for(board, variant, release):
     return {
         "name": variant["name"],
@@ -551,6 +588,7 @@ def main():
     os.makedirs(out)
 
     variants = {entry["env"]: entry for entry in VARIANTS}
+    older = cached_releases()
     builds = []
     for target in supported:
         for env in target["envs"]:
@@ -563,7 +601,48 @@ def main():
             with open(os.path.join(out, *(directory.split("/") + ["manifest.json"])),
                       "w", encoding="utf-8") as handle:
                 json.dump(manifest_for(target, variant, release), handle, indent=2)
+
+            # The current firmware first, then every published release that has
+            # a build for this exact board and environment.
+            #
+            # The page offered only the newest build until 5.5.0 shipped a
+            # defect that made two boards untouchable, at which point the only
+            # thing anyone could install was the broken one. A version list is
+            # what makes a bad release recoverable by the people holding the
+            # hardware rather than only by the maintainer.
+            #
+            # The current build is labelled "latest" and lives at the
+            # unversioned path CI writes into; older ones are copies of the
+            # bytes that were actually published under that tag, so an old
+            # version cannot silently become a new build of old source.
+            versions = [{
+                "version": release,
+                "label": "%s (latest)" % release,
+                "dir": directory,
+                "manifest": directory + "/manifest.json",
+            }]
+            for entry in older:
+                if entry["version"] == release:
+                    continue  # same thing as `latest`; do not offer it twice
+                if env not in entry["boards"].get(target["id"], []):
+                    continue  # this board did not exist yet in that release
+                sub = "%s/v/%s" % (directory, entry["version"])
+                written = publish_cached_version(out, entry, target["id"], env, sub)
+                if not written:
+                    continue
+                with open(os.path.join(out, *(sub.split("/") + ["manifest.json"])),
+                          "w", encoding="utf-8") as handle:
+                    json.dump(manifest_for(target, variant, entry["version"]),
+                              handle, indent=2)
+                versions.append({
+                    "version": entry["version"],
+                    "label": entry["version"],
+                    "dir": sub,
+                    "manifest": sub + "/manifest.json",
+                })
+
             builds.append({
+                "versions": versions,
                 "board": target["id"],
                 "env": env,
                 # The page rebuilds the firmware dropdown from this list when a
@@ -625,9 +704,17 @@ def main():
     # Jekyll would otherwise skip anything starting with an underscore.
     open(os.path.join(out, ".nojekyll"), "w").close()
 
-    print("Site written to %s -- %d games, %d build(s), v%s."
-          % (out, len(catalog), len(builds), release))
-    print("Firmware binaries are not included; CI adds them per manifest.")
+    offered = sum(len(b["versions"]) for b in builds)
+    print("Site written to %s -- %d games, %d build(s), %d installable "
+          "version(s), v%s."
+          % (out, len(catalog), len(builds), offered, release))
+    if older:
+        print("Older releases served from site/_releases: %s."
+              % ", ".join(e["version"] for e in older))
+    else:
+        print("No older releases cached -- run tools/fetch_release_firmware.py "
+              "to offer them.")
+    print("Current firmware binaries are not included; CI adds them per manifest.")
     return 0
 
 

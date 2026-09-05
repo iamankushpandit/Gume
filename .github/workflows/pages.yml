@@ -41,6 +41,41 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Older releases are cached between deploys, because they never change:
+      # 5.4.0's binaries are the same 5.4.0 binaries next month. The fetch tool
+      # skips anything already on disk, so a warm cache costs one API call.
+      - name: Cache published release binaries
+        uses: actions/cache@v4
+        with:
+          path: site/_releases
+          key: release-firmware-${{ github.sha }}
+          restore-keys: release-firmware-
+
+      # Pull the binaries of recent published releases so the installer can
+      # offer them.
+      #
+      # This exists because 5.5.0 shipped a defect that made the two 2.8-inch
+      # boards untouchable, and the page could only ever install whatever main
+      # last built -- so the only firmware anybody could reach was the broken
+      # one. The maintainer's words were "I am locked out of the previous
+      # releases from web flasher."
+      #
+      # The bytes are copied, not linked: GitHub's release asset host sends no
+      # Access-Control-Allow-Origin header, so a manifest pointing at it is
+      # blocked by the browser *after* the flash has begun. Serving them from
+      # the Pages origin removes the question. Nothing is rebuilt, so an old
+      # version cannot quietly become a new build of old source.
+      #
+      # continue-on-error: an API hiccup must not take the whole page down.
+      # gen_site.py generates fine with no cache; the page then offers the
+      # current firmware alone, exactly as it did before this step existed.
+      - name: Fetch published release binaries
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/fetch_release_firmware.py             --repo "${{ github.repository }}" --keep 4
+
       # Fail fast. Site generation runs BEFORE the expensive PlatformIO
       # install and the ten-environment firmware build, so a structural
       # failure -- a missing template placeholder, an orphaned still, a board

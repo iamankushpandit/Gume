@@ -208,9 +208,14 @@ footer {
 {{VARIANT_OPTIONS}}
         </select>
       </div>
+      <div>
+        <label class="field" for="release">Version</label>
+        <select id="release"></select>
+      </div>
     </div>
 
     <p id="variant-note"></p>
+    <p id="release-note" class="warn" hidden></p>
 
     <div class="install-row">
       <esp-web-install-button id="installer">
@@ -395,6 +400,8 @@ footer {
 
   var boardSel  = document.getElementById('board');
   var variantSel = document.getElementById('variant');
+  var releaseSel = document.getElementById('release');
+  var releaseNote = document.getElementById('release-note');
   var note      = document.getElementById('variant-note');
   var links     = document.getElementById('download-links');
   var cmd       = document.getElementById('esptool-cmd');
@@ -432,6 +439,35 @@ footer {
     variantSel.value = keep ? wanted : (available.length ? available[0].env : '');
   }
 
+  /* Every build carries its own version list: the current firmware first, then
+   * each published release that has an image for this exact board and
+   * environment. A board added two releases ago simply has no entry for the
+   * ones before it, which is why the list is rebuilt per build rather than
+   * shared across the page.
+   *
+   * This exists because a release once shipped a defect that made the two
+   * 2.8-inch boards untouchable, and the page could offer nothing but that
+   * build -- see tools/fetch_release_firmware.py for the whole story. */
+  function populateReleases(build) {
+    var wanted = releaseSel.value;
+    releaseSel.innerHTML = '';
+    build.versions.forEach(function (v) {
+      var opt = document.createElement('option');
+      opt.value = v.version;
+      opt.textContent = v.label;
+      releaseSel.appendChild(opt);
+    });
+    var keep = build.versions.some(function (v) { return v.version === wanted; });
+    releaseSel.value = keep ? wanted : build.versions[0].version;
+  }
+
+  function selectedRelease(build) {
+    for (var i = 0; i < build.versions.length; i++) {
+      if (build.versions[i].version === releaseSel.value) { return build.versions[i]; }
+    }
+    return build.versions[0];
+  }
+
   function apply() {
     var build = null;
     for (var i = 0; i < BUILDS.length; i++) {
@@ -452,9 +488,28 @@ footer {
     }
     installer.removeAttribute('disabled');
     note.textContent = build.note;
-    installer.setAttribute('manifest', build.manifest);
+
+    populateReleases(build);
+    var chosen = selectedRelease(build);
+    var dir = chosen.dir;
+
+    /* Say plainly when this is not the current firmware. Someone reaching for
+     * an older version is usually recovering from something, and they should
+     * be able to see at a glance that they got the one they meant. */
+    if (chosen.version === build.versions[0].version) {
+      releaseNote.hidden = true;
+      releaseNote.textContent = '';
+    } else {
+      releaseNote.hidden = false;
+      releaseNote.innerHTML = '<b>Installing ' + chosen.version + ', not the '
+        + 'current release.</b> These are the exact files published under that '
+        + 'tag &mdash; nothing has been rebuilt. Pick '
+        + build.versions[0].label + ' above to go back to the latest.';
+    }
+
+    installer.setAttribute('manifest', chosen.manifest);
     links.innerHTML = 'Files for this build: ' + build.parts.map(function (part) {
-      return '<a href="' + build.dir + '/' + part + '" download>' + part + '</a>';
+      return '<a href="' + dir + '/' + part + '" download>' + part + '</a>';
     }).join(' &middot; ');
 
     /* The terminal instructions are generated for the selected build too.
@@ -472,7 +527,7 @@ footer {
       var lines = build.parts.filter(function (part) {
         return offsets[part];
       }).map(function (part) {
-        return '  ' + offsets[part] + ' ' + build.dir + '/' + part;
+        return '  ' + offsets[part] + ' ' + dir + '/' + part;
       });
       cmd.textContent = 'esptool.py --chip ' + build.chip
         + ' --port /dev/ttyUSB0 --baud 460800 write_flash \\\n'
@@ -482,6 +537,7 @@ footer {
 
   boardSel.addEventListener('change', function () { populateVariants(); apply(); });
   variantSel.addEventListener('change', apply);
+  releaseSel.addEventListener('change', apply);
   populateVariants();
   apply();
 </script>

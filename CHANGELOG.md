@@ -7,6 +7,19 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**The web installer can now flash older releases.** It offered exactly one
+firmware -- whatever `main` last built -- so when 5.5.0 shipped a defect that
+made the two 2.8-inch boards untouchable, the only thing anyone could install
+was the broken one. The page now carries a Version selector alongside Board and
+Firmware, offering the last few published releases per board.
+
+The binaries are the ones that were actually published under each tag, copied
+rather than rebuilt, so an old version cannot quietly become a new build of old
+source. They are served from the Pages origin because GitHub's release asset
+host sends no CORS header, which blocks the browser's read *after* the flash has
+begun. A board that did not exist yet in an older release simply has no entry
+for it.
+
 Two things 5.5.1 left open, both worth more than a feature:
 
 The **E32R28T-1 and ESP32-2432S028R are silent** even though they compile the
