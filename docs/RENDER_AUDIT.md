@@ -68,7 +68,8 @@ usually is one.
 | Sort | **converted** | Group C. |
 | OddOneOut | **converted** | Group C. First real flash-panel erase. |
 | Dice | **converted** | Group C. Was already banded; the band narrows mid-roll. |
-| ColorMix, Microku, CoinFlip | analysed | Group C — timer-driven, higher priority. |
+| CoinFlip | **converted** | Group C. A spin frame repaints the coin alone. |
+| ColorMix, Microku | analysed | Group C — timer-driven, higher priority. |
 | About, Scores, GreWords, States, StateFlag, StateMap | **no change needed** | Group D — they only ever full-repaint. |
 | Cinnamon | migrate only | Already partial by hand. |
 | Nearby | **converted** | Group E. |

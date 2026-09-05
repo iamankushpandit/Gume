@@ -180,28 +180,53 @@ void CoinFlipGame::drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy,
     }
 }
 
-void CoinFlipGame::render(AppContext& host) {
+void CoinFlipGame::renderStatic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    const uint8_t flips = flipsFor(choice_);
+    (void)flips;
+    Ui::clear(tft);
+    host.drawTopBar(title());
+
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.setTextDatum(TC_DATUM);
+    tft.drawString("Best of how many?", GAME_CANVAS_WIDTH / 2, 34, 1);
+
+    for (uint8_t i = 0; i < CHOICES; ++i) {
+        const bool on = (i == choice_);
+        char label[2] = {static_cast<char>('0' + flipsFor(i)), '\0'};
+        Ui::drawButton(tft, choiceRect(i), label,
+                       on ? Ui::rgb(36, 132, 204) : Ui::panel(),
+                       Ui::outline(), on ? TFT_WHITE : Ui::text(), false, 2);
+    }
+
+    Ui::drawButton(tft, flipRect(), "Flip", Ui::rgb(45, 154, 96),
+                   Ui::outline(), TFT_WHITE, false, 4);
+    drawnSpinning_ = false;
+    drawnRevealed_ = 0xFF;
+}
+
+void CoinFlipGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     const uint8_t flips = flipsFor(choice_);
 
-    if (needsFullRender()) {
-        Ui::clear(tft);
-        host.drawTopBar(title());
-
-        tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.setTextDatum(TC_DATUM);
-        tft.drawString("Best of how many?", GAME_CANVAS_WIDTH / 2, 34, 1);
-
-        for (uint8_t i = 0; i < CHOICES; ++i) {
-            const bool on = (i == choice_);
-            char label[2] = {static_cast<char>('0' + flipsFor(i)), '\0'};
-            Ui::drawButton(tft, choiceRect(i), label,
-                           on ? Ui::rgb(36, 132, 204) : Ui::panel(),
-                           Ui::outline(), on ? TFT_WHITE : Ui::text(), false, 2);
-        }
-
-        Ui::drawButton(tft, flipRect(), "Flip", Ui::rgb(45, 154, 96),
-                       Ui::outline(), TFT_WHITE, false, 4);
+    /* A spin frame that follows another spin frame with no new coin landed
+     * changes ONE thing: the squashed ellipse. The pips below it are fixed
+     * until a flip lands, and "Spin n of m" says the same n throughout. So
+     * that case clears the coin alone -- about a seventh of the band -- and
+     * returns. Every other case takes the whole band. */
+    const bool coinOnly = busy_ && spinning_ && drawnSpinning_ &&
+                          revealed_ == drawnRevealed_;
+    if (coinOnly) {
+        tft.fillRect(static_cast<int16_t>(COIN_CX - COIN_R - 1),
+                     static_cast<int16_t>(COIN_CY - COIN_R - 1),
+                     static_cast<int16_t>(COIN_R * 2 + 2),
+                     static_cast<int16_t>(COIN_R * 2 + 2), Ui::bg());
+        const float angle = static_cast<float>(spinFrame_) * 0.55f;
+        const float squash = fabsf(cosf(angle));
+        const int16_t halfWidth = static_cast<int16_t>(COIN_R * squash);
+        const bool edgeOn = halfWidth <= COIN_R / 2;
+        drawCoin(tft, COIN_CX, COIN_CY, halfWidth, (spinFrame_ % 2) == 0, edgeOn);
+        return;
     }
 
     const Rect band = activeBand();
@@ -263,4 +288,6 @@ void CoinFlipGame::render(AppContext& host) {
     }
     tft.drawString(line, GAME_CANVAS_WIDTH / 2, 187, 2);
     tft.setTextDatum(TL_DATUM);
+    drawnSpinning_ = busy_ && spinning_;
+    drawnRevealed_ = revealed_;
 }
