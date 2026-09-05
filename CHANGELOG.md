@@ -1,18 +1,57 @@
 # Changelog
 
-## 5.5.0-SNAPSHOT — Unreleased
+## 5.6.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.4.0
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.5.0
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
-The open question this cycle is the one 5.2.0 shipped without an answer to:
-the two ESP32-2432S028 variants are offered from the installer page and have
-never been run on the hardware they name. Confirming or correcting either is
-worth more than any feature here, and the report that does it is welcome from
-anybody who owns one — `docs/PORTING.md` is the checklist, and the board-port
-issue template asks for the pin map and its source.
+Two things 5.5.0 left open, both worth more than a feature:
+
+The **E32R28T-1 and ESP32-2432S028R are silent** even though they compile the
+DAC audio backend. IO4 is declared as the RGB green channel in their board
+profiles while the vendor pin table calls it the amplifier enable, and both
+cannot be true. Whatever drives IO4 as an LED holds the amplifier in shutdown,
+exactly as it did on the 4-inch before that board was fixed. It needs a meter
+or one test build, not an argument.
+
+The **two ESP32-2432S028 variants have still never been run** on the hardware
+they name, and are still offered from the installer page. That has been open
+since 5.2.0.
+
+Also outstanding, and recorded in `docs/RENDER_AUDIT.md`: nine quiz screens
+carry only the mechanical half of the render split and still redraw their whole
+body on a tap, and the Wi-Fi keyboard repaints thirty keys to change one
+character of a password.
+
+## 5.5.0 — 2026-09-05
+
+Sound on a second family of boards, and a console that stops redrawing the
+whole screen to change one thing on it.
+
+The 4-inch E32R40T now makes noise. It has no codec -- GPIO26 is an ESP32
+built-in DAC feeding an onboard power amplifier -- so the existing synthesiser
+gained a second output backend rather than a second voice: every cue, and
+Cinnamon's pitched pads, come from the same code the Freenove uses. The spoken
+boot phrase does not survive 8-bit quantisation and is not expected to.
+
+Every screen used to wipe and redraw all of itself for any change at all. A
+full repaint is about 150 KB over SPI and 30 ms of blanking against a 20 ms
+frame budget, and twice that on the 4-inch panel -- so three frame budgets to
+recolour one button. Screens now paint what changed: one card of twenty-four in
+Memory, one cell of eighty-one in Whack-a-Mole, the tiles but not the header
+when the launcher pages.
+
+The open question from 5.2.0 is still open: the two ESP32-2432S028 variants are
+offered from the installer page and have never been run on the hardware they
+name. A report from anybody who owns one is worth more than any feature here --
+`docs/PORTING.md` is the checklist.
+
+Known: the E32R28T-1 and ESP32-2432S028R compile the DAC backend but stay
+silent, because IO4 is declared as the RGB green channel there and the vendor
+pin table calls it the amplifier enable. The two cannot both be true, and it is
+not resolved on hardware yet.
 
 ### Added
 
@@ -91,6 +130,14 @@ issue template asks for the pin map and its source.
   speaker, the amp and the enable line; an I2S tone proves the DAC path; and a
   software-timed direct `dacWrite()` tone separates the I2S framing from the
   DAC peripheral itself.
+
+## 5.4.0 — 2026-09-04
+
+A fifth board, and the first one bigger than the canvas the games are drawn
+on. Supporting it meant finding every place the firmware had quietly assumed
+those two were the same size, which was most of the places that draw.
+
+### Added
 
 - **The 4-inch E32R40T is supported, measured on hardware.** An ST7796
   320x480 panel running 480x320 in landscape, with XPT2046 resistive touch
@@ -249,55 +296,17 @@ source.
   can describe a codec: an I2C control address, the five I2S lines and an
   amplifier enable with its polarity.
 
-  A sound is *armed* when it is asked for and *generated* into the I2S DMA a
-  slice at a time by `tickAudio()`, which the runtime calls once per frame
-  beside `tickRgb()`. It has to work that way: `beepOk()` is called from game
-  code inside a 20ms frame budget, and playing a 200ms note the way the
-  bring-up probe does would blow that budget on every correct answer in every
-  game. Volume is capped at `AUDIO_VOLUME_MAX = 80` -- a ceiling in the same
-  spirit as `BRIGHTNESS_MIN`, for a handheld held near a child's ears -- and
-  the amplifier is powered only while something is playing.
+  A beep is *rendered* into a static buffer when it is asked for and *fed* to
+  the I2S DMA a slice at a time by `tickAudio()`, which the runtime calls once
+  per frame beside `tickRgb()`. It has to work that way: `beepOk()` is called
+  from game code inside a 20ms frame budget, and playing a 200ms note the way
+  the bring-up probe does would blow that budget on every correct answer in
+  every game. Volume is capped at `AUDIO_VOLUME_MAX = 80` -- a ceiling in the
+  same spirit as `BRIGHTNESS_MIN`, for a handheld held near a child's ears --
+  and the amplifier is powered only while something is playing.
 
   Boards with a bare `speakerPin` are unchanged: `beep()` is still a stub and
   the LED pulse is still the whole of the feedback.
-
-- **The console says "Let's play Braino!" when it starts.** Deliberately
-  robotic, and not a recording: the phrase is written down as the phonemes it
-  is made of -- L EH T S / P L EY / B R EY N OW -- and each phoneme is the
-  first three formant frequencies of a vocal tract shaped to say it. Three
-  resonators driven by a monotone buzz give the vowels and the same three
-  driven by noise give the consonants, which is the technique that made 1980s
-  home computers talk and is why it sounds like one. A second and a half of
-  speech costs about two hundred bytes of flash; as a recording it would have
-  cost fifty thousand.
-
-  It plays from `BrainoApp::begin()`, after the profile picker is up, so the
-  screen paints and takes touches all the way through it.
-
-- **A sound vocabulary, instead of two beeps.** `hal/Sound.h` names what the
-  console can say -- `Tap`, `Select`, `Correct`, `Wrong`, `Reveal`, `Coin`,
-  `LevelUp`, `Victory`, `GameOver`, `HighScore`, `Countdown`, `Whoosh`, `Pop`,
-  four pad notes and the boot phrase -- and `AppContext::playSound()` is how a
-  screen asks for one. Games cannot ask for a frequency: `Board::beep()` is
-  private, so `Coin` means the same thing in Whack-a-Mole as it does in Memory
-  and a player learns each sound once.
-
-  Nine screens now use it. **Cinnamon** gives each of its four pads a fixed
-  note, on the way in as well as on the way out, so the sequence is a tune that
-  can be followed by ear -- which is the point of the game, and for a player
-  who cannot easily tell the four colours apart it is the difference between
-  playable and not. **Whack-a-Mole** ticks when a mole is about to vanish,
-  scores a coin rather than a right-answer beep, and plays the losing cue when
-  the run ends. **Sliding Puzzle** and **Maze** distinguish "solved" from
-  "solved in fewer moves than ever before", and both now make a noise while
-  being played rather than only once at the end. **Memory**, **Sequence**,
-  **Tic-Tac-Toe**, **Coin Flip** and **Dice** each stopped marking every event
-  as though the player had got a question right.
-
-  Every one of these is synthesised from oscillator, noise and formant
-  segments -- there is no WAV, no PCM table and no sample bank anywhere in the
-  firmware, and `CLAUDE.md` now says there may not be one. The whole
-  vocabulary is under a kilobyte of const data.
 
 - **The board contract describes capacitive touch.** `TouchProfile` carried an
   XPT2046 and nothing else, so a board wiring an I2C controller could not be
@@ -310,103 +319,6 @@ source.
   panel, rotation, I2C scan, live touch mapping, battery, and the full audio
   path including a record-and-playback microphone test. Built alone, in the
   same spirit as `wifidiag` and `batdiag`.
-
-- **A Sound tab in Settings, with mute and volume.** Settings now has four
-  tabs. **Sound** holds a mute switch, a volume slider and two test buttons.
-
-  Mute is a switch of its own rather than volume zero, so the level survives
-  being silenced and comes back where it was. It is gated in exactly one place
-  -- `Board::playSound()`, the single door every sound goes through -- so it
-  takes the beeps and the startup phrase with it and cannot leave something
-  still audible. Muting also stops whatever is currently playing, because Mute
-  is the control somebody reaches for *while* the boot phrase is running. The
-  case LED still flashes green and red while muted, which on a board with no
-  codec is what it always did.
-
-  Volume is capped at `AUDIO_VOLUME_MAX = 85` and the slider **says 85**. It
-  would have read better relabelled as 100% and it would have been a lie; the
-  ceiling exists for a handheld held near a child's ears, in the same spirit as
-  the brightness floor. `Ui::drawSlider()` grew a `maxPct` to express it, since
-  a setting with a ceiling and a setting with a floor should be said the same
-  way. The 85 was set by listening on the FNK0104B's own driver -- it describes
-  one speaker in one case, and a board with a louder amplifier will need its
-  own figure. Dragging the slider plays a note at the new level as you go, and the two
-  test buttons play a cue and the spoken phrase, because setting a volume you
-  cannot hear while you set it is guesswork.
-
-  Both settings are global rather than per-profile, like theme and brightness:
-  the speaker belongs to whoever is in the room. Both are RAM-mirrored --
-  `soundEnabled()` is on the path of every cue in every game. And on a board
-  with no codec the tab says so plainly instead of offering dead controls:
-  "this board cannot make a sound" and "you have muted it" are different things
-  to tell an owner.
-
-- **Settings -> Admin can re-run the touch calibration.** There was no way to
-  do this from the device at all. The wizard runs on its own only when no
-  calibration is stored, so a calibration that was *present but wrong* --
-  drifted, or captured by a child tapping past the three targets -- left the
-  panel unusable with the only cure, factory reset, sitting behind a touch
-  target nobody could hit. Reflashing over USB was the whole recovery path.
-
-  It is safe to press by mistake: the wizard reads the panel raw, so a bad
-  stored calibration cannot affect it, and it replaces what is stored only if
-  the new three-point fit succeeds. Time it out or fail it and the old
-  calibration is still there. That is why it needs no confirm step where
-  factory reset, two rows away, does. It is admin-only like everything else
-  that writes here, and boards with capacitive panels say the calibration is
-  not needed rather than offering a button that does nothing.
-
-- **The BOOT key is a Home button.** Press it and the console goes back to the
-  launcher, from any screen, without finding the glyph in the top bar. It also
-  wakes the panel and dismisses the screen saver, exactly as a touch does.
-
-  It is a shortcut and never the only way to do anything -- touch remains the
-  input this console is designed around, and a board whose profile wires no key
-  (`ButtonProfile`, `PIN_NONE`) behaves as it always did. Two places
-  deliberately ignore it: the lock screen, because a key pressed through the
-  side of a bag is the accident that screen exists to catch, and the launcher,
-  where you are already home.
-
-  Nothing about the ROM's use of the pin changes. BOOT is a strapping pin and
-  holding it at reset still asks the ROM for serial download mode; the firmware
-  reads it only at runtime, long after that decision has been made.
-
-### Changed
-
-- **The volume ceiling is 85%, not 80%, and the old 80 was measuring the bug.**
-  It was chosen against the broken curve, so it never described a
-  sound-pressure level -- it described a register value that happened to be
-  tolerable. 85 was set by listening on the device at the full range, which is
-  the only way this number can honestly be arrived at. It is a hearing-safety
-  limit for a handheld held near a young player's ears, the counterpart of the
-  25% brightness floor, and it describes one driver in one case: a board with a
-  louder amplifier needs its own figure, at which point the ceiling belongs in
-  `BoardProfile` rather than in `Board`.
-
-- **Settings is three files against one header.** `SettingsGame.cpp` had
-  reached 613 lines before the Sound tab was written and would have passed 700
-  after it. It is now `SettingsGame.cpp` (lifecycle, the tab strip, touch
-  routing), `SettingsPanels.cpp` (the Device, Power and Sound bodies and the
-  geometry of their rows) and `SettingsPin.cpp` (the PIN pad and the Admin tab
-  it belongs to). Every rect accessor stays declared in the one header, so a
-  control's geometry and the hit test that reads it still cannot drift apart.
-  The split landed before the feature and changed no behaviour.
-
-  The tab strip stopped being three hand-written thirds with the rounding
-  fudged into the last one, and became `tabRect(i)` over a `TAB_COUNT`.
-
-- **Audio moved out of `BoardFeedback.cpp` into `BoardAudio.cpp`.** Once a
-  beep stopped being two sine waves and became a synthesiser with a phoneme
-  table, the two concerns had nothing left in common but `beepOk()` pulsing
-  the LED, and the file was heading past the ~600-line mark the modularity
-  rule draws. `BoardFeedback.cpp` keeps the RGB LED and the two radio
-  switches. Behaviour is unchanged by the move itself.
-
-  The buffered renderer went with it. A sound used to be rendered whole into
-  10 KB of static PCM before it started, which capped a cue at 320ms and made
-  a spoken phrase impossible outright; it is now generated on demand into the
-  outgoing DMA block, which costs about 800 bytes of synthesiser state and has
-  no upper bound on length.
 
 ### Fixed
 
