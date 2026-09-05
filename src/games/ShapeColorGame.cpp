@@ -171,10 +171,30 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void ShapeColorGame::render(AppContext& host) {
+void ShapeColorGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
+}
+
+void ShapeColorGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    /* Split mechanically, and only half done.
+     *
+     * What this saves is the top bar -- a battery read and five glyphs -- and
+     * the strip of clear above the content, on every repaint that is not a
+     * full one. What it does NOT yet do is leave the question panel alone when
+     * only the answer buttons change, which is the win this screen actually
+     * has: answering recolours four buttons and rewrites one line, and the
+     * question above them does not move.
+     *
+     * Doing that needs the region cleared below to shrink to the parts that
+     * change, and the next-question path to call markFullDirty(). See this
+     * screen's entry in docs/RENDER_AUDIT.md before attempting it: the traps
+     * are text that gets narrower, things that stop being drawn, and
+     * right-aligned text whose stale characters are left at the LEFT end. */
+    tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH,
+                 GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
     Ui::drawLabel(tft, Rect{10, 32, 300, 18}, "Tap a shape, then its matching outline", Ui::text(), 2, Align::Center);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);

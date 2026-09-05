@@ -50,6 +50,9 @@ Rect OddOneOutGame::itemRect(uint8_t index) const {
 }
 
 void OddOneOutGame::newRound() {
+    /* Nine new shapes and a new odd one out. A layout change, and it lives here
+     * so no caller can deal a round and forget. */
+    markFullDirty();
     oddIndex_ = random(9);
     baseShape_ = static_cast<Shape>(random(3));
     oddShape_ = baseShape_;
@@ -175,29 +178,82 @@ void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void OddOneOutGame::render(AppContext& host) {
+namespace {
+/* Where the correct/try-again strip is drawn. Named because renderDynamic()
+ * needs it three times: to draw it, to erase it, and to work out which shapes
+ * it covered. */
+constexpr Rect FLASH_RECT{84, 196, 152, 30};
+}  // namespace
+
+void OddOneOutGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
+    Ui::drawLabel(tft, Rect{8, 52, 304, 16}, "Tap the one that is different",
+                  Ui::muted(), 1, Align::Center);
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Score ") + score_, 10, 35, 2);
-    tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 35, 2);
-    Ui::drawLabel(tft, Rect{8, 52, 304, 16}, "Tap the one that is different", Ui::muted(), 1, Align::Center);
-
+    /* The nine shapes are fixed for the round. Tapping one either ends the
+     * round -- a full repaint -- or flashes "Try again" over them, so nothing
+     * in the grid itself ever changes while this screen is up. */
     for (uint8_t i = 0; i < 9; ++i) {
         drawItem(tft, itemRect(i), i == oddIndex_);
     }
 
-    if (flashCorrect_ || flashError_) {
+    drawnFlash_ = false;
+    drawnScore_ = 0xFFFF;
+    drawnBest_ = 0xFFFF;
+}
+
+void OddOneOutGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    if (score_ != drawnScore_ || bestStreak_ != drawnBest_) {
+        tft.fillRect(10, 33, 140, 20, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 140, 33, 140, 20, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        char buf[24];
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Score %u", score_);
+        tft.drawString(buf, 10, 35, 2);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "Best %u", bestStreak_);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnScore_ = score_;
+        drawnBest_ = bestStreak_;
+    }
+
+    const bool flash = flashCorrect_ || flashError_;
+    if (flash == drawnFlash_) {
+        return;
+    }
+
+    if (flash) {
         const uint16_t color = flashCorrect_ ? Ui::success() : Ui::error();
-        tft.fillRoundRect(84, 196, 152, 30, 8, color);
+        tft.fillRoundRect(FLASH_RECT.x, FLASH_RECT.y, FLASH_RECT.w, FLASH_RECT.h, 8, color);
         tft.setTextColor(TFT_BLACK, color);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(flashCorrect_ ? "Correct" : "Try again", GAME_CANVAS_WIDTH / 2, 211, 2);
+        tft.drawString(flashCorrect_ ? "Correct" : "Try again",
+                       GAME_CANVAS_WIDTH / 2, FLASH_RECT.y + FLASH_RECT.h / 2, 2);
+        tft.setTextDatum(TL_DATUM);
+    } else {
+        /* Taking it off is the only real erase on this screen, and filling it
+         * with background is not enough: the strip sits ON TOP of the bottom
+         * row of shapes, so anything it covered has to be put back. Rather than
+         * assume which row that is, ask each shape whether its rect intersects
+         * the strip -- the layout has moved before and would take this with it
+         * silently otherwise. */
+        tft.fillRect(FLASH_RECT.x, FLASH_RECT.y, FLASH_RECT.w, FLASH_RECT.h, Ui::bg());
+        for (uint8_t i = 0; i < 9; ++i) {
+            const Rect r = itemRect(i);
+            const bool overlaps =
+                r.x < FLASH_RECT.x + FLASH_RECT.w && r.x + r.w > FLASH_RECT.x &&
+                r.y < FLASH_RECT.y + FLASH_RECT.h && r.y + r.h > FLASH_RECT.y;
+            if (overlaps) {
+                drawItem(tft, r, i == oddIndex_);
+            }
+        }
     }
-    tft.setTextDatum(TL_DATUM);
+    drawnFlash_ = flash;
 }
 

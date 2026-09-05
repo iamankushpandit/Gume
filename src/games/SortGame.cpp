@@ -49,6 +49,10 @@ Rect SortGame::tileRect(uint8_t index) const {
 }
 
 void SortGame::newRound() {
+    /* New numbers, every tile unlocked, the direction possibly reversed and the
+     * sorted panel off. A layout change, and it lives here so no caller can
+     * deal a round and forget. */
+    markFullDirty();
     count_ = static_cast<uint8_t>(4 + min<uint16_t>(2, score_ / 4));
     ascending_ = (score_ % 6) < 4;
     next_ = 0;
@@ -141,38 +145,75 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void SortGame::render(AppContext& host) {
+void SortGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
+    /* The direction is fixed for the round, and a new round is a full repaint,
+     * so this is static even though it is not constant. */
+    Ui::drawLabel(tft, Rect{10, 55, 300, 18},
+                  ascending_ ? "Tap smallest to largest" : "Tap largest to smallest",
+                  Ui::text(), 2, Align::Center);
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    char roundsBuf[20];
-    snprintf(roundsBuf, sizeof(roundsBuf), "Rounds %u", score_);
-    tft.drawString(roundsBuf, 10, 35, 2);
-    tft.setTextDatum(TR_DATUM);
-    char bestBuf[24];
-    snprintf(bestBuf, sizeof(bestBuf), "Best streak %u", bestStreak_);
-    tft.drawString(bestBuf, GAME_CANVAS_WIDTH - 8, 35, 2);
-    Ui::drawLabel(tft, Rect{10, 55, 300, 18}, ascending_ ? "Tap smallest to largest" : "Tap largest to smallest", Ui::text(), 2, Align::Center);
+    for (uint8_t i = 0; i < 6; ++i) {
+        drawnTile_[i] = 0xFF;
+    }
+    drawnScore_ = 0xFFFF;
+    drawnBest_ = 0xFFFF;
+    drawnSorted_ = false;
+}
+
+void SortGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
 
     for (uint8_t i = 0; i < count_; ++i) {
+        const uint8_t state = static_cast<uint8_t>((locked_[i] ? 1 : 0) |
+                              (flashTile_ == static_cast<int8_t>(i)
+                                   ? (flashError_ ? 2 : 4) : 0));
+        if (state == drawnTile_[i]) {
+            continue;
+        }
         uint16_t fill = locked_[i] ? LOCKED : TILE;
         uint16_t text = locked_[i] ? TFT_BLACK : TFT_WHITE;
-        if (flashTile_ == i) {
+        if (flashTile_ == static_cast<int8_t>(i)) {
             fill = flashError_ ? WRONG : LOCKED;
             text = TFT_BLACK;
         }
         char label[8];
         snprintf(label, sizeof(label), "%d", numbers_[i]);
+        /* drawButton fills its rect opaquely, so a tile erases the tile that
+         * was there and the flash needs no clearing of its own. */
         Ui::drawButton(tft, tileRect(i), label, fill, Ui::outline(), text, false, 4);
+        drawnTile_[i] = state;
     }
 
-    if (allLocked()) {
+    /* Rounds grows and Best streak grows, but both reset when the game is
+     * re-entered, and Best is TR_DATUM so it would leave its old left-hand end
+     * behind. Cleared before written. */
+    if (score_ != drawnScore_ || bestStreak_ != drawnBest_) {
+        tft.fillRect(10, 33, 140, 20, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 170, 33, 170, 20, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        char buf[24];
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Rounds %u", score_);
+        tft.drawString(buf, 10, 35, 2);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "Best streak %u", bestStreak_);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnScore_ = score_;
+        drawnBest_ = bestStreak_;
+    }
+
+    /* Painted once. It overlaps the bottom row of tiles, but it never has to be
+     * taken off: the only way past a sorted board is a tap, which deals a new
+     * round and asks for a full repaint. */
+    if (allLocked() && !drawnSorted_) {
         tft.fillRoundRect(58, 178, 204, 42, 8, Ui::panel());
         tft.drawRoundRect(58, 178, 204, 42, 8, Ui::success());
         Ui::drawLabel(tft, Rect{60, 184, 200, 30}, "Sorted - tap next", Ui::success(), 2, Align::Center);
+        drawnSorted_ = true;
     }
 }
 

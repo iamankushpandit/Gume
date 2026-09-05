@@ -364,13 +364,14 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void PercentCircleGame::render(AppContext& host) {
+void PercentCircleGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    Ui::clear(tft);
+    host.drawTopBar(title());
+}
 
-    if (needsFullRender()) {
-        Ui::clear(tft);
-        host.drawTopBar(title());
-    }
+void PercentCircleGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
 
     tft.fillRect(0, 48, GAME_CANVAS_WIDTH, 34, Ui::bg());
     tft.setTextColor(Ui::muted(), Ui::bg());
@@ -407,6 +408,4 @@ void PercentCircleGame::render(AppContext& host) {
         tft.drawString("Try again", 160, 60, 2);
         tft.setTextDatum(TL_DATUM);
     }
-
-    clearDirty();
 }

@@ -16,7 +16,10 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. Already banded; the win is that a spin frame touches only the
+     * coin. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     static constexpr uint8_t MAX_FLIPS = 5;
@@ -41,7 +44,13 @@ private:
 
     uint8_t choice_ = 1;              // default best of 3
     bool heads_[MAX_FLIPS] = {false, false, false, false, false};
-    uint8_t revealed_ = 0;            // how many of heads_ are settled
+    uint8_t revealed_ = 0;
+
+    /* The previous PAINT's spin state. While the coin is spinning and no new
+     * flip has landed, the pips and the "Spin n of m" line do not move, so the
+     * only thing that needs clearing is the coin itself. */
+    bool drawnSpinning_ = false;
+    uint8_t drawnRevealed_ = 0xFF;            // how many of heads_ are settled
     bool busy_ = false;               // a sequence is running
     bool spinning_ = false;           // this coin is still in the air
     bool finished_ = false;           // a full sequence has been played

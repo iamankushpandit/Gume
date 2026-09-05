@@ -81,6 +81,9 @@ ENV_BLURBS = {
                 "interfere with the result.",
     "batdiag": "Eight-page battery bring-up and calibration tool, with CSV "
                "over serial for capturing a full discharge.",
+    "audiodiag": "DAC audio bring-up probe: sine wave, frequency sweep, the "
+                 "full cue vocabulary and the boot phrase, built alone so the "
+                 "app's frame budget and watchdog cannot interfere.",
     "app_e32r40t": "Braino! for the 4-inch E32R40T (ST7796): the full console on a bigger screen, with games scaled up for easier reading.",
     "diag4": "Bring-up probe for an unsupported 4-inch ST7796 board: identifies the panel controller over SPI, sweeps candidate backlight pins and tests both touch wirings.",
     "s3diag": "Bring-up probe for an unsupported ESP32-S3 board: panel, "

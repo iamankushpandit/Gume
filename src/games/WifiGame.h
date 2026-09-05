@@ -9,7 +9,10 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    /* Two-phase, but deliberately a FULL-repaint screen -- see the note above
+     * renderStatic() in the .cpp and its entry in docs/RENDER_AUDIT.md. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
 
 private:
     enum class Phase : uint8_t { Idle, Scanning, List, Keyboard, Connecting, Done, TimeZone };

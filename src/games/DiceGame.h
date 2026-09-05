@@ -17,7 +17,11 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. Already partial -- it wiped a band rather than the screen --
+     * so the gain here is narrowing that band while the dice are tumbling.
+     * See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     static constexpr uint8_t MAX_DICE = 3;
@@ -40,7 +44,12 @@ private:
     uint8_t count_ = 2;
     uint8_t faces_[MAX_DICE] = {1, 1, 1};
     bool rolling_ = false;
-    bool thrown_ = false;   // false until the first throw, so no total is shown
+    bool thrown_ = false;
+
+    /* Whether the previous paint was also a tumbling frame. While that stays
+     * true the status line under the dice reads "Rolling..." and does not
+     * move, so only the dice themselves need clearing. */
+    bool drawnRolling_ = false;   // false until the first throw, so no total is shown
     uint32_t rollUntilMs_ = 0;
     uint32_t nextTumbleMs_ = 0;
 };

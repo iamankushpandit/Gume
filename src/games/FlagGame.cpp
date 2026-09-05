@@ -142,6 +142,11 @@ bool poolAllows(uint16_t i, void* ctx) {
 }
 
 void FlagGame::newQuestion() {
+    /* A different country means a different flag, and the flag is static --
+     * only a full repaint replaces it. Here rather than at the call sites, of
+     * which there are three: begin(), the difficulty button and the end of
+     * feedback. */
+    markFullDirty();
     const uint16_t pool = countryPoolSize(tier_, false);
     if (pool == 0) { current_ = nullptr; return; }
 
@@ -253,22 +258,58 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
     }
 }
 
-void FlagGame::render(AppContext& host) {
+void FlagGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    // --- status row ------------------------------------------------------
-    tft.setTextDatum(TL_DATUM);
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(String(score_) + "/" + rounds_, 8, 33, 2);
+    /* The flag card. drawCountryImageScaled at 2x paints 160x120 -- the single
+     * most expensive thing on this screen -- and it stays put for the whole
+     * question, INCLUDING the capital bonus, which asks about the same country.
+     * newQuestion() is what replaces it, and that asks for a full repaint. */
+    if (current_ != nullptr) {
+        const Rect fr = flagRect();
+        tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, FLAG_BG);
+        tft.drawRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::outline());
+        // 80x60 source drawn at 2x fills the 160x120 card exactly.
+        Ui::drawCountryImageScaled(tft, mnf_flag(current_->iso2), fr, FLAG_BG, 2);
+    }
 
-    tft.setTextDatum(TR_DATUM);
-    tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
-    tft.drawString(String("+") + capBonus_, GAME_CANVAS_WIDTH - 8, 33, 2);
-
+    /* Cycling the difficulty deals a new question, so this is static too. */
     static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(),
+                   Ui::text(), false, 1);
+
+    for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
+        drawnBtn_[i] = 0xFF;
+    }
+    drawnCapital_ = !(phase_ == Phase::CapitalBonus || phase_ == Phase::FeedbackCapital);
+    drawnPrompt_ = false;
+    drawnScore_ = 0xFFFF;
+    drawnRounds_ = 0xFFFF;
+    drawnCapBonus_ = 0xFFFF;
+}
+
+void FlagGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    if (score_ != drawnScore_ || rounds_ != drawnRounds_ || capBonus_ != drawnCapBonus_) {
+        tft.fillRect(8, 31, 90, 20, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 90, 31, 90, 20, Ui::bg());
+        char buf[16];
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(Ui::text(), Ui::bg());
+        snprintf(buf, sizeof(buf), "%u/%u", score_, rounds_);
+        tft.drawString(buf, 8, 33, 2);
+        tft.setTextDatum(TR_DATUM);
+        tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
+        snprintf(buf, sizeof(buf), "+%u", capBonus_);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 33, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnScore_ = score_;
+        drawnRounds_ = rounds_;
+        drawnCapBonus_ = capBonus_;
+    }
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No countries available",
@@ -276,24 +317,28 @@ void FlagGame::render(AppContext& host) {
         return;
     }
 
-    // --- flag ------------------------------------------------------------
-    const Rect fr = flagRect();
-    tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, FLAG_BG);
-    tft.drawRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::outline());
-    // 80x60 source drawn at 2x fills the 160x120 card exactly.
-    Ui::drawCountryImageScaled(tft, mnf_flag(current_->iso2), fr, FLAG_BG, 2);
-
-    // --- prompt ----------------------------------------------------------
     const bool capitalRound = (phase_ == Phase::CapitalBonus || phase_ == Phase::FeedbackCapital);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(capitalRound ? Ui::rgb(255, 200, 0) : Ui::text(), Ui::bg());
-    const char* countryName = mnf_name(current_->iso2);
-    tft.drawString(capitalRound
-                       ? String("Bonus! Capital of ") + (countryName ? countryName : current_->iso2) + "?"
-                       : String("Which country?"),
-                   GAME_CANVAS_WIDTH / 2, 176, 2);
 
-    // --- answers ---------------------------------------------------------
+    /* "Which country?" against "Bonus! Capital of <name>?" -- wildly different
+     * lengths, so the line is cleared. It stops at 184, two rows above
+     * answerRect(0) at 186. */
+    if (!drawnPrompt_ || capitalRound != drawnCapital_) {
+        tft.fillRect(6, 166, GAME_CANVAS_WIDTH - 12, 18, Ui::bg());
+        const char* countryName = mnf_name(current_->iso2);
+        char prompt[48];
+        if (capitalRound) {
+            snprintf(prompt, sizeof(prompt), "Bonus! Capital of %s?",
+                     countryName ? countryName : current_->iso2);
+        } else {
+            snprintf(prompt, sizeof(prompt), "Which country?");
+        }
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(capitalRound ? Ui::rgb(255, 200, 0) : Ui::text(), Ui::bg());
+        tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 176, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnPrompt_ = true;
+    }
+
     const bool showingFeedback =
         (phase_ == Phase::FeedbackCountry || phase_ == Phase::FeedbackCapital);
 
@@ -301,18 +346,25 @@ void FlagGame::render(AppContext& host) {
         const CountryFact* opt = options_[i];
         if (opt == nullptr) continue;
 
-        uint16_t fill = Ui::panel();
-        uint16_t tc   = Ui::text();
+        uint8_t state = 0;
         if (showingFeedback) {
-            if (i == correctBtn_) { fill = Ui::success(); tc = TFT_BLACK; }
-            else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error(); tc = TFT_BLACK; }
+            if (i == correctBtn_) state = 1;
+            else if (i == static_cast<uint8_t>(selected_)) state = 2;
         }
-
+        /* The label changes with the round even when the colour does not, so a
+         * switch to the capital bonus repaints all four. */
+        if (state == drawnBtn_[i] && capitalRound == drawnCapital_) {
+            continue;
+        }
+        const uint16_t fill = state == 1 ? Ui::success()
+                            : (state == 2 ? Ui::error() : Ui::panel());
+        const uint16_t tc = state == 0 ? Ui::text() : TFT_BLACK;
         const char* raw = capitalRound ? opt->capital : mnf_name(opt->iso2);
         const Rect r = answerRect(i);
         Ui::drawButton(tft, r, fitLabel(tft, raw ? raw : opt->iso2, r.w - 10, 2),
                        fill, Ui::outline(), tc, false, 2);
+        drawnBtn_[i] = state;
     }
-
+    drawnCapital_ = capitalRound;
     tft.setTextDatum(TL_DATUM);
 }

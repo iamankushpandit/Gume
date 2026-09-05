@@ -4,6 +4,7 @@
 #include <esp_sntp.h>
 #include "hal/Board.h"
 #include "hal/Clock.h"
+#include "hal/Watchdog.h"
 
 const char WifiGame::KEYS_LOWER[4][11] = {
     "1234567890",
@@ -37,7 +38,7 @@ void WifiGame::begin(GameHost& host) {
     listPage_ = 0;
     netCount_ = 0;
     connectOk_ = false;
-    markDirty();
+    markFullDirty();
 }
 
 namespace {
@@ -98,10 +99,29 @@ void WifiGame::startScan(GameHost& host) {
     netCount_ = 0;
     listPage_ = 0;
     scanStart_ = millis();
-    markDirty();
+    markFullDirty();
 }
 
 void WifiGame::runScan() {
+    /* THIS BLOCKS FOR ABOUT FOUR AND A HALF SECONDS, ON PURPOSE.
+     *
+     * A 300ms-per-channel active scan is roughly four seconds, and the mode
+     * changes below add another 300ms of settling. That is a deliberate
+     * trade -- the network list is something the owner picks from once, and a
+     * scan that misses their access point is worse than a screen that pauses.
+     *
+     * But it is called straight from update(), on the loop task, with the
+     * watchdog armed at TIMEOUT_SECONDS = 12 and the monitor logging a stall
+     * past STALL_WARN_MS = 3000. So every single Wi-Fi scan this firmware has
+     * ever done has logged a stall, and a slower scan -- a busy band, a retry
+     * -- moves it towards a reboot that would look to the owner like the Wi-Fi
+     * screen crashing the console.
+     *
+     * The guard is what every other blocking call in the tree already has:
+     * Board::runTouchCalibration(), ntpUdpProbe() and detectTimezone() all
+     * take one. This is the last place that blocked for seconds without it. */
+    const Watchdog::Pause wdtPause;
+
     WiFi.persistent(false);
     WiFi.mode(WIFI_OFF);
     delay(100);
@@ -179,7 +199,7 @@ void WifiGame::runScan() {
 
     listPage_ = 0;
     phase_ = Phase::List;
-    markDirty();
+    markFullDirty();
 }
 
 void WifiGame::checkScan() {
@@ -224,13 +244,13 @@ void WifiGame::startConnect(GameHost& host) {
     connectStart_ = millis();
     connectOk_ = false;
     phase_ = Phase::Connecting;
-    markDirty();
+    markFullDirty();
 }
 
 void WifiGame::checkConnect(GameHost& host) {
     if (!host.requireCapability(APP_CAP_NETWORK, "finish wifi join")) {
         phase_ = Phase::Idle;
-        markDirty();
+        markFullDirty();
         return;
     }
     const wl_status_t st = WiFi.status();
@@ -240,14 +260,14 @@ void WifiGame::checkConnect(GameHost& host) {
         // call configTime(0, 0, ...) directly, which pinned the clock to UTC.
         host.board().beginTimeSync();
         phase_ = Phase::Done;
-        markDirty();
+        markFullDirty();
         return;
     }
     if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL ||
         millis() - connectStart_ > 15000UL) {
         connectOk_ = false;
         phase_ = Phase::Done;
-        markDirty();
+        markFullDirty();
     }
 }
 
@@ -261,13 +281,13 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
         if (up != lastUpShown_ || sy != lastSyncShown_) {
             lastUpShown_ = up;
             lastSyncShown_ = sy;
-            markDirty();
+            markFullDirty();
         }
     }
     if (phase_ == Phase::Scanning) {
         if (!host.requireCapability(APP_CAP_NETWORK, "run wifi scan")) {
             phase_ = Phase::Idle;
-            markDirty();
+            markFullDirty();
             return;
         }
         checkScan();
@@ -286,18 +306,18 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
         // --- Wi-Fi section ---
         if (baseRect(14, 64, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startScan(host); return; }
         if (baseRect(166, 64, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && board.hasWifiCredentials()) {
-            board.clearWifiCredentials(); markDirty(); return;
+            board.clearWifiCredentials(); markFullDirty(); return;
         }
         // --- Time section ---
         if (baseRect(14, 132, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            board.setNtpEnabled(!board.ntpEnabled()); markDirty(); return;
+            board.setNtpEnabled(!board.ntpEnabled()); markFullDirty(); return;
         }
         if (baseRect(166, 132, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             zonePage_ = static_cast<uint8_t>(board.tzZoneIndex() / 5);
-            phase_ = Phase::TimeZone; markDirty(); return;
+            phase_ = Phase::TimeZone; markFullDirty(); return;
         }
         if (baseRect(14, 172, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (Ui::wifiUp()) { board.syncTimeNow(); markDirty(); }
+            if (Ui::wifiUp()) { board.syncTimeNow(); markFullDirty(); }
             return;
         }
         if (baseRect(166, 172, 140, 30).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { host.openSettings(); return; }
@@ -305,13 +325,13 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
     } else if (phase_ == Phase::List) {
         const uint8_t pages = max<uint8_t>(1, (netCount_ + 4) / 5);
         if (baseRect(8, 206, 84, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && listPage_ > 0) {
-            --listPage_; markDirty(); return;
+            --listPage_; markFullDirty(); return;
         }
         if (baseRect(228, 206, 84, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && listPage_ + 1 < pages) {
-            ++listPage_; markDirty(); return;
+            ++listPage_; markFullDirty(); return;
         }
         if (baseRect(104, 206, 112, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            phase_ = Phase::Idle; markDirty(); return;
+            phase_ = Phase::Idle; markFullDirty(); return;
         }
         for (uint8_t slot = 0; slot < 5; ++slot) {
             const uint8_t idx = listPage_ * 5 + slot;
@@ -323,7 +343,7 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
                 password_ = "";
                 capsLock_ = false;
                 phase_ = Phase::Keyboard;
-                markDirty();
+                markFullDirty();
                 return;
             }
         }
@@ -335,38 +355,38 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
             for (uint8_t col = 0; col < 10; ++col) {
                 if (keyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                     if (password_.length() < 63) password_ += keys[row][col];
-                    markDirty(); return;
+                    markFullDirty(); return;
                 }
             }
         }
         if (baseRect(2, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            capsLock_ = !capsLock_; symbols_ = false; markDirty(); return;
+            capsLock_ = !capsLock_; symbols_ = false; markFullDirty(); return;
         }
         if (baseRect(58, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            symbols_ = !symbols_; markDirty(); return;
+            symbols_ = !symbols_; markFullDirty(); return;
         }
         if (baseRect(114, 208, 74, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (password_.length() < 63) password_ += ' ';
-            markDirty(); return;
+            markFullDirty(); return;
         }
         if (baseRect(192, 208, 50, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (password_.length() > 0) password_.remove(password_.length() - 1);
-            markDirty(); return;
+            markFullDirty(); return;
         }
         if (baseRect(246, 208, 72, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startConnect(host); return; }
-        if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { phase_ = Phase::List; markDirty(); }
+        if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { phase_ = Phase::List; markFullDirty(); }
 
     } else if (phase_ == Phase::TimeZone) {
         const uint8_t n = Board::tzZoneCount();
         const uint8_t pages = static_cast<uint8_t>((n + 4) / 5);
         if (baseRect(8, 208, 90, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && zonePage_ > 0) {
-            --zonePage_; markDirty(); return;
+            --zonePage_; markFullDirty(); return;
         }
         if (baseRect(222, 208, 90, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && zonePage_ + 1 < pages) {
-            ++zonePage_; markDirty(); return;
+            ++zonePage_; markFullDirty(); return;
         }
         if (baseRect(106, 208, 108, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            phase_ = Phase::Idle; markDirty(); return;
+            phase_ = Phase::Idle; markFullDirty(); return;
         }
         for (uint8_t slot = 0; slot < 5; ++slot) {
             const uint8_t idx = static_cast<uint8_t>(zonePage_ * 5 + slot);
@@ -374,22 +394,46 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
             if (zoneRect(slot).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 board.setTzZoneIndex(idx);
                 phase_ = Phase::Idle;
-                markDirty();
+                markFullDirty();
                 return;
             }
         }
 
     } else if (phase_ == Phase::Done) {
-        phase_ = Phase::Idle; markDirty();
+        phase_ = Phase::Idle; markFullDirty();
     }
 }
 
-void WifiGame::render(GameHost& host) {
+/* WI-FI IS A FULL-REPAINT SCREEN, ON PURPOSE.
+ *
+ * Seven phases, each a different layout -- an idle summary, a scan, a network
+ * list, a full on-screen keyboard, a connecting spinner, a result and a
+ * timezone picker -- and thirty places that ask for a repaint between them.
+ * Almost every one of those is a phase change, where everything on the panel
+ * is replaced anyway.
+ *
+ * The one candidate for a partial repaint is typing: a character changes the
+ * password field and nothing else, while the keyboard beneath it is thirty-odd
+ * keys that do not move. That is a real win and it is deliberately not taken
+ * here. This screen has just had a four-and-a-half second blocking scan put
+ * behind a watchdog guard, it is the least exercised screen in the firmware,
+ * and it is the one where a stale row costs an owner their network. The
+ * keyboard is recorded in the audit as the thing to do next, on its own, with
+ * a device in hand.
+ *
+ * So the split below is a migration onto the base class's methods. Every
+ * invalidation is now markFullDirty(), which is exactly what render() gave
+ * them before by opening with Ui::clear(). */
+void WifiGame::renderStatic(GameHost& host) {
+    syncPanel(host);
+    Ui::clear(host.display());
+    Ui::drawTopBar(host.board(), title());
+}
+
+void WifiGame::renderDynamic(GameHost& host) {
     syncPanel(host);
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
-    Ui::clear(tft);
-    Ui::drawTopBar(host.board(), title());
 
     if (phase_ == Phase::Idle) {
         const String ssid = board.wifiSsid();
@@ -496,7 +540,7 @@ void WifiGame::render(GameHost& host) {
         tft.drawString("Looking for networks", baseX(WIFI_BASE_W / 2), baseY(130), 2);
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.drawString("Please wait...", baseX(WIFI_BASE_W / 2), baseY(160), 2);
-        markDirty(); // keep refreshing for animation
+        markFullDirty(); // keep refreshing for animation
 
     } else if (phase_ == Phase::List) {
         // Header above list
@@ -594,7 +638,7 @@ void WifiGame::render(GameHost& host) {
         String prog;
         for (uint32_t i = 0; i < dots + 1; ++i) prog += "...";
         tft.drawString(prog, baseX(WIFI_BASE_W / 2), baseY(152), 2);
-        markDirty();
+        markFullDirty();
 
     } else if (phase_ == Phase::Done) {
         tft.setTextColor(connectOk_ ? Ui::success() : Ui::error(), Ui::bg());

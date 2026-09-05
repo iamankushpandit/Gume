@@ -75,7 +75,7 @@ generated a sample at a time from a script of `Segment`s: sine or square with
 an optional linear sweep, band-passed noise, and three formant resonators
 driven either by a monotone impulse train (voiced) or by noise (unvoiced).
 That is a flash decision -- a second of 16-bit 16 kHz mono is 32 KB against a
-budget already at 74.9% -- and it is also what makes a spoken phrase possible
+budget already at 76.0% -- and it is also what makes a spoken phrase possible
 at all. The whole vocabulary plus the phrase is under a kilobyte of const data.
 
 **`playSound()` arms a script; it does not play it.** `tickAudio()` runs once
@@ -104,8 +104,31 @@ responsiveness rule is about. The mute gate lives in `Board::playSound()` and
 nowhere else, which is what makes it true of the beeps and the boot phrase as
 well as of the cues; `setSoundEnabled(false)` also stops whatever is currently
 sounding, because Mute is the control somebody reaches for *while* the boot
-phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (85) and writes codec register 0x32
-live.
+phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
+`BOARD.audio.maxVolume`).
+
+**The audio backend is now three-state, not binary.**
+
+- `GUME_HAS_AUDIO_CODEC 1` — ES8311 codec (Freenove FNK0104B). Requires
+  `Wire` + `driver/i2s.h`. Volume via register 0x32 (logarithmic — see
+  `applyCodecVolume()`). `maxVolume` = 85 on this board.
+- `GUME_HAS_AUDIO_DAC 1` — ESP32 built-in DAC via `I2S_DAC_BUILT_IN` (CYD
+  boards: E32R28T-1, E32R40T, ESP32-2432S028R). Requires `driver/i2s.h`
+  only; no Wire. Volume is linear amplitude scaling applied at sample time in
+  `tickAudio()` — do **not** copy the dB conversion from `applyCodecVolume()`,
+  which is correct only for a logarithmic register. Samples must be converted
+  from signed int16 to unsigned offset-binary: `(sample * vol/100) + 32768`.
+  Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
+  75 on CYD boards (bare DAC, unamplifed 1-inch driver distorts above 75%).
+- Neither defined — no audio (e.g. esp32-2432s028 ST7789 variant).
+
+`AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
+`BoardProfile`. A board that gains a louder amplifier sets its own ceiling;
+a board with no speaker path sets it to 0.
+
+`Board::hasSound()` covers both codec and DAC: a settings screen can offer
+the mute switch and volume slider on any audio-capable board, not just
+codec boards.
 
 **Register 0x32 is logarithmic and was being driven as if it were linear.**
 Half a decibel per step, `0xBF` unity, `0x00` silence -- so scaling the
@@ -119,11 +142,10 @@ both**, for the same reason the battery constants carry that rule: a bench
 instrument that disagrees with the product about what "80" means is worse than
 no instrument.
 
-`AUDIO_VOLUME_MAX` was 80 and is now 85, and the change is not a relaxation --
-the old 80 was measuring the bug, not the hardware. 85 was set by listening on
-the FNK0104B's driver. It describes one speaker in one case: a board with a
-louder amplifier needs its own figure, and at that point the ceiling belongs in
-`BoardProfile` rather than in `Board`.
+**IDF version dependency.** `I2S_DAC_BUILT_IN` and `i2s_set_dac_mode()` are
+IDF 4.4 (Arduino core 2.0.17) APIs. They were removed in IDF 5.x. If the
+platform is ever bumped, the DAC backend in `beginAudio()` and `tickAudio()`
+and the whole of `src/audiodiag.cpp` need rewriting with the new driver.
 
 The knobs for retuning by ear are the formant numbers, the segment lengths,
 `VOICE_PITCH_HZ` (monotone, which is what makes it robotic) and `NOISE_MAKEUP`
@@ -134,9 +156,15 @@ active-low amplifier enable, MCLK from the APLL, ADC volume resetting to
 minimum -- came from `env:s3diag` on real hardware and are documented at the
 top of the file.
 
+**`env:audiodiag`** is a standalone DAC bring-up probe (same pattern as
+`batdiag`): builds `src/audiodiag.cpp` alone, no frame budget, no watchdog.
+Sine wave at a configurable frequency, frequency sweep, volume steps and tone
+bursts approximating each cue. The three questions it answers: does GPIO26
+reach the speaker? Is output level audible? Where does distortion begin?
+
 ### RGB LED
 
-LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no codec the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
+LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
 The red and green GPIOs are physically crossed on this unit versus the standard pinout. The E32R28T-1 profile already accounts for it (`rgb.r = 16`, `rgb.g = 4`) and it was verified on hardware — leave it alone.
 
@@ -166,11 +194,19 @@ Time/date formatting and sync-state helpers over the ESP32 RTC.
 
 `BOARD.battery.adcPin` is GPIO34 on this board = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
 
-`readBatteryTelemetry()` caches one sample set for `BATTERY_SAMPLE_MS` (2s) and every other accessor — `getBatteryVoltage()`, `getPowerSource()`, `getBatteryPercent()` — reads through it. **Keep it that way.** Before this, each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. That is most of a frame, and it is what made scrolling feel sluggish.
+**Sampling runs on its own task and never on a render path.** `sampleBattery()` is called every `BATTERY_SAMPLE_MS` (2s) by a priority-1 task pinned to core 0 — the same shape as Watchdog's monitor, and away from the Arduino loop task on core 1. It takes the eight ADC reads, advances both filters, applies the display deadband, and publishes `batteryPublished_` under a `portMUX`. Every accessor — `readBatteryTelemetry()`, `getBatteryVoltage()`, `getPowerSource()`, `getBatteryPercent()`, `getChargingState()`, `isBatteryLow()` — does nothing but copy that snapshot. **Keep it that way**, and take the whole snapshot in one call rather than reading two accessors: a percentage from one sample beside a charge verdict from the next can say "battery low" about a pack that same sample knows is charging.
+
+This has been wrong twice, in the same direction both times. First each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. Then it became a 2s cache, which fixed the average and not the frame — the first caller after the cache expired still paid for the conversion, and that caller was almost always a top bar being drawn. A cache makes the cost rare; it does not move it off the render path. Only the task does.
+
+`Board::begin()` calls `beginBatteryMonitor()`, which takes one sample synchronously before starting the task, so the first screen drawn has a real reading and the gauge filter is primed rather than ramping up from zero. On a board with no sense line it publishes the zeroed snapshot and starts nothing.
 
 Conversion goes through `esp_adc_cal`, not `raw / 4095 * 3.3`. At 11dB the ESP32's ADC is nominally 0–3.1V but only linear to ~2.45V, and its reference varies 1000–1200mV part to part; the eFuse calibration corrects both. The old comment claiming "3.3V reference with 11dB attenuation" described two mutually exclusive things.
 
 Percentage uses a piecewise LiPo discharge curve. A linear 3.2–4.2V map reads roughly 20 points high through the middle, because a cell sits near 3.7V for most of its life.
+
+**The displayed percentage carries a deadband, because one percent is finer than this hardware can resolve.** On the mid-discharge plateau the curve spends 10 points on 20mV — 2mV per point — while the divider halves the cell before the ADC sees it and one count at 11dB is worth over a millivolt. So a single count of noise is most of a percentage point, and the plateau is where the pack spends most of its life. The gauge filter kills the fast noise but cannot stop a value resting on a boundary from crossing it, and with the BLE beacon advertising its supply ripple made that continuous. `PERCENT_DEADBAND` (2) holds the shown number until it has genuinely moved; both endpoints are exempt, because "100%" and "0%" are the two readings anybody acts on. It applies to the percentage only — the voltage, the charge verdict and the filters are untouched.
+
+Every crossing invalidates the header, which is why this mattered enough to fix twice over: see `Game::renderChrome()` for the other half, which stopped a 22-pixel badge from repainting the whole panel.
 
 **There is no `isBatteryPresent()`, and there must not be one.** It used to exist and was a constant `true`. Measured on hardware 2026-08-24 with `batdiag` (8s averaged): pack + USB **4.224 V**, USB with **no pack 4.159 V**, pack alone **4.066 V**. The no-pack case sits *between* the other two, because the TP4054 holds BAT at float voltage with or without a cell — so no threshold separates them in either direction. This is measured, not inferred; do not reintroduce the question in a new form or retune a constant to answer it.
 
@@ -180,7 +216,7 @@ Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k).
 
 ## Charge detection
 
-The board exposes no charge-status line — the charger's CHRG pin is not wired to the ESP32 — so `getChargingState()` **infers** the answer from the cell voltage alone. `updateChargeState()` runs once per *fresh* telemetry sample (so at `BATTERY_SAMPLE_MS`, not per frame, however often a render path asks) and reads three signals: a step of `CHARGE_STEP_V` between consecutive samples, which is what makes the icon respond to a cable within ~2s; a voltage held above `V_CHARGER_HELD` (4.21V), which no resting cell reaches; and the trend of a low-passed average over `CHARGE_WINDOW_MS` (45s) for everything in between.
+The board exposes no charge-status line — the charger's CHRG pin is not wired to the ESP32 — so `getChargingState()` **infers** the answer from the cell voltage alone. `updateChargeState()` runs once per sample on the battery task (so at `BATTERY_SAMPLE_MS`, and never on a render path however often one asks) and reads three signals: a step of `CHARGE_STEP_V` between consecutive samples, which is what makes the icon respond to a cable within ~2s; a voltage held above `V_CHARGER_HELD` (4.21V), which no resting cell reaches; and the trend of a low-passed average over `CHARGE_WINDOW_MS` (45s) for everything in between.
 
 Two things are deliberate and worth not undoing. **A flat window keeps the previous verdict** rather than resetting to unknown — mid-discharge a LiPo plateau spans 20mV across 40% of the capacity, so "no movement" is not evidence of anything. And **`FULL` is only reachable from `CHARGING`**, because a rested full pack and a finished charge are indistinguishable from one sample; claiming "charged" for a battery nobody watched charge is a lie the user would act on.
 
@@ -189,6 +225,49 @@ Two things are deliberate and worth not undoing. **A flat window keeps the previ
 Three fixes proven on hardware and now in both `BoardPower.cpp` and `battery_diag.cpp` — **change one, change both**: `V_CHARGER_HELD` is 4.21V (4.24V sat above the 4.238V maximum the board actually produces, so it never fired); the negative-step test runs **before** the held-high level, so a cell that is falling while still above the trip is never called charging; and the flat-window fallback is guarded by `chargeSmoothV_ < CHARGE_FULL_V`, because it claimed to mean "flat and low" while never testing for low — a board booted on USB reported `DISCHARGING` after 45s.
 
 `isBatteryLow()` / `isBatteryCritical()` (≤15% / ≤5%) are both false while charging, so plugging in silences the warning at once instead of waiting for the reading to climb.
+
+### The built-in DAC backend, and four ways it produces perfect silence
+
+`GUME_HAS_AUDIO_DAC` boards have no codec: GPIO26 is ESP32 DAC channel 2, the
+I2S peripheral drives it via `I2S_DAC_BUILT_IN`, and an onboard 8002-series amp
+does the rest. The synthesiser above is untouched by this -- `nextSample()`
+produces mono int16 and knows nothing about which backend consumes it.
+
+Four separate faults were found bringing this up on the E32R40T, and **each one
+alone gives complete silence from a driver that reports success**. That is what
+makes this path expensive to debug and worth writing down.
+
+1. **`communication_format` must be `I2S_COMM_FORMAT_STAND_MSB`.** The framer
+   is what latches samples into the DAC, and PCM short-frame sync does not
+   present the word the way the DAC expects. Under `..._PCM_SHORT` the driver
+   installs, every `i2s_write()` reports all bytes accepted, and nothing is
+   audible. The codec path uses `STAND_I2S`, which is right for the ES8311 --
+   the two are different questions, do not unify them.
+2. **The channel enum names are inverted relative to the channel numbers.**
+   `I2S_DAC_CHANNEL_RIGHT_EN` is DAC1/GPIO25; `..._LEFT_EN` is DAC2/GPIO26.
+   `beginAudio()` derives the constant from `BOARD.audio.speakerPin` with a
+   `static_assert`, so this cannot be got wrong by memory again.
+3. **Do not call `i2s_set_pin(port, NULL)`.** It is the routing call most
+   examples use, and it enables *both* DAC channels -- GPIO25 as well. On this
+   board family GPIO25 is the resistive touch SPI clock, so it trades silence
+   for broken touch. `i2s_set_dac_mode()` alone is correct for one channel, and
+   the IDF header says so.
+4. **The amplifier outlives generation.** `playing` goes false when the last
+   sample is GENERATED, and the DMA still holds up to 96ms of it. Dropping the
+   amp there eats the tail, and on the short cues that is the whole cue.
+   `AMP_TAIL_MS` (150ms) holds it, reset by `arm()`. Both backends do this.
+
+Two consequences of an 8-bit DAC, neither a defect: samples are written as
+unsigned offset-binary (`sample + 32768`, only the high byte reaches the DAC),
+and **the spoken boot phrase does not survive the quantisation** -- the formant
+voice lives in quiet resonator ringing that 8 bits scaled by a volume setting
+throws away. Cues are fine. The codec board is 16-bit and genuinely sounds
+different; that gap cannot be tuned away.
+
+`env:audiodiag` is the probe. It gives an unambiguous A/B on one reset with no
+panel and no button: a PWM burst (no DAC at all) proves speaker, amp and enable
+line; an I2S tone proves the DAC path; a direct `dacWrite()` tone separates the
+I2S framing from the DAC peripheral.
 
 ## BleBeacon.{h,cpp}
 

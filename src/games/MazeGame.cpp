@@ -289,33 +289,57 @@ void MazeGame::drawPlayer(Ui::Renderer& tft) const {
     tft.drawCircle(px, py, 8, TFT_BLACK);
 }
 
-void MazeGame::render(AppContext& host) {
+void MazeGame::renderStatic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    Ui::clear(tft);
+    host.drawTopBar(title());
+    Ui::drawLabel(tft, Rect{12, 32, 296, 16}, "Drag the red dot to the green exit",
+                  Ui::text(), 2, Align::Center);
+    drawMaze(tft);
+
+    /* The panel has been wiped, so nothing on it is what we last drew. */
+    drawnMoves_ = 0xFFFF;
+    drawnBest_ = 0xFFFF;
+    drawnLevel_ = 0xFF;
+    drawnWon_ = false;
+}
+
+void MazeGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
 
-    if (needsFullRender()) {
-        Ui::clear(tft);
-        host.drawTopBar(title());
-        Ui::drawLabel(tft, Rect{12, 32, 296, 16}, "Drag the red dot to the green exit", Ui::text(), 2, Align::Center);
+    /* Only when the line actually changed. drawHud() opens by wiping a
+     * full-width 18px band, and the old code called it on every repaint --
+     * including the ones driven by the drag timer, where nothing in it had
+     * moved. */
+    if (moves_ != drawnMoves_ || bestMoves_ != drawnBest_ || levelIndex_ != drawnLevel_) {
         drawHud(tft);
-        drawMaze(tft);
-    } else {
-        drawHud(tft);
-        if (playerMoved_) {
-            drawMazeCell(tft, static_cast<uint8_t>(prevPlayerCol_), static_cast<uint8_t>(prevPlayerRow_));
-            drawMazeCell(tft, static_cast<uint8_t>(playerCol_), static_cast<uint8_t>(playerRow_));
-        }
+        drawnMoves_ = moves_;
+        drawnBest_ = bestMoves_;
+        drawnLevel_ = levelIndex_;
     }
 
+    /* The dot's own erase: repaint the cell it left and the cell it arrived in,
+     * then draw it at the new position. prevPlayerCol_/Row_ is the previous
+     * position this needs -- the same idea as the screen saver tracking
+     * ssav_textCy_, and it was already here. */
+    if (playerMoved_) {
+        drawMazeCell(tft, static_cast<uint8_t>(prevPlayerCol_), static_cast<uint8_t>(prevPlayerRow_));
+        drawMazeCell(tft, static_cast<uint8_t>(playerCol_), static_cast<uint8_t>(playerRow_));
+    }
     drawPlayer(tft);
     playerMoved_ = false;
 
-    if (won_) {
+    /* Painted once. It never needs erasing here: the only way off a solved
+     * maze is a tap, which advances the level and asks for a full repaint. */
+    if (won_ && !drawnWon_) {
         tft.fillRoundRect(58, 86, 204, 58, 8, Ui::panel());
         tft.drawRoundRect(58, 86, 204, 58, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
         tft.drawString("Maze solved!", GAME_CANVAS_WIDTH / 2, 106, 4);
-        tft.drawString(levelIndex_ + 1 < MazeData::COUNT ? "Tap for next maze" : "Tap to play again", GAME_CANVAS_WIDTH / 2, 132, 2);
+        tft.drawString(levelIndex_ + 1 < MazeData::COUNT ? "Tap for next maze" : "Tap to play again",
+                       GAME_CANVAS_WIDTH / 2, 132, 2);
         tft.setTextDatum(TL_DATUM);
+        drawnWon_ = true;
     }
 }

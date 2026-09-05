@@ -122,7 +122,11 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
          * sounded when the last pair went down. */
         newRound(host);
         host.playSound(Sound::Select);
-        markDirty();
+        /* A layout change, not a content one: every card is reshuffled and
+         * turned back over, the counter resets, and the win panel has to go.
+         * Asking for a full repaint is what makes all three correct without a
+         * special case for any of them. */
+        markFullDirty();
         return;
     }
 
@@ -171,42 +175,102 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void MemoryGame::render(AppContext& host) {
+/* One card, face and all. The fill covers the whole card rect, so it erases
+ * whatever face was there; the outline goes back on top because the fill would
+ * otherwise paint over it. Only the shadow is left alone -- it is drawn once in
+ * renderStatic() and never moves. */
+void MemoryGame::drawCard(Ui::Renderer& tft, uint8_t index, uint8_t face) {
+    const Rect r = cardRect(index);
+    const uint16_t fill = face == FACE_MATCHED ? MATCHED
+                        : (face == FACE_FRONT ? CARD_FRONT : CARD_BACK);
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, fill);
+    tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, TFT_DARKGREY);
+    if (face == FACE_BACK) {
+        tft.fillCircle(r.x + r.w / 2, r.y + r.h / 2, min(r.w, r.h) / 7, ACCENT);
+        return;
+    }
+    const String label = config_.symbols[cards_[index]];
+    const uint8_t font = tft.textWidth(label, 4) <= r.w - 8 ? 4 : 2;
+    tft.setTextColor(TFT_BLACK, fill);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(label, r.x + r.w / 2, r.y + r.h / 2, font);
+    tft.setTextDatum(TL_DATUM);
+}
+
+void MemoryGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
+    /* The card shadows. Their rects come from cardRect(), which depends on the
+     * board shape and not on any card's state, and their colour is a constant
+     * -- so they are the same pixels for the whole round however many cards get
+     * turned over. Drawing them here rather than per card halves what a card
+     * costs to repaint. */
     const uint8_t total = config_.rows * config_.cols;
     for (uint8_t i = 0; i < total; ++i) {
         const Rect r = cardRect(i);
-        const bool up = visible_[i] || matched_[i];
-        const uint16_t fill = matched_[i] ? MATCHED : (up ? CARD_FRONT : CARD_BACK);
         tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 6, 0xBDF7);
-        tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, fill);
-        tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, TFT_DARKGREY);
-        if (up) {
-            const String label = config_.symbols[cards_[i]];
-            const uint8_t font = tft.textWidth(label, 4) <= r.w - 8 ? 4 : 2;
-            tft.setTextColor(TFT_BLACK, fill);
-            tft.setTextDatum(MC_DATUM);
-            tft.drawString(label, r.x + r.w / 2, r.y + r.h / 2, font);
-            tft.setTextDatum(TL_DATUM);
-        } else {
-            tft.fillCircle(r.x + r.w / 2, r.y + r.h / 2, min(r.w, r.h) / 7, ACCENT);
-        }
     }
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Moves ") + moves_, 8, TOP_BAR_HEIGHT + 2, 2);
-    tft.drawString(bestMoves_ > 0 ? String("Best ") + bestMoves_ : "Best --", 8, TOP_BAR_HEIGHT + 18, 1);
-    if (allMatched()) {
+    /* The panel has just been wiped, so nothing on it is what we last drew.
+     * Resetting the trackers is what makes renderDynamic() repaint everything
+     * on this pass and only the differences afterwards. */
+    for (uint8_t i = 0; i < MAX_MEMORY_CARDS; ++i) {
+        drawnFace_[i] = FACE_NONE;
+    }
+    drawnMoves_ = 0xFFFF;
+    drawnBest_ = 0xFFFF;
+    drawnPanel_ = false;
+}
+
+void MemoryGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    const uint8_t total = config_.rows * config_.cols;
+    for (uint8_t i = 0; i < total; ++i) {
+        const uint8_t face = matched_[i] ? FACE_MATCHED
+                           : (visible_[i] ? FACE_FRONT : FACE_BACK);
+        if (face == drawnFace_[i]) {
+            continue;   // already on the panel
+        }
+        drawCard(tft, i, face);
+        drawnFace_[i] = face;
+    }
+
+    /* Both counters are cleared before they are written. "Moves" grows harmlessly
+     * (9 -> 10) but newRound() resets it, and "Best" only ever falls, so both can
+     * get NARROWER -- and drawString paints only behind the glyphs it draws, so
+     * the tail of the old number would stay. The grid starts at GRID_TOP, which
+     * is 30px below the bar, so this rect cannot reach a card. */
+    if (moves_ != drawnMoves_ || bestMoves_ != drawnBest_) {
+        tft.fillRect(8, TOP_BAR_HEIGHT + 2, 130, 26, Ui::bg());
+        char line[24];
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TL_DATUM);
+        snprintf(line, sizeof(line), "Moves %u", static_cast<unsigned>(moves_));
+        tft.drawString(line, 8, TOP_BAR_HEIGHT + 2, 2);
+        if (bestMoves_ > 0) {
+            snprintf(line, sizeof(line), "Best %u", static_cast<unsigned>(bestMoves_));
+        } else {
+            snprintf(line, sizeof(line), "Best --");
+        }
+        tft.drawString(line, 8, TOP_BAR_HEIGHT + 18, 1);
+        drawnMoves_ = moves_;
+        drawnBest_ = bestMoves_;
+    }
+
+    /* Painted once when the board comes out. It never has to be erased here:
+     * the only way off a finished board is newRound(), which is a layout change
+     * and asks for a full repaint. */
+    if (allMatched() && !drawnPanel_) {
         tft.fillRoundRect(50, 92, 220, 56, 8, Ui::panel());
         tft.drawRoundRect(50, 92, 220, 56, 8, Ui::success());
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
         tft.drawString("You matched all!", GAME_CANVAS_WIDTH / 2, 112, 4);
         tft.drawString("Tap to play again", GAME_CANVAS_WIDTH / 2, 136, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnPanel_ = true;
     }
-    tft.setTextDatum(TL_DATUM);
 }

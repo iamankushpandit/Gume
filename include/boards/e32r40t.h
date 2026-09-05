@@ -6,8 +6,9 @@
  * act on it -- see e32r28t1.h for why this cannot just be the profile field. */
 #define GUME_TOUCH_CAPACITIVE 0
 
-/* No audio codec. */
+/* No codec; DAC output on GPIO26 (ESP32 DAC2), same as the 2.8-inch board. */
 #define GUME_HAS_AUDIO_CODEC 0
+#define GUME_HAS_AUDIO_DAC   1
 
 /* LCDWIKI E32R40T (ESP32-32E) -- the 4-inch board. ST7796 320x480 panel,
  * XPT2046 resistive touch sharing the display's SPI bus.
@@ -114,24 +115,51 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
-    /* Inherited from the E32R28T-1, including its crossed red/green lines,
-     * which were verified on that unit rather than assumed. Wrong here shows
-     * up immediately and harmlessly: a beep lights the wrong colour, or an LED
-     * that never goes out (common anode -- a channel lights when driven LOW).
-     * The vendor manual for the 2.8-inch board names IO16/IO17/IO22 instead,
-     * which the E32R28T-1 profile already contradicts on measured grounds; if
-     * this board disagrees with both, measure before believing either. */
+    /* Red and blue are inherited from the E32R28T-1 and are still unverified
+     * on this board. Green is NOT: this board's green channel is PIN_NONE
+     * because IO4 is not an LED here at all.
+     *
+     * The inherited block claimed IO4 as green, and the previous version of
+     * this comment said "if this board disagrees with both, measure before
+     * believing either". It does disagree, and the LCDWIKI schematic and pin
+     * table for the E32R40T/E32N40T settle it: IO4 is `AUDIO_EN`, the
+     * active-low shutdown input of the onboard 8002-series power amplifier.
+     *
+     * That inheritance was not a cosmetic error. This LED is common anode, so
+     * "off" drives the pin HIGH -- and HIGH on an active-low shutdown pin
+     * holds the amplifier in shutdown. Board::begin() calls
+     * setRgb(false,false,false) on every boot, so the firmware was switching
+     * the speaker off as a side effect of turning off an LED that is not
+     * there. The DAC was driving GPIO26 correctly the whole time and nothing
+     * came out.
+     *
+     * Red and blue keep their inherited values; a wrong colour is harmless
+     * and self-evident, which is what the original comment was right about. */
     RgbLedProfile{
         /* r           */ 16,
-        /* g           */ 4,
+        /* g           */ PIN_NONE,
         /* b           */ 17,
         /* commonAnode */ true,
     },
 
-    /* Inherited from the E32R28T-1. Audio is stubbed there too -- beepOk()
-     * and beepError() pulse the LED -- so this pin being wrong is quiet in
-     * both senses. If a speaker on GPIO26 stays silent, that is the thing to
-     * measure, not the codec fields below, which this board does not have. */
+    /* Vendor-documented, not inferred. The LCDWIKI schematic for this board
+     * runs GPIO26 (`AUDIO_IN`) through an RC filter into U5, an 8002-series
+     * mono BTL power amplifier -- SC8002B on the schematic, FM8002E in the
+     * user manual, revision-dependent and identical in topology -- whose
+     * output is SP+/SP- on JP1. GPIO26 is ESP32 DAC channel 2, so
+     * I2S_DAC_BUILT_IN drives the amplifier's analog input directly. This is
+     * an analog power amp on the board, NOT an external I2S DAC: there is no
+     * BCLK/LRCLK/DOUT path and adding one would be describing hardware that
+     * is not here.
+     *
+     * `AUDIO_EN` on IO4 is the amplifier's shutdown input and is ACTIVE LOW
+     * (low = enabled). See the RGB block above for why that pin is not the
+     * green LED, and what it cost to believe that it was.
+     *
+     * maxVolume 75 is still inherited from the 2.8-inch board and is NOT yet
+     * set by listening on this one -- the vendor rates the amp at 1.5W into
+     * 8 ohms from 5V, so the ceiling here is about what the speaker and the
+     * case can take, and it should be confirmed by ear. */
     AudioProfile{
         /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
@@ -140,8 +168,9 @@ inline constexpr BoardProfile BOARD = {
         /* i2sWordSelect       */ PIN_NONE,
         /* i2sDataOut          */ PIN_NONE,
         /* i2sDataIn           */ PIN_NONE,
-        /* ampEnablePin        */ PIN_NONE,
-        /* ampEnableActiveLow  */ false,
+        /* ampEnablePin        */ 4,
+        /* ampEnableActiveLow  */ true,
+        /* maxVolume           */ 75,
     },
 
     /* Inherited from the E32R28T-1: IO34 (ADC1_CH6, input-only) behind the 2:1

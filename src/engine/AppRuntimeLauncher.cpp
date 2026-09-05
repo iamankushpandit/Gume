@@ -58,6 +58,20 @@ void BrainoApp::launch(const AppDefinition& app) {
     applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
+    /* A SCREEN TRANSITION IS ALWAYS A WHOLE-SCREEN REPAINT.
+     *
+     * Every screen is a static instance reused for the life of the device, so
+     * it arrives here carrying the dirty flags the LAST visit left behind --
+     * and the last thing that visit did was clearDirty(). Without this, a
+     * screen whose begin() happens to call only markDirty() renders without
+     * its renderStatic(), which is where both Ui::clear() and the top bar
+     * live: no chrome, and the previous screen still showing underneath it.
+     *
+     * It belongs here rather than in each begin(). Fourteen screens would each
+     * have to remember, and the one that forgot would be found by eye on a
+     * panel rather than by any build. Partial repaint is an optimisation
+     * WITHIN a screen's lifetime; entering one is not the place to be greedy. */
+    activeGame_->requestRender();
     activeGame_->render(*this);
     activeGame_->clearDirty();
 }
@@ -133,20 +147,23 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void LauncherGame::render(GameHost& host) {
-    clampPage(host);
-
+/* Everything above the tile grid. Extracted from render() so that a change
+ * confined to the header -- the clock ticking over, the battery badge, a
+ * notification arriving -- repaints the header alone instead of wiping the
+ * panel and redrawing every tile with it. See Game::renderChrome().
+ *
+ * It paints its own background and takes nothing from the caller, so it is
+ * correct over a live screen as well as over a freshly cleared one. */
+void LauncherGame::drawHeader(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t lW = static_cast<int16_t>(tft.width());
-    const int16_t lH = static_cast<int16_t>(tft.height());
     const Board::LayoutMode mode = board.layoutMode();
     const bool tall = (mode == Board::LayoutMode::Vertical);
     const int16_t headerH = LauncherLayout::headerHeight(mode);
     const Rect gearBtn = LauncherLayout::gearRect(mode, lW);
     const Rect profileBtn = LauncherLayout::profileRect(mode, lW);
 
-    Ui::clear(tft);
     tft.fillRect(0, 0, lW, headerH, Ui::surface());
     tft.setTextColor(Ui::text(), Ui::surface());
     tft.setTextDatum(ML_DATUM);
@@ -246,6 +263,44 @@ void LauncherGame::render(GameHost& host) {
      * why nothing here hit-tests it. */
     Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(),
                      Ui::surface());
+}
+
+bool LauncherGame::renderChrome(GameHost& host) {
+    drawHeader(host);
+    return true;
+}
+
+/* Background and header. Only on a full repaint -- paging does not touch it. */
+void LauncherGame::renderStatic(GameHost& host) {
+    Ui::clear(host.display());
+    drawHeader(host);
+    /* The panel has just been wiped, so no slot has a frame on it any more. */
+    for (uint8_t i = 0; i < MAX_TILES; ++i) {
+        slotHasButton_[i] = false;
+    }
+}
+
+/* The tile grid and the pager. This is what next/previous changes, and it is
+ * all next/previous should cost: the header above is left alone.
+ *
+ * Every tile repaints its own rect opaquely -- Ui::drawButton fills it and the
+ * label is drawn with the tile colour as its text background -- so a tile
+ * erases the tile that was there. The two things that do NOT self-erase are
+ * handled explicitly below: a slot with no entry on it, and the pager. */
+void LauncherGame::renderDynamic(GameHost& host) {
+    clampPage(host);
+
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const int16_t lW = static_cast<int16_t>(tft.width());
+    const int16_t lH = static_cast<int16_t>(tft.height());
+    const Board::LayoutMode mode = board.layoutMode();
+    const bool tall = (mode == Board::LayoutMode::Vertical);
+
+    /* Still true here: the runtime clears the dirty flags AFTER render, so
+     * this distinguishes "the whole screen was just wiped" from "only the
+     * content changed". */
+    const bool fullPaint = needsFullRender();
 
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t start = page_ * pageSize;
@@ -292,14 +347,53 @@ void LauncherGame::render(GameHost& host) {
     for (uint8_t slot = 0; slot < pageSize; ++slot) {
         const uint8_t index = start + slot;
         if (index >= total) {
-            break;
+            /* Erase, do not skip. This used to `break`, which was correct only
+             * because the whole screen had just been cleared. Paging from a
+             * full page to a shorter last one now has to take the leftover
+             * tiles off itself, or they stay on screen belonging to a page the
+             * player is no longer on. */
+            const Rect empty = LauncherLayout::tileRect(slot, mode, lW, lH);
+            tft.fillRect(empty.x, empty.y, empty.w, empty.h, Ui::bg());
+            if (slot < MAX_TILES) {
+                slotHasButton_[slot] = false;
+            }
+            continue;
         }
         const AppDefinition& entry = host.launcherEntry(index);
         const Rect r = LauncherLayout::tileRect(slot, mode, lW, lH);
         const uint16_t fill = slot % 3 == 0 ? Ui::rgb(36, 132, 204)
                             : (slot % 3 == 1 ? Ui::rgb(45, 154, 96)
                                              : Ui::rgb(222, 83, 83));
-        Ui::drawButton(tft, r, "", fill, TFT_DARKGREY, TFT_WHITE);
+        /* The button itself is invariant across pages -- its rect comes from
+         * the slot and its colour from `slot % 3`, neither of which a page
+         * change touches. Ui::drawButton pushes TWO full tile areas (a shadow
+         * roundrect and the fill) plus a bevel and an outline, so redrawing it
+         * to change what is written inside it is about half the cost of paging
+         * thrown away.
+         *
+         * On a full repaint it still has to be drawn. On a content change only
+         * the interior is erased -- one plain fillRect inside the border,
+         * cheaper than either roundrect -- and the icon and label go back on
+         * top. The erase is not optional: glyph widths and icon shapes differ
+         * between entries, so drawing the new content over the old leaves
+         * fragments of it behind. */
+        /* The frame is only reusable if there IS one. A slot that was empty on
+         * the page before this holds bare background, so skipping the chrome
+         * would leave a square of tile colour with no rounded edge, no border
+         * and no shadow -- which is what "the tiles overlap" looks like. The
+         * last page is a partial one whenever the app count is not a multiple
+         * of the page size, so paging to the end and back is all it takes. */
+        const bool hasFrame = (slot < MAX_TILES) && slotHasButton_[slot];
+        if (fullPaint || !hasFrame) {
+            Ui::drawButton(tft, r, "", fill, TFT_DARKGREY, TFT_WHITE);
+            if (slot < MAX_TILES) {
+                slotHasButton_[slot] = true;
+            }
+        } else {
+            tft.fillRect(static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2),
+                         static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4),
+                         fill);
+        }
 
         /* Place the contents as fractions of the tile, and scale them with it.
          *
@@ -403,6 +497,13 @@ void LauncherGame::render(GameHost& host) {
                             "Next", page_ + 1 < pages);
         char pageText[8];
         snprintf(pageText, sizeof(pageText), "%u/%u", page_ + 1, pages);
+        /* Cleared first, because the string can get NARROWER. drawString with
+         * an opaque background only paints behind the glyphs it draws, so
+         * "10/12" -> "9/12" would leave the last character of the old text on
+         * screen. Harmless while a full clear preceded every paint; a real
+         * artefact now that paging repaints this strip alone. */
+        tft.fillRect(static_cast<int16_t>(lW / 2 - 40), pY,
+                     80, 24, Ui::bg());
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
         tft.drawString(pageText, lW / 2, static_cast<int16_t>(pY + 12), 2);

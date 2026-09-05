@@ -668,15 +668,18 @@ void SystemInfoGame::drawContent(GameHost& host) {
     rows_.draw(tft, cr, scrollOffset_[tab_]);
 }
 
-void SystemInfoGame::render(GameHost& host) {
+void SystemInfoGame::renderStatic(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
-    const int16_t W = static_cast<int16_t>(tft.width());
+    Ui::clear(tft);
+    Ui::drawTopBar(board, title());
+    drawTabStrip(tft, static_cast<int16_t>(tft.width()));
+}
 
-    if (needsFullRender()) {
-        Ui::clear(tft);
-        Ui::drawTopBar(board, title());
-        drawTabStrip(tft, W);
-    }
+/* drawContent() owns the viewport: RowList::draw() sets it and resets it inside
+ * one call. Keeping both halves of that in one function is deliberate -- a
+ * viewport set in renderStatic() and reset in renderDynamic() would leak its
+ * clip onto the next screen the first time an early return got between them. */
+void SystemInfoGame::renderDynamic(GameHost& host) {
     drawContent(host);
 }

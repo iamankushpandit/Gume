@@ -9,7 +9,12 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    /* Two-phase, though this screen was already careful: its row rebuild is
+     * throttled to REFRESH_MS and RowList wipes its own rect. Unlike Nearby the
+     * data here genuinely ticks -- uptime, time since sync, event ages -- so
+     * the repaint is earned. See docs/RENDER_AUDIT.md. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
     void end(GameHost& host) override;
 
 private:

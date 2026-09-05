@@ -55,7 +55,49 @@ public:
     virtual const char* title() const = 0;
     virtual void begin(GameHost& host) = 0;
     virtual void update(GameHost& host, const TouchPoint& touch) = 0;
-    virtual void render(GameHost& host) = 0;
+    /* TWO-PHASE RENDER. Override these two rather than render().
+     *
+     * renderStatic()  runs ONLY when needsFullRender(). Background, chrome,
+     *                 grid lines, fixed labels -- anything that does not change
+     *                 while the screen is up. Ui::clear() belongs here and
+     *                 ONLY here.
+     * renderDynamic() runs on EVERY repaint. It must not clear the screen, and
+     *                 it is responsible for erasing its own previous output --
+     *                 there is no framebuffer, so nothing else will.
+     *
+     * A full 320x240 repaint is ~150KB over SPI and about 30ms of blanking,
+     * against a 20ms frame budget; on the 480x320 board it is twice that, so
+     * three frame budgets to change one tile. The two-level dirty flags have
+     * always said which was needed and were ignored, because a single render()
+     * that opens with Ui::clear() throws the distinction away one line later.
+     * Splitting the method is what makes the model structural instead of
+     * advisory -- there are two functions, so a caller has to choose.
+     *
+     * The default render() below dispatches, so a screen that has not been
+     * converted yet keeps its own render() override and behaves exactly as it
+     * did. Conversion is per screen and both forms coexist. */
+    /* A SCREEN TRANSITION IS ALWAYS A FULL REPAINT, AND THAT IS NOT
+     * NEGOTIABLE. Every screen is a static instance reused for the life of the
+     * device, so it arrives carrying the flags its LAST visit left -- and the
+     * last thing that visit did was clearDirty(). The runtime therefore calls
+     * requestRender() on every entry path (launch, goHome, relaunch); a
+     * screen's begin() must never be relied on to do it.
+     *
+     * Getting this wrong does not look like a missing optimisation. It looks
+     * like a screen with no top bar and the previous screen showing through
+     * it, because renderStatic() is where both Ui::clear() and the chrome
+     * live. Partial repaint is an optimisation WITHIN a screen's lifetime.
+     * Entering one is not the place to be greedy: a stable picture is worth
+     * more than the frame it costs. */
+    virtual void renderStatic(GameHost& host) { (void)host; }
+    virtual void renderDynamic(GameHost& host) { (void)host; }
+
+    virtual void render(GameHost& host) {
+        if (needsFullRender()) {
+            renderStatic(host);
+        }
+        renderDynamic(host);
+    }
 
     /* Called exactly once when the screen is left, before the next screen's
      * begin(). Default does nothing, which is correct for the games -- they
@@ -79,6 +121,30 @@ public:
     void requestRender() {
         dirty_ = true;
         fullRedraw_ = true;   // coming back from elsewhere: repaint everything
+    }
+
+    /* Repaint the header strip alone, leaving the screen under it untouched.
+     *
+     * The battery badge, the clock and the notification banner all change on
+     * their own schedule rather than the screen's, and the runtime used to
+     * answer that with requestRender() -- a full 320x240 wipe, ~150KB over SPI
+     * and roughly 30ms of visible blanking, for a change confined to the top
+     * 30 pixels. The strip is an eighth of the panel, so this costs about 4ms
+     * and fits inside the frame budget where a full repaint is 150% of it.
+     *
+     * It mattered most for the battery: one percent is about 2mV on the LiPo
+     * plateau, under two ADC counts, so the reading crosses a boundary every
+     * couple of seconds -- and with the BLE beacon advertising, its supply
+     * ripple made that constant. The whole screen flashed each time.
+     *
+     * The default is the standard top bar, which is what every screen that has
+     * one draws, always with title(). A screen carrying its own header --
+     * LauncherGame, ProfileGame -- overrides this. Returning false means "I
+     * cannot repaint my chrome in isolation"; the runtime falls back to a full
+     * repaint, so a screen that is unsure should say so rather than guess. */
+    virtual bool renderChrome(GameHost& host) {
+        host.drawTopBar(title());
+        return true;
     }
 
 protected:
@@ -116,7 +182,17 @@ class AppGame : public Game {
 public:
     virtual void begin(AppContext& host) = 0;
     virtual void update(AppContext& host, const TouchPoint& touch) = 0;
-    virtual void render(AppContext& host) = 0;
+    /* The AppContext half of the two-phase render -- see Game. A catalog game
+     * overrides these two; the render() below dispatches. */
+    virtual void renderStatic(AppContext& host) { (void)host; }
+    virtual void renderDynamic(AppContext& host) { (void)host; }
+
+    virtual void render(AppContext& host) {
+        if (needsFullRender()) {
+            renderStatic(host);
+        }
+        renderDynamic(host);
+    }
     virtual void end(AppContext& host) { (void)host; }
 
     void begin(GameHost& host) final {

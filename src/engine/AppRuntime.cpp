@@ -213,16 +213,17 @@ void BrainoApp::loop() {
     tickBatteryWarning(nowMs);
 
     /* A notification appearing or expiring changes the header, and the header
-     * belongs to the screen underneath -- so the screen has to repaint before
+     * belongs to the screen underneath -- so the chrome has to repaint before
      * the strip is painted over it. Doing this here, ahead of the render
-     * below, keeps both in the same frame; events are a handful a minute, so
-     * the full repaint they cost is not worth optimising away. */
+     * below, keeps both in the same frame.
+     *
+     * The strip is all that changes, so only the strip is repainted. This used
+     * to call requestRender() and wipe the whole panel to put a banner in the
+     * top 30 pixels. */
     if (NearbyPlay::bannerGeneration() != lastBannerGeneration_) {
         lastBannerGeneration_ = NearbyPlay::bannerGeneration();
         bannerNeedsPaint_ = true;
-        if (view_ == View::Game && activeGame_ != nullptr) {
-            activeGame_->requestRender();
-        }
+        requestChromeRender();
     }
 
     /* The BOOT key counts as activity exactly as a touch does. Leaving it out
@@ -261,22 +262,23 @@ void BrainoApp::loop() {
     const uint32_t minuteNow = Clock::minuteKey();
     if (minuteNow != lastClockMinute_) {
         lastClockMinute_ = minuteNow;
-        if (view_ == View::Game && activeGame_ != nullptr) {
-            activeGame_->requestRender();
-        }
+        requestChromeRender();
     }
 
-    /* Invalidate screens when battery state changes, so the badge updates
-     * in real-time instead of only on screen switches. Check both charging
-     * state and percentage since either can change independently. */
+    /* Keep the battery badge live rather than only correct at a screen change.
+     * Charging state and percentage move independently, so both are watched.
+     *
+     * Header-only, like the clock above it. This was the worst of the three
+     * full repaints: the percentage crosses a boundary far more often than the
+     * cell actually discharges -- see Board::getBatteryPercent() -- so the
+     * panel was being wiped every couple of seconds, on every screen, for a
+     * badge 22 pixels wide. */
     const Board::ChargingState chargingNow = board_.getChargingState();
     const int8_t percentNow = board_.getBatteryPercent();
     if (chargingNow != lastChargingState_ || percentNow != lastBatteryPercent_) {
         lastChargingState_ = chargingNow;
         lastBatteryPercent_ = percentNow;
-        if (view_ == View::Game && activeGame_ != nullptr) {
-            activeGame_->requestRender();
-        }
+        requestChromeRender();
     }
 
     if (view_ == View::Asleep) {
@@ -362,6 +364,23 @@ void BrainoApp::loop() {
             activeGame_->render(*this);
             activeGame_->clearDirty();
             repainted = true;
+            /* A full render redraws the header on its way past, so a chrome
+             * request raised earlier in this same frame is already served. */
+            chromeNeedsPaint_ = false;
+        } else if (chromeNeedsPaint_ && activeGame_ != nullptr) {
+            beginScreenPaint();
+            if (activeGame_->renderChrome(*this)) {
+                chromeNeedsPaint_ = false;
+                /* The banner paints over the same strip, so a chrome repaint
+                 * erases it exactly as a full one does. Both have to tell
+                 * drawHeaderBanner() to put it back. */
+                repainted = true;
+            } else {
+                /* The screen cannot do it in isolation. Fall back rather than
+                 * leave a stale badge: the full repaint lands next frame and
+                 * clears the flag on its way through the branch above. */
+                activeGame_->requestRender();
+            }
         }
         drawHeaderBanner(repainted);
     }
@@ -456,6 +475,17 @@ void BrainoApp::drawHeaderBanner(bool screenRepainted) {
     Ui::drawNotification(renderer_, text);
 }
 
+void BrainoApp::requestChromeRender() {
+    /* Only a live screen has chrome to repaint. The saver, sleep and the lock
+     * screen each own the whole panel and paint their own status on their own
+     * cadence -- the lock screen tracks its battery badge in lockPaintedPct_ --
+     * so a badge change must not reach in and draw a top bar over them. */
+    if (view_ != View::Game || activeGame_ == nullptr) {
+        return;
+    }
+    chromeNeedsPaint_ = true;
+}
+
 void BrainoApp::applyRotation(uint8_t rotation) {
     if (board_.displayRotation() != rotation) {
         board_.setDisplayRotation(rotation);
@@ -509,6 +539,20 @@ void BrainoApp::goHome() {
     applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
     activeGame_->begin(*this);
+    /* A SCREEN TRANSITION IS ALWAYS A WHOLE-SCREEN REPAINT.
+     *
+     * Every screen is a static instance reused for the life of the device, so
+     * it arrives here carrying the dirty flags the LAST visit left behind --
+     * and the last thing that visit did was clearDirty(). Without this, a
+     * screen whose begin() happens to call only markDirty() renders without
+     * its renderStatic(), which is where both Ui::clear() and the top bar
+     * live: no chrome, and the previous screen still showing underneath it.
+     *
+     * It belongs here rather than in each begin(). Fourteen screens would each
+     * have to remember, and the one that forgot would be found by eye on a
+     * panel rather than by any build. Partial repaint is an optimisation
+     * WITHIN a screen's lifetime; entering one is not the place to be greedy. */
+    activeGame_->requestRender();
     beginScreenPaint();
     activeGame_->render(*this);
     activeGame_->clearDirty();
@@ -517,6 +561,11 @@ void BrainoApp::goHome() {
 void BrainoApp::relaunchActiveGame() {
     if (activeGame_ != nullptr) {
         activeGame_->begin(*this);
+        /* Same reasoning as launch() and goHome(): starting a screen over is a
+         * whole-screen repaint, and this one does not even render here -- it
+         * leaves that to the next loop iteration, which would otherwise use
+         * whatever flags the previous frame left. */
+        activeGame_->requestRender();
     }
 }
 

@@ -12,7 +12,12 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    void render(AppContext& host) override;
+    /* Two-phase. This screen already reasoned about full versus partial by
+     * hand and already filled its own bands before writing into them; the
+     * migration only moves the two halves into the methods the base class
+     * offers. See docs/RENDER_AUDIT.md. */
+    void renderStatic(AppContext& host) override;
+    void renderDynamic(AppContext& host) override;
 
 private:
     enum class RoundType : uint8_t {

@@ -75,6 +75,9 @@ bool TimeGame::optionExists(uint16_t minutes, uint8_t upTo) const {
 }
 
 void TimeGame::newQuestion() {
+    /* New hands on the clock, and the clock is static -- only a full repaint
+     * replaces it. */
+    markFullDirty();
     selected_ = -1;
     answered_ = false;
 
@@ -216,47 +219,94 @@ void TimeGame::drawClock(Ui::Renderer& tft) const {
     tft.setTextDatum(TL_DATUM);
 }
 
-void TimeGame::render(AppContext& host) {
+void TimeGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    char leftBuf[20];
-    snprintf(leftBuf, sizeof(leftBuf), "Level %u", level());
-    tft.drawString(leftBuf, 10, 35, 2);
-    snprintf(leftBuf, sizeof(leftBuf), "Score %u", score_);
-    tft.drawString(leftBuf, 10, 52, 2);
-    tft.setTextDatum(TR_DATUM);
-    char rightBuf[20];
-    snprintf(rightBuf, sizeof(rightBuf), "Streak %u", streak_);
-    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 10, 35, 2);
-    snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestStreak_);
-    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 10, 52, 2);
-
+    /* The clock face is the question. It is a circle, twelve ticks and two
+     * hands, and none of it moves while the player is choosing. */
     drawClock(tft);
-    Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?", Ui::text(), 2, Align::Center);
+    Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?",
+                  Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < 4; ++i) {
-        uint16_t fill = BLUE;
-        uint16_t text = TFT_WHITE;
-        if (answered_) {
-            if (i == correctButton_) {
-                fill = GREEN;
-                text = TFT_BLACK;
-            } else if (i == selected_) {
-                fill = RED;
-                text = TFT_BLACK;
-            }
+        drawnButton_[i] = 0xFF;
+    }
+    drawnScore_ = 0xFFFF;
+    drawnStreak_ = 0xFFFF;
+    drawnAnswered_ = !answered_;
+    drawnHeader_ = false;
+}
+
+void TimeGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    /* THIS SCREEN CANNOT REPAINT JUST THE TWO BUTTONS THAT CHANGED.
+     *
+     * Its prompt is drawn at y=226 and answerRect() puts the lower row at
+     * 192..226, so the two overlap by eight rows. Clearing the prompt strip
+     * therefore takes the bottom off the lower buttons -- including the two
+     * whose colour did not change and which nothing would put back.
+     *
+     * So when the prompt changes, every button is invalidated and the order is
+     * fixed: clear the strip, repaint all four buttons over it, then write the
+     * prompt on top, which is the layering the screen already had. It still
+     * leaves the clock face alone, which is the win worth having here. */
+    const bool answerChanged = (answered_ != drawnAnswered_);
+    if (answerChanged) {
+        tft.fillRect(20, 216, GAME_CANVAS_WIDTH - 40, 20, Ui::bg());
+        for (uint8_t i = 0; i < 4; ++i) {
+            drawnButton_[i] = 0xFF;
         }
-        Ui::drawButton(tft, answerRect(i), formatTime(options_[i]), fill, Ui::outline(), text, false, 2);
     }
 
-    if (answered_) {
-        tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(selected_ == correctButton_ ? "Correct - tap for next" : "Try the green time next", GAME_CANVAS_WIDTH / 2, 226, 2);
+    if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_) {
+        tft.fillRect(10, 33, 140, 36, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 10 - 140, 33, 140, 36, Ui::bg());
+        char buf[20];
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Level %u", level());
+        tft.drawString(buf, 10, 35, 2);
+        snprintf(buf, sizeof(buf), "Score %u", score_);
+        tft.drawString(buf, 10, 52, 2);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "Streak %u", streak_);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 35, 2);
+        snprintf(buf, sizeof(buf), "Best %u", bestStreak_);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 52, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnScore_ = score_;
+        drawnStreak_ = streak_;
+        drawnHeader_ = true;
     }
-    tft.setTextDatum(TL_DATUM);
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        uint8_t state = 0;
+        if (answered_) {
+            if (i == correctButton_) state = 1;
+            else if (i == selected_) state = 2;
+        }
+        if (state == drawnButton_[i]) {
+            continue;
+        }
+        const uint16_t fill = state == 1 ? GREEN : (state == 2 ? RED : BLUE);
+        const uint16_t text = state == 0 ? TFT_WHITE : TFT_BLACK;
+        Ui::drawButton(tft, answerRect(i), formatTime(options_[i]), fill,
+                       Ui::outline(), text, false, 2);
+        drawnButton_[i] = state;
+    }
+
+    if (answerChanged) {
+        if (answered_) {
+            tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString(selected_ == correctButton_ ? "Correct - tap for next"
+                                                       : "Try the green time next",
+                           GAME_CANVAS_WIDTH / 2, 226, 2);
+            tft.setTextDatum(TL_DATUM);
+        }
+        drawnAnswered_ = answered_;
+    }
 }

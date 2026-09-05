@@ -50,7 +50,10 @@ void WhackAMoleGame::begin(AppContext& host) {
     nextSpawnAt_ = 0;
     gameOver_ = false;
     spawnMole();
-    markDirty();
+    /* A layout change, not a content one -- the game-over panel has to go, both
+     * counters reset, and every cell returns to its idle fill. One full repaint
+     * rather than a special case for each. */
+    markFullDirty();
 }
 
 uint8_t WhackAMoleGame::level() const {
@@ -193,39 +196,102 @@ void WhackAMoleGame::drawSmile(Ui::Renderer& tft, const Rect& r) const {
     tft.drawLine(cx + 2, cy + 5, cx + 4, cy + 3, SMILE_FACE);
 }
 
-void WhackAMoleGame::render(AppContext& host) {
+/* One cell's interior. The fill is inset by a pixel, so this can never touch
+ * the cell's own outline -- which is why the outline is static and this is not.
+ * The fill also covers the whole interior, so it erases whatever smile or flash
+ * colour was there and the mole simply goes back on top. */
+void WhackAMoleGame::drawCell(Ui::Renderer& tft, uint8_t index, uint8_t state) {
+    const Rect r = cellRect(index);
+    const uint8_t kind = static_cast<uint8_t>((state >> 1) & 0x3);
+    const uint16_t fill = kind == 1 ? HIT : (kind == 2 ? MISS : CELL_FILL);
+    tft.fillRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, fill);
+    if (state & 0x1) {
+        drawSmile(tft, r);
+    }
+}
+
+void WhackAMoleGame::renderStatic(AppContext& host) {
+    /* Inside a member, because GRID is local to this file and CELL_COUNT is
+     * private to the class -- neither can see the other at file scope. */
+    static_assert(CELL_COUNT == GRID * GRID,
+                  "drawnCell_ must have one byte per cell");
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    char leftBuf[28];
-    snprintf(leftBuf, sizeof(leftBuf), "Score %u", score_);
-    tft.drawString(leftBuf, 8, 35, 2);
-    snprintf(leftBuf, sizeof(leftBuf), "Level %u Miss %u/10", level(), missStreak_);
-    tft.drawString(leftBuf, 8, 51, 1);
-    tft.setTextDatum(TR_DATUM);
-    char rightBuf[24];
-    snprintf(rightBuf, sizeof(rightBuf), "Best %u", bestScore_);
-    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 8, 35, 2);
-    snprintf(rightBuf, sizeof(rightBuf), "Speed %ums", visibleMs());
-    tft.drawString(rightBuf, GAME_CANVAS_WIDTH - 8, 51, 1);
-
+    /* All eighty-one outlines, once. Their rects come from cellRect() and their
+     * colour is the theme's -- neither depends on where the mole is. */
     for (uint8_t i = 0; i < GRID * GRID; ++i) {
         const Rect r = cellRect(i);
-        uint16_t fill = CELL_FILL;
-        if (flashCell_ == i) {
-            fill = flashSuccess_ ? HIT : MISS;
-        }
-        tft.fillRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, fill);
         tft.drawRect(r.x, r.y, r.w, r.h, Ui::outline());
-        if (activeCell_ == i) {
-            drawSmile(tft, r);
-        }
     }
 
-    if (gameOver_) {
+    for (uint8_t i = 0; i < CELL_COUNT; ++i) {
+        drawnCell_[i] = CELL_NONE;
+    }
+    drawnScore_ = 0xFFFF;
+    drawnBest_ = 0xFFFF;
+    drawnLevel_ = 0xFF;
+    drawnMiss_ = 0xFF;
+    drawnOver_ = false;
+}
+
+void WhackAMoleGame::renderDynamic(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+
+    for (uint8_t i = 0; i < GRID * GRID; ++i) {
+        uint8_t state = 0;
+        if (flashCell_ == static_cast<int8_t>(i)) {
+            state |= static_cast<uint8_t>((flashSuccess_ ? 1 : 2) << 1);
+        }
+        if (activeCell_ == static_cast<int8_t>(i)) {
+            state |= 0x1;
+        }
+        if (state == drawnCell_[i]) {
+            continue;
+        }
+        drawCell(tft, i, state);
+        drawnCell_[i] = state;
+    }
+
+    /* Both blocks are cleared before they are written, and both erase rects
+     * stop above GRID_Y so they can never reach the grid.
+     *
+     * The right-hand pair needs more care than the left. They are TR_DATUM, so
+     * they grow LEFTWARDS -- when one shrinks the stale characters are left at
+     * the left end, not the right. "Speed" shrinks every time the level rises,
+     * because the mole gets faster: "Speed 1000ms" -> "Speed 900ms". So the
+     * rect is measured leftward from the right margin rather than sized around
+     * where the text starts. */
+    char buf[28];
+    if (score_ != drawnScore_ || level() != drawnLevel_ || missStreak_ != drawnMiss_) {
+        tft.fillRect(8, 33, 150, 24, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Score %u", score_);
+        tft.drawString(buf, 8, 35, 2);
+        snprintf(buf, sizeof(buf), "Level %u Miss %u/10", level(), missStreak_);
+        tft.drawString(buf, 8, 51, 1);
+        drawnScore_ = score_;
+        drawnLevel_ = level();
+        drawnMiss_ = missStreak_;
+    }
+
+    if (bestScore_ != drawnBest_ || level() != drawnLevel_) {
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 150, 33, 150, 24, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "Best %u", bestScore_);
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
+        snprintf(buf, sizeof(buf), "Speed %ums", visibleMs());
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 51, 1);
+        tft.setTextDatum(TL_DATUM);
+        drawnBest_ = bestScore_;
+    }
+
+    /* Painted once when the run ends. It never needs erasing here: the only way
+     * off it is a tap, which calls begin(), which asks for a full repaint. */
+    if (gameOver_ && !drawnOver_) {
         tft.fillRoundRect(46, 88, 228, 72, 8, Ui::panel());
         tft.drawRoundRect(46, 88, 228, 72, 8, Ui::error());
         tft.setTextColor(Ui::error(), Ui::panel());
@@ -233,6 +299,7 @@ void WhackAMoleGame::render(AppContext& host) {
         tft.drawString("Game over", GAME_CANVAS_WIDTH / 2, 110, 4);
         tft.setTextColor(Ui::text(), Ui::panel());
         tft.drawString("Tap to restart", GAME_CANVAS_WIDTH / 2, 140, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnOver_ = true;
     }
-    tft.setTextDatum(TL_DATUM);
 }

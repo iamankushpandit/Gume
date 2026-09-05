@@ -253,20 +253,16 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void SettingsGame::render(GameHost& host) {
+void SettingsGame::renderStatic(GameHost& host) {
     syncPanel(host);
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     Ui::drawTopBar(host.board(), title());
 
-    /* The change-PIN flow owns the whole screen while it runs, so there is no
-     * half-changed state visible behind it. */
-    if (pinTask_ == PinTask::SetNew) {
-        renderPinPad(host, "Enter new PIN");
-        return;
-    }
-    if (pinTask_ == PinTask::ConfirmNew) {
-        renderPinPad(host, "Re-enter new PIN");
+    /* The change-PIN flow owns the whole screen while it runs, so it gets no
+     * tab strip. Entering and leaving it are both full repaints, so the strip
+     * cannot be left behind. */
+    if (pinTask_ != PinTask::None) {
         return;
     }
 
@@ -279,6 +275,30 @@ void SettingsGame::render(GameHost& host) {
         Ui::drawTab(tft, tabRect(i), TAB_LABELS[i], static_cast<Tab>(i) == tab_);
     }
     Ui::drawTabBaseline(tft, 52, 0, panelW_, tabRectFor(tab_));
+}
+
+void SettingsGame::renderDynamic(GameHost& host) {
+    syncPanel(host);
+    Ui::Renderer& tft = host.display();
+
+    /* Clear the body, not the screen. The tab renderers below paint controls
+     * onto whatever is already there rather than erasing behind themselves --
+     * a value going from "100%" to "25%" would otherwise leave its tail -- so
+     * the ground they need still has to be laid. What this saves over the old
+     * full clear is the top bar and the tab strip above it, and the top bar
+     * costs a battery read and five glyphs every time it is drawn. */
+    const int16_t bodyTop = (pinTask_ == PinTask::None)
+                                ? static_cast<int16_t>(53) : TOP_BAR_HEIGHT;
+    tft.fillRect(0, bodyTop, panelW_, static_cast<int16_t>(panelH_ - bodyTop), Ui::bg());
+
+    if (pinTask_ == PinTask::SetNew) {
+        renderPinPad(host, "Enter new PIN");
+        return;
+    }
+    if (pinTask_ == PinTask::ConfirmNew) {
+        renderPinPad(host, "Re-enter new PIN");
+        return;
+    }
 
     switch (tab_) {
         case Tab::Device: renderDeviceTab(host); break;

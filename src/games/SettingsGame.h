@@ -23,7 +23,13 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    void render(GameHost& host) override;
+    /* Two-phase. The tab bodies draw over each other's ground rather than
+     * erasing themselves, so renderDynamic() clears the body REGION -- not the
+     * screen. What that saves is the top bar and the tab strip, and the top bar
+     * is not cheap: it reads the battery and draws five glyphs.
+     * See docs/RENDER_AUDIT.md. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
 
 private:
     enum class Tab : uint8_t { Device, Power, Sound, Admin };
