@@ -66,7 +66,8 @@ usually is one.
 | Maze | **converted** | Group C. |
 | Trace | **analysed — needs a decision** | Group C. See the correction below. |
 | Sort | **converted** | Group C. |
-| ColorMix, Microku, OddOneOut, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
+| OddOneOut | **converted** | Group C. First real flash-panel erase. |
+| ColorMix, Microku, CoinFlip, Dice | analysed | Group C — timer-driven, higher priority. |
 | About, Scores, GreWords, States, StateFlag, StateMap | **no change needed** | Group D — they only ever full-repaint. |
 | Cinnamon | migrate only | Already partial by hand. |
 | Settings, SystemInfo, Profiles, Nearby | analysed | Group E. |
