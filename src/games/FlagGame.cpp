@@ -25,7 +25,7 @@ constexpr AppMetadata FLAG_METADATA = {
     "Name the flag, then its capital.",
     nullptr,
     LauncherIcon::Flag,
-    21,
+    2,
     true,
 };
 }

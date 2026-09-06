@@ -11,7 +11,7 @@ constexpr AppMetadata NUMBER_LINE_METADATA = {
     "Hop along a number line.",
     nullptr,
     LauncherIcon::NumberLine,
-    20,
+    22,
     true,
 };
 }

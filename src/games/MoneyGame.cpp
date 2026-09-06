@@ -40,7 +40,7 @@ constexpr AppMetadata MONEY_METADATA = {
     "Count coins and make change.",
     &MONEY_SCORE,
     LauncherIcon::Money,
-    10,
+    1,
     true,
 };
 }

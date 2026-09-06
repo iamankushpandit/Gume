@@ -77,7 +77,7 @@ constexpr AppMetadata MICROKU_METADATA = {
     "Solve tiny Sudoku-style boards.",
     &MICROKU_SCORE,
     LauncherIcon::Microku,
-    7,
+    3,
     true,
 };
 }

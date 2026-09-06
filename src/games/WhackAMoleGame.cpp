@@ -25,7 +25,7 @@ constexpr AppMetadata WHACK_A_MOLE_METADATA = {
     "Tap the mole before it escapes.",
     &WHACK_A_MOLE_SCORE,
     LauncherIcon::WhackAMole,
-    5,
+    10,
     true,
 };
 }

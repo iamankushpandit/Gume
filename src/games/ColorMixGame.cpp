@@ -29,7 +29,7 @@ constexpr AppMetadata COLOR_MIX_METADATA = {
     "Mix two colours.",
     &COLOR_MIX_SCORE,
     LauncherIcon::ColorMix,
-    14,
+    16,
     true,
 };
 }
