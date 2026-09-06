@@ -163,6 +163,8 @@ void runId() {
                   "ST7796_DRIVER"
 #elif defined(ILI9341_2_DRIVER)
                   "ILI9341_2_DRIVER"
+#elif defined(ST7789_DRIVER)
+                  "ST7789_DRIVER"
 #else
                   "(unknown)"
 #endif
@@ -213,6 +215,9 @@ void runId() {
         Serial.println("         nothing -- Braino never reads the panel back.");
     } else if (d3[1] == 0x77 && d3[2] == 0x96) {
         Serial.println("VERDICT: ST7796 confirmed. Bus and driver are both right.");
+    } else if (d04[1] == 0x85 && d04[2] == 0x85) {
+        Serial.println("VERDICT: ST7789 family confirmed (RDDID 85 85 52 is what an ST7789");
+        Serial.println("         and its P3 variant answer). Bus and driver are both right.");
     } else if (d3[1] == 0x93 && d3[2] == 0x41) {
         Serial.println("VERDICT: ILI9341, NOT ST7796. This panel is a different controller");
         Serial.println("         than assumed -- change the driver flag before anything else.");

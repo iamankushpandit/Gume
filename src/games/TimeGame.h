@@ -37,6 +37,9 @@ private:
     uint16_t drawnStreak_ = 0xFFFF;
     bool drawnAnswered_ = false;
     bool drawnHeader_ = false;
+    /* The clock face is dynamic, not static: a new question moves the hands,
+     * and a new question must not cost a full repaint. See renderDynamic(). */
+    bool drawnClock_ = false;
     uint16_t score_ = 0;
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;

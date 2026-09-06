@@ -85,6 +85,15 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon.",
     },
     {
+        "env": "app_e32r32p",
+        "label": "Braino! (the games) -- E32R32P (3.2 inch ST7789P3)",
+        "name": "Braino!",
+        "note": "The full console on the 3.2 inch LCDWIKI board: {count} games, profiles, "
+                "scores, settings, Wi-Fi clock and the BLE beacon. Touch shares the display "
+                "bus on this board, and the panel is BGR -- flashing it with a 2.8 inch "
+                "firmware gives wrong colours and dead touch.",
+    },
+    {
         "env": "app_e32r40t",
         "label": "Braino! (the games) -- E32R40T (4 inch ST7796)",
         "name": "Braino!",
@@ -131,6 +140,11 @@ BOARD_DETAILS = {
         "chip": "ESP32",
         "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
     },
+    "e32r32p": {
+        "label": "E32R32P / ESP32-32E -- 3.2 inch ST7789P3 + XPT2046 (resistive)",
+        "chip": "ESP32",
+        "buy": "https://www.lcdwiki.com/3.2inch_ESP32-32E_Display",
+    },
     "e32r40t": {
         "label": "E32R40T / ESP32-32E -- 4 inch ST7796 + XPT2046 (resistive)",
         "chip": "ESP32",
@@ -171,6 +185,7 @@ SCREEN_CAPTIONS = {
     "network-time": "Wi-Fi and clock",
     "numberline": "Number Line",
     "nearby": "Nearby",
+    "nearby-name": "Nearby: naming a device, locally",
     "oddone": "Odd One",
     "percent": "Percent Circle",
     "profiles": "Profiles",
@@ -277,8 +292,10 @@ SYSTEM_SHOWCASE = (
     },
     {
         "id": "nearby",
-        "subtitle": "Opt-in, anonymous score sharing with other Brainos in range -- device tags only, never names.",
-        "stills": ("nearby",),
+        "subtitle": "Opt-in, anonymous score sharing with other Brainos in range, and a poke to get "
+                    "someone's attention. Device tags only on the radio; a name you give a device "
+                    "never leaves your own.",
+        "stills": ("nearby", "nearby-name"),
     },
     {
         "id": "screensaver",

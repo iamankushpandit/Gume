@@ -142,11 +142,24 @@ bool poolAllows(uint16_t i, void* ctx) {
 }
 
 void FlagGame::newQuestion() {
-    /* A different country means a different flag, and the flag is static --
-     * only a full repaint replaces it. Here rather than at the call sites, of
-     * which there are three: begin(), the difficulty button and the end of
-     * feedback. */
-    markFullDirty();
+    /* A different country means a different flag, four different options and
+     * possibly a different tier. All of it is content in fixed rectangles
+     * drawn over opaque fills, so this is markDirty() -- it used to wipe and
+     * repaint the whole screen, top bar and battery read included, between
+     * every question.
+     *
+     * Invalidating here rather than at the call sites, of which there are
+     * three: begin(), the difficulty button and the end of feedback.
+     *
+     * The buttons are not optional. The loop in renderDynamic() repaints one
+     * only when its state or the round type changed, and a new country leaves
+     * both the same while changing every label. */
+    markDirty();
+    drawnFlag_ = false;
+    drawnPrompt_ = false;
+    for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
+        drawnBtn_[i] = 0xFF;
+    }
     const uint16_t pool = countryPoolSize(tier_, false);
     if (pool == 0) { current_ = nullptr; return; }
 
@@ -201,7 +214,11 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
         } else {
             newQuestion();
         }
-        markFullDirty();
+        /* Either the same flag with capital labels, or a whole new question --
+         * both are content. The capital switch is caught by the drawnCapital_
+         * comparison in the button loop, and newQuestion() invalidates what it
+         * changes, so neither needs the screen wiped. */
+        markDirty();
         return;
     }
 
@@ -263,23 +280,6 @@ void FlagGame::renderStatic(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    /* The flag card. drawCountryImageScaled at 2x paints 160x120 -- the single
-     * most expensive thing on this screen -- and it stays put for the whole
-     * question, INCLUDING the capital bonus, which asks about the same country.
-     * newQuestion() is what replaces it, and that asks for a full repaint. */
-    if (current_ != nullptr) {
-        const Rect fr = flagRect();
-        tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, FLAG_BG);
-        tft.drawRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::outline());
-        // 80x60 source drawn at 2x fills the 160x120 card exactly.
-        Ui::drawCountryImageScaled(tft, mnf_flag(current_->iso2), fr, FLAG_BG, 2);
-    }
-
-    /* Cycling the difficulty deals a new question, so this is static too. */
-    static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(),
-                   Ui::text(), false, 1);
-
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         drawnBtn_[i] = 0xFF;
     }
@@ -288,6 +288,8 @@ void FlagGame::renderStatic(AppContext& host) {
     drawnScore_ = 0xFFFF;
     drawnRounds_ = 0xFFFF;
     drawnCapBonus_ = 0xFFFF;
+    drawnFlag_ = false;
+    drawnTier_ = 0xFF;
 }
 
 void FlagGame::renderDynamic(AppContext& host) {
@@ -309,6 +311,41 @@ void FlagGame::renderDynamic(AppContext& host) {
         drawnScore_ = score_;
         drawnRounds_ = rounds_;
         drawnCapBonus_ = capBonus_;
+    }
+
+    /* The difficulty button. Gated on the tier itself rather than on a bool,
+     * because the tier also changes on its own -- six correct in a row
+     * auto-promotes -- and that used to show the old label until the next full
+     * repaint. drawButton fills its fixed rect opaquely, so "Medium" over
+     * "Easy" leaves nothing behind. */
+    if (drawnTier_ != tier_) {
+        static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
+        Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(),
+                       Ui::text(), false, 1);
+        drawnTier_ = tier_;
+    }
+
+    /* The flag card: drawCountryImageScaled at 2x paints 160x120 and is the
+     * single most expensive thing on this screen. It stays put for the whole
+     * question INCLUDING the capital bonus, which asks about the same country
+     * -- so it is gated. It is dynamic rather than static because a new
+     * country must not cost a wipe of the screen.
+     *
+     * The card is filled before the image goes into it, and the image fills it
+     * exactly, so no part of the previous flag survives. The nullptr branch
+     * fills the card back to background: without it a flag would be left
+     * stranded under the "No countries available" message. */
+    if (!drawnFlag_) {
+        const Rect fr = flagRect();
+        if (current_ != nullptr) {
+            tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, FLAG_BG);
+            tft.drawRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::outline());
+            // 80x60 source drawn at 2x fills the 160x120 card exactly.
+            Ui::drawCountryImageScaled(tft, mnf_flag(current_->iso2), fr, FLAG_BG, 2);
+        } else {
+            tft.fillRect(fr.x - 2, fr.y - 2, fr.w + 4, fr.h + 4, Ui::bg());
+        }
+        drawnFlag_ = true;
     }
 
     if (current_ == nullptr) {

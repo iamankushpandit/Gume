@@ -26,6 +26,35 @@ Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI
 
 `drawNotification()` paints a transient strip over the top of whatever header is already there, full width at `TOP_BAR_HEIGHT`, so it works over the top bar and over the launcher's taller header alike. It is painted by the runtime **after** the screen has drawn itself, and the screen is asked for a full repaint when the notification goes away — that repaint is what actually removes it. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
 
+## Keypad
+
+`Ui::Keypad` is the on-screen QWERTY keyboard, and it is the ONLY one. There
+were two hand-rolled copies before it -- ProfileGame's rename and WifiGame's
+password entry -- each with its own grid maths, and a third was about to be
+written for naming a Nearby peer.
+
+It is stateless: no draft buffer, no cursor, no dirty flag. The screen owns its
+text and decides what a keystroke means; this turns a grid position into a
+character and back into a rectangle. `keyRect()` answers both "where do I draw
+this key" and "what did the finger land on", so those two cannot disagree --
+which is the failure both PIN pads had, drawing DEL and OK below the bottom of
+a 240px panel where there was physically nothing to press.
+
+Rows are ragged (10/10/9/7 plus a three-key action row) and centred, because
+that is what QWERTY is. **It is anchored to the BOTTOM of the panel**, above a
+`bottomReserve` the caller names -- `FOOTER_BUTTON` for a Cancel at
+`screenH-30`, `FOOTER_NONE` otherwise. It used to be placed from the top with a
+per-orientation fudge of -2 or -22, which was right for exactly the two
+320x240-class panels and left the 4-inch board's keyboard floating 84px above
+its own button. Anchoring needs no per-panel constant: the slack lands above
+the keyboard, where the caller's text field is.
+
+`topY()` is exposed so a caller places that field against the keyboard's real
+top edge instead of guessing. Key width is the thing to know before adding a
+caller: 26px on a 320px landscape panel, 42px on the 4-inch, and **20px in
+240px portrait**, which is the narrowest target in the firmware and is only
+usable because `TOUCH_HIT_SLOP` widens it. Do not add an eleventh column.
+
 ## RowList
 
 `RowList` is the scrolling label/value widget System Info is built from — sections, text rows, meters and a tappable action chip, with scrollbar and clamping.

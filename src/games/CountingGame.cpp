@@ -53,6 +53,14 @@ void CountingGame::newQuestion() {
     selected_ = -1;
     answered_ = false;
     makeOptions();
+    /* Everything a new round changes. The buttons are not optional: the loop
+     * repaints one only when its state changed, so the two that were never
+     * highlighted would keep the previous round's numbers. */
+    drawnObjects_ = false;
+    drawnStats_ = false;
+    for (uint8_t i = 0; i < 4; ++i) {
+        drawnButton_[i] = 0xFF;
+    }
 }
 
 void CountingGame::makeOptions() {
@@ -89,9 +97,11 @@ void CountingGame::update(AppContext& host, const TouchPoint& touch) {
     }
     if (answered_) {
         newQuestion();
-        /* A new count means a different number of objects in the panel, which
-         * is static -- only a full repaint replaces it. */
-        markFullDirty();
+        /* A new count means a different number of objects, drawn into the same
+         * fixed panel over an opaque fill -- content, not layout. The panel is
+         * dynamic now, so this is markDirty(); it used to wipe and repaint the
+         * whole screen between every round. */
+        markDirty();
         return;
     }
     for (uint8_t i = 0; i < 4; ++i) {
@@ -126,21 +136,6 @@ void CountingGame::renderStatic(AppContext& host) {
     tft.setTextDatum(TC_DATUM);
     tft.drawString("How many objects?", GAME_CANVAS_WIDTH / 2, 32, 4);
 
-    /* The objects belong to the round. There are up to 21 of them, each a
-     * filled circle and an outline, and not one of them moves while the player
-     * is choosing -- so the whole panel is drawn once and a new round, which
-     * changes the count, is a full repaint. */
-    const Rect area{18, 76, 284, 98};
-    tft.fillRoundRect(area.x, area.y, area.w, area.h, 8, Ui::panel());
-    tft.drawRoundRect(area.x, area.y, area.w, area.h, 8, Ui::outline());
-    for (uint8_t i = 0; i < count_; ++i) {
-        const uint8_t col = i % 7;
-        const uint8_t row = i / 7;
-        const int16_t x = area.x + 24 + col * 39 + (row % 2) * 8;
-        const int16_t y = area.y + 24 + row * 30;
-        tft.fillCircle(x, y, 10, DOT_COLORS[i % 5]);
-        tft.drawCircle(x, y, 10, TFT_DARKGREY);
-    }
     tft.setTextDatum(TL_DATUM);
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -150,10 +145,36 @@ void CountingGame::renderStatic(AppContext& host) {
     drawnStreak_ = 0xFFFF;
     drawnAnswered_ = !answered_;
     drawnStats_ = false;
+    drawnObjects_ = false;
 }
 
 void CountingGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
+
+    /* The objects. Up to 21 filled circles, none of which moves while the
+     * player is choosing -- so it is gated -- but the count is what a new
+     * round changes, so it is dynamic rather than static. A new round must not
+     * cost a wipe of the whole screen.
+     *
+     * fillRoundRect covers the entire area before any circle is drawn, so
+     * going from 21 objects to 3 leaves nothing behind. That opaque fill is
+     * the reason this is safe; drawing the circles onto whatever was there
+     * would not be. */
+    if (!drawnObjects_) {
+        const Rect area{18, 76, 284, 98};
+        tft.fillRoundRect(area.x, area.y, area.w, area.h, 8, Ui::panel());
+        tft.drawRoundRect(area.x, area.y, area.w, area.h, 8, Ui::outline());
+        for (uint8_t i = 0; i < count_; ++i) {
+            const uint8_t col = i % 7;
+            const uint8_t row = i / 7;
+            const int16_t x = area.x + 24 + col * 39 + (row % 2) * 8;
+            const int16_t y = area.y + 24 + row * 30;
+            tft.fillCircle(x, y, 10, DOT_COLORS[i % 5]);
+            tft.drawCircle(x, y, 10, TFT_DARKGREY);
+        }
+        tft.setTextDatum(TL_DATUM);
+        drawnObjects_ = true;
+    }
 
     /* One centred line, so it grows both ways from the middle and a shorter
      * one leaves tails at BOTH ends. Cleared across its whole width first;

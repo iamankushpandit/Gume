@@ -80,6 +80,91 @@ void Board::setNearbyEnabled(bool on) {
     prefs_.putBool("nearbyOn", on);
 }
 
+/* ---------------------------------------------------------------- peer labels
+ *
+ * One blob, one RAM mirror, and nothing here is ever read by BleBeacon. See
+ * the contract on Board::peerName() in Board.h.
+ */
+void Board::loadPeerNames() {
+    if (peerNamesCached_) {
+        return;
+    }
+    peerNamesCached_ = true;
+    for (uint8_t i = 0; i < PEER_NAME_SLOTS; ++i) {
+        peerLabels_[i] = PeerLabel{};
+    }
+    /* A short or absent blob leaves the table empty rather than half-filled:
+     * getBytes writes nothing when the stored size does not match, and a
+     * partially-populated table would show one device somebody else's name. */
+    const size_t want = sizeof(peerLabels_);
+    if (prefs_.getBytesLength("peerNames") != want) {
+        return;
+    }
+    prefs_.getBytes("peerNames", peerLabels_, want);
+    /* Trust nothing out of flash: a truncated write or an older layout could
+     * leave a field unterminated, and every reader here is a C string. */
+    for (uint8_t i = 0; i < PEER_NAME_SLOTS; ++i) {
+        peerLabels_[i].id[sizeof(peerLabels_[i].id) - 1] = '\0';
+        peerLabels_[i].name[sizeof(peerLabels_[i].name) - 1] = '\0';
+    }
+}
+
+const char* Board::peerName(const char* deviceId) {
+    if (deviceId == nullptr || deviceId[0] == '\0') {
+        return nullptr;
+    }
+    loadPeerNames();
+    for (uint8_t i = 0; i < PEER_NAME_SLOTS; ++i) {
+        if (peerLabels_[i].name[0] != '\0' &&
+            strncmp(peerLabels_[i].id, deviceId, sizeof(peerLabels_[i].id)) == 0) {
+            return peerLabels_[i].name;
+        }
+    }
+    return nullptr;
+}
+
+bool Board::setPeerName(const char* deviceId, const char* name) {
+    if (deviceId == nullptr || strlen(deviceId) != 4) {
+        return false;
+    }
+    loadPeerNames();
+
+    const bool clearing = (name == nullptr || name[0] == '\0');
+    int8_t slot = -1;
+    int8_t free = -1;
+    for (uint8_t i = 0; i < PEER_NAME_SLOTS; ++i) {
+        if (peerLabels_[i].name[0] == '\0') {
+            if (free < 0) free = static_cast<int8_t>(i);
+            continue;
+        }
+        if (strncmp(peerLabels_[i].id, deviceId, sizeof(peerLabels_[i].id)) == 0) {
+            slot = static_cast<int8_t>(i);
+            break;
+        }
+    }
+
+    if (clearing) {
+        if (slot < 0) {
+            return true;   // already nameless; nothing to write
+        }
+        peerLabels_[slot] = PeerLabel{};
+    } else {
+        if (slot < 0) {
+            slot = free;
+        }
+        if (slot < 0) {
+            /* Every slot belongs to a different device. Refusing is better
+             * than evicting somebody's label to make room, which would look
+             * like the name had been forgotten at random. */
+            return false;
+        }
+        snprintf(peerLabels_[slot].id, sizeof(peerLabels_[slot].id), "%s", deviceId);
+        snprintf(peerLabels_[slot].name, sizeof(peerLabels_[slot].name), "%s", name);
+    }
+    prefs_.putBytes("peerNames", peerLabels_, sizeof(peerLabels_));
+    return true;
+}
+
 void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {
     if (!BOARD.hasRgbLed()) return;
     if (!rgbReady_) {

@@ -261,8 +261,14 @@ void SettingsGame::renderStatic(GameHost& host) {
 
     /* The change-PIN flow owns the whole screen while it runs, so it gets no
      * tab strip. Entering and leaving it are both full repaints, so the strip
-     * cannot be left behind. */
+     * cannot be left behind.
+     *
+     * The pad's chrome belongs here rather than in renderDynamic(): the keys,
+     * the heading and Back do not change while a PIN is being typed, and
+     * repainting them on every digit is what made this screen flash. */
     if (pinTask_ != PinTask::None) {
+        renderPinPadChrome(host, pinTask_ == PinTask::SetNew ? "Enter new PIN"
+                                                             : "Re-enter new PIN");
         return;
     }
 
@@ -281,24 +287,21 @@ void SettingsGame::renderDynamic(GameHost& host) {
     syncPanel(host);
     Ui::Renderer& tft = host.display();
 
+    /* A keypress changes four dots. It does not need the body cleared, and
+     * clearing it is precisely what the flicker was -- so this returns before
+     * the fill below rather than after it. */
+    if (pinTask_ != PinTask::None) {
+        renderPinDots(host);
+        return;
+    }
+
     /* Clear the body, not the screen. The tab renderers below paint controls
      * onto whatever is already there rather than erasing behind themselves --
      * a value going from "100%" to "25%" would otherwise leave its tail -- so
      * the ground they need still has to be laid. What this saves over the old
      * full clear is the top bar and the tab strip above it, and the top bar
      * costs a battery read and five glyphs every time it is drawn. */
-    const int16_t bodyTop = (pinTask_ == PinTask::None)
-                                ? static_cast<int16_t>(53) : TOP_BAR_HEIGHT;
-    tft.fillRect(0, bodyTop, panelW_, static_cast<int16_t>(panelH_ - bodyTop), Ui::bg());
-
-    if (pinTask_ == PinTask::SetNew) {
-        renderPinPad(host, "Enter new PIN");
-        return;
-    }
-    if (pinTask_ == PinTask::ConfirmNew) {
-        renderPinPad(host, "Re-enter new PIN");
-        return;
-    }
+    tft.fillRect(0, 53, panelW_, static_cast<int16_t>(panelH_ - 53), Ui::bg());
 
     switch (tab_) {
         case Tab::Device: renderDeviceTab(host); break;

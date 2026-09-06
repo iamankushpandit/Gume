@@ -103,6 +103,16 @@ void MultiplicationGame::newQuestion() {
     }
     answer_ = left_ * right_;
     makeOptions();
+    /* Everything a new question changes, together. The buttons are not
+     * optional: the loop below repaints one only when its state changed, and
+     * the two that were never highlighted go 0 -> 0, so without this they keep
+     * the previous question's numbers. The header carries the level and is
+     * cheap. */
+    drawnQuestion_ = false;
+    drawnHeader_ = false;
+    for (uint8_t i = 0; i < 4; ++i) {
+        drawnButton_[i] = 0xFF;
+    }
 }
 
 void MultiplicationGame::makeOptions() {
@@ -151,9 +161,11 @@ void MultiplicationGame::update(AppContext& host, const TouchPoint& touch) {
     if (answered_) {
         newQuestion();
         /* A new product, four new options and the prompt back to its first
-         * wording: a layout change, and only a full repaint replaces a static
-         * element. */
-        markFullDirty();
+         * wording. All of it is content in fixed places, drawn over itself
+         * opaquely -- nothing about the layout changes -- so this is
+         * markDirty(). It used to wipe and repaint the whole panel, top bar
+         * and battery read included, between every question. */
+        markDirty();
         return;
     }
 
@@ -181,18 +193,6 @@ void MultiplicationGame::renderStatic(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    /* The product belongs to the question, and a new question is a full
-     * repaint, so this panel is static even though it is not constant. */
-    char equation[24];
-    snprintf(equation, sizeof(equation), "%d x %d = ?",
-             static_cast<int>(left_), static_cast<int>(right_));
-    tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
-    tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::panel());
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
-    tft.setTextDatum(TL_DATUM);
-
     for (uint8_t i = 0; i < 4; ++i) {
         drawnButton_[i] = 0xFF;
     }
@@ -200,10 +200,28 @@ void MultiplicationGame::renderStatic(AppContext& host) {
     drawnStreak_ = 0xFFFF;
     drawnAnswered_ = !answered_;
     drawnHeader_ = false;
+    drawnQuestion_ = false;
 }
 
 void MultiplicationGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
+
+    /* The product. Gated because it changes only with a new question, but
+     * dynamic rather than static because a new question must not cost a full
+     * repaint. The rect is fixed and fillRoundRect covers it opaquely before
+     * the text goes down, so a shorter product cannot leave a tail. */
+    if (!drawnQuestion_) {
+        char equation[24];
+        snprintf(equation, sizeof(equation), "%d x %d = ?",
+                 static_cast<int>(left_), static_cast<int>(right_));
+        tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
+        tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
+        tft.setTextColor(Ui::text(), Ui::panel());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
+        tft.setTextDatum(TL_DATUM);
+        drawnQuestion_ = true;
+    }
 
     /* Score and Streak move on an answer, and Streak resets to zero. The
      * right-hand pair is TR_DATUM, so a shrinking string leaves its stale
