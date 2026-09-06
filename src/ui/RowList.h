@@ -38,6 +38,7 @@ public:
 
     struct Row {
         Kind kind = Kind::Text;
+        int8_t actionId = -1;
         char label[LABEL_MAX] = {0};
         char value[VALUE_MAX] = {0};
         uint16_t valueColor = 0;
@@ -52,8 +53,13 @@ public:
     void addSection(const char* title);
     void addRow(const char* label, const char* value, uint16_t valueColor = 0, int16_t height = 16);
     void addMeter(uint8_t pct, uint16_t color);
-    /** Tappable chip. `actionRect()` reports where it landed after a draw. */
-    void addAction(const char* label);
+    /* Tappable chip. `actionRect()` reports where the last one landed after a
+     * draw; `actionAt()` resolves a touch to the id of whichever chip was hit,
+     * which is what a list with one chip per item needs.
+     *
+     * `id` identifies the chip to the caller and is not drawn. It defaults to
+     * -1 so existing single-chip callers are unaffected. */
+    void addAction(const char* label, int8_t id = -1);
 
     /* String overloads for callers that must build text dynamically. The
      * String is consumed here and never stored, so nothing outlives the call.*/
@@ -81,11 +87,31 @@ public:
     /** Where the Action chip was last drawn; w == 0 when it is off screen. */
     const Rect& actionRect() const { return actionRect_; }
 
+    /* The id of the action chip under (x, y), or -1 for none. Only chips that
+     * were actually drawn are hit-testable: a chip scrolled out of view has no
+     * rect this frame and cannot be pressed, which is the behaviour a clipped
+     * list needs -- the alternative is a press landing on a control the player
+     * cannot see. */
+    int8_t actionAt(int16_t x, int16_t y) const;
+
 private:
     Row* next();
     void drawScrollBar(Ui::Renderer& tft, const Rect& r, int16_t totalH, int16_t offset) const;
 
+    /* Hit rects for the action chips drawn in the last frame. Fixed size and a
+     * plain member, like everything else here: this class allocates nothing,
+     * ever, and a growable list of rects would put the churn back. Eight is
+     * more chips than fit on a 240px panel at 22px a row. */
+    static constexpr uint8_t MAX_ACTIONS = 8;
+
+    struct ActionHit {
+        Rect rect{};
+        int8_t id = -1;
+    };
+
     Row rows_[MAX_ROWS];
     uint8_t count_ = 0;
     Rect actionRect_{};
+    ActionHit actionHits_[MAX_ACTIONS];
+    uint8_t actionHitCount_ = 0;
 };

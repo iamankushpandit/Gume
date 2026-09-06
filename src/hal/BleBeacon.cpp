@@ -13,6 +13,7 @@ bool built_ = false;
 bool enabled_ = false;
 bool active_ = false;
 uint8_t idBytes_[2] = {0, 0};   // the two MAC bytes behind adv_.deviceId
+uint32_t pokeStartedMs_ = 0;    // when the live poke went on air
 
 /* GAP AD types (Core Supplement, Part A). */
 constexpr uint8_t AD_FLAGS = 0x01;
@@ -82,13 +83,32 @@ void buildPayload(Advertisement& a) {
     mfg[n++] = PAYLOAD_VERSION;
     mfg[n++] = idBytes_[0];
     mfg[n++] = idBytes_[1];
-    mfg[n++] = a.sharesActivity ? FLAG_SHARES_ACTIVITY : 0x00;
+    mfg[n++] = static_cast<uint8_t>((a.sharesActivity ? FLAG_SHARES_ACTIVITY : 0x00) |
+                                    (a.poking ? FLAG_POKE : 0x00));
     if (a.sharesActivity) {
         mfg[n++] = a.gameIndex;
-        mfg[n++] = static_cast<uint8_t>(a.bestScore & 0xFF);
-        mfg[n++] = static_cast<uint8_t>((a.bestScore >> 8) & 0xFF);
-        mfg[n++] = static_cast<uint8_t>((a.bestScore >> 16) & 0xFF);
-        mfg[n++] = static_cast<uint8_t>((a.bestScore >> 24) & 0xFF);
+        /* The poke displaces the score rather than following it: there are no
+         * spare bytes in a 31-byte payload, and dropping a number a peer can
+         * ask for again in six seconds is cheaper than dropping the poke,
+         * which is an event that does not come back. */
+        if (a.poking) {
+            mfg[n++] = a.pokeTarget[0];
+            mfg[n++] = a.pokeTarget[1];
+            mfg[n++] = a.pokeNonce;
+        } else {
+            mfg[n++] = static_cast<uint8_t>(a.bestScore & 0xFF);
+            mfg[n++] = static_cast<uint8_t>((a.bestScore >> 8) & 0xFF);
+            mfg[n++] = static_cast<uint8_t>((a.bestScore >> 16) & 0xFF);
+            mfg[n++] = static_cast<uint8_t>((a.bestScore >> 24) & 0xFF);
+        }
+    } else if (a.poking) {
+        /* Poking without sharing still needs the game slot occupied, because
+         * the target and nonce are positional. GAME_NONE is the honest filler:
+         * it is the value that already means "no game open". */
+        mfg[n++] = GAME_NONE;
+        mfg[n++] = a.pokeTarget[0];
+        mfg[n++] = a.pokeTarget[1];
+        mfg[n++] = a.pokeNonce;
     }
     a.manufacturerLen = n;
     memcpy(a.manufacturerData, mfg, n);
@@ -235,6 +255,75 @@ void setActivity(bool share, uint8_t gameIndex, uint32_t bestScore) {
     restartRadio();
 }
 
+/* Parse "A4F2" into the two bytes the payload carries. Rejects anything that
+ * is not exactly four hex digits rather than letting strtol's tolerance put a
+ * half-parsed id on air. */
+namespace {
+bool parseDeviceId(const char* text, uint8_t out[2]) {
+    if (text == nullptr) {
+        return false;
+    }
+    uint8_t nibbles[4];
+    for (uint8_t i = 0; i < 4; ++i) {
+        const char c = text[i];
+        if (c >= '0' && c <= '9')       nibbles[i] = static_cast<uint8_t>(c - '0');
+        else if (c >= 'A' && c <= 'F')  nibbles[i] = static_cast<uint8_t>(c - 'A' + 10);
+        else if (c >= 'a' && c <= 'f')  nibbles[i] = static_cast<uint8_t>(c - 'a' + 10);
+        else return false;
+    }
+    if (text[4] != '\0') {
+        return false;
+    }
+    out[0] = static_cast<uint8_t>((nibbles[0] << 4) | nibbles[1]);
+    out[1] = static_cast<uint8_t>((nibbles[2] << 4) | nibbles[3]);
+    return true;
+}
+}   // namespace
+
+bool poke(const char* targetDeviceId) {
+    if (!active_) {
+        /* Nothing is on air, so nothing would carry it. Refusing beats
+         * arming a poke that expires unheard six seconds later. */
+        return false;
+    }
+    uint8_t target[2];
+    if (!parseDeviceId(targetDeviceId, target)) {
+        return false;
+    }
+    adv_.poking = true;
+    adv_.pokeTarget[0] = target[0];
+    adv_.pokeTarget[1] = target[1];
+    /* Wraps at 256 and that is fine: the receiver only asks whether this nonce
+     * differs from the last one it acted on for this peer, and 256 pokes from
+     * one device inside one sighting's lifetime is not a thing that happens. */
+    ++adv_.pokeNonce;
+    pokeStartedMs_ = millis();
+    buildPayload(adv_);
+    restartRadio();
+    Serial.printf("[ble] poking %s (nonce %u)\n", targetDeviceId,
+                  static_cast<unsigned>(adv_.pokeNonce));
+    return true;
+}
+
+void clearExpiredPoke() {
+    if (!adv_.poking) {
+        return;
+    }
+    if (millis() - pokeStartedMs_ < POKE_ADVERTISE_MS) {
+        return;
+    }
+    adv_.poking = false;
+    adv_.pokeTarget[0] = 0;
+    adv_.pokeTarget[1] = 0;
+    /* The nonce is deliberately NOT reset: it has to keep increasing across
+     * pokes or the next one to the same peer would look like a repeat of this
+     * one and be ignored. */
+    buildPayload(adv_);
+    restartRadio();
+}
+
+bool poking() { return adv_.poking; }
+
 /* The exact inverse of buildPayload()'s manufacturer block. Anything that does
  * not match this layout, at this version, is somebody else's advertisement and
  * is discarded rather than guessed at. */
@@ -256,11 +345,31 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
     snprintf(out.deviceId, sizeof(out.deviceId), "%02X%02X", mfg[5], mfg[6]);
     /* The flag bit alone is not enough: a truncated block would otherwise be
      * read as a game index and score that were never transmitted. */
-    out.sharesActivity = ((mfg[7] & FLAG_SHARES_ACTIVITY) != 0) && len >= MFG_LEN_ACTIVITY;
+    /* Each field is gated on the length that actually carries it. A flag bit
+     * alone is not enough -- a truncated block would otherwise be read as a
+     * game, a score or a poke target that was never transmitted -- and one
+     * length test for all of them is not enough either, which is what version
+     * 2 did and what a poke's shorter block breaks. */
+    const bool shares = (mfg[7] & FLAG_SHARES_ACTIVITY) != 0;
+    const bool poke = (mfg[7] & FLAG_POKE) != 0;
+
+    out.sharesActivity = shares && len >= MFG_LEN_GAME;
     out.gameIndex = GAME_NONE;
     out.bestScore = 0;
-    if (out.sharesActivity) {
+    out.haveScore = false;
+    out.poking = false;
+    out.pokeTarget[0] = '\0';
+    out.pokeNonce = 0;
+
+    if (len >= MFG_LEN_GAME && (shares || poke)) {
         out.gameIndex = mfg[8];
+    }
+    if (poke && len >= MFG_LEN_POKE) {
+        out.poking = true;
+        snprintf(out.pokeTarget, sizeof(out.pokeTarget), "%02X%02X", mfg[9], mfg[10]);
+        out.pokeNonce = mfg[11];
+    } else if (out.sharesActivity && len >= MFG_LEN_ACTIVITY) {
+        out.haveScore = true;
         out.bestScore = static_cast<uint32_t>(mfg[9]) |
                         (static_cast<uint32_t>(mfg[10]) << 8) |
                         (static_cast<uint32_t>(mfg[11]) << 16) |

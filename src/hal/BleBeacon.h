@@ -43,8 +43,12 @@ constexpr uint16_t COMPANY_ID_NONE = 0xFFFF;
 
 /* Bumped whenever the manufacturer-data layout changes. Peers ignore an
  * advertisement whose version they do not know, which is what stops a future
- * layout from being decoded as this one. */
-constexpr uint8_t PAYLOAD_VERSION = 2;
+ * layout from being decoded as this one.
+ *
+ * 3 added the poke fields and, with them, per-field length gating: version 2
+ * decided "is the score here?" and "is the game here?" with one length test,
+ * which a poke's shorter block would have answered wrongly for both. */
+constexpr uint8_t PAYLOAD_VERSION = 3;
 
 /** Advertising interval, in milliseconds. Slow: this is a presence ping. */
 constexpr uint16_t ADV_INTERVAL_MS = 1000;
@@ -62,15 +66,35 @@ constexpr const char* NAME_PREFIX = "Braino-";
 /** gameIndex value meaning "no game open". */
 constexpr uint8_t GAME_NONE = 0xFF;
 
-/* Manufacturer-data flag bits. Only one is defined; the rest are reserved and
- * must be transmitted as zero. */
+/* Manufacturer-data flag bits. The rest are reserved and must be transmitted
+ * as zero. */
 constexpr uint8_t FLAG_SHARES_ACTIVITY = 0x01;
+constexpr uint8_t FLAG_POKE = 0x02;
 
 /* Manufacturer-data lengths, in bytes, excluding the AD header.
  *   BASE     company(2) tag(2) version(1) id(2) flags(1)
- *   ACTIVITY BASE + gameIndex(1) + bestScore(4) */
+ *   GAME     BASE + gameIndex(1)
+ *   POKE     GAME + pokeTarget(2) + pokeNonce(1)
+ *   ACTIVITY GAME + bestScore(4)
+ *
+ * THE SHARING PAYLOAD USES ALL 31 LEGAL BYTES. Flags(3) + the complete local
+ * name "Braino-A4F2"(13) + manufacturer data(2+13) is exactly the maximum, so
+ * a poke cannot be appended -- there is nowhere to put it. It therefore
+ * DISPLACES the four score bytes for as long as it is on air: POKE is one byte
+ * shorter than ACTIVITY, the game stays visible, and the score is structurally
+ * absent rather than stale. A reader must gate each field on its own length,
+ * which is why there are four constants here and not two. */
 constexpr uint8_t MFG_LEN_BASE = 8;
+constexpr uint8_t MFG_LEN_GAME = 9;
+constexpr uint8_t MFG_LEN_POKE = 12;
 constexpr uint8_t MFG_LEN_ACTIVITY = 13;
+
+/* How long one poke stays on air. It has to exceed a peer's worst-case gap
+ * between scan windows, or a poke can be transmitted perfectly and never
+ * heard; it also has to end, because a poke is an event and an advertisement
+ * is a state. The nonce is what makes the repetition safe -- a receiver acts
+ * on a (device id, nonce) pair exactly once, however many times it hears it. */
+constexpr uint32_t POKE_ADVERTISE_MS = 6000;
 
 /* One authoritative representation of the outgoing advertisement.
  *
@@ -93,6 +117,15 @@ struct Advertisement {
     uint8_t gameIndex = GAME_NONE;
     uint32_t bestScore = 0;
 
+    /* An outgoing poke, while one is live. pokeTarget is the peer's own
+     * two-byte device id -- the identifier that device already broadcasts
+     * about itself -- and never anything derived from a profile. Cleared by
+     * clearExpiredPoke() once POKE_ADVERTISE_MS has passed, which is what
+     * keeps this an event rather than a state somebody is left stuck in. */
+    bool poking = false;
+    uint8_t pokeTarget[2] = {0, 0};
+    uint8_t pokeNonce = 0;
+
     uint16_t serviceUuid16 = 0;     // 0 == none advertised
     uint8_t serviceData[8] = {0};
     uint8_t serviceDataLen = 0;
@@ -113,8 +146,17 @@ struct Advertisement {
 struct Observation {
     char deviceId[5] = {0};
     bool sharesActivity = false;
+    bool haveScore = false;     // false while this peer is poking: see MFG_LEN_POKE
     uint8_t gameIndex = GAME_NONE;
     uint32_t bestScore = 0;
+
+    /* The peer is poking somebody. Everyone in range hears this, and the
+     * target is in the clear -- an advertisement is a broadcast and pretending
+     * otherwise in the API would invite somebody to treat it as private. Only
+     * the device whose id matches reacts. */
+    bool poking = false;
+    char pokeTarget[5] = {0};
+    uint8_t pokeNonce = 0;
 };
 
 /* Build the advertisement from the hardware id and start the radio if the
@@ -129,6 +171,20 @@ void setEnabled(bool enabled);
  * idempotent when nothing changed, so it is safe to call on every screen
  * change. */
 void setActivity(bool share, uint8_t gameIndex, uint32_t bestScore);
+
+/* Put a poke on air for POKE_ADVERTISE_MS, aimed at one peer's device id (the
+ * four hex digits it advertises, e.g. "A4F2"). Bumps the nonce so a repeat of
+ * the same target is a new event, and returns false if the id is malformed or
+ * the beacon is not advertising. */
+bool poke(const char* targetDeviceId);
+
+/* Drop an expired poke and re-advertise without it. Called once per frame from
+ * the same tick that drives the scanner; cheap and idempotent when there is no
+ * poke live. */
+void clearExpiredPoke();
+
+/** True while a poke of ours is on air. */
+bool poking();
 
 /** The setting. True does not by itself prove the radio came up -- see active(). */
 bool enabled();

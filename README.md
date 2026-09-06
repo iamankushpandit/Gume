@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-75.4%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.5%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,372,313 / 3,145,728 bytes (**75.4%**) |
-| RAM | 72,908 / 327,680 bytes (**22.2%**) |
+| Flash | 2,376,065 / 3,145,728 bytes (**75.5%**) |
+| RAM | 73,388 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -48,7 +48,10 @@ have not been verified on real hardware; the Freenove FNK0104B *has* been
 verified on hardware but ships with three peripherals switched off (see
 [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
 has had its panel, backlight and touch confirmed on hardware but ships with four
-peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796))
+peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
+the 3.2-inch **E32R32P** has had its display, touch, battery sense and
+radios confirmed on hardware, with the RGB LED order and the battery
+divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3))
 — if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
@@ -184,6 +187,49 @@ that is the most useful thing you can send.
 `pio run -e diag4` is the standalone bring-up probe for this board: panel
 identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
 wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
+
+### E32R32P (3.2-inch ST7789P3)
+
+**The E32R32P** is the 3.2-inch board of the same LCDWIKI family, and it is the
+first port whose display, touch, battery sense and radios were all confirmed on
+hardware before the profile was written. It follows the **4-inch** board's
+wiring rather than the 2.8-inch one on the fact that matters most: touch is an
+XPT2046 **sharing the display's SPI bus** with its own CS on GPIO33, not a
+separate bit-banged bus. Its IRQ on GPIO36 is unusable for the same reason as
+on the 4-inch board, so the firmware gates on pressure alone -- measured idle
+noise is 12-18 against a threshold of 350.
+
+**The panel is BGR, and it does not want inversion.** Both were measured with
+the probe's pattern page: with the driver default the red block drew blue, blue
+drew red, green stayed green and yellow drew cyan -- red and blue exchanged
+with green untouched -- while the black background stayed black, which rules
+inversion out. This matters because the board arrives looking like it nearly
+works under a 2.8-inch firmware: flashed with the ESP32-2432S028Rv3 profile it
+draws a perfectly stable picture in wrong colours and has completely dead
+touch, which is easy to read as a broken board rather than a wrong profile.
+
+Everything else is vendor-documented in the LCDWIKI pin table and cross-checked
+here: backlight GPIO27 active high, battery sense GPIO34 behind a 2:1 divider
+(measured 1910 mV at the pin), the SD slot on 5/23/18/19, and the RGB LED on
+IO22/IO16/IO17. Like the rest of the family it **cannot detect a missing
+battery** -- attaching the pack moved the reading by 11 mV.
+
+**Audio is wired and enabled on this board**, which makes it the first CYD
+variant here with sound. GPIO26 is DAC channel 2 feeding an onboard amplifier
+whose shutdown input is IO4, active low. Two things that have each cost a
+release cannot happen here: the 5.5.0 DAC-versus-touch-clock collision needs
+GPIO25, and this board's touch clock is GPIO14; and the amplifier cannot be
+held in shutdown by the LED driver, because IO4 is not also an LED channel here
+(green is IO16). `maxVolume` is still inherited at 75 and wants confirming by
+ear.
+
+Two things remain unverified and are flagged in the profile: the RGB LED
+channel order -- a vendor pin table has already been wrong about exactly that
+field on the E32R28T-1 -- and the battery divider ratio against a meter.
+
+`pio run -e diag32p` is the standalone bring-up probe for this board. It builds
+the same `src/diag4.cpp` as the 4-inch probe rather than a fourth copy, pointed
+at this board's pins.
 
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
@@ -570,6 +616,7 @@ adversary.
 
 <p align="center">
   <img src="docs/screens/nearby.png" width="420" alt="Nearby: who else is playing">
+  <img src="docs/screens/nearby-name.png" width="420" alt="Nearby: naming a device, locally">
 </p>
 
 **Off by default.** Turned on, the console listens for other Brainos in range
@@ -587,6 +634,48 @@ whatever about each other.
 Two switches guard it, in this order: the **BLE beacon** must be on, and then
 **Nearby** must be on. Turning the beacon off stands Nearby down with it. The
 scan is passive, so listening never transmits anything.
+
+**Poke.** Each peer in the list carries a *Poke* button. Pressing it nudges that
+console: a strip appears over its header saying who poked it, and it makes a
+sound. It is the one notification here that does — everything else Nearby raises
+is ambient news about the room, while a poke is a person asking for your
+attention.
+
+Two honest details about how it works, because the mechanism is visible and
+should be:
+
+- **A poke is a broadcast, not a message.** The beacon is non-connectable
+  advertising, which has no addressing at all: every Braino in range hears that
+  `A4F2` poked `B1C3`, and only `B1C3` reacts. The only identifier involved is
+  the target's own four hex digits — the id that device is already broadcasting
+  about itself every second.
+- **It borrows the score's bytes for six seconds.** The payload with Nearby on
+  is *exactly* the 31 legal bytes, so there is nowhere to append a poke. While
+  one is on air the best-score field is simply not sent; the game stays visible
+  and peers keep the last score they heard rather than showing a zero. It is
+  transmitted repeatedly for those seconds because a listener's scan windows
+  have gaps, and a nonce makes sure the target reacts exactly once no matter how
+  many copies it hears.
+
+**Naming a device.** A tag like `A4F2` says nothing about whose console it is,
+so the admin can label one -- up to 10 characters -- and the list and the poke
+notification then say the name instead. The **tag stays visible beside it**,
+because the tag is what actually travels and what that console calls itself; if
+a label ends up on the wrong device, the tag is the only way to notice.
+
+That label **never leaves this device**. The beacon builds its advertised name
+from the family id and the hardware id and does not read the label table at
+all, so what goes on air is identical byte for byte whether every peer is named
+or none is. It is the same idea as naming a contact in your own phone: your
+word for someone else's device, held locally. Storing is not collecting, and
+the list of what leaves the device is unchanged.
+
+Names are **global to the device and admin-only**: the other consoles in the
+room are the same consoles whoever is holding this one, and a label every
+player sees should not be writable by any player. Naming a peer with an empty
+name forgets it.
+
+The list scrolls, with a scroll bar, once there are more peers than fit.
 
 ### Network & Time
 
@@ -862,6 +951,13 @@ While it is off, those fields are **absent from the payload** rather than
 present and zeroed: the manufacturer block is five bytes shorter and the flag
 bit is clear. "Not transmitted" has to be structural to be worth claiming.
 
+A **poke** adds one more thing, and only for the few seconds it is on air: the
+device id being poked, plus a counter that lets the target tell a repeat from a
+new poke. That id is not new information on the radio — it is the same id that
+device is already broadcasting as its own name. Because the payload is already
+full, the poke *replaces* the best-score bytes while it is live rather than
+being added to them.
+
 Neither field says who is playing. There is no name, no profile, and no way to
 get from a score back to a player — the exchange is a leaderboard with nobody's
 name on it. Listening is passive, so a console that is only watching transmits
@@ -869,7 +965,8 @@ nothing extra.
 
 *System Info -> BLE* reports **Open game** and **Best score** as `Broadcast` or
 `Not Broadcast` read from the same structure the controller was handed, so that
-row cannot disagree with the radio.
+row cannot disagree with the radio — including the moment a poke has displaced
+the score, where it reports the truth rather than the setting.
 
 ### You can check all of this on the device
 
@@ -881,7 +978,8 @@ row cannot disagree with the radio.
 name being advertised, every decoded field of the manufacturer data, the privacy
 list above, and -- under *Show advanced* -- the interval, TX power, advertising
 type, controller address and a **hex dump of the bytes actually on air** (27 of
-the 31 legal bytes with Nearby off, all 31 with it on).
+the 31 legal bytes with Nearby off, all 31 with it on, 30 while a poke is being
+transmitted).
 
 Turn the beacon off and the same screen says *Broadcasting: Nothing*, relabelling
 the identity block as configuration so nothing reads as being transmitted when it
@@ -978,7 +1076,8 @@ src/
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
-  diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
+  diag4.cpp             standalone bring-up probe: 4-inch ST7796 and
+                        3.2-inch ST7789P3 (env:diag4, env:diag32p)
   audiodiag.cpp         standalone DAC audio bring-up probe (env:audiodiag only)
   engine/
     AppCapabilities.h   system-app capability flags
@@ -1029,6 +1128,7 @@ src/
     LauncherIcons.cpp   launcher tile icon drawing
     LauncherLayout.cpp  launcher header, profile and tile geometry
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
+    Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
 tools/
   gen_country_facts.py  regenerates the capital/continent table

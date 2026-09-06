@@ -39,10 +39,18 @@ constexpr uint32_t SIGHTING_TTL_MS = 45000;
 struct Sighting {
     char deviceId[5] = {0};
     bool sharesActivity = false;
+    bool haveScore = false;     // a peer mid-poke is not transmitting one
     uint8_t gameIndex = BleBeacon::GAME_NONE;
     uint32_t bestScore = 0;
     int8_t rssi = 0;
     uint32_t lastSeenMs = 0;
+
+    /* The most recent poke heard from this device. Kept per sighting rather
+     * than as one global "last poke" because two devices can poke inside the
+     * same second, and a single slot would silently drop one of them. */
+    bool poking = false;
+    char pokeTarget[5] = {0};
+    uint8_t pokeNonce = 0;
 };
 
 /** Start or stop observing. Idempotent; a no-op when the stack is down. */

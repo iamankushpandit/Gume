@@ -7,6 +7,75 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**Name the devices around you.** A tag like `A4F2` says nothing about whose
+console it is, so the admin can label one -- up to 10 characters -- and both
+the Nearby list and the poke notification then say the name. The tag stays
+visible beside it: it is what actually travels, and it is the only way to
+notice a label sitting on the wrong device.
+
+The label never leaves the device. `BleBeacon` does not read the table and must
+never be given a reason to -- what goes on air is identical byte for byte
+whether every peer is named or none is. It is your word for someone else's
+console, held in your own console's NVS, the way a contact name works in a
+phone. Storing is not collecting, and the list of what leaves the device is
+unchanged.
+
+Names are global to the device rather than per player, because the consoles in
+the room are the same consoles whoever is holding this one -- and profile-scoped
+storage would have failed silently for Guest, which drops all writes. Setting
+one is admin-only, on the reasoning that a label every player sees should not be
+writable by any player. An empty name forgets the device.
+
+**The on-screen keyboard is now QWERTY, and there is one of it.** Profile
+renaming had its own keyboard, Wi-Fi password entry had another, and peer
+naming would have been a third. `ui/Keypad` computes the layout once, so the
+function that draws a key and the function that decides what a finger hit are
+the same function and cannot disagree. It is anchored to the bottom of the
+panel rather than placed from the top with a per-orientation constant -- the
+old constants were right for the two 320x240-class panels and would have left
+the 4-inch board's keyboard floating 84px above its own Cancel button.
+
+**Poke somebody from the Nearby list.** Every peer now carries a *Poke*
+button. Press it and that console raises a notification saying who poked it and
+makes a sound -- the one Nearby notification that does, because the rest is
+ambient news about the room and a poke is a person asking for your attention.
+
+It rides the existing beacon rather than opening anything new, and it had to
+displace something to do it: the payload with Nearby on is *exactly* the 31
+legal advertising bytes. While a poke is on air the four best-score bytes are
+not sent and a two-byte target plus a one-byte counter take their place. The
+game stays visible, peers keep the last score they heard rather than showing a
+zero, and the score comes back six seconds later.
+
+Two things worth knowing about the mechanism. **A poke is a broadcast, not a
+message** -- non-connectable advertising has no addressing, so every Braino in
+range hears that one tag poked another, and only the addressed one reacts. And
+**the payload layout version is now 3**, so this firmware and 5.5.x ignore each
+other's advertisements rather than misreading them; both consoles need updating
+for Nearby to work between them.
+
+The Nearby list scrolls with a scroll bar once the peers overflow the screen.
+That was already true of every `RowList` screen; what is new is that the list is
+now long enough to reach it, and that action chips are hit-tested individually
+so one button per peer resolves to the right peer.
+
+**New board: the LCDWIKI E32R32P, 3.2-inch ST7789P3.** The middle sibling of
+the family Braino already supports, and the first port whose display, touch,
+battery sense and radios were all confirmed on hardware before the profile was
+written. It follows the 4-inch board's wiring, not the 2.8-inch one: touch
+shares the display's SPI bus with its own CS on GPIO33. The panel is BGR and
+does not want inversion, both measured -- which is why the board reads as
+broken under a 2.8-inch firmware, drawing a stable picture in wrong colours
+with completely dead touch. Audio is enabled, making this the first CYD variant
+here with working sound: GPIO26 into an onboard amplifier whose shutdown input
+is IO4. Flash it from the web installer, or `pio run -e app_e32r32p`; the
+bring-up probe is `pio run -e diag32p`.
+
+The RGB LED channel order and the battery divider ratio are the two facts still
+taken from the vendor's pin table rather than measured, and the profile says so
+at each field. A vendor table has already been wrong about exactly the LED
+field once, on the E32R28T-1.
+
 **Six quiz screens no longer clear the screen between questions.** Math,
 Multiplication, Counting, Time, Flags and Percent Circle classified their
 question panel as static, and only a full repaint replaces a static element --

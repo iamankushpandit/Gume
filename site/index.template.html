@@ -345,6 +345,20 @@ footer {
         there is no path from a score back to a player. Listening is passive, so
         a console that is only watching transmits nothing extra. Turned off, the
         two fields are absent from the payload rather than sent as zeroes.</li>
+      <li><b>Poke</b> lets one console nudge another from the Nearby list. It
+        rides the same beacon and adds no new kind of data: for a few seconds it
+        carries the device id being poked &mdash; the same four hex digits that
+        device already broadcasts as its own name &mdash; and a counter. Because
+        the payload is already full, the poke replaces the best-score bytes
+        while it is on air rather than adding to them. It is a broadcast, not a
+        private message: every Braino in range hears it and only the one being
+        addressed reacts.</li>
+      <li><b>Local names for nearby devices</b> stay on the device that stored
+        them. The admin can label a tag they recognise so a poke says who
+        rather than what; the beacon never reads that label, so what goes on
+        air is identical whether every device is named or none is. It is your
+        word for someone else's console, held in your own console's storage
+        &mdash; the way a contact name works in a phone.</li>
       <li><b>This page</b> talks to your board over Web Serial, inside your
         browser. The firmware is fetched from GitHub Pages; nothing about your
         device is sent anywhere.</li>

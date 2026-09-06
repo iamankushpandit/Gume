@@ -62,7 +62,8 @@ Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
 Exactly three things leave the device: an NTP time query, one `ip-api.com`
 lookup to guess the timezone on first connect, and the opt-in, non-connectable
-BLE beacon. **That list is closed.** Do not add analytics, usage counters,
+BLE beacon -- which carries the Nearby fields and pokes when those are switched
+on, and is still one flow rather than three. **That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
 home at runtime, or anything transmitted that carries a player's name, profile
 name, score, progress or typing. A fourth outbound flow needs the maintainer's
@@ -392,9 +393,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,372,313 / 3,145,728 bytes,
-**75.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,908 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,376,065 / 3,145,728 bytes,
+**75.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 73,388 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -578,12 +579,39 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
   is the exact inverse and is what the scanner reads peers with -- never write a
   second parser. With Nearby play on the payload is **exactly 31 bytes**, so
-  there is no room for another AD structure or a longer name. See
+  there is no room for another AD structure or a longer name -- which is why
+  the poke had to displace a field rather than add one. See
   `docs/BLE_BEACON_SPEC.md`.
 - **Nearby play is off by default and gated on the beacon.** `NearbyPlay::tick()`
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **Local peer names never reach the radio, and that is structural.**
+  `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
+  one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never
+  be given a reason to -- `buildPayload()` composes the advertised name from
+  the family id and the hardware id, so the payload is identical byte for byte
+  whether every peer is named or none is. A label reaching the air is a privacy
+  defect, not a bug. They are **global, not profile-scoped**: `saveBlob()` is
+  transparently profile-prefixed and Guest silently drops writes, so a guest
+  naming a peer would watch it work and lose it. Setting one is **admin-only**,
+  enforced in `NearbyGame::update()` rather than by withholding the chip --
+  a chip is a drawing decision and enforces nothing, which is how every
+  greyed-out Settings row stayed live once already.
+- **A poke rides the beacon and displaces the score; it is not a fourth
+  outbound flow.** There is no room for one: the sharing payload is *exactly*
+  31 bytes, so `FLAG_POKE` swaps the four score bytes for a two-byte target and
+  a one-byte nonce for `POKE_ADVERTISE_MS`. Three consequences are
+  load-bearing. **Every field is gated on its own length** in `decode()` --
+  version 2 tested game and score together, which a poke's shorter block
+  answers wrongly for both, which is why `PAYLOAD_VERSION` is 3. **The nonce is
+  what makes it an event**: the poke repeats for seconds because scan windows
+  have gaps, and a receiver acts on a (device id, nonce) pair exactly once; it
+  is never reset, or a second poke to the same peer would read as a repeat.
+  **It is a broadcast** -- everyone in range hears who poked whom, only the
+  target reacts -- and the docs must keep saying so rather than implying a
+  private channel. The one identifier it carries is the target's own advertised
+  id, so it adds an event to the radio, not a new kind of data.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
@@ -743,7 +771,7 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           key), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
-src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
+src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_boards.py, check_catalog.py,
@@ -796,7 +824,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,372,313 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
+   2,376,065 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds
@@ -887,9 +915,13 @@ between CYD variants: GPIO34 is battery sense here and the light sensor on the
 ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
-- Touch is bit-banged SPI (the TFT owns HSPI), 3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
+- Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
+  (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
+  display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
+  is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
+  3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` on the E32R28T-1, E32R40T and ESP32-2432S028R
+- `audio.speakerPin = 26` on the E32R28T-1, E32R32P, E32R40T and ESP32-2432S028R
   reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
   = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on those boards; the I2S
   peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
@@ -898,6 +930,9 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
   `BoardProfile.audio` is 85 for the codec board and 75 for the bare-DAC CYD
   boards (unamplifed driver distorts above 75%). See `src/hal/CLAUDE.md`.
+  `GUME_HAS_AUDIO_DAC` is **off** on the E32R28T-1 and the ESP32-2432S028R --
+  see 5.5.1 -- and on for the E32R40T and the E32R32P, whose touch clocks are
+  GPIO14 rather than the DAC's GPIO25.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions
