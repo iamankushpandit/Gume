@@ -1454,13 +1454,18 @@ def nearby():
         ("s", "You", "", None),
         ("r", "Your tag", "A4F2", None),
         ("r", "Listening", "Yes", SUCCESS),
-        ("s", "7C1B", "", None),
+        # A NAMED peer: the label is the heading and the tag stays as a row,
+        # because the tag is what travels and is the only way to spot a label
+        # sitting on the wrong device.
+        ("s", "RAVI", "", None),
+        ("r", "Tag", "7C1B", MUTED),
         ("r", "Distance", "Near", MUTED),
         ("r", "Playing", "Maze", None),
         ("r", "Their best", "9 lvl", WARN),
         ("r", "Your best", "7 lvl", None),
         ("r", "", "They are ahead of you", WARN),
         ("a", "Poke 7C1B", "", None),
+        ("a", "Rename 7C1B", "", None),
         # An IDLE peer, deliberately: this one is at its launcher with no game
         # open, and it still gets a Poke chip. The chip was originally added
         # after an early `continue` on this path, so a console sitting at its
@@ -1471,6 +1476,7 @@ def nearby():
         ("r", "Distance", "Far", MUTED),
         ("r", "Playing", "Choosing a game", MUTED),
         ("a", "Poke B930", "", None),
+        ("a", "Name B930", "", None),
     ]
     content = (0, 72, W, H - 72)
     # The value column narrows when a scroll bar is present, as RowList does.
@@ -1737,13 +1743,51 @@ def profiles_pick():
     return im
 
 
+# ---------------------------------------------------------------- keypad
+# Mirrors Ui::Keypad exactly: ragged QWERTY rows (10/10/9/7) centred, a
+# three-key action row, and the whole block ANCHORED TO THE BOTTOM above the
+# caller's reserved footer. Keep this in step with src/ui/Keypad.cpp -- a
+# mock-up of a keyboard that is not the keyboard is worse than no mock-up.
+KP_KEYS = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM", " <>"]
+KP_FOOTER_BUTTON = 34
+
+
+def _keypad(d, screen_w=None, screen_h=None, reserve=KP_FOOTER_BUTTON):
+    sw = screen_w if screen_w is not None else W
+    sh = screen_h if screen_h is not None else H
+    tall = sh > sw
+    gap = 2 if tall else 4
+    key_w = (sw - 16 - 9 * gap) // 10
+    key_h = 36 if tall else 26
+    pitch = 40 if tall else 29
+    y0 = sh - reserve - (4 * pitch + key_h)
+    for r, row in enumerate(KP_KEYS):
+        y = y0 + r * pitch
+        if r == 4:
+            unit = key_w + gap
+            widths = [4 * unit - gap, 3 * unit - gap, 3 * unit - gap]
+            x = 8
+            for c, ch in enumerate(row):
+                label = {"<": "DEL", ">": "OK", " ": "SPACE"}[ch]
+                fill = (150, 60, 60) if ch == "<" else GREEN if ch == ">" else PANEL
+                tc = WHITE if ch in "<>" else TEXT
+                button(d, (x, y, widths[c], key_h), label, fill, tc, F1)
+                x += widths[c] + gap
+            continue
+        n = len(row)
+        x0 = (sw - (n * key_w + (n - 1) * gap)) // 2
+        for c, ch in enumerate(row):
+            button(d, (x0 + c * (key_w + gap), y, key_w, key_h), ch, PANEL, TEXT, F2)
+    return y0
+
+
 def profiles_rename():
     """Name entry, reached from Add Player or from Edit -> Rename.
 
     Geometry follows ProfileGame: the centred title at y=8, the field at
     ((W - fieldW) / 2, 28, fieldW, 30) with fieldW = min(240, W - 40), the
-    6x5 key pad from keyRect() in landscape, and the Cancel button from
-    renameCancelRect() -- the exit this screen used to not have."""
+    QWERTY pad from Ui::Keypad (anchored to the bottom above FOOTER_BUTTON),
+    and the Cancel button from renameCancelRect()."""
     im, d = blank()
     lab = "New player"
     d.text((W / 2 - d.textlength(lab, font=F2) / 2, 8), lab, font=F2, fill=TEXT)
@@ -1756,21 +1800,27 @@ def profiles_rename():
     btn_w = 52
     bx = (W - btn_w) // 2
     button(d, (bx, H - 30, btn_w, 22), "Cancel", f=F1)
-    # Keyboard shifted up to make room for Cancel at bottom (landscape).
-    key_w = (W - 16 - 5 * 4) // 6
-    keys = ["ABCDEF", "GHIJKL", "MNOPQR", "STUVWX", "YZ -<>"]
-    # Cancel at y=210, gap=4, keyboard bottom=206, keyboard top=64
-    keyboard_y0 = 64
-    for r, row in enumerate(keys):
-        for c, ch in enumerate(row):
-            label = {"<": "DEL", ">": "OK", " ": "_"}.get(ch, ch)
-            if ch == "<":
-                fill, tc = (150, 60, 60), WHITE
-            elif ch == ">":
-                fill, tc = GREEN, WHITE
-            else:
-                fill, tc = PANEL, TEXT
-            button(d, (8 + c * (key_w + 4), keyboard_y0 + r * 29, key_w, 26), label, fill, tc, F2)
+    _keypad(d)
+    return im
+
+
+def nearby_name():
+    """Naming a nearby device, reached from the Name chip in the Nearby list.
+
+    Admin-only, and local: the label never reaches the radio. Geometry follows
+    NearbyGame::renderName -- heading at y=8, the field at ((W - fieldW) / 2,
+    28, fieldW, 30), Ui::Keypad below it and Cancel from nameCancelRect()."""
+    im, d = blank()
+    lab = "Name for A4F2"
+    d.text((W / 2 - d.textlength(lab, font=F2) / 2, 8), lab, font=F2, fill=MUTED)
+    field_w = min(240, W - 40)
+    fx = (W - field_w) // 2
+    d.rounded_rectangle([fx, 28, fx + field_w, 58], 4, fill=SURFACE, outline=OUTLINE)
+    draft = "RAVI"
+    d.text((W / 2 - d.textlength(draft, font=F4) / 2, 34), draft, font=F4, fill=TEXT)
+    btn_w = 52
+    button(d, ((W - btn_w) // 2, H - 30, btn_w, 22), "Cancel", f=F1)
+    _keypad(d)
     return im
 
 
@@ -1961,6 +2011,7 @@ EXTRA_SCREENS = [
     ("profiles", profiles_pick, "Profiles: who is playing"),
     ("profiles-rename", profiles_rename, "Profiles: the name entry for Add / Rename"),
     ("nearby", nearby, "Nearby: who else is playing"),
+    ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-radios", about_radios, "About: what the radios do"),

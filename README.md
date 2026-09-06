@@ -616,6 +616,7 @@ adversary.
 
 <p align="center">
   <img src="docs/screens/nearby.png" width="420" alt="Nearby: who else is playing">
+  <img src="docs/screens/nearby-name.png" width="420" alt="Nearby: naming a device, locally">
 </p>
 
 **Off by default.** Turned on, the console listens for other Brainos in range

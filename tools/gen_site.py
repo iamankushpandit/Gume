@@ -185,6 +185,7 @@ SCREEN_CAPTIONS = {
     "network-time": "Wi-Fi and clock",
     "numberline": "Number Line",
     "nearby": "Nearby",
+    "nearby-name": "Nearby: naming a device, locally",
     "oddone": "Odd One",
     "percent": "Percent Circle",
     "profiles": "Profiles",
@@ -291,8 +292,10 @@ SYSTEM_SHOWCASE = (
     },
     {
         "id": "nearby",
-        "subtitle": "Opt-in, anonymous score sharing with other Brainos in range -- device tags only, never names.",
-        "stills": ("nearby",),
+        "subtitle": "Opt-in, anonymous score sharing with other Brainos in range, and a poke to get "
+                    "someone's attention. Device tags only on the radio; a name you give a device "
+                    "never leaves your own.",
+        "stills": ("nearby", "nearby-name"),
     },
     {
         "id": "screensaver",
