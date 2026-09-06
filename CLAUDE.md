@@ -751,6 +751,12 @@ which is why `Game` carries two levels of invalidation:
 
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
 
+**A partial repaint's clear rectangle must be derived from what it has to avoid, never typed in.** This is the most expensive mistake in this codebase to *see*, because the code reads correctly and the wrong pixels appear only after some other element redraws. `TimeGame` has now produced it twice. Its score header cleared two 140px-wide strips -- far wider than the text needed -- while the clock dial spans x=113..207, so every score change erased 37px off each shoulder of the clock and left the face as a narrow strip with square bites out of it. It happened on the first frame, on every board, from the day the screen was written; the 4-inch panel simply made it 48px a side. The same screen had already been caught clearing a prompt strip that took the bottom off two answer buttons.
+
+So: write the geometry once, at file scope, and derive every clear rectangle from it with a few pixels of daylight -- `HEADER_W = CLOCK_CX - CLOCK_OUTER - MARGIN - GAP` rather than `140`. Leave a `static_assert` where the derivation could collapse. Exact adjacency is not good enough on a scaled panel: positions scale by their axis and radii by the smaller of the two, and each rounds independently.
+
+**And note that `tools/gen_screens.py` cannot catch any of this.** A mock-up draws elements in isolation, in the order the generator happens to use, with no clear rectangles at all -- so an ordering bug or an erase-over is invisible in it by construction. The Time mock-up also omitted the question label entirely, which is how a dial printed over that sentence survived every screenshot review. When a screen looks right in `docs/screens/` and wrong on the panel, this is the first thing to suspect.
+
 **Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough â€” the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
