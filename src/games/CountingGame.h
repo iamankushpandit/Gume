@@ -34,6 +34,9 @@ private:
     uint16_t drawnStreak_ = 0xFFFF;
     bool drawnAnswered_ = false;
     bool drawnStats_ = false;
+    /* The object panel is dynamic, not static: a new round changes the count,
+     * and a new round must not cost a full repaint. See renderDynamic(). */
+    bool drawnObjects_ = false;
     uint8_t correctButton_ = 0;
     uint8_t score_ = 0;
     uint8_t rounds_ = 0;

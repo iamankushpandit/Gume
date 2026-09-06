@@ -7,6 +7,17 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**Six quiz screens no longer clear the screen between questions.** Math,
+Multiplication, Counting, Time, Flags and Percent Circle classified their
+question panel as static, and only a full repaint replaces a static element --
+so moving to the next question cost a 320x240 wipe, a top bar redraw and a
+battery read, every time. The panel is now dynamic: repainted when the question
+changes, without clearing the screen.
+
+Percent Circle still clears when it needs to. Its three round types have
+genuinely different layouts, so it compares the type across a new round and
+asks for a full repaint only when it actually changed.
+
 **The PIN pads no longer flash on every digit.** Entering the admin PIN
 repainted the entire screen once per keypress -- in Profiles that was a literal
 `Ui::clear()`, a 320x240 wipe costing ~150 KB over SPI and ~30 ms of blanking,

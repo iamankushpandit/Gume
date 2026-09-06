@@ -309,6 +309,64 @@ displayed time already jumps rather than ticks. Decide that deliberately rather
 than inheriting it: if it should tick, that is a per-second `markDirty()` and the
 counter block needs its own erase.
 
+### Update: a new question no longer clears the screen (6 done)
+
+The audit above framed the win as *answering* -- recolouring four buttons
+without repainting the question. That was right, and it missed the larger and
+more visible half: **going from one question to the next was a full repaint on
+every one of these screens**, because the question panel was classified as
+static and only `markFullDirty()` replaces a static element. Every question
+change therefore cost a 320x240 wipe, a top bar redraw and a battery read.
+
+The fix is not a new mechanism. The question panel is **dynamic, not static**:
+gated on a `drawn...` flag so it is not repainted every frame, but repainted
+without clearing the screen when the question changes. `newQuestion()`
+invalidates what it changes and asks for `markDirty()`.
+
+Done: `MathGame`, `MultiplicationGame`, `CountingGame`, `TimeGame`, `FlagGame`,
+`PercentCircleGame`.
+
+**The trap that nearly shipped, and will catch the next one.** These screens
+repaint an answer button only when its *state* changed. On a new question the
+two buttons that were never highlighted go from state 0 to state 0 -- so they
+are skipped, and keep the previous question's labels. The full repaint hid this
+by resetting the trackers in `renderStatic()`. **Every conversion here must
+invalidate the button trackers in `newQuestion()`**, and the same applies to
+any counter block whose condition only fires on a score change: `MathGame`'s
+header carries the elapsed clock, and a wrong answer with the streak already at
+0 moves neither score nor streak.
+
+**What made each one safe was an opaque fill, checked individually**, not a
+rule:
+
+| Screen | Why the question region self-erases |
+|---|---|
+| Math, Multiplication | fixed rect, `fillRoundRect` before the text |
+| Counting | fixed panel filled before any of the up-to-21 circles |
+| Time | `drawClock()` opens with a `fillCircle` over the whole face |
+| Flag | the card is filled, and the 2x image fills it exactly |
+
+`FlagGame` also moved its difficulty button from static to dynamic, gated on
+the tier value rather than a bool -- six correct in a row auto-promotes, and
+the old label used to survive until the next full repaint.
+
+**`PercentCircleGame` is the one that still needs the redraw, sometimes.** Its
+three round types have genuinely different layouts, so a round that changes
+type must clear and a round that does not must not. It compares the type
+across `newRound()` rather than following a rule, so a fourth type needs no
+edit here.
+
+**`ElementsGame` was deliberately left alone.** Its full repaints are tab
+switches and card open/close, which are real layout changes. It is also still
+on the old single `render()` with a `needsFullRender()` guard rather than the
+two-phase split, so it is a conversion rather than a tweak.
+
+**Still outstanding:** the nine screens carrying only the mechanical split
+(`ColorMix`, `FingerCount`, `Fraction`, `Microku`, `Money`, `NumberLine`,
+`ObjectAdd`, `Sequence`, `ShapeColor`). They never call `markFullDirty()`, so
+they do not wipe the screen -- but they refill the whole body on every repaint,
+which is nearly the same thing to look at. They are the next piece of work.
+
 ---
 
 ## Group B — the board games (2)

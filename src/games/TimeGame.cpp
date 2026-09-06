@@ -75,9 +75,20 @@ bool TimeGame::optionExists(uint16_t minutes, uint8_t upTo) const {
 }
 
 void TimeGame::newQuestion() {
-    /* New hands on the clock, and the clock is static -- only a full repaint
-     * replaces it. */
-    markFullDirty();
+    /* New hands on the clock. drawClock() opens with a fillCircle covering the
+     * whole face, so the old hands cannot survive it -- which is what lets the
+     * clock be dynamic and a new question cost a repaint of the face rather
+     * than of the screen.
+     *
+     * The buttons are not optional here: the loop repaints one only when its
+     * state changed, and the two that were never highlighted go 0 -> 0, so
+     * without this they would keep the previous question's times on them. */
+    markDirty();
+    drawnClock_ = false;
+    drawnHeader_ = false;
+    for (uint8_t i = 0; i < 4; ++i) {
+        drawnButton_[i] = 0xFF;
+    }
     selected_ = -1;
     answered_ = false;
 
@@ -224,9 +235,6 @@ void TimeGame::renderStatic(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    /* The clock face is the question. It is a circle, twelve ticks and two
-     * hands, and none of it moves while the player is choosing. */
-    drawClock(tft);
     Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?",
                   Ui::text(), 2, Align::Center);
 
@@ -237,10 +245,21 @@ void TimeGame::renderStatic(AppContext& host) {
     drawnStreak_ = 0xFFFF;
     drawnAnswered_ = !answered_;
     drawnHeader_ = false;
+    drawnClock_ = false;
 }
 
 void TimeGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
+
+    /* The clock face is the question: a circle, twelve ticks and two hands.
+     * None of it moves while the player is choosing, so it is gated -- but a
+     * new question moves the hands, and that must not cost a full repaint.
+     * drawClock() fills the whole face before drawing anything on it, so the
+     * previous hands are covered rather than left behind. */
+    if (!drawnClock_) {
+        drawClock(tft);
+        drawnClock_ = true;
+    }
 
     /* THIS SCREEN CANNOT REPAINT JUST THE TWO BUTTONS THAT CHANGED.
      *
