@@ -88,6 +88,10 @@ ENV_BLURBS = {
     "diag4": "Bring-up probe for an unsupported 4-inch ST7796 board: identifies the panel controller over SPI, sweeps candidate backlight pins and tests both touch wirings.",
     "s3diag": "Bring-up probe for an unsupported ESP32-S3 board: panel, "
               "rotation, I2C touch scan and battery divider. Not the console.",
+    "diag32p": "Bring-up probe for the 3.2-inch E32R32P (ST7789P3): identifies "
+               "the panel controller over SPI, sweeps candidate backlight pins, "
+               "checks colour order and rotation, and tests both touch wirings. "
+               "Not the console.",
 }
 
 
