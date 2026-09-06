@@ -43,8 +43,19 @@ Three things leave the device over the air. This is the complete list:
 | NTP | A time query to `pool.ntp.org`, or whichever server is configured | Only once Wi-Fi is set up, and Wi-Fi can be skipped entirely |
 | Timezone guess | One request to `ip-api.com` on first connect, which necessarily shows that host the device's public IP | The same Wi-Fi switch; overridden by picking a zone by hand |
 | BLE beacon | A device name and two bytes of the factory Bluetooth MAC, non-connectable. With Nearby play on, also a game index and a best score | Off by default, opt-in from *Settings → Beacon* |
+| Update check | A bare GET of one static file listing the current version of every supported board. Nothing about this device goes with it: no version, no board id, no query string — so the request is byte-identical from every Braino in the world, and the comparison happens on the device | The same Wi-Fi switch. It is not separately declinable; a device with no Wi-Fi configured never makes the request |
 
-Adding a fourth changes what the product promises its owners. Raise it in an
+The update check was added in 5.7.0, and it is the example of how this list is
+allowed to grow: agreed first as a change to what the product promises, then
+built so the promise is enforced rather than asserted. Two properties carry it,
+and `tools/check_privacy.py` fails the build if either is lost — the URL may
+never gain a query string or a board/version parameter, and the address shown
+to the owner is compiled into the firmware rather than read out of the
+response. The first keeps the request anonymous; the second means the worst a
+hostile network can do is display a wrong version number, rather than point a
+child at an address of its choosing.
+
+Adding a fifth changes what the product promises its owners. Raise it in an
 issue and get agreement before writing the code, because a pull request that
 adds one gets closed on principle rather than on quality.
 

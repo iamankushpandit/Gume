@@ -1,6 +1,7 @@
 #include "AboutGame.h"
 #include "AppVersion.h"
 #include "BuildStamp.h"
+#include "UpdateChannel.h"
 #include "engine/AppRegistry.h"
 #include "hal/Board.h"
 #include "hal/BleBeacon.h"
@@ -34,7 +35,11 @@ constexpr uint8_t PAGE_CREDITS = PAGE_RADIOS + 1;
  * which is easier to describe as "the last page of About" than as a line
  * part-way down the first one. */
 constexpr uint8_t PAGE_BUILD = PAGE_CREDITS + 1;
-constexpr uint8_t PAGE_COUNT = PAGE_BUILD + 1;
+/* And then, right after "which firmware is this", the other half of the same
+ * question: is there a newer one. They are deliberately adjacent -- somebody
+ * reading a version number is usually asking one of the two. */
+constexpr uint8_t PAGE_UPDATES = PAGE_BUILD + 1;
+constexpr uint8_t PAGE_COUNT = PAGE_UPDATES + 1;
 
 constexpr int16_t PANEL_TOP = 38;
 constexpr int16_t FOOTER_H = 44;
@@ -249,6 +254,55 @@ void AboutGame::renderBuild(Ui::Renderer& tft) {
     drawLine(tft, 186, BuildStamp::builtAt(), 1);
 }
 
+/* What is installed, what the last check saw, and where a person goes to do
+ * something about it.
+ *
+ * Everything here is read from the device: BRAINO_VERSION for the installed
+ * build, the stored result of the last check for the available one, and
+ * BRAINO_UPDATE_PAGE_URL -- compiled in -- for the address. The manifest has no
+ * field for that address and must never be given one; a response that could
+ * choose where to send a child is a different and much worse thing than a
+ * response that can only be wrong about a number. See include/UpdateChannel.h.
+ *
+ * The privacy sentence at the bottom is exact, not reassuring. The device does
+ * make a request, so any absolute phrasing here -- the sort check_privacy.py
+ * exists to catch -- would be a claim that is believed and is false. What is
+ * true is narrower and worth stating precisely: the request carries nothing
+ * about this device, not its version, not its board, not a profile. That is
+ * what the line says, and it should not be rounded up. */
+void AboutGame::renderUpdates(Ui::Renderer& tft, Board& board) {
+    drawLine(tft, 48, "Updates", 2);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 74, "Braino does not update itself.", 1);
+
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 94, "Installed", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 108, BRAINO_VERSION, 2);
+
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 132, "Latest available", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    if (!board.updateCheckEnabled()) {
+        drawLine(tft, 146, "Checking is switched off", 1);
+    } else if (board.latestKnownVersion()[0] == '\0') {
+        drawLine(tft, 146, "Not checked yet", 1);
+    } else {
+        drawLine(tft, 146, board.latestKnownVersion(), 2);
+    }
+
+    if (board.updateAvailable()) {
+        tft.setTextColor(Ui::text(), Ui::surface());
+        drawLine(tft, 170, "Get it from", 1);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        drawLine(tft, 184, BRAINO_UPDATE_PAGE_URL, 1);
+    } else {
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        drawLine(tft, 172, "The check sends nothing about", 1);
+        drawLine(tft, 186, "this device -- not even its version.", 1);
+    }
+}
+
 void AboutGame::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
@@ -274,6 +328,8 @@ void AboutGame::render(GameHost& host) {
         renderGames(tft, w);
     } else if (page_ == PAGE_RADIOS) {
         renderRadios(tft, board);
+    } else if (page_ == PAGE_UPDATES) {
+        renderUpdates(tft, board);
     } else if (page_ == PAGE_CREDITS) {
         renderCredits(tft);
     } else {

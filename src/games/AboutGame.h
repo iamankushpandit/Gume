@@ -23,6 +23,10 @@ private:
     void renderControls(Ui::Renderer& tft);
     void renderCredits(Ui::Renderer& tft);
     void renderBuild(Ui::Renderer& tft);
+    /* Takes the board because every value on it is read from the device --
+     * what is installed, what the last check found, whether the check is even
+     * switched on. Nothing on this page is a stored sentence. */
+    void renderUpdates(Ui::Renderer& tft, Board& board);
 
     uint8_t page_ = 0;
 };
