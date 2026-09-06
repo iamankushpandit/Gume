@@ -47,6 +47,9 @@ private:
     uint16_t drawnStreak_ = 0xFFFF;
     bool drawnAnswered_ = false;
     bool drawnHeader_ = false;
+    /* The equation panel is dynamic, not static: a new question changes it,
+     * and a new question must not cost a full repaint. See renderDynamic(). */
+    bool drawnQuestion_ = false;
     uint8_t correctButton_ = 0;
     Operation operation_ = Operation::Add;
     uint16_t score_ = 0;

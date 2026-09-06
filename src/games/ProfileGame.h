@@ -54,7 +54,11 @@ private:
     void beginPinEntry(uint8_t profile, PinPurpose purpose);
     void appendPinDigit(uint8_t digit);
     void deletePinDigit();
-    void renderPinEntry(GameHost& host);
+    /* Split by "does a digit change it?": the keys, heading and Back are
+     * chrome and painted once by renderStatic(); the four dots are the only
+     * thing a keypress touches. See the note in ProfileGame.cpp. */
+    void renderPinPadChrome(GameHost& host);
+    void renderPinDots(GameHost& host);
     void updateRename(GameHost& host, const TouchPoint& touch);
     void renderRename(GameHost& host);
 

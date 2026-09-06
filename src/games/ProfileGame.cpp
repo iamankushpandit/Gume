@@ -347,13 +347,13 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
 
             if (!ok) {
                 board.beepError();
-                /* The entered digits have just been reset, so the dots have to
-                 * go. renderPinEntry() clears the panel itself, so markDirty()
-                 * happened to work -- but this screen is uniformly
-                 * full-repaint now, and a partial that only works because
-                 * something else clears is the kind of coupling that breaks
-                 * the next time either side moves. */
-                markFullDirty();
+                /* The entered digits have just been reset, so all four dots go
+                 * back to empty. That is a content change and nothing else on
+                 * the pad moves, so it is markDirty() -- and the dots erase
+                 * themselves, each fill covering its own predecessor exactly.
+                 * A rejected PIN is the moment somebody is about to type four
+                 * more digits, so it is the last place to want a full wipe. */
+                markDirty();
                 return;
             }
             board.beepOk();
@@ -392,11 +392,14 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
     updateRename(host, touch);
 }
 
+/* markDirty(), not markFullDirty(): a digit moves four dots and nothing else,
+ * and the dots are the whole of renderDynamic() in this phase. Asking for a
+ * full repaint here is what put a Ui::clear() on every keypress. */
 void ProfileGame::appendPinDigit(uint8_t digit) {
     if (adminPinDigitCount_ < PIN_LENGTH) {
         adminPinAttempt_ = adminPinAttempt_ * 10 + digit;
         adminPinDigitCount_++;
-        markFullDirty();
+        markDirty();
     }
 }
 
@@ -404,16 +407,25 @@ void ProfileGame::deletePinDigit() {
     if (adminPinDigitCount_ > 0) {
         adminPinAttempt_ /= 10;
         adminPinDigitCount_--;
-        markFullDirty();
+        markDirty();
     }
 }
 
-void ProfileGame::renderPinEntry(GameHost& host) {
+/* THE PAD IS DRAWN IN TWO HALVES, AND THE DIVIDING LINE IS "DOES A DIGIT
+ * CHANGE IT?".
+ *
+ * This is the exception to the full-repaint rule stated below, and it earns
+ * it: typing a digit changes four small circles and nothing else, and this
+ * function used to open with Ui::clear() -- a 320x240 wipe, ~150 KB over SPI
+ * and ~30 ms of visible blanking -- once per keypress, on the one screen where
+ * the player is deliberately tapping four times in a row. It was the most
+ * noticeable flicker in the firmware for exactly that reason.
+ *
+ * The heading is chrome, not content: this pad only ever asks one question. */
+void ProfileGame::renderPinPadChrome(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
-
-    Ui::clear(tft);
 
     Ui::drawButton(tft, pinCancelRect(W, H), "Back", Ui::panel(), Ui::outline(),
                    Ui::text(), false, 1);
@@ -421,18 +433,6 @@ void ProfileGame::renderPinEntry(GameHost& host) {
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TC_DATUM);
     tft.drawString("Enter Admin PIN", W / 2, 6, 2);
-
-    /* Four dots, one per digit, filled from the left as digits arrive. The
-     * count is tracked separately from the value because "0000" and an empty
-     * field are the same number. */
-    const int16_t dotPitch = 26;
-    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
-    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
-        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
-        const uint16_t fill = i < adminPinDigitCount_ ? Ui::success() : Ui::panel();
-        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
-        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
-    }
 
     /* Rows 0-2 are 1-9; row 3 is DEL / 0 / OK. */
     for (uint8_t row = 0; row < PIN_PAD_ROWS; ++row) {
@@ -463,6 +463,30 @@ void ProfileGame::renderPinEntry(GameHost& host) {
     tft.setTextDatum(TL_DATUM);
 }
 
+/* The only thing a keypress changes.
+ *
+ * Four dots, one per digit, filled from the left as digits arrive. The count
+ * is tracked separately from the value because "0000" and an empty field are
+ * the same number.
+ *
+ * They need no erase and must not be given one: each is a filled circle at a
+ * fixed centre and radius, so the fill covers its own predecessor exactly --
+ * including the backwards case, a dot going from filled to empty on DEL or on
+ * a rejected PIN. Clearing a rect around them first would only add a flash. */
+void ProfileGame::renderPinDots(GameHost& host) {
+    Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+
+    const int16_t dotPitch = 26;
+    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
+    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
+        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
+        const uint16_t fill = i < adminPinDigitCount_ ? Ui::success() : Ui::panel();
+        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
+        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
+    }
+}
+
 bool ProfileGame::renderChrome(GameHost& host) {
     (void)host;
     return false;   // see the header -- nothing here to repaint in isolation
@@ -480,11 +504,19 @@ bool ProfileGame::renderChrome(GameHost& host) {
  * opening with Ui::clear().
  *
  * So the split here is a migration onto the base class's methods and not an
- * optimisation. The two that could be made partial later -- the PIN dots and a
- * single visibility row -- are recorded in the audit rather than attempted on
- * the screen where getting it wrong is least acceptable. */
+ * optimisation -- with ONE exception, the PIN dots, which the audit recorded
+ * as a candidate and which has now been done. It is the exception because the
+ * cost was paid four times in a row while somebody watched: see the note above
+ * renderPinPadChrome(). The other candidate, a single visibility row, is still
+ * only recorded. */
 void ProfileGame::renderStatic(GameHost& host) {
     Ui::clear(host.display());
+    /* The pad's keys, heading and Back do not change while a PIN is typed, so
+     * they are painted here, once. Every route into and out of PinEntry asks
+     * for a full repaint, which is what makes that safe. */
+    if (phase_ == Phase::PinEntry) {
+        renderPinPadChrome(host);
+    }
 }
 
 void ProfileGame::renderDynamic(GameHost& host) {
@@ -495,7 +527,7 @@ void ProfileGame::renderDynamic(GameHost& host) {
     const bool tall = H > W;
 
     if (phase_ == Phase::PinEntry) {
-        renderPinEntry(host);
+        renderPinDots(host);
         return;
     }
 

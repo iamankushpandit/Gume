@@ -122,6 +122,24 @@ void MathGame::newQuestion() {
     }
     answer_ = operation_ == Operation::Add ? left_ + right_ : left_ - right_;
     makeOptions();
+    /* Everything a new question changes, invalidated together.
+     *
+     * The buttons matter more than they look. The loop below repaints a button
+     * only when its *state* changed, and on a new question the two that were
+     * never highlighted go from state 0 to state 0 -- so without this they
+     * keep the previous question's numbers on them. The full repaint this
+     * replaces hid that by resetting the trackers in renderStatic().
+     *
+     * The header is invalidated because it carries the elapsed clock and the
+     * level. Its own condition only fires when the score or streak moves, and
+     * a wrong answer with the streak already at 0 moves neither -- so the
+     * clock would sit still for longer than it used to. Repainting two small
+     * rects per question keeps that behaviour as it was. */
+    drawnQuestion_ = false;
+    drawnHeader_ = false;
+    for (uint8_t i = 0; i < 4; ++i) {
+        drawnButton_[i] = 0xFF;
+    }
 }
 
 void MathGame::makeOptions() {
@@ -160,9 +178,13 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
     if (answered_) {
         newQuestion();
         /* A new sum, four new options and the prompt back to "Tap the answer".
-         * That is a layout change -- the equation panel is static, so only a
-         * full repaint replaces it. */
-        markFullDirty();
+         * All of that is CONTENT: the equation panel, the four buttons and the
+         * prompt line are in the same places, the same sizes, drawn over
+         * themselves opaquely. Nothing about the layout changed, so this is
+         * markDirty() -- it used to be markFullDirty(), which wiped and
+         * repainted the whole 320x240 panel, top bar and battery read
+         * included, between every question. */
+        markDirty();
         return;
     }
 
@@ -190,21 +212,6 @@ void MathGame::renderStatic(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    /* The equation belongs to the question, and a new question is a full
-     * repaint -- so this panel is static even though it is not constant. It is
-     * also the largest single block on the screen, which is what made
-     * repainting it to recolour one button worth stopping. */
-    char equation[24];
-    const char symbol = operation_ == Operation::Add ? '+' : '-';
-    snprintf(equation, sizeof(equation), "%d %c %d = ?",
-             static_cast<int>(left_), symbol, static_cast<int>(right_));
-    tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
-    tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::panel());
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
-    tft.setTextDatum(TL_DATUM);
-
     for (uint8_t i = 0; i < 4; ++i) {
         drawnButton_[i] = 0xFF;   // nothing painted there yet
     }
@@ -212,10 +219,33 @@ void MathGame::renderStatic(AppContext& host) {
     drawnStreak_ = 0xFFFF;
     drawnAnswered_ = !answered_;   // force the feedback line on the first pass
     drawnHeader_ = false;
+    drawnQuestion_ = false;        // and the equation
 }
 
 void MathGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
+
+    /* The equation. It changes only with a new question, which is why it is
+     * gated rather than drawn every frame -- but it is dynamic rather than
+     * static, because a new question must not cost a full repaint.
+     *
+     * It needs no erase of its own: the rect is fixed, and fillRoundRect
+     * covers it opaquely before the text goes down, so "12 - 7 = ?" cannot
+     * leave a tail behind "9 + 3 = ?". If this panel is ever made to grow with
+     * its content, that stops being true. */
+    if (!drawnQuestion_) {
+        char equation[24];
+        const char symbol = operation_ == Operation::Add ? '+' : '-';
+        snprintf(equation, sizeof(equation), "%d %c %d = ?",
+                 static_cast<int>(left_), symbol, static_cast<int>(right_));
+        tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
+        tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
+        tft.setTextColor(Ui::text(), Ui::panel());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
+        tft.setTextDatum(TL_DATUM);
+        drawnQuestion_ = true;
+    }
 
     /* Four counters, two of them TR_DATUM. Level and the clock only move with
      * a new question, but Correct and Streak change on an answer, and Streak

@@ -53,6 +53,11 @@ private:
     uint16_t drawnScore_ = 0xFFFF;
     uint16_t drawnRounds_ = 0xFFFF;
     uint16_t drawnCapBonus_ = 0xFFFF;
+    /* The flag card and the difficulty button are dynamic, not static: a new
+     * question changes the first and the auto-promote changes the second, and
+     * neither should cost a full repaint. See renderDynamic(). */
+    bool drawnFlag_ = false;
+    uint8_t drawnTier_ = 0xFF;
 
     Rect answerRect(uint8_t i) const;
     Rect tierRect() const;

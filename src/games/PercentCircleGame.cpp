@@ -316,8 +316,30 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (roundComplete_) {
+        /* THIS IS A CASE WHERE THE FULL REPAINT IS SOMETIMES REQUIRED, AND
+         * SOMETIMES NOT -- so it asks rather than assuming either way.
+         *
+         * A new round cycles between three round types with genuinely
+         * different layouts: a circle to read, a circle to build, and a plain
+         * "what is N% of M". Their drawing functions paint different regions,
+         * so switching between them leaves the previous layout's pixels
+         * wherever the new one does not reach. That is a real layout change
+         * and it needs the screen cleared.
+         *
+         * A new round of the SAME type is content: the same regions with
+         * different numbers in them. That is the common case -- the type
+         * changes once every three rounds -- and it now costs a repaint of
+         * the body rather than a wipe of the screen.
+         *
+         * Deciding by comparison rather than by rule is the point: nobody has
+         * to remember to update this when a fourth round type is added. */
+        const RoundType before = roundType_;
         newRound(host);
-        markFullDirty();
+        if (roundType_ != before) {
+            markFullDirty();
+        } else {
+            markDirty();
+        }
         return;
     }
 

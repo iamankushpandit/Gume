@@ -7,6 +7,27 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**Six quiz screens no longer clear the screen between questions.** Math,
+Multiplication, Counting, Time, Flags and Percent Circle classified their
+question panel as static, and only a full repaint replaces a static element --
+so moving to the next question cost a 320x240 wipe, a top bar redraw and a
+battery read, every time. The panel is now dynamic: repainted when the question
+changes, without clearing the screen.
+
+Percent Circle still clears when it needs to. Its three round types have
+genuinely different layouts, so it compares the type across a new round and
+asks for a full repaint only when it actually changed.
+
+**The PIN pads no longer flash on every digit.** Entering the admin PIN
+repainted the entire screen once per keypress -- in Profiles that was a literal
+`Ui::clear()`, a 320x240 wipe costing ~150 KB over SPI and ~30 ms of blanking,
+on the one screen where you are deliberately tapping four times in a row.
+
+Both pads are now split by what a digit actually changes: four small circles.
+The heading, the Back button and all twelve keys are painted once when the pad
+opens. The dots erase themselves, each fill covering its predecessor exactly,
+so nothing is left behind when one empties on DEL or on a rejected PIN.
+
 **The web installer can now flash older releases.** It offered exactly one
 firmware -- whatever `main` last built -- so when 5.5.0 shipped a defect that
 made the two 2.8-inch boards untouchable, the only thing anyone could install
