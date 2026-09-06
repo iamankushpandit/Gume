@@ -1,11 +1,11 @@
 # Changelog
 
-## 5.6.0-SNAPSHOT — Unreleased
+## 5.6.0 — 2026-09-06
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.5.1
-release, and About's **This build** page names the branch and commit.
-`release.yml` refuses to publish a tag whose version carries this suffix.
+**A new board, and two things to do with the consoles around you.** The
+3.2-inch LCDWIKI E32R32P is supported and flashable from the web installer;
+Nearby gains a Poke button, and the admin can give the devices in the room
+names that never leave this one.
 
 **Name the devices around you.** A tag like `A4F2` says nothing about whose
 console it is, so the admin can label one -- up to 10 characters -- and both
