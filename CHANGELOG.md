@@ -7,6 +7,23 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**New board: the LCDWIKI E32R32P, 3.2-inch ST7789P3.** The middle sibling of
+the family Braino already supports, and the first port whose display, touch,
+battery sense and radios were all confirmed on hardware before the profile was
+written. It follows the 4-inch board's wiring, not the 2.8-inch one: touch
+shares the display's SPI bus with its own CS on GPIO33. The panel is BGR and
+does not want inversion, both measured -- which is why the board reads as
+broken under a 2.8-inch firmware, drawing a stable picture in wrong colours
+with completely dead touch. Audio is enabled, making this the first CYD variant
+here with working sound: GPIO26 into an onboard amplifier whose shutdown input
+is IO4. Flash it from the web installer, or `pio run -e app_e32r32p`; the
+bring-up probe is `pio run -e diag32p`.
+
+The RGB LED channel order and the battery divider ratio are the two facts still
+taken from the vendor's pin table rather than measured, and the profile says so
+at each field. A vendor table has already been wrong about exactly the LED
+field once, on the E32R28T-1.
+
 **Six quiz screens no longer clear the screen between questions.** Math,
 Multiplication, Counting, Time, Flags and Percent Circle classified their
 question panel as static, and only a full repaint replaces a static element --

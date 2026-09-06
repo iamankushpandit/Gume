@@ -48,7 +48,10 @@ have not been verified on real hardware; the Freenove FNK0104B *has* been
 verified on hardware but ships with three peripherals switched off (see
 [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
 has had its panel, backlight and touch confirmed on hardware but ships with four
-peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796))
+peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
+the 3.2-inch **E32R32P** has had its display, touch, battery sense and
+radios confirmed on hardware, with the RGB LED order and the battery
+divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3))
 — if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
@@ -184,6 +187,49 @@ that is the most useful thing you can send.
 `pio run -e diag4` is the standalone bring-up probe for this board: panel
 identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
 wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
+
+### E32R32P (3.2-inch ST7789P3)
+
+**The E32R32P** is the 3.2-inch board of the same LCDWIKI family, and it is the
+first port whose display, touch, battery sense and radios were all confirmed on
+hardware before the profile was written. It follows the **4-inch** board's
+wiring rather than the 2.8-inch one on the fact that matters most: touch is an
+XPT2046 **sharing the display's SPI bus** with its own CS on GPIO33, not a
+separate bit-banged bus. Its IRQ on GPIO36 is unusable for the same reason as
+on the 4-inch board, so the firmware gates on pressure alone -- measured idle
+noise is 12-18 against a threshold of 350.
+
+**The panel is BGR, and it does not want inversion.** Both were measured with
+the probe's pattern page: with the driver default the red block drew blue, blue
+drew red, green stayed green and yellow drew cyan -- red and blue exchanged
+with green untouched -- while the black background stayed black, which rules
+inversion out. This matters because the board arrives looking like it nearly
+works under a 2.8-inch firmware: flashed with the ESP32-2432S028Rv3 profile it
+draws a perfectly stable picture in wrong colours and has completely dead
+touch, which is easy to read as a broken board rather than a wrong profile.
+
+Everything else is vendor-documented in the LCDWIKI pin table and cross-checked
+here: backlight GPIO27 active high, battery sense GPIO34 behind a 2:1 divider
+(measured 1910 mV at the pin), the SD slot on 5/23/18/19, and the RGB LED on
+IO22/IO16/IO17. Like the rest of the family it **cannot detect a missing
+battery** -- attaching the pack moved the reading by 11 mV.
+
+**Audio is wired and enabled on this board**, which makes it the first CYD
+variant here with sound. GPIO26 is DAC channel 2 feeding an onboard amplifier
+whose shutdown input is IO4, active low. Two things that have each cost a
+release cannot happen here: the 5.5.0 DAC-versus-touch-clock collision needs
+GPIO25, and this board's touch clock is GPIO14; and the amplifier cannot be
+held in shutdown by the LED driver, because IO4 is not also an LED channel here
+(green is IO16). `maxVolume` is still inherited at 75 and wants confirming by
+ear.
+
+Two things remain unverified and are flagged in the profile: the RGB LED
+channel order -- a vendor pin table has already been wrong about exactly that
+field on the E32R28T-1 -- and the battery divider ratio against a meter.
+
+`pio run -e diag32p` is the standalone bring-up probe for this board. It builds
+the same `src/diag4.cpp` as the 4-inch probe rather than a fourth copy, pointed
+at this board's pins.
 
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
@@ -978,7 +1024,8 @@ src/
   wifi_diag.cpp         standalone radio test (env:wifidiag only)
   battery_diag.cpp      standalone battery/ADC calibration tool (env:batdiag only)
   s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
-  diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
+  diag4.cpp             standalone bring-up probe: 4-inch ST7796 and
+                        3.2-inch ST7789P3 (env:diag4, env:diag32p)
   audiodiag.cpp         standalone DAC audio bring-up probe (env:audiodiag only)
   engine/
     AppCapabilities.h   system-app capability flags

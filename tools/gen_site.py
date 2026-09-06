@@ -85,6 +85,15 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon.",
     },
     {
+        "env": "app_e32r32p",
+        "label": "Braino! (the games) -- E32R32P (3.2 inch ST7789P3)",
+        "name": "Braino!",
+        "note": "The full console on the 3.2 inch LCDWIKI board: {count} games, profiles, "
+                "scores, settings, Wi-Fi clock and the BLE beacon. Touch shares the display "
+                "bus on this board, and the panel is BGR -- flashing it with a 2.8 inch "
+                "firmware gives wrong colours and dead touch.",
+    },
+    {
         "env": "app_e32r40t",
         "label": "Braino! (the games) -- E32R40T (4 inch ST7796)",
         "name": "Braino!",
@@ -130,6 +139,11 @@ BOARD_DETAILS = {
         "label": "ESP32-2432S028Rv3 -- 2.4 inch newer CYD variant (ST7789 + XPT2046 resistive touch, USB-C/dual-USB)",
         "chip": "ESP32",
         "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
+    },
+    "e32r32p": {
+        "label": "E32R32P / ESP32-32E -- 3.2 inch ST7789P3 + XPT2046 (resistive)",
+        "chip": "ESP32",
+        "buy": "https://www.lcdwiki.com/3.2inch_ESP32-32E_Display",
     },
     "e32r40t": {
         "label": "E32R40T / ESP32-32E -- 4 inch ST7796 + XPT2046 (resistive)",
