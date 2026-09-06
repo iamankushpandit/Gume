@@ -40,6 +40,12 @@
       "env": "app",
       "note": "2.8-inch ILI9341. Same OUI as 6e:e8 -- the pair of identical 2.8s.",
       "how": "boot banner"
+    },
+    "b0:cb:d8:03:56:f0": {
+      "board": "E32R32P",
+      "env": "app_e32r32p",
+      "note": "learned from the boot banner on 2026-09-06",
+      "how": "boot banner"
     }
   },
   "skip_ports": {
