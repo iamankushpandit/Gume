@@ -153,8 +153,13 @@ void evaluatePoke(Board& board, Known& entry, const BleScan::Sighting& seen) {
     entry.sawPoke = true;
     entry.lastPokeNonce = seen.pokeNonce;
 
+    /* The owner's own label for this device if they have given it one, else
+     * the tag. This is a read of local NVS on the way to a notification, not
+     * anything that reaches the radio -- the poke on air carried the two-byte
+     * hardware id and nothing else, and the name exists only on this side. */
+    const char* who = board.peerName(seen.deviceId);
     char text[BANNER_MAX];
-    snprintf(text, sizeof(text), "%s poked you!", seen.deviceId);
+    snprintf(text, sizeof(text), "%s poked you!", who != nullptr ? who : seen.deviceId);
     pushEvent(text);
     board.playSound(Sound::Pop);
 }

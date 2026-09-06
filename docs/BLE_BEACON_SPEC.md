@@ -152,6 +152,31 @@ profile, and no path from a score back to a player. Two players learn that
 can now nudge each other, and still learn nothing: a poke says *that tag wants
 your attention*, which is the same anonymity with a doorbell attached.
 
+### Local names, and why they do not weaken any of that
+
+The owner of a device may label a tag they recognise -- "RAVI" against `A4F2`
+-- so that a poke says who rather than what. Three properties keep this on the
+right side of the line, and all three are structural:
+
+- **The label never leaves the device.** `BleBeacon` does not read it and must
+  never be given a reason to: `buildPayload()` composes the advertised name
+  from the family id and the hardware id, and a label reaching the payload
+  would be a privacy defect rather than a bug. What goes on air is unchanged,
+  byte for byte, whether every peer is named or none is.
+- **It is the owner's word, not the peer's.** The named device does not know it
+  has been named, is not asked, and cannot see or set the label. This is the
+  model a phone's contact list uses, not the model a social network uses.
+- **Storing is not collecting.** The labels live in this device's own NVS
+  beside the scores and the profiles, exactly as `CONTRIBUTING.md` describes,
+  and leave it by no route at all.
+
+They are **global to the device rather than per player**, because the consoles
+in the room are the same consoles whoever is holding this one; and **only the
+admin profile may set one**, so a label every player sees cannot be written by
+any player. The tag itself stays visible beside the name in the Nearby list --
+without it nobody could work out which console "RAVI" actually is when the
+label turns out to be on the wrong one.
+
 ## What System Info must show
 
 The *BLE* tab is part of the feature, not a nicety. It must show:

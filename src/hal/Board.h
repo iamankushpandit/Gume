@@ -462,6 +462,35 @@ public:
      * settings. The policy lives in engine/NearbyPlay.h; this is the switch. */
     bool nearbyEnabled();
     void setNearbyEnabled(bool on);
+
+    /* Local labels for the devices Nearby can see -- "RAVI" against the tag
+     * A4F2, so a poke says who rather than what.
+     *
+     * THIS NEVER LEAVES THE DEVICE. BleBeacon does not read it and must never
+     * be given a reason to: the advertisement composes its name from the
+     * family id and the hardware id, and a label reaching the payload would be
+     * a privacy defect rather than a bug. Storing is not collecting -- these
+     * live in this device's own NVS beside the scores, and the radio stays as
+     * anonymous as it was. See docs/BLE_BEACON_SPEC.md.
+     *
+     * Global rather than profile-scoped, deliberately. The other consoles in
+     * the room are the same consoles whoever is holding this one, so this is a
+     * device fact like Wi-Fi credentials. It also avoids a trap: saveBlob() is
+     * transparently profile-prefixed and Guest silently DROPS writes, so a
+     * guest naming a peer would watch it work and then lose it.
+     *
+     * Mirrored in RAM because the Nearby list resolves a label per peer per
+     * rebuild, and Preferences is flash-backed. */
+    static constexpr uint8_t PEER_NAME_MAX = 10;
+    static constexpr uint8_t PEER_NAME_SLOTS = 8;
+
+    /** The label for a device id, or nullptr when it has never been named. */
+    const char* peerName(const char* deviceId);
+
+    /* Name a device, or forget it by passing nullptr or an empty string.
+     * Returns false when the id is malformed or every slot is taken by some
+     * other device. */
+    bool setPeerName(const char* deviceId, const char* name);
     bool drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_t maxH);
     uint8_t networkActivityCount() const;
     NetworkActivity networkActivity(uint8_t newestFirstIndex) const;
@@ -562,6 +591,17 @@ private:
     uint8_t cachedNtpResyncHours_ = NTP_RESYNC_DEFAULT_HOURS;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
+
+    /* Fixed slots, no allocation, written as one blob. 8 x 16 bytes is 128
+     * bytes of NVS and matches BleScan::MAX_SIGHTINGS -- there is no point
+     * being able to name more devices than the scanner can hold. */
+    struct PeerLabel {
+        char id[5] = {0};
+        char name[PEER_NAME_MAX + 1] = {0};
+    };
+    bool peerNamesCached_ = false;
+    PeerLabel peerLabels_[PEER_NAME_SLOTS];
+    void loadPeerNames();
     bool soundCached_ = false;
     bool cachedSound_ = true;
     bool volumeCached_ = false;

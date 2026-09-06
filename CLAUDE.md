@@ -393,9 +393,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,373,865 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,376,065 / 3,145,728 bytes,
 **75.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 73,244 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+at 73,388 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -586,6 +586,18 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **Local peer names never reach the radio, and that is structural.**
+  `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
+  one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never
+  be given a reason to -- `buildPayload()` composes the advertised name from
+  the family id and the hardware id, so the payload is identical byte for byte
+  whether every peer is named or none is. A label reaching the air is a privacy
+  defect, not a bug. They are **global, not profile-scoped**: `saveBlob()` is
+  transparently profile-prefixed and Guest silently drops writes, so a guest
+  naming a peer would watch it work and lose it. Setting one is **admin-only**,
+  enforced in `NearbyGame::update()` rather than by withholding the chip --
+  a chip is a drawing decision and enforces nothing, which is how every
+  greyed-out Settings row stayed live once already.
 - **A poke rides the beacon and displaces the score; it is not a fourth
   outbound flow.** There is no room for one: the sharing payload is *exactly*
   31 bytes, so `FLAG_POKE` swaps the four score bytes for a two-byte target and
@@ -759,7 +771,7 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           key), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
-src/ui/                   Renderer, TftRenderer, Ui, LauncherIcons,
+src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_boards.py, check_catalog.py,
@@ -812,7 +824,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,373,865 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
+   2,376,065 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds

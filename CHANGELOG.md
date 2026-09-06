@@ -7,6 +7,34 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**Name the devices around you.** A tag like `A4F2` says nothing about whose
+console it is, so the admin can label one -- up to 10 characters -- and both
+the Nearby list and the poke notification then say the name. The tag stays
+visible beside it: it is what actually travels, and it is the only way to
+notice a label sitting on the wrong device.
+
+The label never leaves the device. `BleBeacon` does not read the table and must
+never be given a reason to -- what goes on air is identical byte for byte
+whether every peer is named or none is. It is your word for someone else's
+console, held in your own console's NVS, the way a contact name works in a
+phone. Storing is not collecting, and the list of what leaves the device is
+unchanged.
+
+Names are global to the device rather than per player, because the consoles in
+the room are the same consoles whoever is holding this one -- and profile-scoped
+storage would have failed silently for Guest, which drops all writes. Setting
+one is admin-only, on the reasoning that a label every player sees should not be
+writable by any player. An empty name forgets the device.
+
+**The on-screen keyboard is now QWERTY, and there is one of it.** Profile
+renaming had its own keyboard, Wi-Fi password entry had another, and peer
+naming would have been a third. `ui/Keypad` computes the layout once, so the
+function that draws a key and the function that decides what a finger hit are
+the same function and cannot disagree. It is anchored to the bottom of the
+panel rather than placed from the top with a per-orientation constant -- the
+old constants were right for the two 320x240-class panels and would have left
+the 4-inch board's keyboard floating 84px above its own Cancel button.
+
 **Poke somebody from the Nearby list.** Every peer now carries a *Poke*
 button. Press it and that console raises a notification saying who poked it and
 makes a sound -- the one Nearby notification that does, because the rest is

@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,373,865 / 3,145,728 bytes (**75.5%**) |
-| RAM | 73,244 / 327,680 bytes (**22.2%**) |
+| Flash | 2,376,065 / 3,145,728 bytes (**75.5%**) |
+| RAM | 73,388 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -656,6 +656,24 @@ should be:
   have gaps, and a nonce makes sure the target reacts exactly once no matter how
   many copies it hears.
 
+**Naming a device.** A tag like `A4F2` says nothing about whose console it is,
+so the admin can label one -- up to 10 characters -- and the list and the poke
+notification then say the name instead. The **tag stays visible beside it**,
+because the tag is what actually travels and what that console calls itself; if
+a label ends up on the wrong device, the tag is the only way to notice.
+
+That label **never leaves this device**. The beacon builds its advertised name
+from the family id and the hardware id and does not read the label table at
+all, so what goes on air is identical byte for byte whether every peer is named
+or none is. It is the same idea as naming a contact in your own phone: your
+word for someone else's device, held locally. Storing is not collecting, and
+the list of what leaves the device is unchanged.
+
+Names are **global to the device and admin-only**: the other consoles in the
+room are the same consoles whoever is holding this one, and a label every
+player sees should not be writable by any player. Naming a peer with an empty
+name forgets it.
+
 The list scrolls, with a scroll bar, once there are more peers than fit.
 
 ### Network & Time
@@ -1109,6 +1127,7 @@ src/
     LauncherIcons.cpp   launcher tile icon drawing
     LauncherLayout.cpp  launcher header, profile and tile geometry
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
+    Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
 tools/
   gen_country_facts.py  regenerates the capital/continent table

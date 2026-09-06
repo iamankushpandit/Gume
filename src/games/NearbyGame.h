@@ -38,6 +38,23 @@ public:
 private:
     static constexpr uint32_t REFRESH_MS = 1000;
 
+    /* Two phases rather than two screens: naming a peer borrows the whole
+     * panel for a keyboard and hands it straight back. A separate app would
+     * need a launcher tile and a way in of its own, for something that only
+     * ever makes sense while looking at the list it edits. */
+    enum class Phase : uint8_t { List, Name };
+
+    void updateName(GameHost& host, const TouchPoint& touch);
+    void clearDraft();
+    void renderName(GameHost& host);
+    Rect nameCancelRect(int16_t screenW, int16_t screenH) const;
+
+public:
+    /** For the static_assert in the .cpp; see draft_. */
+    static constexpr uint8_t draftCapacity() { return 10; }
+
+private:
+
     Rect toggleRect(int16_t screenW) const;
     Rect contentRect(int16_t screenW, int16_t screenH) const;
 
@@ -60,6 +77,27 @@ private:
      * for a moment instead of leaving the press unacknowledged. */
     char pokedId_[5] = {0};
     uint32_t pokedAtMs_ = 0;
+
+    Phase phase_ = Phase::List;
+
+    /* Which device the naming phase is editing, and the text so far.
+     *
+     * A fixed buffer, NOT a String. ProfileGame and WifiGame keep Strings for
+     * their user-entered text and CLAUDE.md calls that "the bar" -- but the
+     * bar is for text of unbounded length. A peer label is capped at ten
+     * characters by the storage it goes into, so the String would buy nothing
+     * and cost a live allocation on a screen that is a static instance for the
+     * life of the device. DRAFT_MAX is static_asserted against
+     * Board::PEER_NAME_MAX in the .cpp so the two cannot drift. */
+    static constexpr uint8_t DRAFT_MAX = 10;
+    char namingId_[5] = {0};
+    char draft_[DRAFT_MAX + 1] = {0};
+    uint8_t draftLen_ = 0;
+
+    /* Action-chip ids. Poke chips take 0..MAX_POKE_TARGETS-1 and Name chips
+     * take that plus NAME_ACTION_BASE, so one hit test resolves both without a
+     * second array to keep in step. */
+    static constexpr int8_t NAME_ACTION_BASE = 16;
 
     RowList rows_;
     bool rowsStale_ = true;
