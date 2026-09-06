@@ -18,6 +18,9 @@ A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOAR
 - `BoardTouch.cpp` - touch ADC, calibration, coordinate mapping
 - `BoardPower.cpp` - battery telemetry, backlight brightness, panel sleep/wake
 - `BoardNetwork.cpp` - Wi-Fi credentials, timezone, NTP sync, network activity log
+- `BoardUpdate.cpp` - the update-availability check: fetch, parse, version
+  compare, and the once-a-day gate. A notice, never an update -- nothing here
+  downloads or installs firmware. See `include/UpdateChannel.h`
 - `BoardFeedback.cpp` - RGB LED, BLE and Nearby enable switches
 - `BoardAudio.cpp` - the sound engine: codec bring-up, the cue tables, the
   phoneme table for the spoken boot phrase, and the per-sample synthesiser
@@ -80,8 +83,9 @@ at all. The whole vocabulary plus the phrase is under a kilobyte of const data.
 
 **`playSound()` arms a script; it does not play it.** `tickAudio()` runs once
 per frame from `BrainoApp::loop()` and writes only what the DMA will accept
-with a zero timeout. The DMA is 6 x 256 frames, 96 ms at 16 kHz, so it stays
-comfortably ahead of a 20 ms frame. Samples the DMA would not take are held in
+with a zero timeout. The DMA is 6 x 256 frames -- 96 ms on the codec at 16 kHz,
+64 ms on the built-in DAC at 24 kHz -- so it stays comfortably ahead of a 20 ms
+frame. Samples the DMA would not take are held in
 `pending` and written first next frame rather than dropped: the synthesiser
 cannot be run backwards, and dropping them is audible as a stutter on anything
 long enough to fill the DMA -- which is exactly the boot phrase. Never make
@@ -172,7 +176,9 @@ The red and green GPIOs are physically crossed on this unit versus the standard 
 
 Wi-Fi exists only to set the clock. `tickTimeSync()` drives a non-blocking `Idle → Connecting → Syncing → Synced` state machine from the main loop. The success-path automatic resync interval is a write-through cached setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. `ntpUdpProbe()` queries NTP over raw UDP and doubles as a diagnostic and a fallback that sets the clock directly when lwIP's SNTP never answers.
 
-**These are the only outbound flows the firmware has, together with the opt-in BLE beacon, and that list is closed.** No analytics, no usage or crash reporting, no other HTTP/UDP/DNS request, and nothing transmitted that carries a player's name, profile name, score, progress or typing. `BoardNetwork.cpp` is where such a thing would be added, so it is where it gets refused: a fourth flow needs agreement in an issue before the code exists. See [CONTRIBUTING.md](../../CONTRIBUTING.md#no-data-collection).
+**These, the opt-in BLE beacon and the update check in `BoardUpdate.cpp` are the only outbound flows the firmware has, and that list is closed.** No analytics, no usage or crash reporting, no other HTTP/UDP/DNS request, and nothing transmitted that carries a player's name, profile name, score, progress or typing. `BoardNetwork.cpp` and `BoardUpdate.cpp` are where such a thing would be added, so they are where it gets refused: a fifth flow needs agreement in an issue before the code exists. See [CONTRIBUTING.md](../../CONTRIBUTING.md#no-data-collection).
+
+The update check is the worked example of how that agreement is supposed to go. It was argued as a change to what the product promises, not reviewed as a feature, and it was then built so the promise is checked rather than asserted: the request carries nothing about the device, and the address shown to the owner is compiled in rather than read out of the response. `tools/check_privacy.py` fails on either being lost.
 
 Credentials and the NTP hot-path settings are cached in RAM because the state machine polls them at ~27 Hz and hitting NVS that often wasted cycles and flooded the log with `nvs_get_str NOT_FOUND`.
 
@@ -257,17 +263,57 @@ makes this path expensive to debug and worth writing down.
    amp there eats the tail, and on the short cues that is the whole cue.
    `AMP_TAIL_MS` (150ms) holds it, reset by `arm()`. Both backends do this.
 
-Two consequences of an 8-bit DAC, neither a defect: samples are written as
-unsigned offset-binary (`sample + 32768`, only the high byte reaches the DAC),
-and **the spoken boot phrase does not survive the quantisation** -- the formant
-voice lives in quiet resonator ringing that 8 bits scaled by a volume setting
-throws away. Cues are fine. The codec board is 16-bit and genuinely sounds
-different; that gap cannot be tuned away.
+**The sample rate is not the same on both backends, and this is measured.** The
+built-in DAC's clock divider cannot reach low rates: below 22050 Hz it wraps
+rather than saturating, and the peripheral runs at some faster rate entirely.
+Timed on an E32R32P with `env:audiodiag_e32r32p`, by measuring how long a
+blocking `i2s_write()` of a known number of frames takes to drain:
+
+| configured | actual | |
+|---|---|---|
+| 8000 | 44260 | 5.53x |
+| 11025 | 25316 | 2.30x |
+| 12000 | 31128 | 2.59x |
+| **16000** | **88642** | **5.54x** |
+| 22050 | 22053 | 1.00x |
+| 24000 | 24006 | 1.00x |
+| 32000 | 32000 | 1.00x |
+| 44100 | 44077 | 1.00x |
+| 48000 | 48048 | 1.00x |
+
+So until 5.7.0 the synthesiser generated for 16 kHz while the hardware consumed
+at nearly 89 kHz: every cue played in about a fifth of its length, an octave and
+a half sharp. Nobody hears that as "too fast" -- it is heard as a click, or as a
+speaker that is cutting out, which is how it was reported on the 3.2-inch and
+4-inch boards. `AUDIO_RATE` is therefore **24000 on the DAC and 16000 on the
+codec**, whose clock comes from the APLL and was never affected.
+
+**`i2s_get_clk()` cannot be used to check this.** It returned the requested
+value in all nine cases above, including the wrong ones: it reports what the
+driver was asked for, not what the peripheral is doing. Only the drain timing
+tells the truth, which is what the RATE page exists for.
+
+One consequence of an 8-bit DAC, and it is not a defect: samples are written as
+unsigned offset-binary (`sample + 32768`, only the high byte reaches the DAC).
+The spoken boot phrase was previously documented here as not surviving the
+quantisation. It does -- that was written while the rate was wrong, and it is
+intelligible on a DAC board now. The codec board is 16-bit and still sounds
+better; that gap is real and cannot be tuned away.
 
 `env:audiodiag` is the probe. It gives an unambiguous A/B on one reset with no
 panel and no button: a PWM burst (no DAC at all) proves speaker, amp and enable
 line; an I2S tone proves the DAC path; a direct `dacWrite()` tone separates the
-I2S framing from the DAC peripheral.
+I2S framing from the DAC peripheral. Its first interactive page is now **RATE**,
+which is silent, needs no ears, and reports the measurement above.
+
+Two things about the probe that cost time to find. The direct-DAC test in
+`setup()` has to uninstall the I2S driver to take the pad, and for a while it
+never reinstalled it -- so every interactive page called `i2s_write()` on a
+driver that was not there and faulted instantly (`LoadProhibited`,
+`EXCVADDR: 0x00000018`). The log looked perfect right up to the reboot. And the
+probe's own `SAMPLE_RATE` must track `AUDIO_RATE`: a bench instrument that
+disagrees with the product about what it is measuring is worse than none, the
+same rule the battery and codec-volume constants carry.
 
 ## BleBeacon.{h,cpp}
 
@@ -285,7 +331,11 @@ With Nearby play on, `setActivity()` appends a game index and a best score, taki
 
 `startRadio()` and `stopRadio()` both take a `Watchdog::Pause` — bringing the controller up blocks for a couple of hundred milliseconds and looks exactly like a hang from the loop task. `pause()` no-ops while the watchdog is unarmed, so calling this from `Board::begin()` is safe.
 
-Stopping deinitialises the whole stack (`NimBLEDevice::deinit(true)`) rather than just halting advertising: leaving it up holds ~30 KB of heap the games would rather have, and "off" should mean off.
+Stopping is two separate things, and conflating them crashed the device. Advertising stops immediately and unconditionally -- that is the half the privacy switch means. The controller teardown (`NimBLEDevice::deinit(true)`) is **deferred while Wi-Fi is up**, and `tickRadio()`, called once per frame from the runtime, completes it once Wi-Fi goes down.
+
+Measured on hardware: with Wi-Fi running for NTP, `advertising->stop()` followed by `deinit(true)` panics with `Core 0 panic'ed (InstrFetchProhibited), PC : 0x00000000` -- a call through a null function pointer, the controller being torn down while coexistence callbacks still reference it. It is a race, not a certainty; consecutive runs alternated between the panic and a survivable `timeout when WiFi un-init, type=4`. Steady-state coexistence is fine (five rounds of `scanNetworks()` against a live advertisement, free heap flat at ~155 KB), so this is deinit ordering and not memory -- and `Watchdog::Pause` does not help, because a panic is not a stall. The reachable gesture is switching the beacon off in Settings while the clock is syncing.
+
+Deferring costs the ~30 KB of heap the stack holds, and only on a device that has Wi-Fi configured and the beacon off, and only until Wi-Fi next goes idle. "Off" still means off on the air, which is the part anyone can observe.
 
 ## BleScanner.{h,cpp}
 
