@@ -5,6 +5,7 @@
 #include "engine/NearbyPlay.h"
 #include "AppVersion.h"
 #include "BuildStamp.h"
+#include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
@@ -207,10 +208,15 @@ void BrainoApp::loop() {
     }
 
     board_.tickTimeSync();
+    board_.tickUpdateCheck();
     board_.tickRgb();
+    /* Releases the BLE controller once Wi-Fi is down, when switching the
+     * beacon off had to leave it up to avoid a coexistence-teardown panic. */
+    BleBeacon::tickRadio();
     board_.tickAudio();
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
+    tickUpdateNotice(nowMs);
 
     /* A notification appearing or expiring changes the header, and the header
      * belongs to the screen underneath -- so the chrome has to repaint before
@@ -403,6 +409,43 @@ void BrainoApp::loop() {
 /* The charger is the only way out of this state, so the warning is driven off
  * Board's charge verdict rather than the percentage alone: plugging in clears
  * it within a couple of seconds, long before the reading climbs. */
+/* Announce a newer firmware, once a day, to whoever is holding the device.
+ *
+ * Deliberately not admin-only. The person who can act on this is often not the
+ * person playing, and a notice only the admin profile ever sees would be
+ * invisible on a console that spends its life logged in as a child -- which is
+ * every console. So the wording carries the instruction instead: it names the
+ * version and says who to ask, which is something a seven-year-old can act on
+ * and an adult can act on directly.
+ *
+ * The daily gate and the "have we already said this version" test both live in
+ * Board, persisted, because both have to survive a power cycle -- see
+ * Board::updateNoticeDue(). Nothing here decides when; it only draws.
+ *
+ * The string is composed once, when the banner is raised, and not rebuilt per
+ * frame: the strip repaints from updateBanner_ for as long as it is up. It
+ * measures 36 characters at the longest plausible version, inside the 40 the
+ * top bar fits at font 2, so it does not scroll -- and should not be made to.
+ * Scrolling would mean repainting the chrome strip on every frame for five
+ * seconds, which is exactly what Game::renderChrome() exists to avoid. */
+void BrainoApp::tickUpdateNotice(uint32_t nowMs) {
+    if (updateBannerActive_) {
+        if (nowMs - updateBannerShownMs_ >= UPDATE_BANNER_MS) {
+            updateBannerActive_ = false;
+            requestBannerRepaint();
+        }
+        return;
+    }
+    if (!board_.updateNoticeDue()) return;
+
+    snprintf(updateBanner_, sizeof(updateBanner_),
+             "%s available - ask admin to update", board_.latestKnownVersion());
+    updateBannerActive_ = true;
+    updateBannerShownMs_ = nowMs;
+    board_.markUpdateNoticeShown();
+    requestBannerRepaint();
+}
+
 void BrainoApp::tickBatteryWarning(uint32_t nowMs) {
     if (batteryCheckMs_ != 0 && nowMs - batteryCheckMs_ < BATTERY_CHECK_MS) {
         return;
@@ -462,8 +505,12 @@ void BrainoApp::requestBannerRepaint() {
 }
 
 void BrainoApp::drawHeaderBanner(bool screenRepainted) {
-    const char* text = (batteryBanner_ != nullptr) ? batteryBanner_
-                                                   : NearbyPlay::banner();
+    /* Priority order, and it is not arbitrary. A flat battery is about to end
+     * the session whatever else is true; an update is a standing condition that
+     * will still be there in five seconds; a poke is somebody waiting. */
+    const char* text = (batteryBanner_ != nullptr)  ? batteryBanner_
+                     : updateBannerActive_          ? updateBanner_
+                                                    : NearbyPlay::banner();
     if (text == nullptr) {
         bannerNeedsPaint_ = false;
         return;
