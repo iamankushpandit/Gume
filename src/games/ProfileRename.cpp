@@ -1,30 +1,12 @@
 #include "ProfileRename.h"
 #include "ProfileGame.h"
 #include "hal/Board.h"
+#include "ui/Keypad.h"
 
-namespace {
-constexpr uint8_t KEY_COLS = 6;
-constexpr uint8_t KEY_ROWS = 5;
-const char* const KEYS[KEY_ROWS] = {
-    "ABCDEF", "GHIJKL", "MNOPQR", "STUVWX", "YZ -<>"
-};
-
-/* Compute a key rect with a custom y0 offset, so the rename phase can
- * shift the keyboard up to make room for the Cancel button at the bottom. */
-Rect keyRectWithOffset(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH,
-                       int16_t yOffset) {
-    const bool tall = screenH > screenW;
-    const int16_t margin = 8;
-    const int16_t gap = 4;
-    const int16_t keyW = static_cast<int16_t>((screenW - 2 * margin - (KEY_COLS - 1) * gap) / KEY_COLS);
-    const int16_t keyH = tall ? 36 : 26;
-    const int16_t pitch = tall ? 40 : 29;
-    const int16_t y0 = tall ? 92 : 86;
-    const int16_t adjustedY0 = static_cast<int16_t>(y0 + yOffset);
-    return Rect{static_cast<int16_t>(margin + col * (keyW + gap)),
-                static_cast<int16_t>(adjustedY0 + row * pitch), keyW, keyH};
-}
-}
+/* The keyboard itself lives in ui/Keypad -- grid maths, hit testing and
+ * drawing, computed once so they cannot disagree. What stays here is the only
+ * part that is about profiles: what a keystroke MEANS. OK commits a new player
+ * or a rename, DEL trims the draft, everything else is a character. */
 
 /* Centred horizontally at the bottom of the screen (same row as Add / Done
  * on the picker), both orientations. */
@@ -50,34 +32,31 @@ void ProfileGame::updateRename(GameHost& host, const TouchPoint& touch) {
      * Landscape: keyboard bottom (default) = 86 + 116 + 26 = 228.
      * Cancel top = 210.  Overlap = 18px.  For 4px gap: keyboard bottom = 206.
      * yOffset = 206 - 228 = -22. */
-    const int16_t yOffset = H > W ? -2 : -22;
-    for (uint8_t r = 0; r < KEY_ROWS; ++r) {
-        for (uint8_t c = 0; c < KEY_COLS; ++c) {
-            if (!keyRectWithOffset(r, c, W, H, yOffset).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
-            const char ch = KEYS[r][c];
-            if (ch == '<') {
-                if (draft_.length() > 0) draft_.remove(draft_.length() - 1);
-            } else if (ch == '>') {
-                if (editing_ == 0xFF) {
-                    if (draft_.length() > 0) {
-                        board.addPlayer(draft_);
-                    } else {
-                        board.beepError();
-                        return;
-                    }
-                } else if (draft_.length() > 0) {
-                    board.setProfileName(editing_, draft_);
-                }
-                phase_ = Phase::Pick;
-                markFullDirty();
-                return;
-            } else if (draft_.length() < Board::PROFILE_NAME_MAX) {
-                draft_ += ch;
-            }
-            markDirty();
-            return;
-        }
+    const char ch = Ui::Keypad::hit(touch.x, touch.y, W, H,
+                                    Ui::Keypad::FOOTER_BUTTON);
+    if (ch == 0) {
+        return;
     }
+    if (ch == Ui::Keypad::BACKSPACE) {
+        if (draft_.length() > 0) draft_.remove(draft_.length() - 1);
+    } else if (ch == Ui::Keypad::ACCEPT) {
+        if (editing_ == 0xFF) {
+            if (draft_.length() > 0) {
+                board.addPlayer(draft_);
+            } else {
+                board.beepError();
+                return;
+            }
+        } else if (draft_.length() > 0) {
+            board.setProfileName(editing_, draft_);
+        }
+        phase_ = Phase::Pick;
+        markFullDirty();
+        return;
+    } else if (draft_.length() < Board::PROFILE_NAME_MAX) {
+        draft_ += ch;
+    }
+    markDirty();
 }
 
 void ProfileGame::renderRename(GameHost& host) {
@@ -99,18 +78,6 @@ void ProfileGame::renderRename(GameHost& host) {
     Ui::drawButton(tft, renameCancelRect(W, H), "Cancel", Ui::panel(), Ui::outline(),
                    Ui::text(), false, 1);
 
-    const int16_t yOffset = H > W ? -2 : -22;
-    for (uint8_t r = 0; r < KEY_ROWS; ++r) {
-        for (uint8_t c = 0; c < KEY_COLS; ++c) {
-            const char ch = KEYS[r][c];
-            char keyLabel[2] = {ch, 0};
-            const char* label = keyLabel;
-            uint16_t fill = Ui::panel();
-            if (ch == '<') { label = "DEL"; fill = Ui::rgb(150, 60, 60); }
-            if (ch == '>') { label = "OK";  fill = Ui::rgb(45, 154, 96); }
-            if (ch == ' ') { label = "_"; }
-            Ui::drawButton(tft, keyRectWithOffset(r, c, W, H, yOffset), label, fill, Ui::outline(), Ui::text(), false, 2);
-        }
-    }
+    Ui::Keypad::draw(tft, W, H, Ui::Keypad::FOOTER_BUTTON);
     tft.setTextDatum(TL_DATUM);
 }
