@@ -135,26 +135,33 @@ void NearbyGame::rebuildRows(GameHost& host) {
          * heading; everything else about the peer is a row. */
         rows_.addSection(peer.deviceId);
         rows_.addRow("Distance", proximityText(peer.rssi), Ui::muted());
+
+        /* An idle peer gets the same treatment as a playing one, minus the
+         * score rows. This used to `continue` here, which skipped everything
+         * below -- including the Poke chip. A console sitting at its launcher
+         * is exactly the peer you most want to poke, and it was the only kind
+         * that could not be poked. Whatever is added after this point must
+         * stay reachable from BOTH paths. */
         if (peer.gameTitle == nullptr) {
             rows_.addRow("Playing", peer.sharing ? "Choosing a game" : "Not sharing",
                          Ui::muted());
-            continue;
-        }
-        rows_.addRow("Playing", peer.gameTitle);
+        } else {
+            rows_.addRow("Playing", peer.gameTitle);
 
-        char theirs[SCORE_TEXT_CAP];
-        scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
-        rows_.addRow("Their best", theirs, peer.beatsYou ? Ui::warning() : 0);
+            char theirs[SCORE_TEXT_CAP];
+            scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
+            rows_.addRow("Their best", theirs, peer.beatsYou ? Ui::warning() : 0);
 
-        char yours[SCORE_TEXT_CAP];
-        if (peer.haveOwnScore) {
-            scoreText(yours, sizeof(yours), peer.yourScore, peer.unit);
-        }
-        rows_.addRow("Your best",
-                     peer.haveOwnScore ? yours : "Not played yet",
-                     peer.haveOwnScore ? 0 : Ui::muted());
-        if (peer.beatsYou) {
-            rows_.addRow("", "They are ahead of you", Ui::warning());
+            char yours[SCORE_TEXT_CAP];
+            if (peer.haveOwnScore) {
+                scoreText(yours, sizeof(yours), peer.yourScore, peer.unit);
+            }
+            rows_.addRow("Your best",
+                         peer.haveOwnScore ? yours : "Not played yet",
+                         peer.haveOwnScore ? 0 : Ui::muted());
+            if (peer.beatsYou) {
+                rows_.addRow("", "They are ahead of you", Ui::warning());
+            }
         }
 
         /* One chip per peer, carrying the index into pokeTargets_ rather than

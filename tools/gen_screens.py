@@ -1461,10 +1461,15 @@ def nearby():
         ("r", "Your best", "7 lvl", None),
         ("r", "", "They are ahead of you", WARN),
         ("a", "Poke 7C1B", "", None),
+        # An IDLE peer, deliberately: this one is at its launcher with no game
+        # open, and it still gets a Poke chip. The chip was originally added
+        # after an early `continue` on this path, so a console sitting at its
+        # launcher -- the state you most often want to nudge somebody out of --
+        # was the one kind of peer that could not be poked. Keeping an idle
+        # peer in the mock-up is what makes that regression visible again.
         ("s", "B930", "", None),
         ("r", "Distance", "Far", MUTED),
-        ("r", "Playing", "Multiplication", None),
-        ("r", "Their best", "12 pts", None),
+        ("r", "Playing", "Choosing a game", MUTED),
         ("a", "Poke B930", "", None),
     ]
     content = (0, 72, W, H - 72)
