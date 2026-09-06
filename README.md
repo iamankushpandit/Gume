@@ -3,12 +3,12 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.7.0--SNAPSHOT-9a6700)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.7.0-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-31-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-75.5%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.7%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,376,101 / 3,145,728 bytes (**75.5%**) |
-| RAM | 73,388 / 327,680 bytes (**22.2%**) |
+| Flash | 2,381,189 / 3,145,728 bytes (**75.7%**) |
+| RAM | 74,252 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -818,6 +818,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   <img src="docs/screens/profiles.png" width="360" alt="Profiles: who is playing">
   <img src="docs/screens/about-radios.png" width="360" alt="About: what the radios do">
   <img src="docs/screens/about-build.png" width="360" alt="About: which build is on the device">
+  <img src="docs/screens/about-updates.png" width="360" alt="About: whether a newer firmware exists">
   <img src="docs/screens/systeminfo-memory.png" width="360" alt="System Info: heap and CPU">
 </p>
 
@@ -906,6 +907,27 @@ Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip
 Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
+
+### The update check
+
+Once a day, a console with Wi-Fi configured downloads one small file listing the
+current firmware version of every supported board, compares it with its own
+version, and — if there is something newer — says so in the header and on
+*About -> Updates*. **Braino never updates itself.** Nothing is downloaded,
+nothing is installed, and no firmware image is fetched; a person decides, and
+does it from the web installer.
+
+The request **says nothing about your device**. It carries no version, no board
+model, no profile and no query string, so it is byte-identical to the request
+every other Braino makes — which is exactly why the file lists all boards rather
+than being fetched per board. What it unavoidably reveals is the same thing any
+web request reveals: an IP address, and that something asked.
+
+Two honest notes. The check is **not separately declinable** — if Wi-Fi is set
+up it runs, and the only way to stop it is to not configure Wi-Fi. And the
+address shown to you is compiled into the firmware, never taken from the
+downloaded file, so a tampered response can at worst display a wrong version
+number; it cannot point you somewhere else.
 
 ### The BLE beacon
 
@@ -998,7 +1020,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-In development: **5.7.0-SNAPSHOT** — the last release was **5.6.0**. See
+In development: **5.7.0** — the last release was **5.6.0**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
@@ -1112,6 +1134,7 @@ src/
     BoardButton.cpp     the BOOT key, debounced by the frame rate
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
+    BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
     BoardAudio.cpp      the whole sound engine: cues and the spoken phrase
     Sound.h             the console's sound vocabulary, as an enum

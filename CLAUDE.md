@@ -60,13 +60,28 @@ privacy statements â€” must be re-read whenever the thing it describes chan
 
 Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
-Exactly three things leave the device: an NTP time query, one `ip-api.com`
-lookup to guess the timezone on first connect, and the opt-in, non-connectable
+Exactly four things leave the device: an NTP time query, one `ip-api.com`
+lookup to guess the timezone on first connect, the opt-in, non-connectable
 BLE beacon -- which carries the Nearby fields and pokes when those are switched
-on, and is still one flow rather than three. **That list is closed.** Do not add analytics, usage counters,
+on, and is still one flow rather than three -- and the daily update-availability
+check.
+
+The fourth was agreed in 5.7.0 as a deliberate change to what the product
+promises, which is the only way this list may ever grow. Two properties are
+what made it acceptable and both are enforced rather than intended: **the
+request says nothing whatsoever about this device** -- no version, no board id,
+no query string, which is why the manifest lists every board and the comparison
+happens here -- and **the address shown to the owner is compiled in**, never
+read out of the response, which bounds a hostile answer to being wrong about a
+number rather than being able to send a child somewhere. `check_privacy.py`
+asserts both. It runs only when Wi-Fi is already configured, and it is not
+declinable; a device with no Wi-Fi never makes the request at all. See
+`include/UpdateChannel.h`.
+
+**That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
 home at runtime, or anything transmitted that carries a player's name, profile
-name, score, progress or typing. A fourth outbound flow needs the maintainer's
+name, score, progress or typing. A fifth outbound flow needs the maintainer's
 agreement in an issue *before* the code exists - it is a change to what the
 product promises, not a feature to be reviewed on merit.
 
@@ -393,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,376,101 / 3,145,728 bytes,
-**75.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 73,388 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,381,189 / 3,145,728 bytes,
+**75.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 74,252 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -768,7 +783,8 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
-                          key), BoardStorage, storage
+                          key), BoardUpdate (is a newer firmware available --
+                          a notice, never an OTA), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
@@ -824,7 +840,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,376,101 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
+   2,381,189 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds

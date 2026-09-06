@@ -1,11 +1,60 @@
 # Changelog
 
-## 5.7.0-SNAPSHOT — Unreleased
+## 5.7.0 — 2026-09-06
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.6.0
-release, and About's **This build** page names the branch and commit.
-`release.yml` refuses to publish a tag whose version carries this suffix.
+**The sound was broken on two boards, the beacon could crash the device, and
+now the console tells you when there is a newer version.**
+
+**Cues on the 3.2-inch and 4-inch boards played at a fifth of their length.**
+The ESP32's built-in DAC cannot clock at 16 kHz -- its divider wraps rather than
+saturating below 22050 Hz -- so the synthesiser generated 16000 samples a second
+while the hardware consumed nearly 89000. Every beep came out a fifth as long
+and an octave and a half sharp, which is not heard as "too fast" but as a click,
+or as a speaker that is failing. Measured on the bench across nine rates; the
+rate is now 24 kHz on those boards, where it is exact. The Freenove is untouched
+at 16 kHz -- its codec clocks off the APLL and was never affected. The spoken
+boot phrase is intelligible on a DAC board for the first time.
+
+Nothing in a log would have shown this. `i2s_get_clk()` reported a healthy
+16000.0 Hz in every wrong case, because it returns what the driver was asked
+for rather than what the peripheral does.
+
+**Switching the Bluetooth beacon off while the clock was syncing could panic the
+device.** Tearing the BLE controller down underneath live Wi-Fi coexistence
+callbacks is a race -- consecutive runs alternated between a crash and a
+survivable warning. Advertising now stops immediately, as it always did, and the
+controller is released later, once Wi-Fi is idle. "Off" still means off on the
+air the instant you ask for it.
+
+**A new "Updates" page in About, and a once-a-day notice.** With Wi-Fi
+configured, the console downloads one small file listing the current version of
+every supported board, compares it with its own, and tells whoever is holding
+the device: `5.8.0 available - ask admin to update`. About shows what is
+installed, what is available and where to get it.
+
+**Braino still does not update itself, and this is not a step towards it.** No
+firmware is downloaded and nothing is installed; a person decides, and does it
+from the web installer.
+
+This is the fourth thing that leaves the device, and the first added since the
+BLE beacon. It was agreed as a change to what the product promises rather than
+reviewed as a feature, and it was built so the promise is enforced rather than
+stated. The request carries **nothing about your device** -- no version, no
+board, no query string, so it is byte-identical to the one every other Braino
+makes, which is why the file lists all boards and the comparison happens on the
+device. And the address shown to you is compiled into the firmware, never read
+out of the response, so a tampered answer can at worst display a wrong number.
+`check_privacy.py` fails the build if either property is lost. The check is not
+separately declinable: it runs when Wi-Fi is configured, and a console with no
+Wi-Fi never makes the request.
+
+**Also fixed:** `env:audiodiag` had been unusable -- its direct-DAC test
+uninstalled the I2S driver and never put it back, so every interactive page
+crashed on its first note after a completely healthy log. It gains a silent
+RATE page that measures the DAC's true rate without needing ears.
+`identify_boards.py` could not learn the first board of a new model, because it
+could only copy an environment from another board already recorded; it now
+derives it from `platformio.ini`.
 
 ## 5.6.0 — 2026-09-06
 
