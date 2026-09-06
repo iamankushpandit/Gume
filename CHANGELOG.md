@@ -48,6 +48,30 @@ out of the response, so a tampered answer can at worst display a wrong number.
 separately declinable: it runs when Wi-Fi is configured, and a console with no
 Wi-Fi never makes the request.
 
+**The launcher leads with different games.** Page 1 is now Memory, Money,
+Flags, Microku, Trace and Counting. It opened with Tic-Tac-Toe and closed with
+Whack-a-Mole, neither of which says anything about what a child learns, and
+Trace -- letters and handwriting -- was on page 4 where nobody would find it.
+The launcher shows six tiles in landscape and four in portrait, so the first
+four are the front page. The README gallery, the About game list and the
+installer page all derive their order from the same place, so they move with
+it.
+
+**If you have hidden games for a player, check that list.** Per-profile
+visibility is stored by launcher position rather than by game, so reordering
+reassigns those choices. Every game ships visible, so this affects only a device
+where someone has hidden something by hand.
+
+**The clock in Time was drawn over its own screen, twice.** The dial covered the
+question printed beneath it -- worst at the centre, where a circle reaches
+lowest and a centred sentence has its middle -- and the score header cleared two
+strips wide enough to erase 37px off each shoulder of the dial every time the
+score changed, leaving the face as a strip with square bites out of it. Both
+were present on every board since the screen was written; the 4-inch panel made
+them unmissable. Radii on a panel that is not the canvas size now scale by the
+smaller of the two axis scales rather than their mean, which was adding another
+6% of overhang on the vertical.
+
 **Also fixed:** `env:audiodiag` had been unusable -- its direct-DAC test
 uninstalled the I2S driver and never put it back, so every interactive page
 crashed on its first note after a completely healthy log. It gains a silent
