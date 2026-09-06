@@ -1349,19 +1349,43 @@ def _si_tabs(d, active):
     d.line([(0, y + 28), (W, y + 28)], fill=OUTLINE)
 
 
-def _si_rows(d, rows, top=66):
-    """RowList geometry: labels at x+6, values at max(92, w/2), 16px rows."""
+def _si_rows(d, rows, top=66, right=300):
+    """RowList geometry: labels at x+6, values at max(92, w/2), 16px rows.
+
+    `right` narrows the value column the way RowList does when it is drawing a
+    scroll bar, so a mock-up of an overflowing list is not wider than the real
+    one. Kind "a" is an Action chip: 22px of row holding an 18px button, drawn
+    from the label column like RowList::draw() does."""
     y = top
     for kind, label, value, colour in rows:
         if kind == "s":
             d.text((6, y), label, font=F2, fill=MUTED)
-            d.line([(60, y + 8), (300, y + 8)], fill=OUTLINE)
+            d.line([(60, y + 8), (right, y + 8)], fill=OUTLINE)
             y += 18
+        elif kind == "a":
+            button(d, (6, y, min(150, right - 6), 18), label, PANEL, TEXT, F1)
+            y += 22
         else:
             d.text((6, y), label, font=F1, fill=MUTED)
             d.text((160, y), value, font=F1, fill=colour or TEXT)
             y += 16
     return y
+
+
+def _scrollbar(d, rect, total_h, offset=0):
+    """RowList::drawScrollBar geometry: 6px wide, 2px in from the right edge."""
+    x, y, w, h = rect
+    if total_h <= h:
+        return
+    track = (x + w - 6 - 2, y + 3, 6, h - 6)
+    d.rounded_rectangle([track[0], track[1], track[0] + track[2], track[1] + track[3]],
+                        3, fill=PANEL, outline=OUTLINE)
+    thumb_h = max(18, int(track[3] * h / total_h))
+    travel = max(1, track[3] - thumb_h)
+    thumb_y = track[1] + int(offset * travel / max(1, total_h - h))
+    d.rounded_rectangle([track[0] + 1, thumb_y + 1,
+                         track[0] + track[2] - 1, thumb_y + thumb_h - 1],
+                        2, fill=(88, 164, 224))
 
 
 def systeminfo_ble():
@@ -1426,7 +1450,7 @@ def nearby():
     30px height, then the RowList below it."""
     im, d = blank(); topbar(d, "Nearby")
     button(d, (8, 36, 304, 30), "Sharing: On", SUCCESS, (12, 20, 14))
-    _si_rows(d, [
+    rows = [
         ("s", "You", "", None),
         ("r", "Your tag", "A4F2", None),
         ("r", "Listening", "Yes", SUCCESS),
@@ -1436,11 +1460,19 @@ def nearby():
         ("r", "Their best", "9 lvl", WARN),
         ("r", "Your best", "7 lvl", None),
         ("r", "", "They are ahead of you", WARN),
+        ("a", "Poke 7C1B", "", None),
         ("s", "B930", "", None),
         ("r", "Distance", "Far", MUTED),
         ("r", "Playing", "Multiplication", None),
         ("r", "Their best", "12 pts", None),
-    ], top=76)
+        ("a", "Poke B930", "", None),
+    ]
+    content = (0, 72, W, H - 72)
+    # The value column narrows when a scroll bar is present, as RowList does.
+    _si_rows(d, rows, top=76, right=288)
+    # Two peers already overflow the panel, which is what the bar is for.
+    total = 12 + sum(18 if k == "s" else 22 if k == "a" else 16 for k, _, _, _ in rows)
+    _scrollbar(d, content, total)
     return im
 
 

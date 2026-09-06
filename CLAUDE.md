@@ -62,7 +62,8 @@ Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
 Exactly three things leave the device: an NTP time query, one `ip-api.com`
 lookup to guess the timezone on first connect, and the opt-in, non-connectable
-BLE beacon. **That list is closed.** Do not add analytics, usage counters,
+BLE beacon -- which carries the Nearby fields and pokes when those are switched
+on, and is still one flow rather than three. **That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
 home at runtime, or anything transmitted that carries a player's name, profile
 name, score, progress or typing. A fourth outbound flow needs the maintainer's
@@ -392,9 +393,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,372,313 / 3,145,728 bytes,
-**75.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 72,908 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,373,861 / 3,145,728 bytes,
+**75.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 73,244 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -578,12 +579,27 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
   is the exact inverse and is what the scanner reads peers with -- never write a
   second parser. With Nearby play on the payload is **exactly 31 bytes**, so
-  there is no room for another AD structure or a longer name. See
+  there is no room for another AD structure or a longer name -- which is why
+  the poke had to displace a field rather than add one. See
   `docs/BLE_BEACON_SPEC.md`.
 - **Nearby play is off by default and gated on the beacon.** `NearbyPlay::tick()`
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **A poke rides the beacon and displaces the score; it is not a fourth
+  outbound flow.** There is no room for one: the sharing payload is *exactly*
+  31 bytes, so `FLAG_POKE` swaps the four score bytes for a two-byte target and
+  a one-byte nonce for `POKE_ADVERTISE_MS`. Three consequences are
+  load-bearing. **Every field is gated on its own length** in `decode()` --
+  version 2 tested game and score together, which a poke's shorter block
+  answers wrongly for both, which is why `PAYLOAD_VERSION` is 3. **The nonce is
+  what makes it an event**: the poke repeats for seconds because scan windows
+  have gaps, and a receiver acts on a (device id, nonce) pair exactly once; it
+  is never reset, or a second poke to the same peer would read as a repeat.
+  **It is a broadcast** -- everyone in range hears who poked whom, only the
+  target reacts -- and the docs must keep saying so rather than implying a
+  private channel. The one identifier it carries is the target's own advertised
+  id, so it adds an event to the radio, not a new kind of data.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
@@ -796,7 +812,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,372,313 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
+   2,373,861 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds

@@ -78,6 +78,26 @@ void setActiveApp(Board& board, const AppDefinition* app);
  * that was current when the screen opened. */
 void refreshScore(Board& board);
 
+/* Poke one peer by the device id it advertises ("A4F2"). The poke rides the
+ * beacon: it goes on air for a few seconds, aimed at that id, and the peer
+ * whose id matches raises a notification and makes a noise.
+ *
+ * Two honest limits, both structural rather than incidental:
+ *
+ *   - It is a BROADCAST. Every Braino in range hears that we poked that id;
+ *     only the target reacts. There is no private channel here and this API
+ *     does not pretend to offer one.
+ *   - While it is on air the beacon carries no best score, because the payload
+ *     is already exactly 31 bytes and the poke displaces it. Peers keep the
+ *     last score they heard rather than showing a zero.
+ *
+ * Returns false when sharing is off, the radio is not up, or the id is not
+ * four hex digits -- a caller should say so rather than pretending it sent. */
+bool poke(Board& board, const char* deviceId);
+
+/** True while our own poke is still being transmitted. */
+bool pokeInFlight();
+
 /* Once per frame from the runtime. Expires sightings, raises notifications for
  * anything that changed and ages out the banner. Does nothing measurable when
  * the feature is off. */

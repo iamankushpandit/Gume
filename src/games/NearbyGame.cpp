@@ -1,5 +1,7 @@
 #include "NearbyGame.h"
 
+#include <string.h>
+
 #include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
 #include "hal/Board.h"
@@ -35,6 +37,11 @@ void scoreText(char* out, size_t cap, uint32_t value, const char* unit) {
 
 /* Longest realistic value is a 10-digit score, a space and a short unit. */
 constexpr size_t SCORE_TEXT_CAP = 24;
+
+/* How long a peer's chip reads "Poked" after the press. Comfortably shorter
+ * than the poke's own time on air, so the label going back to "Poke" never
+ * suggests the poke has stopped when it has not. */
+constexpr uint32_t POKED_LABEL_MS = 4000;
 }
 
 const char* NearbyGame::title() const {
@@ -64,6 +71,8 @@ void NearbyGame::end(GameHost& host) {
     rows_.clear();
     rowsStale_ = true;
     scrolling_ = false;
+    pokeTargetCount_ = 0;
+    pokedId_[0] = '\0';
 }
 
 Rect NearbyGame::toggleRect(int16_t screenW) const {
@@ -78,6 +87,7 @@ Rect NearbyGame::contentRect(int16_t screenW, int16_t screenH) const {
 void NearbyGame::rebuildRows(GameHost& host) {
     Board& board = host.board();
     rows_.clear();
+    pokeTargetCount_ = 0;
 
     /* Three states, said out loud. An empty list under a switch that reads
      * "On" would look identical whether the radio was off, the feature was
@@ -146,6 +156,23 @@ void NearbyGame::rebuildRows(GameHost& host) {
         if (peer.beatsYou) {
             rows_.addRow("", "They are ahead of you", Ui::warning());
         }
+
+        /* One chip per peer, carrying the index into pokeTargets_ rather than
+         * the peer's position in the live table -- see the comment on that
+         * member. Chips stop being added once the array is full; eight peers
+         * is already more than the scanner tracks. */
+        if (pokeTargetCount_ < MAX_POKE_TARGETS) {
+            const bool justPoked = pokedId_[0] != '\0' &&
+                strncmp(pokedId_, peer.deviceId, sizeof(pokedId_)) == 0 &&
+                millis() - pokedAtMs_ < POKED_LABEL_MS;
+            char label[RowList::LABEL_MAX];
+            snprintf(label, sizeof(label), justPoked ? "Poked %s" : "Poke %s",
+                     peer.deviceId);
+            snprintf(pokeTargets_[pokeTargetCount_], sizeof(pokeTargets_[0]), "%s",
+                     peer.deviceId);
+            rows_.addAction(label, static_cast<int8_t>(pokeTargetCount_));
+            ++pokeTargetCount_;
+        }
     }
 
     rowsStale_ = false;
@@ -170,6 +197,15 @@ void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
         if (peersChanged || NearbyPlay::peerCount() > 0) {
             markDirty();
         }
+    }
+
+    /* Retire the "Poked" label once it has had its moment. Done here rather
+     * than left to the one-second tick so the chip cannot sit reading "Poked"
+     * on a screen with no peers left to refresh it. */
+    if (pokedId_[0] != '\0' && now - pokedAtMs_ >= POKED_LABEL_MS) {
+        pokedId_[0] = '\0';
+        rowsStale_ = true;
+        markDirty();
     }
 
     Board& board = host.board();
@@ -204,6 +240,25 @@ void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
             rowsStale_ = true;
             markFullDirty();
             return;
+        }
+
+        if (content.contains(touch.x, touch.y)) {
+            const int8_t action = rows_.actionAt(touch.x, touch.y);
+            if (action >= 0 && action < static_cast<int8_t>(pokeTargetCount_)) {
+                /* NearbyPlay::poke() re-derives the gate itself, so a chip
+                 * pressed just as the radio went down is refused there rather
+                 * than here. Saying no out loud beats a button that silently
+                 * does nothing -- the same rule the sharing toggle follows. */
+                if (NearbyPlay::poke(board, pokeTargets_[action])) {
+                    snprintf(pokedId_, sizeof(pokedId_), "%s", pokeTargets_[action]);
+                    pokedAtMs_ = millis();
+                    rowsStale_ = true;
+                    markDirty();
+                } else {
+                    board.beepError();
+                }
+                return;
+            }
         }
 
         if (content.contains(touch.x, touch.y) && rows_.totalHeight() > content.h) {

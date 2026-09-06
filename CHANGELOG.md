@@ -7,6 +7,30 @@ In development on `dev`. Nothing here has shipped; the version carries the
 release, and About's **This build** page names the branch and commit.
 `release.yml` refuses to publish a tag whose version carries this suffix.
 
+**Poke somebody from the Nearby list.** Every peer now carries a *Poke*
+button. Press it and that console raises a notification saying who poked it and
+makes a sound -- the one Nearby notification that does, because the rest is
+ambient news about the room and a poke is a person asking for your attention.
+
+It rides the existing beacon rather than opening anything new, and it had to
+displace something to do it: the payload with Nearby on is *exactly* the 31
+legal advertising bytes. While a poke is on air the four best-score bytes are
+not sent and a two-byte target plus a one-byte counter take their place. The
+game stays visible, peers keep the last score they heard rather than showing a
+zero, and the score comes back six seconds later.
+
+Two things worth knowing about the mechanism. **A poke is a broadcast, not a
+message** -- non-connectable advertising has no addressing, so every Braino in
+range hears that one tag poked another, and only the addressed one reacts. And
+**the payload layout version is now 3**, so this firmware and 5.5.x ignore each
+other's advertisements rather than misreading them; both consoles need updating
+for Nearby to work between them.
+
+The Nearby list scrolls with a scroll bar once the peers overflow the screen.
+That was already true of every `RowList` screen; what is new is that the list is
+now long enough to reach it, and that action chips are hit-tested individually
+so one button per peer resolves to the right peer.
+
 **New board: the LCDWIKI E32R32P, 3.2-inch ST7789P3.** The middle sibling of
 the family Braino already supports, and the first port whose display, touch,
 battery sense and radios were all confirmed on hardware before the profile was

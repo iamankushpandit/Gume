@@ -64,13 +64,23 @@ void RowList::addMeter(uint8_t pct, uint16_t color) {
     row->height = 12;
 }
 
-void RowList::addAction(const char* label) {
+void RowList::addAction(const char* label, int8_t id) {
     Row* row = next();
     if (row == nullptr) return;
     row->kind = Kind::Action;
     copyField(row->label, LABEL_MAX, label);
     row->valueColor = Ui::text();
+    row->actionId = id;
     row->height = 22;
+}
+
+int8_t RowList::actionAt(int16_t x, int16_t y) const {
+    for (uint8_t i = 0; i < actionHitCount_; ++i) {
+        if (actionHits_[i].rect.contains(x, y, TOUCH_HIT_SLOP)) {
+            return actionHits_[i].id;
+        }
+    }
+    return -1;
 }
 
 int16_t RowList::totalHeight() const {
@@ -117,6 +127,10 @@ void RowList::draw(Ui::Renderer& tft, const Rect& r, int16_t offset) {
 
     tft.fillRect(r.x, r.y, r.w, r.h, Ui::surface());
     actionRect_ = Rect{};
+    /* Rebuilt from scratch every draw. A chip that scrolled off screen this
+     * frame must stop being pressable this frame, or the list accepts touches
+     * for rows nobody can see. */
+    actionHitCount_ = 0;
 
     /* vpDatum = false keeps the coordinates below absolute, so the layout
      * maths is unchanged and only the clipping is added. */
@@ -149,6 +163,16 @@ void RowList::draw(Ui::Renderer& tft, const Rect& r, int16_t offset) {
             const Rect chip{labelX, y, static_cast<int16_t>(min<int16_t>(150, right - labelX)), 18};
             Ui::drawButton(tft, chip, row.label, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
             actionRect_ = chip;
+            /* Only chips that landed inside the viewport are recorded. The row
+             * loop above already skips rows wholly above or below it, but the
+             * one straddling an edge is drawn clipped -- and half a button is
+             * not a button you can aim at. */
+            if (actionHitCount_ < MAX_ACTIONS && chip.y >= r.y &&
+                chip.y + chip.h <= r.y + r.h) {
+                actionHits_[actionHitCount_].rect = chip;
+                actionHits_[actionHitCount_].id = row.actionId;
+                ++actionHitCount_;
+            }
         } else {
             drawMeterBar(tft, Rect{labelX, y, static_cast<int16_t>(right - labelX), 8},
                          row.meterPct, row.meterColor);

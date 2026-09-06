@@ -26,6 +26,14 @@ struct Known {
     bool announcedBeat = false;
     uint8_t announcedGame = BleBeacon::GAME_NONE;
     uint32_t announcedScore = 0;
+
+    /* The last poke from this peer that we acted on. A poke is transmitted
+     * repeatedly for several seconds so a scan window cannot miss it, so
+     * "have I already reacted to this one?" is the whole of what makes it an
+     * event rather than a six-second alarm. sawPoke distinguishes "no poke
+     * yet" from "the last one happened to be nonce 0". */
+    bool sawPoke = false;
+    uint8_t lastPokeNonce = 0;
 };
 
 Known known_[BleScan::MAX_SIGHTINGS];
@@ -122,6 +130,35 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
     pushEvent(text);
 }
 
+/* A poke aimed at this device, heard from `seen`.
+ *
+ * Two things are deliberate. The target comparison is against our own
+ * advertised device id, so a poke aimed at somebody else is heard and ignored
+ * -- an advertisement is a broadcast and every Braino in range sees all of
+ * them. And this is the one notification that makes a noise: the rest of what
+ * this module raises is ambient news about the room, while a poke is a person
+ * asking for your attention, which is the distinction worth a sound. Mute is
+ * still honoured, because every cue goes through Board::playSound(). */
+void evaluatePoke(Board& board, Known& entry, const BleScan::Sighting& seen) {
+    if (!seen.poking) {
+        return;
+    }
+    const char* mine = BleBeacon::configured().deviceId;
+    if (mine[0] == '\0' || strncmp(seen.pokeTarget, mine, sizeof(seen.pokeTarget)) != 0) {
+        return;
+    }
+    if (entry.sawPoke && entry.lastPokeNonce == seen.pokeNonce) {
+        return;   // the same poke, still on air
+    }
+    entry.sawPoke = true;
+    entry.lastPokeNonce = seen.pokeNonce;
+
+    char text[BANNER_MAX];
+    snprintf(text, sizeof(text), "%s poked you!", seen.deviceId);
+    pushEvent(text);
+    board.playSound(Sound::Pop);
+}
+
 /* Fold the current sightings into what we already knew, raising one
  * notification per thing that actually changed. */
 void reconcile(Board& board) {
@@ -154,6 +191,7 @@ void reconcile(Board& board) {
             }
             pushEvent(text);
             evaluateScore(board, *entry, seen);
+            evaluatePoke(board, *entry, seen);
         } else {
             const bool gameChanged = entry->lastGame != seen.gameIndex;
             const bool scoreChanged = entry->lastScore != seen.bestScore;
@@ -170,6 +208,11 @@ void reconcile(Board& board) {
             if (gameChanged || scoreChanged) {
                 evaluateScore(board, *entry, seen);
             }
+            /* Unconditional, unlike the score check above: a poke is not a
+             * change to the peer's game or score, so gating it on those would
+             * lose a poke from somebody sitting on the same screen -- which
+             * is most of the time. The nonce does the de-duplication. */
+            evaluatePoke(board, *entry, seen);
         }
 
         for (uint8_t k = 0; k < knownCount_; ++k) {
@@ -276,6 +319,24 @@ void refreshScore(Board& board) {
     publish(board);
 }
 
+bool poke(Board& board, const char* deviceId) {
+    /* Same gate as everything else here, re-derived rather than assumed: a
+     * poke is a transmission, so it is not available while the feature that
+     * authorises transmitting is off. */
+    if (!enabled_ || !BleBeacon::active()) {
+        return false;
+    }
+    if (!BleBeacon::poke(deviceId)) {
+        return false;
+    }
+    board.playSound(Sound::Tap);
+    return true;
+}
+
+bool pokeInFlight() {
+    return BleBeacon::poking();
+}
+
 void tick(Board& board) {
     /* One gate, re-evaluated every frame, rather than an ordering contract
      * between Settings and the radio. The beacon can go down underneath us --
@@ -296,6 +357,9 @@ void tick(Board& board) {
     }
 
     BleScan::tick();
+    /* Takes our own poke off air once it has had its few seconds. Idempotent
+     * and free when there is no poke live. */
+    BleBeacon::clearExpiredPoke();
 
     const uint32_t generation = BleScan::generation();
     if (generation != lastScanGeneration_) {

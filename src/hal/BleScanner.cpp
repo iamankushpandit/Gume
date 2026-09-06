@@ -46,7 +46,20 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
         if (strncmp(table_[i].deviceId, obs.deviceId, sizeof(table_[i].deviceId)) == 0) {
             table_[i].sharesActivity = obs.sharesActivity;
             table_[i].gameIndex = obs.gameIndex;
-            table_[i].bestScore = obs.bestScore;
+            /* A peer that is poking has displaced its score to make room, so
+             * this advertisement carries no number. Keep the last one we heard
+             * rather than showing the player a score of zero for six seconds
+             * -- absent is not the same as nought. */
+            if (obs.haveScore) {
+                table_[i].bestScore = obs.bestScore;
+                table_[i].haveScore = true;
+            }
+            table_[i].poking = obs.poking;
+            if (obs.poking) {
+                snprintf(table_[i].pokeTarget, sizeof(table_[i].pokeTarget), "%s",
+                         obs.pokeTarget);
+                table_[i].pokeNonce = obs.pokeNonce;
+            }
             table_[i].rssi = rssi;
             table_[i].lastSeenMs = nowMs;
             ++generation_;
@@ -78,6 +91,10 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     s.sharesActivity = obs.sharesActivity;
     s.gameIndex = obs.gameIndex;
     s.bestScore = obs.bestScore;
+    s.haveScore = obs.haveScore;
+    s.poking = obs.poking;
+    snprintf(s.pokeTarget, sizeof(s.pokeTarget), "%s", obs.pokeTarget);
+    s.pokeNonce = obs.pokeNonce;
     s.rssi = rssi;
     s.lastSeenMs = nowMs;
     ++generation_;

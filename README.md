@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-75.4%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-75.5%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 31 |
-| Flash | 2,372,313 / 3,145,728 bytes (**75.4%**) |
-| RAM | 72,908 / 327,680 bytes (**22.2%**) |
+| Flash | 2,373,861 / 3,145,728 bytes (**75.5%**) |
+| RAM | 73,244 / 327,680 bytes (**22.2%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -634,6 +634,30 @@ Two switches guard it, in this order: the **BLE beacon** must be on, and then
 **Nearby** must be on. Turning the beacon off stands Nearby down with it. The
 scan is passive, so listening never transmits anything.
 
+**Poke.** Each peer in the list carries a *Poke* button. Pressing it nudges that
+console: a strip appears over its header saying who poked it, and it makes a
+sound. It is the one notification here that does — everything else Nearby raises
+is ambient news about the room, while a poke is a person asking for your
+attention.
+
+Two honest details about how it works, because the mechanism is visible and
+should be:
+
+- **A poke is a broadcast, not a message.** The beacon is non-connectable
+  advertising, which has no addressing at all: every Braino in range hears that
+  `A4F2` poked `B1C3`, and only `B1C3` reacts. The only identifier involved is
+  the target's own four hex digits — the id that device is already broadcasting
+  about itself every second.
+- **It borrows the score's bytes for six seconds.** The payload with Nearby on
+  is *exactly* the 31 legal bytes, so there is nowhere to append a poke. While
+  one is on air the best-score field is simply not sent; the game stays visible
+  and peers keep the last score they heard rather than showing a zero. It is
+  transmitted repeatedly for those seconds because a listener's scan windows
+  have gaps, and a nonce makes sure the target reacts exactly once no matter how
+  many copies it hears.
+
+The list scrolls, with a scroll bar, once there are more peers than fit.
+
 ### Network & Time
 
 <p align="center">
@@ -908,6 +932,13 @@ While it is off, those fields are **absent from the payload** rather than
 present and zeroed: the manufacturer block is five bytes shorter and the flag
 bit is clear. "Not transmitted" has to be structural to be worth claiming.
 
+A **poke** adds one more thing, and only for the few seconds it is on air: the
+device id being poked, plus a counter that lets the target tell a repeat from a
+new poke. That id is not new information on the radio — it is the same id that
+device is already broadcasting as its own name. Because the payload is already
+full, the poke *replaces* the best-score bytes while it is live rather than
+being added to them.
+
 Neither field says who is playing. There is no name, no profile, and no way to
 get from a score back to a player — the exchange is a leaderboard with nobody's
 name on it. Listening is passive, so a console that is only watching transmits
@@ -915,7 +946,8 @@ nothing extra.
 
 *System Info -> BLE* reports **Open game** and **Best score** as `Broadcast` or
 `Not Broadcast` read from the same structure the controller was handed, so that
-row cannot disagree with the radio.
+row cannot disagree with the radio — including the moment a poke has displaced
+the score, where it reports the truth rather than the setting.
 
 ### You can check all of this on the device
 
@@ -927,7 +959,8 @@ row cannot disagree with the radio.
 name being advertised, every decoded field of the manufacturer data, the privacy
 list above, and -- under *Show advanced* -- the interval, TX power, advertising
 type, controller address and a **hex dump of the bytes actually on air** (27 of
-the 31 legal bytes with Nearby off, all 31 with it on).
+the 31 legal bytes with Nearby off, all 31 with it on, 30 while a poke is being
+transmitted).
 
 Turn the beacon off and the same screen says *Broadcasting: Nothing*, relabelling
 the identity block as configuration so nothing reads as being transmitted when it

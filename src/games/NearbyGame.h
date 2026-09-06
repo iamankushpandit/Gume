@@ -46,6 +46,21 @@ private:
      * never per frame, and never while a scroll drag is in flight. */
     void rebuildRows(GameHost& host);
 
+    /* Device ids of the peers a Poke chip was built for, indexed by the chip's
+     * action id. Held rather than re-derived at press time because the peer
+     * table is rebuilt by the scanner on its own schedule: index 2 at the
+     * moment of the press is not necessarily the row the finger was aiming at,
+     * and poking whoever has since moved up the list is the kind of bug nobody
+     * reports because it looks like a mis-tap. Fixed size, no allocation. */
+    static constexpr uint8_t MAX_POKE_TARGETS = 8;
+    char pokeTargets_[MAX_POKE_TARGETS][5] = {};
+    uint8_t pokeTargetCount_ = 0;
+
+    /* The peer poked most recently, and when -- so its chip can say "Poked"
+     * for a moment instead of leaving the press unacknowledged. */
+    char pokedId_[5] = {0};
+    uint32_t pokedAtMs_ = 0;
+
     RowList rows_;
     bool rowsStale_ = true;
     uint32_t lastPeerGeneration_ = 0;
