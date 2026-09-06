@@ -203,6 +203,7 @@ def check_ini(problems, headers):
             board_envs.setdefault(used[0], []).append(env)
 
     check_reachable(problems, boards, board_envs)
+    check_boardless_blurbs(problems, text)
 
 
 def check_reachable(problems, boards, board_envs):
@@ -263,6 +264,37 @@ def check_reachable(problems, boards, board_envs):
                     "`pack_release.py --strict` refuses to pack it, so the "
                     "release workflow would fail on the tag, after the tag "
                     "has already been pushed" % (board_id, env))
+
+
+def check_boardless_blurbs(problems, ini):
+    """Every environment needs a description, including the boardless ones.
+
+    check_reachable() below walks the environments that compose a [board_*]
+    section, which misses exactly the envs in BOARDLESS_ENVS -- and
+    `pack_release.py --strict` does not miss them. That gap is not theoretical:
+    env:diag32p shipped without a blurb, every check here reported clean, and
+    the release workflow failed on `pack_release` AFTER the v5.6.0 tag had been
+    pushed. Finding it at the tag is the worst possible moment, because the tag
+    is the thing that is awkward to take back.
+    """
+    for env in re.findall(r"^\[env:(\w+)\]", ini, re.M):
+        role = pack_release.env_role(env, "")
+        if role in pack_release.ENV_BLURBS:
+            continue
+        # Board-attached envs are covered by check_reachable(), which knows the
+        # board id and can strip the suffix. Only report what nothing else will.
+        if any(env.endswith("_%s" % b) for b in board_ids(ini)):
+            continue
+        problems.append(
+            "environment '%s' has no description in pack_release.py's "
+            "ENV_BLURBS -- `pack_release.py --strict` refuses to pack it, so "
+            "the release workflow would fail on the tag, after the tag has "
+            "already been pushed" % env)
+
+
+def board_ids(ini):
+    """The board ids declared by [board_*] sections."""
+    return re.findall(r"^\[board_(\w+)\]", ini, re.M)
 
 
 def check_agreement(problems, section, body, relative):
