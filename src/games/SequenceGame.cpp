@@ -11,7 +11,7 @@ constexpr AppMetadata SEQUENCE_METADATA = {
     "Days and months in order.",
     nullptr,
     LauncherIcon::Sequence,
-    21,
+    23,
     true,
 };
 }

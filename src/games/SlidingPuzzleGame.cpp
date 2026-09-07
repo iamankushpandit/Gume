@@ -15,7 +15,7 @@ constexpr AppMetadata SLIDING_PUZZLE_METADATA = {
     "Slide tiles into order.",
     nullptr,
     LauncherIcon::SlidingPuzzle,
-    17,
+    19,
     true,
 };
 }

@@ -23,7 +23,7 @@ constexpr AppMetadata GRE_WORDS_METADATA = {
     "Learn GRE vocabulary.",
     &GRE_WORDS_SCORE,
     LauncherIcon::GreWords,
-    27,
+    5,
     true,
 };
 }

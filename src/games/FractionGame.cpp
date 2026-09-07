@@ -25,7 +25,7 @@ constexpr AppMetadata FRACTION_METADATA = {
     "Match the pie chart.",
     &FRACTION_SCORE,
     LauncherIcon::Fractions,
-    13,
+    15,
     true,
 };
 }

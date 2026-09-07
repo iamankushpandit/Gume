@@ -20,7 +20,7 @@ constexpr AppMetadata MATH_METADATA = {
     "Practice arithmetic with timed rounds.",
     &MATH_SCORE,
     LauncherIcon::Math,
-    7,
+    9,
     true,
 };
 }

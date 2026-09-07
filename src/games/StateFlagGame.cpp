@@ -18,7 +18,7 @@ constexpr AppMetadata STATE_FLAG_METADATA = {
     "Name the state flag, then capital.",
     &STATE_FLAG_SCORE,
     LauncherIcon::StateFlag,
-    24,
+    25,
     true,
 };
 }

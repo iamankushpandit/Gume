@@ -61,7 +61,7 @@ constexpr AppMetadata TIME_GAME_METADATA = {
     "Read the clock and pick the time.",
     &TIME_GAME_SCORE,
     LauncherIcon::Time,
-    9,
+    11,
     true,
 };
 }

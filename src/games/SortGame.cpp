@@ -19,7 +19,7 @@ constexpr AppMetadata SORT_METADATA = {
     "Order numbers up or down.",
     &SORT_SCORE,
     LauncherIcon::Sort,
-    15,
+    17,
     true,
 };
 }

@@ -26,7 +26,7 @@ constexpr AppMetadata MAZE_METADATA = {
     "Drag the dot to the exit.",
     &MAZE_SCORE,
     LauncherIcon::Maze,
-    14,
+    16,
     true,
 };
 }
