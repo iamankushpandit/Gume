@@ -97,16 +97,46 @@ That is a flash decision -- a second of 16-bit 16 kHz mono is 32 KB against a
 budget already at 76.0% -- and it is also what makes a spoken phrase possible
 at all. The whole vocabulary plus the phrase is under a kilobyte of const data.
 
-**`playSound()` arms a script; it does not play it.** `tickAudio()` runs once
-per frame from `BrainoApp::loop()` and writes only what the DMA will accept
-with a zero timeout. The DMA is 6 x 256 frames -- 96 ms on the codec at 16 kHz,
-64 ms on the built-in DAC at 24 kHz -- so it stays comfortably ahead of a 20 ms
-frame. Samples the DMA would not take are held in
-`pending` and written first next frame rather than dropped: the synthesiser
-cannot be run backwards, and dropping them is audible as a stutter on anything
-long enough to fill the DMA -- which is exactly the boot phrase. Never make
-this blocking. `src/s3_diag.cpp` does block, and is right to: a bring-up probe
-has no frame budget.
+**`playSound()` arms a script; it does not play it.** A dedicated FreeRTOS
+task, `braino-audio`, generates the samples: priority 3 against the loop task's
+1, pinned to the same core so that it *preempts* a long frame.
+
+**It is a task and not a tick, and that is the second version.** The first
+generated from `tickAudio()` in the loop, arguing that the DMA is far deeper
+than a frame -- 6 x 256 frames is 96 ms on the codec at 16 kHz and 64 ms on the
+built-in DAC at 24 kHz, against a 20 ms budget. True of a typical frame; false
+of the frame that matters. A full-screen repaint is ~150 KB over SPI, and a
+launcher page turn is that plus every tile and icon, comfortably past 96 ms on
+the 4-inch panel. So a cue armed just before one would fill the DMA, and the
+DMA would run dry in the middle of the repaint. That is what the launcher's
+Previous and Next sounded like, and it was reported twice before the cause was
+found. Deepening the buffer would have moved the threshold, not removed it --
+the worst frame is bounded by nothing. A task is.
+
+The synthesiser state is shared with the loop, so `audioLock` guards arming and
+generation. **It is not held across the blocking write**: the task generates a
+128-sample block into its own buffer under the lock, releases it, and only then
+blocks inside `i2s_write()`. So `playSound()` from game code waits for at most
+one block, never for the DMA. Never invert that.
+
+`tickAudio()` still exists and the runtime still calls it, but only as the
+fallback for a device where the task could not be created at all. It shares
+`generateBlock()` with the task so the one genuinely error-prone part -- the
+built-in DAC's offset-binary word format -- has a single definition. Samples
+the DMA would not take on that path are held in `pending` and written first
+next frame rather than dropped: the synthesiser cannot be run backwards, and
+dropping them is audible as a stutter on anything long enough to fill the DMA.
+
+`src/s3_diag.cpp` blocks the whole way through a note, and is right to: a
+bring-up probe has no frame budget.
+
+**Re-arming the same script while it is still sounding is a continuation, not a
+restart.** `arm()` compares the incoming script with the current one and keeps
+the oscillator phase and the resonators when they match. That exists for the
+piano: the synthesiser has no note-on and no sustain, so a held key is kept
+alive by asking for the same note again just before the last one ends, and
+snapping `phase` back to zero at that seam is a step in the waveform -- a click,
+every 280 ms, heard as a tone that is not continuous.
 
 **The voice is a phoneme table, not text-to-speech.** `PHRASE_LETS_PLAY_BRAINO`
 spells "Let's play Braino!" out as L EH T S / P L EY / B R EY N OW, each entry
@@ -164,8 +194,9 @@ no instrument.
 
 **IDF version dependency.** `I2S_DAC_BUILT_IN` and `i2s_set_dac_mode()` are
 IDF 4.4 (Arduino core 2.0.17) APIs. They were removed in IDF 5.x. If the
-platform is ever bumped, the DAC backend in `beginAudio()` and `tickAudio()`
-and the whole of `src/audiodiag.cpp` need rewriting with the new driver.
+platform is ever bumped, the DAC backend in `beginAudio()` and
+`generateBlock()` and the whole of `src/audiodiag.cpp` need rewriting with the
+new driver.
 
 The knobs for retuning by ear are the formant numbers, the segment lengths,
 `VOICE_PITCH_HZ` (monotone, which is what makes it robotic) and `NOISE_MAKEUP`
