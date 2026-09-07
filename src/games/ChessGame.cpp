@@ -758,14 +758,28 @@ void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     if (now - seatsAtMs_ > 1000) {
         seatsAtMs_ = now;
-        const uint8_t was = seatCount_;
-        seatCount_ = 0;
+        NearbySeat fresh[6];
+        uint8_t count = 0;
         const uint8_t n = host.nearbySeatCount();
-        for (uint8_t i = 0; i < n && seatCount_ < 6; ++i) {
+        for (uint8_t i = 0; i < n && count < 6; ++i) {
             NearbySeat seat;
-            if (host.nearbySeatAt(i, seat)) seats_[seatCount_++] = seat;
+            if (host.nearbySeatAt(i, seat)) fresh[count++] = seat;
         }
-        if (was != seatCount_) markFullDirty();
+
+        /* Compare the rows, not just how many there are. A peer that starts
+         * inviting us does not change the count -- it changes what its row
+         * says, from "Play A4F2" to "A4F2 invites you" -- so a count-only test
+         * left an invitation sitting on the air with nothing on screen to
+         * accept it, until some unrelated console wandered in or out of
+         * range. */
+        bool changed = count != seatCount_;
+        for (uint8_t i = 0; !changed && i < count; ++i) {
+            changed = fresh[i].inviting != seats_[i].inviting ||
+                      strcmp(fresh[i].deviceId, seats_[i].deviceId) != 0;
+        }
+        for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
+        seatCount_ = count;
+        if (changed) markFullDirty();
     }
 
     if (!touch.justPressed) return;
@@ -918,16 +932,24 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
      * over the panel is never also a tap on a square. */
     if (actionRect(host).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (over) {
+            /* Always back to the lobby, whichever way the game was being
+             * played. Two reasons, and the second one is the important one.
+             *
+             * A new remote game needs a new session and a fresh invitation, so
+             * pretending the old session can be reused would be wrong. And now
+             * that an unfinished game is restored on the way in, the lobby is
+             * no longer somewhere you arrive by leaving and coming back -- so
+             * if a finished LOCAL game started another local game directly,
+             * there would be no route from pass-and-play to playing a peer at
+             * all, short of ending a game you did not want to end. Persistence
+             * quietly took that route away; this is where it comes back. */
             host.playSound(Sound::Select);
-            if (mode_ == Mode::Remote) {
-                /* A new game against the same peer would need a new session
-                 * and a fresh invitation, so this goes back to the lobby
-                 * rather than pretending the old session can be reused. */
-                host.nearbyStop();
-                mode_ = Mode::Lobby;
-                opponent_[0] = 0;
-                session_ = 0;
-            }
+            if (mode_ == Mode::Remote) host.nearbyStop();
+            mode_ = Mode::Lobby;
+            opponent_[0] = 0;
+            session_ = 0;
+            seatCount_ = 0;
+            seatsAtMs_ = 0;
             newGame();
             saveGame(host);
         } else if (confirmUntilMs_ != 0) {
