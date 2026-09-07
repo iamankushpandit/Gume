@@ -408,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,381,189 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,381,701 / 3,145,728 bytes,
 **75.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 74,252 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+at 74,268 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -846,7 +846,7 @@ Before tagging, on `main`:
    figure by 16 bytes, which shipped to `main` wrong because the build was run
    on the tree as it stood before the release commit. The consequence is that
    `dev` and `main` legitimately carry different numbers between releases --
-   2,381,189 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
+   2,381,701 on `5.6.0-SNAPSHOT` against 2,371,981 on `5.5.1` -- and that is
    not drift to be reconciled. `check_docs.py` compares each document against
    whatever `.pio/build/app/firmware.elf` is sitting in *your* tree, so each
    branch has to state its own figure or the checks fail for anyone who builds
