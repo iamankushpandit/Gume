@@ -428,7 +428,7 @@ def main():
         print("Authorized flows verified:")
         print("  1. NTP time synchronization")
         print("  2. One-time timezone lookup (ip-api.com)")
-        print("  3. BLE beacon (opt-in, device ID + game/score only)")
+        print("  3. BLE beacon (opt-in: device ID, game, score, and chess\n             moves in a two-player game -- no names, no profiles)")
         print("  4. Update-availability manifest (anonymous GET, no device data)")
         print("Public privacy wording: no absolute network-silence claims.")
         print("\n" + "=" * 70)

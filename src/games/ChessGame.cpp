@@ -407,7 +407,45 @@ void ChessGame::begin(AppContext& host) {
     dirtyCount_ = 0;
     status_ = Status::Playing;
     statusStale_ = true;
+
+    mode_ = Mode::Lobby;
+    seatCount_ = 0;
+    seatsAtMs_ = 0;
+    opponent_[0] = 0;
+    session_ = 0;
+    ourPly_ = 0;
+    theirPly_ = 0;
     markFullDirty();
+}
+
+/* end() rather than begin() is where the radio is handed back. A move is a
+ * state that stays on the air until it is replaced, so leaving the screen
+ * without clearing it would leave this console advertising a game it is no
+ * longer playing -- and the score field it displaces would stay missing. */
+void ChessGame::end(AppContext& host) {
+    host.nearbyStop();
+}
+
+void ChessGame::startLocal() {
+    mode_ = Mode::Local;
+    opponent_[0] = 0;
+    markFullDirty();
+}
+
+void ChessGame::startRemote(const char* peerId, uint8_t session, bool weAreWhite) {
+    strncpy(opponent_, peerId, sizeof(opponent_) - 1);
+    opponent_[sizeof(opponent_) - 1] = 0;
+    session_ = static_cast<uint8_t>(session & 0x3F);
+    remoteIsWhite_ = weAreWhite;
+    ourPly_ = 0;
+    theirPly_ = 0;
+    mode_ = Mode::Remote;
+    markFullDirty();
+}
+
+bool ChessGame::ourTurn() const {
+    if (mode_ != Mode::Remote) return true;
+    return pos_.whiteToMove == remoteIsWhite_;
 }
 
 void ChessGame::markSquare(uint8_t square) {
@@ -429,9 +467,184 @@ void ChessGame::refreshStatus() {
     statusStale_ = true;
 }
 
+/* The lobby. Two ways to play and a list of consoles in the room.
+ *
+ * Laid out against the live panel like everything else here, and the rows are
+ * generous -- this is a menu a child taps once, not a board they play on, so
+ * there is no reason to make the targets small. */
+Rect ChessGame::lobbyRowRect(AppContext& host, uint8_t row) const {
+    Ui::Renderer& tft = host.display();
+    const int16_t w = static_cast<int16_t>(tft.width());
+    const int16_t top = static_cast<int16_t>(TOP_BAR_H + 8);
+    const int16_t h = 30;
+    return Rect{10, static_cast<int16_t>(top + row * (h + 6)),
+                static_cast<int16_t>(w - 20), h};
+}
+
+void ChessGame::renderLobby(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    Ui::clear(tft);
+    host.drawTopBar(title());
+
+    Ui::drawButton(tft, lobbyRowRect(host, 0), "Pass and play",
+                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+
+    char label[32];
+    uint8_t row = 1;
+    for (uint8_t i = 0; i < seatCount_ && row < 5; ++i, ++row) {
+        /* A peer offering us a game reads differently from one merely
+         * present, and the wording has to say which -- "Play A4F2" and
+         * "A4F2 invites you" are different offers. */
+        if (seats_[i].inviting) {
+            snprintf(label, sizeof(label), "%s invites you", seats_[i].deviceId);
+        } else {
+            snprintf(label, sizeof(label), "Play %s", seats_[i].deviceId);
+        }
+        Ui::drawButton(tft, lobbyRowRect(host, row), label,
+                       seats_[i].inviting ? Ui::success() : Ui::panel(),
+                       Ui::outline(), Ui::text(), false, 2);
+    }
+
+    tft.setTextDatum(BC_DATUM);
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    const char* note = seatCount_ > 0
+        ? "Moves travel by Bluetooth. Anyone near hears them."
+        : "No consoles nearby. Both need Beacon and Nearby on.";
+    tft.drawString(note, static_cast<int16_t>(tft.width() / 2),
+                   static_cast<int16_t>(tft.height() - 6), 1);
+    tft.setTextDatum(TL_DATUM);
+}
+
+void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    const uint32_t now = millis();
+    if (now - seatsAtMs_ > 1000) {
+        seatsAtMs_ = now;
+        const uint8_t was = seatCount_;
+        seatCount_ = 0;
+        const uint8_t n = host.nearbySeatCount();
+        for (uint8_t i = 0; i < n && seatCount_ < 6; ++i) {
+            NearbySeat seat;
+            if (host.nearbySeatAt(i, seat)) seats_[seatCount_++] = seat;
+        }
+        if (was != seatCount_) markFullDirty();
+    }
+
+    if (!touch.justPressed) return;
+
+    if (lobbyRowRect(host, 0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        host.playSound(Sound::Select);
+        startLocal();
+        return;
+    }
+    for (uint8_t i = 0; i < seatCount_; ++i) {
+        if (!lobbyRowRect(host, static_cast<uint8_t>(i + 1))
+                 .contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            continue;
+        }
+        if (seats_[i].inviting) {
+            /* Accepting: they chose the session and they are White, because
+             * they asked. We answer by publishing ply 0 in their session,
+             * which is the whole handshake -- there is no second round trip. */
+            host.playSound(Sound::Select);
+            startRemote(seats_[i].deviceId, seats_[i].session, false);
+        } else {
+            /* Inviting: our session id, and we are White. Derived from the
+             * clock rather than a counter so two consoles inviting each other
+             * at once are unlikely to pick the same number. */
+            const uint8_t session = static_cast<uint8_t>((millis() >> 3) & 0x3F);
+            if (host.nearbyInvite(seats_[i].deviceId, session)) {
+                host.playSound(Sound::Select);
+                strncpy(opponent_, seats_[i].deviceId, sizeof(opponent_) - 1);
+                opponent_[sizeof(opponent_) - 1] = 0;
+                session_ = session;
+                remoteIsWhite_ = true;
+                mode_ = Mode::Waiting;
+                markFullDirty();
+            } else {
+                host.beepError();
+            }
+        }
+        return;
+    }
+}
+
+/* Take the opponent's move, if there is one we should act on.
+ *
+ * Four tests, and every one of them is load-bearing:
+ *
+ *   from this peer      -- another console's game must not leak into ours
+ *   in this session     -- nor a previous game between the same two consoles
+ *   the ply we expect   -- an advertisement repeats, so the same move arrives
+ *                          many times; acting once is what makes it a move
+ *                          rather than a stutter
+ *   legal here          -- and this is the one that matters for safety. A
+ *                          move is only applied if it is legal in OUR
+ *                          position, so a confused or hostile advertiser
+ *                          cannot force the board into a state that is not
+ *                          reachable by playing chess.
+ */
+void ChessGame::pollOpponent(AppContext& host) {
+    if (mode_ != Mode::Remote && mode_ != Mode::Waiting) return;
+    if (opponent_[0] == 0) return;
+
+    NearbyTurn turn;
+    if (!host.nearbyTurnFrom(opponent_, session_, turn)) return;
+
+    if (mode_ == Mode::Waiting) {
+        /* They answered. Their first advertisement in our session is the
+         * acceptance -- no separate message, because a separate message could
+         * be the one that goes missing. */
+        startRemote(opponent_, session_, true);
+    }
+
+    const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
+    if (turn.ply != expected) return;
+    if (ourTurn()) return;              // not their move to make
+
+    uint8_t legal[MAX_MOVES];
+    const uint8_t n = legalMoves(pos_, turn.from, legal);
+    bool ok = false;
+    for (uint8_t i = 0; i < n; ++i) {
+        if (legal[i] == turn.to) { ok = true; break; }
+    }
+    if (!ok) return;
+
+    for (int8_t f = 0; f < 8; ++f) markSquare(idx(f, rankOf(turn.from)));
+    markSquare(turn.from);
+    markSquare(turn.to);
+    applyMove(pos_, turn.from, turn.to);
+    theirPly_ = turn.ply;
+    selected_ = NO_SQ;
+    targetCount_ = 0;
+    refreshStatus();
+    host.playSound(status_ == Status::Checkmate ? Sound::GameOver
+                   : status_ == Status::Check   ? Sound::Reveal
+                                                : Sound::Tap);
+    markDirty();
+}
+
 void ChessGame::update(AppContext& host, const TouchPoint& touch) {
+    if (mode_ == Mode::Lobby) {
+        updateLobby(host, touch);
+        return;
+    }
+
+    pollOpponent(host);
+
+    /* Republish every frame. Unchanged values do not touch the radio, and a
+     * move must stay on the air until it is replaced: the opponent may be
+     * anywhere in its scan cycle, or may only just have come back into range. */
+    if (mode_ == Mode::Remote && ourPly_ > 0) {
+        host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+    }
+
     if (!touch.justPressed) return;
     if (status_ == Status::Checkmate || status_ == Status::Stalemate) return;
+    /* In a remote game the board is read-only while it is their turn. The
+     * legality filter would catch an out-of-turn move anyway -- it generates
+     * for the side to move -- but stopping it here means the pieces simply do
+     * not respond, which reads as "not your turn" rather than as a bug. */
+    if (mode_ == Mode::Remote && !ourTurn()) return;
 
     const uint8_t hit = squareAt(host, touch.x, touch.y);
     if (hit == NO_SQ) return;
@@ -453,6 +666,12 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
         for (uint8_t t = 0; t < targetCount_; ++t) markSquare(targets_[t]);
 
         applyMove(pos_, from, hit);
+        if (mode_ == Mode::Remote) {
+            ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+            ourFrom_ = from;
+            ourTo_ = hit;
+            host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+        }
         selected_ = NO_SQ;
         targetCount_ = 0;
         refreshStatus();
@@ -580,6 +799,15 @@ void ChessGame::drawStatus(AppContext& host) const {
 
     char line[40];
     const char* side = pos_.whiteToMove ? "White" : "Black";
+    if (mode_ == Mode::Waiting) {
+        snprintf(line, sizeof(line), "Asking %s...", opponent_);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.drawString(line, static_cast<int16_t>(tft.width() / 2),
+                       static_cast<int16_t>(y + STATUS_H / 2), 2);
+        tft.setTextDatum(TL_DATUM);
+        return;
+    }
     switch (status_) {
         case Status::Checkmate:
             /* The side to move is the one that is mated, so the winner is the
@@ -595,7 +823,17 @@ void ChessGame::drawStatus(AppContext& host) const {
             snprintf(line, sizeof(line), "%s to move - check!", side);
             break;
         default:
-            snprintf(line, sizeof(line), "%s to move", side);
+            if (mode_ == Mode::Remote) {
+                /* Say whose turn it is in the second person, because in a
+                 * remote game "White to move" does not tell a child whether
+                 * to pick a piece up. */
+                snprintf(line, sizeof(line), ourTurn() ? "Your move (%s)"
+                                                       : "%s is thinking",
+                         ourTurn() ? (remoteIsWhite_ ? "White" : "Black")
+                                   : opponent_);
+            } else {
+                snprintf(line, sizeof(line), "%s to move", side);
+            }
             break;
     }
     tft.setTextDatum(MC_DATUM);
@@ -608,6 +846,10 @@ void ChessGame::drawStatus(AppContext& host) const {
 }
 
 void ChessGame::renderStatic(AppContext& host) {
+    if (mode_ == Mode::Lobby) {
+        renderLobby(host);
+        return;
+    }
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
@@ -620,6 +862,10 @@ void ChessGame::renderStatic(AppContext& host) {
 }
 
 void ChessGame::renderDynamic(AppContext& host) {
+    if (mode_ == Mode::Lobby) {
+        renderLobby(host);
+        return;
+    }
     /* Only the squares that changed. A whole board is 64 fills and up to 32
      * pieces; a move touches a handful, and at 26px a square the difference is
      * the whole frame budget. */

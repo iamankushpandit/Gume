@@ -33,19 +33,79 @@ silently diverge.
 | `0x09` Complete Local Name | `Braino-<id>` |
 | `0xFF` Manufacturer Data | see below |
 
-### Manufacturer data, layout version 3
+### Manufacturer data, layout version 4
 
 | Offset | Bytes | Field |
 |---|---|---|
 | 0 | 2 | Company id `0xFFFF`, little endian |
 | 2 | 2 | Family tag `"BR"` |
-| 4 | 1 | Layout version — `3` |
+| 4 | 1 | Layout version — `4` |
 | 5 | 2 | Device id, the two MAC bytes |
-| 7 | 1 | Flags. Bit 0 = shares Nearby activity, bit 1 = poking; the rest reserved, sent as zero |
-| 8 | 1 | *(sharing or poking)* Open game, an index into the playable app registry |
-| 9 | 4 | *(sharing, not poking)* Best score for that game, little endian |
-| 9 | 2 | *(poking only)* Poke target — the device id being poked |
-| 11 | 1 | *(poking only)* Poke nonce |
+| 7 | 1 | Flags. Bit 0 = shares Nearby activity, bit 1 = poking, bit 2 = chess invitation, bit 3 = chess move; the rest reserved, sent as zero |
+| 8 | 1 | *(any flag set)* Open game, an index into the playable app registry |
+| 9 | 4 | *(sharing, no poke/invite/move)* Best score for that game, little endian |
+| 9 | 2 | *(poke or invite)* Target — the device id being poked or invited |
+| 11 | 1 | *(poke or invite)* Nonce; for an invitation this is the session id |
+| 9 | 4 | *(move only)* Packed move, little endian — see below |
+
+**Version 4 exists because a move is the same length as a score.** A chess
+block and an activity block are both thirteen bytes, so length alone cannot
+tell them apart — only the flag can. A version-3 reader meeting a version-4
+move would decode it as a best score and cheerfully show somebody several
+million points. That is the identical failure that took version 2 to 3 when the
+poke's *shorter* block arrived, and the lesson has now been learned twice:
+**gate every field on its own length AND its own flag.**
+
+#### The packed move
+
+Thirty-two bits, little endian, in the four bytes the best score would
+otherwise occupy:
+
+| Bits | Field |
+|---|---|
+| 31–26 | Session id (6) — which game, so two boards in one room do not merge |
+| 25–19 | Ply (7) — move number, modulo 128 |
+| 18–13 | From square (6) — 0–63 |
+| 12–7 | To square (6) — 0–63 |
+| 6–0 | Ack (7) — the highest ply of *theirs* this device has applied |
+
+There is nothing else, and there is nowhere to put anything else: the sharing
+payload already uses all 31 legal bytes, so a move had to **displace** the
+score rather than follow it. While a game is running the score is structurally
+absent, exactly as it is during a poke.
+
+Ply wraps at 128. That is safe because the two sides only ever advance one ply
+at a time and each carries the other's ack, so they can never be more than a
+move or two apart.
+
+#### Why a move is a state and a poke is an event
+
+A poke stops after `POKE_ADVERTISE_MS`. A move does **not**: it stays on the
+air until the next move replaces it. That is the whole reliability story — an
+opponent may have missed three scan windows, or only just walked back into
+range, and it can pick the game up from any later window. The acknowledgement
+rides the opponent's own advertisement, so there is no separate ack message
+that could itself go missing.
+
+A chess *invitation*, by contrast, is an event and uses the poke's exact wire
+shape and timer. That reuse is deliberate: an invitation is the same kind of
+thing — aimed at one peer, repeated because scan windows have gaps, acted on
+once per (device id, nonce) — and sharing the layout means sharing the
+idempotence argument rather than writing a second one slightly differently.
+
+#### What a receiver must do with a move
+
+Four tests, all required:
+
+1. **From the peer we are playing.** Another console's game must not leak in.
+2. **In this session.** Nor an earlier game between the same two consoles.
+3. **The ply we are expecting.** An advertisement repeats; acting once is what
+   makes it a move rather than a stutter.
+4. **Legal in the receiver's own position.** This is the safety property: a
+   move is applied only if it is legal on the board the receiver already has,
+   so a confused or hostile advertiser cannot force a position that is not
+   reachable by playing chess. At worst — and only by guessing both the session
+   and the exact ply — it can play a legal move.
 
 Everything from offset 8 on is present **only** when the flag that names it is
 set. With Nearby off the block is eight bytes and stops at the flag byte — the

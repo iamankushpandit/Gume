@@ -339,11 +339,13 @@ Opt-in, non-connectable BLE presence beacon in namespace `BleBeacon`. Off by def
 
 `broadcasting()` returns `nullptr` unless the controller is actually advertising. UI must key off that rather than off the stored setting, which can read On while the radio failed to come up; nothing may be labelled as on air unless it is.
 
-On air: Flags, Complete Local Name (`Braino-<id>`) and manufacturer data (company `0xFFFF`, `"BR"`, layout version 2, two MAC bytes, a flag byte) — 27 of the 31 legal bytes. The device id is the last two bytes of the factory BT MAC. Nothing profile-scoped is read by this module at all.
+On air: Flags, Complete Local Name (`Braino-<id>`) and manufacturer data (company `0xFFFF`, `"BR"`, layout version 4, two MAC bytes, a flag byte) — 27 of the 31 legal bytes. The device id is the last two bytes of the factory BT MAC. Nothing profile-scoped is read by this module at all.
 
 With Nearby play on, `setActivity()` appends a game index and a best score, taking the payload to **exactly 31 bytes**. There is no slack left: a longer device name or a third AD structure pushes the manufacturer block off the air, and `buildPayload()` logs and drops it rather than transmitting a half-advertisement. Sharing off removes both fields rather than zeroing them — "not transmitted" has to be structural to be worth claiming.
 
 `decode()` is the exact inverse of the manufacturer block and is what `BleScanner` reads peers with. Do not write a second parser: a transmit copy and a receive copy of a wire format drift, and the symptom is two consoles that silently cannot see each other.
+
+**Two consoles can play chess over this.** A chess move rides the same block, in the four bytes the score uses, gated on its own flag — a session, a ply, two squares and an ack, and nothing about the player. An invitation reuses the poke's wire shape and timer because it is the same kind of thing; a move does not, because a move is a state rather than an event and must stay on the air until it is replaced. `PAYLOAD_VERSION` is 4 for this: a move and a score are both thirteen bytes, so only the flag separates them and a version-3 reader would show a score of several million. That is the same failure that took version 2 to 3, which is why every field is now gated on its length **and** its flag. The full layout is in [docs/BLE_BEACON_SPEC.md](../../docs/BLE_BEACON_SPEC.md).
 
 `startRadio()` and `stopRadio()` both take a `Watchdog::Pause` — bringing the controller up blocks for a couple of hundred milliseconds and looks exactly like a hang from the loop task. `pause()` no-ops while the watchdog is unarmed, so calling this from `Board::begin()` is safe.
 

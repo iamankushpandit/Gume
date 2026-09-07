@@ -958,6 +958,18 @@ stable so you can recognise your own device in a scanner. Nobody types it and it
 is not derived from anything a player entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
+**Two consoles can play chess over it.** When two players start a game from
+the Chess lobby, each console advertises its latest move: a session number, a
+move number, and the two squares. That is all — no name, no profile and no
+score travels with a move, and the moves occupy the same four bytes the best
+score normally uses, because the advertisement is already full at 31 bytes.
+
+It is a **broadcast**, and worth being plain about: anyone in range with the
+right software hears the moves, exactly as they can already hear that a device
+is present. Only the two consoles in the game act on them. Every move received
+is checked against the receiver's own board and discarded unless it is legal
+there, so a bad actor cannot corrupt a game — at worst they can be ignored.
+
 **Not broadcast:** player information, player name, profile name, location, Wi-Fi
 credentials, Wi-Fi SSID, IP address, game progress, usage history.
 

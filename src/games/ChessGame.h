@@ -42,6 +42,10 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    /* Hands the radio back: a move stays advertised until replaced, so
+     * leaving the screen without clearing it would leave this console
+     * broadcasting a game it is no longer in. */
+    void end(AppContext& host) override;
 
     /* Piece codes. Sign carries colour, magnitude carries kind, so an empty
      * square is 0 and `-p` is the same piece in the other colour. That makes
@@ -79,6 +83,20 @@ private:
 
     enum class Status : uint8_t { Playing, Check, Checkmate, Stalemate };
 
+    /* How this game is being played.
+     *
+     *   Lobby    choosing between passing the device and playing a peer
+     *   Local    two players, one console -- the original, and the default
+     *   Waiting  we invited somebody and are waiting for them to answer
+     *   Remote   a live game against a peer
+     *
+     * Lost is not a state. A peer that walks out of range simply stops being
+     * heard, and the game sits waiting with the board intact -- there is
+     * nothing to disconnect, and the position is still correct if they come
+     * back. Saying "opponent lost" would be inventing an event the radio
+     * cannot actually observe. */
+    enum class Mode : uint8_t { Lobby, Local, Waiting, Remote };
+
     // ---- rules ----------------------------------------------------------
     static bool isWhite(int8_t piece) { return piece > 0; }
     static int8_t kind(int8_t piece) { return piece < 0 ? -piece : piece; }
@@ -105,6 +123,45 @@ private:
     void drawPiece(AppContext& host, const Rect& r, int8_t piece) const;
     void drawStatus(AppContext& host) const;
     void refreshStatus();
+
+    // ---- nearby play -----------------------------------------------------
+    /* Our colour in a remote game. The inviter is White, always. That is a
+     * decision rather than a negotiation: a handshake to agree colours would
+     * be another round trip on a medium with no delivery guarantee, and the
+     * person who asked for the game is a perfectly good tie-break. */
+    bool remoteIsWhite_ = true;
+    char opponent_[5] = {0};
+    uint8_t session_ = 0;
+    /* Plies we have applied. ourPly_ is the last we published, theirPly_ the
+     * last of theirs we accepted. Both count OUR view of the move number, so
+     * either side can tell a repeat from a new move without a clock. */
+    uint8_t ourPly_ = 0;
+    uint8_t theirPly_ = 0;
+    /* The move we are advertising, kept so it can be republished unchanged
+     * every frame without touching the radio. */
+    uint8_t ourFrom_ = 0;
+    uint8_t ourTo_ = 0;
+
+    Mode mode_ = Mode::Lobby;
+    /* Lobby list, refreshed on a cadence rather than every frame -- reading
+     * the peer table walks a small array under a lock, and a lobby that
+     * rebuilds at 50Hz is 50Hz of lock contention for a list that changes
+     * every few seconds. */
+    NearbySeat seats_[6];
+    uint8_t seatCount_ = 0;
+    uint32_t seatsAtMs_ = 0;
+
+    Rect lobbyRowRect(AppContext& host, uint8_t row) const;
+    void renderLobby(AppContext& host);
+    void updateLobby(AppContext& host, const TouchPoint& touch);
+    /* Accept a peer's move if it is theirs, in this session, the ply we are
+     * waiting for, and legal in our position. All four are required; the last
+     * is what stops a hostile or confused advertiser corrupting the board. */
+    void pollOpponent(AppContext& host);
+    void startLocal();
+    void startRemote(const char* peerId, uint8_t session, bool weAreWhite);
+    /** True when it is this console's turn in a remote game. */
+    bool ourTurn() const;
 
     Position pos_{};
     Status status_ = Status::Playing;

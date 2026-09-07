@@ -601,6 +601,20 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **Two consoles can play each other, and the moves ride the same beacon.**
+  Agreed with the maintainer before the code existed, which is the rule for a
+  change to what the device transmits. It is not a new outbound flow: it is the
+  existing opt-in beacon, gated on the same two switches, still
+  non-connectable. What goes on air is a session number, a move number, two
+  square numbers and an ack -- thirty-two bits, in the four bytes the score was
+  using, because the payload is already exactly 31 bytes and a move had to
+  displace something. **No name, no profile, no label, no score travels with a
+  move**, and that is structural: `AppContext`'s nearby surface is move-shaped,
+  so a game cannot put arbitrary bytes on the air even if it wanted to. Every
+  received move is checked for legality in the receiver's own position, which
+  is what stops a hostile advertiser corrupting a board. It is a BROADCAST --
+  everyone in range hears the moves, only the two playing act on them -- and
+  the docs must keep saying so.
 - **Local peer names never reach the radio, and that is structural.**
   `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
   one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never

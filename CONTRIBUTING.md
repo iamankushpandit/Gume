@@ -42,7 +42,7 @@ Three things leave the device over the air. This is the complete list:
 |---|---|---|
 | NTP | A time query to `pool.ntp.org`, or whichever server is configured | Only once Wi-Fi is set up, and Wi-Fi can be skipped entirely |
 | Timezone guess | One request to `ip-api.com` on first connect, which necessarily shows that host the device's public IP | The same Wi-Fi switch; overridden by picking a zone by hand |
-| BLE beacon | A device name and two bytes of the factory Bluetooth MAC, non-connectable. With Nearby play on, also a game index and a best score | Off by default, opt-in from *Settings → Beacon* |
+| BLE beacon | A device name and two bytes of the factory Bluetooth MAC, non-connectable. With Nearby play on, also a game index and a best score — and, while a two-player game is running, the moves: a session number, a move number and two board squares. No name, no profile, no score travels with a move | Off by default, opt-in from *Settings → Beacon* |
 | Update check | A bare GET of one static file listing the current version of every supported board. Nothing about this device goes with it: no version, no board id, no query string — so the request is byte-identical from every Braino in the world, and the comparison happens on the device | The same Wi-Fi switch. It is not separately declinable; a device with no Wi-Fi configured never makes the request |
 
 The update check was added in 5.7.0, and it is the example of how this list is
