@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.8.0-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.7.0
+release, and About's **This build** page names the branch and commit.
+`release.yml` refuses to publish a tag whose version carries this suffix.
+
+The suffix now matters to one more thing than it used to. A console running a
+snapshot compares itself against the published manifest on its daily update
+check, and `Board::compareVersions()` sorts a pre-release BEFORE the release of
+the same number -- so a board flashed from `dev` at 5.8.0-SNAPSHOT is correctly
+told that nothing newer exists, rather than being nagged to install the 5.7.0 it
+is already ahead of.
+
 ## 5.7.0 — 2026-09-06
 
 **The sound was broken on two boards, the beacon could crash the device, and
