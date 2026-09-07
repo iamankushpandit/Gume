@@ -428,8 +428,28 @@ void Board::displayWake() {
     if (sinceSleep < PANEL_SLEEP_SETTLE_MS) {
         delay(PANEL_SLEEP_SETTLE_MS - sinceSleep);
     }
-    tft_.writecommand(0x11);
+    tft_.writecommand(0x11);        // Sleep Out
     delay(PANEL_SLEEP_SETTLE_MS);
+    /* Display ON, and it is not redundant.
+     *
+     * Sleep Out alone is enough on the ILI9341, which is the panel this
+     * function was written against and the only one it was tested on. It is
+     * NOT enough on the ST7796 (the 4-inch board): that controller comes out
+     * of sleep with the display output still disabled, so the firmware wakes
+     * correctly -- touch is read, the wake path runs, the log prints a normal
+     * 120ms panel delay -- and the screen stays black. To an owner that is
+     * indistinguishable from a dead device, and the only way out is the reset
+     * button.
+     *
+     * Measured on an E32R40T: two sleep/wake cycles both logged
+     * "[display] wake ... panel delay 120ms" with nothing on the glass.
+     *
+     * Sent unconditionally rather than behind a board test. On a panel that is
+     * already displaying, Display ON is a no-op, so the cost is one byte on
+     * the SPI bus once per wake; a per-board branch here would be one more
+     * thing for the next panel to get wrong, and this is exactly the kind of
+     * difference that produces a healthy log and a dark screen. */
+    tft_.writecommand(0x29);
     applyBrightness();
     displayAsleep_ = false;
     const uint32_t wakeEndMs = millis();

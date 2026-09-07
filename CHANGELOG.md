@@ -48,6 +48,15 @@ out of the response, so a tampered answer can at worst display a wrong number.
 separately declinable: it runs when Wi-Fi is configured, and a console with no
 Wi-Fi never makes the request.
 
+**The 4-inch board could not wake from sleep.** It went dark and stayed dark,
+and the only way back was the reset button -- which, on a console handed to a
+child, is indistinguishable from a broken device. The firmware was awake the
+whole time: touch was being read, the wake path ran, and the log reported a
+normal panel delay. The panel simply was not switched back on. Waking sent
+Sleep Out but never Display ON, which is sufficient on the ILI9341 the code was
+written against and not on the ST7796. Display ON is now sent on every wake,
+for every board -- it costs one byte on a panel that is already lit.
+
 **The launcher leads with different games.** Page 1 is now Memory, Money,
 Flags, Microku, Trace and Counting. It opened with Tic-Tac-Toe and closed with
 Whack-a-Mole, neither of which says anything about what a child learns, and

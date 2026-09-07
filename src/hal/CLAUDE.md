@@ -65,6 +65,22 @@ Deleting a player is a storage operation, not a name-list edit. `removePlayer()`
 
 Owns the `TFT_eSPI` instance. Calibration is captured in rotation 1 and derived for other rotations by transform, so `setDisplayRotation()` is safe at runtime. Brightness is PWM on the backlight pin with a floor of `BRIGHTNESS_MIN = 25` — below that the panel is unreadable and a player could not find the slider to undo it.
 
+**Waking a panel is Sleep Out AND Display ON.** `displayWake()` sends `0x11`
+and then `0x29`, unconditionally. Sleep Out alone is enough on the ILI9341 --
+the panel this code was written against -- and is NOT enough on the ST7796 on
+the 4-inch board, which resumes with display output still disabled. The failure
+is the nastiest shape available: the firmware wakes perfectly, touch is read,
+the wake path runs and the log prints a normal 120ms panel delay, and the glass
+stays black. An owner sees a dead device and reaches for the reset button.
+Measured on an E32R40T, where two sleep/wake cycles both logged
+`[display] wake ... panel delay 120ms` with nothing visible.
+
+Display ON is a no-op on a panel that is already displaying, so it is sent for
+every board rather than behind a `BOARD` test. A per-panel branch here would be
+one more thing for the next controller to get wrong, and this is exactly the
+class of difference that produces a healthy log and a dark screen. Do not
+"optimise" it back into a conditional.
+
 Panel sleep/wake is observable: `displaySleepTelemetry()` reports sleep count, wake count, last sleep/wake times, last sleep duration and panel wake delay. `BoardPower.cpp` also logs `[display] sleep ...` and `[display] wake ...` lines over serial, and System Info shows the same counters under App -> Display sleep. This is instrumentation for soak testing, not a substitute for a physical long-duration run.
 
 ### Sound
