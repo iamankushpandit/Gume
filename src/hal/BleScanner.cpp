@@ -60,6 +60,23 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
                          obs.pokeTarget);
                 table_[i].pokeNonce = obs.pokeNonce;
             }
+            table_[i].inviting = obs.inviting;
+            if (obs.inviting) {
+                snprintf(table_[i].inviteTarget, sizeof(table_[i].inviteTarget),
+                         "%s", obs.inviteTarget);
+                table_[i].inviteSession = obs.inviteSession;
+            }
+            /* A move is a state, so the last one heard is kept even once the
+             * peer stops advertising it -- unlike a poke, which is an event
+             * and is cleared with the flag. */
+            if (obs.chessing) {
+                table_[i].chessing = true;
+                table_[i].chessSession = obs.chessSession;
+                table_[i].chessPly = obs.chessPly;
+                table_[i].chessFrom = obs.chessFrom;
+                table_[i].chessTo = obs.chessTo;
+                table_[i].chessAck = obs.chessAck;
+            }
             table_[i].rssi = rssi;
             table_[i].lastSeenMs = nowMs;
             ++generation_;
@@ -95,6 +112,15 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     s.poking = obs.poking;
     snprintf(s.pokeTarget, sizeof(s.pokeTarget), "%s", obs.pokeTarget);
     s.pokeNonce = obs.pokeNonce;
+    s.inviting = obs.inviting;
+    snprintf(s.inviteTarget, sizeof(s.inviteTarget), "%s", obs.inviteTarget);
+    s.inviteSession = obs.inviteSession;
+    s.chessing = obs.chessing;
+    s.chessSession = obs.chessSession;
+    s.chessPly = obs.chessPly;
+    s.chessFrom = obs.chessFrom;
+    s.chessTo = obs.chessTo;
+    s.chessAck = obs.chessAck;
     s.rssi = rssi;
     s.lastSeenMs = nowMs;
     ++generation_;

@@ -10,6 +10,29 @@ struct AppDefinition;
 class Board;
 class ContentLoader;
 
+/* One seat at a two-player game on another console.
+ *
+ * Everything an app is allowed to know about a peer: the hardware id it
+ * already broadcasts about itself, and whether it is currently offering or
+ * playing a game. No name, no profile, no label -- a game does not need them
+ * and cannot be trusted with them. */
+struct NearbySeat {
+    char deviceId[5] = {0};
+    bool inviting = false;      // offering us a game right now
+    uint8_t session = 0;
+};
+
+/* The opponent's latest move, as heard on the air. `ack` is the highest ply of
+ * OURS they have applied, which is how a sender knows to stop worrying about
+ * a move that may have been missed. */
+struct NearbyTurn {
+    uint8_t session = 0;
+    uint8_t ply = 0;
+    uint8_t from = 0;
+    uint8_t to = 0;
+    uint8_t ack = 0;
+};
+
 class AppContext {
 public:
     virtual ~AppContext() = default;
@@ -31,6 +54,37 @@ public:
     virtual void drawTopBar(const char* title) = 0;
     virtual void goHome() = 0;
     virtual void relaunchActiveGame() = 0;
+
+    /* ---- two-player games on nearby consoles ---------------------------
+     *
+     * Deliberately MOVE-shaped and not byte-shaped. An app can say "I played
+     * from square X to square Y"; it cannot say "put these bytes on the air".
+     * That is the whole reason this sits in AppContext at all rather than
+     * handing a game the radio: the sandbox is what would make a third-party
+     * app safe to run one day, and it survives only if every hole in it is
+     * this narrow. Nothing here can transmit a name, a profile or a score.
+     *
+     * All of it is inert unless the owner has switched on both the beacon and
+     * Nearby play. A game must therefore treat every call as best-effort and
+     * never require one to have succeeded.
+     *
+     * Generic on purpose -- a session is two seats exchanging numbered moves,
+     * which is as true of backgammon as of chess. */
+    virtual uint8_t nearbySeatCount() = 0;
+    virtual bool nearbySeatAt(uint8_t index, NearbySeat& out) = 0;
+    /** Offer a game to one peer. False if the radio is off or the id is bad. */
+    virtual bool nearbyInvite(const char* deviceId, uint8_t session) = 0;
+    /** An invitation aimed at THIS device, if one is on the air. */
+    virtual bool nearbyInviteForUs(NearbySeat& out) = 0;
+    /* Publish our latest move and keep it on the air until it is replaced.
+     * Cheap to call every frame: unchanged values do not touch the radio. */
+    virtual void nearbyPublish(uint8_t session, uint8_t ply, uint8_t from,
+                               uint8_t to, uint8_t ack) = 0;
+    /** Stop advertising a game. */
+    virtual void nearbyStop() = 0;
+    /** The named peer's latest move in `session`, if it has one on the air. */
+    virtual bool nearbyTurnFrom(const char* deviceId, uint8_t session,
+                                NearbyTurn& out) = 0;
 };
 
 class GameHost : public AppContext {

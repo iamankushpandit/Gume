@@ -59,6 +59,40 @@ Ui::Renderer& BrainoApp::display() {
     return renderer_;
 }
 
+/* ---------------------------------------------------- nearby two-player
+ *
+ * Forwarding only. NearbyPlay decides what is allowed and what a sighting
+ * means; this just narrows it to the shape an app is given. */
+uint8_t BrainoApp::nearbySeatCount() {
+    return NearbyPlay::seatCount();
+}
+
+bool BrainoApp::nearbySeatAt(uint8_t index, NearbySeat& out) {
+    return NearbyPlay::seatAt(index, out);
+}
+
+bool BrainoApp::nearbyInvite(const char* deviceId, uint8_t session) {
+    return NearbyPlay::invite(deviceId, session);
+}
+
+bool BrainoApp::nearbyInviteForUs(NearbySeat& out) {
+    return NearbyPlay::inviteForUs(out);
+}
+
+void BrainoApp::nearbyPublish(uint8_t session, uint8_t ply, uint8_t from,
+                              uint8_t to, uint8_t ack) {
+    NearbyPlay::publishTurn(session, ply, from, to, ack);
+}
+
+void BrainoApp::nearbyStop() {
+    NearbyPlay::stopTurns();
+}
+
+bool BrainoApp::nearbyTurnFrom(const char* deviceId, uint8_t session,
+                               NearbyTurn& out) {
+    return NearbyPlay::turnFrom(deviceId, session, out);
+}
+
 Board& BrainoApp::board() {
     return board_;
 }

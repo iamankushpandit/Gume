@@ -34,6 +34,21 @@ struct Known {
      * yet" from "the last one happened to be nonce 0". */
     bool sawPoke = false;
     uint8_t lastPokeNonce = 0;
+
+    /* The latest chess-style traffic heard from this peer. Kept raw and
+     * unjudged: whether a move is legal, expected, or even in the right game
+     * is the app's business, and this module has no idea what the numbers
+     * mean. */
+    bool inviting = false;
+    char inviteTarget[5] = {0};
+    uint8_t inviteSession = 0;
+
+    bool hasTurn = false;
+    uint8_t turnSession = 0;
+    uint8_t turnPly = 0;
+    uint8_t turnFrom = 0;
+    uint8_t turnTo = 0;
+    uint8_t turnAck = 0;
 };
 
 Known known_[BleScan::MAX_SIGHTINGS];
@@ -139,6 +154,25 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
  * this module raises is ambient news about the room, while a poke is a person
  * asking for your attention, which is the distinction worth a sound. Mute is
  * still honoured, because every cue goes through Board::playSound(). */
+/* Copy the session traffic across verbatim. No interpretation: this module
+ * does not know a chess move from a backgammon one, and should not. */
+void recordSession(Known& entry, const BleScan::Sighting& seen) {
+    entry.inviting = seen.inviting;
+    if (seen.inviting) {
+        strncpy(entry.inviteTarget, seen.inviteTarget, sizeof(entry.inviteTarget) - 1);
+        entry.inviteTarget[sizeof(entry.inviteTarget) - 1] = 0;
+        entry.inviteSession = seen.inviteSession;
+    }
+    if (seen.chessing) {
+        entry.hasTurn = true;
+        entry.turnSession = seen.chessSession;
+        entry.turnPly = seen.chessPly;
+        entry.turnFrom = seen.chessFrom;
+        entry.turnTo = seen.chessTo;
+        entry.turnAck = seen.chessAck;
+    }
+}
+
 void evaluatePoke(Board& board, Known& entry, const BleScan::Sighting& seen) {
     if (!seen.poking) {
         return;
@@ -197,6 +231,7 @@ void reconcile(Board& board) {
             pushEvent(text);
             evaluateScore(board, *entry, seen);
             evaluatePoke(board, *entry, seen);
+        recordSession(*entry, seen);
         } else {
             const bool gameChanged = entry->lastGame != seen.gameIndex;
             const bool scoreChanged = entry->lastScore != seen.bestScore;
@@ -424,5 +459,89 @@ PeerView peerAt(Board& board, uint8_t index) {
 }
 
 uint32_t peerGeneration() { return peerGeneration_; }
+
+
+/* ---- two-player sessions ------------------------------------------------
+ *
+ * The gate is re-derived on every call rather than cached, for the same
+ * reason tick() re-derives it: an ordering contract with Settings is a thing
+ * that can be got wrong once and then stays wrong. */
+namespace {
+bool sessionsAllowed() {
+    return enabled_ && BleBeacon::active();
+}
+}   // namespace
+
+uint8_t seatCount() {
+    return sessionsAllowed() ? knownCount_ : 0;
+}
+
+bool seatAt(uint8_t index, NearbySeat& out) {
+    if (!sessionsAllowed() || index >= knownCount_) {
+        return false;
+    }
+    const Known& k = known_[index];
+    strncpy(out.deviceId, k.deviceId, sizeof(out.deviceId) - 1);
+    out.deviceId[sizeof(out.deviceId) - 1] = 0;
+    out.inviting = k.inviting;
+    out.session = k.inviteSession;
+    return true;
+}
+
+bool invite(const char* deviceId, uint8_t session) {
+    if (!sessionsAllowed()) {
+        return false;
+    }
+    return BleBeacon::inviteChess(deviceId, session);
+}
+
+bool inviteForUs(NearbySeat& out) {
+    if (!sessionsAllowed()) {
+        return false;
+    }
+    const char* mine = BleBeacon::configured().deviceId;
+    for (uint8_t i = 0; i < knownCount_; ++i) {
+        const Known& k = known_[i];
+        if (!k.inviting) continue;
+        if (strncmp(k.inviteTarget, mine, sizeof(k.inviteTarget)) != 0) continue;
+        strncpy(out.deviceId, k.deviceId, sizeof(out.deviceId) - 1);
+        out.deviceId[sizeof(out.deviceId) - 1] = 0;
+        out.inviting = true;
+        out.session = k.inviteSession;
+        return true;
+    }
+    return false;
+}
+
+void publishTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
+                 uint8_t ack) {
+    if (!sessionsAllowed()) {
+        return;
+    }
+    BleBeacon::setChessMove(session, ply, from, to, ack);
+}
+
+void stopTurns() {
+    BleBeacon::clearChess();
+}
+
+bool turnFrom(const char* deviceId, uint8_t session, NearbyTurn& out) {
+    if (!sessionsAllowed() || deviceId == nullptr) {
+        return false;
+    }
+    for (uint8_t i = 0; i < knownCount_; ++i) {
+        const Known& k = known_[i];
+        if (!k.hasTurn) continue;
+        if (strncmp(k.deviceId, deviceId, sizeof(k.deviceId)) != 0) continue;
+        if (k.turnSession != (session & 0x3F)) continue;
+        out.session = k.turnSession;
+        out.ply = k.turnPly;
+        out.from = k.turnFrom;
+        out.to = k.turnTo;
+        out.ack = k.turnAck;
+        return true;
+    }
+    return false;
+}
 
 }   // namespace NearbyPlay
