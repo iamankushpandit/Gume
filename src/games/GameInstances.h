@@ -21,6 +21,8 @@
 #include "games/NumberLineGame.h"
 #include "games/ObjectAddGame.h"
 #include "games/OddOneOutGame.h"
+#include "games/PianoGame.h"
+#include "games/ChessGame.h"
 #include "games/PercentCircleGame.h"
 #include "games/ProfileGame.h"
 #include "games/ScoresGame.h"
@@ -73,6 +75,8 @@ struct GameInstances {
     DiceGame dice;
     CoinFlipGame coinFlip;
     ElementsGame elements;
+    PianoGame piano;
+    ChessGame chess;
     ProfileGame profile;
     ScoresGame scores;
     AboutGame about;

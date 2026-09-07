@@ -595,6 +595,26 @@ constexpr Segment CUE_POP[] = {
  * dozen of them. 260ms fits inside Cinnamon's 600ms lit period with room, so
  * the note has stopped before the pad goes dark rather than being cut off by
  * the next one. */
+/* One chromatic octave, equal temperament with A4 = 440. Indexed by
+ * (cue - Sound::NoteC4), which is why Sound.h insists that run stays
+ * contiguous.
+ *
+ * A table and a range test rather than thirteen more switch cases: every note
+ * is the same one-segment script with a different number in it, and spelling
+ * that out thirteen times would bury the cues that actually differ from each
+ * other.
+ *
+ * Sine, like the pads and for the same reason -- a piano is played fast and
+ * repeatedly, and a square wave becomes wearing within a minute. 320ms is long
+ * enough to ring after the finger lifts and short enough that a quick run does
+ * not turn into one continuous note; the synthesiser is monophonic, so a new
+ * key replaces the one before it rather than sounding with it. */
+constexpr uint16_t NOTE_HZ[SOUND_NOTE_COUNT] = {
+    262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, 523,
+};
+constexpr uint16_t NOTE_MS = SOUND_NOTE_MS;   // one statement of the fact
+constexpr uint8_t NOTE_AMP = 85;
+
 constexpr Segment CUE_PAD_1[] = {tone(392, 260, 85)};    // G4
 constexpr Segment CUE_PAD_2[] = {tone(523, 260, 85)};    // C5
 constexpr Segment CUE_PAD_3[] = {tone(659, 260, 85)};    // E5
@@ -1025,6 +1045,18 @@ void Board::playSound(Sound cue) {
      * NOT gated: beepOk() and beepError() pulse before they call this, so
      * muting takes the sound and leaves the light. */
     if (!soundEnabled()) return;
+
+    /* The piano's octave, handled as a range before the switch. Still behind
+     * the mute gate above -- there is one door, and notes come through it like
+     * everything else. */
+    if (cue >= Sound::NoteC4 && cue <= Sound::NoteC5) {
+        const uint8_t i = static_cast<uint8_t>(
+            static_cast<uint8_t>(cue) - static_cast<uint8_t>(Sound::NoteC4));
+        const Segment note[] = {tone(NOTE_HZ[i], NOTE_MS, NOTE_AMP)};
+        armCue(note);
+        return;
+    }
+
     switch (cue) {
         case Sound::Tap:       armCue(CUE_TAP); break;
         case Sound::Select:    armCue(CUE_SELECT); break;
@@ -1044,6 +1076,15 @@ void Board::playSound(Sound cue) {
         case Sound::Pad3:      armCue(CUE_PAD_3); break;
         case Sound::Pad4:      armCue(CUE_PAD_4); break;
         case Sound::Boot:      armCue(PHRASE_LETS_PLAY_BRAINO); break;
+        /* Handled by the range test above, before this switch. Listed so the
+         * compiler still checks the enum is covered -- an unlisted case here
+         * would be a warning we would rather have than not. */
+        case Sound::NoteC4:  case Sound::NoteCs4: case Sound::NoteD4:
+        case Sound::NoteDs4: case Sound::NoteE4:  case Sound::NoteF4:
+        case Sound::NoteFs4: case Sound::NoteG4:  case Sound::NoteGs4:
+        case Sound::NoteA4:  case Sound::NoteAs4: case Sound::NoteB4:
+        case Sound::NoteC5:
+            break;
     }
 #else
     (void)cue;

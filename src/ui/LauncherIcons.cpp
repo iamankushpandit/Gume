@@ -447,6 +447,34 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.drawString("O", cx + 1, cy - 1, 4);
             tft.setTextDatum(TL_DATUM);
             break;
+        case LauncherIcon::Piano:
+            /* Three white keys with two black ones between them -- the
+             * smallest shape that still reads as a keyboard rather than as a
+             * bar chart or a grid. Rule 5: no other icon in this set is a row
+             * of tall rectangles with short ones overlapping the tops. */
+            tft.fillRect(cx - 18, cy - 12, 11, 24, snow());
+            tft.fillRect(cx - 6, cy - 12, 11, 24, snow());
+            tft.fillRect(cx + 6, cy - 12, 11, 24, snow());
+            tft.drawRect(cx - 18, cy - 12, 11, 24, ink());
+            tft.drawRect(cx - 6, cy - 12, 11, 24, ink());
+            tft.drawRect(cx + 6, cy - 12, 11, 24, ink());
+            tft.fillRect(cx - 10, cy - 12, 7, 15, ink());
+            tft.fillRect(cx + 2, cy - 12, 7, 15, ink());
+            break;
+        case LauncherIcon::Chess:
+            /* A checkerboard corner with one piece standing on it. Rule 5: the
+             * existing grid icons (Tic-Tac-Toe, Memory, Sliding Puzzle) are
+             * all uniform cells, and none of them has a disc sitting on top. */
+            for (int8_t row = 0; row < 4; ++row) {
+                for (int8_t col = 0; col < 4; ++col) {
+                    if (((row + col) & 1) == 0) continue;
+                    tft.fillRect(cx - 16 + col * 8, cy - 16 + row * 8, 8, 8, snow());
+                }
+            }
+            tft.drawRect(cx - 16, cy - 16, 32, 32, ink());
+            tft.fillCircle(cx + 4, cy + 4, 7, amber());
+            tft.drawCircle(cx + 4, cy + 4, 7, ink());
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

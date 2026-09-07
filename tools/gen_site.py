@@ -168,6 +168,8 @@ SCREEN_CAPTIONS = {
     "elements": "Elements: the periodic table",
     "elements-card": "Elements: one element up close",
     "elements-quiz": "Elements: find it in the table",
+    "piano": "Piano: one octave, tap a key",
+    "chess": "Chess: tap a piece to see its moves",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
     "flags-capital": "Flags: capital bonus",
@@ -249,6 +251,8 @@ PLAYABLE_STILLS = {
     "dice": ("dice",),
     "coinflip": ("coinflip",),
     "elements": ("elements", "elements-card", "elements-quiz"),
+    "piano": ("piano",),
+    "chess": ("chess",),
 }
 
 SYSTEM_SHOWCASE = (
