@@ -26,7 +26,7 @@ constexpr AppMetadata MULTIPLICATION_METADATA = {
     "Practice multiplication facts.",
     &MULTIPLICATION_SCORE,
     LauncherIcon::Multiplication,
-    3,
+    10,
     true,
 };
 }

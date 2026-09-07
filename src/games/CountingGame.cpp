@@ -21,7 +21,7 @@ constexpr AppMetadata COUNTING_METADATA = {
     "Count objects, tap the number.",
     &COUNTING_SCORE,
     LauncherIcon::Counting,
-    9,
+    7,
     true,
 };
 }

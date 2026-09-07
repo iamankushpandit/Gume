@@ -170,8 +170,10 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     const bool admin = isAdmin(board);
 
     char label[28];
-    snprintf(label, sizeof(label), "Theme: %s",
-             board.themeMode() == Board::ThemeMode::Dark ? "Dark" : "Light");
+    /* Chevrons because the button is split: left half back, right half
+     * forward. With nine themes a one-way cycle is nine taps to undo one. */
+    snprintf(label, sizeof(label), "< %s >",
+             Ui::themeName(static_cast<Ui::Theme>(board.themeMode())));
     Ui::drawButton(tft, themeRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Menu: %s",

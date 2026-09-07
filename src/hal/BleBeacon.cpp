@@ -2,6 +2,7 @@
 #include "Watchdog.h"
 
 #include <NimBLEDevice.h>
+#include <WiFi.h>
 #include <esp_mac.h>
 #include <string>
 
@@ -14,6 +15,9 @@ bool enabled_ = false;
 bool active_ = false;
 uint8_t idBytes_[2] = {0, 0};   // the two MAC bytes behind adv_.deviceId
 uint32_t pokeStartedMs_ = 0;    // when the live poke went on air
+/* Set when advertising has stopped but the controller could not safely be torn
+ * down yet. See stopRadio(). */
+bool deinitPending_ = false;
 
 /* GAP AD types (Core Supplement, Part A). */
 constexpr uint8_t AD_FLAGS = 0x01;
@@ -147,6 +151,9 @@ void startRadio() {
     if (active_) {
         return;
     }
+    /* Whatever teardown was waiting on Wi-Fi is moot: the stack is wanted
+     * again, and completing it now would only be followed by a re-init. */
+    deinitPending_ = false;
     /* Bringing the controller up blocks for a couple of hundred milliseconds,
      * which from the loop task looks exactly like a hang. */
     Watchdog::Pause guard;
@@ -174,17 +181,64 @@ void startRadio() {
                   active_ ? "started" : "FAILED", adv_.deviceName, adv_.payloadLen);
 }
 
+/* True whenever the Wi-Fi driver is started, connected or not.
+ *
+ * Connection state is the wrong question: coexistence arbitration is live from
+ * the moment the driver starts, so a device that has begun associating and not
+ * yet succeeded is exactly as dangerous to tear a controller down underneath as
+ * one holding an address. */
+bool wifiRadioUp() {
+    return WiFi.getMode() != WIFI_MODE_NULL;
+}
+
+/* Take the beacon off the air, and tear the controller down if it is safe.
+ *
+ * Those are two separate things, and conflating them crashed the device.
+ * Measured on hardware: with Wi-Fi running for NTP, advertising->stop()
+ * followed by NimBLEDevice::deinit(true) panics with
+ *
+ *     Guru Meditation Error: Core 0 panic'ed (InstrFetchProhibited)
+ *     PC : 0x00000000
+ *
+ * A PC of zero is a call through a null function pointer -- the controller is
+ * being deinitialised while Wi-Fi coexistence callbacks still reference it. It
+ * is a race rather than a certainty: consecutive runs alternated between the
+ * panic and a survivable "timeout when WiFi un-init, type=4". Steady-state
+ * coexistence is fine -- five rounds of scanNetworks() against a live
+ * advertisement left free heap flat at ~155KB -- so this is deinit ordering,
+ * not memory, and Watchdog::Pause does not help because a panic is not a stall.
+ *
+ * The reachable user gesture is turning the beacon off in Settings while the
+ * clock is syncing, which is not an exotic one.
+ *
+ * So: stopping advertising is unconditional and immediate, because that is the
+ * half the privacy promise rests on -- when the setting says the radio is
+ * quiet, nothing is on the air. The deinit is deferred while Wi-Fi is up, and
+ * tickRadio() completes it once Wi-Fi goes down. The cost of deferring is the
+ * ~30KB of heap the stack holds, which is a price paid only by a device that
+ * has Wi-Fi configured, and only until the radio next goes idle. A crash is
+ * not a price worth paying for it. */
 void stopRadio() {
     if (!NimBLEDevice::getInitialized()) {
         active_ = false;
+        deinitPending_ = false;
         return;
     }
     Watchdog::Pause guard;
     NimBLEDevice::getAdvertising()->stop();
+    active_ = false;
+
+    if (wifiRadioUp()) {
+        deinitPending_ = true;
+        Serial.println("[ble] advertising stopped; controller held up "
+                       "(Wi-Fi active, deinit deferred)");
+        return;
+    }
+
     /* Fully tear the stack down: leaving it initialised holds ~30KB of heap
      * that the games would rather have, and "off" should mean off. */
     NimBLEDevice::deinit(true);
-    active_ = false;
+    deinitPending_ = false;
     Serial.println("[ble] advertising stopped");
 }
 
@@ -233,6 +287,27 @@ void setEnabled(bool on) {
     } else {
         stopRadio();
     }
+}
+
+/* Finish a teardown that stopRadio() had to defer. Called once per frame from
+ * the runtime; the common case is a bool test and a return.
+ *
+ * This is the whole reason the beacon has a per-frame hook at all. Retrying
+ * from the next stopRadio() would never fire -- the radio is already off -- and
+ * leaving it to the next reboot would hold 30KB indefinitely on the one device
+ * shape that has it: Wi-Fi configured and the beacon switched off. */
+void tickRadio() {
+    if (!deinitPending_ || wifiRadioUp()) {
+        return;
+    }
+    if (!NimBLEDevice::getInitialized()) {
+        deinitPending_ = false;
+        return;
+    }
+    Watchdog::Pause guard;
+    NimBLEDevice::deinit(true);
+    deinitPending_ = false;
+    Serial.println("[ble] deferred controller teardown completed");
 }
 
 void setActivity(bool share, uint8_t gameIndex, uint32_t bestScore) {

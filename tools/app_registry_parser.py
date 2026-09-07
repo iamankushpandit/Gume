@@ -168,7 +168,16 @@ def parse_metadata_file(path: str) -> tuple[dict[str, dict], dict[str, str]]:
     return metadata_defs, functions
 
 
-def playable_apps() -> list[AppInfo]:
+def playable_apps_in_registry_order() -> list[AppInfo]:
+    """Playable apps in the order APP_REGISTRY declares them.
+
+    This is the order the launcher actually paints -- appVisibleAt() walks the
+    array -- so it is the order alignment has to be checked against. The sorted
+    view below cannot be used for that: sorting by launcherIndex and then
+    asserting launcherIndex == position is a tautology, which is how an
+    APP_REGISTRY whose array order disagreed with every metadata index passed
+    the catalog check cleanly.
+    """
     game_dir = os.path.join(ROOT, "src", "games")
     metadata_defs = {}
     function_to_metadata = {}
@@ -215,6 +224,12 @@ def playable_apps() -> list[AppInfo]:
                 score=data["score"],
             )
         )
+    return apps
+
+
+def playable_apps() -> list[AppInfo]:
+    """Playable apps sorted by launcher index -- the order they are shown in."""
+    apps = playable_apps_in_registry_order()
     apps.sort(key=lambda app: app.index)
     return apps
 

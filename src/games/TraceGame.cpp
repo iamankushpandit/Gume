@@ -47,7 +47,7 @@ constexpr AppMetadata TRACE_METADATA = {
     "Trace big and small letters.",
     nullptr,
     LauncherIcon::Trace,
-    23,
+    6,
     true,
 };
 }

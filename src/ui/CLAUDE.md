@@ -1,6 +1,6 @@
 # src/ui
 
-`Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so Dark/Light both work.
+`Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so that all nine themes work.
 
 ## Renderer
 
@@ -8,7 +8,19 @@
 
 ## Theme
 
-Dark and Light palettes of RGB565 colours — `bg`, `surface`, `panel`, `text`, `muted`, `outline`, `success`, `error`, `warning` — swapped by `Ui::setTheme()`. Helpers read the active palette automatically. `Ui::rgb(r, g, b)` packs a literal colour for icon art, which is the one place fixed colours are expected.
+Nine palettes of RGB565 colours, one row each in `PALETTES` (`Ui.cpp`), swapped into live `COLOR_*` globals by `Ui::setTheme()`. Roles: `bg`, `bar`, `barText`, `surface`, `panel`, `text`, `muted`, `outline`, `success`, `error`, `warning`, three launcher `tile` fills and a corner `radius`. Helpers read the active palette automatically. `Ui::rgb(r, g, b)` packs a literal colour for icon art, which is the one place fixed colours are expected.
+
+Three of those roles were constants until the period themes needed them, and each one had silently made a whole class of theme impossible:
+
+- **`barText`** was `constexpr COLOR_BAR_TEXT = TFT_WHITE`. It is why the Light theme kept a dark bar ("keep dark header both themes") -- a light bar would have had white glyphs on it. Classic needs a white bar with black glyphs, and Paper wanted a cream one.
+- **The three tile fills** were literals in `AppRuntimeLauncher.cpp`. Pocket is four shades of green; three bright RGB rectangles on the first screen anyone sees would have wrecked it.
+- **`radius`** was a hardcoded `6` in `drawButton`. A rounded Windows 98 button is not a Windows 98 button.
+
+The lesson generalises: when a theme "can't be done", check for a colour that is a constant rather than a role.
+
+**A theme change is `markFullDirty()`, never `markDirty()`.** It repaints the ground and the chrome, not the content on top of them. Settings used `markDirty()` and left the light-theme tab strip sitting above a dark screen -- visible with two themes, and nine make it unmissable.
+
+**Judge palettes on glass, not in `gen_screens.py`.** PIL renders every palette cleanly and cannot show a resistive overlay diffusing a marginal pairing. `muted` on `surface` is where they fail first, because About and System Info draw most of their body text that way.
 
 ## Widgets
 

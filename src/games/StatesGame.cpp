@@ -24,7 +24,7 @@ constexpr AppMetadata STATES_METADATA = {
     "US states and their capitals.",
     &STATES_SCORE,
     LauncherIcon::States,
-    22,
+    24,
     true,
 };
 }

@@ -31,7 +31,7 @@ import os
 import re
 import sys
 
-from app_registry_parser import playable_apps, system_apps
+from app_registry_parser import playable_apps, playable_apps_in_registry_order, system_apps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,7 +66,12 @@ def pair_ok(game_id, kind):
 def check(problems):
     registry = read("src", "engine", "AppRegistry.cpp")
     registry_h = read("src", "engine", "AppRegistry.h")
-    apps = playable_apps()
+    # The ARRAY order, not the sorted view. appVisibleAt() walks APP_REGISTRY
+    # in array order, so that is the order every alignment claim here is about.
+    # Checking the sorted list instead makes "launcherIndex == position" a
+    # tautology, and this check passed a registry whose array order disagreed
+    # with every metadata index in it.
+    apps = playable_apps_in_registry_order()
     systems = system_apps()
 
     declared = re.search(r"PLAYABLE_APP_COUNT\s*=\s*(\d+)", registry_h)
@@ -105,8 +110,13 @@ def check(problems):
     for i, app in enumerate(apps):
         if app.index != i:
             problems.append(
-                "index %d: app '%s' declares launcherIndex %d -- "
-                "the registry order or metadata index has drifted" % (i, app.id, app.index))
+                "index %d: APP_REGISTRY has '%s' in that slot but its "
+                "AppMetadata declares launcherIndex %d. The launcher paints "
+                "the ARRAY order and stores per-profile visibility under the "
+                "metadata index, so these two disagreeing means tiles and "
+                "hidden-game settings refer to different games. Move the "
+                "registry entry, do not just renumber the metadata."
+                % (i, app.id, app.index))
         if not pair_ok(app.id, app.icon):
             problems.append(
                 "index %d: app '%s' declares LauncherIcon::%s -- "

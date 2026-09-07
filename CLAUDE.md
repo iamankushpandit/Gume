@@ -60,13 +60,28 @@ privacy statements â€” must be re-read whenever the thing it describes chan
 
 Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
-Exactly three things leave the device: an NTP time query, one `ip-api.com`
-lookup to guess the timezone on first connect, and the opt-in, non-connectable
+Exactly four things leave the device: an NTP time query, one `ip-api.com`
+lookup to guess the timezone on first connect, the opt-in, non-connectable
 BLE beacon -- which carries the Nearby fields and pokes when those are switched
-on, and is still one flow rather than three. **That list is closed.** Do not add analytics, usage counters,
+on, and is still one flow rather than three -- and the daily update-availability
+check.
+
+The fourth was agreed in 5.7.0 as a deliberate change to what the product
+promises, which is the only way this list may ever grow. Two properties are
+what made it acceptable and both are enforced rather than intended: **the
+request says nothing whatsoever about this device** -- no version, no board id,
+no query string, which is why the manifest lists every board and the comparison
+happens here -- and **the address shown to the owner is compiled in**, never
+read out of the response, which bounds a hostile answer to being wrong about a
+number rather than being able to send a child somewhere. `check_privacy.py`
+asserts both. It runs only when Wi-Fi is already configured, and it is not
+declinable; a device with no Wi-Fi never makes the request at all. See
+`include/UpdateChannel.h`.
+
+**That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
 home at runtime, or anything transmitted that carries a player's name, profile
-name, score, progress or typing. A fourth outbound flow needs the maintainer's
+name, score, progress or typing. A fifth outbound flow needs the maintainer's
 agreement in an issue *before* the code exists - it is a change to what the
 product promises, not a feature to be reviewed on merit.
 
@@ -393,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,376,053 / 3,145,728 bytes,
-**75.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 73,388 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,381,701 / 3,145,728 bytes,
+**75.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 74,268 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -736,6 +751,12 @@ which is why `Game` carries two levels of invalidation:
 
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
 
+**A partial repaint's clear rectangle must be derived from what it has to avoid, never typed in.** This is the most expensive mistake in this codebase to *see*, because the code reads correctly and the wrong pixels appear only after some other element redraws. `TimeGame` has now produced it twice. Its score header cleared two 140px-wide strips -- far wider than the text needed -- while the clock dial spans x=113..207, so every score change erased 37px off each shoulder of the clock and left the face as a narrow strip with square bites out of it. It happened on the first frame, on every board, from the day the screen was written; the 4-inch panel simply made it 48px a side. The same screen had already been caught clearing a prompt strip that took the bottom off two answer buttons.
+
+So: write the geometry once, at file scope, and derive every clear rectangle from it with a few pixels of daylight -- `HEADER_W = CLOCK_CX - CLOCK_OUTER - MARGIN - GAP` rather than `140`. Leave a `static_assert` where the derivation could collapse. Exact adjacency is not good enough on a scaled panel: positions scale by their axis and radii by the smaller of the two, and each rounds independently.
+
+**And note that `tools/gen_screens.py` cannot catch any of this.** A mock-up draws elements in isolation, in the order the generator happens to use, with no clear rectangles at all -- so an ordering bug or an erase-over is invisible in it by construction. The Time mock-up also omitted the question label entirely, which is how a dial printed over that sentence survived every screenshot review. When a screen looks right in `docs/screens/` and wrong on the panel, this is the first thing to suspect.
+
 **Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough â€” the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
@@ -768,7 +789,8 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
-                          key), BoardStorage, storage
+                          key), BoardUpdate (is a newer firmware available --
+                          a notice, never an OTA), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
@@ -940,7 +962,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - Hit testing: `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`. `Rect` is in `Ui.h`, `TouchPoint` in `hal/TouchTypes.h`.
 - Board facts come from `BOARD` (`include/BoardProfile.h`), never from a literal. A peripheral a board does not wire is `PIN_NONE`, and the caller guards with `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()` or `hasBacklightControl()`.
 - Feedback: `board.beepOk()` / `board.beepError()`.
-- Draw through `Ui::` helpers so the Dark/Light theme is respected; avoid hardcoded colours outside icon art.
+- Draw through `Ui::` helpers so every theme is respected; avoid hardcoded colours outside icon art. There are nine, and `Ui::setTheme()` fills the live palette from one table -- so a screen that reaches past the accessors is a screen that looks wrong in eight of them. Bar text, the three launcher tile fills and the button corner radius are palette entries too, for exactly that reason: each was a constant, and each made a theme impossible until it moved.
 - `src/games/CountryDataTable.cpp` is generated â€” edit `tools/gen_country_facts.py` and regenerate.
 - `swallowTouch_` in `main.cpp` suppresses the first press after a rotation change or screen-saver dismissal, preventing a phantom tap on freshly drawn UI.
 

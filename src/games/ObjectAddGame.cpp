@@ -18,7 +18,7 @@ constexpr AppMetadata OBJECT_ADD_METADATA = {
     "Add and take away shapes.",
     nullptr,
     LauncherIcon::ObjectAdd,
-    17,
+    21,
     true,
 };
 }

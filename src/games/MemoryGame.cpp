@@ -23,7 +23,7 @@ constexpr AppMetadata MEMORY_METADATA = {
     "Flip cards to find matching pairs.",
     &MEMORY_SCORE,
     LauncherIcon::Memory,
-    1,
+    0,
     true,
 };
 }

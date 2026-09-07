@@ -24,7 +24,7 @@ constexpr AppMetadata CINNAMON_METADATA = {
     "Watch the pattern, then repeat it.",
     &CINNAMON_SCORE,
     LauncherIcon::Cinnamon,
-    6,
+    13,
     true,
 };
 

@@ -160,9 +160,27 @@ private:
     int32_t sy(int32_t v) const { return roundf32(v * scaleY_); }
     int32_t sw(int32_t v) const { return roundf32(v * scaleX_); }
     int32_t sh(int32_t v) const { return roundf32(v * scaleY_); }
-    // Radii have one dimension to scale two axes into -- split the difference
-    // so circles stay circles.
-    int32_t sr(int32_t v) const { return roundf32(v * (scaleX_ + scaleY_) * 0.5f); }
+    /* Radii have one dimension to scale two axes into. Take the SMALLER scale,
+     * not the average.
+     *
+     * Averaging looks fairer and is wrong, because a circle is laid out inside
+     * space the game reserved for it in canvas coordinates, and that space
+     * scales by scaleX_ horizontally and scaleY_ vertically. A radius scaled by
+     * the mean exceeds the smaller of the two, so the circle grows past its own
+     * layout box on that axis -- silently, and only on panels where the two
+     * scales differ.
+     *
+     * The 4-inch board is 480x320: scaleX_ 1.5, scaleY_ 1.333, mean 1.417. That
+     * is 6.25% of overhang on the vertical, which is what pushed the clock in
+     * the Time game over the question printed beneath it -- a 7px overlap at
+     * 1:1 became 19px there, and the sentence was unreadable.
+     *
+     * The cost of min() is a circle slightly narrower than the horizontal space
+     * available. That is invisible. An overlap is not. */
+    int32_t sr(int32_t v) const {
+        const float s = scaleX_ < scaleY_ ? scaleX_ : scaleY_;
+        return roundf32(v * s);
+    }
 
     Renderer& inner_;
     float scaleX_ = 1.0f;

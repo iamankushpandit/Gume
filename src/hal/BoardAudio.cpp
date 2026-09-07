@@ -39,8 +39,9 @@
  * So playing a sound only ARMS a script. `tickAudio()`, which the runtime
  * calls once per frame beside `tickRgb()`, generates as many samples as the
  * I2S DMA will accept without blocking and then stops. The DMA holds 1536
- * samples -- 96ms at 16kHz -- so the audio is always well ahead of the frame
- * that needs it, and no frame is ever spent waiting. A sound outliving the
+ * frames -- 96ms on the codec at 16kHz, 64ms on the built-in DAC at 24kHz --
+ * so the audio is always well ahead of the frame that needs it, and no frame
+ * is ever spent waiting. See AUDIO_RATE for why the two backends differ. A sound outliving the
  * screen that started it is normal: a script is device state, not screen
  * state, and nothing in leaveActiveGame() needs to know about it.
  *
@@ -66,7 +67,59 @@
 #if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
 namespace {
 
+/* The sample rate the synthesiser generates at AND the rate the I2S peripheral
+ * is configured with. One constant, deliberately: they cannot be allowed to
+ * disagree, because nothing sounds wrong in a way that names the cause -- a
+ * mismatch just makes every cue the wrong length and the wrong pitch.
+ *
+ * The two backends do not get the same number, and this is measured rather
+ * than chosen. On the ESP32's built-in DAC (I2S_MODE_DAC_BUILT_IN) the clock
+ * divider does not reach low sample rates: everything below 22050 Hz comes out
+ * at some faster rate entirely, and the driver reports success either way.
+ * Measured on an E32R32P with env:audiodiag_e32r32p, by timing how long a
+ * blocking i2s_write() of a known number of frames takes to drain:
+ *
+ *     configured   actual     ratio
+ *          8000     44260     5.53x
+ *         11025     25316     2.30x
+ *         12000     31128     2.59x
+ *         16000     88642     5.54x   <- what this firmware used to ask for
+ *         22050     22053     1.00x
+ *         24000     24006     1.00x
+ *         32000     32000     1.00x
+ *         44100     44077     1.00x
+ *         48000     48048     1.00x
+ *
+ * At or above 22050 the rate is exact; below it the error is large and not
+ * even monotonic, which is the signature of a divider wrapping rather than
+ * saturating. So the console was generating cues for 16000 samples a second
+ * and the hardware was consuming them at nearly 89000: every sound played in
+ * about a fifth of its intended length, an octave and a half sharp. That is
+ * not heard as "too fast", it is heard as a click, or as a speaker that is
+ * cutting out -- which is exactly how it was reported on the 3.2-inch and
+ * 4-inch boards.
+ *
+ * i2s_get_clk() is no help here and is worth knowing about: it returned the
+ * requested value in all nine cases above, including the wrong ones. It
+ * reports what the driver was asked for, not what the peripheral is doing.
+ *
+ * 24000 is the choice rather than 22050 or 32000 because it is exact, it keeps
+ * the DMA holding 1536 frames = 64ms (still three frame budgets of slack), and
+ * it costs 1.5x the generation work of 16000 rather than 2x.
+ *
+ * The codec board is untouched at 16000. Its rate is not derived from this
+ * divider -- the ES8311 is clocked from MCLK at 384x off the APLL, which is
+ * exact at 16000 and known good on hardware. There is no reason to disturb the
+ * one audio path that was never broken, and a shared constant here would have
+ * done exactly that.
+ *
+ * If the platform is ever bumped to IDF 5.x the built-in DAC driver is
+ * rewritten wholesale and this measurement must be repeated, not assumed. */
+#if GUME_HAS_AUDIO_DAC
+constexpr int AUDIO_RATE = 24000;
+#else
 constexpr int AUDIO_RATE = 16000;
+#endif
 
 /* The longest script the firmware can arm. The spoken boot phrase is the one
  * that sets this, at twenty-four segments; every cue is six or fewer. A fixed
@@ -305,7 +358,8 @@ uint32_t ampIdleSinceMs = 0;
 /* Generation runs AHEAD of playback, and that is the whole point of the DMA:
  * tickAudio() fills it as fast as it will take samples, so `playing` goes
  * false when the last sample has been GENERATED, not when it has been HEARD.
- * At 6 x 256 frames and 16kHz there is up to 96ms still queued at that moment.
+ * At 6 x 256 frames there is up to 96ms (codec) or 64ms (DAC) still queued at
+ * that moment.
  *
  * Dropping the amplifier there cuts the tail off every cue, and on the short
  * ones -- which is most of the vocabulary -- it cuts off the whole thing: the

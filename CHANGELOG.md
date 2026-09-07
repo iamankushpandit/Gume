@@ -1,5 +1,116 @@
 # Changelog
 
+## 5.7.0 — 2026-09-06
+
+**The sound was broken on two boards, the beacon could crash the device, and
+now the console tells you when there is a newer version.**
+
+**Cues on the 3.2-inch and 4-inch boards played at a fifth of their length.**
+The ESP32's built-in DAC cannot clock at 16 kHz -- its divider wraps rather than
+saturating below 22050 Hz -- so the synthesiser generated 16000 samples a second
+while the hardware consumed nearly 89000. Every beep came out a fifth as long
+and an octave and a half sharp, which is not heard as "too fast" but as a click,
+or as a speaker that is failing. Measured on the bench across nine rates; the
+rate is now 24 kHz on those boards, where it is exact. The Freenove is untouched
+at 16 kHz -- its codec clocks off the APLL and was never affected. The spoken
+boot phrase is intelligible on a DAC board for the first time.
+
+Nothing in a log would have shown this. `i2s_get_clk()` reported a healthy
+16000.0 Hz in every wrong case, because it returns what the driver was asked
+for rather than what the peripheral does.
+
+**Switching the Bluetooth beacon off while the clock was syncing could panic the
+device.** Tearing the BLE controller down underneath live Wi-Fi coexistence
+callbacks is a race -- consecutive runs alternated between a crash and a
+survivable warning. Advertising now stops immediately, as it always did, and the
+controller is released later, once Wi-Fi is idle. "Off" still means off on the
+air the instant you ask for it.
+
+**A new "Updates" page in About, and a once-a-day notice.** With Wi-Fi
+configured, the console downloads one small file listing the current version of
+every supported board, compares it with its own, and tells whoever is holding
+the device: `5.8.0 available - ask admin to update`. About shows what is
+installed, what is available and where to get it.
+
+**Braino still does not update itself, and this is not a step towards it.** No
+firmware is downloaded and nothing is installed; a person decides, and does it
+from the web installer.
+
+This is the fourth thing that leaves the device, and the first added since the
+BLE beacon. It was agreed as a change to what the product promises rather than
+reviewed as a feature, and it was built so the promise is enforced rather than
+stated. The request carries **nothing about your device** -- no version, no
+board, no query string, so it is byte-identical to the one every other Braino
+makes, which is why the file lists all boards and the comparison happens on the
+device. And the address shown to you is compiled into the firmware, never read
+out of the response, so a tampered answer can at worst display a wrong number.
+`check_privacy.py` fails the build if either property is lost. The check is not
+separately declinable: it runs when Wi-Fi is configured, and a console with no
+Wi-Fi never makes the request.
+
+**Nine display themes.** Dark and Light, plus Midnight, Dusk, Paper and a
+high-contrast option -- and three period looks: Classic, Silver and Pocket.
+They are palettes rather than skins, so they cost about 500 bytes in total. The
+theme button now steps back on its left half and forward on its right, because
+nine is too many to cycle one way.
+
+Three things had to stop being constants to make those possible, and each had
+been quietly closing off a whole class of theme: the top bar's text colour
+(which is why Light kept a dark bar), the three launcher tile fills, and the
+button corner radius. All are palette entries now.
+
+**Changing the theme left the old one behind.** Settings marked only its
+content dirty, so the tab strip -- painted with the background, not with the
+content -- kept the palette it was drawn in. Going from Light to Dark gave you
+light tabs above a dark screen. It repaints in full now.
+
+**The launcher left ghost tiles on a short last page.** The empty slots were
+erased, but `drawButton` paints its shadow offset down and to the right at the
+same size, so it overhangs the tile it belongs to -- and the erase covered only
+the tile. What survived was a two-pixel-wide, three-pixel-tall L in each empty
+slot, belonging to a tile from the previous page.
+
+**The 4-inch board could not wake from sleep.** It went dark and stayed dark,
+and the only way back was the reset button -- which, on a console handed to a
+child, is indistinguishable from a broken device. The firmware was awake the
+whole time: touch was being read, the wake path ran, and the log reported a
+normal panel delay. The panel simply was not switched back on. Waking sent
+Sleep Out but never Display ON, which is sufficient on the ILI9341 the code was
+written against and not on the ST7796. Display ON is now sent on every wake,
+for every board -- it costs one byte on a panel that is already lit.
+
+**The launcher leads with different games.** Page 1 is now Memory, Money,
+Flags, Microku, Trace and Counting. It opened with Tic-Tac-Toe and closed with
+Whack-a-Mole, neither of which says anything about what a child learns, and
+Trace -- letters and handwriting -- was on page 4 where nobody would find it.
+The launcher shows six tiles in landscape and four in portrait, so the first
+four are the front page. The README gallery, the About game list and the
+installer page all derive their order from the same place, so they move with
+it.
+
+**If you have hidden games for a player, check that list.** Per-profile
+visibility is stored by launcher position rather than by game, so reordering
+reassigns those choices. Every game ships visible, so this affects only a device
+where someone has hidden something by hand.
+
+**The clock in Time was drawn over its own screen, twice.** The dial covered the
+question printed beneath it -- worst at the centre, where a circle reaches
+lowest and a centred sentence has its middle -- and the score header cleared two
+strips wide enough to erase 37px off each shoulder of the dial every time the
+score changed, leaving the face as a strip with square bites out of it. Both
+were present on every board since the screen was written; the 4-inch panel made
+them unmissable. Radii on a panel that is not the canvas size now scale by the
+smaller of the two axis scales rather than their mean, which was adding another
+6% of overhang on the vertical.
+
+**Also fixed:** `env:audiodiag` had been unusable -- its direct-DAC test
+uninstalled the I2S driver and never put it back, so every interactive page
+crashed on its first note after a completely healthy log. It gains a silent
+RATE page that measures the DAC's true rate without needing ears.
+`identify_boards.py` could not learn the first board of a new model, because it
+could only copy an environment from another board already recorded; it now
+derives it from `platformio.ini`.
+
 ## 5.6.0 — 2026-09-06
 
 **A new board, and two things to do with the consoles around you.** The
