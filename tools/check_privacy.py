@@ -6,7 +6,7 @@ This script enforces the privacy guarantees stated in CONTRIBUTING.md:
 - Only three outbound data flows are allowed:
   1. NTP time query (pool.ntp.org or configured NTP server)
   2. One-time timezone lookup (ip-api.com)
-  3. BLE beacon (opt-in, device ID and game/score only)
+  3. BLE beacon (opt-in, device ID, game/score, and two-player game turns)
 
 No unauthorized data transmission is permitted:
 - No analytics, telemetry, or crash reporting
@@ -428,7 +428,7 @@ def main():
         print("Authorized flows verified:")
         print("  1. NTP time synchronization")
         print("  2. One-time timezone lookup (ip-api.com)")
-        print("  3. BLE beacon (opt-in: device ID, game, score, and chess\n             moves in a two-player game -- no names, no profiles)")
+        print("  3. BLE beacon (opt-in: device ID, game, score, and the turns\n             of a two-player game -- no names, no profiles)")
         print("  4. Update-availability manifest (anonymous GET, no device data)")
         print("Public privacy wording: no absolute network-silence claims.")
         print("\n" + "=" * 70)

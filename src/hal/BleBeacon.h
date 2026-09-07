@@ -70,16 +70,16 @@ constexpr uint8_t GAME_NONE = 0xFF;
  * as zero. */
 constexpr uint8_t FLAG_SHARES_ACTIVITY = 0x01;
 constexpr uint8_t FLAG_POKE = 0x02;
-/* An invitation to play chess. Deliberately the POKE block's exact wire shape
+/* An invitation to play a two-player game. Deliberately the POKE block's exact wire shape
  * -- target(2) + nonce(1) -- because it is the same kind of thing: an event
  * aimed at one peer, repeated for a few seconds because scan windows have
  * gaps, and acted on once per (device id, nonce). The nonce doubles as the
  * session id, which is what ties the invitation to the moves that follow. */
-constexpr uint8_t FLAG_CHESS_INVITE = 0x04;
-/* A chess move. Same length as ACTIVITY, so the FLAG is the only thing that
+constexpr uint8_t FLAG_INVITE = 0x04;
+/* One turn of a two-player game. Same length as ACTIVITY, so the FLAG is the only thing that
  * tells them apart -- which is exactly why the version had to go to 4: a
  * version-3 reader seeing thirteen bytes would read a move as a best score. */
-constexpr uint8_t FLAG_CHESS = 0x08;
+constexpr uint8_t FLAG_TURN = 0x08;
 
 /* Manufacturer-data lengths, in bytes, excluding the AD header.
  *   BASE     company(2) tag(2) version(1) id(2) flags(1)
@@ -98,7 +98,7 @@ constexpr uint8_t MFG_LEN_BASE = 8;
 constexpr uint8_t MFG_LEN_GAME = 9;
 constexpr uint8_t MFG_LEN_POKE = 12;
 constexpr uint8_t MFG_LEN_ACTIVITY = 13;
-/* CHESS is GAME + four packed bytes, the same total as ACTIVITY. It carries a
+/* TURN is GAME + four packed bytes, the same total as ACTIVITY. It carries a
  * move and nothing else about the player:
  *
  *   session  6 bits   which game, so two boards in one room do not merge
@@ -115,7 +115,7 @@ constexpr uint8_t MFG_LEN_ACTIVITY = 13;
  * There is no name, no profile, no label and no score in this block. The only
  * identifier is the sender's own two-byte hardware id in BASE, which the
  * device already broadcasts about itself. */
-constexpr uint8_t MFG_LEN_CHESS = 13;
+constexpr uint8_t MFG_LEN_TURN = 13;
 
 /* How long one poke stays on air. It has to exceed a peer's worst-case gap
  * between scan windows, or a poke can be transmitted perfectly and never
@@ -154,21 +154,21 @@ struct Advertisement {
     uint8_t pokeTarget[2] = {0, 0};
     uint8_t pokeNonce = 0;
 
-    /* An outgoing chess invitation. Shares pokeTarget and pokeNonce with a
+    /* An outgoing game invitation. Shares pokeTarget and pokeNonce with a
      * poke -- same four-byte hole, same wire shape, same expiry -- and differs
      * only in the flag bit, because what it means is different and a receiver
      * must not have to guess. The nonce carries the session id. */
     bool inviting = false;
 
-    /* A live chess game. `chessing` and `poking` are mutually exclusive on the
+    /* A live two-player game. `hasTurn` and `poking` are mutually exclusive on the
      * air -- both displace the score and there is only one four-byte hole to
-     * displace it into -- so setChessMove() clears any poke and vice versa. */
-    bool chessing = false;
-    uint8_t chessSession = 0;   // 6 bits
-    uint8_t chessPly = 0;       // 7 bits
-    uint8_t chessFrom = 0;      // 6 bits
-    uint8_t chessTo = 0;        // 6 bits
-    uint8_t chessAck = 0;       // 7 bits
+     * displace it into -- so setTurn() clears any poke and vice versa. */
+    bool hasTurn = false;
+    uint8_t turnSession = 0;   // 6 bits
+    uint8_t turnPly = 0;       // 7 bits
+    uint8_t turnFrom = 0;      // 6 bits
+    uint8_t turnTo = 0;        // 6 bits
+    uint8_t turnAck = 0;       // 7 bits
 
     uint16_t serviceUuid16 = 0;     // 0 == none advertised
     uint8_t serviceData[8] = {0};
@@ -202,23 +202,23 @@ struct Observation {
     char pokeTarget[5] = {0};
     uint8_t pokeNonce = 0;
 
-    /* An invitation to play chess, aimed at one peer. Same broadcast caveat as
+    /* An invitation to play, aimed at one peer. Same broadcast caveat as
      * a poke: everyone in range hears who was invited, only the named device
      * acts. inviteSession is the session id the game will run under. */
     bool inviting = false;
     char inviteTarget[5] = {0};
     uint8_t inviteSession = 0;
 
-    /* A chess move. Carries no identity of any kind -- see MFG_LEN_CHESS. The
+    /* One turn. Carries no identity of any kind -- see MFG_LEN_TURN. The
      * receiver decides whether it is relevant by matching the sender's device
      * id and the session against the game it thinks it is in, and then by
      * checking the move is legal in its own position. */
-    bool chessing = false;
-    uint8_t chessSession = 0;
-    uint8_t chessPly = 0;
-    uint8_t chessFrom = 0;
-    uint8_t chessTo = 0;
-    uint8_t chessAck = 0;
+    bool hasTurn = false;
+    uint8_t turnSession = 0;
+    uint8_t turnPly = 0;
+    uint8_t turnFrom = 0;
+    uint8_t turnTo = 0;
+    uint8_t turnAck = 0;
 };
 
 /* Build the advertisement from the hardware id and start the radio if the
@@ -256,21 +256,21 @@ void clearExpiredPoke();
 /** True while a poke of ours is on air. */
 bool poking();
 
-/* Invite one peer to a game of chess, under `session`. Rides the beacon for
+/* Invite one peer to a two-player game, under `session`. Rides the beacon for
  * POKE_ADVERTISE_MS exactly as a poke does, and returns false for the same
  * reasons: sharing off, radio down, or a malformed id. */
-bool inviteChess(const char* targetDeviceId, uint8_t session);
+bool invitePeer(const char* targetDeviceId, uint8_t session);
 
 /* Put our latest move on air, and keep it there. Unlike a poke this is a
  * STATE, not an event: it stays advertised until it is replaced by the next
  * move or cleared, because a peer that missed it must be able to pick it up
  * from any later scan window. Idempotent -- re-setting the same move does not
  * restart the radio. */
-void setChessMove(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
+void setTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
                   uint8_t ack);
 
 /** Stop advertising a game; the score field comes back. */
-void clearChess();
+void clearTurn();
 
 /** The setting. True does not by itself prove the radio came up -- see active(). */
 bool enabled();

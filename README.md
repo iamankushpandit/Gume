@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-76.2%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-76.3%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 33 |
-| Flash | 2,397,929 / 3,145,728 bytes (**76.2%**) |
-| RAM | 74,788 / 327,680 bytes (**22.8%**) |
+| Flash | 2,398,697 / 3,145,728 bytes (**76.3%**) |
+| RAM | 74,900 / 327,680 bytes (**22.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -958,11 +958,17 @@ stable so you can recognise your own device in a scanner. Nobody types it and it
 is not derived from anything a player entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
-**Two consoles can play chess over it.** When two players start a game from
-the Chess lobby, each console advertises its latest move: a session number, a
-move number, and the two squares. That is all — no name, no profile and no
+**Two consoles can play a two-player game over it.** When two players start a
+game from the Chess lobby, each console advertises its latest turn: a session
+number, a move number, and the two squares. Nothing about it is chess-specific
+-- it is a service any future two-player game uses, which is why the wire
+format talks about turns rather than pieces. That is all — no name, no profile and no
 score travels with a move, and the moves occupy the same four bytes the best
 score normally uses, because the advertisement is already full at 31 bytes.
+
+Consoles can be given names, and a name is what you see on screen -- but a name
+is stored on your own device and is never transmitted. The advertisement is
+identical byte for byte whether every console you know is named or none is.
 
 It is a **broadcast**, and worth being plain about: anyone in range with the
 right software hears the moves, exactly as they can already hear that a device

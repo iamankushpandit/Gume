@@ -525,6 +525,7 @@ void ChessGame::begin(AppContext& host) {
     seatCount_ = 0;
     seatsAtMs_ = 0;
     opponent_[0] = 0;
+    opponentName_[0] = 0;
     session_ = 0;
 
     /* A game left part-finished comes back. Anything else -- no save, a save
@@ -547,6 +548,7 @@ void ChessGame::saveGame(AppContext& host) const {
     out.remoteIsWhite = remoteIsWhite_ ? 1 : 0;
     out.endedByUs = endedByUs_ ? 1 : 0;
     memcpy(out.opponent, opponent_, sizeof(out.opponent));
+    memcpy(out.opponentName, opponentName_, sizeof(out.opponentName));
     out.session = session_;
     out.ourPly = ourPly_;
     out.theirPly = theirPly_;
@@ -597,6 +599,8 @@ bool ChessGame::restoreGame(AppContext& host) {
     endedByUs_ = in.endedByUs != 0;
     memcpy(opponent_, in.opponent, sizeof(opponent_));
     opponent_[sizeof(opponent_) - 1] = 0;
+    memcpy(opponentName_, in.opponentName, sizeof(opponentName_));
+    opponentName_[sizeof(opponentName_) - 1] = 0;
     session_ = in.session;
     ourPly_ = in.ourPly;
     theirPly_ = in.theirPly;
@@ -653,9 +657,11 @@ void ChessGame::declareEnd(AppContext& host, bool byUs) {
     confirmUntilMs_ = 0;
     if (mode_ == Mode::Remote && byUs) {
         ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
-        ourFrom_ = 0;
-        ourTo_ = 0;
-        host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+        /* Published through the service's own call rather than by writing a
+         * reserved square pair, so what "ended" looks like on the wire stays
+         * one fact in one place. ourFrom_/ourTo_ are left alone: the frame
+         * loop republishes them, and it must not republish this as a move. */
+        host.nearbyEnd(session_, ourPly_, theirPly_);
     }
     for (uint8_t t = 0; t < targetCount_; ++t) markSquare(targets_[t]);
     markSquare(selected_);
@@ -673,9 +679,16 @@ void ChessGame::startLocal() {
     newGame();
 }
 
-void ChessGame::startRemote(const char* peerId, uint8_t session, bool weAreWhite) {
-    strncpy(opponent_, peerId, sizeof(opponent_) - 1);
+void ChessGame::startRemote(const NearbySeat& seat, uint8_t session,
+                            bool weAreWhite) {
+    strncpy(opponent_, seat.deviceId, sizeof(opponent_) - 1);
     opponent_[sizeof(opponent_) - 1] = 0;
+    /* The label is copied once, here, rather than resolved on every frame:
+     * it is display text and the peer table is behind a lock. It is saved with
+     * the game for the same reason -- coming back to "A4F2 is thinking" after
+     * naming that console RAVI would look like the name had not taken. */
+    strncpy(opponentName_, seat.name, sizeof(opponentName_) - 1);
+    opponentName_[sizeof(opponentName_) - 1] = 0;
     session_ = static_cast<uint8_t>(session & 0x3F);
     remoteIsWhite_ = weAreWhite;
     mode_ = Mode::Remote;
@@ -734,10 +747,16 @@ void ChessGame::renderLobby(AppContext& host) {
         /* A peer offering us a game reads differently from one merely
          * present, and the wording has to say which -- "Play A4F2" and
          * "A4F2 invites you" are different offers. */
+        /* The owner's own label for that console when they have given it
+         * one. Naming a peer is the whole point of being able to name one, so
+         * it has to change what every screen calls it, not just the Nearby
+         * app's list. */
+        const char* who = seats_[i].name[0] != 0 ? seats_[i].name
+                                                 : seats_[i].deviceId;
         if (seats_[i].inviting) {
-            snprintf(label, sizeof(label), "%s invites you", seats_[i].deviceId);
+            snprintf(label, sizeof(label), "%s invites you", who);
         } else {
-            snprintf(label, sizeof(label), "Play %s", seats_[i].deviceId);
+            snprintf(label, sizeof(label), "Play %s", who);
         }
         Ui::drawButton(tft, lobbyRowRect(host, row), label,
                        seats_[i].inviting ? Ui::success() : Ui::panel(),
@@ -795,22 +814,25 @@ void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
             continue;
         }
         if (seats_[i].inviting) {
-            /* Accepting: they chose the session and they are White, because
-             * they asked. We answer by publishing ply 0 in their session,
-             * which is the whole handshake -- there is no second round trip. */
+            /* Accepting: they chose the session, and which of us moves first
+             * came with the invitation -- the service flipped for it. We
+             * answer by publishing ply 0 in their session, which is the whole
+             * handshake; there is no second round trip to go missing. */
             host.playSound(Sound::Select);
-            startRemote(seats_[i].deviceId, seats_[i].session, false);
+            startRemote(seats_[i], seats_[i].session, seats_[i].weMoveFirst);
         } else {
-            /* Inviting: our session id, and we are White. Derived from the
-             * clock rather than a counter so two consoles inviting each other
-             * at once are unlikely to pick the same number. */
+            /* Inviting: our session id, derived from the clock rather than a
+             * counter so two consoles inviting each other at once are unlikely
+             * to pick the same number. Which of us is White is NOT ours to
+             * decide -- nearbyInvite() tosses for it and tells us. */
             const uint8_t session = static_cast<uint8_t>((millis() >> 3) & 0x3F);
-            if (host.nearbyInvite(seats_[i].deviceId, session)) {
+            bool weMoveFirst = false;
+            if (host.nearbyInvite(seats_[i].deviceId, session, weMoveFirst)) {
                 host.playSound(Sound::Select);
-                strncpy(opponent_, seats_[i].deviceId, sizeof(opponent_) - 1);
-                opponent_[sizeof(opponent_) - 1] = 0;
-                session_ = session;
-                remoteIsWhite_ = true;
+                startRemote(seats_[i], session, weMoveFirst);
+                /* Back to Waiting: startRemote() sets up the game, but nobody
+                 * has accepted yet and the board must not take a move until
+                 * somebody has. */
                 mode_ = Mode::Waiting;
                 markFullDirty();
             } else {
@@ -846,8 +868,11 @@ void ChessGame::pollOpponent(AppContext& host) {
     if (mode_ == Mode::Waiting) {
         /* They answered. Their first advertisement in our session is the
          * acceptance -- no separate message, because a separate message could
-         * be the one that goes missing. */
-        startRemote(opponent_, session_, true);
+         * be the one that goes missing. Nothing is re-derived here: the seat,
+         * the session and the side were all settled when the invitation went
+         * out, and this only promotes the mode. */
+        mode_ = Mode::Remote;
+        markFullDirty();
     }
 
     const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
@@ -856,9 +881,9 @@ void ChessGame::pollOpponent(AppContext& host) {
     /* They stopped the game. This is tested BEFORE the whose-turn check on
      * purpose: a player gives up when they are stuck, which is usually while
      * they are waiting for us, and a declaration that only arrived on their
-     * own turn would be one that mostly never arrived. `from == to` is not a
-     * legal move, so nothing else can produce it. */
-    if (turn.from == turn.to) {
+     * own turn would be one that mostly never arrived. The reserved encoding
+     * belongs to the nearby service, not here -- this only reads the flag. */
+    if (turn.ended) {
         theirPly_ = turn.ply;
         declareEnd(host, false);
         host.playSound(Sound::GameOver);
@@ -909,7 +934,7 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
      * The receiver's expected-ply test discards ply 0 as a move, so saying it
      * costs nothing and means the handshake needs no second message, which is
      * the message that would have gone missing. */
-    if (mode_ == Mode::Remote) {
+    if (mode_ == Mode::Remote && status_ != Status::Ended) {
         host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
     }
 
@@ -947,6 +972,7 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
             if (mode_ == Mode::Remote) host.nearbyStop();
             mode_ = Mode::Lobby;
             opponent_[0] = 0;
+            opponentName_[0] = 0;
             session_ = 0;
             seatCount_ = 0;
             seatsAtMs_ = 0;
@@ -1140,7 +1166,7 @@ void ChessGame::drawStatus(AppContext& host) const {
     const char* side = pos_.whiteToMove ? "White" : "Black";
 
     if (mode_ == Mode::Waiting) {
-        snprintf(top, sizeof(top), "Asking %s", opponent_);
+        snprintf(top, sizeof(top), "Asking %s", opponentLabel());
         snprintf(bot, sizeof(bot), "waiting...");
         colour = Ui::muted();
     } else {
@@ -1175,7 +1201,7 @@ void ChessGame::drawStatus(AppContext& host) const {
                 if (mode_ == Mode::Remote && !ourTurn()) {
                     /* Second person, because in a remote game "White to move"
                      * does not tell a child whether to pick a piece up. */
-                    snprintf(top, sizeof(top), "%s", opponent_);
+                    snprintf(top, sizeof(top), "%s", opponentLabel());
                     snprintf(bot, sizeof(bot), "is thinking");
                     colour = Ui::muted();
                 } else if (mode_ == Mode::Remote) {

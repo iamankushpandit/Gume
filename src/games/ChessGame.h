@@ -177,12 +177,18 @@ private:
     bool restoreGame(AppContext& host);
 
     // ---- nearby play -----------------------------------------------------
-    /* Our colour in a remote game. The inviter is White, always. That is a
-     * decision rather than a negotiation: a handshake to agree colours would
-     * be another round trip on a medium with no delivery guarantee, and the
-     * person who asked for the game is a perfectly good tie-break. */
+    /* Our colour in a remote game. Whoever moves first is White, and which
+     * console that is comes from the nearby service's coin flip rather than
+     * from anything decided here -- see AppContext::nearbyInvite(). Deciding
+     * it in the game would mean the next two-player game decides it again,
+     * probably differently, and the console that asked for the game would keep
+     * on winning the toss. */
     bool remoteIsWhite_ = true;
+    /* The peer's advertised tag, which is what the service matches on, and the
+     * owner's own label for it, which is what a player is shown. The tag is
+     * never displayed when a name exists and the name is never transmitted. */
     char opponent_[5] = {0};
+    char opponentName_[11] = {0};
     uint8_t session_ = 0;
     /* Plies we have applied. ourPly_ is the last we published, theirPly_ the
      * last of theirs we accepted. Both count OUR view of the move number, so
@@ -211,9 +217,13 @@ private:
      * is what stops a hostile or confused advertiser corrupting the board. */
     void pollOpponent(AppContext& host);
     void startLocal();
-    void startRemote(const char* peerId, uint8_t session, bool weAreWhite);
+    void startRemote(const NearbySeat& seat, uint8_t session, bool weAreWhite);
     /** True when it is this console's turn in a remote game. */
     bool ourTurn() const;
+    /** What to call the opponent on screen: their name, else their tag. */
+    const char* opponentLabel() const {
+        return opponentName_[0] != 0 ? opponentName_ : opponent_;
+    }
 
     Position pos_{};
     Status status_ = Status::Playing;
@@ -278,6 +288,7 @@ private:
         uint8_t remoteIsWhite;
         uint8_t endedByUs;
         char opponent[5];
+        char opponentName[11];
         uint8_t session;
         uint8_t ourPly;
         uint8_t theirPly;
@@ -287,5 +298,5 @@ private:
         int8_t taken[2][MAX_TAKEN];
     };
     static constexpr uint16_t SAVE_MAGIC = 0xC4E5;
-    static constexpr uint8_t SAVE_VERSION = 1;
+    static constexpr uint8_t SAVE_VERSION = 2;
 };

@@ -89,8 +89,8 @@ void buildPayload(Advertisement& a) {
     mfg[n++] = idBytes_[1];
     mfg[n++] = static_cast<uint8_t>((a.sharesActivity ? FLAG_SHARES_ACTIVITY : 0x00) |
                                     (a.poking ? FLAG_POKE : 0x00) |
-                                    (a.inviting ? FLAG_CHESS_INVITE : 0x00) |
-                                    (a.chessing ? FLAG_CHESS : 0x00));
+                                    (a.inviting ? FLAG_INVITE : 0x00) |
+                                    (a.hasTurn ? FLAG_TURN : 0x00));
     if (a.sharesActivity) {
         mfg[n++] = a.gameIndex;
         /* The poke displaces the score rather than following it: there are no
@@ -106,17 +106,17 @@ void buildPayload(Advertisement& a) {
             mfg[n++] = a.pokeTarget[0];
             mfg[n++] = a.pokeTarget[1];
             mfg[n++] = a.pokeNonce;
-        } else if (a.chessing) {
+        } else if (a.hasTurn) {
             /* A move, packed into the four bytes the score was using. See
-             * MFG_LEN_CHESS for the bit layout -- session 6, ply 7, from 6,
+             * MFG_LEN_TURN for the bit layout -- session 6, ply 7, from 6,
              * to 6, ack 7, which is thirty-two bits exactly and the whole of
              * what is left in a payload that is already full. */
             const uint32_t w =
-                (static_cast<uint32_t>(a.chessSession & 0x3F) << 26) |
-                (static_cast<uint32_t>(a.chessPly & 0x7F) << 19) |
-                (static_cast<uint32_t>(a.chessFrom & 0x3F) << 13) |
-                (static_cast<uint32_t>(a.chessTo & 0x3F) << 7) |
-                (static_cast<uint32_t>(a.chessAck & 0x7F));
+                (static_cast<uint32_t>(a.turnSession & 0x3F) << 26) |
+                (static_cast<uint32_t>(a.turnPly & 0x7F) << 19) |
+                (static_cast<uint32_t>(a.turnFrom & 0x3F) << 13) |
+                (static_cast<uint32_t>(a.turnTo & 0x3F) << 7) |
+                (static_cast<uint32_t>(a.turnAck & 0x7F));
             mfg[n++] = static_cast<uint8_t>(w & 0xFF);
             mfg[n++] = static_cast<uint8_t>((w >> 8) & 0xFF);
             mfg[n++] = static_cast<uint8_t>((w >> 16) & 0xFF);
@@ -377,7 +377,7 @@ bool parseDeviceId(const char* text, uint8_t out[2]) {
 }
 }   // namespace
 
-/* Invite one peer to a game of chess.
+/* Invite one peer to a two-player game.
  *
  * Deliberately the poke's machinery with a different flag, because it is the
  * same problem: an event aimed at one peer, on a medium with no delivery
@@ -389,7 +389,7 @@ bool parseDeviceId(const char* text, uint8_t out[2]) {
  * It is a BROADCAST: everyone in range hears who was invited, and only the
  * named device acts. And it displaces the score while it is on air, because a
  * 31-byte payload has no spare bytes. */
-bool inviteChess(const char* targetDeviceId, uint8_t session) {
+bool invitePeer(const char* targetDeviceId, uint8_t session) {
     uint8_t target[2];
     if (!parseDeviceId(targetDeviceId, target)) {
         return false;
@@ -400,16 +400,19 @@ bool inviteChess(const char* targetDeviceId, uint8_t session) {
     /* An invitation and a poke share one four-byte hole, so they cannot both
      * be on air. The invitation wins: it is the one the other person is
      * waiting for. */
-    adv_.chessing = false;
+    adv_.hasTurn = false;
     adv_.poking = false;
     adv_.inviting = true;
     adv_.pokeTarget[0] = target[0];
     adv_.pokeTarget[1] = target[1];
-    adv_.pokeNonce = static_cast<uint8_t>(session & 0x3F);
+    /* Seven bits pass through: the caller's session id plus whatever else it
+     * needs both consoles to agree before the first move -- NearbyPlay puts
+     * the who-moves-first bit here. This layer does not interpret any of it. */
+    adv_.pokeNonce = static_cast<uint8_t>(session & 0x7F);
     pokeStartedMs_ = millis();
     buildPayload(adv_);
     restartRadio();
-    Serial.printf("[ble] chess invite to %s, session %u\n",
+    Serial.printf("[ble] game invite to %s, session %u\n",
                   targetDeviceId, static_cast<unsigned>(session & 0x3F));
     return true;
 }
@@ -425,7 +428,7 @@ bool inviteChess(const char* targetDeviceId, uint8_t session) {
  * Idempotent on purpose. Re-setting the same move does not touch the radio;
  * restarting an advertisement costs a stop and a start, and this is called
  * every frame by a screen that has no idea whether anything changed. */
-void setChessMove(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
+void setTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
                   uint8_t ack) {
     const uint8_t s6 = static_cast<uint8_t>(session & 0x3F);
     const uint8_t p7 = static_cast<uint8_t>(ply & 0x7F);
@@ -433,31 +436,31 @@ void setChessMove(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
     const uint8_t t6 = static_cast<uint8_t>(to & 0x3F);
     const uint8_t a7 = static_cast<uint8_t>(ack & 0x7F);
 
-    if (adv_.chessing && adv_.chessSession == s6 && adv_.chessPly == p7 &&
-        adv_.chessFrom == f6 && adv_.chessTo == t6 && adv_.chessAck == a7) {
+    if (adv_.hasTurn && adv_.turnSession == s6 && adv_.turnPly == p7 &&
+        adv_.turnFrom == f6 && adv_.turnTo == t6 && adv_.turnAck == a7) {
         return;
     }
     if (!built_) {
         deriveIdentity(adv_);
         built_ = true;
     }
-    adv_.chessing = true;
+    adv_.hasTurn = true;
     adv_.poking = false;
     adv_.inviting = false;
-    adv_.chessSession = s6;
-    adv_.chessPly = p7;
-    adv_.chessFrom = f6;
-    adv_.chessTo = t6;
-    adv_.chessAck = a7;
+    adv_.turnSession = s6;
+    adv_.turnPly = p7;
+    adv_.turnFrom = f6;
+    adv_.turnTo = t6;
+    adv_.turnAck = a7;
     buildPayload(adv_);
     restartRadio();
 }
 
-void clearChess() {
-    if (!adv_.chessing) {
+void clearTurn() {
+    if (!adv_.hasTurn) {
         return;
     }
-    adv_.chessing = false;
+    adv_.hasTurn = false;
     buildPayload(adv_);
     restartRadio();
 }
@@ -487,11 +490,11 @@ bool poke(const char* targetDeviceId) {
     return true;
 }
 
-/* Expires both a poke and a chess invitation: they share the wire block, the
+/* Expires both a poke and a game invitation: they share the wire block, the
  * timer and the argument for having one -- each is an event, and an
  * advertisement left up forever would turn it into a state somebody is stuck
  * in. A move is the opposite and is deliberately NOT expired here; see
- * setChessMove(). */
+ * setTurn(). */
 void clearExpiredPoke() {
     if (!adv_.poking && !adv_.inviting) {
         return;
@@ -540,8 +543,8 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
      * 2 did and what a poke's shorter block breaks. */
     const bool shares = (mfg[7] & FLAG_SHARES_ACTIVITY) != 0;
     const bool poke = (mfg[7] & FLAG_POKE) != 0;
-    const bool invite = (mfg[7] & FLAG_CHESS_INVITE) != 0;
-    const bool chess = (mfg[7] & FLAG_CHESS) != 0;
+    const bool invite = (mfg[7] & FLAG_INVITE) != 0;
+    const bool turn = (mfg[7] & FLAG_TURN) != 0;
 
     out.sharesActivity = shares && len >= MFG_LEN_GAME;
     out.gameIndex = GAME_NONE;
@@ -553,14 +556,14 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
     out.inviting = false;
     out.inviteTarget[0] = 0;
     out.inviteSession = 0;
-    out.chessing = false;
-    out.chessSession = 0;
-    out.chessPly = 0;
-    out.chessFrom = 0;
-    out.chessTo = 0;
-    out.chessAck = 0;
+    out.hasTurn = false;
+    out.turnSession = 0;
+    out.turnPly = 0;
+    out.turnFrom = 0;
+    out.turnTo = 0;
+    out.turnAck = 0;
 
-    if (len >= MFG_LEN_GAME && (shares || poke || invite || chess)) {
+    if (len >= MFG_LEN_GAME && (shares || poke || invite || turn)) {
         out.gameIndex = mfg[8];
     }
 
@@ -579,23 +582,23 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
      * move from a best score -- which is exactly why PAYLOAD_VERSION had
      * to go to 4 rather than this being added quietly. A version-3
      * reader would have shown somebody a score of several million. */
-    if (chess && len >= MFG_LEN_CHESS) {
+    if (turn && len >= MFG_LEN_TURN) {
         const uint32_t w = static_cast<uint32_t>(mfg[9]) |
                            (static_cast<uint32_t>(mfg[10]) << 8) |
                            (static_cast<uint32_t>(mfg[11]) << 16) |
                            (static_cast<uint32_t>(mfg[12]) << 24);
-        out.chessing = true;
-        out.chessSession = static_cast<uint8_t>((w >> 26) & 0x3F);
-        out.chessPly = static_cast<uint8_t>((w >> 19) & 0x7F);
-        out.chessFrom = static_cast<uint8_t>((w >> 13) & 0x3F);
-        out.chessTo = static_cast<uint8_t>((w >> 7) & 0x3F);
-        out.chessAck = static_cast<uint8_t>(w & 0x7F);
+        out.hasTurn = true;
+        out.turnSession = static_cast<uint8_t>((w >> 26) & 0x3F);
+        out.turnPly = static_cast<uint8_t>((w >> 19) & 0x7F);
+        out.turnFrom = static_cast<uint8_t>((w >> 13) & 0x3F);
+        out.turnTo = static_cast<uint8_t>((w >> 7) & 0x3F);
+        out.turnAck = static_cast<uint8_t>(w & 0x7F);
     }
     if (poke && len >= MFG_LEN_POKE) {
         out.poking = true;
         snprintf(out.pokeTarget, sizeof(out.pokeTarget), "%02X%02X", mfg[9], mfg[10]);
         out.pokeNonce = mfg[11];
-    } else if (out.sharesActivity && !chess && len >= MFG_LEN_ACTIVITY) {
+    } else if (out.sharesActivity && !turn && len >= MFG_LEN_ACTIVITY) {
         out.haveScore = true;
         out.bestScore = static_cast<uint32_t>(mfg[9]) |
                         (static_cast<uint32_t>(mfg[10]) << 8) |

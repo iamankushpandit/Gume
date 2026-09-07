@@ -60,12 +60,12 @@ struct Sighting {
     char inviteTarget[5] = {0};
     uint8_t inviteSession = 0;
 
-    bool chessing = false;
-    uint8_t chessSession = 0;
-    uint8_t chessPly = 0;
-    uint8_t chessFrom = 0;
-    uint8_t chessTo = 0;
-    uint8_t chessAck = 0;
+    bool hasTurn = false;
+    uint8_t turnSession = 0;
+    uint8_t turnPly = 0;
+    uint8_t turnFrom = 0;
+    uint8_t turnTo = 0;
+    uint8_t turnAck = 0;
 };
 
 /** Start or stop observing. Idempotent; a no-op when the stack is down. */

@@ -47,10 +47,12 @@ public:
      * never touches a radio and the hal never learns what a chess move is. */
     uint8_t nearbySeatCount() override;
     bool nearbySeatAt(uint8_t index, NearbySeat& out) override;
-    bool nearbyInvite(const char* deviceId, uint8_t session) override;
+    bool nearbyInvite(const char* deviceId, uint8_t session,
+                      bool& weMoveFirst) override;
     bool nearbyInviteForUs(NearbySeat& out) override;
     void nearbyPublish(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
                        uint8_t ack) override;
+    void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) override;
     void nearbyStop() override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;

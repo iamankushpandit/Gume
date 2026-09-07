@@ -408,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,397,929 / 3,145,728 bytes,
-**76.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 74,788 / 327,680 (22.8%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,398,697 / 3,145,728 bytes,
+**76.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 74,900 / 327,680 (22.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -532,7 +532,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
-| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, header notifications, the sharing switch |
+| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, header notifications, the sharing switch, and the two-player session service |
 
 ### Invariants worth knowing before editing
 
@@ -601,6 +601,26 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **Two-player-over-the-air is a SERVICE, not a chess feature.** `NearbyPlay`
+  plus `AppContext`'s nearby calls are stated in the terms every two-player
+  game shares -- who is in the room, who offered whom a game, which of the two
+  moves first, one numbered turn at a time, and either side stopping. Nothing
+  in it knows what a move means, and the wire layer is named `turn`/`session`
+  rather than `chess` for exactly that reason. Two questions are answered
+  **once, here**, so the next game cannot answer them differently: **who moves
+  first** is a coin toss inside `nearbyInvite()` -- the console that asks for a
+  game must not also claim the first move -- and **"I am stopping"** is a
+  reserved turn encoding the service owns, surfaced to games as
+  `NearbyTurn::ended`. If a future game needs something this cannot say, widen
+  it here rather than reaching past it into `BleBeacon`.
+- **Peer labels are a display concern that travels one way.** `NearbySeat`
+  carries the owner's own name for a console beside the tag it advertises, and
+  every notification goes through `NearbyPlay`'s `displayName()`, so naming a
+  peer changes what the whole device calls it rather than what one screen does.
+  The direction is the invariant: names are read from local NVS towards the
+  screen and there is no path back to the radio. `BleBeacon` does not read them
+  and must never be given a reason to -- the advertisement is identical byte
+  for byte whether every peer is named or none is.
 - **Two consoles can play each other, and the moves ride the same beacon.**
   Agreed with the maintainer before the code existed, which is the rule for a
   change to what the device transmits. It is not a new outbound flow: it is the

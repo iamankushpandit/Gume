@@ -10,6 +10,37 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
+**Playing another console nearby is a service, not a chess feature.** The
+invitations, the turns, who moves first and either side stopping are all stated
+in terms every two-player game shares, and the transport is named for turns and
+sessions rather than for chess. Backgammon will not need a byte of new wire
+format. Two questions are settled once, in the service, so that the next game
+cannot settle them differently: **who moves first is a coin toss**, made by the
+console being asked to decide rather than by the one doing the asking, and
+carried on the invitation so there is nothing to negotiate; and **"I am
+stopping"** is a reserved turn the service owns, which games see as a flag.
+
+**Consoles you have named are called by their name.** Give a console a label in
+the Nearby app and it is what every screen calls it -- the poke, the arrival
+banner, the chess lobby, the status line while you wait for their move. The
+label is resolved on this device from its own storage and is still never
+transmitted; the advertisement is identical byte for byte whether every peer is
+named or none is.
+
+**An invitation now reaches you wherever you are.** It raises a banner and
+makes a noise, exactly as a poke does, saying who wants to play and which game.
+Before this an invitation only appeared if the other player happened to be
+sitting in that game's lobby already, which made a two-player game close to
+impossible to start. The game is named from what the peer advertises, so this
+works for the next two-player game without a line of new code.
+
+**Fixed: a peer's moves were recorded exactly once, ever.** The peer table
+copied session traffic across inside the branch that handles a console *first
+coming into range*, so the first sighting was recorded and every move after it
+was dropped. Nothing complained: the scanner saw the moves and the payload
+decoded correctly. Together with the handshake defect below, nearby play could
+not have worked at all.
+
 **Two consoles can play the same game of chess.** Open Chess and the first
 screen now asks how: pass the device, or play someone in the room. The moves
 ride the beacon that is already there -- the same opt-in switch, still

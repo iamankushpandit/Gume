@@ -16,10 +16,24 @@ class ContentLoader;
  * already broadcasts about itself, and whether it is currently offering or
  * playing a game. No name, no profile, no label -- a game does not need them
  * and cannot be trusted with them. */
+/* One console in the room, as a two-player game sees it.
+ *
+ * `deviceId` is the four hex characters the peer advertises and is what the
+ * rest of this API matches on. `name` is the owner's OWN label for that
+ * console if they have given it one, resolved locally and never transmitted --
+ * see Board::peerName(). Show `name` when it is set and `deviceId` when it is
+ * not; a game should not have to know that distinction exists beyond this
+ * line. */
 struct NearbySeat {
     char deviceId[5] = {0};
+    char name[11] = {0};        // local label, empty when unnamed
     bool inviting = false;      // offering us a game right now
     uint8_t session = 0;
+    /* Which side we take if we accept. The console that offers the game flips
+     * for it rather than keeping the advantage of moving first, and the answer
+     * travels with the invitation so there is nothing to negotiate. Every
+     * two-player game needs this and none of them should be inventing it. */
+    bool weMoveFirst = false;
 };
 
 /* The opponent's latest move, as heard on the air. `ack` is the highest ply of
@@ -31,6 +45,12 @@ struct NearbyTurn {
     uint8_t from = 0;
     uint8_t to = 0;
     uint8_t ack = 0;
+    /* They stopped the game. Every two-player game needs a way to say "I
+     * cannot finish this", and every one of them would otherwise invent its
+     * own reserved value -- so the service owns the encoding and reports it as
+     * a flag. A game must treat this as the end of the session and must not
+     * read `from`/`to` when it is set. */
+    bool ended = false;
 };
 
 class AppContext {
@@ -68,18 +88,32 @@ public:
      * Nearby play. A game must therefore treat every call as best-effort and
      * never require one to have succeeded.
      *
-     * Generic on purpose -- a session is two seats exchanging numbered moves,
-     * which is as true of backgammon as of chess. */
+     * THIS IS A SERVICE, NOT A CHESS FEATURE. Everything here is stated in
+     * the terms every two-player game shares: who is in the room, who offered
+     * whom a game, which of the two moves first, one numbered move at a time,
+     * and either side ending it. Nothing here knows what a move means, and the
+     * two places a game would otherwise have to invent something -- deciding
+     * sides, and saying "I give up" -- are both answered here so that the next
+     * game does not answer them differently. If a future game needs something
+     * this cannot express, widen it here rather than reaching past it. */
     virtual uint8_t nearbySeatCount() = 0;
     virtual bool nearbySeatAt(uint8_t index, NearbySeat& out) = 0;
-    /** Offer a game to one peer. False if the radio is off or the id is bad. */
-    virtual bool nearbyInvite(const char* deviceId, uint8_t session) = 0;
+    /* Offer a game to one peer. False if the radio is off or the id is bad.
+     * `weMoveFirst` is set on success and is decided HERE, by a coin flip, so
+     * that the console doing the asking does not also get first move -- and so
+     * that no game has to remember to be fair on its own. */
+    virtual bool nearbyInvite(const char* deviceId, uint8_t session,
+                              bool& weMoveFirst) = 0;
     /** An invitation aimed at THIS device, if one is on the air. */
     virtual bool nearbyInviteForUs(NearbySeat& out) = 0;
     /* Publish our latest move and keep it on the air until it is replaced.
      * Cheap to call every frame: unchanged values do not touch the radio. */
     virtual void nearbyPublish(uint8_t session, uint8_t ply, uint8_t from,
                                uint8_t to, uint8_t ack) = 0;
+    /* Tell the other seat we are stopping. Arrives as NearbyTurn::ended, and
+     * like a move it stays on the air until something replaces it, so it
+     * cannot be the one message that goes missing. */
+    virtual void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) = 0;
     /** Stop advertising a game. */
     virtual void nearbyStop() = 0;
     /** The named peer's latest move in `session`, if it has one on the air. */
