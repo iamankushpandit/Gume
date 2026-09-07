@@ -69,9 +69,24 @@ public:
         float cy = 0.0f;
     };
 
+    /* Mirrors Ui::Theme one for one, and Ui.cpp static_asserts that they agree
+     * so the two can be cast rather than mapped. Two enums exist because Ui.h
+     * is included by game code that must not pull in Board.h.
+     *
+     * The value is persisted, so entries may be appended but never reordered:
+     * a device set to Paper and then downgraded must not wake up in a
+     * different theme. */
     enum class ThemeMode : uint8_t {
         Dark = 0,
         Light = 1,
+        Midnight = 2,
+        Dusk = 3,
+        Paper = 4,
+        HighContrast = 5,
+        Classic = 6,
+        Silver = 7,
+        Pocket = 8,
+        Count = 9,
     };
 
     /* TODO(HARDWARE-VALIDATION): the divider ratio and no-battery behaviour

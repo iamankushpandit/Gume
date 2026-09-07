@@ -31,8 +31,29 @@ void BrainoApp::beginScreenPaint() {
     renderer_.setTextSize(1);
 }
 
+/* Which renderer a screen draws through, and it is the same question as which
+ * orientation it runs in.
+ *
+ * A playable game that does NOT follow layout is the original contract: it is
+ * authored against a fixed 320x240 landscape canvas, forced to landscape by
+ * rotationForActiveScreen(), and scaled up on a bigger panel. All 31 games in
+ * the catalog work that way and are unaffected by this.
+ *
+ * A playable game that DOES follow layout has opted out of both halves at
+ * once, and it has to be both or neither. ScaledRenderer::width()/height()
+ * report the fixed canvas whatever the panel is doing, so a game that honoured
+ * the user's portrait setting while still measuring 320 wide would lay out a
+ * third of itself off the right-hand edge of a 240px panel -- and the serial
+ * log would look perfectly healthy, which is the same shape as the Settings
+ * and Wi-Fi portrait bug CLAUDE.md complains about.
+ *
+ * So: follows layout => raw renderer, real dimensions, read tft.width() and
+ * tft.height() at render time and lay out against them. Never SCREEN_WIDTH,
+ * SCREEN_HEIGHT or GAME_CANVAS_*. The cost is that such a game gives up free
+ * upscaling on the 4-inch and has to be responsive itself, which is the point
+ * rather than a regression. */
 Ui::Renderer& BrainoApp::display() {
-    if (activeAppIsPlayable()) {
+    if (activeAppIsPlayable() && !activeApp_->followsLayout) {
         return scaledRenderer_;
     }
     return renderer_;
@@ -161,7 +182,12 @@ void BrainoApp::begin() {
     lastActivityMs_ = millis();
     lastChargingState_ = board_.getChargingState();
     lastBatteryPercent_ = board_.getBatteryPercent();
-    Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
+    /* The two enums are kept numerically identical (see the static_asserts in
+     * Ui.cpp), so this is a cast rather than a mapping. It used to be
+     * `== Light ? Light : Dark`, written out in three places -- a form that
+     * silently collapses every theme that is not Light into Dark the moment a
+     * third one exists. */
+    Ui::setTheme(static_cast<Ui::Theme>(board_.themeMode()));
 
     /* First-boot: automatically create default Admin profile with PIN 0000. */
     if (board_.playerCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
@@ -349,12 +375,20 @@ void BrainoApp::loop() {
         } else if (touch.justPressed &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
-        } else if (activeAppIsPlayable()) {
-            /* Below the chrome, a playable game hit-tests against its own
-             * fixed canvas, so the physical press has to be mapped back into
+        } else if (activeAppIsPlayable() && !activeApp_->followsLayout) {
+            /* Below the chrome, a fixed-canvas game hit-tests against its own
+             * 320x240 space, so the physical press has to be mapped back into
              * that space or every target lands where the content used to be
              * rather than where it is drawn. The inverse of ScaledRenderer's
-             * transform, and a no-op when the panel is canvas-sized. */
+             * transform, and a no-op when the panel is canvas-sized.
+             *
+             * A game that follows layout draws through the raw renderer at the
+             * panel's real size, so it must NOT be mapped -- the transform
+             * that keeps a fixed-canvas game honest is exactly what would
+             * break an adaptive one. The two have to be decided by the same
+             * flag as display(), or a game gets real pixels to draw on and
+             * canvas coordinates to hit-test with, which is the bug this
+             * comment describes, arrived at from the opposite direction. */
             TouchPoint gameTouch = touch;
             gameTouch.x = static_cast<int16_t>(lroundf(
                 touch.x * static_cast<float>(GAME_CANVAS_WIDTH) / SCREEN_WIDTH));

@@ -48,6 +48,28 @@ out of the response, so a tampered answer can at worst display a wrong number.
 separately declinable: it runs when Wi-Fi is configured, and a console with no
 Wi-Fi never makes the request.
 
+**Nine display themes.** Dark and Light, plus Midnight, Dusk, Paper and a
+high-contrast option -- and three period looks: Classic, Silver and Pocket.
+They are palettes rather than skins, so they cost about 500 bytes in total. The
+theme button now steps back on its left half and forward on its right, because
+nine is too many to cycle one way.
+
+Three things had to stop being constants to make those possible, and each had
+been quietly closing off a whole class of theme: the top bar's text colour
+(which is why Light kept a dark bar), the three launcher tile fills, and the
+button corner radius. All are palette entries now.
+
+**Changing the theme left the old one behind.** Settings marked only its
+content dirty, so the tab strip -- painted with the background, not with the
+content -- kept the palette it was drawn in. Going from Light to Dark gave you
+light tabs above a dark screen. It repaints in full now.
+
+**The launcher left ghost tiles on a short last page.** The empty slots were
+erased, but `drawButton` paints its shadow offset down and to the right at the
+same size, so it overhangs the tile it belongs to -- and the erase covered only
+the tile. What survived was a two-pixel-wide, three-pixel-tall L in each empty
+slot, belonging to a tile from the previous page.
+
 **The 4-inch board could not wake from sleep.** It went dark and stayed dark,
 and the only way back was the reset button -- which, on a console handed to a
 child, is indistinguishable from a broken device. The firmware was awake the

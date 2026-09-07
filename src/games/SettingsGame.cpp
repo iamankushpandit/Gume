@@ -29,7 +29,7 @@ void SettingsGame::begin(GameHost& host) {
     enteredPinDigits_ = 0;
     pinTask_ = PinTask::None;
     pendingPin_ = 0;
-    Ui::setTheme(host.board().themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
+    Ui::setTheme(static_cast<Ui::Theme>(host.board().themeMode()));
     markFullDirty();
 }
 
@@ -201,11 +201,34 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
 
     if (themeRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        const Board::ThemeMode next = board.themeMode() == Board::ThemeMode::Dark
-            ? Board::ThemeMode::Light : Board::ThemeMode::Dark;
-        board.setThemeMode(next);
-        Ui::setTheme(next == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
-        markDirty(); return;
+        /* One button, two directions: the left half steps back, the right
+         * half steps forward.
+         *
+         * Two themes were a toggle and one button was plenty. Nine are a list,
+         * and a forward-only cycle means nine taps to undo one -- on the
+         * setting most likely to be tried out of curiosity and then put back.
+         * The Device tab has no room for a second control: the grid is exactly
+         * four rows by construction and the brightness bar owns everything
+         * below it. Splitting the target costs no pixels, and the label says
+         * so with chevrons on both sides. */
+        const uint8_t count = static_cast<uint8_t>(Ui::Theme::Count);
+        const Rect box = themeRect();
+        const bool back = touch.x < box.x + box.w / 2;
+        const uint8_t current = static_cast<uint8_t>(board.themeMode());
+        const uint8_t next = static_cast<uint8_t>(
+            back ? (current + count - 1) % count : (current + 1) % count);
+        board.setThemeMode(static_cast<Board::ThemeMode>(next));
+        Ui::setTheme(static_cast<Ui::Theme>(next));
+        /* markFullDirty(), NOT markDirty().
+         *
+         * A theme changes the ground and the chrome, not the content on top of
+         * it. markDirty() means "repaint what moved", so the tab strip and the
+         * panel background -- which are painted only under needsFullRender()
+         * -- kept the palette they were drawn with, and switching from Light
+         * to Dark left light-coloured tabs sitting above a dark screen. That
+         * was the behaviour before this change, with only two themes to notice
+         * it in. */
+        markFullDirty(); return;
     }
     if (layoutRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setLayoutMode(board.layoutMode() == Board::LayoutMode::Horizontal

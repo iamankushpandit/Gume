@@ -212,8 +212,15 @@ Board::ThemeMode Board::themeMode() {
         cachedTheme_ = prefs_.getUChar("themeMode", static_cast<uint8_t>(ThemeMode::Dark));
         themeCached_ = true;
     }
-    return cachedTheme_ == static_cast<uint8_t>(ThemeMode::Light) ? ThemeMode::Light
-                                                                 : ThemeMode::Dark;
+    /* Clamp, do not map. This used to answer "Light if the byte says Light,
+     * otherwise Dark", which quietly turned every other stored value into Dark
+     * -- fine while there were two, and a silent downgrade of four themes the
+     * moment there were six. A value outside the enum can still arrive from a
+     * newer build's NVS, so it is bounded rather than trusted. */
+    if (cachedTheme_ >= static_cast<uint8_t>(ThemeMode::Count)) {
+        return ThemeMode::Dark;
+    }
+    return static_cast<ThemeMode>(cachedTheme_);
 }
 
 void Board::setThemeMode(ThemeMode mode) {

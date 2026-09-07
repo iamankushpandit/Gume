@@ -962,7 +962,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - Hit testing: `Rect{...}.contains(touch.x, touch.y, TOUCH_HIT_SLOP)`. `Rect` is in `Ui.h`, `TouchPoint` in `hal/TouchTypes.h`.
 - Board facts come from `BOARD` (`include/BoardProfile.h`), never from a literal. A peripheral a board does not wire is `PIN_NONE`, and the caller guards with `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()` or `hasBacklightControl()`.
 - Feedback: `board.beepOk()` / `board.beepError()`.
-- Draw through `Ui::` helpers so the Dark/Light theme is respected; avoid hardcoded colours outside icon art.
+- Draw through `Ui::` helpers so every theme is respected; avoid hardcoded colours outside icon art. There are nine, and `Ui::setTheme()` fills the live palette from one table -- so a screen that reaches past the accessors is a screen that looks wrong in eight of them. Bar text, the three launcher tile fills and the button corner radius are palette entries too, for exactly that reason: each was a constant, and each made a theme impossible until it moved.
 - `src/games/CountryDataTable.cpp` is generated â€” edit `tools/gen_country_facts.py` and regenerate.
 - `swallowTouch_` in `main.cpp` suppresses the first press after a rotation change or screen-saver dismissal, preventing a phantom tap on freshly drawn UI.
 
