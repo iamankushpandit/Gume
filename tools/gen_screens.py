@@ -286,25 +286,40 @@ def piano():
 
 
 def chess():
-    """Chess: a piece selected, its legal moves ringed.
+    """Chess: a piece selected, its moves ringed, and the panel beside it.
 
-    The board is square and sized from the shorter axis, as ChessGame does, and
-    the sprite masks are read from the generated table so this picture cannot
-    drift from the pieces the device actually draws.
+    The geometry is ChessGame's, restated: the board takes the full height in
+    landscape and the panel takes the width left over. Getting that wrong here
+    would be worse than useless -- a mock-up is the only place most people look
+    at this screen -- so every number below is derived the same way the
+    firmware derives it, from TOP_BAR_H, MARGIN, ACTION_H and STATUS_H.
+
+    The sprite masks are read from the generated table, so the pieces cannot
+    drift from the ones the device actually draws.
+
+    NOTE the standing caveat from CLAUDE.md: this draws elements in isolation
+    with no clear rectangles at all, so it cannot show an erase-over between
+    the panel and the board. Looking right here is not evidence.
     """
     im, d = blank(); topbar(d, "Chess")
     import re as _re
-    top, statusH, m = 34, 22, 3
-    side = min(W - m * 2, H - top - statusH - m) // 8 * 8
-    bx, by = (W - side) // 2, top
+    top, m, gap = 33, 3, 3
+    action_h, status_h = 26, 24
+    side = (H - top - m) // 8 * 8
+    bx, by = m, top
     cell = side // 8
+
+    px = bx + side + gap
+    pw = W - px - m
+    controls = status_h + gap + action_h
+    body = side - controls - gap
+    each = (body - gap) // 2
 
     masks = {}
     src = (ROOT / "src" / "games" / "ChessSprites.cpp").read_text(encoding="utf-8")
     blocks = _re.findall(r"\{\s*//\s*(\w+)(.*?)\}", src, _re.S)
-    for name, body in blocks:
-        masks[name] = [int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{8})", body)]
-    order = ["PAWN", "KNIGHT", "BISHOP", "ROOK", "QUEEN", "KING"]
+    for name, body_ in blocks:
+        masks[name] = [int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{8})", body_)]
 
     # The opening position after 1.e4, with the white queen selected.
     back = ["ROOK", "KNIGHT", "BISHOP", "QUEEN", "KING", "BISHOP", "KNIGHT", "ROOK"]
@@ -319,12 +334,16 @@ def chess():
     selected = (3, 0)                          # white queen
     targets = [(4, 1), (5, 2), (6, 3), (7, 4)]
 
-    def paint(mask, px, py, colour):
-        for ry in range(cell):
-            row = mask[ry * 32 // cell]
-            for rx in range(cell):
-                if (row >> (31 - rx * 32 // cell)) & 1:
-                    d.point((px + rx, py + ry), fill=colour)
+    def paint(mask, pxx, pyy, size, colour):
+        for ry in range(size):
+            row = mask[ry * 32 // size]
+            for rx in range(size):
+                if (row >> (31 - rx * 32 // size)) & 1:
+                    d.point((pxx + rx, pyy + ry), fill=colour)
+
+    def piece(mask, x0, y0, size, white):
+        paint(mask, x0 + 1, y0 + 1, size, (20, 20, 26) if white else (250, 250, 246))
+        paint(mask, x0, y0, size, (250, 250, 246) if white else (20, 20, 26))
 
     for f in range(8):
         for r in range(8):
@@ -334,16 +353,29 @@ def chess():
             d.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=fill)
             if (f, r) in board:
                 name, white = board[(f, r)]
-                mask = masks[name]
-                paint(mask, x0 + 1, y0 + 1, (20, 20, 26) if white else (250, 250, 246))
-                paint(mask, x0, y0, (250, 250, 246) if white else (20, 20, 26))
+                piece(masks[name], x0 + 1, y0 + 1, cell - 2, white)
             if (f, r) in targets:
                 cx, cy = x0 + cell // 2, y0 + cell // 2
                 rr = cell // 2 - 2
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=SUCCESS)
     d.rectangle([bx, by, bx + side - 1, by + side - 1], outline=OUTLINE)
-    msg = "White to move"
-    d.text((W / 2 - d.textlength(msg, font=F2) / 2, H - statusH + 2), msg, font=F2, fill=TEXT)
+
+    # The panel: what each side has lost, the status, and the one button.
+    tcell = 20
+    for i, (ty, lost) in enumerate((
+            (by, [("PAWN", True), ("PAWN", True), ("KNIGHT", True)]),
+            (by + each + gap, [("PAWN", False), ("BISHOP", False)]))):
+        d.rectangle([px, ty, px + pw - 1, ty + each - 1], fill=PANEL)
+        cols = pw // tcell
+        for n, (name, white) in enumerate(lost):
+            x0 = px + (n % cols) * tcell
+            y0 = ty + (n // cols) * tcell
+            piece(masks[name], x0 + 1, y0 + 1, tcell - 2, white)
+
+    sy = by + side - action_h - gap - status_h
+    d.text((px, sy), "White", font=F1, fill=TEXT)
+    d.text((px, sy + 10), "to move", font=F1, fill=MUTED)
+    button(d, (px, by + side - action_h, pw, action_h), "End game")
     return im
 
 
@@ -2214,7 +2246,7 @@ EXTRA_SCREENS = [
     ("elements-card", elements_card, "Elements: one element up close"),
     ("elements-quiz", elements_quiz, "Elements: find it in the table"),
     ("piano", piano, "Piano: one octave"),
-    ("chess", chess, "Chess: a piece selected, its moves ringed"),
+    ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

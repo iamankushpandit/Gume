@@ -10,6 +10,77 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
+**Two consoles can play the same game of chess.** Open Chess and the first
+screen now asks how: pass the device, or play someone in the room. The moves
+ride the beacon that is already there -- the same opt-in switch, still
+non-connectable, still not a new outbound flow. What goes on air is a session
+number, a move number, two square numbers and an acknowledgement: thirty-two
+bits, in the four bytes the best score was using, because the advertisement is
+already exactly 31 bytes and a move had to displace something rather than
+follow it. No name, no profile and no score travels with a move, and that is
+structural rather than careful -- the surface a game is given is move-shaped,
+so a game could not put arbitrary bytes on the air if it wanted to. It is a
+**broadcast**: everyone in range hears the moves, and only the two playing act
+on them. Every move received is checked for legality on the receiver's own
+board and discarded unless it is legal there, so a confused or hostile
+advertiser cannot force a position that is not reachable by playing chess.
+
+**Chess remembers the game.** The board is written to NVS after every move and
+again on the way out, so pressing Lock, going Home or running the battery flat
+brings the same position back. This was the wrong way round before: children
+put the device down constantly, and a game that evaporated because somebody
+pressed a button is a game they stop starting. A remote game is saved too,
+session and all -- the moves are advertised state rather than messages, so the
+opponent's board is still on the air when you come back and there is nothing to
+re-sync. Guest keeps no game, for the same reason Guest keeps no scores.
+
+**Chess has an End game button, which is also how you reset one.** Once a board
+survives leaving the screen, walking away stops being a way to abandon a game
+nobody can finish -- so there is now a way to say so. It asks twice, relabelling
+itself rather than opening a dialog, and once the game is over the same button
+offers a new one. In a remote game the declaration reaches the opponent on the
+move field with `from` equal to `to`, which is never a legal move and therefore
+cannot be confused with one; it costs no extra bytes on a payload with none to
+spare. It is tested before the whose-turn check, because a player gives up when
+they are stuck, which is usually while they are waiting for you.
+
+**Chess uses the whole screen in landscape.** The board was square, sized from
+the shorter axis, and left two empty gutters either side of it on a landscape
+panel. It is now sized from the full height -- 200px instead of 176 on a
+320x240 console -- and the column that buys carries the pieces each side has
+lost, the status and the button. In portrait the same four rectangles become a
+band underneath. **Captured pieces are shown for both sides**, as silhouettes
+rather than letters, in the order they were taken.
+
+**Fixed: a remote game could never start.** The console accepting an invitation
+publishes ply 0 as its answer -- there is no separate acceptance message,
+because a separate message is one that can go missing -- but the publish was
+gated on having already made a move, and the acceptor plays Black. So the
+inviter waited forever for an answer the acceptor was never going to send.
+
+**Fixed: the piano's tone broke up while a key was held.** Two causes, both
+real. A resistive panel loses contact mid-press as a matter of course, which
+the runtime reports as a release; the note was dropped and restarted a few
+milliseconds later, several times a second. The lock screen already allowed for
+exactly this and the piano now uses the same grace period. Separately, holding a
+key re-arms the note before the last one runs out, and the synthesiser was
+snapping the oscillator phase back to zero at that seam -- a step in the
+waveform, which is a click. `arm()` now recognises the same script arriving
+again while it is still sounding and carries the phase across.
+
+**Fixed: sounds were cut off by the repaint that followed them.** Audio
+generation has moved from the frame loop to its own task. The old arrangement
+argued that the DMA is far deeper than a frame -- 96ms against a 20ms budget --
+which is true of a typical frame and false of the one that matters: a launcher
+page turn repaints the whole screen, and on the 4-inch panel that is comfortably
+longer than the buffer it has to outlast. So the cue was armed, the DMA filled,
+and the buffer ran dry in the middle of the repaint. This is what Previous and
+Next sounded like, and it was reported twice. Deepening the buffer would only
+have moved the threshold; the worst frame is not bounded by anything. A task
+is, and it refills *during* the repaint. It runs above the loop task on the
+same core so that it can preempt one, generates under a mutex and blocks
+outside it, so `playSound()` never waits on the DMA.
+
 ## 5.8.0 — 2026-09-07
 
 **Piano and Chess** — the first two apps here that are not drills, and the

@@ -28,10 +28,18 @@ const AppMetadata& chessAppMetadata();
  * is what makes checkmate and stalemate detectable: no legal moves and in
  * check is mate, no legal moves and not in check is a draw.
  *
- * Orientation-adaptive (followsLayout). The board is square, so it is sized
- * from the SHORTER panel axis and the status line takes the leftover -- which
- * makes portrait the better orientation, not the worse one: 240x320 gives a
- * 240px board and 30px squares against landscape's 26px.
+ * Orientation-adaptive (followsLayout), with a panel beside the board in
+ * landscape and underneath it in portrait carrying the captured pieces, the
+ * status and the one button. The board is square and takes the axis the panel
+ * does not: 200px in landscape on a 320x240 console, where it used to be 176
+ * with two empty gutters either side of it.
+ *
+ * The game is remembered. It is written to NVS after every move and again on
+ * the way out, so pressing Lock, going Home or running the battery flat brings
+ * the same position back -- which matters because the children this is for put
+ * the device down constantly, and a game that evaporated is a game they stop
+ * starting. That in turn is why End game exists: once a board survives leaving
+ * the screen, walking away is no longer a way to abandon one.
  *
  * No score. A win is not a number, and a "best" would be meaningless.
  */
@@ -65,6 +73,9 @@ private:
     static constexpr uint8_t NO_SQ = 0xFF;
     /** Longest legal move list from one square: a queen on an open board. */
     static constexpr uint8_t MAX_MOVES = 28;
+    /* Most pieces a side can lose: sixteen, less the king, which is never
+     * captured -- the rules end the game one move before that could happen. */
+    static constexpr uint8_t MAX_TAKEN = 15;
 
     /* One position. Small enough to copy for the legality filter, which is why
      * make/unmake is a struct assignment here rather than an undo stack. */
@@ -81,7 +92,12 @@ private:
         uint8_t epSquare;
     };
 
-    enum class Status : uint8_t { Playing, Check, Checkmate, Stalemate };
+    /* Ended is a game somebody stopped rather than finished. Two children
+     * abandon a game far more often than they mate each other, and before this
+     * existed the only way out of a position nobody could win was to leave the
+     * screen -- which, now that the board is saved, would simply bring the same
+     * stuck game back. A declared end is a real result and is stored as one. */
+    enum class Status : uint8_t { Playing, Check, Checkmate, Stalemate, Ended };
 
     /* How this game is being played.
      *
@@ -108,21 +124,57 @@ private:
     /** True when `bySideIsWhite` attacks `square` in `p`. */
     static bool attacked(const Position& p, uint8_t square, bool bySideIsWhite);
     static uint8_t kingSquare(const Position& p, bool white);
-    /** Apply a move, including castling, en passant and auto-promotion. */
-    static void applyMove(Position& p, uint8_t from, uint8_t to);
+    /* Apply a move, including castling, en passant and auto-promotion, and
+     * return the piece it captured (EMPTY if none).
+     *
+     * The return value exists for the captured-piece display and is ignored by
+     * the legality filter, which makes moves on a throwaway copy. Reporting it
+     * from here rather than having the caller read the destination square
+     * first is what keeps en passant correct: that is the one move in chess
+     * where the captured piece is not standing on the square being moved to,
+     * and a caller doing its own bookkeeping would have to know that. */
+    static int8_t applyMove(Position& p, uint8_t from, uint8_t to);
     /* Legal moves: pseudo-legal, minus any that leave the mover in check. */
     static uint8_t legalMoves(const Position& p, uint8_t from, uint8_t* out);
     static bool hasAnyLegalMove(const Position& p);
 
     // ---- layout, all measured from the live panel ------------------------
+    /* True when the panel is wider than it is tall, which is the only thing
+     * the layout below actually branches on. In landscape the board is sized
+     * from the full height and everything else goes in a column beside it; in
+     * portrait the board is sized from the width and the column becomes a
+     * band underneath. Same four rectangles either way. */
+    bool sidePanel(AppContext& host) const;
     Rect boardRect(AppContext& host) const;
+    /** Everything that is not the board: taken pieces, status, the button. */
+    Rect panelRect(AppContext& host) const;
+    /** Where the pieces of one colour that have been captured are shown. */
+    Rect takenRect(AppContext& host, uint8_t side) const;
+    Rect statusRect(AppContext& host) const;
+    /** End game while playing, New game once it is over. */
+    Rect actionRect(AppContext& host) const;
     Rect squareRect(AppContext& host, uint8_t square) const;
     uint8_t squareAt(AppContext& host, int16_t x, int16_t y) const;
 
     void drawSquare(AppContext& host, uint8_t square) const;
     void drawPiece(AppContext& host, const Rect& r, int8_t piece) const;
     void drawStatus(AppContext& host) const;
+    void drawTaken(AppContext& host, uint8_t side) const;
+    void drawAction(AppContext& host) const;
     void refreshStatus();
+    /** Note a captured piece for the display. EMPTY is ignored. */
+    void recordCapture(int8_t piece);
+
+    // ---- ending, resetting and remembering -------------------------------
+    /* Stop the game without a mate. `byUs` distinguishes this console's own
+     * decision from the opponent's, which is worth saying on screen: "you
+     * ended it" and "they ended it" are different pieces of news. */
+    void declareEnd(AppContext& host, bool byUs);
+    /** Fresh position, same mode. The board, not the session. */
+    void newGame();
+    void saveGame(AppContext& host) const;
+    /** Restore a game left part-finished. False if there was nothing to take. */
+    bool restoreGame(AppContext& host);
 
     // ---- nearby play -----------------------------------------------------
     /* Our colour in a remote game. The inviter is White, always. That is a
@@ -165,6 +217,23 @@ private:
 
     Position pos_{};
     Status status_ = Status::Playing;
+    /* Pieces captured, in the order they went, indexed by the VICTIM's colour:
+     * taken_[0] is what White has lost. Kept as a list rather than counts per
+     * kind because the order is free information a player reads at a glance --
+     * and because rebuilding it from counts to draw it would cost more than
+     * storing it. Thirty bytes, static, like everything else here. */
+    int8_t taken_[2][MAX_TAKEN] = {};
+    uint8_t takenCount_[2] = {0, 0};
+    /* Who stopped a declared game. Only meaningful when status_ is Ended. */
+    bool endedByUs_ = false;
+    /* End game asks twice. Not a modal dialog -- the button relabels itself to
+     * "Sure?" and a second press inside this window confirms. A dialog here
+     * would be a second screen to lay out in two orientations, and a new set
+     * of clear rectangles over a board, for one yes/no question. */
+    uint32_t confirmUntilMs_ = 0;
+    static constexpr uint32_t CONFIRM_MS = 3000;
+    /** The panel, unlike the board, is cheap enough to repaint whole. */
+    bool panelStale_ = true;
     uint8_t selected_ = NO_SQ;
     uint8_t targets_[MAX_MOVES] = {};
     uint8_t targetCount_ = 0;
@@ -176,4 +245,47 @@ private:
     bool statusStale_ = true;
 
     void markSquare(uint8_t square);
+
+    /* The whole game, flat, for NVS.
+     *
+     * Written on every move and again on the way out, so a console that is
+     * locked, sent home or simply goes flat mid-game comes back to the same
+     * position. That is not a nicety: the players this is for put the device
+     * down constantly, and a game that evaporated because somebody pressed
+     * Lock is a game they stop starting.
+     *
+     * A remote game is saved too, session and all. The moves are advertised
+     * state rather than messages, so the opponent's board is still on the air
+     * when we come back -- there is nothing to re-sync and no handshake to
+     * repeat.
+     *
+     * Guest drops writes, silently, which is what makes Guest a guest. So a
+     * guest's game does not survive leaving the screen, and that is the same
+     * answer Guest gives to scores and mastery. Do not special-case it here.
+     *
+     * Fixed layout, and loadBlob() refuses a blob whose length has changed, so
+     * altering this struct retires old saves rather than misreading them.
+     * `version` covers the case where the size happens to stay the same. */
+    struct Saved {
+        uint16_t magic;
+        uint8_t version;
+        int8_t sq[64];
+        uint8_t whiteToMove;
+        uint8_t castle[4];
+        uint8_t epSquare;
+        uint8_t status;
+        uint8_t mode;
+        uint8_t remoteIsWhite;
+        uint8_t endedByUs;
+        char opponent[5];
+        uint8_t session;
+        uint8_t ourPly;
+        uint8_t theirPly;
+        uint8_t ourFrom;
+        uint8_t ourTo;
+        uint8_t takenCount[2];
+        int8_t taken[2][MAX_TAKEN];
+    };
+    static constexpr uint16_t SAVE_MAGIC = 0xC4E5;
+    static constexpr uint8_t SAVE_VERSION = 1;
 };

@@ -408,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,390,053 / 3,145,728 bytes,
-**76.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 74,492 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,397,721 / 3,145,728 bytes,
+**76.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 74,788 / 327,680 (22.8%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -614,7 +614,18 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   received move is checked for legality in the receiver's own position, which
   is what stops a hostile advertiser corrupting a board. It is a BROADCAST --
   everyone in range hears the moves, only the two playing act on them -- and
-  the docs must keep saying so.
+  the docs must keep saying so. **Ending a game rides the move field with
+  `from == to`**, which is never a legal move and so cannot be confused with
+  one; it adds no bytes to a payload that has none to spare, and it is tested
+  before the whose-turn check because a player gives up while they are waiting.
+- **A game that persists needs a way to be abandoned.** Chess writes its board
+  to NVS after every move and on the way out, which is right -- children put the
+  device down constantly and a game that evaporated is a game they stop
+  starting. But it retires the oldest exit there was: before this, walking away
+  ended a game nobody could finish, and now walking away brings it straight
+  back. So End game is not a nicety bolted on beside persistence, it is the
+  other half of it. The same applies to anything else here that learns to
+  remember an unfinished state.
 - **Local peer names never reach the radio, and that is structural.**
   `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
   one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never
@@ -668,11 +679,22 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   that reason. Adding a cue is adding a word to a language: do it when a game
   has something genuinely new to say, not when an existing cue is nearly right.
 - **A cue is armed, never played.** `playSound()` copies a script and returns
-  in microseconds; `Board::tickAudio()`, called once per frame beside
-  `tickRgb()`, generates only as many samples as the I2S DMA will take without
-  blocking. Never write a blocking `i2s_write` on a render path -- a 300ms note
-  is fifteen frame budgets and `Watchdog` will log the stall. `src/s3_diag.cpp`
+  in microseconds; a dedicated task, `braino-audio`, generates the samples.
+  Never write a blocking `i2s_write` on a render path -- a 300ms note is
+  fifteen frame budgets and `Watchdog` will log the stall. `src/s3_diag.cpp`
   does block, correctly, because a bring-up probe has no frame budget.
+- **Audio generation is on a task because a frame is not a deadline it can
+  meet.** It used to run from `tickAudio()` in the loop, on the argument that
+  the DMA holds 96ms against a 20ms budget. That holds for a typical frame and
+  fails for the one that matters: a launcher page turn repaints the whole
+  screen, which on the 4-inch panel outlasts the buffer, so the cue armed just
+  before it was cut off mid-sound. A deeper buffer only moves the threshold --
+  the worst frame is bounded by nothing. The task runs above the loop on the
+  same core so it preempts the repaint, generates under `audioLock` and blocks
+  *outside* it, so `playSound()` never waits on the DMA. This is the same move
+  the responsiveness rule already prescribes for the battery gauge and the
+  watchdog: **work whose deadline is not the frame's does not belong on the
+  frame.**
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game or an app â€” the whole checklist

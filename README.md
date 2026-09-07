@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-76.0%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-76.2%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 33 |
-| Flash | 2,390,053 / 3,145,728 bytes (**76.0%**) |
-| RAM | 74,492 / 327,680 bytes (**22.2%**) |
+| Flash | 2,397,721 / 3,145,728 bytes (**76.2%**) |
+| RAM | 74,788 / 327,680 bytes (**22.8%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -292,7 +292,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
 | **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a child can make something rather than be tested on it, and the note names are on the keys so the naming comes for free | 3+ |
-| **Chess** | The full rules for two players sharing the device: tap a piece and every square it may legally move to is ringed, including castling and en passant, with check, checkmate and stalemate called out | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
+| **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant, with check, checkmate and stalemate called out. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -461,7 +461,7 @@ One screen per game, in launcher order.
   <img src="docs/screens/piano.png" width="300" alt="Piano: one octave">
 </p>
 <p align="center">
-  <img src="docs/screens/chess.png" width="300" alt="Chess: a piece selected, its moves ringed">
+  <img src="docs/screens/chess.png" width="300" alt="Chess: legal moves ringed, captures beside the board">
 </p>
 
 ### Logic, memory and attention
