@@ -198,9 +198,47 @@ def flash_all(results):
 
 
 def env_for_board_name(reg, name):
+    """Which environment flashes the board that calls itself `name`.
+
+    The registry is asked first, because a board someone has already identified
+    carries whatever correction they made. But the registry alone cannot answer
+    for the FIRST board of a model: it could only ever copy an env from another
+    entry with the same BOARD_NAME, so a new model stayed permanently
+    unlearnable and --flash skipped it every time. That is exactly the case this
+    tool exists to remove.
+
+    So fall back to platformio.ini, which is where the answer actually lives:
+    find the [board_*] section whose BOARD_NAME matches, then the games
+    environment that composes it. Derived rather than restated -- the same rule
+    the site generator follows for the same reason.
+    """
     for entry in reg["boards"].values():
         if entry["board"] == name:
             return entry["env"]
+
+    ini_path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "platformio.ini")
+    try:
+        with open(ini_path, encoding="utf-8") as handle:
+            ini = handle.read()
+    except OSError:
+        return None
+
+    for section in re.findall(r"^\[board_(\w+)\]", ini, re.M):
+        body = re.search(r"^\[board_%s\](.*?)(?=^\[|\Z)" % re.escape(section),
+                         ini, re.M | re.S)
+        if not body:
+            continue
+        found = re.search(r'BOARD_NAME=\\"([^\\"]+)\\"', body.group(1))
+        if not found or found.group(1) != name:
+            continue
+        # The games firmware for that board, not a diagnostic env.
+        envs = re.findall(
+            r"^\[env:(\w+)\](?:(?!^\[).)*?\$\{board_%s\.build_flags\}"
+            % re.escape(section), ini, re.M | re.S)
+        for env in envs:
+            if env == "app" or env.startswith("app_"):
+                return env
     return None
 
 

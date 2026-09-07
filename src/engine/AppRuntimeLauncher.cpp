@@ -352,8 +352,19 @@ void LauncherGame::renderDynamic(GameHost& host) {
              * full page to a shorter last one now has to take the leftover
              * tiles off itself, or they stay on screen belonging to a page the
              * player is no longer on. */
+            /* The erase has to cover the SHADOW as well as the tile.
+             * Ui::drawButton draws its shadow at the same size, offset down
+             * and right, so it sticks out past the tile's right and bottom
+             * edges. Erasing exactly the tile rect left a two-pixel vertical
+             * sliver and a three-pixel horizontal one -- a ghost L in every
+             * empty slot on a short last page, belonging to a tile from the
+             * page before. Derived from the offsets rather than typed, so the
+             * two cannot drift. */
             const Rect empty = LauncherLayout::tileRect(slot, mode, lW, lH);
-            tft.fillRect(empty.x, empty.y, empty.w, empty.h, Ui::bg());
+            tft.fillRect(empty.x, empty.y,
+                         static_cast<int16_t>(empty.w + Ui::BUTTON_SHADOW_DX),
+                         static_cast<int16_t>(empty.h + Ui::BUTTON_SHADOW_DY),
+                         Ui::bg());
             if (slot < MAX_TILES) {
                 slotHasButton_[slot] = false;
             }
@@ -361,9 +372,11 @@ void LauncherGame::renderDynamic(GameHost& host) {
         }
         const AppDefinition& entry = host.launcherEntry(index);
         const Rect r = LauncherLayout::tileRect(slot, mode, lW, lH);
-        const uint16_t fill = slot % 3 == 0 ? Ui::rgb(36, 132, 204)
-                            : (slot % 3 == 1 ? Ui::rgb(45, 154, 96)
-                                             : Ui::rgb(222, 83, 83));
+        /* From the palette, not from three literals. Every theme that existed
+         * before this lists the same three colours, so nothing changed for
+         * them -- but a theme made of four shades of green cannot have bright
+         * blue, green and red rectangles as the first thing anyone sees. */
+        const uint16_t fill = Ui::tileFill(slot % 3);
         /* The button itself is invariant across pages -- its rect comes from
          * the slot and its colour from `slot % 3`, neither of which a page
          * change touches. Ui::drawButton pushes TWO full tile areas (a shadow

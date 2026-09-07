@@ -22,7 +22,7 @@ constexpr AppMetadata PERCENT_METADATA = {
     "Percentages on a circle.",
     &PERCENT_SCORE,
     LauncherIcon::Percent,
-    26,
+    27,
     true,
 };
 }

@@ -18,7 +18,7 @@ constexpr AppMetadata SHAPE_COLOR_METADATA = {
     "Match each shape to its outline.",
     &SHAPE_COLOR_SCORE,
     LauncherIcon::ShapeColor,
-    8,
+    14,
     true,
 };
 

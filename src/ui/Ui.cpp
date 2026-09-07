@@ -8,7 +8,6 @@
 #include <cstdio>
 
 namespace {
-constexpr uint16_t COLOR_BAR_TEXT = TFT_WHITE;
 
 /* Status colours used to be theme-independent brights. On the light theme's
  * white background a pale yellow warning was almost invisible and the green
@@ -21,54 +20,180 @@ constexpr uint16_t LIGHT_ERROR   = 0xC0C3;   // deep red on white
 constexpr uint16_t LIGHT_WARNING = 0xBB40;   // amber on white
 constexpr uint16_t COLOR_SHADOW   = 0x0000;
 
-// Dark palette
-constexpr uint16_t DARK_BG      = 0x0843;
-constexpr uint16_t DARK_BAR     = 0x10A6;
-constexpr uint16_t DARK_SURFACE = 0x18E8;
-constexpr uint16_t DARK_PANEL   = 0x212B;
-constexpr uint16_t DARK_TEXT    = 0xF7BE;
-constexpr uint16_t DARK_MUTED   = 0xA534;
-constexpr uint16_t DARK_OUTLINE = 0x52AA;
+/* The palettes, one row per Ui::Theme, in enum order.
+ *
+ * A table rather than the chain of ternaries this used to be. That chain read
+ * `dark ? DARK_X : LIGHT_X` ten times, which is fine for two themes and
+ * silently wrong for six -- every theme that was not Light would have come out
+ * Dark, and nothing would have complained.
+ *
+ * Roles, and what they have to keep meaning in every row:
+ *   BG       the ground the screen is cleared to
+ *   BAR      the top bar. Deliberately dark on the light themes too: it
+ *            carries white glyphs and the badges are drawn for it.
+ *   SURFACE  a card or panel laid on the ground
+ *   PANEL    a control sitting on a surface
+ *   TEXT     primary text. Must be legible against BG *and* SURFACE.
+ *   MUTED    secondary text. This is the pairing that fails first -- About and
+ *            System Info draw most of their body text muted-on-surface, so a
+ *            palette that looks fine in a mock-up dies here on real glass.
+ *   OUTLINE  hairlines and borders
+ *   SUCCESS/ERROR/WARNING  green/red/amber. These must stay semantically
+ *            obvious in every row: a red that reads brown on a warm ground
+ *            makes a wrong answer ambiguous, which matters more than taste.
+ *
+ * Do not judge these in tools/gen_screens.py. PIL renders every palette
+ * cleanly and cannot show you the overlay diffusing a marginal pairing. */
+struct Palette {
+    uint16_t bg, bar, barText, surface, panel, text, muted, outline;
+    uint16_t success, error, warning;
+    uint16_t tile[3];   // launcher tile fills, cycled by slot
+    uint8_t radius;     // button/tile corner radius; 0 is square
+};
 
-// Light palette
-constexpr uint16_t LIGHT_BG      = 0xFFFF;
-constexpr uint16_t LIGHT_BAR     = 0x10A6; // keep dark header both themes
-constexpr uint16_t LIGHT_SURFACE = 0xEF7D;
-constexpr uint16_t LIGHT_PANEL   = 0xDEFB;
-constexpr uint16_t LIGHT_TEXT    = 0x2124;
-constexpr uint16_t LIGHT_MUTED   = 0x8410;
-constexpr uint16_t LIGHT_OUTLINE = 0xC618;
+/* The tile fills every pre-existing theme uses, unchanged from when they were
+ * written inline in the launcher. Listed once so a new theme opts out
+ * deliberately rather than by forgetting. */
+#define TILES_RGB {0x24BD, 0x2CD3, 0xDAAA}
 
-// Runtime palette (updated by setTheme)
-uint16_t COLOR_BG      = DARK_BG;
-uint16_t COLOR_BAR     = DARK_BAR;
-uint16_t COLOR_SURFACE = DARK_SURFACE;
-uint16_t COLOR_PANEL   = DARK_PANEL;
-uint16_t COLOR_TEXT    = DARK_TEXT;
-uint16_t COLOR_MUTED   = DARK_MUTED;
-uint16_t COLOR_OUTLINE = DARK_OUTLINE;
-uint16_t COLOR_SUCCESS = DARK_SUCCESS;
-uint16_t COLOR_ERROR   = DARK_ERROR;
-uint16_t COLOR_WARNING = DARK_WARNING;
+constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
+    // Dark -- the original.
+    {0x0843, 0x10A6, 0xFFFF, 0x18E8, 0x212B, 0xF7BE, 0xA534, 0x52AA,
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+    // Light -- the original. Dark bar, because the bar text was white.
+    {0xFFFF, 0x10A6, 0xFFFF, 0xEF7D, 0xDEFB, 0x2124, 0x8410, 0xC618,
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
+    // Midnight -- deep indigo; saturated tiles sit better on navy than black.
+    {0x10A3, 0x1906, 0xFFFF, 0x1926, 0x2988, 0xE77E, 0x8CB6, 0x3A2C,
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+    // Dusk -- warm charcoal, amber type, almost no blue anywhere.
+    {0x18C2, 0x2103, 0xF719, 0x2923, 0x3984, 0xF719, 0xB4CF, 0x5A67,
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+    /* Paper -- cream and brown. Now that bar text is a role, the bar can be
+     * the warm brown it always wanted instead of the shared dark one. */
+    {0xF77C, 0x3985, 0xF77C, 0xEF3A, 0xDE97, 0x3984, 0x7B4A, 0xC5B3,
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
+    // High Contrast -- accessibility. MUTED is nearly white on purpose.
+    {0x0000, 0x0000, 0xFFFF, 0x0000, 0x2104, 0xFFFF, 0xE71C, 0xFFFF,
+     0x07E0, 0xF800, 0xFFE0, TILES_RGB, 6},
+    /* Classic -- System 7. Mid-grey desktop, white paper, black hairlines and
+     * black type, and a white bar with black glyphs, which is the whole reason
+     * barText had to stop being a constant. Square. The drop shadow
+     * drawButton already paints is period-correct by accident. */
+    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x6B4D, 0x0000,
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING,
+     {0xCE59, 0xE71C, 0xA534}, 0},
+    /* Silver -- Windows 98. Teal desktop, silver face, navy bar with white
+     * type. Square, and the bevel drawButton already draws is exactly the
+     * period's raised-button idiom. */
+    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x8410, 0x8410,
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING,
+     {0x0010, 0x03EB, 0x8000}, 0},
+    /* Pocket -- the original handheld's four greens, and nothing else.
+     *
+     * The status trio cannot be green, red and amber here; there is no hue to
+     * spend. They separate by lightness instead, which is what games on that
+     * hardware did. The console does not rely on colour for right and wrong in
+     * any case: beepOk()/beepError() pulse the RGB LED and play distinct cues,
+     * and the LED is deliberately not gated by Mute -- so the feedback still
+     * arrives through two other channels. The tiles have to be palette entries
+     * for this theme to work at all; three bright RGB rectangles on green is
+     * the first thing anyone would see. */
+    {0x9DE1, 0x09C1, 0x9DE1, 0x8D61, 0x8D61, 0x09C1, 0x3306, 0x3306,
+     0x3306, 0x09C1, 0x9DE1,
+     {0x8D61, 0x3306, 0x09C1}, 0},
+};
+
+/* The live palette, copied out of PALETTES by setTheme(). The accessors below
+ * read these rather than indexing the table on every call: Ui::text() and
+ * friends are on the path of essentially every draw in the firmware, and a
+ * bounds-checked table lookup per glyph is not what that budget is for. */
+uint16_t COLOR_BG       = PALETTES[0].bg;
+uint16_t COLOR_BAR_TEXT = PALETTES[0].barText;
+uint16_t COLOR_TILE[3]  = {PALETTES[0].tile[0], PALETTES[0].tile[1], PALETTES[0].tile[2]};
+uint8_t  COLOR_RADIUS   = PALETTES[0].radius;
+uint16_t COLOR_BAR     = PALETTES[0].bar;
+uint16_t COLOR_SURFACE = PALETTES[0].surface;
+uint16_t COLOR_PANEL   = PALETTES[0].panel;
+uint16_t COLOR_TEXT    = PALETTES[0].text;
+uint16_t COLOR_MUTED   = PALETTES[0].muted;
+uint16_t COLOR_OUTLINE = PALETTES[0].outline;
+uint16_t COLOR_SUCCESS = PALETTES[0].success;
+uint16_t COLOR_ERROR   = PALETTES[0].error;
+uint16_t COLOR_WARNING = PALETTES[0].warning;
 }
+
+/* The two theme enums are cast into each other rather than mapped, so they
+ * have to agree. If you add a theme, add it to both and add a line here; the
+ * build is then what tells you, rather than a device coming up the wrong
+ * colour. */
+static_assert(static_cast<uint8_t>(Ui::Theme::Dark) == static_cast<uint8_t>(Board::ThemeMode::Dark), "theme enums disagree: Dark");
+static_assert(static_cast<uint8_t>(Ui::Theme::Light) == static_cast<uint8_t>(Board::ThemeMode::Light), "theme enums disagree: Light");
+static_assert(static_cast<uint8_t>(Ui::Theme::Midnight) == static_cast<uint8_t>(Board::ThemeMode::Midnight), "theme enums disagree: Midnight");
+static_assert(static_cast<uint8_t>(Ui::Theme::Dusk) == static_cast<uint8_t>(Board::ThemeMode::Dusk), "theme enums disagree: Dusk");
+static_assert(static_cast<uint8_t>(Ui::Theme::Paper) == static_cast<uint8_t>(Board::ThemeMode::Paper), "theme enums disagree: Paper");
+static_assert(static_cast<uint8_t>(Ui::Theme::HighContrast) == static_cast<uint8_t>(Board::ThemeMode::HighContrast), "theme enums disagree: HighContrast");
+static_assert(static_cast<uint8_t>(Ui::Theme::Classic) == static_cast<uint8_t>(Board::ThemeMode::Classic), "theme enums disagree: Classic");
+static_assert(static_cast<uint8_t>(Ui::Theme::Silver) == static_cast<uint8_t>(Board::ThemeMode::Silver), "theme enums disagree: Silver");
+static_assert(static_cast<uint8_t>(Ui::Theme::Pocket) == static_cast<uint8_t>(Board::ThemeMode::Pocket), "theme enums disagree: Pocket");
+static_assert(static_cast<uint8_t>(Ui::Theme::Count) == static_cast<uint8_t>(Board::ThemeMode::Count), "theme enums disagree: Count");
 
 namespace Ui {
 
 static Theme s_theme = Theme::Dark;
 
 void setTheme(Theme t) {
+    /* Clamp rather than trust. The value arrives from NVS, and a device that
+     * was on a theme a later build removed -- or a downgrade -- must land
+     * somewhere legible rather than indexing off the end of the table. */
+    if (static_cast<uint8_t>(t) >= static_cast<uint8_t>(Theme::Count)) {
+        t = Theme::Dark;
+    }
     s_theme = t;
-    const bool dark = (t == Theme::Dark);
-    COLOR_BG      = dark ? DARK_BG      : LIGHT_BG;
-    COLOR_BAR     = dark ? DARK_BAR     : LIGHT_BAR;
-    COLOR_SURFACE = dark ? DARK_SURFACE : LIGHT_SURFACE;
-    COLOR_PANEL   = dark ? DARK_PANEL   : LIGHT_PANEL;
-    COLOR_TEXT    = dark ? DARK_TEXT    : LIGHT_TEXT;
-    COLOR_MUTED   = dark ? DARK_MUTED   : LIGHT_MUTED;
-    COLOR_OUTLINE = dark ? DARK_OUTLINE : LIGHT_OUTLINE;
-    COLOR_SUCCESS = dark ? DARK_SUCCESS  : LIGHT_SUCCESS;
-    COLOR_ERROR   = dark ? DARK_ERROR    : LIGHT_ERROR;
-    COLOR_WARNING = dark ? DARK_WARNING  : LIGHT_WARNING;
+    const Palette& p = PALETTES[static_cast<uint8_t>(t)];
+    COLOR_BG      = p.bg;
+    COLOR_BAR     = p.bar;
+    COLOR_SURFACE = p.surface;
+    COLOR_PANEL   = p.panel;
+    COLOR_TEXT    = p.text;
+    COLOR_MUTED   = p.muted;
+    COLOR_OUTLINE = p.outline;
+    COLOR_SUCCESS = p.success;
+    COLOR_ERROR   = p.error;
+    COLOR_WARNING = p.warning;
+    COLOR_BAR_TEXT = p.barText;
+    COLOR_TILE[0] = p.tile[0];
+    COLOR_TILE[1] = p.tile[1];
+    COLOR_TILE[2] = p.tile[2];
+    COLOR_RADIUS  = p.radius;
+}
+
+uint16_t barText() {
+    return COLOR_BAR_TEXT;
+}
+
+uint16_t tileFill(uint8_t index) {
+    return COLOR_TILE[index % 3];
+}
+
+uint8_t cornerRadius() {
+    return COLOR_RADIUS;
+}
+
+const char* themeName(Theme t) {
+    switch (t) {
+        case Theme::Dark:         return "Dark";
+        case Theme::Light:        return "Light";
+        case Theme::Midnight:     return "Midnight";
+        case Theme::Dusk:         return "Dusk";
+        case Theme::Paper:        return "Paper";
+        case Theme::HighContrast: return "Contrast";
+        case Theme::Classic:      return "Classic";
+        case Theme::Silver:       return "Silver";
+        case Theme::Pocket:       return "Pocket";
+        case Theme::Count:        break;
+    }
+    return "Dark";
 }
 
 Theme currentTheme() {
@@ -641,9 +766,10 @@ void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,
 void drawButton(Ui::Renderer& tft, const Rect& r, const String& label, uint16_t fill, uint16_t outline, uint16_t text, bool pressed, uint8_t font) {
     const int16_t yOffset = pressed ? 1 : 0;
     if (!pressed) {
-        tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 6, COLOR_SHADOW);
+        tft.fillRoundRect(r.x + BUTTON_SHADOW_DX, r.y + BUTTON_SHADOW_DY,
+                          r.w, r.h, COLOR_RADIUS, COLOR_SHADOW);
     }
-    tft.fillRoundRect(r.x, r.y + yOffset, r.w, r.h, 6, fill);
+    tft.fillRoundRect(r.x, r.y + yOffset, r.w, r.h, COLOR_RADIUS, fill);
 
     /* Bevel: a lighter line under the top edge and a darker one above the
      * bottom edge reads as a raised surface. Inverted while pressed so the
@@ -655,7 +781,7 @@ void drawButton(Ui::Renderer& tft, const Rect& r, const String& label, uint16_t 
         tft.drawFastHLine(r.x + 4, r.y + yOffset + r.h - 2, r.w - 8, pressed ? hi : lo);
     }
 
-    tft.drawRoundRect(r.x, r.y + yOffset, r.w, r.h, 6, outline);
+    tft.drawRoundRect(r.x, r.y + yOffset, r.w, r.h, COLOR_RADIUS, outline);
     tft.setTextColor(text, fill);
     tft.setTextDatum(MC_DATUM);
 

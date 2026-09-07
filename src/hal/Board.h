@@ -69,9 +69,24 @@ public:
         float cy = 0.0f;
     };
 
+    /* Mirrors Ui::Theme one for one, and Ui.cpp static_asserts that they agree
+     * so the two can be cast rather than mapped. Two enums exist because Ui.h
+     * is included by game code that must not pull in Board.h.
+     *
+     * The value is persisted, so entries may be appended but never reordered:
+     * a device set to Paper and then downgraded must not wake up in a
+     * different theme. */
     enum class ThemeMode : uint8_t {
         Dark = 0,
         Light = 1,
+        Midnight = 2,
+        Dusk = 3,
+        Paper = 4,
+        HighContrast = 5,
+        Classic = 6,
+        Silver = 7,
+        Pocket = 8,
+        Count = 9,
     };
 
     /* TODO(HARDWARE-VALIDATION): the divider ratio and no-battery behaviour
@@ -393,6 +408,33 @@ public:
     void setNtpServer(const String& server);
     bool isWifiConnected();
 
+    /* Update availability -- a NOTICE, not an OTA. The console never downloads
+     * or installs firmware; it reads one static file, compares a version string
+     * locally, and tells the owner where to go. Nothing about this device is
+     * transmitted: no version, no board id, no query string. The reasoning, and
+     * the rules that bound what a hostile response can do, are in
+     * include/UpdateChannel.h and must be read before changing any of it. */
+    static constexpr size_t VERSION_STR_CAP = 24;
+    bool updateCheckEnabled();
+    void setUpdateCheckEnabled(bool on);
+    /** Newest version offered for THIS board, or "" if never learned. */
+    const char* latestKnownVersion();
+    /** True when latestKnownVersion() is newer than the running firmware. */
+    bool updateAvailable();
+    /** Epoch of the last successful check, 0 if there has never been one. */
+    time_t lastUpdateCheckEpoch();
+    /* Once per frame from the runtime; does real work at most once a day, and
+     * only with Wi-Fi up and the clock synced. */
+    void tickUpdateCheck();
+    /* "a.b.c[-SUFFIX]" ordering. >0 when a is newer. A -SUFFIX pre-release
+     * sorts BEFORE the release of the same number -- see the definition. */
+    static int compareVersions(const char* a, const char* b);
+    /* True while a banner is owed: an update stands, and either it has not
+     * been announced at all or the last announcement was over a day ago. */
+    bool updateNoticeDue();
+    /** Record that the banner has just been shown. */
+    void markUpdateNoticeShown();
+
     /* Time sync. Wi-Fi is used for nothing but NTP: we connect, set the clock,
      * and then re-issue the sync on the user's configured cadence so drift is
      * corrected without a busy recent-calls log.
@@ -557,6 +599,13 @@ private:
     void logNetworkActivity(const char* fmt, ...);
     void noteTimeSyncSuccess();
     void loadNtpEnabled();
+    void loadUpdateState();
+    bool fetchUpdateManifest();
+    bool updateStateLoaded_ = false;
+    bool updateCheckEnabled_ = true;
+    char latestVersion_[VERSION_STR_CAP] = {0};
+    time_t lastUpdateCheckEpoch_ = 0;
+    uint32_t updateAttemptMs_ = 0;
     void loadNtpResyncHours();
     static uint8_t clampNtpResyncHours(uint8_t hours);
 

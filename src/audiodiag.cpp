@@ -46,6 +46,9 @@
  * BOOT (IO0) steps to the next page. There is no back.
  *
  * Pages:
+ *   RATE   -- measures the DAC's true sample rate against the configured
+ *             one. Silent, needs no ears, and separates "cue is cut off"
+ *             from "cue is played twice as fast".
  *   SINE   -- 440 Hz, 60% volume. Change SINE_HZ in the source and
  *             reflash to find the distortion threshold for maxVolume.
  *   SWEEP  -- 200->4000 Hz linear sweep, 4 s loop. Confirms no dead
@@ -71,7 +74,14 @@
 #include "BoardConfig.h"
 
 /* ---- constants -------------------------------------------------------- */
-static constexpr uint32_t SAMPLE_RATE = 16000;
+/* Must match AUDIO_RATE's DAC value in BoardAudio.cpp. A bench instrument that
+ * disagrees with the product about the rate it is measuring is worse than no
+ * instrument -- same rule as the battery constants and es8311VolumeReg().
+ *
+ * 24000 rather than 16000 because the built-in DAC's clock divider cannot
+ * reach 16000 at all: it wraps, and the peripheral ran at ~88.6 kHz. The RATE
+ * page below is what measured that; leave it able to. */
+static constexpr uint32_t SAMPLE_RATE = 24000;
 static constexpr i2s_port_t DAC_I2S_PORT = I2S_NUM_0;
 static constexpr int BOOT_PIN = 0;
 
@@ -167,6 +177,16 @@ static bool dacBegin() {
     }
     Serial.printf("[audiodiag] DAC up on GPIO%d at %lu Hz\n",
                   26, (unsigned long)SAMPLE_RATE);
+    /* What the driver thinks it configured, as opposed to what we asked
+     * for. i2s_get_clk() reports the rate the peripheral is really
+     * clocking at, which on the built-in DAC path is not the same
+     * question as the one answered by the value we passed in. */
+    Serial.printf("[audiodiag] i2s_get_clk reports %.1f Hz\n",
+                  (double)i2s_get_clk(DAC_I2S_PORT));
+    i2s_set_sample_rates(DAC_I2S_PORT, SAMPLE_RATE);
+    Serial.printf("[audiodiag] after i2s_set_sample_rates(%lu): %.1f Hz\n",
+                  (unsigned long)SAMPLE_RATE,
+                  (double)i2s_get_clk(DAC_I2S_PORT));
     return true;
 }
 
@@ -373,6 +393,65 @@ static void pageTones() {
     }
 }
 
+/* RATE -- how fast is the DAC actually consuming samples?
+ *
+ * This page needs no ears, and it exists because the two explanations for
+ * "the beeps sound too short and clipped" are indistinguishable by listening:
+ * a cue can be cut off at the end, or it can be played too fast. The second
+ * would halve every duration and raise every pitch an octave, which is exactly
+ * what a listener describes as "short" and "not a proper beep".
+ *
+ * I2S_MODE_DAC_BUILT_IN does not necessarily clock at the sample_rate handed
+ * to i2s_driver_install(): the built-in DAC path has its own divider
+ * behaviour, and getting a factor of two here is a documented trap. Nothing in
+ * the serial log says so -- the driver installs, every write is accepted and
+ * the numbers all look right.
+ *
+ * The measurement is simple and does not depend on believing any of that. A
+ * blocking i2s_write() can only proceed as fast as the DMA drains, so once the
+ * buffers are primed, wall-clock time per frame IS the output period. Priming
+ * first and stopping with the buffers full again means the same 1536 frames
+ * are queued at both ends, so frames-in equals frames-consumed exactly and
+ * there is no DMA-depth correction to argue about.
+ *
+ * Mid-scale silence is used rather than a tone: this runs on every boot before
+ * the pages that make noise, and it should not be four seconds of buzz. */
+static void pageRate() {
+    tftBanner("RATE", "Measuring true DAC rate", "(silent)", "");
+    Serial.println("[audiodiag] RATE: sweeping configured rate vs measured drain");
+
+    static int16_t silence[256] = {0};   /* -> 0x8000, mid-scale */
+    const uint32_t rates[] = {8000, 11025, 12000, 16000, 22050, 24000,
+                              32000, 44100, 48000};
+
+    for (uint8_t r = 0; r < sizeof(rates)/sizeof(rates[0]); ++r) {
+        i2s_set_sample_rates(DAC_I2S_PORT, rates[r]);
+        /* Prime: fill the DMA so the timed phase is pure steady state. */
+        for (int i = 0; i < 16; ++i) dacWrite(silence, 256, VOLUME_MAX);
+
+        const uint32_t frames = 32000;
+        const uint32_t t0 = millis();
+        for (uint32_t done = 0; done < frames; done += 256) {
+            dacWrite(silence, 256, VOLUME_MAX);
+        }
+        const uint32_t elapsed = millis() - t0;
+        const uint32_t measured = elapsed
+            ? (uint32_t)((uint64_t)frames * 1000ULL / elapsed) : 0;
+        Serial.printf("[audiodiag] RATE: set %5lu Hz -> get_clk %8.1f Hz, "
+                      "%lu frames in %4lu ms -> measured %6lu Hz (x%.2f)\n",
+                      (unsigned long)rates[r],
+                      (double)i2s_get_clk(DAC_I2S_PORT),
+                      (unsigned long)frames, (unsigned long)elapsed,
+                      (unsigned long)measured,
+                      (double)measured / (double)rates[r]);
+    }
+    i2s_set_sample_rates(DAC_I2S_PORT, SAMPLE_RATE);
+
+    tftBanner("RATE", "see serial log", "", "BOOT -> next page");
+    waitBootOrTimeout(15000);
+    waitBootRelease();
+}
+
 /* ---- entrypoints ------------------------------------------------------- */
 void setup() {
     Serial.begin(115200);
@@ -502,6 +581,23 @@ void setup() {
     }
     Serial.println("[audiodiag] DIRECT DAC done -- third long tone?");
 
+    /* Put the I2S driver back. The direct-DAC test above had to uninstall it
+     * to get the pad, and without this every page in loop() calls i2s_write()
+     * on a driver that is not there -- which faults immediately:
+     *
+     *     Guru Meditation Error: Core 1 panic'ed (LoadProhibited)
+     *     EXCVADDR: 0x00000018
+     *
+     * A null dereference at a small offset, because the driver's own state
+     * pointer is null. Every interactive page of this probe was unreachable
+     * that way: setup() ran, printed a healthy log, made its three test
+     * sounds, and then the firmware rebooted the moment the first page tried
+     * to play anything. */
+    if (!dacBegin()) {
+        Serial.println("[audiodiag] I2S re-install FAILED -- pages will not run");
+        return;
+    }
+
     Serial.println("[audiodiag] press BOOT to start");
     waitBootOrTimeout(60000);
     waitBootRelease();
@@ -510,6 +606,7 @@ void setup() {
 
 void loop() {
     if (!dacReady) { delay(100); return; }
+    pageRate();
     pageSine();
     pageSweep();
     pageVolume();

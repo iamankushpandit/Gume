@@ -494,6 +494,33 @@ def cinnamon():
     return im
 
 
+def page_label(per_page):
+    """"1/N" for a launcher mock-up showing the first page.
+
+    N is derived from the game count, so it cannot say 5 pages while the
+    console has 6. Both launcher mock-ups drew a middle page with a made-up
+    pager; now that they show page 1, the label has to agree.
+    """
+    from app_registry_parser import playable_apps
+    total = len(playable_apps())
+    return "1/%d" % ((total + per_page - 1) // per_page)
+
+
+def front_page_tiles(count):
+    """The first `count` launcher tiles, read from the registry.
+
+    Derived rather than typed, for the reason the About game list is derived:
+    these two mock-ups are the picture of the product in the README and on the
+    installer page, and they had drifted to showing page 6 (Number Line, US
+    States, Shape Arith...) while page 1 was something else entirely. A picture
+    of a page the launcher does not open with is worse than no picture, because
+    it is the one a parent forms an impression from.
+    """
+    from app_registry_parser import playable_apps
+    apps = sorted(playable_apps(), key=lambda a: a.index)
+    return [(a.label, a.subtitle) for a in apps[:count]]
+
+
 def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
@@ -517,9 +544,7 @@ def launcher_wide():
     # Lock at the left-hand end of the badge row, inside the hairline, at badge
     # size. See LauncherLayout::lockRect().
     lock_icon(d, (W - 136, 25, 18, 18))
-    tiles = [("Number Line", "jump to number"), ("US States", "states & capitals"),
-             ("Flags", "guess the flag"), ("Shape Arith", "add & subtract"),
-             ("Trace", "A-Z & 0-9"), ("Calendar", "days & months")]
+    tiles = front_page_tiles(6)
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub) in enumerate(tiles):
         x, y = 10 + (slot % 2) * 155, 52 + (slot // 2) * 53
@@ -531,7 +556,7 @@ def launcher_wide():
         d.text((x + 46, y + 9), title, font=F2, fill=WHITE)
         d.text((x + 46, y + 28), sub, font=F1, fill=(235, 245, 255))
     button(d, (8, 212, 74, 24), "Prev"); button(d, (W - 82, 212, 74, 24), "Next")
-    d.text((W / 2 - 12, 217), "3/5", font=F2, fill=TEXT)
+    d.text((W / 2 - 12, 217), page_label(6), font=F2, fill=TEXT)
     return im
 
 
@@ -553,8 +578,9 @@ def launcher_tall():
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
     lock_icon(d, (176, 51, 18, 18))
-    tiles = [("Number Line", "jump to number", BLUE), ("US States", "states & capitals", GREEN),
-             ("Flags", "guess the flag", RED), ("Shape Arith", "add & subtract", BLUE)]
+    _fills = (BLUE, GREEN, RED, BLUE)
+    tiles = [(t, sub, _fills[i % 4])
+             for i, (t, sub) in enumerate(front_page_tiles(4))]
     for slot, (title, sub, fill) in enumerate(tiles):
         x, y = 8 + (slot % 2) * 116, 86 + (slot // 2) * 104
         d.rounded_rectangle([x + 2, y + 3, x + 109, y + 98], 6, fill=SHADOW)
@@ -568,7 +594,7 @@ def launcher_tall():
             d.text((x + 54 - d.textlength(s2, font=f) / 2, y + yy), s2, font=f,
                    fill=WHITE if f is F2 else (235, 245, 255))
     button(d, (8, 292, 74, 24), "Prev"); button(d, (158, 292, 74, 24), "Next")
-    d.text((110, 297), "6/7", font=F2, fill=TEXT)
+    d.text((110, 297), page_label(4), font=F2, fill=TEXT)
     return im
 
 
@@ -989,21 +1015,44 @@ def multiply():
 
 
 def time_game():
+    """Time.
+
+    The geometry here is taken from TimeGame::drawClock() and answerRect(),
+    not approximated, and that matters more than it sounds: this mock-up used
+    to draw the dial at cy=100 r=42 and omit the question label entirely, so
+    the collision between the clock face and "Which time is shown?" -- which
+    was real on every board and severe on the 4-inch -- was invisible in every
+    generated screen. A mock-up that leaves out the element being overlapped
+    cannot show an overlap.
+    """
     im, d = blank(); topbar(d, "Time")
-    d.text((10, 36), "Score 2/4", font=F2, fill=TEXT)
-    cx, cy, r = W // 2, 100, 42
+    d.text((10, 35), "Level 1", font=F2, fill=TEXT)
+    d.text((10, 52), "Score 0", font=F2, fill=TEXT)
+    d.text((W - 10 - d.textlength("Streak 0", font=F2), 35), "Streak 0", font=F2, fill=TEXT)
+    d.text((W - 10 - d.textlength("Best 1", font=F2), 52), "Best 1", font=F2, fill=TEXT)
+
+    import math
+    cx, cy, r = W // 2, 86, 43
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=OUTLINE)
     for h in range(12):
-        import math
         a = math.radians(h * 30 - 90)
-        d.ellipse([cx + math.cos(a) * (r - 6) - 1, cy + math.sin(a) * (r - 6) - 1,
-                   cx + math.cos(a) * (r - 6) + 1, cy + math.sin(a) * (r - 6) + 1], fill=(60, 60, 70))
-    d.line([(cx, cy), (cx + 18, cy - 12)], fill=(30, 30, 40), width=3)     # hour
-    d.line([(cx, cy), (cx - 6, cy + 28)], fill=(200, 60, 60), width=2)     # minute
-    d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=(30, 30, 40))
-    for i, a in enumerate(["2:30", "3:30", "2:15", "6:10"]):
+        d.line([(cx + math.cos(a) * (r - 8), cy + math.sin(a) * (r - 8)),
+                (cx + math.cos(a) * (r - 3), cy + math.sin(a) * (r - 3))],
+               fill=(30, 30, 40))
+    for label, off in (("12", (0, -32)), ("3", (32, 0)), ("6", (0, 32)), ("9", (-32, 0))):
+        tw = d.textlength(label, font=F2)
+        d.text((cx + off[0] - tw / 2, cy + off[1] - 8), label, font=F2, fill=(30, 30, 40))
+    # 6:00 -- hour hand down, minute hand up.
+    d.line([(cx, cy), (cx, cy + 22)], fill=(30, 30, 40), width=3)
+    d.line([(cx, cy), (cx, cy - 32)], fill=(200, 60, 60), width=2)
+    d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=(30, 30, 40))
+
+    q = "Which time is shown?"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 136), q, font=F2, fill=TEXT)
+
+    for i, a in enumerate(["6:00", "5:00", "2:00", "4:00"]):
         r2 = (18 + (i % 2) * 152, 152 + (i // 2) * 40, 132, 34)
-        button(d, r2, a, SUCCESS if a == "2:30" else PANEL, (0, 0, 0) if a == "2:30" else TEXT)
+        button(d, r2, a, PANEL, TEXT)
     return im
 
 
@@ -1516,8 +1565,32 @@ def about_build():
     d.text((14, 168), "Built", font=F1, fill=TEXT)
     d.text((14, 182), "Aug 26 2026 14:28", font=F1, fill=MUTED)
     button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "9/10", font=F2, fill=MUTED)
+    return im
+
+
+def about_updates():
+    """About: is there a newer firmware, and where to get it.
+
+    Drawn in the state that matters -- an update IS available -- because that
+    is the state the page exists for and the one nobody sees while developing.
+    The version numbers are illustrative; everything on the real page is read
+    from the device and from BRAINO_UPDATE_PAGE_URL, which is compiled in.
+    """
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "Updates", font=F2, fill=TEXT)
+    d.text((14, 70), "Braino does not update itself.", font=F1, fill=MUTED)
+    d.text((14, 90), "Installed", font=F1, fill=TEXT)
+    d.text((14, 102), "5.7.0", font=F2, fill=MUTED)
+    d.text((14, 128), "Latest available", font=F1, fill=TEXT)
+    d.text((14, 140), "5.8.0", font=F2, fill=WARN)
+    d.text((14, 166), "Get it from", font=F1, fill=TEXT)
+    d.text((14, 180), "iamankushpandit.github.io/Gume", font=F1, fill=MUTED)
+    button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next", PANEL, MUTED)  # last page: disabled
-    d.text((W / 2 - 14, 212), "9/9", font=F2, fill=MUTED)
+    d.text((W / 2 - 14, 212), "10/10", font=F2, fill=MUTED)
     return im
 
 
@@ -2016,6 +2089,7 @@ EXTRA_SCREENS = [
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-radios", about_radios, "About: what the radios do"),
     ("about-build", about_build, "About: which build is on the device"),
+    ("about-updates", about_updates, "About: whether a newer firmware exists"),
     ("tictactoe", tictactoe, "Tic-Tac-Toe"),
     ("memory", memory, "Memory Match"),
     ("math", math_game, "Math"),

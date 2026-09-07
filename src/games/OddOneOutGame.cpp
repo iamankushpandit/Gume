@@ -20,7 +20,7 @@ constexpr AppMetadata ODD_ONE_OUT_METADATA = {
     "Find the one that differs.",
     &ODD_ONE_OUT_SCORE,
     LauncherIcon::OddOneOut,
-    16,
+    20,
     true,
 };
 }

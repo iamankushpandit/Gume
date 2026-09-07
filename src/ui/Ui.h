@@ -183,7 +183,58 @@ bool drawCountryImageTinted(Ui::Renderer& tft, const void* img, const Rect& r,
 bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
                             uint16_t bgColor, uint8_t scale);
 
-enum class Theme { Dark, Light };
+/* The display themes.
+ *
+ * Order is storage: the value is persisted as a uint8_t and Board::ThemeMode
+ * mirrors it one for one, so entries may be APPENDED but never reordered or
+ * removed -- a device that has been switched to Paper and then downgraded must
+ * not come back up in a different theme. Count is the cycle length and must
+ * stay last.
+ *
+ * Dark and Light are the originals. The rest were chosen for a 2.8-inch panel
+ * behind a resistive overlay, read by a child, not ported from editor palettes:
+ * the overlay diffuses and slightly greys everything, and RGB565 gives 5-6-5
+ * bits, so the low-contrast pairings those themes are admired for turn to mud
+ * here. See PALETTES in Ui.cpp. */
+enum class Theme : uint8_t {
+    Dark = 0,
+    Light = 1,
+    Midnight = 2,
+    Dusk = 3,
+    Paper = 4,
+    HighContrast = 5,
+    /* Three period looks. Named for what they evoke rather than for the
+     * products they evoke: the Windows 98 and System 7 desktops and the Game
+     * Boy screen are Microsoft's, Apple's and Nintendo's trade dress, and
+     * NOTICE.md keeps this project on the right side of that line. Anyone who
+     * recognises them will recognise them. */
+    Classic = 6,        // System 7: grey desktop, white paper, black hairlines
+    Silver = 7,         // Windows 98: teal ground, silver panels, navy bar
+    Pocket = 8,         // the original handheld: four shades of green
+    Count = 9,
+};
+
+/* drawButton() paints a drop shadow offset from the button rect by this much,
+ * at the SAME width and height -- so it protrudes past the rect's right and
+ * bottom edges. Anything erasing a button has to cover the rect plus this, and
+ * these exist so that erase can be derived rather than typed. Getting it wrong
+ * leaves an L-shaped sliver of shadow behind, which is what the launcher did
+ * on a short last page. */
+constexpr int16_t BUTTON_SHADOW_DX = 2;
+constexpr int16_t BUTTON_SHADOW_DY = 3;
+
+/** Text and glyphs drawn on the top bar. A palette role, not a constant. */
+uint16_t barText();
+/* The three launcher tile fills, cycled by slot. They are palette entries
+ * because a theme built from four shades of green cannot survive three bright
+ * RGB tiles on its first screen. */
+uint16_t tileFill(uint8_t index);
+/* Corner radius for buttons and tiles. 6 everywhere except the period themes,
+ * which are square -- a rounded Windows 98 button is not a Windows 98 button. */
+uint8_t cornerRadius();
+
 void setTheme(Theme t);
 Theme currentTheme();
+/** Display name for the Settings label. Never null. */
+const char* themeName(Theme t);
 }

@@ -45,6 +45,7 @@ ALLOWED_NTP_SERVERS = {
 
 ALLOWED_HTTP_ENDPOINTS = {
     "ip-api.com",  # One-time timezone lookup only
+    "iamankushpandit.github.io",  # Update-availability manifest; see below
 }
 
 # Patterns that indicate UNAUTHORIZED data transmission
@@ -84,6 +85,15 @@ FORBIDDEN_PATTERNS = [
 # Files that are expected to handle network (whitelist for inspection)
 NETWORK_FILES = {
     "src/hal/BoardNetwork.cpp",
+    # The update-availability check. A fourth outbound flow, agreed as a
+    # deliberate change to what the product promises rather than slipped in as
+    # a feature: the device fetches one static file listing every board's
+    # current version and compares locally. It sends nothing about itself --
+    # no version, no board id, no query string -- which is why the manifest
+    # lists all boards instead of being fetched per board. See
+    # include/UpdateChannel.h and the assertions in
+    # check_update_channel_is_anonymous() below.
+    "src/hal/BoardUpdate.cpp",
     "src/hal/BleBeacon.cpp",
     "src/hal/BleBeacon.h",
     "src/hal/BleScanner.cpp",
@@ -313,6 +323,54 @@ def check_public_privacy_claims() -> list:
     return issues
 
 
+def check_update_channel_is_anonymous():
+    """The update check must stay a request that says nothing about the device.
+
+    This is the property the whole feature rests on, and it is one careless
+    edit away from being lost. Appending the board or the running version to
+    the URL would look like an improvement -- it would let the server answer
+    more precisely, and save a few hundred bytes -- and it would quietly turn
+    an anonymous fetch into a version-and-model census keyed by IP address.
+    Prose in a header does not prevent that. This does.
+
+    Also asserted: the address About shows is compiled in and is never read out
+    of the response. A manifest that could name the destination could send a
+    child somewhere of an attacker's choosing, which is a different order of
+    problem from being wrong about a version number. See
+    include/UpdateChannel.h.
+    """
+    found = []
+    header = REPO_ROOT / "include" / "UpdateChannel.h"
+    if not header.exists():
+        return ["include/UpdateChannel.h is missing: the update endpoint no "
+                "longer has a single definition"]
+
+    text = header.read_text(encoding="utf-8", errors="replace")
+    match = re.search(r'BRAINO_UPDATE_MANIFEST_URL[^"]*"([^"]+)"', text)
+    if not match:
+        return ["include/UpdateChannel.h no longer defines "
+                "BRAINO_UPDATE_MANIFEST_URL as a string literal"]
+
+    url = match.group(1)
+    if "?" in url or "&" in url:
+        found.append("the update URL carries a query string (%s): the request "
+                     "must say nothing about this device" % url)
+    for token in ("BOARD_NAME", "BRAINO_VERSION", "%s", "%d"):
+        if token in url:
+            found.append("the update URL is parameterised with '%s': it must "
+                         "be one static path, byte-identical from every board"
+                         % token)
+
+    source = REPO_ROOT / "src" / "hal" / "BoardUpdate.cpp"
+    if source.exists():
+        src = source.read_text(encoding="utf-8", errors="replace")
+        if "BRAINO_UPDATE_PAGE_URL" in src:
+            found.append("BoardUpdate.cpp references BRAINO_UPDATE_PAGE_URL: "
+                         "the address shown to the user must come from the "
+                         "firmware, never from anything the fetch touched")
+    return found
+
+
 def main():
     """Run the privacy audit on all source files."""
     print("=" * 70)
@@ -351,6 +409,10 @@ def main():
     # rogue endpoint and is not visible anywhere in src/.
     all_issues.extend(check_public_privacy_claims())
 
+    # The update check's anonymity, which is a property of a URL rather than
+    # of any line of code, and so is invisible to every check above.
+    all_issues.extend(check_update_channel_is_anonymous())
+
     # Print results
     if all_issues:
         print("\n[FAILED] PRIVACY AUDIT FAILED\n")
@@ -367,6 +429,7 @@ def main():
         print("  1. NTP time synchronization")
         print("  2. One-time timezone lookup (ip-api.com)")
         print("  3. BLE beacon (opt-in, device ID + game/score only)")
+        print("  4. Update-availability manifest (anonymous GET, no device data)")
         print("Public privacy wording: no absolute network-silence claims.")
         print("\n" + "=" * 70)
         return 0

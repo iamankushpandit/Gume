@@ -16,7 +16,7 @@ constexpr AppMetadata STATE_MAP_METADATA = {
     "Name the state outline, then capital.",
     &STATE_MAP_SCORE,
     LauncherIcon::StateMap,
-    25,
+    26,
     true,
 };
 }

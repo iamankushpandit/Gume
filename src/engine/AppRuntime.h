@@ -133,6 +133,10 @@ private:
      * every frame -- it reads the cached battery sample and returns early
      * until BATTERY_CHECK_MS has passed. */
     void tickBatteryWarning(uint32_t nowMs);
+    /* Raises the "newer firmware exists" strip. Every player sees it, not just
+     * the admin: a parent who is not holding the device has no other way to
+     * learn, and the wording tells a child what to do about it. */
+    void tickUpdateNotice(uint32_t nowMs);
 
     /* Mark the strip as needing paint and make the screen under it redraw. */
     void requestBannerRepaint();
@@ -143,6 +147,9 @@ private:
      * point the strip first appears. */
     static constexpr uint32_t BATTERY_CHECK_MS = 2000;
     static constexpr uint32_t BATTERY_BANNER_MS = 6000;
+    /* Long enough to read a version number and an instruction, and no longer:
+     * it repeats daily, so it does not need to be insistent once. */
+    static constexpr uint32_t UPDATE_BANNER_MS = 6000;
     static constexpr uint32_t BATTERY_REPEAT_MS = 120000;
 
     Board board_;
@@ -242,6 +249,12 @@ private:
     /* The battery warning currently on screen, or nullptr. Points at a string
      * literal, so there is no buffer here to keep in step. */
     const char* batteryBanner_ = nullptr;
+    /* Composed rather than pointed at, because it carries a version number.
+     * Fixed and on the instance: a String rebuilt here would be a long-lived
+     * allocation in the one place CLAUDE.md says not to put one. */
+    char updateBanner_[48] = {0};
+    bool updateBannerActive_ = false;
+    uint32_t updateBannerShownMs_ = 0;
     uint32_t batteryCheckMs_ = 0;
     uint32_t batteryShownMs_ = 0;
     uint32_t batteryHiddenMs_ = 0;

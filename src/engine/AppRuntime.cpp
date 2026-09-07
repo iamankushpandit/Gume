@@ -5,6 +5,7 @@
 #include "engine/NearbyPlay.h"
 #include "AppVersion.h"
 #include "BuildStamp.h"
+#include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
@@ -30,8 +31,29 @@ void BrainoApp::beginScreenPaint() {
     renderer_.setTextSize(1);
 }
 
+/* Which renderer a screen draws through, and it is the same question as which
+ * orientation it runs in.
+ *
+ * A playable game that does NOT follow layout is the original contract: it is
+ * authored against a fixed 320x240 landscape canvas, forced to landscape by
+ * rotationForActiveScreen(), and scaled up on a bigger panel. All 31 games in
+ * the catalog work that way and are unaffected by this.
+ *
+ * A playable game that DOES follow layout has opted out of both halves at
+ * once, and it has to be both or neither. ScaledRenderer::width()/height()
+ * report the fixed canvas whatever the panel is doing, so a game that honoured
+ * the user's portrait setting while still measuring 320 wide would lay out a
+ * third of itself off the right-hand edge of a 240px panel -- and the serial
+ * log would look perfectly healthy, which is the same shape as the Settings
+ * and Wi-Fi portrait bug CLAUDE.md complains about.
+ *
+ * So: follows layout => raw renderer, real dimensions, read tft.width() and
+ * tft.height() at render time and lay out against them. Never SCREEN_WIDTH,
+ * SCREEN_HEIGHT or GAME_CANVAS_*. The cost is that such a game gives up free
+ * upscaling on the 4-inch and has to be responsive itself, which is the point
+ * rather than a regression. */
 Ui::Renderer& BrainoApp::display() {
-    if (activeAppIsPlayable()) {
+    if (activeAppIsPlayable() && !activeApp_->followsLayout) {
         return scaledRenderer_;
     }
     return renderer_;
@@ -160,7 +182,12 @@ void BrainoApp::begin() {
     lastActivityMs_ = millis();
     lastChargingState_ = board_.getChargingState();
     lastBatteryPercent_ = board_.getBatteryPercent();
-    Ui::setTheme(board_.themeMode() == Board::ThemeMode::Light ? Ui::Theme::Light : Ui::Theme::Dark);
+    /* The two enums are kept numerically identical (see the static_asserts in
+     * Ui.cpp), so this is a cast rather than a mapping. It used to be
+     * `== Light ? Light : Dark`, written out in three places -- a form that
+     * silently collapses every theme that is not Light into Dark the moment a
+     * third one exists. */
+    Ui::setTheme(static_cast<Ui::Theme>(board_.themeMode()));
 
     /* First-boot: automatically create default Admin profile with PIN 0000. */
     if (board_.playerCount() == 0 && board_.adminProfileIndex() == Board::GUEST_INDEX) {
@@ -207,10 +234,15 @@ void BrainoApp::loop() {
     }
 
     board_.tickTimeSync();
+    board_.tickUpdateCheck();
     board_.tickRgb();
+    /* Releases the BLE controller once Wi-Fi is down, when switching the
+     * beacon off had to leave it up to avoid a coexistence-teardown panic. */
+    BleBeacon::tickRadio();
     board_.tickAudio();
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
+    tickUpdateNotice(nowMs);
 
     /* A notification appearing or expiring changes the header, and the header
      * belongs to the screen underneath -- so the chrome has to repaint before
@@ -343,12 +375,20 @@ void BrainoApp::loop() {
         } else if (touch.justPressed &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
-        } else if (activeAppIsPlayable()) {
-            /* Below the chrome, a playable game hit-tests against its own
-             * fixed canvas, so the physical press has to be mapped back into
+        } else if (activeAppIsPlayable() && !activeApp_->followsLayout) {
+            /* Below the chrome, a fixed-canvas game hit-tests against its own
+             * 320x240 space, so the physical press has to be mapped back into
              * that space or every target lands where the content used to be
              * rather than where it is drawn. The inverse of ScaledRenderer's
-             * transform, and a no-op when the panel is canvas-sized. */
+             * transform, and a no-op when the panel is canvas-sized.
+             *
+             * A game that follows layout draws through the raw renderer at the
+             * panel's real size, so it must NOT be mapped -- the transform
+             * that keeps a fixed-canvas game honest is exactly what would
+             * break an adaptive one. The two have to be decided by the same
+             * flag as display(), or a game gets real pixels to draw on and
+             * canvas coordinates to hit-test with, which is the bug this
+             * comment describes, arrived at from the opposite direction. */
             TouchPoint gameTouch = touch;
             gameTouch.x = static_cast<int16_t>(lroundf(
                 touch.x * static_cast<float>(GAME_CANVAS_WIDTH) / SCREEN_WIDTH));
@@ -403,6 +443,43 @@ void BrainoApp::loop() {
 /* The charger is the only way out of this state, so the warning is driven off
  * Board's charge verdict rather than the percentage alone: plugging in clears
  * it within a couple of seconds, long before the reading climbs. */
+/* Announce a newer firmware, once a day, to whoever is holding the device.
+ *
+ * Deliberately not admin-only. The person who can act on this is often not the
+ * person playing, and a notice only the admin profile ever sees would be
+ * invisible on a console that spends its life logged in as a child -- which is
+ * every console. So the wording carries the instruction instead: it names the
+ * version and says who to ask, which is something a seven-year-old can act on
+ * and an adult can act on directly.
+ *
+ * The daily gate and the "have we already said this version" test both live in
+ * Board, persisted, because both have to survive a power cycle -- see
+ * Board::updateNoticeDue(). Nothing here decides when; it only draws.
+ *
+ * The string is composed once, when the banner is raised, and not rebuilt per
+ * frame: the strip repaints from updateBanner_ for as long as it is up. It
+ * measures 36 characters at the longest plausible version, inside the 40 the
+ * top bar fits at font 2, so it does not scroll -- and should not be made to.
+ * Scrolling would mean repainting the chrome strip on every frame for five
+ * seconds, which is exactly what Game::renderChrome() exists to avoid. */
+void BrainoApp::tickUpdateNotice(uint32_t nowMs) {
+    if (updateBannerActive_) {
+        if (nowMs - updateBannerShownMs_ >= UPDATE_BANNER_MS) {
+            updateBannerActive_ = false;
+            requestBannerRepaint();
+        }
+        return;
+    }
+    if (!board_.updateNoticeDue()) return;
+
+    snprintf(updateBanner_, sizeof(updateBanner_),
+             "%s available - ask admin to update", board_.latestKnownVersion());
+    updateBannerActive_ = true;
+    updateBannerShownMs_ = nowMs;
+    board_.markUpdateNoticeShown();
+    requestBannerRepaint();
+}
+
 void BrainoApp::tickBatteryWarning(uint32_t nowMs) {
     if (batteryCheckMs_ != 0 && nowMs - batteryCheckMs_ < BATTERY_CHECK_MS) {
         return;
@@ -462,8 +539,12 @@ void BrainoApp::requestBannerRepaint() {
 }
 
 void BrainoApp::drawHeaderBanner(bool screenRepainted) {
-    const char* text = (batteryBanner_ != nullptr) ? batteryBanner_
-                                                   : NearbyPlay::banner();
+    /* Priority order, and it is not arbitrary. A flat battery is about to end
+     * the session whatever else is true; an update is a standing condition that
+     * will still be there in five seconds; a poke is somebody waiting. */
+    const char* text = (batteryBanner_ != nullptr)  ? batteryBanner_
+                     : updateBannerActive_          ? updateBanner_
+                                                    : NearbyPlay::banner();
     if (text == nullptr) {
         bannerNeedsPaint_ = false;
         return;

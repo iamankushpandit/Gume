@@ -21,7 +21,7 @@ constexpr AppMetadata FINGER_COUNT_METADATA = {
     "Count on two hands.",
     nullptr,
     LauncherIcon::FingerCount,
-    18,
+    22,
     true,
 };
 }

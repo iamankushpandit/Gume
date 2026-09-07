@@ -166,6 +166,14 @@ void begin(bool enabled);
 /** Turn advertising on or off at runtime. Idempotent. */
 void setEnabled(bool enabled);
 
+/* Once per frame from the runtime. Completes a controller teardown that
+ * setEnabled(false) had to defer because Wi-Fi was up -- tearing the BLE
+ * controller down underneath live coexistence callbacks panics the device, so
+ * advertising stops immediately and the stack is released later. Costs a bool
+ * test on the frames where there is nothing to do, which is nearly all of
+ * them. See stopRadio() in BleBeacon.cpp for the measurement. */
+void tickRadio();
+
 /* Set (or clear) the Nearby-play fields and re-advertise if they changed.
  * `share == false` removes both fields from the payload entirely. Cheap and
  * idempotent when nothing changed, so it is safe to call on every screen

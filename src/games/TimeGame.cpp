@@ -9,6 +9,45 @@ constexpr uint16_t CLOCK_FACE = 0xF7BE;
 constexpr uint16_t HAND = 0x0843;
 constexpr uint16_t MINUTE_HAND = 0xE8E4;
 
+/* The dial, at file scope because two functions need to agree about where it
+ * is. drawClock() draws it; renderDynamic() has to clear the score header
+ * without erasing it, and for a long time it did not -- see HEADER_W. */
+constexpr int16_t CLOCK_CX = GAME_CANVAS_WIDTH / 2;
+constexpr int16_t CLOCK_CY = 86;
+constexpr int16_t CLOCK_R = 43;
+/* drawClock() fills one ring wider than the face, to cover the previous
+ * hands. That ring is what the header has to stay clear of, not the face. */
+constexpr int16_t CLOCK_OUTER = CLOCK_R + 4;
+
+/* The score header: "Level/Score" top left, "Streak/Best" top right, each
+ * cleared to background before being rewritten.
+ *
+ * The width is derived, and this is the whole bug. Both strips were a
+ * hand-typed 140px wide -- far wider than the text needs -- so they reached
+ * x=150 and x=170 while the dial spans 113..207. Every time the score changed,
+ * 37px was erased off each shoulder of the clock, leaving the face as a narrow
+ * vertical strip with two square bites out of it. renderDynamic() draws the
+ * clock first and the header second, so this happened on the very first frame
+ * and on every board; the 4-inch panel made it 48px a side and unmissable.
+ *
+ * Deriving the width from the dial means the two cannot drift apart again. If
+ * a longer score ever needs more room, the dial has to give it up explicitly
+ * rather than by being quietly painted over. */
+constexpr int16_t HEADER_MARGIN = 10;
+constexpr int16_t HEADER_Y = 33;
+constexpr int16_t HEADER_H = 36;
+/* A few pixels of daylight rather than exact adjacency. The two are scaled
+ * independently on a panel that is not the canvas size -- positions by the
+ * axis scale, the dial's radius by the smaller of the two -- and each rounds
+ * on its own. Touching exactly would be correct arithmetic that one rounding
+ * change turns back into the bug above. */
+constexpr int16_t HEADER_GAP = 3;
+constexpr int16_t HEADER_W = CLOCK_CX - CLOCK_OUTER - HEADER_MARGIN - HEADER_GAP;
+static_assert(HEADER_W > 90,
+              "The score header needs room for 'Streak 0' at font 2. If the "
+              "dial has grown enough to squeeze it, move the dial down or "
+              "shrink it -- do not let the header clear over it again.");
+
 constexpr AppScoreInfo TIME_GAME_SCORE = {
     "time", "Time", "timeBest", "pts", false
 };
@@ -22,7 +61,7 @@ constexpr AppMetadata TIME_GAME_METADATA = {
     "Read the clock and pick the time.",
     &TIME_GAME_SCORE,
     LauncherIcon::Time,
-    4,
+    11,
     true,
 };
 }
@@ -191,20 +230,35 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
 }
 
 void TimeGame::drawClock(Ui::Renderer& tft) const {
-    constexpr int16_t cx = GAME_CANVAS_WIDTH / 2;
-    constexpr int16_t cy = 91;
-    constexpr int16_t radius = 49;
+    /* The vertical budget on this screen is tight and was overdrawn.
+     *
+     * The answer buttons start at y=152 and the question label is 16px tall, so
+     * everything the clock occupies has to end by 136. At cy=91 with radius 49
+     * the outer fill reached y=144 and printed the top of "Which time is
+     * shown?" out of existence -- worst at the horizontal centre, where a
+     * circle reaches lowest and the centred sentence has its middle. On the
+     * 4-inch panel it swallowed the line almost whole.
+     *
+     * cy=86 with radius 43 puts the outer fill at 39..133, clear of the label
+     * at 136 with three rows to spare. Everything drawn against the face --
+     * numerals, tick lengths, hands -- is proportional to the radius and moved
+     * with it; if you change one, change them all, or the hands leave the
+     * dial. */
+    constexpr int16_t cx = CLOCK_CX;
+    constexpr int16_t cy = CLOCK_CY;
+    constexpr int16_t radius = CLOCK_R;
+    constexpr int16_t numeralInset = 32;   // was 36 at radius 49
 
-    tft.fillCircle(cx, cy, radius + 4, Ui::surface());
+    tft.fillCircle(cx, cy, CLOCK_OUTER, Ui::surface());
     tft.fillCircle(cx, cy, radius, CLOCK_FACE);
     tft.drawCircle(cx, cy, radius, Ui::outline());
 
     tft.setTextColor(HAND, CLOCK_FACE);
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("12", cx, cy - 36, 2);
-    tft.drawString("3", cx + 36, cy, 2);
-    tft.drawString("6", cx, cy + 36, 2);
-    tft.drawString("9", cx - 36, cy, 2);
+    tft.drawString("12", cx, cy - numeralInset, 2);
+    tft.drawString("3", cx + numeralInset, cy, 2);
+    tft.drawString("6", cx, cy + numeralInset, 2);
+    tft.drawString("9", cx - numeralInset, cy, 2);
 
     for (uint8_t i = 0; i < 12; ++i) {
         const float angle = -PI / 2.0f + i * PI / 6.0f;
@@ -219,10 +273,10 @@ void TimeGame::drawClock(Ui::Renderer& tft) const {
     const uint8_t minute = answerMinutes_ % 60;
     const float hourAngle = -PI / 2.0f + (hour + minute / 60.0f) * PI / 6.0f;
     const float minuteAngle = -PI / 2.0f + minute * PI / 30.0f;
-    const int16_t hx = cx + static_cast<int16_t>(cosf(hourAngle) * 25);
-    const int16_t hy = cy + static_cast<int16_t>(sinf(hourAngle) * 25);
-    const int16_t mx = cx + static_cast<int16_t>(cosf(minuteAngle) * 36);
-    const int16_t my = cy + static_cast<int16_t>(sinf(minuteAngle) * 36);
+    const int16_t hx = cx + static_cast<int16_t>(cosf(hourAngle) * 22);
+    const int16_t hy = cy + static_cast<int16_t>(sinf(hourAngle) * 22);
+    const int16_t mx = cx + static_cast<int16_t>(cosf(minuteAngle) * 32);
+    const int16_t my = cy + static_cast<int16_t>(sinf(minuteAngle) * 32);
     tft.drawLine(cx, cy, hx, hy, HAND);
     tft.drawLine(cx + 1, cy, hx + 1, hy, HAND);
     tft.drawLine(cx, cy, mx, my, MINUTE_HAND);
@@ -235,7 +289,7 @@ void TimeGame::renderStatic(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    Ui::drawLabel(tft, Rect{8, 133, 304, 16}, "Which time is shown?",
+    Ui::drawLabel(tft, Rect{8, 136, 304, 16}, "Which time is shown?",
                   Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -281,8 +335,9 @@ void TimeGame::renderDynamic(AppContext& host) {
     }
 
     if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_) {
-        tft.fillRect(10, 33, 140, 36, Ui::bg());
-        tft.fillRect(GAME_CANVAS_WIDTH - 10 - 140, 33, 140, 36, Ui::bg());
+        tft.fillRect(HEADER_MARGIN, HEADER_Y, HEADER_W, HEADER_H, Ui::bg());
+        tft.fillRect(static_cast<int16_t>(GAME_CANVAS_WIDTH - HEADER_MARGIN - HEADER_W),
+                     HEADER_Y, HEADER_W, HEADER_H, Ui::bg());
         char buf[20];
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
