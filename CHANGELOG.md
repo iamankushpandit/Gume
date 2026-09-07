@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.9.0-SNAPSHOT — Unreleased
+
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.8.0
+release, and `release.yml` refuses to publish a tag whose version carries it.
+
+`Board::compareVersions()` sorts a pre-release before the release of the same
+number, so a console on this build is correctly told that nothing newer exists
+rather than being nagged all cycle to install the 5.8.0 it is ahead of.
+
 ## 5.8.0 — 2026-09-07
 
 **Piano and Chess** — the first two apps here that are not drills, and the
