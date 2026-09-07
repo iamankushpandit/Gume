@@ -251,6 +251,102 @@ def blank(w=W, h=H):
 
 
 # ---------------------------------------------------------------- screens
+
+def piano():
+    """Piano: one octave, a key held.
+
+    Geometry taken from PianoGame's own rects, not approximated -- eight white
+    keys dividing the span, black keys three fifths as wide and two thirds as
+    tall, straddling the boundary between their neighbours.
+    """
+    im, d = blank(); topbar(d, "Piano")
+    import math
+    top, capH, m = 34, 22, 4
+    kb = (m, top, W - m * 2, H - top - capH - m)
+    whites = ["C", "D", "E", "F", "G", "A", "B", "C"]
+    lit = 4                                    # G held down
+    for i, name in enumerate(whites):
+        x0 = kb[0] + kb[2] * i // 8
+        x1 = kb[0] + kb[2] * (i + 1) // 8
+        fill = SUCCESS if i == lit else (248, 248, 244)
+        d.rectangle([x0, kb[1], x1 - 1, kb[1] + kb[3] - 1], fill=fill, outline=OUTLINE)
+        tw = d.textlength(name, font=F2)
+        d.text((x0 + (x1 - x0) / 2 - tw / 2, kb[1] + kb[3] - 20), name, font=F2,
+               fill=BG if i == lit else (60, 60, 70))
+    for i, after in enumerate([0, 1, 3, 4, 5]):
+        x0 = kb[0] + kb[2] * after // 8
+        x1 = kb[0] + kb[2] * (after + 1) // 8
+        bw = (x1 - x0) * 3 // 5
+        bx = x1 - bw // 2
+        d.rectangle([bx, kb[1], bx + bw - 1, kb[1] + kb[3] * 2 // 3], fill=(24, 24, 28),
+                    outline=OUTLINE)
+    cap = "Tap the keys"
+    d.text((W / 2 - d.textlength(cap, font=F1) / 2, H - 14), cap, font=F1, fill=MUTED)
+    return im
+
+
+def chess():
+    """Chess: a piece selected, its legal moves ringed.
+
+    The board is square and sized from the shorter axis, as ChessGame does, and
+    the sprite masks are read from the generated table so this picture cannot
+    drift from the pieces the device actually draws.
+    """
+    im, d = blank(); topbar(d, "Chess")
+    import re as _re
+    top, statusH, m = 34, 22, 3
+    side = min(W - m * 2, H - top - statusH - m) // 8 * 8
+    bx, by = (W - side) // 2, top
+    cell = side // 8
+
+    masks = {}
+    src = (ROOT / "src" / "games" / "ChessSprites.cpp").read_text(encoding="utf-8")
+    blocks = _re.findall(r"\{\s*//\s*(\w+)(.*?)\}", src, _re.S)
+    for name, body in blocks:
+        masks[name] = [int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{8})", body)]
+    order = ["PAWN", "KNIGHT", "BISHOP", "ROOK", "QUEEN", "KING"]
+
+    # The opening position after 1.e4, with the white queen selected.
+    back = ["ROOK", "KNIGHT", "BISHOP", "QUEEN", "KING", "BISHOP", "KNIGHT", "ROOK"]
+    board = {}
+    for f in range(8):
+        board[(f, 0)] = (back[f], True)
+        board[(f, 1)] = ("PAWN", True)
+        board[(f, 6)] = ("PAWN", False)
+        board[(f, 7)] = (back[f], False)
+    del board[(4, 1)]
+    board[(4, 3)] = ("PAWN", True)             # the pawn on e4
+    selected = (3, 0)                          # white queen
+    targets = [(4, 1), (5, 2), (6, 3), (7, 4)]
+
+    def paint(mask, px, py, colour):
+        for ry in range(cell):
+            row = mask[ry * 32 // cell]
+            for rx in range(cell):
+                if (row >> (31 - rx * 32 // cell)) & 1:
+                    d.point((px + rx, py + ry), fill=colour)
+
+    for f in range(8):
+        for r in range(8):
+            x0, y0 = bx + f * cell, by + (7 - r) * cell
+            light = (f + r) % 2 != 0
+            fill = SUCCESS if (f, r) == selected else ((222, 210, 180) if light else (120, 96, 72))
+            d.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=fill)
+            if (f, r) in board:
+                name, white = board[(f, r)]
+                mask = masks[name]
+                paint(mask, x0 + 1, y0 + 1, (20, 20, 26) if white else (250, 250, 246))
+                paint(mask, x0, y0, (250, 250, 246) if white else (20, 20, 26))
+            if (f, r) in targets:
+                cx, cy = x0 + cell // 2, y0 + cell // 2
+                rr = cell // 2 - 2
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=SUCCESS)
+    d.rectangle([bx, by, bx + side - 1, by + side - 1], outline=OUTLINE)
+    msg = "White to move"
+    d.text((W / 2 - d.textlength(msg, font=F2) / 2, H - statusH + 2), msg, font=F2, fill=TEXT)
+    return im
+
+
 def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
@@ -2117,6 +2213,8 @@ EXTRA_SCREENS = [
     ("elements", elements, "Elements: the periodic table"),
     ("elements-card", elements_card, "Elements: one element up close"),
     ("elements-quiz", elements_quiz, "Elements: find it in the table"),
+    ("piano", piano, "Piano: one octave"),
+    ("chess", chess, "Chess: a piece selected, its moves ringed"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 
