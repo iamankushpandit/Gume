@@ -1217,6 +1217,7 @@ them under GPL-3.0 does not relicense them; it licenses *this* work.
 | US state flags | [fonttools/region-flags](https://github.com/fonttools/region-flags) | Public domain |
 | US state outlines | [Natural Earth](https://www.naturalearthdata.com/) | Public domain (ODC PDDL) |
 | Capitals / regions | [mledoze/countries](https://github.com/mledoze/countries) | ODbL |
+| Chess piece silhouettes | [svgsilh.com](https://svgsilh.com/image/26774.html) | CC0 (public domain) |
 
 **Every asset compiled into this firmware is MIT or public domain.**
 

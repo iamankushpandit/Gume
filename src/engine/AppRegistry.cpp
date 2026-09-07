@@ -36,6 +36,8 @@ Game& greWords(GameInstances& games) { return games.greWords; }
 Game& dice(GameInstances& games) { return games.dice; }
 Game& coinFlip(GameInstances& games) { return games.coinFlip; }
 Game& elements(GameInstances& games) { return games.elements; }
+Game& piano(GameInstances& games) { return games.piano; }
+Game& chess(GameInstances& games) { return games.chess; }
 Game& scores(GameInstances& games) { return games.scores; }
 Game& profiles(GameInstances& games) { return games.profile; }
 Game& settings(GameInstances& games) { return games.settings; }
@@ -91,6 +93,13 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(diceAppMetadata(), dice),
     metadataCatalogApp(coinFlipAppMetadata(), coinFlip),
     metadataCatalogApp(elementsAppMetadata(), elements),
+    /* Appended, never inserted: per-profile game visibility is stored by
+     * launcher position, so putting a new game anywhere but the end reassigns
+     * everyone's hidden-game choices. `true` is followsLayout -- the first
+     * playable app to honour the owner's orientation, which also gives it the
+     * raw renderer instead of the fixed 320x240 canvas. */
+    metadataCatalogApp(pianoAppMetadata(), piano, true),
+    metadataCatalogApp(chessAppMetadata(), chess, true),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,

@@ -55,5 +55,45 @@ enum class Sound : uint8_t {
     Pad3,
     Pad4,
 
+    /* One chromatic octave, C4 to C5, for the Piano.
+     *
+     * These are in the vocabulary for the same reason the four pads are, and
+     * the reason is worth restating because it is the rule this file exists to
+     * enforce: `Board::beep(hz, ms)` is private, and a game that picks its own
+     * frequencies is exactly how a shared sound vocabulary stops being shared.
+     * A piano needs pitches, so the pitches are declared here, once, and the
+     * game chooses among them. It cannot invent a note that is not on this
+     * list -- which is the whole point.
+     *
+     * They must stay contiguous and in this order: playSound() maps the range
+     * onto a frequency table by subtracting NoteC4, rather than carrying
+     * thirteen more cases in a switch that is already the length of the
+     * vocabulary. Insert a note in the middle and every note above it changes
+     * pitch. */
+    NoteC4,
+    NoteCs4,
+    NoteD4,
+    NoteDs4,
+    NoteE4,
+    NoteF4,
+    NoteFs4,
+    NoteG4,
+    NoteGs4,
+    NoteA4,
+    NoteAs4,
+    NoteB4,
+    NoteC5,
+
     Boot,       // the spoken startup phrase
 };
+
+/* How long one note sounds. Stated here rather than inside the synthesiser
+ * because a caller that wants a note to keep sounding while a key is held has
+ * to know when to ask for it again -- the synthesiser has no concept of sustain
+ * and a cue is a fixed script, not a note-on. Change it in one place or the
+ * re-trigger drifts out of step with the sound and you get a stutter. */
+constexpr uint16_t SOUND_NOTE_MS = 320;
+
+/** Number of entries in the NoteC4..NoteC5 run. */
+constexpr uint8_t SOUND_NOTE_COUNT =
+    static_cast<uint8_t>(Sound::NoteC5) - static_cast<uint8_t>(Sound::NoteC4) + 1;
