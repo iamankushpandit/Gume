@@ -2,6 +2,23 @@
 
 ## 5.8.0-SNAPSHOT — Unreleased
 
+**Piano and Chess** — the first two apps here that are not drills, and the
+first that adapt to both orientations.
+
+**Piano** is one octave, C to C, with the note name on every key. No score, no
+round, no right answer. Hold a key and it keeps sounding. It is offered on every
+board: where there is no speaker the key still lights and still names the note.
+
+**Chess** is the full rules for two players sharing the device — there is no
+computer opponent. Tap a piece and every square it may legally move to is
+ringed, which is both the answer to 26-pixel squares on a resistive panel and
+the way you teach the game. Castling, en passant, promotion, check, checkmate
+and stalemate are all there; legality is decided by playing each move and asking
+whether it leaves your own king attacked, so pins and discovered checks need no
+rule of their own. The pieces are silhouettes rather than letters, because a
+letter is a literacy test — useless to the youngest players and to anyone whose
+sight makes a small glyph hard.
+
 In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.7.0
 release, and About's **This build** page names the branch and commit.

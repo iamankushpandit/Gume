@@ -41,14 +41,22 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
   is the entire feedback, so a cue replacing a `beepOk()` at a moment that
   deserves a colour must keep the `pulseRgb()` call by hand -- `MazeGame` and
   `MemoryGame` are the worked examples.
-- Sound is silent on a board without an audio codec, which today is every board
-  but the Freenove FNK0104B, and silent again when the owner has muted it in
+- Sound is silent on a board with no audio hardware, and silent again when the
+  owner has muted it in
   **Settings -> Sound**. Nothing may *depend* on a cue having been heard, and
   no screen should consult `soundEnabled()` to decide what to do -- the gate is
   inside `playSound()` and a second check outside it is how the two get to
   disagree. The one exception is the Sound tab itself, which has to *describe*
   the state it is offering to change.
-- Assume a fixed 320x240 landscape canvas: games do not run in portrait.
+
+  Which boards those are has changed: the Freenove has a codec, and the
+  E32R32P and E32R40T drive the ESP32's built-in DAC. Every app is offered on
+  every board regardless -- `playSound()` compiles to nothing where there is no
+  audio path, so an app needs no guard of its own, and one that leans on sound
+  should carry the same information visually. Piano draws the note name on the
+  key for exactly that reason.
+- Assume a fixed 320x240 landscape canvas **unless the app sets `followsLayout`**. That is the default and it is right for almost everything: the runtime forces landscape and scales the canvas up on a bigger panel, so a game gets free upscaling and never thinks about orientation. Piano and Chess are the exceptions.
+- **`followsLayout` is both halves or neither.** An app that sets it honours the owner's orientation AND draws through the raw renderer at the panel's real size, with touch delivered unmapped. Read `tft.width()`/`tft.height()` at render time; never `SCREEN_WIDTH`, `SCREEN_HEIGHT` or `GAME_CANVAS_*`. The two are decided by the same flag on purpose -- a game with real pixels to draw on and canvas coordinates to hit-test against lays a third of itself off the edge of a portrait panel, and the serial log looks perfectly healthy while it does.
 - System/UI apps (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens) must support both landscape and portrait orientations. Read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
 - Never read a setting from `board` more than once per screen change in a hot path. `Preferences` is flash-backed, so every getter is an NVS lookup. The frequently-read settings have write-through RAM mirrors in `Board`; add to those rather than reaching for a fresh getter each frame. Never call anything containing a `delay()` from `render()` or `update()`.
 - Don't rebuild content that didn't change. Scrolling changes an offset, not content. Gate expensive rebuilds behind a stale flag.

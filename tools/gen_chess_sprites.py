@@ -34,7 +34,7 @@ licence before you do, and update that row.
 
     python tools/gen_chess_sprites.py
 
-Writes src/games/ChessSprites.{h,cpp} and docs/screens/chess-sprites.png.
+Writes src/games/ChessSprites.{h,cpp} and docs/chess-sprites.png.
 Regenerating rewrites all three; edit this file or the SVG, never the output.
 """
 import os
@@ -222,8 +222,12 @@ def main():
             y0 = pad + row * (cell + pad)
             pd.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=sqcol)
             prev.paste(Image.new("RGB", (cell, cell), pcol), (x0, y0), big)
-    os.makedirs(os.path.join(ROOT, "docs", "screens"), exist_ok=True)
-    prev.save(os.path.join(ROOT, "docs", "screens", "chess-sprites.png"))
+    # docs/ and not docs/screens/: gen_site.py validates that every still in
+    # docs/screens is referenced by the site and dies on any that is not. This
+    # is a generator preview for whoever edits the sprites, not a screenshot of
+    # the product.
+    os.makedirs(os.path.join(ROOT, "docs"), exist_ok=True)
+    prev.save(os.path.join(ROOT, "docs", "chess-sprites.png"))
 
     header = '''#pragma once
 
@@ -270,7 +274,7 @@ extern const uint32_t MASK[6][SIZE];
          encoding="utf-8", newline="").write(header)
     open(os.path.join(ROOT, "src", "games", "ChessSprites.cpp"), "w",
          encoding="utf-8", newline="").write("\n".join(body))
-    print("wrote src/games/ChessSprites.{h,cpp} and docs/screens/chess-sprites.png")
+    print("wrote src/games/ChessSprites.{h,cpp} and docs/chess-sprites.png")
 
 
 if __name__ == "__main__":
