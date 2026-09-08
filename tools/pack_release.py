@@ -53,12 +53,61 @@ import textwrap
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-FLASH_PARTS = (
-    ("bootloader.bin", "0x1000"),
-    ("partitions.bin", "0x8000"),
-    ("boot_app0.bin",  "0xe000"),
-    ("firmware.bin",   "0x10000"),
-)
+# The parts, in flash order. Only the BOOTLOADER's offset depends on the chip
+# -- the other three are the standard Arduino-ESP32 layout on every target.
+PART_NAMES = ("bootloader.bin", "partitions.bin", "boot_app0.bin",
+              "firmware.bin")
+
+# Where each chip's ROM looks for the bootloader. THIS IS NOT COSMETIC: put an
+# ESP32-S3 bootloader at 0x1000 and the ROM reads 0xFF from 0x0, prints
+# "invalid header: 0xff" and loops forever. Every hash still verifies, so the
+# flash reports success and the board is simply dead -- which is exactly how
+# 5.9.0 shipped a Freenove image that could not boot, and a web-installer
+# entry that bricked the board it was offered for.
+#
+# Chip ids are the values in the ESP image header, which is why they are read
+# off the artifact rather than guessed from an environment name.
+CHIP_IDS = {
+    0:  ("esp32",    0x1000),
+    2:  ("esp32s2",  0x1000),
+    5:  ("esp32c3",  0x0),
+    9:  ("esp32s3",  0x0),
+    12: ("esp32c2",  0x0),
+    13: ("esp32c6",  0x0),
+    16: ("esp32h2",  0x0),
+}
+
+
+def chip_of(bootloader_path):
+    """Read the chip and its bootloader offset out of the image header.
+
+    Derived from the bytes being packed rather than from a table keyed on the
+    environment name, so it cannot drift when a board is added: the header is
+    written by the very build this is packing. Bytes 0 is the magic and 12..13
+    are the chip id, little-endian.
+    """
+    with open(bootloader_path, "rb") as handle:
+        header = handle.read(16)
+    if len(header) < 14 or header[0] != 0xE9:
+        die("%s is not an ESP image (magic 0x%02X, expected 0xE9)"
+            % (bootloader_path, header[0] if header else 0))
+    chip_id = header[12] | (header[13] << 8)
+    if chip_id not in CHIP_IDS:
+        die("%s reports chip id %d, which this packer does not know. Add it to "
+            "CHIP_IDS with the offset its ROM reads the bootloader from -- "
+            "guessing 0x1000 is how an unbootable image ships."
+            % (bootloader_path, chip_id))
+    return CHIP_IDS[chip_id]
+
+
+def flash_parts(bootloader_offset):
+    """The four parts with their offsets, for one chip."""
+    return (
+        ("bootloader.bin", "0x%x" % bootloader_offset),
+        ("partitions.bin", "0x8000"),
+        ("boot_app0.bin",  "0xe000"),
+        ("firmware.bin",   "0x10000"),
+    )
 
 # What each environment is for, in the words the README and CLAUDE.md use.
 # An environment with no entry still ships -- it just gets no description, and
@@ -184,17 +233,21 @@ def esptool_command():
         "PlatformIO fetches tool-esptoolpy")
 
 
-def merge(env_dir, parts, out_path):
+def merge(env_dir, parts, out_path, chip, bootloader_offset):
     """Flatten the four parts into one image to be written at 0x0.
 
     flash_mode/freq/size are `keep`: esptool reads them from the bootloader
     header the build produced, so this cannot contradict the board.
+
+    `--chip` was hardcoded to esp32 here until 5.9.1, which put the S3's
+    bootloader at 0x1000 in the merged image and produced a file that verifies
+    perfectly and cannot boot.
     """
     command = esptool_command() + [
-        "--chip", "esp32", "merge_bin", "-o", out_path,
+        "--chip", chip, "merge_bin", "-o", out_path,
         "--flash_mode", "keep", "--flash_freq", "keep", "--flash_size", "keep",
     ]
-    for name, offset in FLASH_PARTS:
+    for name, offset in flash_parts(bootloader_offset):
         command += [offset, parts[name]]
     result = subprocess.run(command, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
@@ -274,21 +327,33 @@ def flashing_notes(version, built, entries):
         "-" * 70,
         "Flashing the merged image (one command)",
         "-" * 70,
-        "  esptool.py --chip esp32 --port COM5 --baud 460800 \\",
+        "  esptool.py --chip %s --port COM5 --baud 460800 \\"
+        % entries[0][2]["chip"],
         "      write_flash 0x0 %s" % entries[0][2]["merged_name"],
         "",
         "The merged file already contains the four parts below at their",
         "offsets, and carries the flash mode, frequency and size the firmware",
         "was built with.",
         "",
+        "THE --chip AND THE BOOTLOADER OFFSET ARE PER BOARD. The ESP32 reads",
+        "its bootloader from 0x1000 and the ESP32-S3 from 0x0, so a command",
+        "copied from the wrong board's section produces an image that",
+        "verifies every hash and then loops on `invalid header: 0xff`. The",
+        "table below is generated per environment for that reason.",
+        "",
         "-" * 70,
         "Flashing the parts separately",
         "-" * 70,
-        "  esptool.py --chip esp32 --port COM5 --baud 460800 write_flash \\",
     ]
-    for name, offset in FLASH_PARTS:
-        lines.append("      %-7s %s \\" % (offset, entries[0][2][name + "_name"]))
-    lines[-1] = lines[-1].rstrip(" \\")
+    for env, board, parts in entries:
+        lines.append("  %s (%s):" % (env, parts["chip"]))
+        lines.append("  esptool.py --chip %s --port COM5 --baud 460800 "
+                     "write_flash \\" % parts["chip"])
+        rows = flash_parts(parts["bootloader_offset"])
+        for name, offset in rows:
+            lines.append("      %-7s %s \\" % (offset, parts[name + "_name"]))
+        lines[-1] = lines[-1].rstrip(" \\")
+        lines.append("")
     lines += [
         "",
         "Substitute another environment's name to flash a diagnostic.",
@@ -296,10 +361,21 @@ def flashing_notes(version, built, entries):
         "-" * 70,
         "What flashing destroys",
         "-" * 70,
-        "NVS holds touch calibration, player profiles and scores. A plain",
-        "write_flash of these images leaves NVS alone; `esptool.py",
-        "erase_flash` does not, and takes the touch calibration with it, so",
-        "the panel needs recalibrating on first boot.",
+        "NVS holds touch calibration, player profiles and scores.",
+        "",
+        "Flashing the FOUR PARTS leaves NVS alone: nothing is written between",
+        "0x9000 and 0xe000, where it lives.",
+        "",
+        "Flashing the MERGED image ERASES IT. The merged file is one",
+        "contiguous blob starting at 0x0, so it necessarily covers the NVS",
+        "region and writes 0xFF padding across it. Profiles, scores and the",
+        "touch calibration are gone and the panel needs recalibrating on",
+        "first boot. That is the right behaviour for installing onto a new",
+        "board and the wrong one for updating a board somebody is using --",
+        "use the four parts for an update. This file previously claimed both",
+        "paths preserved NVS, which was true only of the parts.",
+        "",
+        "`esptool.py erase_flash` erases everything, always.",
         "",
         "-" * 70,
         "Verifying a download",
@@ -326,7 +402,7 @@ def pack(version, out_dir, built, strict):
 
         label = "-".join(filter(None, ("braino", version, board, env)))
         parts = {}
-        for name, _offset in FLASH_PARTS:
+        for name in PART_NAMES:
             source = (stock_boot_app0 if name == "boot_app0.bin"
                       else os.path.join(env_dir, name))
             if not os.path.exists(source):
@@ -337,8 +413,12 @@ def pack(version, out_dir, built, strict):
             parts[name] = source
             parts[name + "_name"] = target_name
 
+        chip, bootloader_offset = chip_of(parts["bootloader.bin"])
+        parts["chip"] = chip
+        parts["bootloader_offset"] = bootloader_offset
         parts["merged_name"] = "%s-merged.bin" % label
-        merge(env, parts, os.path.join(out_dir, parts["merged_name"]))
+        merge(env, parts, os.path.join(out_dir, parts["merged_name"]),
+              chip, bootloader_offset)
 
         if env_role(env, board) not in ENV_BLURBS:
             missing_blurb.append(env)
