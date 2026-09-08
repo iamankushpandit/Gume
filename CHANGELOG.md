@@ -1,5 +1,59 @@
 # Changelog
 
+## 5.9.1 — 2026-09-08
+
+**A hotfix. 5.9.0 was withdrawn: it broke the display on two of the seven
+supported boards, and its Freenove image could not boot at all.** Three
+defects, every one of them shipped by a change meant to make diagnosis easier.
+
+**The boot log's panel-ID read corrupted the display.** 5.9.0 printed the
+controller's ID register at boot. On the 2.8-inch E32R28T-1 and the Freenove
+FNK0104B the result was a screen with the top bar crushed into a band at the
+bottom edge and the rest of it never painted. TFT_eSPI's `readcommand8()` is
+not a read: it writes an undocumented `0xD9` index command, toggles CS
+mid-sequence, and restores neither the address window nor `MADCTL`. A panel
+that answers gives you an ID; a panel whose MISO is not wired back is left
+mid-command, and the next write inherits it.
+
+What made this expensive to find is worth recording. The firmware was *healthy
+throughout* — 48fps, a 23ms worst frame against a 20ms budget, a flat heap, no
+stall, no panic, sitting on `ctx='Profiles'`, a screen whose drawing code is
+byte-identical between the two releases. Every instrument said the software
+was fine and every instrument was right: the corruption was in the panel, put
+there by the diagnostic. The field was worthless even where it appeared to
+work — across all seven boards it only ever answered `00:00:00` (MISO absent)
+or `FF:FF:FF` (floating high), and not one returned a real ID. It is removed
+rather than guarded, and `AppRuntime.cpp` records what a future board would
+have to do to earn it back.
+
+**The Freenove's merged image and its web-installer entry put the bootloader
+at the wrong offset.** `pack_release.py` hardcoded `--chip esp32` and a
+`0x1000` bootloader offset for every environment, and `gen_site.py` wrote that
+same offset into the manifest esp-web-tools consumes. The ESP32-S3 reads its
+bootloader from `0x0`, found padding there, and looped on `invalid header:
+0xff`. Every part downloads, every hash verifies, the progress bar completes,
+and the board is dead — so **nobody could install the Freenove from the web
+page for as long as it was offered**, and the failure looked like a successful
+install. Both tools now derive the offset per chip: `pack_release.py` reads
+the chip id out of the ESP image header of the bootloader it is packing, so it
+cannot drift when a board is added, and `gen_site.py` keys off the same `chip`
+field it already hands over as `chipFamily`. An unknown chip is a hard failure
+in both, because quietly defaulting to `0x1000` is exactly how this shipped.
+
+**`FLASHING.txt` claimed flashing preserves NVS. That is false for the merged
+image.** The four separate parts do leave it alone — nothing is written between
+`0x9000` and `0xe000`. The merged image is one contiguous blob from `0x0`, so
+it necessarily paves that region with `0xFF`, erasing profiles, scores and the
+touch calibration. Right for installing onto a new board, wrong for updating
+one somebody is using, and the file now says so per path. It was believed
+during this very investigation and cost a development board its stored state.
+
+**Still outstanding, carried over from 5.9.0:** a two-console regression check
+of nearby play. Two defects in that path were fixed late in 5.9.0 — the
+acceptor never published its ply-0 answer, and a peer's turn was recorded only
+on the sighting that first brought it into range — so the code that shipped is
+not the code that was exercised on two boards.
+
 ## 5.9.0 — 2026-09-08
 
 **Two consoles can play each other.** Chess and the new Sea Battle both run

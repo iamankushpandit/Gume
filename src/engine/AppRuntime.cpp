@@ -313,18 +313,38 @@ void BrainoApp::logIdentity() {
                   (unsigned long)(ESP.getFlashChipSize() / 1024),
                   (unsigned long)(ESP.getPsramSize() / 1024));
 
-    /* The controller's ID register. Read AFTER the panel is up, which it is by
-     * the time begin() reaches here. Wrapped in its own line because a board
-     * with MISO unconnected answers zeroes and that is worth seeing rather
-     * than hiding. */
-    TFT_eSPI& tft = board_.display();
-    const uint8_t id1 = tft.readcommand8(0x04, 1);
-    const uint8_t id2 = tft.readcommand8(0x04, 2);
-    const uint8_t id3 = tft.readcommand8(0x04, 3);
-    Serial.printf("[boot] panel=%s%s %dx%d bl=IO%d id=%02X:%02X:%02X\n",
+    /* THERE IS NO `id=` FIELD HERE, AND THERE MUST NOT BE ONE AGAIN.
+     *
+     * 5.9.0 read the controller's ID register with three
+     * `tft.readcommand8(0x04, n)` calls and printed the answer. It shipped,
+     * and it broke the display on two of the seven boards: the panel came up
+     * with the top bar crushed into a band at the bottom edge and the rest of
+     * the screen never painted -- an address-window symptom, on a board whose
+     * loop was meanwhile running at 48fps with a 23ms worst frame, a flat heap
+     * and no stall. Every diagnostic said the firmware was healthy, because it
+     * was. The corruption was in the panel, put there by the diagnostic.
+     *
+     * TFT_eSPI's readcommand8() is not a read. It writes 0xD9 -- an
+     * undocumented index-register command -- toggles CS mid-sequence, issues
+     * the command and clocks a byte back, and it restores neither the address
+     * window nor MADCTL. On a panel that answers you get an ID; on a panel
+     * whose MISO is not wired back you get whatever the bus floats to AND a
+     * controller left mid-command, which the next write inherits.
+     *
+     * The field was worth nothing even where it appeared to work: across all
+     * seven supported boards it only ever answered 00:00:00 (MISO absent) or
+     * FF:FF:FF (floating high). Not one returned a real ID. So this was a
+     * diagnostic that could not diagnose, paid for with a corrupted panel.
+     *
+     * If a future board genuinely wires MISO back and the ID is genuinely
+     * wanted, it needs a PanelProfile field saying so and a setRotation()
+     * reissued afterwards to rebuild the window -- never an unconditional
+     * read. Until a board needs it, the correct version of this line is the
+     * one that does not touch the panel at all. */
+    Serial.printf("[boot] panel=%s%s %dx%d bl=IO%d\n",
                   GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",
                   (int)BOARD.panel.nativeWidth, (int)BOARD.panel.nativeHeight,
-                  (int)BOARD.panel.backlightPin, id1, id2, id3);
+                  (int)BOARD.panel.backlightPin);
 
     Serial.printf("[boot] touch=%s cs=IO%d irq=IO%d sd=%s rgb=%s bat=%s\n",
                   BOARD.touch.kind == TouchKind::CapacitiveFt6336u

@@ -3,7 +3,7 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.9.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.9.1-blue)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-35-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,439,425 / 3,145,728 bytes (**77.5%**) |
+| Flash | 2,439,057 / 3,145,728 bytes (**77.5%**) |
 | RAM | 76,508 / 327,680 bytes (**23.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1090,8 +1090,9 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.9.0** — the previous release was **5.8.0**. See
-[CHANGELOG.md](CHANGELOG.md) for what changed.
+Current release: **5.9.1** — a hotfix withdrawing **5.9.0**, which broke
+the display on two boards and shipped a Freenove image that could not boot. See
+[CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
 
