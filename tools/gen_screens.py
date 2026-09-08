@@ -453,38 +453,42 @@ def sea_battle():
 
 
 def cursive():
-    """Cursive: tracing the word 'cat', with Words the active mode.
+    """Cursive: the word 'quiz' part traced, with the target behind it.
 
-    The word rather than a letter, because Trace already contributes two
+    A word rather than a letter, because Trace already contributes two
     letter-tracing stills and joining up is what this game adds. The dots come
     from the real table in src/games/CursiveGlyphData.cpp, so the picture
-    cannot drift from the letterforms the device draws -- the one thing a
-    hand-drawn mock-up of a generated glyph is guaranteed to get wrong.
-    Geometry matches LetterTracer: canvas at 78,36 sized 164x160, controls in
-    the side columns, and the word set's 12px dot spacing.
+    cannot drift from the letterforms the device draws.
+
+    Geometry matches LetterTracer: 52px control columns, a caption row above,
+    canvas at 60,52 sized 200x162, and the word set's 12px dot spacing.
     """
     import math as _m
     import re as _re
     im, d = blank(); topbar(d, "Cursive")
-    for label, y, col in [["ABC", 40, PANEL], ["abc", 72, PANEL],
+    for label, y, col in [["ABC", 52, PANEL], ["abc", 78, PANEL],
                           ["Words", 104, WARN]]:
-        d.rounded_rectangle([4, y, 72, y + 26], 4, fill=col, outline=OUTLINE)
-        d.text((38 - d.textlength(label, font=F1) / 2, y + 9), label, font=F1,
+        d.rounded_rectangle([4, y, 56, y + 22], 4, fill=col, outline=OUTLINE)
+        d.text((30 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
                fill=PANEL if col == WARN else TEXT)
-    for label, y in [["Again", 40], ["Next", 72]]:
-        d.rounded_rectangle([248, y, 316, y + 26], 4, fill=PANEL, outline=OUTLINE)
-        d.text((282 - d.textlength(label, font=F1) / 2, y + 9), label, font=F1,
+    for label, y in [["Again", 52], ["Next", 78]]:
+        d.rounded_rectangle([264, y, 316, y + 22], 4, fill=PANEL, outline=OUTLINE)
+        d.text((290 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
                fill=TEXT)
-    d.rounded_rectangle([4, 160, 72, 190], 4, fill=PANEL, outline=OUTLINE)
-    d.text((38 - d.textlength("Prev", font=F1) / 2, 170), "Prev", font=F1, fill=TEXT)
-    d.rectangle([76, 34, 242, 196], fill=SURFACE, outline=OUTLINE)
+    d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
+    d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
+
+    word = "quiz"
+    d.text((160 - d.textlength(word, font=F2) / 2, 33), word, font=F2, fill=TEXT)
 
     src = (ROOT / "src" / "games" / "CursiveGlyphData.cpp").read_text(encoding="utf-8")
 
     def stroke(tag):
         m = _re.search(r"static const int16_t %s\[\] = \{([^}]*)\}" % tag, src)
+        if m is None:
+            raise LookupError(tag)
         n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        return [(78 + n[i] * 164 // 200, 36 + n[i + 1] * 160 // 200)
+        return [(60 + n[i] * 200 // 200, 52 + n[i + 1] * 156 // 200)
                 for i in range(0, len(n), 2)]
 
     def resample(pts, step):
@@ -501,48 +505,42 @@ def cursive():
             carry = seg - (pos - step)
         return out
 
-    # However many strokes 'cat' has -- it is the joined word plus the t's
-    # crossbar, so two, but discovered rather than assumed: this broke once
-    # when the word went from one stroke per letter to one per word.
     paths = []
     while True:
         try:
-            paths.append(stroke("W_CAT_s%d" % len(paths)))
-        except AttributeError:
+            paths.append(stroke("W_QUIZ_s%d" % len(paths)))
+        except LookupError:
             break
-    assert paths, "W_CAT strokes not found in CursiveGlyphData.cpp"
+    assert paths, "W_QUIZ strokes not found in CursiveGlyphData.cpp"
 
-    # Every stroke faintly, so the word reads as a word.
+    # The finished shape, faintly: the thing the child is matching.
     for pts in paths:
         d.line(pts, fill=OUTLINE, width=1)
 
-    # The word is one stroke now, so "part way through" means part way along
-    # it rather than a whole letter done and the next started.
-    done = []
     way = resample(paths[0], 12)
     inked = int(len(way) * 0.45)
-    d.line(way[:inked + 1], fill=SUCCESS, width=3)
+    for i in range(1, inked):
+        d.line([way[i - 1], way[i]], fill=SUCCESS, width=3)
     for i, (x, y) in enumerate(way):
         if i < inked:
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
         elif i == inked:
-            d.ellipse([x - 5, y - 5, x + 5, y + 5], fill=WARN)
+            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
         else:
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
     hx, hy = way[0]
     d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
     d.text((hx - 3, hy - 4), "1", font=F1, fill=PANEL)
 
-    # Strokes not started yet -- the t's crossbar -- as faint dots.
     for pts in paths[1:]:
         for x, y in resample(pts, 12):
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
 
-    total = sum(len(resample(p, 12)) for p in paths)
-    barW, barX, barY = 120, (W - 120) // 2, 222
+    total = sum(len(resample(pp, 12)) for pp in paths)
+    barW, barX, barY = 120, (W - 120) // 2, 220
     d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
                         outline=OUTLINE)
-    fill = int(barW * (len(done) + inked) / max(1, total))
+    fill = int(barW * inked / max(1, total))
     d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
     return im
 
@@ -623,103 +621,104 @@ def statemaps():
     return im
 
 
+# --- the tracing games ------------------------------------------------------
+#
+# Trace and Cursive share LetterTracer, so they share one mock-up chrome and
+# one way of reading glyph data. Both stills draw the REAL letterform from the
+# real table -- these were hand-placed points once and drifted the moment the
+# layout changed, which is the whole argument for deriving them.
+
+def _tracer_chrome(d, title, tabs, active):
+    """The side columns and caption row. Keep in step with LetterTracer.cpp."""
+    for i, label in enumerate(tabs):
+        y = 52 + i * 26
+        on = i == active
+        d.rounded_rectangle([4, y, 56, y + 22], 4, fill=WARN if on else PANEL,
+                            outline=OUTLINE)
+        d.text((30 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
+               fill=PANEL if on else TEXT)
+    for label, y in (("Again", 52), ("Next", 78)):
+        d.rounded_rectangle([264, y, 316, y + 22], 4, fill=PANEL, outline=OUTLINE)
+        d.text((290 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
+               fill=TEXT)
+    d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
+    d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
+    d.text((160 - d.textlength(title, font=F2) / 2, 33), title, font=F2, fill=TEXT)
+
+
+def _glyph_strokes(source, tag):
+    """Strokes of one glyph from a data table, in canvas pixels."""
+    import re as _re
+    src = (ROOT / "src" / "games" / source).read_text(encoding="utf-8")
+    out = []
+    while True:
+        m = _re.search(r"static const int16_t %s_s%d\[\] = \{([^}]*)\}"
+                       % (tag, len(out)), src)
+        if m is None:
+            break
+        n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
+        out.append([(60 + n[i] * 200 // 200, 52 + n[i + 1] * 156 // 200)
+                    for i in range(0, len(n), 2)])
+    assert out, "%s not found in %s" % (tag, source)
+    return out
+
+
+def _resample(pts, step):
+    import math as _m
+    out, carry = [pts[0]], 0.0
+    for a, b in zip(pts, pts[1:]):
+        seg = _m.dist(a, b)
+        if seg <= 0:
+            continue
+        pos = step - carry
+        while pos <= seg:
+            t = pos / seg
+            out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+            pos += step
+        carry = seg - (pos - step)
+    return out
+
+
+def _tracer_canvas(d, paths, spacing, fraction, badge="1"):
+    """The ghost, the traced part, the pulsing next dot and the rest."""
+    for pts in paths:
+        d.line(pts, fill=OUTLINE, width=1)
+    way = _resample(paths[0], spacing)
+    inked = max(1, int(len(way) * fraction))
+    for i in range(1, inked):
+        d.line([way[i - 1], way[i]], fill=SUCCESS, width=3)
+    for i, (x, y) in enumerate(way):
+        if i < inked:
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
+        elif i == inked:
+            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
+        else:
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+    hx, hy = way[0]
+    d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
+    d.text((hx - 3, hy - 4), badge, font=F1, fill=PANEL)
+    for pts in paths[1:]:
+        for x, y in _resample(pts, spacing):
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+    total = sum(len(_resample(pp, spacing)) for pp in paths)
+    barW, barX, barY = 120, (W - 120) // 2, 220
+    d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
+                        outline=OUTLINE)
+    fill = int(barW * inked / max(1, total))
+    d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
+
+
 def trace():
     im, d = blank(); topbar(d, "Trace")
-    # Controls live in side columns, NOT above or below the canvas: a child
-    # tracing the top or bottom of a letter used to run a finger off the edge
-    # into them and switch alphabet mid-stroke. Keep in step with the rects in
-    # src/games/TraceGame.cpp.
-    for label, y, col in [["ABC", 40, WARN], ["abc", 72, PANEL], ["123", 104, PANEL]]:
-        d.rounded_rectangle([4, y, 72, y + 26], 4, fill=col, outline=OUTLINE)
-        d.text((38 - d.textlength(label, font=F1) / 2, y + 9),
-               label, font=F1, fill=PANEL if col == WARN else TEXT)
-    for label, y in [["Again", 40], ["Next", 72]]:
-        d.rounded_rectangle([248, y, 316, y + 26], 4, fill=PANEL, outline=OUTLINE)
-        d.text((282 - d.textlength(label, font=F1) / 2, y + 9), label, font=F1, fill=TEXT)
-    d.rounded_rectangle([4, 160, 72, 190], 4, fill=PANEL, outline=OUTLINE)
-    d.text((38 - d.textlength("Prev", font=F1) / 2, 170), "Prev", font=F1, fill=TEXT)
-    # Canvas: DRAW_X 78, DRAW_Y 36, DRAW_W 164, DRAW_H 160
-    d.rectangle([76, 34, 242, 196], fill=SURFACE, outline=OUTLINE)
-    # Show uppercase 'A' with waypoints - first stroke partially traced, second stroke next
-    # First stroke: apex to left, already completed
-    apex, left, bar = (160, 45), (96, 194), (160, 131)
-    for t in range(0, 11):
-        x = apex[0] + (left[0] - apex[0]) * t / 10
-        y = apex[1] + (left[1] - apex[1]) * t / 10
-        d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=SUCCESS)
-    d.line([apex, left], fill=SUCCESS, width=3)
-    # Add numbered badge on first dot of first stroke
-    d.ellipse([apex[0] - 7, apex[1] - 7, apex[0] + 7, apex[1] + 7], fill=WARN)
-    d.text((apex[0] - 3, apex[1] - 4), "1", font=F1, fill=PANEL)
-    # Second stroke: right side, with dots showing waypoints, pulsing on first unclaimed
-    right = (224, 194)
-    for t in range(0, 11):
-        x = apex[0] + (right[0] - apex[0]) * t / 10
-        y = apex[1] + (right[1] - apex[1]) * t / 10
-        if t == 0:
-            # Next dot, pulsing
-            d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=WARN)
-        else:
-            # Unclaimed dots
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=MUTED)
-    # Bar stroke dots
-    bar_l, bar_r = (124, 131), (196, 131)
-    for t in range(0, 11):
-        x = bar_l[0] + (bar_r[0] - bar_l[0]) * t / 10
-        d.ellipse([x - 2, 135, x + 2, 139], fill=MUTED)
-    # Watermark letter
-    d.text((110, 107), "A", font=F4, fill=PANEL)
-    # Progress bar
-    bar_x, bar_y = 90, 222
-    d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([bar_x, bar_y, 130, bar_y + 10], 4, fill=SUCCESS)
+    _tracer_chrome(d, "A", ["ABC", "abc", "123"], 0)
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20, 0.55)
     return im
 
 
 def trace_lower():
     im, d = blank(); topbar(d, "Trace")
-    # Controls live in side columns, NOT above or below the canvas: a child
-    # tracing the top or bottom of a letter used to run a finger off the edge
-    # into them and switch alphabet mid-stroke. Keep in step with the rects in
-    # src/games/TraceGame.cpp.
-    for label, y, col in [["ABC", 40, PANEL], ["abc", 72, WARN], ["123", 104, PANEL]]:
-        d.rounded_rectangle([4, y, 72, y + 26], 4, fill=col, outline=OUTLINE)
-        d.text((38 - d.textlength(label, font=F1) / 2, y + 9),
-               label, font=F1, fill=PANEL if col == WARN else TEXT)
-    for label, y in [["Again", 40], ["Next", 72]]:
-        d.rounded_rectangle([248, y, 316, y + 26], 4, fill=PANEL, outline=OUTLINE)
-        d.text((282 - d.textlength(label, font=F1) / 2, y + 9), label, font=F1, fill=TEXT)
-    d.rounded_rectangle([4, 160, 72, 190], 4, fill=PANEL, outline=OUTLINE)
-    d.text((38 - d.textlength("Prev", font=F1) / 2, 170), "Prev", font=F1, fill=TEXT)
-    # Canvas: DRAW_X 78, DRAW_Y 36, DRAW_W 164, DRAW_H 160
-    d.rectangle([76, 34, 242, 196], fill=SURFACE, outline=OUTLINE)
-    # Show lowercase 'g' with descender - two strokes
-    # First stroke: main bowl, completed
-    pts_main = [(190, 97), (169, 81), (137, 85), (118, 112), (120, 143),
-                (144, 162), (177, 156), (193, 129), (190, 97)]
-    for pt in pts_main:
-        d.ellipse([pt[0] - 3, pt[1] - 3, pt[0] + 3, pt[1] + 3], fill=SUCCESS)
-    # Draw connecting lines for first stroke
-    for i in range(len(pts_main) - 1):
-        d.line([pts_main[i], pts_main[i+1]], fill=SUCCESS, width=3)
-    # Badge on first point
-    d.ellipse([190 - 7, 97 - 7, 190 + 7, 97 + 7], fill=WARN)
-    d.text((187, 94), "1", font=F1, fill=PANEL)
-    # Second stroke: descender, with dots
-    d.ellipse([194 - 7, 98 - 7, 194 + 7, 98 + 7], fill=WARN)
-    d.text((191, 95), "2", font=F1, fill=PANEL)
-    descender_pts = [(194, 98), (194, 165), (181, 189), (149, 191), (124, 176)]
-    for i, pt in enumerate(descender_pts):
-        if i == 0:
-            d.ellipse([pt[0] - 6, pt[1] - 6, pt[0] + 6, pt[1] + 6], fill=WARN)
-        else:
-            d.ellipse([pt[0] - 3, pt[1] - 3, pt[0] + 3, pt[1] + 3], fill=MUTED)
-    # Watermark
-    d.text((118, 102), "g", font=F4, fill=PANEL)
-    # Progress bar (90% full)
-    bar_x, bar_y = 90, 222
-    d.rounded_rectangle([bar_x, bar_y, 230, bar_y + 10], 4, fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([bar_x, bar_y, 215, bar_y + 10], 4, fill=SUCCESS)
+    _tracer_chrome(d, "g", ["ABC", "abc", "123"], 1)
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "g"), 20, 0.8)
     return im
 
 

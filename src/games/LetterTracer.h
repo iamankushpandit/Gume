@@ -117,7 +117,11 @@ private:
     int16_t scaleY(int16_t ny) const;
     /** What is being traced, as text: the letter, or the whole word. */
     const char* caption(char* buf, size_t len) const;
-    void drawGuide(Ui::Renderer& tft);
+    void drawCaption(Ui::Renderer& tft);
+    /** The finished shape, faintly, as the thing to aim at. */
+    void drawGhost(Ui::Renderer& tft);
+    void drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to);
+    void drawAllDots(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
     void drawCompleteStatus(Ui::Renderer& tft);
     void drawModeTabs(Ui::Renderer& tft);
@@ -153,4 +157,8 @@ private:
     bool dirty_ = true;
     bool fullDirty_ = true;
     bool justCompleted_ = false;
+    /* What the panel already shows, so a partial frame can draw only what has
+     * appeared since. See the note above render() in the .cpp. */
+    uint8_t paintedStroke_ = 0;
+    uint8_t paintedPoint_ = 0;
 };

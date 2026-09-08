@@ -13,32 +13,61 @@ namespace {
  * the same happens at the bottom with Prev and Next. The buttons were sitting
  * in the natural overshoot of the gesture the game exists to teach.
  *
- * Side columns put them where the hand is not. That also frees the strips
- * above and below, so the canvas grows from 160x132 to 164x160 -- worth having
- * on its own, because the glyph coordinate space is COORD_MAX square. Mapping
- * a 200x200 design into 160x132 squashed every letter vertically; 164x160 is
- * nearly square, so the letters a child copies are the shape they should be. */
-constexpr int16_t DRAW_X = 78;
-constexpr int16_t DRAW_Y = 36;
-constexpr int16_t DRAW_W = 164;
-constexpr int16_t DRAW_H = 160;
+ * THE COLUMNS ARE AS NARROW AS THE LABELS ALLOW, because everything they do
+ * not use belongs to the letter. They were 68px wide with 26px buttons, which
+ * left a 164px canvas -- fine for a single letter and cramped for a joined
+ * word, where the whole point is the run across the page. At 52px they still
+ * hold "Words" at font 1 and the canvas grows to 200x162, a fifth more area
+ * and most of it in the direction a word needs. Do not shrink them further
+ * without checking "Words" still fits and the targets are still finger-sized:
+ * 52x22 with TOUCH_HIT_SLOP is about the floor on a resistive panel. */
+constexpr int16_t COL_W = 52;
+constexpr int16_t BTN_H = 22;
+constexpr int16_t COL_L_X = 4;
+constexpr int16_t COL_R_X = 264;
+constexpr int16_t SET_Y = 52;
+constexpr int16_t SET_STEP = 26;
+constexpr Rect PREV_BTN{COL_L_X, 142, COL_W, BTN_H};
+constexpr Rect RETRY_BTN{COL_R_X, 52, COL_W, BTN_H};
+constexpr Rect NEXT_BTN{COL_R_X, 78, COL_W, BTN_H};
+
+/* The word or letter, spelled out in ordinary type above the canvas.
+ *
+ * There was no such thing before -- only a font-1 watermark behind the dots,
+ * which at word sizes was illegible, so a child tracing 'quiz' had no way to
+ * know that was the word. A label is not a decoration here: the whole task is
+ * "write this", and the child has to be able to read what "this" is. */
+constexpr int16_t CAPTION_Y = 31;
+constexpr int16_t CAPTION_H = 19;
+
+constexpr int16_t DRAW_X = 60;
+constexpr int16_t DRAW_Y = 52;
+constexpr int16_t DRAW_W = 200;
+/* 156 and not 162: a glyph's coordinates run to COORD_MAX exactly, so its
+ * lowest point lands on DRAW_Y + DRAW_H, and the numbered badge drawn on it
+ * is a 7px circle. At 162 that circle touched the progress bar. */
+constexpr int16_t DRAW_H = 156;
 constexpr int16_t COORD_MAX = 200;
 constexpr int16_t HIT_RADIUS = 16;
 constexpr uint32_t PULSE_PERIOD_MS = 500;
+constexpr int16_t BAR_Y = 220;
 
-/* Left column: the alphabet tabs, then Prev. Right column: Again and Next.
- * The set tabs step down from SET_Y, so a game with two alphabets leaves the
- * third slot empty rather than moving Prev -- a control that shifts position
- * depending on which game you opened is a control you have to look for. */
-constexpr int16_t COL_W = 68;
-constexpr int16_t SET_Y = 40;
-constexpr int16_t SET_STEP = 32;
-constexpr Rect PREV_BTN{4, 160, COL_W, 30};
-constexpr Rect NEXT_BTN{248, 72, COL_W, 26};
-constexpr Rect RETRY_BTN{248, 40, COL_W, 26};
+/* Dot sizes, and they are small on purpose.
+ *
+ * They were radius 3 for a waypoint and 4 or 6 for the next one, which at a
+ * single letter's 20px spacing was fine and at a word's 12px spacing merged
+ * the letters into a chain of blobs -- reported from the device as not being
+ * able to tell that the word was 'quiz'. At radius 2 the shape shows through
+ * between the dots.
+ *
+ * The next dot pulses by CHANGING COLOUR AND NOT SIZE, which is also what
+ * makes the incremental repaint below possible: a dot that never grows never
+ * has to be erased, so a frame can overdraw it and touch nothing else. */
+constexpr int16_t DOT_R = 2;
+constexpr int16_t NEXT_R = 3;
 
 Rect setTabRect(uint8_t i) {
-    return Rect{4, static_cast<int16_t>(SET_Y + i * SET_STEP), COL_W, 26};
+    return Rect{COL_L_X, static_cast<int16_t>(SET_Y + i * SET_STEP), COL_W, BTN_H};
 }
 
 }   // namespace
@@ -287,6 +316,11 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
                     host.beepOk();
                     ++activeStroke_;
                     nextPoint_ = 0;
+                    /* A finished stroke changes the picture's shape rather
+                     * than adding to it -- the numbered badge moves to the
+                     * next stroke's first dot -- so this is one of the events
+                     * that earns a full repaint. See render(). */
+                    markFullDirty();
 
                     if (activeStroke_ >= strokeCount_) {
                         complete_ = true;
@@ -324,53 +358,80 @@ void LetterTracer::drawModeTabs(Ui::Renderer& tft) {
     tab(PREV_BTN, "Prev", false);
 }
 
-void LetterTracer::drawGuide(Ui::Renderer& tft) {
-    // Completed strokes, in the success colour.
-    for (uint8_t s = 0; s < activeStroke_ && s < strokeCount_; ++s) {
-        const uint8_t start = strokeStart_[s];
-        for (uint8_t i = 0; i + 1 < strokeLen_[s] && start + i < MAX_POINTS; ++i) {
-            const uint8_t a = static_cast<uint8_t>(start + i);
-            const uint8_t b = static_cast<uint8_t>(start + i + 1);
-            tft.drawLine(pts_[a].x, pts_[a].y, pts_[b].x, pts_[b].y, Ui::success());
-            tft.drawLine(pts_[a].x + 1, pts_[a].y, pts_[b].x + 1, pts_[b].y,
-                         Ui::success());
+/* What to write, in ordinary type, above the canvas. */
+void LetterTracer::drawCaption(Ui::Renderer& tft) {
+    char buf[2];
+    tft.fillRect(DRAW_X, CAPTION_Y, DRAW_W, CAPTION_H, Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(Ui::text(), Ui::bg());
+    tft.drawString(caption(buf, sizeof(buf)),
+                   static_cast<int16_t>(DRAW_X + DRAW_W / 2),
+                   static_cast<int16_t>(CAPTION_Y + CAPTION_H / 2), 2);
+}
+
+/* The finished shape, faintly, under everything else.
+ *
+ * This is the answer to "what am I aiming at?" -- a child can see the whole
+ * letter or word before starting and check their own line against it as they
+ * go, which is what a handwriting workbook's grey letter does. It costs no
+ * screen space, which is why it went here rather than into a thumbnail beside
+ * the canvas: there is no room for a second copy of a joined word.
+ *
+ * Drawn from the RAW glyph polyline rather than from the resampled waypoints,
+ * because the waypoints are 12 to 20 pixels apart and a polyline through them
+ * visibly corners on the tight curves -- which is exactly where a child needs
+ * the target to be accurate. */
+void LetterTracer::drawGhost(Ui::Renderer& tft) {
+    if (glyphs_ == nullptr) return;
+    const Glyph& g = glyphs_[glyphIndex_];
+    for (uint8_t st = 0; st < g.strokeCount && st < MAX_STROKES; ++st) {
+        const Stroke& s = g.strokes[st];
+        for (uint8_t i = 0; i + 1 < s.count; ++i) {
+            tft.drawLine(scaleX(s.pts[i * 2]), scaleY(s.pts[i * 2 + 1]),
+                         scaleX(s.pts[(i + 1) * 2]), scaleY(s.pts[(i + 1) * 2 + 1]),
+                         Ui::outline());
+        }
+    }
+}
+
+void LetterTracer::drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to) {
+    tft.drawLine(pts_[from].x, pts_[from].y, pts_[to].x, pts_[to].y, Ui::success());
+    tft.drawLine(pts_[from].x + 1, pts_[from].y, pts_[to].x + 1, pts_[to].y,
+                 Ui::success());
+}
+
+/* Every dot of every stroke. Only on a full repaint -- see render(). */
+void LetterTracer::drawAllDots(Ui::Renderer& tft) {
+    for (uint8_t st = 0; st < strokeCount_; ++st) {
+        const uint8_t start = strokeStart_[st];
+        const uint8_t len = strokeLen_[st];
+        const bool done = st < activeStroke_;
+        const bool active = st == activeStroke_;
+        const uint8_t inked = active ? min(nextPoint_, (uint8_t)len)
+                                     : (done ? len : 0);
+
+        for (uint8_t i = 0; i + 1 < inked && start + i + 1 < MAX_POINTS; ++i) {
+            drawTracedSegment(tft, static_cast<uint8_t>(start + i),
+                              static_cast<uint8_t>(start + i + 1));
+        }
+        for (uint8_t i = 0; i < len && start + i < MAX_POINTS; ++i) {
+            const uint8_t idx = static_cast<uint8_t>(start + i);
+            if (i < inked) {
+                tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::success());
+            } else if (active && i == inked) {
+                tft.fillCircle(pts_[idx].x, pts_[idx].y, NEXT_R,
+                               pulseState_ ? Ui::text() : Ui::warning());
+            } else {
+                tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::muted());
+            }
         }
     }
 
+    /* Which stroke this is, on its first dot. A cursive word is one stroke and
+     * a printed letter is up to four, and the number is how a child knows
+     * there is more to come after this one. */
     if (activeStroke_ < strokeCount_) {
         const uint8_t start = strokeStart_[activeStroke_];
-        const uint16_t inked = min(nextPoint_, (uint8_t)strokeLen_[activeStroke_]);
-
-        for (uint8_t i = 0; i + 1 < inked && start + i < MAX_POINTS; ++i) {
-            const uint8_t a = static_cast<uint8_t>(start + i);
-            const uint8_t b = static_cast<uint8_t>(start + i + 1);
-            tft.drawLine(pts_[a].x, pts_[a].y, pts_[b].x, pts_[b].y, Ui::success());
-            tft.drawLine(pts_[a].x + 1, pts_[a].y, pts_[b].x + 1, pts_[b].y,
-                         Ui::success());
-        }
-
-        for (uint8_t i = 0; i < strokeLen_[activeStroke_] && start + i < MAX_POINTS; ++i) {
-            const uint8_t idx = static_cast<uint8_t>(start + i);
-            uint16_t colour;
-
-            if (i < inked) {
-                colour = Ui::success();
-            } else if (i == inked && pulseState_) {
-                tft.fillCircle(pts_[idx].x, pts_[idx].y, 6, Ui::warning());
-                continue;
-            } else if (i == inked) {
-                tft.fillCircle(pts_[idx].x, pts_[idx].y, 4, Ui::warning());
-                continue;
-            } else {
-                colour = Ui::muted();
-            }
-
-            tft.fillCircle(pts_[idx].x, pts_[idx].y, 3, colour);
-        }
-
-        // Which stroke this is, on its first dot: cursive letters are one
-        // stroke, printed ones are up to four, and the number is how a child
-        // knows there is more to come.
         tft.fillCircle(pts_[start].x, pts_[start].y, 7, Ui::warning());
         tft.setTextColor(Ui::panel(), Ui::warning());
         tft.setTextDatum(MC_DATUM);
@@ -378,14 +439,6 @@ void LetterTracer::drawGuide(Ui::Renderer& tft) {
         badge[0] = static_cast<char>('1' + activeStroke_);
         badge[1] = 0;
         tft.drawString(badge, pts_[start].x, pts_[start].y, 1);
-    }
-
-    // Strokes not started yet, as faint dots.
-    for (uint8_t s = static_cast<uint8_t>(activeStroke_ + 1); s < strokeCount_; ++s) {
-        const uint8_t start = strokeStart_[s];
-        for (uint8_t i = 0; i < strokeLen_[s] && start + i < MAX_POINTS; ++i) {
-            tft.fillCircle(pts_[start + i].x, pts_[start + i].y, 2, Ui::muted());
-        }
     }
 }
 
@@ -407,59 +460,94 @@ void LetterTracer::drawProgress(Ui::Renderer& tft) {
         : 0;
     const int16_t barW = 120;
     const int16_t barX = (GAME_CANVAS_WIDTH - barW) / 2;
-    const int16_t barY = 222;
 
-    tft.fillRoundRect(barX, barY, barW, 10, 4, Ui::panel());
-    tft.drawRoundRect(barX, barY, barW, 10, 4, Ui::outline());
+    tft.fillRoundRect(barX, BAR_Y, barW, 10, 4, Ui::panel());
+    tft.drawRoundRect(barX, BAR_Y, barW, 10, 4, Ui::outline());
 
     const int16_t fillW = static_cast<int16_t>((int32_t)barW * pct / 100);
     if (fillW > 0) {
-        tft.fillRoundRect(barX, barY, fillW, 10, 4, Ui::success());
+        tft.fillRoundRect(barX, BAR_Y, fillW, 10, 4, Ui::success());
     }
 }
 
 void LetterTracer::drawCompleteStatus(Ui::Renderer& tft) {
-    /* Below the canvas, which ends at DRAW_Y + DRAW_H, and above the progress
-     * bar at y=222. */
-    constexpr Rect STATUS{82, 198, 156, 21};
-    tft.fillRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::success());
-    tft.drawRoundRect(STATUS.x, STATUS.y, STATUS.w, STATUS.h, 6, Ui::outline());
+    /* Over the bottom of the canvas, which is the one place a badge can go
+     * without stealing room from the letter for the whole game to pay for a
+     * message that shows for a moment. Painted only on the repaint completion
+     * triggers, and wiped by the next one. */
+    const int16_t w = 156;
+    const int16_t h = 21;
+    const int16_t x = static_cast<int16_t>(DRAW_X + (DRAW_W - w) / 2);
+    const int16_t y = static_cast<int16_t>(DRAW_Y + DRAW_H - h - 2);
+    tft.fillRoundRect(x, y, w, h, 6, Ui::success());
+    tft.drawRoundRect(x, y, w, h, 6, Ui::outline());
     tft.setTextColor(TFT_BLACK, Ui::success());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("Great job", STATUS.x + STATUS.w / 2,
-                   STATUS.y + STATUS.h / 2, 2);
+    tft.drawString("Great job", static_cast<int16_t>(x + w / 2),
+                   static_cast<int16_t>(y + h / 2), 2);
 }
 
+/* WHY THIS IS NOT ONE FULL REPAINT PER FRAME.
+ *
+ * It used to be: every dirty frame wiped the whole canvas and redrew the
+ * ghost, every dot and the badge. Claiming one dot changed about forty pixels
+ * and cost a 200x162 wipe plus a hundred and fifty circles, and the pulse made
+ * that happen twice a second whether or not anybody was tracing. On a panel
+ * where a full-screen repaint is 30ms of visible blanking that is both a waste
+ * and a flicker.
+ *
+ * What actually changes between frames is small and additive: a dot goes from
+ * grey to green, a short line appears behind it, and the next dot changes
+ * colour. None of that needs anything erased -- which is the whole reason the
+ * pulse changes colour instead of size. So a partial frame overdraws the few
+ * dots that moved and the progress bar, and touches nothing else.
+ *
+ * A full repaint is kept for the cases where the picture genuinely changes
+ * shape: a new glyph, a new alphabet, a stroke finishing (the badge moves to
+ * the next stroke's first dot), and completion. Those are events, not frames.
+ */
 void LetterTracer::render(AppContext& host, const char* title, bool fullRender) {
     Ui::Renderer& tft = host.display();
     if (glyphs_ == nullptr) return;
-    const Glyph& g = glyphs_[glyphIndex_];
 
     if (fullRender) {
         Ui::clear(tft);
         host.drawTopBar(title);
         drawModeTabs(tft);
-    } else {
-        tft.fillRect(76, 197, 168, 26, Ui::bg());
+        drawCaption(tft);
+        tft.fillRect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H, Ui::bg());
+        drawGhost(tft);
+        drawAllDots(tft);
+        drawProgress(tft);
+        if (complete_) drawCompleteStatus(tft);
+        paintedStroke_ = activeStroke_;
+        paintedPoint_ = nextPoint_;
+        tft.setTextDatum(TL_DATUM);
+        return;
     }
 
-    tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());
-    /* A faint watermark of what is being traced, behind the dots. Deliberately
-     * the panel colour on the background: it answers "what am I drawing?"
-     * without competing with the guide, which is the thing to look at. */
-    char buf[2];
-    (void)g;
-    tft.setTextColor(Ui::panel(), Ui::bg());
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString(caption(buf, sizeof(buf)), DRAW_X + DRAW_W / 2,
-                   DRAW_Y + DRAW_H / 2, 1);
+    if (activeStroke_ < strokeCount_) {
+        const uint8_t start = strokeStart_[activeStroke_];
+        const uint8_t len = strokeLen_[activeStroke_];
 
-    drawGuide(tft);
+        /* Dots claimed since the last paint, and the line into each. */
+        for (uint8_t i = paintedPoint_; i < nextPoint_ && i < len; ++i) {
+            const uint8_t idx = static_cast<uint8_t>(start + i);
+            if (i > 0) {
+                drawTracedSegment(tft, static_cast<uint8_t>(idx - 1), idx);
+            }
+            tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::success());
+        }
+        /* The next dot, in whichever half of the pulse we are in. Same radius
+         * every time, so this is an overdraw and never an erase. */
+        if (nextPoint_ < len) {
+            const uint8_t idx = static_cast<uint8_t>(start + nextPoint_);
+            tft.fillCircle(pts_[idx].x, pts_[idx].y, NEXT_R,
+                           pulseState_ ? Ui::text() : Ui::warning());
+        }
+        paintedPoint_ = nextPoint_;
+    }
+
     drawProgress(tft);
-
-    if (complete_) {
-        drawCompleteStatus(tft);
-    }
-
     tft.setTextDatum(TL_DATUM);
 }

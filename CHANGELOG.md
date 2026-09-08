@@ -33,6 +33,27 @@ letter: `box` came out as "borx" and `one` as "ovne". The font has alternate
 glyphs for that join; wiring up contextual selection is not implemented, so the
 word list avoids the pairs that need it.
 
+**The tracing screen was rebuilt around the letter**, after seeing it on the
+device. The control columns went from 68px to 52px and their buttons from 26px
+to 22px, which grows the canvas from 164x160 to 200x156 — a fifth more area,
+most of it in the direction a joined word needs. The word or letter is now
+**printed in ordinary type above the canvas**: there was only a font-1
+watermark behind the dots before, illegible at word size, so a child tracing
+`quiz` had no way to read what the word was. The dots shrank from radius 3 to
+2, because at the word set's 12px spacing the old ones merged the letters into
+a chain of blobs. And **the finished shape is drawn faintly underneath** — the
+thing a child is matching, the way a handwriting workbook prints a grey letter.
+
+**It also stopped repainting the whole canvas to move one dot.** Every dirty
+frame used to wipe 200x156 pixels and redraw the ghost, every dot and the
+badge — and the pulsing next-dot made that happen twice a second whether or not
+anybody was tracing. What actually changes is additive: a dot goes green, a
+short line appears, the next dot changes colour. So a partial frame overdraws
+those and the progress bar and touches nothing else. That is also why the pulse
+now changes colour instead of size: a dot that never grows never has to be
+erased. Full repaints are kept for the events that change the picture's shape —
+a new glyph, a new alphabet, a stroke finishing, completion.
+
 **Scoring counts practice and never ends.** Every letter and every word finished
 adds one, for as long as a child keeps going. A count rather than a best,
 because there is nothing to win here and nothing to lose — inventing a win
