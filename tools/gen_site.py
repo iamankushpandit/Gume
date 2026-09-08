@@ -47,6 +47,36 @@ PARTS = (
     ("firmware.bin",   0x10000),
 )
 
+# Where each chip family's ROM reads the bootloader from. ONLY the bootloader
+# moves; the other three offsets are the same on every target.
+#
+# This existed as a single 0x1000 until 5.9.1, which meant the manifest handed
+# esp-web-tools an ESP32 layout for the ESP32-S3 board. The S3 ROM reads 0x0,
+# found the 0xFF the manifest left there, and looped on "invalid header: 0xff".
+# Every part downloaded and verified, the progress bar completed, and the board
+# was dead -- so the page reported a successful install of a firmware that
+# could never boot, for as long as that board was offered.
+#
+# Keyed by the `chip` in BOARD_DETAILS, which is also the chipFamily
+# esp-web-tools is given, so the two cannot disagree.
+BOOTLOADER_OFFSET = {
+    "ESP32":    0x1000,
+    "ESP32-S2": 0x1000,
+    "ESP32-S3": 0x0,
+    "ESP32-C3": 0x0,
+}
+
+
+def parts_for(chip):
+    """The manifest's parts list for one chip family."""
+    if chip not in BOOTLOADER_OFFSET:
+        die("board chip %r has no bootloader offset. Add it to "
+            "BOOTLOADER_OFFSET -- defaulting to 0x1000 is how the S3 board "
+            "shipped an image that verified and could not boot." % chip)
+    offset = BOOTLOADER_OFFSET[chip]
+    return tuple((name, offset if name == "bootloader.bin" else stock)
+                 for name, stock in PARTS)
+
 # One entry per PlatformIO environment offered on the page. `label` is what the
 # picker shows; `note` is the sentence under it, and has to be honest about
 # what the diagnostic builds do -- they replace the games entirely.
@@ -602,7 +632,8 @@ def manifest_for(board, variant, release):
         "new_install_prompt_erase": False,
         "builds": [{
             "chipFamily": board["chip"],
-            "parts": [{"path": name, "offset": offset} for name, offset in PARTS],
+            "parts": [{"path": name, "offset": offset}
+                      for name, offset in parts_for(board["chip"])],
         }],
     }
 

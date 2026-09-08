@@ -408,7 +408,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,439,425 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,439,057 / 3,145,728 bytes,
 **77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,508 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1048,10 +1048,19 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   that survives being flashed with the wrong image -- which is exactly how a
   2.8-inch board reported itself as a 4-inch for half an hour. `board=` and
   `panel=` are compiled in and therefore describe the firmware, not the
-  hardware; `id=` is read back off the controller and is the one line that can
-  contradict the profile, though it answers zeroes on any board whose MISO is
-  not wired back. Keep all four: between them they turn "which board is this?"
-  into a paste rather than an afternoon.
+  hardware. **There is no `id=` field, and putting one back needs more care
+  than it looks.** 5.9.0 printed the controller's ID register and broke the
+  display on two of the seven boards: `tft.readcommand8()` writes an
+  undocumented 0xD9, toggles CS mid-sequence and restores neither the address
+  window nor MADCTL, so a panel whose MISO is not wired back is left
+  mid-command and the next write inherits it. The symptom is the top bar
+  crushed into a band at one edge and the rest of the screen never painted,
+  while the loop reports 48fps, a 23ms worst frame and a flat heap -- every
+  instrument saying the firmware is healthy, because it is. The corruption was
+  in the panel, put there by the diagnostic. Across all seven boards the field
+  only ever answered `00:00:00` or `FF:FF:FF`; not one returned a real ID, so
+  it could not do the job it cost a panel to attempt. The remaining three lines
+  turn "which board is this?" into a paste rather than an afternoon.
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
   (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
