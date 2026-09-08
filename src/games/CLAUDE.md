@@ -127,6 +127,9 @@ and a name. Add a third tracing game the same way; do not copy the engine.
 - **A `Set` may carry `names`** when one character cannot say what is being
   traced -- that is how the word sets caption themselves, since `Glyph::label`
   is a single char.
+- **A `Set` may open at a random entry** (`randomStart`). Right for words and
+  wrong for an alphabet: ABC is the order a child is learning, while always
+  being handed the same word first makes fifty words feel like one.
 - **Cursive's letterforms are generated** by `tools/gen_cursive_glyphs.py` from
   a GPLv3 dotted teaching font. Both `CursiveGlyphData.h` and `.cpp` are
   generated, including the counts, which are `constexpr` because the game's

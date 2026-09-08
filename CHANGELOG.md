@@ -12,8 +12,32 @@ rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
 **Cursive** — trace joined-up handwriting, in three modes: capitals,
 lowercase, and **easy words**. Words are the point of cursive: a child who can
-draw a lone `c` still has to learn that `cat` is one movement across the page,
-so ten three-letter words come with it.
+draw a lone `c` still has to learn that `cat` is one movement across the page.
+
+**A word is one unbroken stroke**, which took two attempts. The first kept one
+stroke per letter, so the game asked for a pen lift between every letter —
+print in a fancy hand, not cursive, and it was rightly called out as such. What
+made that look defensible was a bad measurement: the gap between where one
+glyph's dot run *ends* and the next one's *begins* is 185–408 font units, which
+looked like proof the letters do not touch. Those are drawing-order endpoints,
+not where the ink meets — an `a` is written from the top right of its oval, so
+its first dot is nowhere near its left edge. The shapes were always joined; only
+the stroke list was not.
+
+**Fifty words, one or two for every letter of the alphabet**, shuffled rather
+than alphabetical so the Words tab does not spend its first entries on `a` and
+`b`, and opening the tab lands on a random one. Four letters — b, o, v, w — end
+high, where cursive joins them from, so a word that follows one of those with a
+letter starting on the baseline leaves a spare loop that reads as an extra
+letter: `box` came out as "borx" and `one` as "ovne". The font has alternate
+glyphs for that join; wiring up contextual selection is not implemented, so the
+word list avoids the pairs that need it.
+
+**Scoring counts practice and never ends.** Every letter and every word finished
+adds one, for as long as a child keeps going. A count rather than a best,
+because there is nothing to win here and nothing to lose — inventing a win
+condition would turn handwriting practice into a test. It is written through on
+every completion, so a console taken away mid-session keeps what was done.
 
 The letterforms are **taken from a real cursive hand**, not invented here. The
 first attempt authored all 52 by hand as Bezier curves and it was not close —

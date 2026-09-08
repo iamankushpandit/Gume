@@ -12,6 +12,6 @@ extern const CursiveGame::Glyph CURSIVE_GLYPHS[];
  * more than that. */
 extern const char* const CURSIVE_WORDS[];
 
-constexpr uint8_t CURSIVE_GLYPH_COUNT = 62;
+constexpr uint8_t CURSIVE_GLYPH_COUNT = 102;
 constexpr uint8_t CURSIVE_WORD_FIRST = 52;
-constexpr uint8_t CURSIVE_WORD_COUNT = 10;
+constexpr uint8_t CURSIVE_WORD_COUNT = 50;

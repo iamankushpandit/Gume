@@ -41,6 +41,7 @@ and the letter is simply not the letter.
 import io
 import math
 import os
+import random
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,7 +60,46 @@ LIFT_GAP = 80         # font units; within-stroke steps are 36
 # keeping every one of them would be flash spent on invisible detail.
 MIN_STEP = 4
 
-WORDS = ['cat', 'dog', 'sun', 'bed', 'cup', 'hat', 'pig', 'run', 'top', 'man']
+# One or two short words for every letter of the alphabet, so a child who
+# has just learned a letter can go and write something that starts with it.
+# All lowercase and all short: this is a handwriting exercise, not a spelling
+# test, and a five-letter word at this canvas size is already small.
+#
+# These are ordinary sight words -- the same ones every handwriting workbook
+# uses, because they are the words a beginner already reads. Nothing here is
+# copied from anybody's worksheet; the artwork on those is theirs, the fact
+# that "and" is a common word is not.
+#
+# x has no easy word that starts with it, so it gets one that contains it.
+WORDS = [
+    'and', 'ate', 'big', 'bed', 'cat', 'cup', 'dog', 'day', 'egg', 'eat',
+    'fun', 'fig', 'got', 'get', 'hat', 'hop', 'ink', 'if', 'jam', 'jug',
+    'kid', 'key', 'log', 'let', 'mix', 'mud', 'net', 'nap', 'old', 'oat',
+    'pig', 'pen', 'quiz', 'red', 'run', 'sun', 'sit', 'top', 'ten', 'up',
+    'use', 'vet', 'wet', 'way', 'six', 'yes', 'you', 'zip', 'out', 'cut',
+]
+
+# SOME PAIRS OF LETTERS DO NOT JOIN WELL AND THE WORD LIST AVOIDS THEM.
+#
+# Four letters -- b, o, v, w -- end high, at about y=172, because that is
+# where cursive joins them from. Every other letter ends just above the
+# baseline at about y=58. So a high-ending letter followed by one that STARTS
+# at the baseline makes the connector plunge 170 units down and come straight
+# back up, and the spare loop that leaves reads as an extra letter: 'box' came
+# out as "borx", 'win' as "wrin", 'one' as "ovne".
+#
+# Real hands solve this with a different join, and this font has the alternate
+# glyphs for it (the .rlow and .fina variants), but wiring those up means
+# implementing contextual selection. Choosing words that do not need it costs
+# nothing and is honest about what is implemented. If a word is ever added
+# here, look at the sheet: the failure is obvious and only obvious there.
+
+# Words are emitted in a fixed shuffled order rather than alphabetically, so
+# the Words tab does not walk a b c and spend its first ten entries on 'a' and
+# 'b'. Seeded, so a rebuild produces the same table -- a build that reorders
+# its own data every time is a build whose flash figure moves for no reason.
+# The game also opens the set at a random entry; see CursiveGame.
+SHUFFLE_SEED = 20260908
 
 MAX_STROKES = 6       # LetterTracer::MAX_STROKES
 
@@ -147,26 +187,34 @@ def char_strokes(gs, cmap, ch, dx=0.0):
 
 
 def word_strokes(gs, cmap, word):
-    """Strokes of a whole word, letters placed at their own advance widths.
+    """A word as ONE unbroken stroke, plus whatever marks sit above it.
 
-    ONE STROKE PER LETTER, NOT ONE PER WORD, and that is measurement rather
-    than preference. The obvious thing is to join the letters into a single
-    unbroken stroke -- that is what cursive is -- but the exit of one glyph
-    does not actually land on the entry of the next in this font: measured
-    across cat, dog and top, the gap is 185 to 408 font units where a step
-    within a stroke is 36. Concatenating them would draw a straight line
-    across that gap and teach a join that is not there.
+    THIS IS THE WHOLE POINT OF CURSIVE and the first version got it wrong. It
+    kept one stroke per letter, so the tracer numbered them and asked the child
+    to lift between every letter -- which is not cursive, it is print in a
+    fancy hand, and it was rightly called out as such.
 
-    Sliding each letter left until it touched the one before would close the
-    gap and wreck the spacing, so the letters keep their advance widths and the
-    tracer numbers them. A child still traces the word left to right, in
-    writing order, one letter at a time.
+    What made that look defensible was a bad measurement: the gap between the
+    END of one glyph's dot run and the START of the next glyph's is 185 to 408
+    font units, which looked like proof the letters do not touch. It is not.
+    Those are DRAWING-ORDER endpoints, not the points where the ink meets -- an
+    'a' is written from the top right of its oval, so its first dot is nowhere
+    near its left edge. Typing a word in this font produces properly joined
+    script; the shapes were always connected and only the stroke list was not.
+
+    So the bodies are concatenated in writing order. The connector between two
+    letters is the straight run the resampler walks between them, which is what
+    a hand does anyway. Marks -- the dot on an i, the crossbar of a t -- stay
+    separate, because those genuinely are pen lifts.
     """
-    out, x = [], 0.0
+    body, marks, x = [], [], 0.0
     for ch in word:
-        out.extend(char_strokes(gs, cmap, ch, x))
+        strokes = char_strokes(gs, cmap, ch, x)
+        if strokes:
+            body.extend(strokes[0])      # order_strokes puts the letter first
+            marks.extend(strokes[1:])
         x += gs[cmap[ord(ch)]].width
-    return out
+    return ([body] if len(body) >= 2 else []) + marks
 
 
 def normalise(items):
@@ -377,7 +425,9 @@ def main():
     # about a third of the canvas. Each word filling its own box is worth more
     # here than the words matching each other.
     letters = normalise(upper) + normalise(lower)
-    words = [normalise([(w, word_strokes(gs, cmap, w))])[0] for w in WORDS]
+    order = list(WORDS)
+    random.Random(SHUFFLE_SEED).shuffle(order)
+    words = [normalise([(w, word_strokes(gs, cmap, w))])[0] for w in order]
 
     bad = 0
     for label, strokes in letters + words:

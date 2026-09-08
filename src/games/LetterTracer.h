@@ -57,6 +57,15 @@ public:
          * an alphabet -- Glyph::label already carries the letter. A word set
          * points this at its own array of words. */
         const char* const* names;
+        /* Open this set at a random entry rather than its first.
+         *
+         * Right for words and wrong for an alphabet: A B C is the order a
+         * child is learning and shuffling it would be actively unhelpful,
+         * while always being handed the same word first makes fifty words feel
+         * like one. Prev and Next still walk in order from wherever it lands,
+         * because a child who wants the word they had a moment ago has to be
+         * able to get back to it. */
+        bool randomStart;
     };
 
     /* Longest resampled run, across all of a glyph's strokes.
@@ -92,6 +101,10 @@ public:
     bool takeDirty();
     /** True once, if the chrome changed too. */
     bool takeFullDirty();
+    /* True once per glyph finished. The shell counts these; the tracer does
+     * not know what a score is and should not -- it also does not know
+     * whether it just traced a letter or a whole word. */
+    bool takeCompleted();
 
 private:
     struct Pt {
@@ -113,6 +126,7 @@ private:
     void nextGlyph();
     uint8_t setFirstIndex() const;
     uint8_t setLastIndex() const;
+    uint8_t setStartIndex() const;
     int16_t waypointSpacing() const;
     void markDirty() { dirty_ = true; }
     void markFullDirty() { dirty_ = true; fullDirty_ = true; }
@@ -138,4 +152,5 @@ private:
 
     bool dirty_ = true;
     bool fullDirty_ = true;
+    bool justCompleted_ = false;
 };

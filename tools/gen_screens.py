@@ -501,22 +501,26 @@ def cursive():
             carry = seg - (pos - step)
         return out
 
-    # 'cat' is four strokes: c, a, the t's body, then its crossbar.
-    tags = ["W_CAT_s%d" % i for i in range(4)]
-    paths = [stroke(t) for t in tags]
+    # However many strokes 'cat' has -- it is the joined word plus the t's
+    # crossbar, so two, but discovered rather than assumed: this broke once
+    # when the word went from one stroke per letter to one per word.
+    paths = []
+    while True:
+        try:
+            paths.append(stroke("W_CAT_s%d" % len(paths)))
+        except AttributeError:
+            break
+    assert paths, "W_CAT strokes not found in CursiveGlyphData.cpp"
 
     # Every stroke faintly, so the word reads as a word.
     for pts in paths:
         d.line(pts, fill=OUTLINE, width=1)
 
-    # The first letter finished, the second part way through.
-    done = resample(paths[0], 12)
-    d.line(done, fill=SUCCESS, width=3)
-    for x, y in done:
-        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
-
-    way = resample(paths[1], 12)
-    inked = len(way) // 3
+    # The word is one stroke now, so "part way through" means part way along
+    # it rather than a whole letter done and the next started.
+    done = []
+    way = resample(paths[0], 12)
+    inked = int(len(way) * 0.45)
     d.line(way[:inked + 1], fill=SUCCESS, width=3)
     for i, (x, y) in enumerate(way):
         if i < inked:
@@ -527,10 +531,10 @@ def cursive():
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
     hx, hy = way[0]
     d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
-    d.text((hx - 3, hy - 4), "2", font=F1, fill=PANEL)
+    d.text((hx - 3, hy - 4), "1", font=F1, fill=PANEL)
 
-    # Strokes not started yet, as faint dots.
-    for pts in paths[2:]:
+    # Strokes not started yet -- the t's crossbar -- as faint dots.
+    for pts in paths[1:]:
         for x, y in resample(pts, 12):
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
 

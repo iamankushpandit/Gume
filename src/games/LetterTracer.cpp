@@ -1,5 +1,6 @@
 #include "LetterTracer.h"
 
+#include <esp_system.h>   // esp_random(), for a set that opens at random
 #include <math.h>
 
 namespace {
@@ -61,9 +62,25 @@ bool LetterTracer::takeFullDirty() {
     return d;
 }
 
+bool LetterTracer::takeCompleted() {
+    const bool d = justCompleted_;
+    justCompleted_ = false;
+    return d;
+}
+
+/* Where a set opens. Random for the word sets, its first entry otherwise --
+ * see Set::randomStart. */
+uint8_t LetterTracer::setStartIndex() const {
+    const uint8_t first = setFirstIndex();
+    if (sets_ == nullptr || setCount_ == 0) return first;
+    const Set& s = sets_[setIndex_];
+    if (!s.randomStart || s.count == 0) return first;
+    return static_cast<uint8_t>(first + (esp_random() % s.count));
+}
+
 void LetterTracer::begin() {
     setIndex_ = 0;
-    glyphIndex_ = setFirstIndex();
+    glyphIndex_ = setStartIndex();
     loadGlyph();
     markFullDirty();
 }
@@ -224,7 +241,7 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
                 continue;
             }
             setIndex_ = i;
-            glyphIndex_ = setFirstIndex();
+            glyphIndex_ = setStartIndex();
             loadGlyph();
             return;
         }
@@ -274,6 +291,7 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
                     if (activeStroke_ >= strokeCount_) {
                         complete_ = true;
                         completeAt_ = millis();
+                        justCompleted_ = true;
                         host.beepOk();
                         markFullDirty();
                     }

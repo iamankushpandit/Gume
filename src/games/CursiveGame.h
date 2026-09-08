@@ -37,4 +37,12 @@ public:
 
 private:
     LetterTracer tracer_;
+    /* How many letters and words this player has finished tracing, ever.
+     *
+     * A count rather than a best, and it only ever goes up: there is nothing
+     * to win here and nothing to lose, so the only honest number is how much
+     * practice has been done. Held in RAM and written through to the profile's
+     * own storage on each completion -- see CursiveGame.cpp on why that write
+     * is affordable. */
+    uint32_t practised_ = 0;
 };
