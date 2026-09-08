@@ -278,7 +278,48 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Five diagnostic environments exist for hardware triage:
+### An environment is either the product or a bench probe, and it says which
+
+`platformio.ini` declares twenty-one environments; seven of them are Braino!.
+Each one states which it is, once, beside itself:
+
+```ini
+custom_env_kind = product      ; or: diagnostic
+```
+
+`tools/envs.py` reads that and is the only place any workflow, checker or
+packer learns which environments to build. **Nothing may write a list of
+environments into a workflow again.** Three files each kept their own list --
+ci.yml, pages.yml and the size-table loop -- all three named eighteen
+environments, and none of them named `audiodiag`, `diag32p` or
+`audiodiag_e32r32p`, which had been in this file for months. That is exactly
+the failure pages.yml warned about in its own comment while committing it: an
+environment nobody builds is one that is already broken and has not been told
+yet. A hand-kept list can be checked for typos and cannot be checked for
+completeness, so it has to be derived.
+
+What follows from the classification:
+
+- **CI builds the seven product environments** on a push to `main` or `dev`,
+  and on a pull request builds `app` plus whatever the diff reaches.
+- **A diagnostic is built only when its own source or `platformio.ini`
+  moves** -- `tools/envs.py --for-changes` derives that from each one's
+  `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
+  batdiag environments and nothing else. A board header does not trigger one:
+  the product environment for that board already compiles the same header, so
+  building the probe again is a slower way of learning the same thing.
+- **The Pages workflow builds product environments only.** It offers no probe
+  for download, so it has no business compiling one.
+- **A release publishes product environments only.** Every tag used to attach
+  fourteen probe images nobody downloads; whoever needs one has the toolchain
+  open and runs `pio run -e batdiag -t upload`, which gives them the current
+  build rather than one a tag froze.
+- **A new environment with no `custom_env_kind` fails the checks.** An
+  unclassified environment cannot be a default in either direction without the
+  wrong answer being silent.
+
+Fourteen diagnostic environments exist for hardware triage. Build one by name
+when you need it:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
 - `pio run -e batdiag` — builds `src/battery_diag.cpp` **alone**, an eight-page
@@ -964,6 +1005,8 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
                           above), build_stamp.py,
+                          envs.py (which environments are the product and
+                          which are bench probes -- the only list),
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),
@@ -992,10 +1035,12 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds every environment
-`platformio.ini` declares, packs them with `tools/pack_release.py`, and
-publishes a GitHub release with all four parts plus a single `-merged.bin`
-per environment, `SHA256SUMS.txt` and `FLASHING.txt`.
+`.github/workflows/release.yml` then builds the seven product environments --
+`tools/envs.py --product`, never a list in the YAML -- packs them with
+`tools/pack_release.py`, and publishes a GitHub release with all four parts
+plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
+`FLASHING.txt`. The diagnostics are deliberately not attached; they are built
+from source by whoever is holding the board.
 
 Before tagging, on `main`:
 

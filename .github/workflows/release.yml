@@ -111,13 +111,20 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 
-      # Every environment platformio.ini declares, derived rather than listed.
-      # pages.yml hard-coded its list once and deploys died silently for two
-      # pushes; the release equivalent is a download that is simply absent.
-      - name: Build every firmware environment
+      # The seven product environments, derived by tools/envs.py rather than
+      # listed here. It used to be every [env:*] in platformio.ini, which meant
+      # a release carried fourteen diagnostic images -- a bringup, a batdiag and
+      # an audiodiag per board, plus four boardless probes -- as downloads.
+      #
+      # Nobody wants one. A probe is flashed at a board on a desk by somebody
+      # who has the toolchain open anyway, and `pio run -e batdiag -t upload`
+      # is the way they get it; a stale copy attached to a release is a slower
+      # route to an older build. Fourteen builds and fourteen merged images per
+      # tag bought a longer release, a longer download list and nothing else.
+      - name: Build the firmware this release publishes
         run: |
           set -euo pipefail
-          envs="$(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")"
+          envs="$(python tools/envs.py --product --pio-args)"
           echo "Building: $envs"
           pio run $envs
 

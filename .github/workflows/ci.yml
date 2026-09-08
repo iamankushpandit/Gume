@@ -136,62 +136,53 @@ jobs:
             --out /tmp/gume-site-check \
             --repo "${{ github.server_url }}/${{ github.repository }}"
 
-      # Detect which environments to build based on file changes.
-      # On pushes to main/dev: build all (conservative).
-      # On feature branches: build only affected environments.
-      - name: Detect which environments to build
+      # Which environments to build, decided by tools/envs.py rather than by
+      # a list in this file.
+      #
+      # Two lists lived here before -- one for the push path, one for the pull
+      # request path -- and pages.yml carried a third. All three had drifted:
+      # none of them built `audiodiag`, `diag32p` or `audiodiag_e32r32p`, which
+      # had existed for months. A list of environments maintained in YAML is a
+      # list that is wrong and cannot say so.
+      #
+      # The rule the tool applies: the seven `product` environments are Braino!
+      # and are what CI is protecting. The fourteen `diagnostic` ones are bench
+      # probes -- they are built when their own source or platformio.ini moves,
+      # and not otherwise. A push to main or dev builds every product
+      # environment regardless, because that is the branch the installer and
+      # the release are cut from.
+      - name: Decide which environments to build
         id: environments
         if: steps.scope.outputs.code == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ENVS="app"
-
-          # On pushes to main/dev, build all environments (conservative safety net)
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Building all environments (push to main/dev)"
-            ENVS="app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 app_esp32_2432s028_inv bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789 app_fnk0104b app_e32r40t app_e32r32p bringup_e32r32p batdiag_e32r32p s3diag diag4"
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" --jq '.[].filename' > changed.txt
           else
-            # On PRs, check which files changed and build selectively
-            files=$(gh api --paginate \
-              "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
-              --jq '.[].filename')
-
-            # Build bringup if HAL/board files changed
-            if printf '%s\n' "$files" | grep -qE '^(src/hal/|include/boards/|include/BoardProfile|include/BoardConfig|platformio.ini)'; then
-              ENVS="$ENVS bringup"
-              echo "Building bringup (HAL/board files changed)"
-            fi
-
-            # Build batdiag if battery files changed
-            if printf '%s\n' "$files" | grep -qE '(battery|Battery|src/battery_diag)'; then
-              ENVS="$ENVS batdiag"
-              echo "Building batdiag (battery files changed)"
-            fi
-
-            # Build wifidiag if WiFi files changed
-            if printf '%s\n' "$files" | grep -qE '(wifi|WiFi|network|Network)'; then
-              ENVS="$ENVS wifidiag"
-              echo "Building wifidiag (WiFi files changed)"
+            # A first push to a branch has no `before` commit to diff against.
+            before="${{ github.event.before }}"
+            zero=0000000000000000000000000000000000000000
+            if [ -n "$before" ] && [ "$before" != "$zero" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
+              git diff --name-only "$before" "${{ github.sha }}" > changed.txt
+            else
+              echo platformio.ini > changed.txt   # unknown scope: build the lot
             fi
           fi
+          echo "Files considered:"
+          sed 's/^/  /' changed.txt
 
-          echo "Environments to build: $ENVS"
-          echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
+          # --with-product on a push: every board is proven on the branches the
+          # installer and the release are cut from, whatever the diff said.
+          WITH_PRODUCT=""
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            WITH_PRODUCT="--with-product"
+          fi
+          ARGS="$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < changed.txt)"
+          echo "pio run $ARGS"
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
       - name: Build firmware
-        if: steps.scope.outputs.code == 'true'
-        run: |
-          # Build environments with explicit -e flags for check_boards.py verification
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # On pushes to main/dev: build all environments
-            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e app_esp32_2432s028_inv -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e app_e32r40t -e app_e32r32p -e bringup_e32r32p -e batdiag_e32r32p -e s3diag -e diag4
-          else
-            # On PR: build only affected environments
-            ENVS="${{ steps.environments.outputs.envs }}"
-            ARGS=""
-            for env in $ENVS; do
-              ARGS="$ARGS -e $env"
-            done
-            pio run $ARGS
-          fi
+        if: steps.scope.outputs.code == 'true' && steps.environments.outputs.args != ''
+        run: pio run ${{ steps.environments.outputs.args }}

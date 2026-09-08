@@ -105,14 +105,22 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      # Every environment, not just the ones the installer offers. batdiag
-      # was built by neither workflow for its whole life: check_docs.py only
-      # validates environments listed in gen_site.py's VARIANTS, and a bench
-      # tool is deliberately not offered on the flashing page, so it fell
-      # through every net. An environment nobody builds is an environment
-      # that is already broken and has not been told yet.
-      - name: Build firmware
-        run: pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e app_esp32_2432s028_inv -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e app_e32r40t -e app_e32r32p -e bringup_e32r32p -e batdiag_e32r32p -e s3diag -e diag4
+      # Only the environments the installer actually offers -- the seven
+      # `product` ones, derived by tools/envs.py from platformio.ini rather
+      # than listed here.
+      #
+      # This step used to name eighteen environments, on the reasoning that an
+      # environment nobody builds is one that is already broken and has not
+      # been told yet. The reasoning was right and the list was still wrong:
+      # `audiodiag`, `diag32p` and `audiodiag_e32r32p` had been added months
+      # earlier and appeared in neither this list nor ci.yml's. Eleven
+      # diagnostic builds ran on every push to main to publish a page that
+      # offers none of them, and the three that needed watching were the three
+      # nobody watched. ci.yml builds a probe when its own source or
+      # platformio.ini moves, which is the change that can break it; the page
+      # deploy has no business compiling a bench tool at all.
+      - name: Build the firmware the installer offers
+        run: pio run $(python tools/envs.py --product --pio-args)
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -123,7 +131,7 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 app_esp32_2432s028_inv bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789 app_fnk0104b app_e32r40t app_e32r32p bringup_e32r32p batdiag_e32r32p s3diag diag4; do
+            for env in $(python tools/envs.py --product); do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"

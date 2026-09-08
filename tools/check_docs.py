@@ -22,6 +22,7 @@ import re
 import sys
 
 import elf_size
+import envs as envs_tool
 import gen_site
 from app_registry_parser import playable_apps
 
@@ -312,14 +313,26 @@ def check_site(problems):
     envs = re.findall(r'"env":\s*"(\w+)"', generator)
     ini = read("platformio.ini")
     workflow = read(".github", "workflows", "pages.yml")
+    # The Pages workflow no longer names environments: it builds whatever
+    # tools/envs.py calls `product`. So "does the workflow build it" is now the
+    # question of whether the environment says it is product -- one fact in
+    # platformio.ini instead of an environment name repeated across three
+    # workflows, one of which was always the one somebody forgot.
+    product = set(envs_tool.of_kind(envs_tool.PRODUCT, ini))
+    if "tools/envs.py" not in workflow:
+        fail(problems, "the Pages workflow no longer derives its build list "
+                       "from tools/envs.py -- a hand-written list of "
+                       "environments is how three of them went unbuilt for "
+                       "months")
     for env in envs:
         if not re.search(r"^\[env:%s\]" % re.escape(env), ini, re.M):
             fail(problems, "gen_site.py offers firmware '%s', which is not a "
                            "platformio.ini environment" % env)
-        if not re.search(r"\b%s\b" % re.escape(env), workflow):
-            fail(problems, "gen_site.py offers firmware '%s', but the Pages "
+        elif env not in product:
+            fail(problems, "gen_site.py offers firmware '%s', but [env:%s] is "
+                           "not `custom_env_kind = product`, so the Pages "
                            "workflow never builds it -- its manifest would "
-                           "point at binaries that do not exist" % env)
+                           "point at binaries that do not exist" % (env, env))
 
     check_older_versions(problems)
     check_site_screens(problems)
