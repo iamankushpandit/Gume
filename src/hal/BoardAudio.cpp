@@ -6,7 +6,11 @@
 
 #if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
 #include <driver/i2s.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 #include <math.h>
+#include <string.h>
 #endif
 
 /* ------------------------------------------------------------------ audio
@@ -36,14 +40,39 @@
  * magnitude on every correct answer in every game, and `Watchdog` would log
  * the stall.
  *
- * So playing a sound only ARMS a script. `tickAudio()`, which the runtime
- * calls once per frame beside `tickRgb()`, generates as many samples as the
- * I2S DMA will accept without blocking and then stops. The DMA holds 1536
- * frames -- 96ms on the codec at 16kHz, 64ms on the built-in DAC at 24kHz --
- * so the audio is always well ahead of the frame that needs it, and no frame
- * is ever spent waiting. See AUDIO_RATE for why the two backends differ. A sound outliving the
- * screen that started it is normal: a script is device state, not screen
- * state, and nothing in leaveActiveGame() needs to know about it.
+ * So playing a sound only ARMS a script, and a dedicated task generates the
+ * samples. A sound outliving the screen that started it is normal: a script is
+ * device state, not screen state, and nothing in leaveActiveGame() needs to
+ * know about it.
+ *
+ * WHY GENERATION IS A TASK AND NOT A TICK, WHICH IS THE SECOND VERSION.
+ *
+ * The first version generated from the loop, in `tickAudio()`, on the argument
+ * that the DMA is far deeper than a frame: 1536 frames is 96ms on the codec at
+ * 16kHz and 64ms on the built-in DAC at 24kHz, against a 20ms budget. That is
+ * true of a typical frame and false of the frame that matters. A full-screen
+ * repaint is ~150KB over SPI, and a launcher page turn is that plus every tile
+ * and icon -- comfortably past 96ms on the 4-inch panel. So the sequence was:
+ * arm the cue, fill the DMA, spend one enormous frame painting, and come back
+ * to a DMA that ran dry somewhere in the middle. The gap is heard as the sound
+ * being chopped off, and it was reported exactly that way -- twice -- about
+ * the launcher's Previous and Next buttons, which are the two controls in the
+ * firmware that make a noise and then immediately repaint the whole screen.
+ *
+ * Deepening the DMA would have moved the threshold without removing it: the
+ * worst frame is not bounded by anything, so any buffer is a bet on how slow a
+ * screen is allowed to get. A task is bounded by nothing. It runs above the
+ * loop task, blocks inside i2s_write() until the DMA has room, and therefore
+ * refills DURING the repaint that would otherwise have starved it. This is the
+ * same move CLAUDE.md's responsiveness rule already prescribes for the battery
+ * gauge and the watchdog: work whose deadline is not the frame's does not
+ * belong on the frame.
+ *
+ * The synthesiser state is shared with the loop -- `playSound()` arms from
+ * game code -- so `audioLock` covers arming and generation. It is NOT held
+ * across the blocking write: the task generates into its own buffer under the
+ * lock, releases it, and only then blocks. `playSound()` therefore waits for
+ * at most one 128-sample block, never for the DMA.
  *
  * This is also why length is free. The buffered version this replaced
  * rendered a whole sound into 10 KB of static PCM up front, which capped a
@@ -355,6 +384,17 @@ bool nextSample(int16_t& out) {
  * the DMA. Zero means "still producing". */
 uint32_t ampIdleSinceMs = 0;
 
+/* Guards every variable the synthesiser owns -- the script, the oscillator
+ * phase, the resonators, the gain and the pending tail. Two producers touch
+ * them: the loop, via playSound()/setSoundEnabled(), and the generator task. */
+SemaphoreHandle_t audioLock = nullptr;
+TaskHandle_t audioTask = nullptr;
+
+/* The DAC backend scales amplitude in software, so the generator needs the
+ * volume without a Board& to read it from. Mirrored rather than read through
+ * Preferences for the usual reason: this is on the path of every sample. */
+uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
+
 /* Generation runs AHEAD of playback, and that is the whole point of the DMA:
  * tickAudio() fills it as fast as it will take samples, so `playing` goes
  * false when the last sample has been GENERATED, not when it has been HEARD.
@@ -442,6 +482,30 @@ size_t pendingAt = 0;
 void arm(const Segment* segments, uint8_t count) {
     if ((!codecUp && !dacUp) || count == 0) return;
     if (count > MAX_SEGMENTS) count = MAX_SEGMENTS;
+
+    if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
+
+    /* Is this the SAME script arriving again while it is still sounding?
+     *
+     * That is a held piano key, not a new cue. The synthesiser has no note-on
+     * and no sustain, so PianoGame keeps a held note alive by asking for it
+     * again just before the last one runs out -- and snapping `phase` back to
+     * zero at that seam is a step discontinuity in the waveform, which is a
+     * click. Every 280ms. Which is heard, correctly, as a tone that is not
+     * continuous.
+     *
+     * So a continuation keeps the oscillator running and leaves the resonators
+     * alone; only a genuinely different sound resets them. Comparing the whole
+     * script rather than trusting a flag from the caller means no game has to
+     * know this exists, and a game that asks for a different note gets the
+     * reset it needs. */
+    bool continuation = playing && count == scriptLength;
+    for (uint8_t i = 0; continuation && i < count; ++i) {
+        if (memcmp(&script[i], &segments[i], sizeof(Segment)) != 0) {
+            continuation = false;
+        }
+    }
+
     for (uint8_t i = 0; i < count; ++i) script[i] = segments[i];
     scriptLength = count;
     scriptAt = 0;
@@ -451,18 +515,130 @@ void arm(const Segment* segments, uint8_t count) {
      * resonators, which otherwise ring the previous phoneme into the new
      * sound, and the pending tail, which belongs to a sound that has just
      * been superseded. */
-    for (Resonator& r : formant) {
-        r.y1 = 0.0f;
-        r.y2 = 0.0f;
+    if (!continuation) {
+        for (Resonator& r : formant) {
+            r.y1 = 0.0f;
+            r.y2 = 0.0f;
+        }
+        phase = 0.0f;
+        pitchCounter = 0;
     }
-    phase = 0.0f;
-    pitchCounter = 0;
     pendingLength = 0;
     pendingAt = 0;
     playing = true;
     startSegment();
     ampIdleSinceMs = 0;   // producing again: the tail timer restarts from here
     setAmp(true);
+
+    if (audioLock != nullptr) xSemaphoreGive(audioLock);
+    /* Wake the generator: it is asleep whenever nothing is playing, so without
+     * this the sound would not start until its idle poll expired. */
+    if (audioTask != nullptr) xTaskNotifyGive(audioTask);
+}
+
+/* Generate up to `frames` samples into `dst`, in whichever word format this
+ * board's backend wants, and return the number of BYTES produced. Zero means
+ * the script finished.
+ *
+ * One generator for both drains -- the task and tickAudio()'s fallback -- so
+ * the two cannot drift on the thing that is easiest to get wrong here, which
+ * is the DAC's offset-binary word format. The caller holds audioLock. */
+size_t generateBlock(uint8_t* dst, int frames) {
+    if (!playing) return 0;
+#if GUME_HAS_AUDIO_CODEC
+    int16_t* slots = reinterpret_cast<int16_t*>(dst);
+    int n = 0;
+    for (; n < frames; ++n) {
+        int16_t sample = 0;
+        if (!nextSample(sample)) break;
+        slots[n * 2] = sample;
+        slots[n * 2 + 1] = sample;   // one mono stream on both slots
+    }
+    return static_cast<size_t>(n) * 2 * sizeof(int16_t);
+#else
+    /* The DAC requires unsigned 16-bit words in offset-binary format, not
+     * signed I2S, and volume is a linear amplitude multiplier applied here --
+     * there is no register to write, unlike the ES8311. Do NOT copy the dB
+     * conversion from applyCodecVolume(); that is correct for a logarithmic
+     * register and wrong for this. Only the high 8 bits of each word reach the
+     * DAC, so the +32768 offset lands in the high byte. */
+    uint16_t* slots = reinterpret_cast<uint16_t*>(dst);
+    const uint8_t vol = outputVolume;
+    int n = 0;
+    for (; n < frames; ++n) {
+        int16_t sample = 0;
+        if (!nextSample(sample)) break;
+        const int32_t scaled = static_cast<int32_t>(sample) * vol / 100;
+        const uint16_t dac = static_cast<uint16_t>(scaled + 32768);
+        slots[n * 2] = dac;
+        slots[n * 2 + 1] = dac;   // mono on both DAC channels
+    }
+    return static_cast<size_t>(n) * 2 * sizeof(uint16_t);
+#endif
+}
+
+/* Hold the amplifier open for the DMA depth after generation stops.
+ *
+ * Generation runs AHEAD of playback, so `playing` goes false when the last
+ * sample has been GENERATED, not when it has been HEARD -- there is up to
+ * 96ms (codec) or 64ms (DAC) still queued at that moment. Dropping the
+ * amplifier there cuts the tail off every cue, and off the short ones, which
+ * is most of the vocabulary, it cuts off the whole thing. */
+void tickAmpTail() {
+    if (ampIdleSinceMs == 0) {
+        ampIdleSinceMs = millis();
+    } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
+        setAmp(false);
+    }
+}
+
+constexpr int BLOCK_FRAMES = 128;
+
+void audioTaskFn(void*) {
+    /* Task-owned, so the blocking write below reads a buffer nothing else can
+     * touch. That is what lets the lock be released before the write. */
+    static uint8_t out[BLOCK_FRAMES * 2 * sizeof(int16_t)];
+    for (;;) {
+        size_t bytes = 0;
+        xSemaphoreTake(audioLock, portMAX_DELAY);
+        bytes = generateBlock(out, BLOCK_FRAMES);
+        if (bytes == 0) tickAmpTail();
+        xSemaphoreGive(audioLock);
+
+        if (bytes == 0) {
+            /* Nothing to make. Sleep until something is armed -- with a short
+             * timeout, because the amplifier tail above still has to expire. */
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(25));
+            continue;
+        }
+
+        /* Blocking, and outside the lock. This is where the task spends
+         * essentially all of its time: asleep inside the driver until the DMA
+         * has room, which is precisely when more samples are due. The timeout
+         * is a liveness backstop, not a schedule. */
+        size_t written = 0;
+        i2s_write(I2S_NUM_0, out, bytes, &written, pdMS_TO_TICKS(500));
+    }
+}
+
+/* Bring the generator up. Called once, at the end of beginAudio(), and only
+ * when a backend actually installed.
+ *
+ * Priority 3 against the Arduino loop task's 1, on the same core: the whole
+ * point is that it PREEMPTS a long repaint. Pinning matters -- core 0 carries
+ * the BLE and Wi-Fi stacks, and audio has no business competing with a radio
+ * for a core when the core it needs to interrupt is the other one. */
+void startAudioTask() {
+    audioLock = xSemaphoreCreateMutex();
+    if (audioLock == nullptr) {
+        Serial.println("[audio] no mutex; generation stays on the loop");
+        return;
+    }
+    if (xTaskCreatePinnedToCore(audioTaskFn, "braino-audio", 4096, nullptr, 3,
+                                &audioTask, ARDUINO_RUNNING_CORE) != pdPASS) {
+        audioTask = nullptr;
+        Serial.println("[audio] no task; generation stays on the loop");
+    }
 }
 
 /* Shorthands, so the cue tables below read as music rather than as struct
@@ -907,47 +1083,47 @@ void Board::beginAudio() {
                   BOARD.audio.speakerPin == DAC2_GPIO ? 2 : 1,
                   volume(), soundEnabled() ? "" : " (muted)");
 #endif
+
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+    /* Last, and only if a backend actually installed: a generator with nothing
+     * to drive would sit awake polling a driver that is not there. */
+    if (codecUp || dacUp) startAudioTask();
+#endif
 }
 
 void Board::tickAudio() {
-#if GUME_HAS_AUDIO_CODEC
-    if (!codecUp) return;
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+    if (!codecUp && !dacUp) return;
 
-    if (!playing && pendingAt >= pendingLength) {
-        /* Nothing armed and nothing held back -- but the DMA may still be
-         * playing what was generated. See AMP_TAIL_MS. */
-        if (ampIdleSinceMs == 0) {
-            ampIdleSinceMs = millis();
-        } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
-            setAmp(false);
-        }
-        return;
-    }
-
-    /* Non-blocking on purpose: whatever the DMA will take this frame it
-     * takes, and the rest waits for the next one. At 96ms of DMA depth
-     * against a 20ms frame there is always a comfortable margin, and a frame
-     * is never spent waiting on audio.
+    /* The generator task does this work now, and does it during a long frame
+     * as well as a short one -- which is the whole reason it exists. See the
+     * note at the top of this file.
      *
-     * Samples are generated straight into the outgoing block, so the
-     * synthesiser costs one static half-kilobyte buffer and nothing on the
-     * heap or the stack. */
+     * This path remains as the fallback for a device where the task could not
+     * be created at all (no mutex, or no memory for a 4KB stack). A console
+     * that boots into a low-memory corner should still make its noises, just
+     * with the old dependence on frames arriving promptly. It shares
+     * generateBlock() with the task, so the one genuinely error-prone part --
+     * the DAC's offset-binary word format -- has a single definition. */
+    if (audioTask != nullptr) return;
+
+    /* Zero wait, never blocking: this is the loop, and the frame budget is
+     * 20ms. If the lock is busy the samples can wait for the next frame. */
+    if (audioLock != nullptr && xSemaphoreTake(audioLock, 0) != pdTRUE) return;
+
     for (;;) {
         if (pendingAt >= pendingLength) {
-            if (!playing) break;
-            int16_t* slots = reinterpret_cast<int16_t*>(pending);
-            int n = 0;
-            for (; n < 128; ++n) {
-                int16_t sample = 0;
-                if (!nextSample(sample)) break;
-                slots[n * 2] = sample;
-                slots[n * 2 + 1] = sample;   // one mono stream on both slots
-            }
-            if (n == 0) break;
-            pendingLength = static_cast<size_t>(n) * 2 * sizeof(int16_t);
+            /* i2s_write() with a zero timeout reports how much it accepted
+             * only after the fact, so a full DMA leaves the tail of a
+             * generated block in hand. Throwing it away is audible as a
+             * stutter on anything long enough to fill the DMA -- precisely the
+             * spoken phrase -- and the synthesiser cannot be run backwards to
+             * regenerate it, so it is held and written first next time. */
+            const size_t bytes = generateBlock(pending, BLOCK_FRAMES);
+            if (bytes == 0) break;
+            pendingLength = bytes;
             pendingAt = 0;
         }
-
         size_t written = 0;
         if (i2s_write(I2S_NUM_0, pending + pendingAt, pendingLength - pendingAt,
                       &written, 0) != ESP_OK) {
@@ -957,65 +1133,8 @@ void Board::tickAudio() {
         if (pendingAt < pendingLength) break;   /* DMA full; finish next frame */
     }
 
-#elif GUME_HAS_AUDIO_DAC
-    if (!dacUp) return;
-
-    if (!playing && pendingAt >= pendingLength) {
-        /* Nothing armed and nothing held back -- but the DMA may still be
-         * playing what was generated, so the amplifier is held for the tail.
-         * See AMP_TAIL_MS. Once it does drop, the DAC keeps the mid-scale
-         * value written by beginAudio(), which is the right idle level. */
-        if (ampIdleSinceMs == 0) {
-            ampIdleSinceMs = millis();
-        } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
-            setAmp(false);
-        }
-        return;
-    }
-
-    /* Same non-blocking DMA pattern as the codec path, but the DAC requires
-     * unsigned 16-bit words in offset-binary format (sample + 32768), not
-     * signed I2S. Volume is applied here via linear amplitude scaling -- there
-     * is no register to write, unlike the ES8311.
-     *
-     * The 16-bit word layout for I2S_DAC_BUILT_IN with RIGHT_LEFT format is:
-     * two 16-bit words per sample pair (L then R), and only the high 8 bits
-     * of each reach the DAC. So we write the DAC value in the high byte and
-     * zeros in the low byte, giving 8 bits of resolution. */
-    const uint8_t vol = cachedVolume_;
-    for (;;) {
-        if (pendingAt >= pendingLength) {
-            if (!playing) break;
-            uint16_t* slots = reinterpret_cast<uint16_t*>(pending);
-            int n = 0;
-            for (; n < 128; ++n) {
-                int16_t sample = 0;
-                if (!nextSample(sample)) break;
-                /* Apply software gain (linear amplitude, not dB), then shift
-                 * to unsigned offset-binary. The DAC only sees the top 8 bits
-                 * of a 16-bit word, so the +32768 offset goes in the high byte.
-                 * This is genuinely linear -- do NOT copy the dB conversion
-                 * from applyCodecVolume(); that is correct for a logarithmic
-                 * register, not for a linear multiplier. */
-                const int32_t scaled = static_cast<int32_t>(sample) * vol / 100;
-                const uint16_t dac = static_cast<uint16_t>(
-                    static_cast<int32_t>(scaled) + 32768);
-                slots[n * 2] = dac;
-                slots[n * 2 + 1] = dac;   // mono on both DAC channels
-            }
-            if (n == 0) break;
-            pendingLength = static_cast<size_t>(n) * 2 * sizeof(uint16_t);
-            pendingAt = 0;
-        }
-
-        size_t written = 0;
-        if (i2s_write(I2S_NUM_0, pending + pendingAt, pendingLength - pendingAt,
-                      &written, 0) != ESP_OK) {
-            break;
-        }
-        pendingAt += written;
-        if (pendingAt < pendingLength) break;   /* DMA full; finish next frame */
-    }
+    if (!playing && pendingAt >= pendingLength) tickAmpTail();
+    if (audioLock != nullptr) xSemaphoreGive(audioLock);
 #endif
 }
 
@@ -1120,12 +1239,18 @@ void Board::setSoundEnabled(bool on) {
     /* Muting stops what is already sounding rather than letting it finish.
      * The boot phrase is a second and a half long and Mute is exactly the
      * control somebody reaches for while it is playing; "it will stop shortly"
-     * is not what that press means. The amplifier drops on the next
-     * tickAudio(), which is one frame away. */
+     * is not what that press means. The amplifier drops once the generator
+     * notices, which is within AMP_TAIL_MS.
+     *
+     * Under the lock: the generator task may be part way through a block, and
+     * clearing the script from under it is exactly the race the lock exists
+     * for. */
     if (!on) {
+        if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
         playing = false;
         pendingLength = 0;
         pendingAt = 0;
+        if (audioLock != nullptr) xSemaphoreGive(audioLock);
     }
 #endif
 }
@@ -1139,6 +1264,9 @@ uint8_t Board::volume() {
         if (stored > AUDIO_VOLUME_MAX) stored = AUDIO_VOLUME_MAX;
         cachedVolume_ = stored;
         volumeCached_ = true;
+#if GUME_HAS_AUDIO_DAC
+        outputVolume = stored;
+#endif
     }
     return cachedVolume_;
 }
@@ -1150,8 +1278,13 @@ void Board::setVolume(uint8_t percent) {
     prefs_.putUChar("sndVol", percent);
 #if GUME_HAS_AUDIO_CODEC
     if (codecUp) applyCodecVolume(percent);
-    /* DAC backend: volume is applied at sample-generation time in tickAudio()
-     * from cachedVolume_, so no register write is needed here. */
+#elif GUME_HAS_AUDIO_DAC
+    /* DAC backend: volume is a linear multiplier applied while generating, so
+     * there is no register to write -- only this mirror, which is what the
+     * generator reads. It is a plain byte written by the loop and read by the
+     * audio task; a torn read is not possible and the worst a race can do is
+     * leave one block of samples at the previous level. */
+    outputVolume = percent;
 #endif
 }
 

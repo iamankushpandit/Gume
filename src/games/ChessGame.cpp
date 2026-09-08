@@ -21,8 +21,30 @@ constexpr AppMetadata CHESS_METADATA = {
 };
 
 constexpr int16_t TOP_BAR_H = 30;
-constexpr int16_t STATUS_H = 22;
 constexpr int16_t MARGIN = 3;
+
+/* The panel beside (or below) the board: captured pieces, the status lines and
+ * the End/New game button.
+ *
+ * In landscape the board is square and the panel is everything the board does
+ * not need, which on a 320x240 console is a column about 110px wide that this
+ * screen used to leave as two empty gutters. That was the whole of the
+ * complaint -- a 176px board floating in the middle of a 320px panel with
+ * nothing either side of it. Sizing the board from the full height instead
+ * takes it to 200px, and the captured pieces and the button move into the
+ * space that buys.
+ *
+ * In portrait the board is already as wide as the screen, so the panel becomes
+ * a band underneath and this is how tall it is. Every other measurement below
+ * is derived from one of these two facts. */
+constexpr int16_t PANEL_PORTRAIT_H = 72;
+constexpr int16_t ACTION_H = 26;
+constexpr int16_t GAP = 3;
+/* Two lines of font 1 with a little air. The status has to fit a 110px column
+ * in landscape, which is why it is two short lines rather than one sentence:
+ * "Checkmate - Black wins" is 130px at font 2 and would be silently chopped
+ * mid-word by the driver, with no ellipsis to show it had happened. */
+constexpr int16_t STATUS_H = 24;
 
 /* Knight and king offsets as (file, rank) pairs. Written out rather than
  * derived because the board is not a torus: a knight on a1 must not wrap to
@@ -263,15 +285,21 @@ uint8_t ChessGame::pseudoMoves(const Position& p, uint8_t from, uint8_t* out) {
     return n;
 }
 
-void ChessGame::applyMove(Position& p, uint8_t from, uint8_t to) {
+int8_t ChessGame::applyMove(Position& p, uint8_t from, uint8_t to) {
     const int8_t piece = p.sq[from];
     const bool white = isWhite(piece);
     const int8_t k = kind(piece);
+    int8_t captured = p.sq[to];
 
     /* En passant capture removes a pawn that is NOT on the destination square,
-     * which is the one move in chess where that is true. */
+     * which is the one move in chess where that is true -- so it is also the
+     * one move where the captured piece has to be read from somewhere other
+     * than `to`, which is the reason this function reports the capture at all
+     * rather than leaving the caller to work it out. */
     if (k == PAWN && to == p.epSquare && p.sq[to] == EMPTY) {
-        p.sq[idx(fileOf(to), rankOf(from))] = EMPTY;
+        const uint8_t victim = idx(fileOf(to), rankOf(from));
+        captured = p.sq[victim];
+        p.sq[victim] = EMPTY;
     }
 
     // Castling moves the rook too; the king's two-square step identifies it.
@@ -317,7 +345,19 @@ void ChessGame::applyMove(Position& p, uint8_t from, uint8_t to) {
     if (from == H8 || to == H8) p.castle[2] = false;
     if (from == A8 || to == A8) p.castle[3] = false;
 
+    /* The fifty-move clock. Reset by a capture or a pawn move -- the two
+     * things that cannot be undone -- and counted in plies, so the rule is a
+     * hundred of these rather than fifty. Saturates instead of wrapping: at
+     * 255 the game has been drawn for a long time and rolling over to zero
+     * would quietly restart the count. */
+    if (k == PAWN || captured != EMPTY) {
+        p.halfmove = 0;
+    } else if (p.halfmove < 255) {
+        ++p.halfmove;
+    }
+
     p.whiteToMove = !p.whiteToMove;
+    return captured;
 }
 
 uint8_t ChessGame::legalMoves(const Position& p, uint8_t from, uint8_t* out) {
@@ -336,6 +376,52 @@ uint8_t ChessGame::legalMoves(const Position& p, uint8_t from, uint8_t* out) {
     return n;
 }
 
+/* Can anybody still mate?
+ *
+ * The FIDE dead-position cases that are decidable by counting, and no attempt
+ * at the ones that are not. A pawn, rook or queen anywhere on the board means
+ * a mate is constructible, so the position is alive however lost it looks --
+ * being unable to WIN is not the same as being unable to MATE, and only the
+ * second one ends the game.
+ *
+ * Two bishops of the same colour on same-shaded squares is the one case that
+ * needs more than a count: neither can ever attack the other's colour of
+ * square, so between them they can never cover a king's escape. Bishops on
+ * opposite shades can mate, so that case is alive.
+ *
+ * Deliberately not "can the side to move force a win". That is a search, and
+ * this game has no engine -- see the class comment. */
+bool ChessGame::deadPosition(const Position& p) {
+    uint8_t minors[2] = {0, 0};       // [0] white, [1] black
+    uint8_t bishops[2] = {0, 0};
+    int8_t bishopShade[2] = {-1, -1}; // square colour of a lone bishop
+
+    for (uint8_t sqr = 0; sqr < 64; ++sqr) {
+        const int8_t piece = p.sq[sqr];
+        if (piece == EMPTY) continue;
+        const int8_t k = kind(piece);
+        if (k == PAWN || k == ROOK || k == QUEEN) return false;
+        if (k == KING) continue;
+        const uint8_t side = isWhite(piece) ? 0 : 1;
+        ++minors[side];
+        if (k == BISHOP) {
+            ++bishops[side];
+            bishopShade[side] = static_cast<int8_t>((fileOf(sqr) + rankOf(sqr)) & 1);
+        }
+    }
+
+    // King against king, and king plus one minor against a bare king.
+    if (minors[0] == 0 && minors[1] == 0) return true;
+    if (minors[0] <= 1 && minors[1] == 0) return true;
+    if (minors[1] <= 1 && minors[0] == 0) return true;
+
+    // One bishop each, both on the same shade of square.
+    if (minors[0] == 1 && minors[1] == 1 && bishops[0] == 1 && bishops[1] == 1) {
+        return bishopShade[0] == bishopShade[1];
+    }
+    return false;
+}
+
 bool ChessGame::hasAnyLegalMove(const Position& p) {
     uint8_t buf[MAX_MOVES];
     for (uint8_t s = 0; s < 64; ++s) {
@@ -347,21 +433,93 @@ bool ChessGame::hasAnyLegalMove(const Position& p) {
 
 // ---------------------------------------------------------------- layout
 
-/* Square, and sized from the SHORTER axis so the whole board always fits.
- * Portrait is the better orientation here: 240x320 leaves a 240px board and
- * 30px squares, against 26px in landscape. */
+bool ChessGame::sidePanel(AppContext& host) const {
+    Ui::Renderer& tft = host.display();
+    return tft.width() > tft.height();
+}
+
+/* Square, and sized from whichever axis the panel is not eating.
+ *
+ * Landscape: the full height, with the panel taking the width left over.
+ * Portrait: the full width, with the panel taking a band underneath.
+ * Either way the board gets the larger of the two dimensions it could have
+ * had, which is the point -- see PANEL_PORTRAIT_H. */
 Rect ChessGame::boardRect(AppContext& host) const {
     Ui::Renderer& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());
     const int16_t h = static_cast<int16_t>(tft.height());
     const int16_t top = static_cast<int16_t>(TOP_BAR_H + MARGIN);
-    const int16_t availH = static_cast<int16_t>(h - top - STATUS_H - MARGIN);
-    const int16_t availW = static_cast<int16_t>(w - MARGIN * 2);
+
+    int16_t side;
+    if (sidePanel(host)) {
+        side = static_cast<int16_t>(h - top - MARGIN);
+    } else {
+        const int16_t availH =
+            static_cast<int16_t>(h - top - PANEL_PORTRAIT_H - MARGIN * 2);
+        const int16_t availW = static_cast<int16_t>(w - MARGIN * 2);
+        side = (availW < availH ? availW : availH);
+    }
     /* A multiple of 8, so every square is the same size and the grid has no
      * one-pixel-wider column where the division left a remainder. */
-    int16_t side = (availW < availH ? availW : availH);
     side = static_cast<int16_t>((side / 8) * 8);
-    return Rect{static_cast<int16_t>((w - side) / 2), top, side, side};
+    const int16_t x = sidePanel(host)
+                          ? MARGIN
+                          : static_cast<int16_t>((w - side) / 2);
+    return Rect{x, top, side, side};
+}
+
+/* Derived from the board rather than stated, so the two cannot overlap however
+ * the panel is sized. CLAUDE.md's rule about clear rectangles applies with
+ * particular force here: this panel is repainted whole, next to a board that
+ * is repainted a square at a time, and a panel rect a few pixels too wide
+ * would eat a file of the board on every capture. */
+Rect ChessGame::panelRect(AppContext& host) const {
+    Ui::Renderer& tft = host.display();
+    const int16_t w = static_cast<int16_t>(tft.width());
+    const int16_t h = static_cast<int16_t>(tft.height());
+    const Rect b = boardRect(host);
+    if (sidePanel(host)) {
+        const int16_t x = static_cast<int16_t>(b.x + b.w + GAP);
+        return Rect{x, b.y, static_cast<int16_t>(w - x - MARGIN), b.h};
+    }
+    const int16_t y = static_cast<int16_t>(b.y + b.h + GAP);
+    return Rect{MARGIN, y, static_cast<int16_t>(w - MARGIN * 2),
+                static_cast<int16_t>(h - y - MARGIN)};
+}
+
+/* The panel, top to bottom: White's losses, Black's losses, then the controls.
+ * In landscape the controls are two stacked rows; in portrait there is only
+ * room for one, so the status and the button sit side by side on it. */
+Rect ChessGame::takenRect(AppContext& host, uint8_t side) const {
+    const Rect p = panelRect(host);
+    const int16_t controls = sidePanel(host)
+        ? static_cast<int16_t>(STATUS_H + GAP + ACTION_H)
+        : ACTION_H;
+    const int16_t body = static_cast<int16_t>(p.h - controls - GAP);
+    const int16_t each = static_cast<int16_t>((body - GAP) / 2);
+    return Rect{p.x, static_cast<int16_t>(p.y + side * (each + GAP)), p.w, each};
+}
+
+Rect ChessGame::statusRect(AppContext& host) const {
+    const Rect p = panelRect(host);
+    if (sidePanel(host)) {
+        return Rect{p.x,
+                    static_cast<int16_t>(p.y + p.h - ACTION_H - GAP - STATUS_H),
+                    p.w, STATUS_H};
+    }
+    /* Portrait: the button is pinned right and the status takes the rest, so
+     * the two are derived from one edge and cannot overlap. */
+    const Rect a = actionRect(host);
+    return Rect{p.x, static_cast<int16_t>(p.y + p.h - ACTION_H),
+                static_cast<int16_t>(a.x - GAP - p.x), ACTION_H};
+}
+
+Rect ChessGame::actionRect(AppContext& host) const {
+    const Rect p = panelRect(host);
+    const int16_t y = static_cast<int16_t>(p.y + p.h - ACTION_H);
+    if (sidePanel(host)) return Rect{p.x, y, p.w, ACTION_H};
+    const int16_t bw = 84;
+    return Rect{static_cast<int16_t>(p.x + p.w - bw), y, bw, ACTION_H};
 }
 
 Rect ChessGame::squareRect(AppContext& host, uint8_t square) const {
@@ -389,8 +547,10 @@ uint8_t ChessGame::squareAt(AppContext& host, int16_t x, int16_t y) const {
 
 // ---------------------------------------------------------------- screen
 
-void ChessGame::begin(AppContext& host) {
-    (void)host;
+/* A fresh position in whatever mode is already running. The board, not the
+ * session: a remote game resets to the starting position with the same
+ * opponent, and only the lobby changes who is playing whom. */
+void ChessGame::newGame() {
     memset(pos_.sq, EMPTY, sizeof(pos_.sq));
     for (int8_t f = 0; f < 8; ++f) {
         pos_.sq[idx(f, 0)] = BACK_RANK[f];
@@ -401,13 +561,208 @@ void ChessGame::begin(AppContext& host) {
     pos_.whiteToMove = true;
     for (bool& c : pos_.castle) c = true;
     pos_.epSquare = NO_SQ;
+    pos_.halfmove = 0;
 
     selected_ = NO_SQ;
     targetCount_ = 0;
     dirtyCount_ = 0;
     status_ = Status::Playing;
     statusStale_ = true;
+    takenCount_[0] = takenCount_[1] = 0;
+    endedByUs_ = false;
+    confirmUntilMs_ = 0;
+    ourPly_ = 0;
+    theirPly_ = 0;
+    panelStale_ = true;
     markFullDirty();
+}
+
+void ChessGame::begin(AppContext& host) {
+    newGame();
+    mode_ = Mode::Lobby;
+    seatCount_ = 0;
+    seatsAtMs_ = 0;
+    opponent_[0] = 0;
+    opponentName_[0] = 0;
+    session_ = 0;
+
+    /* A game left part-finished comes back. Anything else -- no save, a save
+     * from an older layout, a game that had already ended -- falls through to
+     * the lobby, which is also what a first visit gets. */
+    restoreGame(host);
+    markFullDirty();
+}
+
+void ChessGame::saveGame(AppContext& host) const {
+    Saved out{};
+    out.magic = SAVE_MAGIC;
+    out.version = SAVE_VERSION;
+    memcpy(out.sq, pos_.sq, sizeof(out.sq));
+    out.whiteToMove = pos_.whiteToMove ? 1 : 0;
+    for (uint8_t i = 0; i < 4; ++i) out.castle[i] = pos_.castle[i] ? 1 : 0;
+    out.epSquare = pos_.epSquare;
+    out.halfmove = pos_.halfmove;
+    out.status = static_cast<uint8_t>(status_);
+    out.mode = static_cast<uint8_t>(mode_);
+    out.remoteIsWhite = remoteIsWhite_ ? 1 : 0;
+    out.endedByUs = endedByUs_ ? 1 : 0;
+    memcpy(out.opponent, opponent_, sizeof(out.opponent));
+    memcpy(out.opponentName, opponentName_, sizeof(out.opponentName));
+    out.session = session_;
+    out.ourPly = ourPly_;
+    out.theirPly = theirPly_;
+    out.ourFrom = ourFrom_;
+    out.ourTo = ourTo_;
+    out.takenCount[0] = takenCount_[0];
+    out.takenCount[1] = takenCount_[1];
+    memcpy(out.taken, taken_, sizeof(out.taken));
+    host.saveBlob("game", &out, sizeof(out));
+}
+
+bool ChessGame::restoreGame(AppContext& host) {
+    Saved in{};
+    host.loadBlob("game", &in, sizeof(in));
+    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) return false;
+
+    /* Only a game that is still going is worth coming back to. A finished one
+     * is restored as nothing, so the screen opens at the lobby rather than at
+     * a checkmate somebody already read. */
+    const Mode m = static_cast<Mode>(in.mode);
+    if (m != Mode::Local && m != Mode::Remote) return false;
+    /* Only an unfinished game is worth coming back to. Every terminal status
+     * is listed rather than tested for "not Playing", so adding a new way for
+     * a game to end forces a decision here instead of silently restoring a
+     * finished board. */
+    const Status st = static_cast<Status>(in.status);
+    if (st == Status::Checkmate || st == Status::Stalemate ||
+        st == Status::DrawMaterial || st == Status::DrawFifty ||
+        st == Status::Ended) {
+        return false;
+    }
+    if (in.takenCount[0] > MAX_TAKEN || in.takenCount[1] > MAX_TAKEN) {
+        return false;
+    }
+
+    memcpy(pos_.sq, in.sq, sizeof(pos_.sq));
+    pos_.whiteToMove = in.whiteToMove != 0;
+    for (uint8_t i = 0; i < 4; ++i) pos_.castle[i] = in.castle[i] != 0;
+    pos_.epSquare = in.epSquare;
+    pos_.halfmove = in.halfmove;
+
+    /* Both kings, or it is not a chess position. This is the only validation
+     * worth doing: the blob is our own NVS rather than anything that came off
+     * the air, so the realistic failure is a layout change that slipped past
+     * the length and version checks, not an attack. Restoring a board with no
+     * king would divide by zero in kingSquare()'s callers' assumptions and
+     * would be far harder to diagnose than starting over. */
+    if (kingSquare(pos_, true) == NO_SQ || kingSquare(pos_, false) == NO_SQ) {
+        return false;
+    }
+
+    mode_ = m;
+    remoteIsWhite_ = in.remoteIsWhite != 0;
+    endedByUs_ = in.endedByUs != 0;
+    memcpy(opponent_, in.opponent, sizeof(opponent_));
+    opponent_[sizeof(opponent_) - 1] = 0;
+    memcpy(opponentName_, in.opponentName, sizeof(opponentName_));
+    opponentName_[sizeof(opponentName_) - 1] = 0;
+    session_ = in.session;
+    ourPly_ = in.ourPly;
+    theirPly_ = in.theirPly;
+    ourFrom_ = in.ourFrom;
+    ourTo_ = in.ourTo;
+    takenCount_[0] = in.takenCount[0];
+    takenCount_[1] = in.takenCount[1];
+    memcpy(taken_, in.taken, sizeof(taken_));
+
+    /* Recomputed rather than restored. Check and mate are functions of the
+     * position, so storing them would be storing a fact twice and inviting the
+     * two copies to disagree -- and refreshStatus() is cheap enough to run
+     * once on the way in. */
+    refreshStatus();
+    return true;
+}
+
+/* end() rather than begin() is where the radio is handed back. A move is a
+ * state that stays on the air until it is replaced, so leaving the screen
+ * without clearing it would leave this console advertising a game it is no
+ * longer playing -- and the score field it displaces would stay missing.
+ *
+ * The board is written here as well as after each move. After each move is
+ * what survives a flat battery; here is what survives everything else, and
+ * costs one NVS write on a screen change rather than one per frame. */
+void ChessGame::end(AppContext& host) {
+    if (mode_ == Mode::Local || mode_ == Mode::Remote) saveGame(host);
+    host.nearbyStop();
+}
+
+void ChessGame::recordCapture(int8_t piece) {
+    if (piece == EMPTY) return;
+    const uint8_t side = isWhite(piece) ? 0 : 1;
+    if (takenCount_[side] < MAX_TAKEN) {
+        taken_[side][takenCount_[side]++] = piece;
+        panelStale_ = true;
+    }
+}
+
+/* Stop a game nobody is going to finish.
+ *
+ * This is a result, not an escape hatch: it is stored like one, the status
+ * line says so, and the button afterwards offers a new game. Two children
+ * abandon games constantly -- one of them loses interest, or the bell goes --
+ * and before this the only exit was to leave the screen, which now brings the
+ * same stuck position straight back.
+ *
+ * Over the radio it rides the move field with `from` equal to `to`. That is
+ * never a legal chess move, so it cannot be confused with one, and it costs no
+ * bytes on a payload that is already exactly 31. */
+void ChessGame::declareEnd(AppContext& host, bool byUs) {
+    status_ = Status::Ended;
+    endedByUs_ = byUs;
+    confirmUntilMs_ = 0;
+    if (mode_ == Mode::Remote && byUs) {
+        ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+        /* Published through the service's own call rather than by writing a
+         * reserved square pair, so what "ended" looks like on the wire stays
+         * one fact in one place. ourFrom_/ourTo_ are left alone: the frame
+         * loop republishes them, and it must not republish this as a move. */
+        host.nearbyEnd(session_, ourPly_, theirPly_);
+    }
+    for (uint8_t t = 0; t < targetCount_; ++t) markSquare(targets_[t]);
+    markSquare(selected_);
+    selected_ = NO_SQ;
+    targetCount_ = 0;
+    statusStale_ = true;
+    panelStale_ = true;
+    saveGame(host);
+    markDirty();
+}
+
+void ChessGame::startLocal() {
+    mode_ = Mode::Local;
+    opponent_[0] = 0;
+    newGame();
+}
+
+void ChessGame::startRemote(const NearbySeat& seat, uint8_t session,
+                            bool weAreWhite) {
+    strncpy(opponent_, seat.deviceId, sizeof(opponent_) - 1);
+    opponent_[sizeof(opponent_) - 1] = 0;
+    /* The label is copied once, here, rather than resolved on every frame:
+     * it is display text and the peer table is behind a lock. It is saved with
+     * the game for the same reason -- coming back to "A4F2 is thinking" after
+     * naming that console RAVI would look like the name had not taken. */
+    strncpy(opponentName_, seat.name, sizeof(opponentName_) - 1);
+    opponentName_[sizeof(opponentName_) - 1] = 0;
+    session_ = static_cast<uint8_t>(session & 0x3F);
+    remoteIsWhite_ = weAreWhite;
+    mode_ = Mode::Remote;
+    newGame();
+}
+
+bool ChessGame::ourTurn() const {
+    if (mode_ != Mode::Remote) return true;
+    return pos_.whiteToMove == remoteIsWhite_;
 }
 
 void ChessGame::markSquare(uint8_t square) {
@@ -421,17 +776,304 @@ void ChessGame::markSquare(uint8_t square) {
 void ChessGame::refreshStatus() {
     const bool inCheck =
         attacked(pos_, kingSquare(pos_, pos_.whiteToMove), !pos_.whiteToMove);
+    /* Order matters. Mate ends the game even in a position that is otherwise
+     * dead -- you cannot be mated by pieces that cannot mate, so the two never
+     * actually collide, but stating the precedence means nobody has to work
+     * that out again. Having no legal move is asked first for the same reason:
+     * stalemate is a draw arrived at by the rules of movement, not by counting
+     * material or moves. */
     if (!hasAnyLegalMove(pos_)) {
         status_ = inCheck ? Status::Checkmate : Status::Stalemate;
+    } else if (deadPosition(pos_)) {
+        status_ = Status::DrawMaterial;
+    } else if (pos_.halfmove >= 100) {
+        status_ = Status::DrawFifty;
     } else {
         status_ = inCheck ? Status::Check : Status::Playing;
     }
     statusStale_ = true;
 }
 
-void ChessGame::update(AppContext& host, const TouchPoint& touch) {
+/* The lobby. Two ways to play and a list of consoles in the room.
+ *
+ * Laid out against the live panel like everything else here, and the rows are
+ * generous -- this is a menu a child taps once, not a board they play on, so
+ * there is no reason to make the targets small. */
+Rect ChessGame::lobbyRowRect(AppContext& host, uint8_t row) const {
+    Ui::Renderer& tft = host.display();
+    const int16_t w = static_cast<int16_t>(tft.width());
+    const int16_t top = static_cast<int16_t>(TOP_BAR_H + 8);
+    const int16_t h = 30;
+    return Rect{10, static_cast<int16_t>(top + row * (h + 6)),
+                static_cast<int16_t>(w - 20), h};
+}
+
+void ChessGame::renderLobby(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    Ui::clear(tft);
+    host.drawTopBar(title());
+
+    Ui::drawButton(tft, lobbyRowRect(host, 0), "Pass and play",
+                   Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+
+    char label[32];
+    uint8_t row = 1;
+    for (uint8_t i = 0; i < seatCount_ && row < 5; ++i, ++row) {
+        /* A peer offering us a game reads differently from one merely
+         * present, and the wording has to say which -- "Play A4F2" and
+         * "A4F2 invites you" are different offers. */
+        /* The owner's own label for that console when they have given it
+         * one. Naming a peer is the whole point of being able to name one, so
+         * it has to change what every screen calls it, not just the Nearby
+         * app's list. */
+        const char* who = seats_[i].name[0] != 0 ? seats_[i].name
+                                                 : seats_[i].deviceId;
+        if (seats_[i].inviting) {
+            snprintf(label, sizeof(label), "%s invites you", who);
+        } else {
+            snprintf(label, sizeof(label), "Play %s", who);
+        }
+        Ui::drawButton(tft, lobbyRowRect(host, row), label,
+                       seats_[i].inviting ? Ui::success() : Ui::panel(),
+                       Ui::outline(), Ui::text(), false, 2);
+    }
+
+    tft.setTextDatum(BC_DATUM);
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    /* The empty case names who can fix it. Switching the radio on is an
+     * admin job, so a player who reads "turn Beacon on" and cannot find the
+     * switch has been sent to a door they have no key for. Playing, once it is
+     * on, needs no admin at all. */
+    const char* note = seatCount_ > 0
+        ? "Moves travel by Bluetooth. Anyone near hears them."
+        : "Nobody nearby. An adult can switch Beacon and Nearby on.";
+    tft.drawString(note, static_cast<int16_t>(tft.width() / 2),
+                   static_cast<int16_t>(tft.height() - 6), 1);
+    tft.setTextDatum(TL_DATUM);
+}
+
+void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    const uint32_t now = millis();
+    if (now - seatsAtMs_ > 1000) {
+        seatsAtMs_ = now;
+        NearbySeat fresh[6];
+        uint8_t count = 0;
+        const uint8_t n = host.nearbySeatCount();
+        for (uint8_t i = 0; i < n && count < 6; ++i) {
+            NearbySeat seat;
+            if (host.nearbySeatAt(i, seat)) fresh[count++] = seat;
+        }
+
+        /* Compare the rows, not just how many there are. A peer that starts
+         * inviting us does not change the count -- it changes what its row
+         * says, from "Play A4F2" to "A4F2 invites you" -- so a count-only test
+         * left an invitation sitting on the air with nothing on screen to
+         * accept it, until some unrelated console wandered in or out of
+         * range. */
+        bool changed = count != seatCount_;
+        for (uint8_t i = 0; !changed && i < count; ++i) {
+            changed = fresh[i].inviting != seats_[i].inviting ||
+                      strcmp(fresh[i].deviceId, seats_[i].deviceId) != 0;
+        }
+        for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
+        seatCount_ = count;
+        if (changed) markFullDirty();
+    }
+
     if (!touch.justPressed) return;
-    if (status_ == Status::Checkmate || status_ == Status::Stalemate) return;
+
+    if (lobbyRowRect(host, 0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        host.playSound(Sound::Select);
+        startLocal();
+        return;
+    }
+    for (uint8_t i = 0; i < seatCount_; ++i) {
+        if (!lobbyRowRect(host, static_cast<uint8_t>(i + 1))
+                 .contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            continue;
+        }
+        if (seats_[i].inviting) {
+            /* Accepting: they chose the session, and which of us moves first
+             * came with the invitation -- the service flipped for it. We
+             * answer by publishing ply 0 in their session, which is the whole
+             * handshake; there is no second round trip to go missing. */
+            host.playSound(Sound::Select);
+            startRemote(seats_[i], seats_[i].session, seats_[i].weMoveFirst);
+        } else {
+            /* Inviting: our session id, derived from the clock rather than a
+             * counter so two consoles inviting each other at once are unlikely
+             * to pick the same number. Which of us is White is NOT ours to
+             * decide -- nearbyInvite() tosses for it and tells us. */
+            const uint8_t session = static_cast<uint8_t>((millis() >> 3) & 0x3F);
+            bool weMoveFirst = false;
+            if (host.nearbyInvite(seats_[i].deviceId, session, weMoveFirst)) {
+                host.playSound(Sound::Select);
+                startRemote(seats_[i], session, weMoveFirst);
+                /* Back to Waiting: startRemote() sets up the game, but nobody
+                 * has accepted yet and the board must not take a move until
+                 * somebody has. */
+                mode_ = Mode::Waiting;
+                markFullDirty();
+            } else {
+                host.beepError();
+            }
+        }
+        return;
+    }
+}
+
+/* Take the opponent's move, if there is one we should act on.
+ *
+ * Four tests, and every one of them is load-bearing:
+ *
+ *   from this peer      -- another console's game must not leak into ours
+ *   in this session     -- nor a previous game between the same two consoles
+ *   the ply we expect   -- an advertisement repeats, so the same move arrives
+ *                          many times; acting once is what makes it a move
+ *                          rather than a stutter
+ *   legal here          -- and this is the one that matters for safety. A
+ *                          move is only applied if it is legal in OUR
+ *                          position, so a confused or hostile advertiser
+ *                          cannot force the board into a state that is not
+ *                          reachable by playing chess.
+ */
+void ChessGame::pollOpponent(AppContext& host) {
+    if (mode_ != Mode::Remote && mode_ != Mode::Waiting) return;
+    if (opponent_[0] == 0) return;
+
+    NearbyTurn turn;
+    if (!host.nearbyTurnFrom(opponent_, session_, turn)) return;
+
+    if (mode_ == Mode::Waiting) {
+        /* They answered. Their first advertisement in our session is the
+         * acceptance -- no separate message, because a separate message could
+         * be the one that goes missing. Nothing is re-derived here: the seat,
+         * the session and the side were all settled when the invitation went
+         * out, and this only promotes the mode. */
+        mode_ = Mode::Remote;
+        markFullDirty();
+    }
+
+    const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
+    if (turn.ply != expected) return;
+
+    /* They stopped the game. This is tested BEFORE the whose-turn check on
+     * purpose: a player gives up when they are stuck, which is usually while
+     * they are waiting for us, and a declaration that only arrived on their
+     * own turn would be one that mostly never arrived. The reserved encoding
+     * belongs to the nearby service, not here -- this only reads the flag. */
+    if (turn.ended) {
+        theirPly_ = turn.ply;
+        declareEnd(host, false);
+        host.playSound(Sound::GameOver);
+        return;
+    }
+
+    if (ourTurn()) return;              // not their move to make
+
+    uint8_t legal[MAX_MOVES];
+    const uint8_t n = legalMoves(pos_, turn.from, legal);
+    bool ok = false;
+    for (uint8_t i = 0; i < n; ++i) {
+        if (legal[i] == turn.to) { ok = true; break; }
+    }
+    if (!ok) return;
+
+    for (int8_t f = 0; f < 8; ++f) markSquare(idx(f, rankOf(turn.from)));
+    markSquare(turn.from);
+    markSquare(turn.to);
+    recordCapture(applyMove(pos_, turn.from, turn.to));
+    theirPly_ = turn.ply;
+    selected_ = NO_SQ;
+    targetCount_ = 0;
+    refreshStatus();
+    saveGame(host);
+    host.playSound(gameOver()                 ? Sound::GameOver
+                   : status_ == Status::Check ? Sound::Reveal
+                                              : Sound::Tap);
+    markDirty();
+}
+
+void ChessGame::update(AppContext& host, const TouchPoint& touch) {
+    if (mode_ == Mode::Lobby) {
+        updateLobby(host, touch);
+        return;
+    }
+
+    pollOpponent(host);
+
+    /* Republish every frame. Unchanged values do not touch the radio, and a
+     * move must stay on the air until it is replaced: the opponent may be
+     * anywhere in its scan cycle, or may only just have come back into range.
+     *
+     * From ply 0, which is not a move but a presence: it is how an accepted
+     * invitation is answered. The inviter sits in Waiting until it hears
+     * ANYTHING from us in its session, and the acceptor plays Black -- so if
+     * this only published once we had moved, neither side could ever start.
+     * The receiver's expected-ply test discards ply 0 as a move, so saying it
+     * costs nothing and means the handshake needs no second message, which is
+     * the message that would have gone missing. */
+    if (mode_ == Mode::Remote && status_ != Status::Ended) {
+        host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+    }
+
+    /* The confirm window closes on its own, so a half-pressed End game does
+     * not lie in wait to be completed by an unrelated tap minutes later. */
+    if (confirmUntilMs_ != 0 && millis() > confirmUntilMs_) {
+        confirmUntilMs_ = 0;
+        panelStale_ = true;
+        markDirty();
+    }
+
+    if (!touch.justPressed) return;
+
+    const bool over = gameOver();
+
+    /* The one button. New game once the game is over, End game while it is
+     * running -- and End game asks twice, because it is the only control here
+     * that destroys something. Tested before the board, so a button drawn
+     * over the panel is never also a tap on a square. */
+    if (actionRect(host).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (over) {
+            /* Always back to the lobby, whichever way the game was being
+             * played. Two reasons, and the second one is the important one.
+             *
+             * A new remote game needs a new session and a fresh invitation, so
+             * pretending the old session can be reused would be wrong. And now
+             * that an unfinished game is restored on the way in, the lobby is
+             * no longer somewhere you arrive by leaving and coming back -- so
+             * if a finished LOCAL game started another local game directly,
+             * there would be no route from pass-and-play to playing a peer at
+             * all, short of ending a game you did not want to end. Persistence
+             * quietly took that route away; this is where it comes back. */
+            host.playSound(Sound::Select);
+            if (mode_ == Mode::Remote) host.nearbyStop();
+            mode_ = Mode::Lobby;
+            opponent_[0] = 0;
+            opponentName_[0] = 0;
+            session_ = 0;
+            seatCount_ = 0;
+            seatsAtMs_ = 0;
+            newGame();
+            saveGame(host);
+        } else if (confirmUntilMs_ != 0) {
+            declareEnd(host, true);
+            host.playSound(Sound::GameOver);
+        } else {
+            confirmUntilMs_ = millis() + CONFIRM_MS;
+            host.playSound(Sound::Tap);
+            panelStale_ = true;
+            markDirty();
+        }
+        return;
+    }
+
+    if (over) return;
+    /* In a remote game the board is read-only while it is their turn. The
+     * legality filter would catch an out-of-turn move anyway -- it generates
+     * for the side to move -- but stopping it here means the pieces simply do
+     * not respond, which reads as "not your turn" rather than as a bug. */
+    if (mode_ == Mode::Remote && !ourTurn()) return;
 
     const uint8_t hit = squareAt(host, touch.x, touch.y);
     if (hit == NO_SQ) return;
@@ -452,11 +1094,26 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
         }
         for (uint8_t t = 0; t < targetCount_; ++t) markSquare(targets_[t]);
 
-        applyMove(pos_, from, hit);
+        recordCapture(applyMove(pos_, from, hit));
+        if (mode_ == Mode::Remote) {
+            ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+            ourFrom_ = from;
+            ourTo_ = hit;
+            host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+        }
         selected_ = NO_SQ;
         targetCount_ = 0;
         refreshStatus();
+        /* Written after every move, not just on the way out. That is what
+         * survives a battery going flat mid-game; end() is what survives
+         * everything else. A move is not a hot path -- one NVS write per move
+         * is nothing against the thirty-odd a whole game costs. */
+        saveGame(host);
+        /* A draw is an ending and sounds like one, but it is not a win.
+         * On a board with no speaker this changes nothing, which is why the
+         * status line has to carry the same news in words. */
         host.playSound(status_ == Status::Checkmate ? Sound::Victory
+                       : gameOver()                 ? Sound::GameOver
                        : status_ == Status::Check   ? Sound::Reveal
                                                     : Sound::Tap);
         markDirty();
@@ -572,59 +1229,215 @@ void ChessGame::drawSquare(AppContext& host, uint8_t square) const {
     }
 }
 
+/* Two short lines rather than one sentence, and that is a measurement, not a
+ * preference. In landscape the status now lives in a column about 110px wide;
+ * "Checkmate - Black wins" is well past that at font 2, and TFT_eSPI does not
+ * ellipsize -- drawChar simply stops once x reaches the viewport edge, so the
+ * line would be cut mid-word with nothing to show it had been. Splitting the
+ * headline from the detail fits both orientations and reads better anyway. */
 void ChessGame::drawStatus(AppContext& host) const {
     Ui::Renderer& tft = host.display();
-    const int16_t h = static_cast<int16_t>(tft.height());
-    const int16_t y = static_cast<int16_t>(h - STATUS_H);
-    tft.fillRect(0, y, static_cast<int16_t>(tft.width()), STATUS_H, Ui::bg());
+    const Rect r = statusRect(host);
+    tft.fillRect(r.x, r.y, r.w, r.h, Ui::bg());
 
-    char line[40];
+    char top[24];
+    char bot[24];
+    top[0] = 0;
+    bot[0] = 0;
+    uint16_t colour = Ui::text();
     const char* side = pos_.whiteToMove ? "White" : "Black";
-    switch (status_) {
-        case Status::Checkmate:
-            /* The side to move is the one that is mated, so the winner is the
-             * other one -- stating the loser here would be a small cruelty and
-             * a large confusion. */
-            snprintf(line, sizeof(line), "Checkmate - %s wins",
-                     pos_.whiteToMove ? "Black" : "White");
-            break;
-        case Status::Stalemate:
-            snprintf(line, sizeof(line), "Stalemate - a draw");
-            break;
-        case Status::Check:
-            snprintf(line, sizeof(line), "%s to move - check!", side);
-            break;
-        default:
-            snprintf(line, sizeof(line), "%s to move", side);
-            break;
+
+    if (mode_ == Mode::Waiting) {
+        snprintf(top, sizeof(top), "Asking %s", opponentLabel());
+        snprintf(bot, sizeof(bot), "waiting...");
+        colour = Ui::muted();
+    } else {
+        switch (status_) {
+            case Status::Checkmate:
+                /* The side to move is the one that is mated, so the winner is
+                 * the other one -- stating the loser here would be a small
+                 * cruelty and a large confusion. */
+                snprintf(top, sizeof(top), "Checkmate");
+                snprintf(bot, sizeof(bot), "%s wins",
+                         pos_.whiteToMove ? "Black" : "White");
+                colour = Ui::warning();
+                break;
+            /* Every draw says WHY, in words a child can act on. "Draw" on
+             * its own teaches nothing; "too few pieces" is the whole lesson of
+             * the endgame they have just reached, and it is the difference
+             * between the console looking broken and the console teaching. */
+            case Status::Stalemate:
+                snprintf(top, sizeof(top), "Draw");
+                snprintf(bot, sizeof(bot), "stalemate");
+                break;
+            case Status::DrawMaterial:
+                snprintf(top, sizeof(top), "Draw");
+                snprintf(bot, sizeof(bot), "too few pieces");
+                break;
+            case Status::DrawFifty:
+                snprintf(top, sizeof(top), "Draw");
+                snprintf(bot, sizeof(bot), "50 moves, no take");
+                break;
+            case Status::Ended:
+                /* NOT called a draw. A game somebody walked away from and a
+                 * game the rules drew are different things, and a console that
+                 * blurred them would be teaching the wrong lesson in the other
+                 * direction from the one this release fixed. */
+                snprintf(top, sizeof(top), "Game ended");
+                snprintf(bot, sizeof(bot),
+                         mode_ == Mode::Remote
+                             ? (endedByUs_ ? "you stopped it" : "they stopped it")
+                             : "no winner");
+                colour = Ui::muted();
+                break;
+            case Status::Check:
+                snprintf(top, sizeof(top), "Check!");
+                snprintf(bot, sizeof(bot), "%s to move", side);
+                colour = Ui::warning();
+                break;
+            default:
+                if (mode_ == Mode::Remote && !ourTurn()) {
+                    /* Second person, because in a remote game "White to move"
+                     * does not tell a child whether to pick a piece up. */
+                    snprintf(top, sizeof(top), "%s", opponentLabel());
+                    snprintf(bot, sizeof(bot), "is thinking");
+                    colour = Ui::muted();
+                } else if (mode_ == Mode::Remote) {
+                    snprintf(top, sizeof(top), "Your move");
+                    snprintf(bot, sizeof(bot), "(%s)",
+                             remoteIsWhite_ ? "White" : "Black");
+                } else {
+                    snprintf(top, sizeof(top), "%s", side);
+                    snprintf(bot, sizeof(bot), "to move");
+                }
+                break;
+        }
     }
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(status_ == Status::Check || status_ == Status::Checkmate
-                         ? Ui::warning() : Ui::text(),
-                     Ui::bg());
-    tft.drawString(line, static_cast<int16_t>(tft.width() / 2),
-                   static_cast<int16_t>(y + STATUS_H / 2), 2);
+
+    /* Font from the space actually available, not from the orientation: the
+     * 4-inch panel's landscape column is 190px and can carry font 2, the
+     * 2.8-inch's is 110px and cannot. */
+    const uint8_t font = r.w >= 150 ? 2 : 1;
+    const int16_t lineH = font == 2 ? 16 : 10;
     tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(colour, Ui::bg());
+    tft.drawString(top, r.x, r.y, font);
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.drawString(bot, r.x, static_cast<int16_t>(r.y + lineH), font);
+}
+
+/* The pieces one colour has lost, oldest first.
+ *
+ * Shapes at whatever size fits, for the same reason the board uses shapes: a
+ * letter is a literacy test. The cell is chosen so that all fifteen a side can
+ * lose fit in the strip -- shrinking until they do rather than picking a
+ * number, because the strip is 110x60 in landscape on the 2.8-inch and 234x20
+ * in portrait, and no single constant is right for both. */
+void ChessGame::drawTaken(AppContext& host, uint8_t side) const {
+    Ui::Renderer& tft = host.display();
+    const Rect r = takenRect(host, side);
+    if (r.w <= 0 || r.h <= 0) return;
+    /* Each strip is backed by the shade its pieces are NOT, so White's losses
+     * sit on the board's dark square colour and Black's on the light one.
+     *
+     * Both strips used the theme panel colour, and on a photographed 4-inch
+     * panel the two were very hard to tell apart -- which defeats the point of
+     * showing them separately at all. Borrowing the board's own two square
+     * colours also says, without a label, that these pieces came off that
+     * board. The pieces carry a contrasting rim of their own, so they stay
+     * legible on either. */
+    const uint16_t back = side == 0 ? Ui::rgb(120, 96, 72)
+                                    : Ui::rgb(222, 210, 180);
+    tft.fillRect(r.x, r.y, r.w, r.h, back);
+
+    int16_t cell = 20;
+    while (cell > 10 && (r.w / cell) * (r.h / cell) < MAX_TAKEN) {
+        cell = static_cast<int16_t>(cell - 2);
+    }
+    const int16_t cols = static_cast<int16_t>(r.w / cell);
+    const int16_t rows = static_cast<int16_t>(r.h / cell);
+    if (cols <= 0 || rows <= 0) return;
+
+    const uint8_t capacity = static_cast<uint8_t>(cols * rows);
+    const uint8_t n = takenCount_[side];
+    uint8_t shown = n < capacity ? n : capacity;
+    /* If even the shrunk cell cannot hold them all, give the last slot to a
+     * count rather than silently dropping pieces off the end. */
+    const bool overflow = n > capacity;
+    if (overflow) shown = static_cast<uint8_t>(capacity - 1);
+
+    for (uint8_t i = 0; i < shown; ++i) {
+        const Rect c{static_cast<int16_t>(r.x + (i % cols) * cell),
+                     static_cast<int16_t>(r.y + (i / cols) * cell), cell, cell};
+        drawPiece(host, c, taken_[side][i]);
+    }
+    if (overflow) {
+        char more[8];
+        snprintf(more, sizeof(more), "+%u", static_cast<unsigned>(n - shown));
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(side == 0 ? Ui::rgb(240, 236, 228) : Ui::rgb(60, 50, 40),
+                         back);
+        tft.drawString(more,
+                       static_cast<int16_t>(r.x + (shown % cols) * cell + cell / 2),
+                       static_cast<int16_t>(r.y + (shown / cols) * cell + cell / 2),
+                       1);
+        tft.setTextDatum(TL_DATUM);
+    }
+}
+
+void ChessGame::drawAction(AppContext& host) const {
+    Ui::Renderer& tft = host.display();
+    const Rect r = actionRect(host);
+    const bool over = gameOver();
+    const bool confirming = !over && confirmUntilMs_ != 0;
+    /* Warning colour only while it is asking. A destructive control that looks
+     * alarming all the time stops meaning anything by the second game. */
+    Ui::drawButton(tft, r, over ? "New game" : (confirming ? "Sure?" : "End game"),
+                   confirming ? Ui::warning() : Ui::panel(), Ui::outline(),
+                   confirming ? Ui::bg() : Ui::text(), false, 2);
 }
 
 void ChessGame::renderStatic(AppContext& host) {
+    if (mode_ == Mode::Lobby) {
+        renderLobby(host);
+        return;
+    }
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
     for (uint8_t s = 0; s < 64; ++s) drawSquare(host, s);
     const Rect b = boardRect(host);
     tft.drawRect(b.x, b.y, b.w, b.h, Ui::outline());
+    drawTaken(host, 0);
+    drawTaken(host, 1);
     drawStatus(host);
+    drawAction(host);
     dirtyCount_ = 0;
     statusStale_ = false;
+    panelStale_ = false;
 }
 
 void ChessGame::renderDynamic(AppContext& host) {
+    if (mode_ == Mode::Lobby) {
+        renderLobby(host);
+        return;
+    }
     /* Only the squares that changed. A whole board is 64 fills and up to 32
      * pieces; a move touches a handful, and at 26px a square the difference is
      * the whole frame budget. */
     for (uint8_t i = 0; i < dirtyCount_; ++i) drawSquare(host, dirtySq_[i]);
     dirtyCount_ = 0;
+    /* The panel is repainted whole, unlike the board. It is a fraction of the
+     * area and it changes rarely -- a capture, or the button relabelling
+     * itself -- so working out which strip moved would cost more to maintain
+     * than it saves, and every clear rectangle here is one more chance to take
+     * a bite out of the board next to it. */
+    if (panelStale_) {
+        drawTaken(host, 0);
+        drawTaken(host, 1);
+        drawAction(host);
+        panelStale_ = false;
+    }
     if (statusStale_) {
         drawStatus(host);
         statusStale_ = false;

@@ -85,6 +85,14 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon.",
     },
     {
+        "env": "app_esp32_2432s028_inv",
+        "label": "Braino! (the games) -- ESP32-2432S028 dual-USB, inverted panel",
+        "name": "Braino!",
+        "note": "For a dual-USB 2.8 inch CYD whose colours look wrong under the "
+                "other builds: {count} games, profiles, scores, settings, Wi-Fi "
+                "clock and the BLE beacon. No sound -- its touch clock is a DAC pad.",
+    },
+    {
         "env": "app_e32r32p",
         "label": "Braino! (the games) -- E32R32P (3.2 inch ST7789P3)",
         "name": "Braino!",
@@ -140,6 +148,11 @@ BOARD_DETAILS = {
         "chip": "ESP32",
         "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
     },
+    "esp32_2432s028_inv": {
+        "label": "ESP32-2432S028 -- 2.8 inch dual-USB CYD whose colours come out inverted (ILI9341 + XPT2046 resistive touch)",
+        "chip": "ESP32",
+        "buy": "https://www.espboards.dev/esp32/cyd-esp32-2432s028/",
+    },
     "e32r32p": {
         "label": "E32R32P / ESP32-32E -- 3.2 inch ST7789P3 + XPT2046 (resistive)",
         "chip": "ESP32",
@@ -170,6 +183,8 @@ SCREEN_CAPTIONS = {
     "elements-quiz": "Elements: find it in the table",
     "piano": "Piano: one octave, tap a key",
     "chess": "Chess: tap a piece to see its moves",
+    "seabattle": "Sea Battle: hunt the hidden fleet",
+    "cursive": "Cursive: trace joined-up letters and words",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
     "flags-capital": "Flags: capital bonus",
@@ -253,6 +268,8 @@ PLAYABLE_STILLS = {
     "elements": ("elements", "elements-card", "elements-quiz"),
     "piano": ("piano",),
     "chess": ("chess",),
+    "seabattle": ("seabattle",),
+    "cursive": ("cursive",),
 }
 
 SYSTEM_SHOWCASE = (

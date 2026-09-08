@@ -1,5 +1,6 @@
 #include "NearbyPlay.h"
 
+#include <esp_system.h>   // esp_random(), for the who-moves-first toss
 #include <string.h>
 
 #include "engine/AppRegistry.h"
@@ -34,7 +35,40 @@ struct Known {
      * yet" from "the last one happened to be nonce 0". */
     bool sawPoke = false;
     uint8_t lastPokeNonce = 0;
+
+    /* The latest two-player session traffic heard from this peer. Kept raw and
+     * unjudged: whether a move is legal, expected, or even in the right game
+     * is the app's business, and this module has no idea what the numbers
+     * mean. */
+    bool inviting = false;
+    char inviteTarget[5] = {0};
+    uint8_t inviteSession = 0;
+    /* The last invitation from this peer we raised a banner for. Same
+     * reasoning as sawPoke: an invitation repeats for seconds so a scan window
+     * cannot miss it, so "have I already announced this one?" is the whole of
+     * what makes it an event rather than an alarm. */
+    bool sawInvite = false;
+    uint8_t lastInviteByte = 0;
+
+    bool hasTurn = false;
+    uint8_t turnSession = 0;
+    uint8_t turnPly = 0;
+    uint8_t turnFrom = 0;
+    uint8_t turnTo = 0;
+    uint8_t turnAck = 0;
 };
+
+/* The owner's own label for a console, falling back to the tag it advertises.
+ *
+ * Every notification and every seat goes through here so that naming a peer
+ * changes what the whole device calls it rather than what one screen does. It
+ * reads local NVS -- Board mirrors peer names in RAM, so this is a comparison
+ * and not a flash lookup -- and it travels one way only: towards the screen.
+ * Nothing here can put a label on the air. */
+const char* displayName(Board& board, const char* deviceId) {
+    const char* label = board.peerName(deviceId);
+    return label != nullptr ? label : deviceId;
+}
 
 Known known_[BleScan::MAX_SIGHTINGS];
 uint8_t knownCount_ = 0;
@@ -125,7 +159,8 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
     entry.announcedBeat = true;
     entry.announcedGame = seen.gameIndex;
     entry.announcedScore = seen.bestScore;
-    snprintf(text, sizeof(text), "%s beat your %s: %lu", seen.deviceId, title,
+    snprintf(text, sizeof(text), "%s beat your %s: %lu",
+             displayName(board, seen.deviceId), title,
              static_cast<unsigned long>(seen.bestScore));
     pushEvent(text);
 }
@@ -139,6 +174,65 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
  * this module raises is ambient news about the room, while a poke is a person
  * asking for your attention, which is the distinction worth a sound. Mute is
  * still honoured, because every cue goes through Board::playSound(). */
+/* Copy the session traffic across verbatim. No interpretation: this module
+ * does not know a chess move from a backgammon one, and should not. */
+void recordSession(Known& entry, const BleScan::Sighting& seen) {
+    entry.inviting = seen.inviting;
+    if (seen.inviting) {
+        strncpy(entry.inviteTarget, seen.inviteTarget, sizeof(entry.inviteTarget) - 1);
+        entry.inviteTarget[sizeof(entry.inviteTarget) - 1] = 0;
+        entry.inviteSession = seen.inviteSession;
+    }
+    if (seen.hasTurn) {
+        entry.hasTurn = true;
+        entry.turnSession = seen.turnSession;
+        entry.turnPly = seen.turnPly;
+        entry.turnFrom = seen.turnFrom;
+        entry.turnTo = seen.turnTo;
+        entry.turnAck = seen.turnAck;
+    }
+}
+
+/* Somebody in the room is offering us a game.
+ *
+ * Announced the same way a poke is, and for the same reason: it is a person
+ * asking for your attention, and an offer nobody sees is an offer that expires
+ * unanswered. Before this, an invitation only appeared if the other player
+ * happened to already be sitting in that game's lobby, which made the feature
+ * almost impossible to start.
+ *
+ * The game is named from the peer's advertised game index rather than from
+ * anything this module knows, which is what keeps it a service: the day a
+ * second two-player game exists, its invitations announce themselves correctly
+ * with nothing added here. */
+void evaluateInvite(Board& board, Known& entry, const BleScan::Sighting& seen) {
+    if (!seen.inviting) {
+        return;
+    }
+    const char* mine = BleBeacon::configured().deviceId;
+    if (mine[0] == '\0' ||
+        strncmp(seen.inviteTarget, mine, sizeof(seen.inviteTarget)) != 0) {
+        return;   // aimed at somebody else; a broadcast is heard by everyone
+    }
+    if (entry.sawInvite && entry.lastInviteByte == seen.inviteSession) {
+        return;   // the same invitation, still on air
+    }
+    entry.sawInvite = true;
+    entry.lastInviteByte = seen.inviteSession;
+
+    const char* title = gameTitle(seen.gameIndex);
+    char text[BANNER_MAX];
+    if (title != nullptr) {
+        snprintf(text, sizeof(text), "%s wants to play %s",
+                 displayName(board, seen.deviceId), title);
+    } else {
+        snprintf(text, sizeof(text), "%s wants to play",
+                 displayName(board, seen.deviceId));
+    }
+    pushEvent(text);
+    board.playSound(Sound::Pop);
+}
+
 void evaluatePoke(Board& board, Known& entry, const BleScan::Sighting& seen) {
     if (!seen.poking) {
         return;
@@ -153,13 +247,8 @@ void evaluatePoke(Board& board, Known& entry, const BleScan::Sighting& seen) {
     entry.sawPoke = true;
     entry.lastPokeNonce = seen.pokeNonce;
 
-    /* The owner's own label for this device if they have given it one, else
-     * the tag. This is a read of local NVS on the way to a notification, not
-     * anything that reaches the radio -- the poke on air carried the two-byte
-     * hardware id and nothing else, and the name exists only on this side. */
-    const char* who = board.peerName(seen.deviceId);
     char text[BANNER_MAX];
-    snprintf(text, sizeof(text), "%s poked you!", who != nullptr ? who : seen.deviceId);
+    snprintf(text, sizeof(text), "%s poked you!", displayName(board, seen.deviceId));
     pushEvent(text);
     board.playSound(Sound::Pop);
 }
@@ -190,9 +279,11 @@ void reconcile(Board& board) {
 
             const char* title = gameTitle(seen.gameIndex);
             if (seen.sharesActivity && title != nullptr) {
-                snprintf(text, sizeof(text), "%s nearby, playing %s", seen.deviceId, title);
+                snprintf(text, sizeof(text), "%s nearby, playing %s",
+                         displayName(board, seen.deviceId), title);
             } else {
-                snprintf(text, sizeof(text), "%s is nearby", seen.deviceId);
+                snprintf(text, sizeof(text), "%s is nearby",
+                         displayName(board, seen.deviceId));
             }
             pushEvent(text);
             evaluateScore(board, *entry, seen);
@@ -206,7 +297,8 @@ void reconcile(Board& board) {
             if (gameChanged) {
                 const char* title = gameTitle(seen.gameIndex);
                 if (seen.sharesActivity && title != nullptr) {
-                    snprintf(text, sizeof(text), "%s is playing %s", seen.deviceId, title);
+                    snprintf(text, sizeof(text), "%s is playing %s",
+                             displayName(board, seen.deviceId), title);
                     pushEvent(text);
                 }
             }
@@ -219,6 +311,19 @@ void reconcile(Board& board) {
              * is most of the time. The nonce does the de-duplication. */
             evaluatePoke(board, *entry, seen);
         }
+
+        /* OUTSIDE the branch above, for peers we have just met and peers we
+         * already knew alike.
+         *
+         * recordSession() used to sit inside the new-peer branch, which meant
+         * a console's turn was copied across exactly once -- on the sighting
+         * that first brought it into range -- and every move it made after
+         * that was dropped on the floor. Nothing else in the system would have
+         * complained: the scanner saw the moves, the payload decoded, and the
+         * peer table simply never learned about them. Anything that has to
+         * track a peer's live state belongs here, not in either branch. */
+        recordSession(*entry, seen);
+        evaluateInvite(board, *entry, seen);
 
         for (uint8_t k = 0; k < knownCount_; ++k) {
             if (&known_[k] == entry) {
@@ -253,13 +358,15 @@ void publish(Board& board) {
     }
     const AppDefinition* app = playableAt(activeGameIndex_);
     const AppScoreInfo* score = app != nullptr ? app->score() : nullptr;
-    if (score == nullptr) {
-        /* Sharing stays on -- peers should still see us in the room -- but
-         * there is no game or number to attach. */
-        BleBeacon::setActivity(true, BleBeacon::GAME_NONE, 0);
-        return;
-    }
-    BleBeacon::setActivity(true, activeGameIndex_, board.getScore(score->bestKey));
+    /* WHICH GAME AND WHAT SCORE ARE TWO FACTS, and this used to treat them as
+     * one: an app with no score advertised GAME_NONE, so Chess, Piano, Dice
+     * and Trace were all invisible -- a peer playing one of them showed as
+     * "Choosing a game", and a chess invitation could not name itself. There
+     * is no reason for that. The game index is sent whenever there is a game,
+     * and the score is zero when there is nothing to be best at. */
+    BleBeacon::setActivity(
+        true, activeGameIndex_,
+        score != nullptr ? board.getScore(score->bestKey) : 0);
 }
 
 void resetPeers() {
@@ -424,5 +531,150 @@ PeerView peerAt(Board& board, uint8_t index) {
 }
 
 uint32_t peerGeneration() { return peerGeneration_; }
+
+
+/* ---- two-player sessions ------------------------------------------------
+ *
+ * The gate is re-derived on every call rather than cached, for the same
+ * reason tick() re-derives it: an ordering contract with Settings is a thing
+ * that can be got wrong once and then stays wrong. */
+namespace {
+bool sessionsAllowed() {
+    return enabled_ && BleBeacon::active();
+}
+
+/* How an invitation's one payload byte is divided.
+ *
+ * Six bits of session id -- the app's own name for the game about to happen,
+ * and the width the move block has room for -- plus one bit saying which of
+ * the two consoles moves first. The top bit is spare.
+ *
+ * The side bit is here rather than in the game because it is the same question
+ * every two-player game asks, and because the console doing the asking is
+ * exactly the one that should not be answering it. */
+constexpr uint8_t SESSION_MASK = 0x3F;
+constexpr uint8_t SIDE_BIT = 0x40;      // set: the INVITED console moves first
+
+/* A turn that means "I am stopping", rather than a move.
+ *
+ * `from == to` is not a move in any game that moves a thing from somewhere to
+ * somewhere else, so it is safe to reserve -- but 0,0 is what a console
+ * publishes at ply 0 to answer an invitation, and that is a presence and not
+ * an ending. Requiring BOTH squares to be 63 separates the two without
+ * depending on anybody checking the ply first. A game never sees this: it sees
+ * NearbyTurn::ended. */
+constexpr uint8_t END_SQUARE = 63;
+bool encodesEnd(uint8_t from, uint8_t to) {
+    return from == END_SQUARE && to == END_SQUARE;
+}
+}   // namespace
+
+uint8_t seatCount() {
+    return sessionsAllowed() ? knownCount_ : 0;
+}
+
+namespace {
+/* One place that turns a Known into the seat a game is handed, so the lobby
+ * and the invitation path cannot describe the same peer differently. */
+void fillSeat(Board& board, const Known& k, NearbySeat& out) {
+    strncpy(out.deviceId, k.deviceId, sizeof(out.deviceId) - 1);
+    out.deviceId[sizeof(out.deviceId) - 1] = 0;
+    const char* label = board.peerName(k.deviceId);
+    if (label != nullptr) {
+        strncpy(out.name, label, sizeof(out.name) - 1);
+        out.name[sizeof(out.name) - 1] = 0;
+    } else {
+        out.name[0] = 0;
+    }
+    out.inviting = k.inviting;
+    out.session = static_cast<uint8_t>(k.inviteSession & SESSION_MASK);
+    out.weMoveFirst = (k.inviteSession & SIDE_BIT) != 0;
+}
+}   // namespace
+
+bool seatAt(Board& board, uint8_t index, NearbySeat& out) {
+    if (!sessionsAllowed() || index >= knownCount_) {
+        return false;
+    }
+    fillSeat(board, known_[index], out);
+    return true;
+}
+
+bool invite(const char* deviceId, uint8_t session, bool& weMoveFirst) {
+    weMoveFirst = false;
+    if (!sessionsAllowed()) {
+        return false;
+    }
+    /* The coin, flipped here so that no game has to remember to be fair and
+     * so that two games cannot be fair in two different ways. esp_random() is
+     * the hardware generator: this does not need to be unpredictable to an
+     * attacker, but it does need to not be the same every time, which is
+     * exactly what a seeded PRNG on a device with no clock would give. */
+    weMoveFirst = (esp_random() & 1u) != 0;
+    const uint8_t payload = static_cast<uint8_t>(
+        (session & SESSION_MASK) | (weMoveFirst ? 0 : SIDE_BIT));
+    /* Which game, stated by the service rather than left for the caller to
+     * remember: the app asking is the app that is running, this module already
+     * tracks that, and an invitation the receiver cannot name is not much of
+     * an invitation. */
+    return BleBeacon::invitePeer(deviceId, payload, activeGameIndex_);
+}
+
+bool inviteForUs(Board& board, NearbySeat& out) {
+    if (!sessionsAllowed()) {
+        return false;
+    }
+    const char* mine = BleBeacon::configured().deviceId;
+    for (uint8_t i = 0; i < knownCount_; ++i) {
+        const Known& k = known_[i];
+        if (!k.inviting) continue;
+        if (strncmp(k.inviteTarget, mine, sizeof(k.inviteTarget)) != 0) continue;
+        fillSeat(board, k, out);
+        return true;
+    }
+    return false;
+}
+
+void publishTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
+                 uint8_t ack) {
+    if (!sessionsAllowed()) {
+        return;
+    }
+    BleBeacon::setTurn(session, ply, from, to, ack);
+}
+
+void publishEnd(uint8_t session, uint8_t ply, uint8_t ack) {
+    if (!sessionsAllowed()) {
+        return;
+    }
+    /* Left on the air like any other turn rather than sent once. The other
+     * seat may be anywhere in its scan cycle, and "I am stopping" is precisely
+     * the message you cannot ask somebody to repeat. */
+    BleBeacon::setTurn(session, ply, END_SQUARE, END_SQUARE, ack);
+}
+
+void stopTurns() {
+    BleBeacon::clearTurn();
+}
+
+bool turnFrom(const char* deviceId, uint8_t session, NearbyTurn& out) {
+    if (!sessionsAllowed() || deviceId == nullptr) {
+        return false;
+    }
+    for (uint8_t i = 0; i < knownCount_; ++i) {
+        const Known& k = known_[i];
+        if (!k.hasTurn) continue;
+        if (strncmp(k.deviceId, deviceId, sizeof(k.deviceId)) != 0) continue;
+        if (k.turnSession != (session & SESSION_MASK)) continue;
+        out.session = k.turnSession;
+        out.ply = k.turnPly;
+        out.from = k.turnFrom;
+        out.to = k.turnTo;
+        out.ack = k.turnAck;
+        out.ended = encodesEnd(k.turnFrom, k.turnTo);
+        return true;
+    }
+    return false;
+}
 
 }   // namespace NearbyPlay

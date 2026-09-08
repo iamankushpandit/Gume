@@ -3,16 +3,16 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.8.0-9a6700)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-33-2d7d9a)](#the-games)
+[![Version](https://img.shields.io/badge/version-5.9.0-blue)](CHANGELOG.md)
+[![Games](https://img.shields.io/badge/games-35-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-76.0%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-77.5%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 33-game educational console for young players, running on an **ESP32-32E
+A 35-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -29,9 +29,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 33 |
-| Flash | 2,390,053 / 3,145,728 bytes (**76.0%**) |
-| RAM | 74,492 / 327,680 bytes (**22.2%**) |
+| Games | 35 |
+| Flash | 2,439,425 / 3,145,728 bytes (**77.5%**) |
+| RAM | 76,508 / 327,680 bytes (**23.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -51,7 +51,10 @@ has had its panel, backlight and touch confirmed on hardware but ships with four
 peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
 the 3.2-inch **E32R32P** has had its display, touch, battery sense and
 radios confirmed on hardware, with the RGB LED order and the battery
-divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3))
+divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3)); and one
+dual-USB CYD variant whose colours come out inverted *has* been verified on
+hardware (see
+[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel))
 — if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
@@ -188,6 +191,45 @@ that is the most useful thing you can send.
 identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
 wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
 
+### ESP32-2432S028 dual-USB (inverted panel)
+
+**If your 2.8-inch CYD draws everything perfectly but every colour is wrong,
+this is your build.** Flash `app_esp32_2432s028_inv`.
+
+The 2.8-inch "cheap yellow display" ships with at least three different
+combinations of panel and backlight behind the same silkscreen, and you cannot
+tell them apart by looking:
+
+| Profile | USB | Panel | Backlight | Verified? |
+|---|---|---|---|---|
+| `esp32-2432s028r.h` | micro-USB | ILI9341 | GPIO21 | from a published pin map |
+| `esp32-2432s028.h` | dual-USB | ST7789 | GPIO27 | from a published pin map |
+| `esp32-2432s028-inv.h` | dual-USB | ILI9341 + runtime inversion | GPIO21 | **on hardware** |
+
+The symptom that identifies this one is specific and easy to misread: the board
+comes up with the backlight on, touch working, the layout correct and a
+completely clean serial log — and **every** colour channel inverted. The dark
+theme draws white, green draws purple, blue draws salmon. It reads as a theme
+bug rather than a wrong board.
+
+Two things are worth knowing if you are porting another variant:
+
+- **A wrong backlight pin gives you a dark panel and a healthy log.** Wi-Fi,
+  BLE, NVS, touch and the screen saver all run perfectly. It reads as a dead
+  board. The other dual-USB profile has its backlight on GPIO27; on this one
+  GPIO27 gives nothing and GPIO21 lights it.
+- **TFT_eSPI's `TFT_INVERT_COLORS` will not fix inverted colours on an ILI9341
+  build.** That macro is read *only* by its ST7789 and ST7735 init sequences,
+  so on an ILI9341 build it is silently inert — it was tried twice here and
+  looked like the flag being ignored. The board profile carries
+  `invertColours`, which `Board::begin()` turns into a runtime
+  `invertDisplay()` and which works under any driver.
+
+Confirmed on hardware: panel, colour inversion, backlight, touch, rotation,
+flash size. Inherited from the E32R28T-1 and not exercised: SD card, RGB LED
+order, battery divider. **Silent by construction** — its touch clock is GPIO25,
+which is DAC channel 1, the same conflict that made 5.5.1 necessary.
+
 ### E32R32P (3.2-inch ST7789P3)
 
 **The E32R32P** is the 3.2-inch board of the same LCDWIKI family, and it is the
@@ -292,7 +334,9 @@ needs without touching anyone else's. Only the admin can change it.
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
 | **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a child can make something rather than be tested on it, and the note names are on the keys so the naming comes for free | 3+ |
-| **Chess** | The full rules for two players sharing the device: tap a piece and every square it may legally move to is ringed, including castling and en passant, with check, checkmate and stalemate called out | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
+| **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
+| **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
+| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-eight easy words covering every letter. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, and an arrow appears at each point where the direction changes. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -461,7 +505,9 @@ One screen per game, in launcher order.
   <img src="docs/screens/piano.png" width="300" alt="Piano: one octave">
 </p>
 <p align="center">
-  <img src="docs/screens/chess.png" width="300" alt="Chess: a piece selected, its moves ringed">
+  <img src="docs/screens/chess.png" width="300" alt="Chess: legal moves ringed, captures beside the board">
+  <img src="docs/screens/seabattle.png" width="300" alt="Sea Battle: hunting the fleet, your sea beside it">
+  <img src="docs/screens/cursive.png" width="300" alt="Cursive: tracing the word cat">
 </p>
 
 ### Logic, memory and attention
@@ -958,6 +1004,24 @@ stable so you can recognise your own device in a scanner. Nobody types it and it
 is not derived from anything a player entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
+**Two consoles can play a two-player game over it.** When two players start a
+game from the Chess lobby, each console advertises its latest turn: a session
+number, a move number, and the two squares. Nothing about it is chess-specific
+-- it is a service any future two-player game uses, which is why the wire
+format talks about turns rather than pieces. That is all — no name, no profile and no
+score travels with a move, and the moves occupy the same four bytes the best
+score normally uses, because the advertisement is already full at 31 bytes.
+
+Consoles can be given names, and a name is what you see on screen -- but a name
+is stored on your own device and is never transmitted. The advertisement is
+identical byte for byte whether every console you know is named or none is.
+
+It is a **broadcast**, and worth being plain about: anyone in range with the
+right software hears the moves, exactly as they can already hear that a device
+is present. Only the two consoles in the game act on them. Every move received
+is checked against the receiver's own board and discarded unless it is legal
+there, so a bad actor cannot corrupt a game — at worst they can be ignored.
+
 **Not broadcast:** player information, player name, profile name, location, Wi-Fi
 credentials, Wi-Fi SSID, IP address, game progress, usage history.
 
@@ -1026,8 +1090,8 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.8.0**. See
-[CHANGELOG.md](CHANGELOG.md) for what has changed since.
+Current release: **5.9.0** — the previous release was **5.8.0**. See
+[CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 
@@ -1224,6 +1288,7 @@ them under GPL-3.0 does not relicense them; it licenses *this* work.
 | US state outlines | [Natural Earth](https://www.naturalearthdata.com/) | Public domain (ODC PDDL) |
 | Capitals / regions | [mledoze/countries](https://github.com/mledoze/countries) | ODbL |
 | Chess piece silhouettes | [svgsilh.com](https://svgsilh.com/image/26774.html) | CC0 (public domain) |
+| Cursive letterforms | FRB American Cursive ArrowPath, by Fredrick R. Brennan | GPLv3 — same licence as this project |
 
 **Every asset compiled into this firmware is MIT or public domain.**
 

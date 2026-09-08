@@ -1,5 +1,7 @@
 #include "ui/LauncherIcons.h"
 
+#include <math.h>   // sinf(), for the Cursive icon
+
 /* Launcher tile artwork.
  *
  * These sit on saturated blue, green and red tiles that rotate per slot, so an
@@ -475,6 +477,62 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.fillCircle(cx + 4, cy + 4, 7, amber());
             tft.drawCircle(cx + 4, cy + 4, 7, ink());
             break;
+        case LauncherIcon::SeaBattle:
+            /* A grid of open sea with one shot landed in it. Rule 5: the other
+             * grid icons (Tic-Tac-Toe, Memory, Sliding Puzzle, Chess) are all
+             * uniform light cells; this one is a dark field with a rule over
+             * it, so it reads as water rather than as a board. */
+            tft.fillRect(cx - 16, cy - 16, 32, 32, ink());
+            for (int8_t i = 1; i < 4; ++i) {
+                tft.drawFastHLine(cx - 16, cy - 16 + i * 8, 32, snow());
+                tft.drawFastVLine(cx - 16 + i * 8, cy - 16, 32, snow());
+            }
+            tft.drawRect(cx - 16, cy - 16, 32, 32, snow());
+            tft.fillCircle(cx + 4, cy - 4, 3, amber());
+            tft.fillCircle(cx - 8, cy + 8, 3, snow());
+            break;
+        case LauncherIcon::Cursive: {
+            /* A cursive lowercase i, on its writing line.
+             *
+             * The shape is the REAL letterform, not an impression of one: the
+             * points are the cursive 'i' out of CursiveGlyphData.cpp, scaled
+             * into the tile. The game teaches that letter and the tile is a
+             * picture of it, which is the same reason About derives its game
+             * list rather than restating it. If the letterforms are ever
+             * regenerated and the 'i' changes, these want recomputing --
+             * tools/gen_cursive_glyphs.py prints the table.
+             *
+             * The DOT is placed rather than derived, and that is deliberate.
+             * At true typographic distance the body of an 'i' fills the lower
+             * fifth of the tile and the dot floats alone at the top; an icon
+             * is a mark, not a type specimen, so the body is scaled to fill
+             * the tile and the dot sits just above it.
+             *
+             * Rule 5: Trace's icon is an upright printed A beside a column of
+             * guide dots. This is one slanted joined stroke with a dot, so the
+             * two read as print and handwriting rather than as the same game
+             * twice. */
+            static constexpr int8_t I_PATH[][2] = {
+                {-16, 15}, {-11, 12}, {-7, 9}, {-2, 6}, {2, 2},
+                {6, -2}, {7, -1}, {4, 4}, {1, 9}, {1, 14},
+                {6, 15}, {11, 13}, {16, 10},
+            };
+            constexpr uint8_t I_POINTS = sizeof(I_PATH) / sizeof(I_PATH[0]);
+            tft.drawFastHLine(cx - 18, cy + 18, 36, ink());
+            for (uint8_t i = 0; i + 1 < I_POINTS; ++i) {
+                const int16_t x0 = static_cast<int16_t>(cx + I_PATH[i][0]);
+                const int16_t y0 = static_cast<int16_t>(cy + I_PATH[i][1]);
+                const int16_t x1 = static_cast<int16_t>(cx + I_PATH[i + 1][0]);
+                const int16_t y1 = static_cast<int16_t>(cy + I_PATH[i + 1][1]);
+                /* Two passes a pixel apart: a one-pixel script stroke
+                 * disappears against a saturated tile. */
+                tft.drawLine(x0, y0, x1, y1, snow());
+                tft.drawLine(x0 + 1, y0, x1 + 1, y1, snow());
+            }
+            tft.fillCircle(static_cast<int16_t>(cx + 12),
+                           static_cast<int16_t>(cy - 13), 3, amber());
+            break;
+        }
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

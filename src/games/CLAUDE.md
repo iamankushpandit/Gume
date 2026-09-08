@@ -60,6 +60,17 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 - System/UI apps (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens) must support both landscape and portrait orientations. Read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
 - Never read a setting from `board` more than once per screen change in a hot path. `Preferences` is flash-backed, so every getter is an NVS lookup. The frequently-read settings have write-through RAM mirrors in `Board`; add to those rather than reaching for a fresh getter each frame. Never call anything containing a `delay()` from `render()` or `update()`.
 - Don't rebuild content that didn't change. Scrolling changes an offset, not content. Gate expensive rebuilds behind a stale flag.
+- **A full redraw is the exception, and that applies to every game here.**
+  `markFullDirty()` costs ~150KB over SPI and ~30ms of visible blanking, so
+  doing it to change a few pixels is a flash in the player's hand rather
+  than a lost optimisation. Something appeared? Draw it. Something moved?
+  Erase its own box, derived from the geometry that drew it, and repaint the
+  guide over that box -- idempotent draw functions can be re-run whole, which
+  is simpler than working out what overlapped. Something animating on its own
+  clock? Change its colour rather than its size, so it never has to be
+  erased. Repaint fully only when the scene genuinely changed. The worked
+  example is in the root `CLAUDE.md`: the tracer's direction arrow cleared
+  the screen eleven times per word before this was written down.
 - `RowList` section headings are struck through by a rule that starts a fixed 54px in, so keep them to about six characters. `NearbyGame` puts the peer's tag in the heading and everything else about it in rows for exactly this reason.
 - Never block `update()` for more than a second or two. The loop is watchdogged (`Watchdog::TIMEOUT_SECONDS = 12`) and a long busy-wait reboots the device. Games do not feed or touch the watchdog themselves; if you genuinely must block, ask `Board` to do it behind a `Watchdog::Pause`.
 
@@ -81,6 +92,72 @@ Do this on its own branch in its own worktree (`git worktree add ../GUme-<game-i
 The registry line still lands in a shared file, so two agents adding games at once will still collide there. The dangerous case is not the visible conflict: it's that the local `AppMetadata::launcherIndex` is launcher-order data, so a merge that duplicates or skips an index compiles cleanly and launches the wrong game. Re-run `python tools/check_catalog.py` after any merge touching the registry or a game's metadata.
 
 Pick an `id` that nobody else is likely to be using concurrently, and re-read the catalog right before appending: it may have grown since you last looked.
+
+## Two-player games on nearby consoles
+
+`AppContext`'s `nearby*` calls are a **service**, not a chess feature. A game
+gets seats (who is in the room, with the owner's own label for each), an
+invitation, a numbered turn each way, and an ending. It never gets the radio:
+the surface is move-shaped, so a game can say "I played X to Y" and cannot say
+"put these bytes on the air".
+
+Two questions are answered by the service so that the next game cannot answer
+them differently. **Who moves first** is a coin toss inside `nearbyInvite()` --
+the console doing the asking must not also claim first move. **"I am stopping"**
+is a reserved turn encoding the service owns, delivered as `NearbyTurn::ended`;
+never invent a second one.
+
+Who can use it:
+
+- **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,
+  then *Nearby*. That is a privacy decision and belongs to an adult.
+- **Playing is not.** Nothing in `NearbyPlay` or `ChessGame` checks the active
+  profile, so once an adult has switched it on, any player on the console can
+  invite and be invited. Do not add a profile check to a play path; the gate is
+  the switch.
+- **Saved games are per-profile**, because `saveBlob()` is transparently
+  profile-scoped. Each player has their own game in progress. Guest drops
+  writes, so a guest's game does not survive leaving the screen -- the same
+  answer Guest gives to scores.
+- **Naming a peer stays admin-only.** It is a device-wide label, not a personal
+  one, and it is what every screen then calls that console.
+
+## Tracing games
+
+`LetterTracer` is the finger-tracing engine: waypoint resampling, hit testing,
+the pulsing next-dot, the side columns of controls, the progress bar. Trace
+(print) and Cursive are shells over it -- a glyph table, a list of alphabets,
+and a name. Add a third tracing game the same way; do not copy the engine.
+
+- **The controls are in side columns and must stay there.** A child tracing the
+  top of a letter runs a finger off the top edge, and buttons above or below the
+  canvas sit in the natural overshoot of the gesture the game teaches.
+- **A `Set` carries its own dot spacing.** A single letter fills the canvas and
+  wants 20px; a three-letter word is a third of the height and gets two dots
+  per letter at that number. Zero means the default.
+- **A `Set` may carry `names`** when one character cannot say what is being
+  traced -- that is how the word sets caption themselves, since `Glyph::label`
+  is a single char.
+- **A `Set` may open at a random entry** (`randomStart`). Right for words and
+  wrong for an alphabet: ABC is the order a child is learning, while always
+  being handed the same word first makes fifty words feel like one.
+- **A glyph table declares the box it was authored in.** `configure()` takes
+  `coordW`/`coordH` and the tracer scales BOTH axes by one number, letterboxing
+  the remainder. Two scales is how every glyph came to be drawn 22% short:
+  x by canvas-width/200 and y by canvas-height/200 are only equal when the
+  canvas is square. If you author a new table, give it the canvas's shape when
+  width matters (words) and a square when it does not (single letters).
+- **Direction arrows come from the geometry, not from the data.** A waypoint is
+  a turn when the angle between arriving and leaving exceeds `CORNER_COS`, and
+  no turn is marked within `CORNER_GAP` dots of the last -- without that gap a
+  tight curve marks every dot. The arrow moving is a change of shape, so it
+  takes a full repaint; corners are a handful per glyph, so that is rare.
+- **Cursive's letterforms are generated** by `tools/gen_cursive_glyphs.py` from
+  a GPLv3 dotted teaching font. Both `CursiveGlyphData.h` and `.cpp` are
+  generated, including the counts, which are `constexpr` because the game's
+  `Set` table is. Edit the script, never the output, and **look at
+  `docs/cursive-sheet.png`** afterwards: a malformed cursive `q` reads as a
+  perfectly good 9 until a child copies it, and nothing else will tell you.
 
 ## Shared data
 

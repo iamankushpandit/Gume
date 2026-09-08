@@ -28,6 +28,9 @@ struct AppDefinition;
  * the beacon off turns this off with it -- there is no path that listens or
  * shares while the radio setting says the device is quiet.
  */
+/* NearbySeat and NearbyTurn are declared with the app surface they serve. */
+#include "engine/Game.h"
+
 namespace NearbyPlay {
 
 /* How long one notification stays in the header before it is removed. Long
@@ -121,5 +124,53 @@ PeerView peerAt(Board& board, uint8_t index);
 
 /** Bumps when the peer table changes -- the stale flag for a screen. */
 uint32_t peerGeneration();
+
+/* ---- two-player sessions on nearby consoles --------------------------
+ *
+ * The policy half of AppContext's nearby surface. Everything here is inert
+ * unless the beacon is on AND sharing is on -- the same gate as the rest of
+ * this module, re-derived rather than remembered, so switching the radio off
+ * takes the feature with it.
+ *
+ * Nothing in this API can transmit anything about a player. A seat is a
+ * hardware id; a turn is two square numbers and a couple of counters. That is
+ * deliberate and it is what let this ship without becoming a new outbound
+ * flow -- see BleBeacon.h's MFG_LEN_TURN.
+ *
+ * A seat's `name` is the exception that proves it: it is read from local NVS
+ * on the way OUT of this module, towards the screen, and there is no path by
+ * which it can travel the other way. BleBeacon does not read peer labels and
+ * must never be given a reason to. */
+
+/** Peers currently visible, strongest signal first. */
+uint8_t seatCount();
+/* Board is passed in to resolve the owner's local label for the peer. That
+ * label never reaches the radio and this is the only direction it travels. */
+bool seatAt(Board& board, uint8_t index, NearbySeat& out);
+/* Offer a game to one peer under `session`, which is the app's own 6-bit
+ * identifier for the game about to be played.
+ *
+ * The coin flip for who moves first happens HERE, and `weMoveFirst` reports
+ * it. The alternative -- "whoever asked goes first" -- is a rule each game
+ * would have to be trusted to break on purpose, and the one that asks is
+ * exactly the one that should not also choose. The answer rides the
+ * invitation, so the two consoles agree without a second round trip on a
+ * medium that guarantees nothing. */
+bool invite(const char* deviceId, uint8_t session, bool& weMoveFirst);
+/** An invitation aimed at THIS device, if one is on the air right now. */
+bool inviteForUs(Board& board, NearbySeat& out);
+/** Put our latest move on the air and leave it there. */
+void publishTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
+                 uint8_t ack);
+/* Say we are stopping. Reaches the other seat as NearbyTurn::ended.
+ *
+ * It occupies a move slot -- same ply counter, same repetition, same
+ * idempotence -- rather than being a message of its own, because a message of
+ * its own is the one that can be missed. The reserved encoding is this
+ * module's business and no game should know what it is. */
+void publishEnd(uint8_t session, uint8_t ply, uint8_t ack);
+void stopTurns();
+/** The named peer's latest move in `session`. */
+bool turnFrom(const char* deviceId, uint8_t session, NearbyTurn& out);
 
 }   // namespace NearbyPlay

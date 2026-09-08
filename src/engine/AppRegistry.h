@@ -55,7 +55,7 @@ struct AppDefinition {
     Game& game(GameInstances& games) const;
 };
 
-constexpr uint8_t PLAYABLE_APP_COUNT = 33;
+constexpr uint8_t PLAYABLE_APP_COUNT = 35;
 constexpr uint8_t SYSTEM_APP_COUNT = 7;
 constexpr uint8_t APP_REGISTRY_COUNT = PLAYABLE_APP_COUNT + SYSTEM_APP_COUNT;
 

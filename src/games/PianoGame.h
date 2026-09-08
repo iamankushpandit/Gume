@@ -54,6 +54,21 @@ private:
      * that unlit instantly looked like a missed press. */
     static constexpr uint32_t KEY_LIT_MS = 320;
 
+    /* How long a finger may lose contact before the note is let go.
+     *
+     * A resistive panel drops below TOUCH_PRESSURE_THRESHOLD mid-press as a
+     * matter of course -- the lock screen's hold gesture already allows for
+     * exactly this, with the same number. Without a grace period here the
+     * runtime reports justReleased, the note is dropped, contact returns a few
+     * milliseconds later as justPressed, and the note restarts. Held still,
+     * that is heard as a tone breaking up several times a second, which is not
+     * what a piano does and is not what the player did.
+     *
+     * Matched to LOCK_CONTACT_GRACE_MS deliberately: it is the same panel
+     * misbehaving in the same way, and two different answers to one hardware
+     * fact would be two things to keep in step. */
+    static constexpr uint32_t CONTACT_GRACE_MS = 150;
+
     Rect keyboardRect(AppContext& host) const;
     Rect whiteKeyRect(AppContext& host, uint8_t index) const;
     Rect blackKeyRect(AppContext& host, uint8_t index) const;
@@ -70,5 +85,8 @@ private:
      * note-on: the synthesiser has no sustain, so holding a key only keeps
      * sounding if the note is asked for again before the last one runs out. */
     uint32_t lastArmMs_ = 0;
+    /* When the panel last reported contact, whether or not it was a press
+     * edge. See CONTACT_GRACE_MS. */
+    uint32_t lastContactMs_ = 0;
     Sound soundFor(uint8_t key) const;
 };

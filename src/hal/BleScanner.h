@@ -51,6 +51,21 @@ struct Sighting {
     bool poking = false;
     char pokeTarget[5] = {0};
     uint8_t pokeNonce = 0;
+
+    /* Two-player session traffic, carried through untouched. This module has
+     * no idea what a move means and must not acquire one: it is the radio
+     * half, and deciding whether a move is legal or even in the right game is
+     * two layers up. See NearbyPlay. */
+    bool inviting = false;
+    char inviteTarget[5] = {0};
+    uint8_t inviteSession = 0;
+
+    bool hasTurn = false;
+    uint8_t turnSession = 0;
+    uint8_t turnPly = 0;
+    uint8_t turnFrom = 0;
+    uint8_t turnTo = 0;
+    uint8_t turnAck = 0;
 };
 
 /** Start or stop observing. Idempotent; a no-op when the stack is down. */

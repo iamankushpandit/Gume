@@ -1,0 +1,581 @@
+#!/usr/bin/env python3
+"""Generate src/games/CursiveGlyphData.cpp from a dotted cursive font.
+
+WHERE THE LETTERFORMS COME FROM, AND WHY NOT FROM HERE
+
+The first version of this script held 52 hand-authored Bezier chains. It was
+not good enough and it was not close: almost every capital came out as a print
+letter with rounded corners, 'n' read as 'm', 'u' read as 'm', and 'a' read as
+'or'. Cursive is a real hand with real proportions, and guessing control points
+for it blind does not work.
+
+So the shapes are extracted from FRB American Cursive ArrowPath, by Fredrick R.
+Brennan, which is GPLv3 -- the same licence as Braino, which is why it can be
+used here at all. Credit it in README's credits table; do not remove it.
+
+WHY THAT FONT IN PARTICULAR. It is a teaching font whose glyphs are drawn as a
+line of evenly spaced DOTS along the stroke path. That is exactly the thing a
+tracing game needs and exactly the thing a normal font cannot give: an ordinary
+cursive font's glyph is the OUTLINE of a thick stroke, so following it traces
+around the letter rather than along it. Here the dot centres, in the order the
+font stores them, ARE the centreline. Measured: consecutive dots are 36 units
+apart to the unit, all the way through every glyph.
+
+A PEN LIFT IS A BIG GAP. Within a stroke the step is 36. Where the hand lifts
+-- the dot on an i, the crossbar of a t, the second stroke of an x -- the step
+jumps to between 190 and 600. Anything over LIFT_GAP is a new stroke. That is
+measurement, not guesswork, and it is why the strokes come out in writing order
+without anything here knowing what a letter is.
+
+TWO MODES, TWO SCALES. Single letters are normalised as a group so that 'a' and
+'A' are the same size when you switch tabs; words are normalised as their own
+group, because a three-letter word is twice as wide as it is tall and sharing a
+scale with the letters would make it unreadably small. Both are emitted in the
+same 0..200 box that LetterTracer maps onto its canvas.
+
+Run it, then LOOK AT docs/cursive-sheet.png. Generated artwork is the one thing
+nothing else will catch: the table compiles, the game runs, the dots appear,
+and the letter is simply not the letter.
+"""
+
+import io
+import math
+import os
+import random
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# The font is not committed -- it is 9MB and Braino ships geometry, not fonts.
+# Point this at a local copy to regenerate.
+FONT = os.environ.get(
+    'CURSIVE_FONT',
+    r'C:/Users/Ankus/AppData/Local/Temp/FrbAmericanCursiveArrowpath-0WLvr.otf')
+
+# THE BOX THESE GLYPHS ARE AUTHORED IN, and it is not square.
+#
+# LetterTracer maps a table's box into its canvas with ONE scale for both axes
+# and letterboxes the remainder -- so a table authored 200x200 and drawn into a
+# 200x156 canvas gets margins left and right and loses a quarter of its width.
+# For single letters that is fine. For a joined word, width is the whole point.
+#
+# So these are authored to the canvas's own shape, 200x156, and the tracer then
+# maps them 1:1. The numbers are emitted into the generated header as
+# CURSIVE_COORD_W/H so the game passes back exactly what was used here; if
+# LetterTracer's DRAW_W or DRAW_H ever change, this should follow them, and if
+# it does not the only cost is a letterbox rather than a distortion.
+COORD_W = 200
+COORD_H = 156
+MARGIN = 6            # keeps a stroke's end off the very edge of the box
+LIFT_GAP = 80         # font units; within-stroke steps are 36
+# Drop dots closer together than this in the OUTPUT box. The dots are ~7px
+# apart once scaled and the tracer resamples at its own spacing anyway, so
+# keeping every one of them would be flash spent on invisible detail.
+MIN_STEP = 4
+
+# THE WORD LIST, AND WHERE IT CAME FROM.
+#
+# SHEET_WORDS is every word from the practice sheets the maintainer supplied:
+# 166 of them across 24 pages, one page per letter, which are the ordinary
+# Dolch sight words every handwriting workbook uses. The sheets themselves are
+# copyright AussieChildcareNetwork.com and nothing has been taken from them but
+# the choice of words -- the letterforms here are generated from a GPLv3 font
+# and no part of their artwork is reproduced or shipped.
+#
+# The full list is kept here even though most of it is filtered out below, so
+# that what was considered is visible and the two filters can be re-run against
+# it if either number ever changes.
+SHEET_WORDS = [
+    'and', 'all', 'away', 'ate', 'again', 'always', 'apple',
+    'be', 'black', 'brown', 'but', 'been', 'better', 'big',
+    'call', 'cold', 'cut', 'carry', 'clean', 'could', 'can',
+    'do', 'draw', 'done', 'drink', 'dog', 'donkey', 'down',
+    'egg', 'enter', 'even', 'ear', 'eleven', 'elephant', 'eat',
+    'four', 'fly', 'from', 'fast', 'first', 'full', 'find',
+    'good', 'give', 'goes', 'green', 'got', 'grow', 'go',
+    'have', 'he', 'her', 'hour', 'hot', 'hold', 'help',
+    'idea', 'item', 'ice', 'itch', 'insect', 'invite', 'it',
+    'joy', 'joke', 'jeans', 'judge', 'jacket', 'jupiter', 'jump',
+    'key', 'knee', 'kiss', 'king', 'kitchen', 'kangaroo', 'know',
+    'like', 'live', 'laugh', 'light', 'long', 'leaf', 'look',
+    'may', 'made', 'many', 'much', 'myself', 'monkey', 'make',
+    'never', 'nine', 'numb', 'nose', 'north', 'normal', 'not',
+    'old', 'open', 'over', 'only', 'own', 'orange', 'one',
+    'please', 'put', 'pull', 'pick', 'pencil', 'parent', 'play',
+    'queue', 'quit', 'quiz', 'quest', 'quilt', 'quarter',
+    'ride', 'read', 'right', 'rocket', 'round', 'rabbit', 'red',
+    'said', 'some', 'stop', 'sing', 'sleep', 'seven', 'see',
+    'they', 'think', 'tell', 'these', 'today', 'together', 'two',
+    'ugly', 'upon', 'unless', 'urge', 'unicorn', 'umbrella', 'use',
+    'view', 'vent', 'vegetable', 'violin', 'vacuum', 'very',
+    'want', 'was', 'well', 'white', 'warm', 'water', 'we',
+    'xerox', 'yes', 'yawn', 'yellow', 'zip', 'zero', 'zebra',
+]
+
+# Not from the sheets, and paired with the letter each is there to cover.
+# Their only x word is 'xerox', which is too wide, and a handwriting set that
+# skips a letter is a handwriting set with a hole in it. 'six' does not START
+# with x, which is exactly why the letter has to be stated rather than taken
+# from the spelling -- keyed on its first letter it would have been filed under
+# s, where there were already two words, and quietly dropped.
+EXTRA_WORDS = [('x', 'six')]
+
+# FILTER ONE: WIDTH, AND IT IS ARITHMETIC RATHER THAN TASTE.
+#
+# Every word shares one scale, so the widest word decides how big all of them
+# are, and the canvas is 200 pixels wide. Measured in this font:
+#
+#     dog        3 letters   1129 units   43 px x-height
+#     been       4 letters   1713 units   28 px
+#     apple      5 letters   2334 units   21 px
+#     always     6 letters   3040 units   16 px
+#     kangaroo   8 letters   3840 units   13 px
+#
+# The tracer's touch radius is 16 pixels, so below about a 25-pixel x-height
+# the waypoints sit closer together than a finger can distinguish and the
+# mechanic stops working. 1900 units is therefore a floor on usability, and it
+# keeps 84 of the 166 -- every initial letter except x.
+#
+# The rest are all five letters or more. Supporting them wants a canvas that
+# scrolls horizontally under the finger so that word length stops mattering,
+# which is a feature rather than a constant.
+WORD_WIDTH_CAP = 1900
+
+# FILTER TWO: HOW MANY, AND THIS ONE IS A BUDGET.
+#
+# A word costs about 230 bytes of flash -- roughly 53 waypoints at four bytes,
+# plus its stroke and glyph entries. All 84 that fit come to about 19KB on a
+# partition already three quarters full, and no child is going to work through
+# 84 words: past the first couple per letter the extra ones buy variety rather
+# than learning.
+#
+# Two per letter is the balance. It covers the whole alphabet, gives a child a
+# different word next time without the set feeling like a list, and costs about
+# 11KB instead of 19KB. Raise it if the flash budget ever loosens; the words
+# are all still up there in SHEET_WORDS.
+WORDS_PER_LETTER = 2
+
+SHUFFLE_SEED = 20260908
+
+MAX_STROKES = 6       # LetterTracer::MAX_STROKES
+
+# A stroke this short is a mark rather than a letter -- the dot on an i, the
+# crossbar of a t. See order_strokes().
+MARK_DOTS = 8
+
+
+def load():
+    from fontTools.ttLib import TTFont
+    if not os.path.exists(FONT):
+        sys.stderr.write(
+            'Font not found: %s\nSet CURSIVE_FONT to a copy of FRB American '
+            'Cursive ArrowPath (GPLv3).\n' % FONT)
+        return None, None, None
+    f = TTFont(FONT, lazy=True)
+    return f, f.getGlyphSet(), f.getBestCmap()
+
+
+def dot_centres(gs, cmap, ch):
+    """Every dot of one character, as (x, y) centres in font units, in order."""
+    from fontTools.pens.recordingPen import RecordingPen
+    pen = RecordingPen()
+    gs[cmap[ord(ch)]].draw(pen)
+    contours, cur = [], []
+    for op, args in pen.value:
+        if op == 'moveTo':
+            if cur:
+                contours.append(cur)
+            cur = [args[0]]
+        elif op == 'lineTo':
+            cur.append(args[0])
+        elif op == 'curveTo':
+            cur.extend(args)
+        elif op == 'qCurveTo':
+            cur.extend([a for a in args if a])
+        elif op == 'closePath':
+            if cur:
+                contours.append(cur)
+                cur = []
+    if cur:
+        contours.append(cur)
+    return [(sum(p[0] for p in c) / len(c), sum(p[1] for p in c) / len(c))
+            for c in contours]
+
+
+def split_strokes(pts):
+    """Break the dot run wherever the hand lifted. See LIFT_GAP."""
+    if not pts:
+        return []
+    out, cur = [], [pts[0]]
+    for a, b in zip(pts, pts[1:]):
+        if math.dist(a, b) > LIFT_GAP:
+            out.append(cur)
+            cur = [b]
+        else:
+            cur.append(b)
+    out.append(cur)
+    return [s for s in out if len(s) >= 2]
+
+
+def order_strokes(strokes):
+    """Put the letter before the marks that decorate it.
+
+    THE FONT STORES THEM THE OTHER WAY ROUND. Measured: 'i' is a 3-dot stroke
+    at y=414 followed by a 26-dot body; 't' is a 5-dot crossbar then the body;
+    same for 'j' and capital 'F'. Drawn in that order a child is asked to place
+    the dot in mid-air and then hang a stem under it, which is not how anybody
+    writes and not what the numbered badges should teach.
+
+    Only genuinely short strokes are moved. The two strokes of H, K and X are
+    both parts of the letter -- 19 and 44 dots, 37 and 19, 32 and 20 -- and
+    reordering those on a length heuristic would be inventing a stroke order
+    the font did not give.
+    """
+    body = [s for s in strokes if len(s) > MARK_DOTS]
+    marks = [s for s in strokes if len(s) <= MARK_DOTS]
+    return body + marks
+
+
+def char_strokes(gs, cmap, ch, dx=0.0):
+    """Strokes of one character, shifted right by dx font units."""
+    strokes = order_strokes(split_strokes(dot_centres(gs, cmap, ch)))
+    return [[(x + dx, y) for x, y in s] for s in strokes]
+
+
+def word_strokes(gs, cmap, word):
+    """A word as ONE unbroken stroke, plus whatever marks sit above it.
+
+    THIS IS THE WHOLE POINT OF CURSIVE and the first version got it wrong. It
+    kept one stroke per letter, so the tracer numbered them and asked the child
+    to lift between every letter -- which is not cursive, it is print in a
+    fancy hand, and it was rightly called out as such.
+
+    What made that look defensible was a bad measurement: the gap between the
+    END of one glyph's dot run and the START of the next glyph's is 185 to 408
+    font units, which looked like proof the letters do not touch. It is not.
+    Those are DRAWING-ORDER endpoints, not the points where the ink meets -- an
+    'a' is written from the top right of its oval, so its first dot is nowhere
+    near its left edge. Typing a word in this font produces properly joined
+    script; the shapes were always connected and only the stroke list was not.
+
+    So the bodies are concatenated in writing order. The connector between two
+    letters is the straight run the resampler walks between them, which is what
+    a hand does anyway. Marks -- the dot on an i, the crossbar of a t -- stay
+    separate, because those genuinely are pen lifts.
+    """
+    body, marks, x = [], [], 0.0
+    for ch in word:
+        strokes = char_strokes(gs, cmap, ch, x)
+        if strokes:
+            body.extend(strokes[0])      # order_strokes puts the letter first
+            marks.extend(strokes[1:])
+        x += gs[cmap[ord(ch)]].width
+    return ([body] if len(body) >= 2 else []) + marks
+
+
+def normalise(items):
+    """Fit a group of glyphs into the 0..200 box on one shared scale.
+
+    Shared, because 'a' and 'A' switching size when you change tabs looks like
+    a bug, and because a common baseline is what makes the writing lines mean
+    anything. Aspect is preserved: a word ends up wide and short inside the
+    box, which is what the near-square canvas then draws correctly.
+    """
+    xs = [x for _, strokes in items for s in strokes for x, _ in s]
+    ys = [y for _, strokes in items for s in strokes for _, y in s]
+    if not xs:
+        return []
+    wide = max(x for _, strokes in items for s in strokes for x, _ in s) - min(xs)
+    high = max(ys) - min(ys)
+    spanX = COORD_W - 2 * MARGIN
+    spanY = COORD_H - 2 * MARGIN
+    scale = min(spanX / wide, spanY / high) if wide and high else 1.0
+    # One baseline for the group, from the group's own top edge.
+    top = max(ys)
+    # Centred vertically, as a GROUP rather than glyph by glyph. Aspect is
+    # preserved, so whichever axis is not the limiting one leaves slack: a
+    # word is wide and short and only fills about half the height. Pinning it
+    # to the top edge left it visibly high in the canvas. Centring the group
+    # rather than each glyph is what keeps the baseline shared across an
+    # alphabet, which is the thing that matters when paging through one.
+    oy = MARGIN + (spanY - high * scale) / 2.0
+
+    out = []
+    for label, strokes in items:
+        gx = [x for s in strokes for x, _ in s]
+        left = min(gx)
+        width = max(gx) - left
+        ox = MARGIN + (spanX - width * scale) / 2.0    # centred horizontally
+        placed = []
+        for s in strokes:
+            pts, last = [], None
+            for x, y in s:
+                p = (int(round(ox + (x - left) * scale)),
+                     int(round(oy + (top - y) * scale)))
+                if last is None or math.dist(p, last) >= MIN_STEP:
+                    pts.append(p)
+                    last = p
+            # The end of a stroke is where the pen stops; never decimate it away.
+            end = (int(round(ox + (s[-1][0] - left) * scale)),
+                   int(round(oy + (top - s[-1][1]) * scale)))
+            if not pts or pts[-1] != end:
+                pts.append(end)
+            if len(pts) >= 2:
+                placed.append(pts)
+        out.append((label, placed))
+    return out
+
+
+def check(label, strokes):
+    problems = []
+    if len(strokes) > MAX_STROKES:
+        problems.append('%d strokes, LetterTracer allows %d'
+                        % (len(strokes), MAX_STROKES))
+    for i, s in enumerate(strokes):
+        for x, y in s:
+            if not (0 <= x <= COORD_W and 0 <= y <= COORD_H):
+                problems.append('stroke %d leaves the box at (%d,%d)' % (i, x, y))
+                break
+    return problems
+
+
+def cname(label):
+    if len(label) == 1:
+        return ('U_' if label.isupper() else 'L_') + label.upper()
+    return 'W_' + label.upper()
+
+
+def emit(letters, words):
+    lines = [
+        '/* GENERATED by tools/gen_cursive_glyphs.py -- do not edit.',
+        ' *',
+        ' * Cursive letterforms and words, taken from the dot centres of',
+        ' * FRB American Cursive ArrowPath by Fredrick R. Brennan (GPLv3).',
+        ' * Edit the script and regenerate; a fix typed in here is lost the',
+        ' * next time anybody runs it, and the preview sheet the script writes',
+        ' * is the only way to see whether a letter looks like the letter.',
+        ' */',
+        '',
+        '#include "CursiveGlyphData.h"',
+        '',
+    ]
+    rows = []
+    for label, strokes in letters + words:
+        tag = cname(label)
+        for si, pts in enumerate(strokes):
+            flat = ', '.join('%d,%d' % (x, y) for x, y in pts)
+            lines.append('static const int16_t %s_s%d[] = {%s};' % (tag, si, flat))
+        joined = ','.join('{%s_s%d,%d}' % (tag, si, len(pts))
+                          for si, pts in enumerate(strokes))
+        lines.append('static const CursiveGame::Stroke %s_strokes[] = {%s};'
+                     % (tag, joined))
+        lines.append('')
+        rows.append((label, tag, len(strokes)))
+
+    lines.append('const CursiveGame::Glyph CURSIVE_GLYPHS[] = {')
+    for label, tag, n in rows:
+        # A word's label is the word; a letter's is the character. Glyph::label
+        # is one char, so a word carries its first letter and the game draws
+        # the full word from CURSIVE_WORDS instead.
+        lines.append("    {'%s', %s_strokes, %d},   // %s"
+                     % (label[0], tag, n, label))
+    lines.append('};')
+    lines.append('')
+    lines.append('')
+    lines.append('/* The words, in the same order as the word glyphs above, so')
+    lines.append(' * the game can print what it is asking for. */')
+    lines.append('const char* const CURSIVE_WORDS[] = {')
+    for label, _, _ in rows:
+        if len(label) > 1:
+            lines.append('    "%s",' % label)
+    lines.append('};')
+    lines.append('')
+    return '\n'.join(lines)
+
+
+def emit_header(letters, words):
+    """The counts, as compile-time constants.
+
+    CursiveGame builds its Set table from these and that table is constexpr, so
+    an `extern const uint8_t` in another translation unit will not do -- the
+    compiler cannot see the value. Generated rather than typed for the usual
+    reason: adding a word to SHEET_WORDS should not require anybody to remember to
+    change a number in a header.
+    """
+    return '\n'.join([
+        '#pragma once',
+        '',
+        '/* GENERATED by tools/gen_cursive_glyphs.py -- do not edit. */',
+        '',
+        '#include "CursiveGame.h"',
+        '',
+        'extern const CursiveGame::Glyph CURSIVE_GLYPHS[];',
+        '',
+        '/* The word-tracing set lives after all the letters in CURSIVE_GLYPHS.',
+        ' * CURSIVE_WORDS is the text of each, so the screen can print what it',
+        ' * is asking for -- Glyph::label holds one character and a word needs',
+        ' * more than that. */',
+        'extern const char* const CURSIVE_WORDS[];',
+        '',
+        '/* The box these coordinates live in. Not square: see COORD_W in',
+        ' * tools/gen_cursive_glyphs.py. The game hands these to',
+        ' * LetterTracer::configure() so the mapping stays uniform. */',
+        'constexpr int16_t CURSIVE_COORD_W = %d;' % COORD_W,
+        'constexpr int16_t CURSIVE_COORD_H = %d;' % COORD_H,
+        '',
+        'constexpr uint8_t CURSIVE_GLYPH_COUNT = %d;' % (len(letters) + len(words)),
+        'constexpr uint8_t CURSIVE_WORD_FIRST = %d;' % len(letters),
+        'constexpr uint8_t CURSIVE_WORD_COUNT = %d;' % len(words),
+        '',
+    ])
+
+
+def preview(letters, words):
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        sys.stderr.write('Pillow not installed; skipping the preview sheet.\n')
+        return
+    items = letters + words
+    # CELLS AT THE DEVICE'S ASPECT, which is the whole reason the last round
+    # of flatness got past this sheet. The cells were square, so a 200x156 box
+    # was drawn 200x200 here and every glyph looked 28% taller on this sheet
+    # than on the panel -- the sheet said the words were fine and the panel
+    # disagreed. A preview that does not share the target's proportions is not
+    # a preview.
+    cols = 13
+    rows = (len(items) + cols - 1) // cols
+    cellW = 104
+    cellH = int(round(cellW * COORD_H / COORD_W))
+    im = Image.new('RGB', (cols * cellW, rows * cellH), (250, 248, 244))
+    d = ImageDraw.Draw(im)
+    for i, (label, strokes) in enumerate(items):
+        ox, oy = (i % cols) * cellW, (i // cols) * cellH
+        d.rectangle([ox, oy, ox + cellW - 1, oy + cellH - 1], outline=(214, 208, 198))
+        for si, pts in enumerate(strokes):
+            shade = [(24, 40, 96), (176, 64, 32), (32, 120, 60),
+                     (140, 40, 140), (180, 140, 20), (60, 60, 60)][si % 6]
+            xy = [(ox + 2 + x * (cellW - 4) / COORD_W,
+                   oy + 2 + y * (cellH - 4) / COORD_H) for x, y in pts]
+            d.line(xy, fill=shade, width=2)
+            d.ellipse([xy[0][0] - 2, xy[0][1] - 2, xy[0][0] + 2, xy[0][1] + 2],
+                      fill=(0, 160, 60))
+        d.text((ox + 3, oy + 3), label, fill=(120, 120, 120))
+    out = os.path.join(ROOT, 'docs', 'cursive-sheet.png')
+    im.save(out)
+    print('preview  %s' % out)
+
+
+def main():
+    f, gs, cmap = load()
+    if f is None:
+        return 1
+
+    upper = [(c, char_strokes(gs, cmap, c))
+             for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+    lower = [(c, char_strokes(gs, cmap, c))
+             for c in 'abcdefghijklmnopqrstuvwxyz']
+
+    # NORMALISED PER SET, NOT ALL TOGETHER, AND THIS IS A MEASUREMENT.
+    #
+    # One scale across all 52 letters is the tidy answer and it is the wrong
+    # one: the group's box is set by the tallest capital and the deepest
+    # descender together, 908 font units, so a lowercase 'a' at 258 units came
+    # out 43 pixels tall on the canvas. At the tracer's 20-pixel dot spacing
+    # that is barely three dots for a whole letter.
+    #
+    # Capitals and lowercase live on separate tabs and are never on screen
+    # together, so nothing is lost by giving each its own scale, and each then
+    # fills the canvas. Within a set the baseline is still shared, which is
+    # the part that matters when you page through an alphabet.
+    #
+    # Words share one scale too, for the same reason and more strongly. They
+    # were normalised one at a time to win back some size, and that is what put
+    # 'way' on screen at half the x-height of 'dog' -- a word with no ascender
+    # and no descender is wide and short, so fitting it to the box on its own
+    # blows it up horizontally and leaves it flat. One scale and one baseline
+    # for the whole set is what a handwriting workbook does, and it is why the
+    # word list has to stay narrow: see WORD_WIDTH_CAP.
+    letters = normalise(upper) + normalise(lower)
+
+    # Width first, then the SHORTEST of what survives, up to WORDS_PER_LETTER.
+    #
+    # Shortest rather than the sheets' own order, which is arbitrary: 'd' lists
+    # do, draw, done, drink, dog, and taking the first two that fit gave 'do'
+    # and 'done' while dropping 'dog'. A three-letter word a child already
+    # reads beats a four-letter one they do not, and it is cheaper in flash
+    # too, so the two things this filter cares about agree.
+    chosen, per, dropped = [], {}, []
+    # The extras first and unconditionally: they exist to fill a hole, so a
+    # per-letter cap must not be able to close it again.
+    candidates = [(L, w, 0) for L, w in EXTRA_WORDS]
+    measured = []
+    for w in SHEET_WORDS:
+        strokes = word_strokes(gs, cmap, w)
+        xs = [x for st in strokes for x, _ in st]
+        width = max(xs) - min(xs) if xs else 0
+        if width > WORD_WIDTH_CAP:
+            dropped.append((w, width))
+            continue
+        measured.append((w[0], w, width))
+    measured.sort(key=lambda t: (t[0], len(t[1]), t[2]))
+    candidates += measured
+
+    for letter, w, _ in candidates:
+        if per.get(letter, 0) >= WORDS_PER_LETTER:
+            continue
+        per[letter] = per.get(letter, 0) + 1
+        chosen.append((w, word_strokes(gs, cmap, w)))
+
+    thin = sorted(k for k, v in per.items() if v < WORDS_PER_LETTER)
+    missing = sorted(set('abcdefghijklmnopqrstuvwxyz') - set(per))
+    print('         %d words from %d on the sheets; %d too wide'
+          % (len(chosen), len(SHEET_WORDS), len(dropped)))
+    if thin:
+        print('         only one word for: %s' % ' '.join(thin))
+    if missing:
+        sys.stderr.write('no word at all for: %s\n' % ' '.join(missing))
+        return 1
+
+    order = list(chosen)
+    random.Random(SHUFFLE_SEED).shuffle(order)
+    words = normalise(order)
+
+    bad = 0
+    for label, strokes in letters + words:
+        for problem in check(label, strokes):
+            sys.stderr.write("'%s': %s\n" % (label, problem))
+            bad += 1
+    if bad:
+        sys.stderr.write('nothing written.\n')
+        return 1
+
+    body = emit(letters, words)
+    out = os.path.join(ROOT, 'src', 'games', 'CursiveGlyphData.cpp')
+    io.open(out, 'w', encoding='utf-8', newline='\n').write(body)
+    hdr = os.path.join(ROOT, 'src', 'games', 'CursiveGlyphData.h')
+    io.open(hdr, 'w', encoding='utf-8', newline='\n').write(
+        emit_header(letters, words))
+    pts = sum(len(s) for _, ss in letters + words for s in ss)
+    print('wrote    %s' % out)
+    print('         %d letters, %d words, %d points, %d strokes max'
+          % (len(letters), len(words), pts,
+             max(len(ss) for _, ss in letters + words)))
+    if words:
+        widest = max(max(x for st in ss for x, _ in st) -
+                     min(x for st in ss for x, _ in st) for _, ss in words)
+        print('         widest word %d of %d box units' % (widest, COORD_W))
+        # x-height in device pixels, which is the number that decides whether
+        # a child can trace it. LetterTracer maps this box 1:1 when its canvas
+        # has the same shape.
+        tall = [max(y for st in ss for _, y in st) -
+                min(y for st in ss for _, y in st) for _, ss in words]
+        print('         word ink height %d..%d px of %d' % (min(tall), max(tall), COORD_H))
+    preview(letters, words)
+    print('\nLOOK AT THE PREVIEW SHEET. Green dot = stroke start; each stroke')
+    print('is a different colour, in writing order.')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
