@@ -159,19 +159,19 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" --jq '.[].filename' > changed.txt
+            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
           else
             # A first push to a branch has no `before` commit to diff against.
             before="${{ github.event.before }}"
             zero=0000000000000000000000000000000000000000
             if [ -n "$before" ] && [ "$before" != "$zero" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
-              git diff --name-only "$before" "${{ github.sha }}" > changed.txt
+              git diff --name-only "$before" "${{ github.sha }}" > "$RUNNER_TEMP/changed.txt"
             else
-              echo platformio.ini > changed.txt   # unknown scope: build the lot
+              echo platformio.ini > "$RUNNER_TEMP/changed.txt"   # unknown scope: build the lot
             fi
           fi
           echo "Files considered:"
-          sed 's/^/  /' changed.txt
+          sed 's/^/  /' "$RUNNER_TEMP/changed.txt"
 
           # --with-product on a push: every board is proven on the branches the
           # installer and the release are cut from, whatever the diff said.
@@ -179,7 +179,7 @@ jobs:
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             WITH_PRODUCT="--with-product"
           fi
-          ARGS="$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < changed.txt)"
+          ARGS="$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < "$RUNNER_TEMP/changed.txt")"
           echo "pio run $ARGS"
           echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
