@@ -138,6 +138,10 @@ private:
     uint8_t nextCorner() const;
     /** A small arrow at `index`, pointing the way the stroke goes next. */
     void drawArrow(Ui::Renderer& tft, uint8_t index);
+    /** The pixels one arrow covers, padded. Where the erase happens. */
+    Rect arrowRect(uint8_t index) const;
+    /** Move the arrow without repainting the screen. See render(). */
+    void moveArrow(Ui::Renderer& tft);
     void drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to);
     void drawAllDots(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
@@ -192,6 +196,9 @@ private:
      * so that earns a full repaint -- see render(). Corners are a handful per
      * glyph, so this is a handful of full repaints per letter. */
     uint8_t arrowAt_ = NO_CORNER;
+    /* Which arrow is actually on the panel. When this differs from arrowAt_
+     * the arrow has to move, and moveArrow() does it in place. */
+    uint8_t arrowDrawnAt_ = NO_CORNER;
     /* What the panel already shows, so a partial frame can draw only what has
      * appeared since. See the note above render() in the .cpp. */
     uint8_t paintedStroke_ = 0;

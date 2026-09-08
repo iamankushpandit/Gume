@@ -24,6 +24,22 @@ not where the ink meets — an `a` is written from the top right of its oval, so
 its first dot is nowhere near its left edge. The shapes were always joined; only
 the stroke list was not.
 
+**The arrow moves without repainting the screen.** It was first written to
+mark the whole screen dirty whenever it moved, on the reasoning that a moving
+arrow changes the picture's shape and turns are rare. Turns are not rare: a
+three-letter joined word has about eleven of them, so tracing one word cleared
+the screen eleven times and the device visibly flashed. It now erases the
+arrow's own box and repaints the guide over it, which works because those draw
+functions are idempotent -- re-running them whole is a no-op everywhere except
+inside the box just cleared.
+
+That misjudgement is now a written rule in `CLAUDE.md`, `AGENTS.md` and
+`src/games/CLAUDE.md`, for every game and not just this one: **a full redraw is
+the exception and has to be earned.** Something appeared, draw it; something
+moved, erase its own derived box; something animating on its own clock, change
+its colour rather than its size so it never needs erasing; repaint fully only
+when the scene genuinely changed.
+
 **Trace and Cursive show a direction arrow at every turn.** A small arrow
 appears just past the next point where the stroke changes direction, pointing
 where to go — the dot says *where* and the arrow says *which way*. Only one is

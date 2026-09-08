@@ -408,7 +408,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,438,377 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,438,597 / 3,145,728 bytes,
 **77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,508 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -803,6 +803,44 @@ which is why `Game` carries two levels of invalidation:
 
 - `markDirty()` â€” content changed; repaint moving parts only.
 - `markFullDirty()` â€” layout changed; repaint background/chrome too.
+
+**A FULL REDRAW IS THE EXCEPTION, IN EVERY GAME. Earn it.**
+
+`markFullDirty()` clears the screen and repaints the chrome: ~150KB over SPI
+and roughly 30ms of visible blanking, which is one and a half frame budgets.
+Doing it to change a few pixels is not a lost optimisation, it is a **visible
+flash** in the player's hand, and on a screen that updates often it is the
+first thing anybody notices.
+
+Before reaching for it, ask what actually changed on the panel:
+
+- **Something appeared?** Draw it. Nothing needs erasing, so nothing needs
+  clearing: overdraw it and touch nothing else.
+- **Something moved?** Erase its own box and repaint the guide over that box.
+  Derive the box from the geometry that drew the thing; never type in a
+  rectangle. Drawing functions that paint exactly what is already there in the
+  same colours are **idempotent**, so re-running one whole is visually a no-op
+  outside the box you cleared, which is usually cheaper and always simpler than
+  working out precisely which pieces overlapped.
+- **Something animating on its own clock?** Make it change colour rather than
+  size. A marker that never grows never has to be erased, which is what keeps
+  the incremental path available at all.
+- **The scene genuinely changed** (a new question, a new letter, a new screen,
+  an end-of-game banner)? *Then* repaint fully. A stable picture is worth the
+  frame it costs when the whole picture is new.
+
+This is not theoretical. `LetterTracer`'s direction arrow was first written to
+`markFullDirty()` whenever it moved, on the reasoning that a moving arrow
+changes the picture's shape and turns are rare. Turns are not rare: a
+three-letter joined word has about eleven, so tracing one word cleared the
+screen eleven times, and it was reported from the device as the screen
+flashing. The fix was fifteen lines (erase the arrow's own box, repaint the
+ghost and the dots over it) and the reasoning that produced the bug was a guess
+about frequency that was never checked.
+
+The same rule holds for the top bar: route clock, battery and notification
+changes through `requestChromeRender()`, not `requestRender()`.
+
 - `render()` should guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally.
 
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.

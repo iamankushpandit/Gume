@@ -213,6 +213,10 @@ void LetterTracer::loadGlyph() {
     pulseState_ = false;
     resampleWaypoints();
     arrowAt_ = nextCorner();
+    /* A new glyph repaints everything anyway, so the arrow on the panel is
+     * whatever that paint draws -- but say so, or the first partial frame
+     * would try to erase an arrow belonging to the previous letter. */
+    arrowDrawnAt_ = NO_CORNER;
     markFullDirty();
 }
 
@@ -349,6 +353,50 @@ uint8_t LetterTracer::nextCorner() const {
  * Past it rather than on it, so it does not bury the dot the finger is aiming
  * for -- the dot says WHERE and the arrow says WHICH WAY, and they are easier
  * to read as two things than as one. */
+/* The box an arrow occupies. Derived from the same two points the arrow is
+ * drawn from, plus a pixel of daylight, so it cannot be too small however the
+ * arrow's proportions change -- CLAUDE.md's rule about clear rectangles being
+ * derived and never typed in. */
+Rect LetterTracer::arrowRect(uint8_t index) const {
+    if (index == NO_CORNER || index + 1 >= MAX_POINTS) return Rect{0, 0, 0, 0};
+    const int16_t reach = static_cast<int16_t>(NEXT_R + ARROW_LEN + ARROW_HALF + 2);
+    return Rect{static_cast<int16_t>(pts_[index].x - reach),
+                static_cast<int16_t>(pts_[index].y - reach),
+                static_cast<int16_t>(reach * 2),
+                static_cast<int16_t>(reach * 2)};
+}
+
+/* Move the arrow, in place, WITHOUT a full repaint.
+ *
+ * The first version marked the whole screen dirty whenever the arrow moved, on
+ * the reasoning that a moving arrow changes the picture's shape and corners are
+ * rare. Corners are not rare: a three-letter joined word has about eleven, so
+ * that was eleven screen clears while tracing one word, and it was reported
+ * from the device as the screen flashing. It was my misjudgement, not a
+ * surprise -- a full repaint wipes 200x156 pixels plus the chrome to move
+ * fifteen.
+ *
+ * So: erase the old arrow's own box, then repaint the guide over it. Both
+ * drawGhost() and drawAllDots() are IDEMPOTENT -- they paint exactly what is
+ * already there in exactly the same colours -- so running them whole is
+ * visually a no-op everywhere except inside the box that was just cleared, and
+ * costs no clear of its own. That is what makes this flicker-free without
+ * having to work out which ghost segments and which dots the arrow overlapped.
+ */
+void LetterTracer::moveArrow(Ui::Renderer& tft) {
+    if (arrowDrawnAt_ == arrowAt_) return;
+    if (arrowDrawnAt_ != NO_CORNER) {
+        const Rect r = arrowRect(arrowDrawnAt_);
+        if (r.w > 0) {
+            tft.fillRect(r.x, r.y, r.w, r.h, Ui::bg());
+            drawGhost(tft);
+            drawAllDots(tft);
+        }
+    }
+    drawArrow(tft, arrowAt_);
+    arrowDrawnAt_ = arrowAt_;
+}
+
 void LetterTracer::drawArrow(Ui::Renderer& tft, uint8_t index) {
     if (index == NO_CORNER || index + 1 >= MAX_POINTS) return;
     const float dx = static_cast<float>(pts_[index + 1].x - pts_[index].x);
@@ -437,11 +485,10 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
                 /* The arrow moving is a change of shape, not an addition, so
                  * it earns a full repaint -- the old one has to go. Corners
                  * are a handful per glyph, so this is rare. */
-                const uint8_t corner = nextCorner();
-                if (corner != arrowAt_) {
-                    arrowAt_ = corner;
-                    markFullDirty();
-                }
+                /* The arrow moving is NOT a full repaint. See moveArrow():
+                 * a word has about eleven turns and clearing the screen at
+                 * each one is the flashing this replaced. */
+                arrowAt_ = nextCorner();
 
                 if (nextPoint_ >= strokeLen_[activeStroke_]) {
                     host.beepOk();
@@ -654,6 +701,7 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         if (complete_) drawCompleteStatus(tft);
         paintedStroke_ = activeStroke_;
         paintedPoint_ = nextPoint_;
+        arrowDrawnAt_ = arrowAt_;
         tft.setTextDatum(TL_DATUM);
         return;
     }
@@ -680,6 +728,7 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         paintedPoint_ = nextPoint_;
     }
 
+    moveArrow(tft);
     drawProgress(tft);
     tft.setTextDatum(TL_DATUM);
 }
