@@ -72,8 +72,32 @@ making everything else smaller. A guard fails the build if any word exceeds the
 width cap, because one wide word shrinks the whole set and the symptom is just
 "the letters got small" with nothing to point at.
 
-**Thirty-nine words, one for every letter but q**, shuffled rather
-than alphabetical so the Words tab does not spend its first entries on `a` and
+**Forty-eight words, two for every letter**, taken from the practice sheets
+the maintainer supplied — 166 of them across 24 pages, the ordinary Dolch sight
+words. Two filters cut that to 48 and both are worth stating.
+
+*Width*, which is arithmetic. Every word shares one scale so the widest sets
+the size for all, and the touch radius is 16px, so below about a 25px x-height
+the waypoints sit closer together than a finger can distinguish. That caps a
+word at 1900 font units and keeps 84 of the 166 — everything dropped is five
+letters or more (`always`, `elephant`, `kangaroo`, `umbrella`). Supporting
+those wants a canvas that scrolls under the finger so word length stops
+mattering, which is a feature and not a constant.
+
+Within a letter the *shortest* words win, not the sheets' own order — that is
+arbitrary, and taking the first two that fit under `d` gave `do` and `done`
+while dropping `dog`. A three-letter word a child already reads beats a
+four-letter one they do not, and it is cheaper in flash too, so both things
+this filter cares about agree.
+
+*Budget*, because a word costs about 230 bytes of flash and more apps are
+coming. All 84 would be ~19KB on a partition already three quarters full, and
+no child works through 84 words — past the first couple per letter the extra
+ones buy variety rather than learning. Two per letter covers the alphabet for
+about 11KB. The full 166 stay in the generator so the choice can be re-run if
+the budget ever loosens.
+
+Words are shuffled rather than alphabetical so the Words tab does not spend its first entries on `a` and
 `b`, and opening the tab lands on a random one. Four letters — b, o, v, w — end
 high, where cursive joins them from, so a word that follows one of those with a
 letter starting on the baseline leaves a spare loop that reads as an extra

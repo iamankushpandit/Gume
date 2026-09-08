@@ -18,6 +18,6 @@ extern const char* const CURSIVE_WORDS[];
 constexpr int16_t CURSIVE_COORD_W = 200;
 constexpr int16_t CURSIVE_COORD_H = 156;
 
-constexpr uint8_t CURSIVE_GLYPH_COUNT = 91;
+constexpr uint8_t CURSIVE_GLYPH_COUNT = 100;
 constexpr uint8_t CURSIVE_WORD_FIRST = 52;
-constexpr uint8_t CURSIVE_WORD_COUNT = 39;
+constexpr uint8_t CURSIVE_WORD_COUNT = 48;
