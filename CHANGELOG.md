@@ -27,6 +27,15 @@ label is resolved on this device from its own storage and is still never
 transmitted; the advertisement is identical byte for byte whether every peer is
 named or none is.
 
+**Games without a score are no longer invisible to the room.** Which game a
+console has open and what its best score is are two facts, and the beacon was
+treating them as one: an app with no score -- Chess, Piano, Dice, Trace --
+advertised no game at all, so a peer playing one showed as "Choosing a game".
+The game index now goes out whenever there is a game, with a zero score when
+there is nothing to be best at. An invitation also states its own game rather
+than inheriting whatever the activity block was advertising, which is what
+turned "RAVI wants to play Chess" into "RAVI wants to play".
+
 **An invitation now reaches you wherever you are.** It raises a banner and
 makes a noise, exactly as a poke does, saying who wants to play and which game.
 Before this an invitation only appeared if the other player happened to be

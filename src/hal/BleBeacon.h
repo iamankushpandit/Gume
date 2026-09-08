@@ -259,7 +259,7 @@ bool poking();
 /* Invite one peer to a two-player game, under `session`. Rides the beacon for
  * POKE_ADVERTISE_MS exactly as a poke does, and returns false for the same
  * reasons: sharing off, radio down, or a malformed id. */
-bool invitePeer(const char* targetDeviceId, uint8_t session);
+bool invitePeer(const char* targetDeviceId, uint8_t session, uint8_t gameIndex);
 
 /* Put our latest move on air, and keep it there. Unlike a poke this is a
  * STATE, not an event: it stays advertised until it is replaced by the next

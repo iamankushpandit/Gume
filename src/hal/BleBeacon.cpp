@@ -389,7 +389,8 @@ bool parseDeviceId(const char* text, uint8_t out[2]) {
  * It is a BROADCAST: everyone in range hears who was invited, and only the
  * named device acts. And it displaces the score while it is on air, because a
  * 31-byte payload has no spare bytes. */
-bool invitePeer(const char* targetDeviceId, uint8_t session) {
+bool invitePeer(const char* targetDeviceId, uint8_t session,
+                uint8_t gameIndex) {
     uint8_t target[2];
     if (!parseDeviceId(targetDeviceId, target)) {
         return false;
@@ -409,6 +410,14 @@ bool invitePeer(const char* targetDeviceId, uint8_t session) {
      * needs both consoles to agree before the first move -- NearbyPlay puts
      * the who-moves-first bit here. This layer does not interpret any of it. */
     adv_.pokeNonce = static_cast<uint8_t>(session & 0x7F);
+    /* The invitation SAYS which game it is for rather than inheriting whatever
+     * the activity block happened to be advertising. Those are two different
+     * facts and they were conflated once already: a game with no score
+     * advertised GAME_NONE, so an invitation to play chess arrived as an
+     * invitation to play nothing, and the banner on the other console could
+     * only say "wants to play". Stating it here means an invitation is
+     * self-describing however the sharing state is set. */
+    adv_.gameIndex = gameIndex;
     pokeStartedMs_ = millis();
     buildPayload(adv_);
     restartRadio();

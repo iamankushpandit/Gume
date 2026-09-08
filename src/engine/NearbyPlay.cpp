@@ -358,13 +358,15 @@ void publish(Board& board) {
     }
     const AppDefinition* app = playableAt(activeGameIndex_);
     const AppScoreInfo* score = app != nullptr ? app->score() : nullptr;
-    if (score == nullptr) {
-        /* Sharing stays on -- peers should still see us in the room -- but
-         * there is no game or number to attach. */
-        BleBeacon::setActivity(true, BleBeacon::GAME_NONE, 0);
-        return;
-    }
-    BleBeacon::setActivity(true, activeGameIndex_, board.getScore(score->bestKey));
+    /* WHICH GAME AND WHAT SCORE ARE TWO FACTS, and this used to treat them as
+     * one: an app with no score advertised GAME_NONE, so Chess, Piano, Dice
+     * and Trace were all invisible -- a peer playing one of them showed as
+     * "Choosing a game", and a chess invitation could not name itself. There
+     * is no reason for that. The game index is sent whenever there is a game,
+     * and the score is zero when there is nothing to be best at. */
+    BleBeacon::setActivity(
+        true, activeGameIndex_,
+        score != nullptr ? board.getScore(score->bestKey) : 0);
 }
 
 void resetPeers() {
@@ -611,7 +613,11 @@ bool invite(const char* deviceId, uint8_t session, bool& weMoveFirst) {
     weMoveFirst = (esp_random() & 1u) != 0;
     const uint8_t payload = static_cast<uint8_t>(
         (session & SESSION_MASK) | (weMoveFirst ? 0 : SIDE_BIT));
-    return BleBeacon::invitePeer(deviceId, payload);
+    /* Which game, stated by the service rather than left for the caller to
+     * remember: the app asking is the app that is running, this module already
+     * tracks that, and an invitation the receiver cannot name is not much of
+     * an invitation. */
+    return BleBeacon::invitePeer(deviceId, payload, activeGameIndex_);
 }
 
 bool inviteForUs(Board& board, NearbySeat& out) {
