@@ -16,6 +16,14 @@ public:
     void begin();
     void loop();
 
+private:
+    /* Everything needed to tell one board on the bench from another, printed
+     * at boot from the chip itself rather than from the compiled-in profile.
+     * See the comment on the definition. */
+    void logIdentity();
+
+public:
+
     Ui::Renderer& display() override;
 
     /** Reset per-paint renderer state so no screen inherits another's. */

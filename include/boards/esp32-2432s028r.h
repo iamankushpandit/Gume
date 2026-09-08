@@ -67,6 +67,7 @@ inline constexpr BoardProfile BOARD = {
         /* portraitRotation     */ 0,
         /* backlightPin         */ 21,
         /* backlightActiveHigh  */ true,
+        /* invertColours        */ false,
     },
 
     /* touch: a bus of its own, bit-banged rather than using a second

@@ -107,6 +107,37 @@ static_assert(BOARD.panel.backlightPin == TFT_BL,
               "board profile disagrees with TFT_BL in platformio.ini");
 #endif
 
+/* WHICH PANEL DRIVER THIS BINARY WAS BUILT WITH, as a string.
+ *
+ * TFT_eSPI picks its driver from a `-D` in platformio.ini and nothing in the
+ * firmware could previously say which one it got. That is the single fact that
+ * distinguishes two boards which are otherwise pin-for-pin identical, and
+ * getting it wrong does not fail: an ILI9341 build on an ST7789 panel draws
+ * everything perfectly with every colour inverted, and an ST7789 build on an
+ * ILI9341 panel does the same in reverse. Both look like a theme bug.
+ *
+ * So the boot log states it, and a photograph of a wrong-coloured screen plus
+ * one line of serial is then enough to name the mistake. */
+#if defined(ST7789_DRIVER)
+#define GUME_PANEL_DRIVER "ST7789"
+#elif defined(ST7796_DRIVER)
+#define GUME_PANEL_DRIVER "ST7796"
+#elif defined(ILI9341_2_DRIVER)
+#define GUME_PANEL_DRIVER "ILI9341_2"
+#elif defined(ILI9341_DRIVER)
+#define GUME_PANEL_DRIVER "ILI9341"
+#elif defined(ILI9488_DRIVER)
+#define GUME_PANEL_DRIVER "ILI9488"
+#else
+#define GUME_PANEL_DRIVER "unknown"
+#endif
+
+#if defined(TFT_INVERT_COLORS)
+#define GUME_PANEL_INVERTED 1
+#else
+#define GUME_PANEL_INVERTED 0
+#endif
+
 /* ---- What a board must have to be supported at all --------------------
  *
  * Not every ESP32 display board can run this firmware, and the honest place to

@@ -236,6 +236,39 @@ Black's losses nearly indistinguishable -- defeating the point of showing them
 separately. Each strip is now backed by the shade its pieces are not, borrowing
 the board's own two square colours.
 
+**A third 2.8-inch CYD variant is supported, and this one is verified on
+hardware.** Flash `app_esp32_2432s028_inv` if your board draws everything
+perfectly with every colour wrong. The 2.8-inch "cheap yellow display" ships
+with at least three combinations of panel and backlight behind the same
+silkscreen and they are not distinguishable by eye; this one wants the ILI9341
+sequence with a runtime inversion and its backlight on GPIO21. Every
+combination was flashed onto one board and the screen looked at, which is the
+only way any of it could have been established.
+
+The existing ST7789 profile was deliberately **left alone**. It has never been
+verified on hardware and overwriting it with measurements from a different
+board would have been the same mistake in reverse.
+
+**The boot log now says what the board is, from the chip rather than the
+build.** Four boards on one desk, COM numbers that Windows reshuffles on every
+replug, and a banner that only carried the board *name* — which is compiled in,
+so it reports which firmware is on the chip and not which panel is under it.
+Between them those cost most of a session: a 2.8-inch board reported itself as
+a 4-inch quite happily, and a board nobody had seen before was identified from
+an image that had been put on it half an hour earlier.
+
+It now prints the MAC (burned into eFuse, unique per chip, and the only
+identifier that survives being flashed with the wrong image), the chip model
+and revision, the real flash and PSRAM sizes, the panel driver this binary was
+*built* with, its size, rotation and backlight pin, the display controller's
+own ID register where MISO is wired back to read it, and the touch controller
+with its pins. "Which board is this?" is now a paste rather than an afternoon.
+
+**Also fixed: `identify_boards.py` truncated board names at whitespace.** A
+board called `ESP32-2432S028Rv3 (ST7789)` read back as `ESP32-2432S028Rv3` and
+the tool then reported a mismatch against its own registry. Board names are
+single tokens now and `BoardProfile.h` says why.
+
 **Playing another console nearby is a service, not a chess feature.** The
 invitations, the turns, who moves first and either side stopping are all stated
 in terms every two-player game shares, and the transport is named for turns and

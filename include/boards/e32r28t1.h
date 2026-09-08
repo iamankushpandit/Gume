@@ -61,6 +61,7 @@ inline constexpr BoardProfile BOARD = {
         /* portraitRotation     */ 0,
         /* backlightPin         */ 21,
         /* backlightActiveHigh  */ true,
+        /* invertColours        */ false,
     },
 
     /* touch: a bus of its own, deliberately -- the TFT owns HSPI. See

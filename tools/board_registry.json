@@ -46,6 +46,12 @@
       "env": "app_e32r32p",
       "note": "learned from the boot banner on 2026-09-06",
       "how": "boot banner"
+    },
+    "8c:4f:00:2f:80:38": {
+      "board": "ESP32-2432S028-inv",
+      "env": "app_esp32_2432s028_inv",
+      "note": "Dual-USB 2.8-inch CYD, third variant: wants the ILI9341 sequence with a runtime inversion and its backlight on IO21. Briefly mis-recorded as an E32R28T-1 (the boot banner was reporting firmware I had just put on it) and then as an E32R24P (from a vendor datasheet for a different board).",
+      "how": "every driver/backlight combination flashed and the screen looked at; colours confirmed correct by the owner only with ILI9341 + invertColours + BL21"
     }
   },
   "skip_ports": {

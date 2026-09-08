@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,438,597 / 3,145,728 bytes (**77.5%**) |
+| Flash | 2,439,425 / 3,145,728 bytes (**77.5%**) |
 | RAM | 76,508 / 327,680 bytes (**23.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -51,7 +51,10 @@ has had its panel, backlight and touch confirmed on hardware but ships with four
 peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
 the 3.2-inch **E32R32P** has had its display, touch, battery sense and
 radios confirmed on hardware, with the RGB LED order and the battery
-divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3))
+divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3)); and one
+dual-USB CYD variant whose colours come out inverted *has* been verified on
+hardware (see
+[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel))
 — if you own any of those, telling us whether it works is the single
 most useful thing you can send. The CYD family has many variants whose
 differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
@@ -187,6 +190,45 @@ that is the most useful thing you can send.
 `pio run -e diag4` is the standalone bring-up probe for this board: panel
 identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
 wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
+
+### ESP32-2432S028 dual-USB (inverted panel)
+
+**If your 2.8-inch CYD draws everything perfectly but every colour is wrong,
+this is your build.** Flash `app_esp32_2432s028_inv`.
+
+The 2.8-inch "cheap yellow display" ships with at least three different
+combinations of panel and backlight behind the same silkscreen, and you cannot
+tell them apart by looking:
+
+| Profile | USB | Panel | Backlight | Verified? |
+|---|---|---|---|---|
+| `esp32-2432s028r.h` | micro-USB | ILI9341 | GPIO21 | from a published pin map |
+| `esp32-2432s028.h` | dual-USB | ST7789 | GPIO27 | from a published pin map |
+| `esp32-2432s028-inv.h` | dual-USB | ILI9341 + runtime inversion | GPIO21 | **on hardware** |
+
+The symptom that identifies this one is specific and easy to misread: the board
+comes up with the backlight on, touch working, the layout correct and a
+completely clean serial log — and **every** colour channel inverted. The dark
+theme draws white, green draws purple, blue draws salmon. It reads as a theme
+bug rather than a wrong board.
+
+Two things are worth knowing if you are porting another variant:
+
+- **A wrong backlight pin gives you a dark panel and a healthy log.** Wi-Fi,
+  BLE, NVS, touch and the screen saver all run perfectly. It reads as a dead
+  board. The other dual-USB profile has its backlight on GPIO27; on this one
+  GPIO27 gives nothing and GPIO21 lights it.
+- **TFT_eSPI's `TFT_INVERT_COLORS` will not fix inverted colours on an ILI9341
+  build.** That macro is read *only* by its ST7789 and ST7735 init sequences,
+  so on an ILI9341 build it is silently inert — it was tried twice here and
+  looked like the flag being ignored. The board profile carries
+  `invertColours`, which `Board::begin()` turns into a runtime
+  `invertDisplay()` and which works under any driver.
+
+Confirmed on hardware: panel, colour inversion, backlight, touch, rotation,
+flash size. Inherited from the E32R28T-1 and not exercised: SD card, RGB LED
+order, battery divider. **Silent by construction** — its touch clock is GPIO25,
+which is DAC channel 1, the same conflict that made 5.5.1 necessary.
 
 ### E32R32P (3.2-inch ST7789P3)
 

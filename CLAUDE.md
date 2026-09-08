@@ -408,7 +408,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,438,597 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,439,425 / 3,145,728 bytes,
 **77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,508 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1035,6 +1035,23 @@ rather than trusting generic ESP32 pinouts online, and never copy a pin map
 between CYD variants: GPIO34 is battery sense here and the light sensor on the
 ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 
+- **A panel can be colour-inverted, and TFT_eSPI's macro will not fix it.**
+  A CYD panel can invert every channel relative to the driver it is built
+  with: the board comes up with backlight, touch, layout and a clean serial
+  log, and only the colours are wrong, which reads as a theme bug. `TFT_INVERT_COLORS` is consulted **only** by TFT_eSPI's ST7789 and
+  ST7735 init paths, so defining it on an ILI9341 build does nothing at all --
+  that was tried on the bench and looked like the flag being ignored. The fix
+  is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
+  `invertDisplay()` after `init()` and before anything is drawn.
+- **The boot log states what the board IS, from the chip rather than the
+  build.** `[boot] mac=...` is burned into eFuse and is the only identifier
+  that survives being flashed with the wrong image -- which is exactly how a
+  2.8-inch board reported itself as a 4-inch for half an hour. `board=` and
+  `panel=` are compiled in and therefore describe the firmware, not the
+  hardware; `id=` is read back off the controller and is the one line that can
+  contradict the profile, though it answers zeroes on any board whose MISO is
+  not wired back. Keep all four: between them they turn "which board is this?"
+  into a paste rather than an afternoon.
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
   (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
