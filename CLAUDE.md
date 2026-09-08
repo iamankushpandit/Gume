@@ -408,7 +408,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,408,377 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,408,581 / 3,145,728 bytes,
 **76.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 75,492 / 327,680 (23.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -838,6 +838,8 @@ src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPl
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
+                          LetterTracer (the finger-tracing engine Trace and
+                          Cursive share) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
