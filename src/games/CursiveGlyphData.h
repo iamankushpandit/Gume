@@ -12,6 +12,12 @@ extern const CursiveGame::Glyph CURSIVE_GLYPHS[];
  * more than that. */
 extern const char* const CURSIVE_WORDS[];
 
+/* The box these coordinates live in. Not square: see COORD_W in
+ * tools/gen_cursive_glyphs.py. The game hands these to
+ * LetterTracer::configure() so the mapping stays uniform. */
+constexpr int16_t CURSIVE_COORD_W = 200;
+constexpr int16_t CURSIVE_COORD_H = 156;
+
 constexpr uint8_t CURSIVE_GLYPH_COUNT = 91;
 constexpr uint8_t CURSIVE_WORD_FIRST = 52;
 constexpr uint8_t CURSIVE_WORD_COUNT = 39;

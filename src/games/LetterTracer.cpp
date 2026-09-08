@@ -47,7 +47,6 @@ constexpr int16_t DRAW_W = 200;
  * lowest point lands on DRAW_Y + DRAW_H, and the numbered badge drawn on it
  * is a 7px circle. At 162 that circle touched the progress bar. */
 constexpr int16_t DRAW_H = 156;
-constexpr int16_t COORD_MAX = 200;
 constexpr int16_t HIT_RADIUS = 16;
 constexpr uint32_t PULSE_PERIOD_MS = 500;
 constexpr int16_t BAR_Y = 220;
@@ -73,10 +72,35 @@ Rect setTabRect(uint8_t i) {
 }   // namespace
 
 void LetterTracer::configure(const Glyph* glyphs, const Set* sets,
-                             uint8_t setCount) {
+                             uint8_t setCount, int16_t coordW, int16_t coordH) {
     glyphs_ = glyphs;
     sets_ = sets;
     setCount_ = setCount > MAX_SETS ? MAX_SETS : setCount;
+    coordW_ = coordW > 0 ? coordW : 200;
+    coordH_ = coordH > 0 ? coordH : 200;
+    fitBox();
+}
+
+/* THE ONE SCALE, AND WHY THERE HAS TO BE ONE.
+ *
+ * This used to be two: x scaled by DRAW_W / 200 and y by DRAW_H / 200. When
+ * the canvas was 164x160 those were 0.82 and 0.80 and nobody noticed. Widening
+ * it to 200x156 made them 1.00 and 0.78 -- every letter drawn 22% shorter than
+ * it is, which was reported from the device as words looking flat, and it was
+ * not the word list's fault at all. A short word like 'six' has no ascender
+ * and no descender, so the squash is all there is to see.
+ *
+ * So one scale for both axes, and the box is letterboxed inside the canvas
+ * rather than stretched to it. A table authored square gets margins left and
+ * right; a table authored to the canvas's own shape fills it. */
+void LetterTracer::fitBox() {
+    const float sx = static_cast<float>(DRAW_W) / static_cast<float>(coordW_);
+    const float sy = static_cast<float>(DRAW_H) / static_cast<float>(coordH_);
+    boxScale_ = sx < sy ? sx : sy;
+    boxX_ = static_cast<int16_t>(
+        DRAW_X + (DRAW_W - static_cast<int16_t>(coordW_ * boxScale_)) / 2);
+    boxY_ = static_cast<int16_t>(
+        DRAW_Y + (DRAW_H - static_cast<int16_t>(coordH_ * boxScale_)) / 2);
 }
 
 bool LetterTracer::takeDirty() {
@@ -247,11 +271,11 @@ void LetterTracer::resampleWaypoints() {
 }
 
 int16_t LetterTracer::scaleX(int16_t nx) const {
-    return static_cast<int16_t>(DRAW_X + (int32_t)nx * DRAW_W / COORD_MAX);
+    return static_cast<int16_t>(boxX_ + nx * boxScale_);
 }
 
 int16_t LetterTracer::scaleY(int16_t ny) const {
-    return static_cast<int16_t>(DRAW_Y + (int32_t)ny * DRAW_H / COORD_MAX);
+    return static_cast<int16_t>(boxY_ + ny * boxScale_);
 }
 
 void LetterTracer::updatePulsePhase() {

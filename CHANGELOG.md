@@ -24,7 +24,23 @@ not where the ink meets — an `a` is written from the top right of its oval, so
 its first dot is nowhere near its left edge. The shapes were always joined; only
 the stroke list was not.
 
-**One scale for every word**, which is what stops a word looking flat. Words
+**Every glyph was being drawn 22% too short, and that was the real cause of
+the flatness.** The tracer scaled x by canvas-width/200 and y by
+canvas-height/200 — two different numbers. At the old 164x160 canvas they were
+0.82 and 0.80 and nobody noticed; widening it to 200x156 made them 1.00 and
+0.78, so every letter and word was squashed. A short word like `six` has no
+ascender and no descender, so the squash was all there was to see and no amount
+of choosing better words would have fixed it.
+
+There is now one scale for both axes, and a glyph table declares the box it was
+authored in so the tracer can letterbox rather than stretch. Trace's letters
+are authored square and get margins; Cursive's are authored to the canvas's own
+shape, so a joined word gets the full width. **The preview sheet's cells are at
+the panel's aspect too** — they were square, which is precisely why the sheet
+said the words were fine while the device disagreed. A preview that does not
+share the target's proportions is not a preview.
+
+**One scale for every word**, which also matters. Words
 were each fitted to the canvas on their own to win back some size, and on the
 device that put `way` on screen at half the x-height of `dog` — a word with no
 ascender and no descender is wide and short, so fitting it alone blows it up

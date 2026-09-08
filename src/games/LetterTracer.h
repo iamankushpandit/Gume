@@ -86,8 +86,16 @@ public:
 
     /* Point the tracer at a table. Called once, from the shell's constructor
      * or begin(); the pointers must outlive the tracer, which they do because
-     * every glyph table in this firmware is `static const` in flash. */
-    void configure(const Glyph* glyphs, const Set* sets, uint8_t setCount);
+     * every glyph table in this firmware is `static const` in flash.
+     *
+     * `coordW` and `coordH` are the box the table's coordinates live in. They
+     * exist because THE MAPPING MUST BE UNIFORM: a table authored in a square
+     * box and drawn into a canvas that is not square has to be letterboxed,
+     * not stretched. See scaleX(). Trace's letters are authored 200x200;
+     * Cursive's are authored to the canvas's own shape so that a joined word
+     * gets the full width. */
+    void configure(const Glyph* glyphs, const Set* sets, uint8_t setCount,
+                   int16_t coordW = 200, int16_t coordH = 200);
 
     /** Back to the first letter of the first alphabet. */
     void begin();
@@ -111,6 +119,8 @@ private:
         int16_t x, y;
     };
 
+    /** Recompute the uniform scale and the letterbox offsets. */
+    void fitBox();
     void loadGlyph();
     void resampleWaypoints();
     int16_t scaleX(int16_t nx) const;
@@ -137,6 +147,13 @@ private:
 
     const Glyph* glyphs_ = nullptr;
     const Set* sets_ = nullptr;
+    int16_t coordW_ = 200;
+    int16_t coordH_ = 200;
+    /* One scale for both axes, and where the box lands inside the canvas.
+     * Computed once per configure() rather than per point. */
+    float boxScale_ = 1.0f;
+    int16_t boxX_ = 0;
+    int16_t boxY_ = 0;
     uint8_t setCount_ = 0;
     uint8_t setIndex_ = 0;
 

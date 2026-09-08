@@ -52,7 +52,20 @@ FONT = os.environ.get(
     'CURSIVE_FONT',
     r'C:/Users/Ankus/AppData/Local/Temp/FrbAmericanCursiveArrowpath-0WLvr.otf')
 
-COORD_MAX = 200
+# THE BOX THESE GLYPHS ARE AUTHORED IN, and it is not square.
+#
+# LetterTracer maps a table's box into its canvas with ONE scale for both axes
+# and letterboxes the remainder -- so a table authored 200x200 and drawn into a
+# 200x156 canvas gets margins left and right and loses a quarter of its width.
+# For single letters that is fine. For a joined word, width is the whole point.
+#
+# So these are authored to the canvas's own shape, 200x156, and the tracer then
+# maps them 1:1. The numbers are emitted into the generated header as
+# CURSIVE_COORD_W/H so the game passes back exactly what was used here; if
+# LetterTracer's DRAW_W or DRAW_H ever change, this should follow them, and if
+# it does not the only cost is a letterbox rather than a distortion.
+COORD_W = 200
+COORD_H = 156
 MARGIN = 6            # keeps a stroke's end off the very edge of the box
 LIFT_GAP = 80         # font units; within-stroke steps are 36
 # Drop dots closer together than this in the OUTPUT box. The dots are ~7px
@@ -228,8 +241,9 @@ def normalise(items):
         return []
     wide = max(x for _, strokes in items for s in strokes for x, _ in s) - min(xs)
     high = max(ys) - min(ys)
-    span = COORD_MAX - 2 * MARGIN
-    scale = min(span / wide, span / high) if wide and high else 1.0
+    spanX = COORD_W - 2 * MARGIN
+    spanY = COORD_H - 2 * MARGIN
+    scale = min(spanX / wide, spanY / high) if wide and high else 1.0
     # One baseline for the group, from the group's own top edge.
     top = max(ys)
     # Centred vertically, as a GROUP rather than glyph by glyph. Aspect is
@@ -238,14 +252,14 @@ def normalise(items):
     # to the top edge left it visibly high in the canvas. Centring the group
     # rather than each glyph is what keeps the baseline shared across an
     # alphabet, which is the thing that matters when paging through one.
-    oy = MARGIN + (span - high * scale) / 2.0
+    oy = MARGIN + (spanY - high * scale) / 2.0
 
     out = []
     for label, strokes in items:
         gx = [x for s in strokes for x, _ in s]
         left = min(gx)
         width = max(gx) - left
-        ox = MARGIN + (span - width * scale) / 2.0     # centred horizontally
+        ox = MARGIN + (spanX - width * scale) / 2.0    # centred horizontally
         placed = []
         for s in strokes:
             pts, last = [], None
@@ -273,7 +287,7 @@ def check(label, strokes):
                         % (len(strokes), MAX_STROKES))
     for i, s in enumerate(strokes):
         for x, y in s:
-            if not (0 <= x <= COORD_MAX and 0 <= y <= COORD_MAX):
+            if not (0 <= x <= COORD_W and 0 <= y <= COORD_H):
                 problems.append('stroke %d leaves the box at (%d,%d)' % (i, x, y))
                 break
     return problems
@@ -357,6 +371,12 @@ def emit_header(letters, words):
         ' * more than that. */',
         'extern const char* const CURSIVE_WORDS[];',
         '',
+        '/* The box these coordinates live in. Not square: see COORD_W in',
+        ' * tools/gen_cursive_glyphs.py. The game hands these to',
+        ' * LetterTracer::configure() so the mapping stays uniform. */',
+        'constexpr int16_t CURSIVE_COORD_W = %d;' % COORD_W,
+        'constexpr int16_t CURSIVE_COORD_H = %d;' % COORD_H,
+        '',
         'constexpr uint8_t CURSIVE_GLYPH_COUNT = %d;' % (len(letters) + len(words)),
         'constexpr uint8_t CURSIVE_WORD_FIRST = %d;' % len(letters),
         'constexpr uint8_t CURSIVE_WORD_COUNT = %d;' % len(words),
@@ -371,19 +391,26 @@ def preview(letters, words):
         sys.stderr.write('Pillow not installed; skipping the preview sheet.\n')
         return
     items = letters + words
+    # CELLS AT THE DEVICE'S ASPECT, which is the whole reason the last round
+    # of flatness got past this sheet. The cells were square, so a 200x156 box
+    # was drawn 200x200 here and every glyph looked 28% taller on this sheet
+    # than on the panel -- the sheet said the words were fine and the panel
+    # disagreed. A preview that does not share the target's proportions is not
+    # a preview.
     cols = 13
     rows = (len(items) + cols - 1) // cols
-    cell = 104
-    im = Image.new('RGB', (cols * cell, rows * cell), (250, 248, 244))
+    cellW = 104
+    cellH = int(round(cellW * COORD_H / COORD_W))
+    im = Image.new('RGB', (cols * cellW, rows * cellH), (250, 248, 244))
     d = ImageDraw.Draw(im)
     for i, (label, strokes) in enumerate(items):
-        ox, oy = (i % cols) * cell, (i // cols) * cell
-        d.rectangle([ox, oy, ox + cell - 1, oy + cell - 1], outline=(214, 208, 198))
+        ox, oy = (i % cols) * cellW, (i // cols) * cellH
+        d.rectangle([ox, oy, ox + cellW - 1, oy + cellH - 1], outline=(214, 208, 198))
         for si, pts in enumerate(strokes):
             shade = [(24, 40, 96), (176, 64, 32), (32, 120, 60),
                      (140, 40, 140), (180, 140, 20), (60, 60, 60)][si % 6]
-            xy = [(ox + 2 + x * (cell - 4) / COORD_MAX,
-                   oy + 2 + y * (cell - 4) / COORD_MAX) for x, y in pts]
+            xy = [(ox + 2 + x * (cellW - 4) / COORD_W,
+                   oy + 2 + y * (cellH - 4) / COORD_H) for x, y in pts]
             d.line(xy, fill=shade, width=2)
             d.ellipse([xy[0][0] - 2, xy[0][1] - 2, xy[0][0] + 2, xy[0][1] + 2],
                       fill=(0, 160, 60))
@@ -465,7 +492,13 @@ def main():
     if words:
         widest = max(max(x for st in ss for x, _ in st) -
                      min(x for st in ss for x, _ in st) for _, ss in words)
-        print('         widest word %d of %d box units' % (widest, COORD_MAX))
+        print('         widest word %d of %d box units' % (widest, COORD_W))
+        # x-height in device pixels, which is the number that decides whether
+        # a child can trace it. LetterTracer maps this box 1:1 when its canvas
+        # has the same shape.
+        tall = [max(y for st in ss for _, y in st) -
+                min(y for st in ss for _, y in st) for _, ss in words]
+        print('         word ink height %d..%d px of %d' % (min(tall), max(tall), COORD_H))
     preview(letters, words)
     print('\nLOOK AT THE PREVIEW SHEET. Green dot = stroke start; each stroke')
     print('is a different colour, in writing order.')

@@ -59,8 +59,14 @@ const char* CursiveGame::title() const {
 }
 
 void CursiveGame::begin(AppContext& host) {
+    /* Authored to the canvas's own shape rather than to a square, so a
+     * joined word gets the full width instead of being letterboxed into a
+     * square and then squashed. tools/gen_cursive_glyphs.py emits into the
+     * same box; the two numbers have to agree, and CURSIVE_COORD_W/H are
+     * generated alongside the table so they cannot drift. */
     tracer_.configure(CURSIVE_GLYPHS, CURSIVE_SETS,
-                      sizeof(CURSIVE_SETS) / sizeof(CURSIVE_SETS[0]));
+                      sizeof(CURSIVE_SETS) / sizeof(CURSIVE_SETS[0]),
+                      CURSIVE_COORD_W, CURSIVE_COORD_H);
     tracer_.begin();
     practised_ = host.getScore(CURSIVE_SCORE.bestKey);
     markFullDirty();

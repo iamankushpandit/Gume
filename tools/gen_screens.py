@@ -483,13 +483,17 @@ def cursive():
 
     src = (ROOT / "src" / "games" / "CursiveGlyphData.cpp").read_text(encoding="utf-8")
 
+    hdr = (ROOT / "src" / "games" / "CursiveGlyphData.h").read_text(encoding="utf-8")
+    cw = int(_re.search(r"CURSIVE_COORD_W = (\d+)", hdr).group(1))
+    ch = int(_re.search(r"CURSIVE_COORD_H = (\d+)", hdr).group(1))
+    m2p = _box_map(cw, ch)
+
     def stroke(tag):
         m = _re.search(r"static const int16_t %s\[\] = \{([^}]*)\}" % tag, src)
         if m is None:
             raise LookupError(tag)
         n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        return [(60 + n[i] * 200 // 200, 52 + n[i + 1] * 156 // 200)
-                for i in range(0, len(n), 2)]
+        return [m2p(n[i], n[i + 1]) for i in range(0, len(n), 2)]
 
     def resample(pts, step):
         out, carry = [pts[0]], 0.0
@@ -646,10 +650,25 @@ def _tracer_chrome(d, title, tabs, active):
     d.text((160 - d.textlength(title, font=F2) / 2, 33), title, font=F2, fill=TEXT)
 
 
-def _glyph_strokes(source, tag):
+def _box_map(coord_w, coord_h):
+    """LetterTracer's mapping: ONE scale for both axes, box letterboxed.
+
+    Restated here rather than approximated, because getting it wrong is
+    invisible on this sheet and obvious on the panel -- which is exactly what
+    happened when x scaled by DRAW_W/200 and y by DRAW_H/200.
+    """
+    dx, dy, dw, dh = 60, 52, 200, 156
+    k = min(dw / coord_w, dh / coord_h)
+    ox = dx + (dw - coord_w * k) / 2
+    oy = dy + (dh - coord_h * k) / 2
+    return lambda x, y: (ox + x * k, oy + y * k)
+
+
+def _glyph_strokes(source, tag, coord_w=200, coord_h=200):
     """Strokes of one glyph from a data table, in canvas pixels."""
     import re as _re
     src = (ROOT / "src" / "games" / source).read_text(encoding="utf-8")
+    m2p = _box_map(coord_w, coord_h)
     out = []
     while True:
         m = _re.search(r"static const int16_t %s_s%d\[\] = \{([^}]*)\}"
@@ -657,8 +676,7 @@ def _glyph_strokes(source, tag):
         if m is None:
             break
         n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        out.append([(60 + n[i] * 200 // 200, 52 + n[i + 1] * 156 // 200)
-                    for i in range(0, len(n), 2)])
+        out.append([m2p(n[i], n[i + 1]) for i in range(0, len(n), 2)])
     assert out, "%s not found in %s" % (tag, source)
     return out
 
