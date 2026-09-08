@@ -1,14 +1,27 @@
 # Changelog
 
-## 5.9.0-SNAPSHOT — Unreleased
+## 5.10.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.8.0
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.9.0
 release, and `release.yml` refuses to publish a tag whose version carries it.
 
 `Board::compareVersions()` sorts a pre-release before the release of the same
 number, so a console on this build is correctly told that nothing newer exists
-rather than being nagged all cycle to install the 5.8.0 it is ahead of.
+rather than being nagged all cycle to install the 5.9.0 it is ahead of.
+
+**Worth doing early in this cycle:** a two-console regression check of nearby
+play. Two defects in that path were fixed late in 5.9.0 — the acceptor never
+published its ply-0 answer, and a peer's turn was recorded only on the
+sighting that first brought it into range — so the code that shipped is not
+the code that was exercised on two boards.
+
+## 5.9.0 — 2026-09-08
+
+**Two consoles can play each other.** Chess and the new Sea Battle both run
+across the room over the beacon that was already there, and the machinery is a
+service rather than a chess feature — the next two-player game needs no new
+wire format.
 
 **Cursive** — trace joined-up handwriting, in three modes: capitals,
 lowercase, and **easy words**. Words are the point of cursive: a child who can

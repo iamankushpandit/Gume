@@ -204,6 +204,82 @@ def check_ini(problems, headers):
 
     check_reachable(problems, boards, board_envs)
     check_boardless_blurbs(problems, text)
+    check_workflow_envs(problems, text)
+
+
+def check_workflow_envs(problems, ini):
+    """Every environment the workflows name has to exist, and the command that
+    names them has to parse.
+
+    THIS EXISTS BECAUSE A DANGLING `-e` SHIPPED AND BROKE THE SITE. Removing a
+    board from `.github/workflows/pages.yml` left
+
+        -e app_e32r40t -e -e app_e32r32p
+
+    which PlatformIO rejects with "Got unexpected extra argument". CI went
+    green anyway, because a pull request builds a SELECTIVE list through the
+    ENVS variable and only the full-build path carries that flag list -- so the
+    fault was latent in ci.yml and fatal in pages.yml, which always builds
+    everything. The Pages deploy failed 49 seconds in, the site silently stayed
+    on the previous release, and the first anybody knew was noticing the game
+    count was wrong on the published page.
+
+    check_reachable() above could not have caught it: it asks whether each
+    board's env is mentioned, and a mention is exactly what a dangling flag
+    leaves intact. So this checks the shape of the command rather than its
+    contents, plus the reverse direction -- an env named in a workflow but
+    absent from platformio.ini, which is how a rename silently stops building
+    something.
+    """
+    envs = set(re.findall(r"^\[env:([\w.-]+)\]", ini, re.M))
+    if not envs:
+        problems.append("parsed no [env:*] sections out of platformio.ini")
+        return
+
+    for name in ("ci.yml", "pages.yml"):
+        try:
+            text = read(".github", "workflows", name)
+        except OSError:
+            continue                     # check_reachable() reports the absence
+
+        for line in text.splitlines():
+            if "pio run" not in line:
+                continue
+            # A -e with no environment after it. PlatformIO fails the whole
+            # command, so this is a build that never happens.
+            if re.search(r"-e\s+(?=-e\b)", line) or re.search(r"-e\s*$", line):
+                problems.append(
+                    ".github/workflows/%s has a `-e` with no environment after "
+                    "it: PlatformIO rejects the whole command, so nothing in it "
+                    "gets built. Usually left behind by deleting an env from "
+                    "the list." % name)
+                continue
+            for env in re.findall(r"-e\s+([\w.-]+)", line):
+                if env.startswith("$"):
+                    continue             # ENVS variable, expanded at run time
+                if env not in envs:
+                    problems.append(
+                        ".github/workflows/%s builds `-e %s`, which is not an "
+                        "[env:*] in platformio.ini -- that build fails the "
+                        "whole command." % (name, env))
+
+        # The space-separated lists (ENVS=, `for env in ...`) are how a pull
+        # request picks a subset, and a typo there skips a build silently
+        # rather than failing loudly.
+        for listing in re.findall(r'ENVS="([^"$]+)"', text):
+            for env in listing.split():
+                if env not in envs:
+                    problems.append(
+                        ".github/workflows/%s lists env `%s` in ENVS, which is "
+                        "not in platformio.ini." % (name, env))
+        for listing in re.findall(r"for env in ([^;]+);", text):
+            for env in listing.split():
+                if env.startswith("$"):
+                    continue             # expanded at run time
+                if env not in envs:
+                    problems.append(
+                        ".github/workflows/%s loops over env `%s`, which is "
+                        "not in platformio.ini." % (name, env))
 
 
 def check_reachable(problems, boards, board_envs):

@@ -178,7 +178,7 @@ jobs:
           # Build environments with explicit -e flags for check_boards.py verification
           if [ "${{ github.event_name }}" = "push" ]; then
             # On pushes to main/dev: build all environments
-            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e app_esp32_2432s028_inv -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e app_e32r40t -e -e app_e32r32p -e bringup_e32r32p -e batdiag_e32r32p -e s3diag -e diag4
+            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e app_esp32_2432s028_inv -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e app_e32r40t -e app_e32r32p -e bringup_e32r32p -e batdiag_e32r32p -e s3diag -e diag4
           else
             # On PR: build only affected environments
             ENVS="${{ steps.environments.outputs.envs }}"
