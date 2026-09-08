@@ -82,6 +82,35 @@ The registry line still lands in a shared file, so two agents adding games at on
 
 Pick an `id` that nobody else is likely to be using concurrently, and re-read the catalog right before appending: it may have grown since you last looked.
 
+## Two-player games on nearby consoles
+
+`AppContext`'s `nearby*` calls are a **service**, not a chess feature. A game
+gets seats (who is in the room, with the owner's own label for each), an
+invitation, a numbered turn each way, and an ending. It never gets the radio:
+the surface is move-shaped, so a game can say "I played X to Y" and cannot say
+"put these bytes on the air".
+
+Two questions are answered by the service so that the next game cannot answer
+them differently. **Who moves first** is a coin toss inside `nearbyInvite()` --
+the console doing the asking must not also claim first move. **"I am stopping"**
+is a reserved turn encoding the service owns, delivered as `NearbyTurn::ended`;
+never invent a second one.
+
+Who can use it:
+
+- **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,
+  then *Nearby*. That is a privacy decision and belongs to an adult.
+- **Playing is not.** Nothing in `NearbyPlay` or `ChessGame` checks the active
+  profile, so once an adult has switched it on, any player on the console can
+  invite and be invited. Do not add a profile check to a play path; the gate is
+  the switch.
+- **Saved games are per-profile**, because `saveBlob()` is transparently
+  profile-scoped. Each player has their own game in progress. Guest drops
+  writes, so a guest's game does not survive leaving the screen -- the same
+  answer Guest gives to scores.
+- **Naming a peer stays admin-only.** It is a device-wide label, not a personal
+  one, and it is what every screen then calls that console.
+
 ## Shared data
 
 - `CountryData.{h,cpp}`: 195 countries: ISO2, capital, continent, difficulty tier.

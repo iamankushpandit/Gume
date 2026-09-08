@@ -10,6 +10,35 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
+**Chess now calls a draw a draw.** Two bare kings is the position beginners
+reach constantly -- they trade everything off -- and the console did not know it
+was over. It sat saying "White to move" for a game the rules had already ended,
+and the only way out was End game, which then reported "no result" for what
+chess calls a draw. A child learning the game would have taken that as the
+truth, which is the worst kind of defect this console can carry.
+
+Both draws that can be decided by counting are now detected and named:
+**too few pieces** (king against king, king and one minor piece against a bare
+king, or one bishop each on same-shaded squares) and **fifty moves with no
+capture and no pawn moved**. Stalemate now reads "Draw / stalemate" rather than
+burying the word. Every one of them says *why*: "Draw" on its own teaches
+nothing, and the reason is the whole lesson of the endgame they have just
+reached.
+
+Threefold repetition is **not** detected -- it needs a history of positions
+rather than a counter, and it is the rarest of the three for beginners. A game
+that repeats forever can still be stopped with End game.
+
+A game somebody stopped is still called "Game ended", never a draw. Those are
+different things and blurring them would teach the wrong lesson in the other
+direction.
+
+**The captured pieces are easier to tell apart.** Both strips used the same
+background, which on a photographed 4-inch panel made White's losses and
+Black's losses nearly indistinguishable -- defeating the point of showing them
+separately. Each strip is now backed by the shade its pieces are not, borrowing
+the board's own two square colours.
+
 **Playing another console nearby is a service, not a chess feature.** The
 invitations, the turns, who moves first and either side stopping are all stated
 in terms every two-player game shares, and the transport is named for turns and

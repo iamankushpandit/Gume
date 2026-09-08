@@ -365,7 +365,10 @@ def chess():
     for i, (ty, lost) in enumerate((
             (by, [("PAWN", True), ("PAWN", True), ("KNIGHT", True)]),
             (by + each + gap, [("PAWN", False), ("BISHOP", False)]))):
-        d.rectangle([px, ty, px + pw - 1, ty + each - 1], fill=PANEL)
+        # Backed by the shade its pieces are NOT, exactly as ChessGame does:
+        # White's losses on the dark square colour, Black's on the light one.
+        strip = (120, 96, 72) if i == 0 else (222, 210, 180)
+        d.rectangle([px, ty, px + pw - 1, ty + each - 1], fill=strip)
         cols = pw // tcell
         for n, (name, white) in enumerate(lost):
             x0 = px + (n % cols) * tcell

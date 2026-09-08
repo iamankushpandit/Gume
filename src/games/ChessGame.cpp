@@ -345,6 +345,17 @@ int8_t ChessGame::applyMove(Position& p, uint8_t from, uint8_t to) {
     if (from == H8 || to == H8) p.castle[2] = false;
     if (from == A8 || to == A8) p.castle[3] = false;
 
+    /* The fifty-move clock. Reset by a capture or a pawn move -- the two
+     * things that cannot be undone -- and counted in plies, so the rule is a
+     * hundred of these rather than fifty. Saturates instead of wrapping: at
+     * 255 the game has been drawn for a long time and rolling over to zero
+     * would quietly restart the count. */
+    if (k == PAWN || captured != EMPTY) {
+        p.halfmove = 0;
+    } else if (p.halfmove < 255) {
+        ++p.halfmove;
+    }
+
     p.whiteToMove = !p.whiteToMove;
     return captured;
 }
@@ -363,6 +374,52 @@ uint8_t ChessGame::legalMoves(const Position& p, uint8_t from, uint8_t* out) {
         if (!attacked(trial, kingSquare(trial, white), !white)) out[n++] = pseudo[i];
     }
     return n;
+}
+
+/* Can anybody still mate?
+ *
+ * The FIDE dead-position cases that are decidable by counting, and no attempt
+ * at the ones that are not. A pawn, rook or queen anywhere on the board means
+ * a mate is constructible, so the position is alive however lost it looks --
+ * being unable to WIN is not the same as being unable to MATE, and only the
+ * second one ends the game.
+ *
+ * Two bishops of the same colour on same-shaded squares is the one case that
+ * needs more than a count: neither can ever attack the other's colour of
+ * square, so between them they can never cover a king's escape. Bishops on
+ * opposite shades can mate, so that case is alive.
+ *
+ * Deliberately not "can the side to move force a win". That is a search, and
+ * this game has no engine -- see the class comment. */
+bool ChessGame::deadPosition(const Position& p) {
+    uint8_t minors[2] = {0, 0};       // [0] white, [1] black
+    uint8_t bishops[2] = {0, 0};
+    int8_t bishopShade[2] = {-1, -1}; // square colour of a lone bishop
+
+    for (uint8_t sqr = 0; sqr < 64; ++sqr) {
+        const int8_t piece = p.sq[sqr];
+        if (piece == EMPTY) continue;
+        const int8_t k = kind(piece);
+        if (k == PAWN || k == ROOK || k == QUEEN) return false;
+        if (k == KING) continue;
+        const uint8_t side = isWhite(piece) ? 0 : 1;
+        ++minors[side];
+        if (k == BISHOP) {
+            ++bishops[side];
+            bishopShade[side] = static_cast<int8_t>((fileOf(sqr) + rankOf(sqr)) & 1);
+        }
+    }
+
+    // King against king, and king plus one minor against a bare king.
+    if (minors[0] == 0 && minors[1] == 0) return true;
+    if (minors[0] <= 1 && minors[1] == 0) return true;
+    if (minors[1] <= 1 && minors[0] == 0) return true;
+
+    // One bishop each, both on the same shade of square.
+    if (minors[0] == 1 && minors[1] == 1 && bishops[0] == 1 && bishops[1] == 1) {
+        return bishopShade[0] == bishopShade[1];
+    }
+    return false;
 }
 
 bool ChessGame::hasAnyLegalMove(const Position& p) {
@@ -504,6 +561,7 @@ void ChessGame::newGame() {
     pos_.whiteToMove = true;
     for (bool& c : pos_.castle) c = true;
     pos_.epSquare = NO_SQ;
+    pos_.halfmove = 0;
 
     selected_ = NO_SQ;
     targetCount_ = 0;
@@ -543,6 +601,7 @@ void ChessGame::saveGame(AppContext& host) const {
     out.whiteToMove = pos_.whiteToMove ? 1 : 0;
     for (uint8_t i = 0; i < 4; ++i) out.castle[i] = pos_.castle[i] ? 1 : 0;
     out.epSquare = pos_.epSquare;
+    out.halfmove = pos_.halfmove;
     out.status = static_cast<uint8_t>(status_);
     out.mode = static_cast<uint8_t>(mode_);
     out.remoteIsWhite = remoteIsWhite_ ? 1 : 0;
@@ -570,8 +629,13 @@ bool ChessGame::restoreGame(AppContext& host) {
      * a checkmate somebody already read. */
     const Mode m = static_cast<Mode>(in.mode);
     if (m != Mode::Local && m != Mode::Remote) return false;
+    /* Only an unfinished game is worth coming back to. Every terminal status
+     * is listed rather than tested for "not Playing", so adding a new way for
+     * a game to end forces a decision here instead of silently restoring a
+     * finished board. */
     const Status st = static_cast<Status>(in.status);
     if (st == Status::Checkmate || st == Status::Stalemate ||
+        st == Status::DrawMaterial || st == Status::DrawFifty ||
         st == Status::Ended) {
         return false;
     }
@@ -583,6 +647,7 @@ bool ChessGame::restoreGame(AppContext& host) {
     pos_.whiteToMove = in.whiteToMove != 0;
     for (uint8_t i = 0; i < 4; ++i) pos_.castle[i] = in.castle[i] != 0;
     pos_.epSquare = in.epSquare;
+    pos_.halfmove = in.halfmove;
 
     /* Both kings, or it is not a chess position. This is the only validation
      * worth doing: the blob is our own NVS rather than anything that came off
@@ -711,8 +776,18 @@ void ChessGame::markSquare(uint8_t square) {
 void ChessGame::refreshStatus() {
     const bool inCheck =
         attacked(pos_, kingSquare(pos_, pos_.whiteToMove), !pos_.whiteToMove);
+    /* Order matters. Mate ends the game even in a position that is otherwise
+     * dead -- you cannot be mated by pieces that cannot mate, so the two never
+     * actually collide, but stating the precedence means nobody has to work
+     * that out again. Having no legal move is asked first for the same reason:
+     * stalemate is a draw arrived at by the rules of movement, not by counting
+     * material or moves. */
     if (!hasAnyLegalMove(pos_)) {
         status_ = inCheck ? Status::Checkmate : Status::Stalemate;
+    } else if (deadPosition(pos_)) {
+        status_ = Status::DrawMaterial;
+    } else if (pos_.halfmove >= 100) {
+        status_ = Status::DrawFifty;
     } else {
         status_ = inCheck ? Status::Check : Status::Playing;
     }
@@ -765,9 +840,13 @@ void ChessGame::renderLobby(AppContext& host) {
 
     tft.setTextDatum(BC_DATUM);
     tft.setTextColor(Ui::muted(), Ui::bg());
+    /* The empty case names who can fix it. Switching the radio on is an
+     * admin job, so a player who reads "turn Beacon on" and cannot find the
+     * switch has been sent to a door they have no key for. Playing, once it is
+     * on, needs no admin at all. */
     const char* note = seatCount_ > 0
         ? "Moves travel by Bluetooth. Anyone near hears them."
-        : "No consoles nearby. Both need Beacon and Nearby on.";
+        : "Nobody nearby. An adult can switch Beacon and Nearby on.";
     tft.drawString(note, static_cast<int16_t>(tft.width() / 2),
                    static_cast<int16_t>(tft.height() - 6), 1);
     tft.setTextDatum(TL_DATUM);
@@ -909,9 +988,9 @@ void ChessGame::pollOpponent(AppContext& host) {
     targetCount_ = 0;
     refreshStatus();
     saveGame(host);
-    host.playSound(status_ == Status::Checkmate ? Sound::GameOver
-                   : status_ == Status::Check   ? Sound::Reveal
-                                                : Sound::Tap);
+    host.playSound(gameOver()                 ? Sound::GameOver
+                   : status_ == Status::Check ? Sound::Reveal
+                                              : Sound::Tap);
     markDirty();
 }
 
@@ -948,8 +1027,7 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (!touch.justPressed) return;
 
-    const bool over = status_ == Status::Checkmate ||
-                      status_ == Status::Stalemate || status_ == Status::Ended;
+    const bool over = gameOver();
 
     /* The one button. New game once the game is over, End game while it is
      * running -- and End game asks twice, because it is the only control here
@@ -1031,7 +1109,11 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
          * everything else. A move is not a hot path -- one NVS write per move
          * is nothing against the thirty-odd a whole game costs. */
         saveGame(host);
+        /* A draw is an ending and sounds like one, but it is not a win.
+         * On a board with no speaker this changes nothing, which is why the
+         * status line has to carry the same news in words. */
         host.playSound(status_ == Status::Checkmate ? Sound::Victory
+                       : gameOver()                 ? Sound::GameOver
                        : status_ == Status::Check   ? Sound::Reveal
                                                     : Sound::Tap);
         markDirty();
@@ -1180,16 +1262,32 @@ void ChessGame::drawStatus(AppContext& host) const {
                          pos_.whiteToMove ? "Black" : "White");
                 colour = Ui::warning();
                 break;
+            /* Every draw says WHY, in words a child can act on. "Draw" on
+             * its own teaches nothing; "too few pieces" is the whole lesson of
+             * the endgame they have just reached, and it is the difference
+             * between the console looking broken and the console teaching. */
             case Status::Stalemate:
-                snprintf(top, sizeof(top), "Stalemate");
-                snprintf(bot, sizeof(bot), "a draw");
+                snprintf(top, sizeof(top), "Draw");
+                snprintf(bot, sizeof(bot), "stalemate");
+                break;
+            case Status::DrawMaterial:
+                snprintf(top, sizeof(top), "Draw");
+                snprintf(bot, sizeof(bot), "too few pieces");
+                break;
+            case Status::DrawFifty:
+                snprintf(top, sizeof(top), "Draw");
+                snprintf(bot, sizeof(bot), "50 moves, no take");
                 break;
             case Status::Ended:
+                /* NOT called a draw. A game somebody walked away from and a
+                 * game the rules drew are different things, and a console that
+                 * blurred them would be teaching the wrong lesson in the other
+                 * direction from the one this release fixed. */
                 snprintf(top, sizeof(top), "Game ended");
                 snprintf(bot, sizeof(bot),
                          mode_ == Mode::Remote
                              ? (endedByUs_ ? "you stopped it" : "they stopped it")
-                             : "no result");
+                             : "no winner");
                 colour = Ui::muted();
                 break;
             case Status::Check:
@@ -1239,7 +1337,18 @@ void ChessGame::drawTaken(AppContext& host, uint8_t side) const {
     Ui::Renderer& tft = host.display();
     const Rect r = takenRect(host, side);
     if (r.w <= 0 || r.h <= 0) return;
-    tft.fillRect(r.x, r.y, r.w, r.h, Ui::panel());
+    /* Each strip is backed by the shade its pieces are NOT, so White's losses
+     * sit on the board's dark square colour and Black's on the light one.
+     *
+     * Both strips used the theme panel colour, and on a photographed 4-inch
+     * panel the two were very hard to tell apart -- which defeats the point of
+     * showing them separately at all. Borrowing the board's own two square
+     * colours also says, without a label, that these pieces came off that
+     * board. The pieces carry a contrasting rim of their own, so they stay
+     * legible on either. */
+    const uint16_t back = side == 0 ? Ui::rgb(120, 96, 72)
+                                    : Ui::rgb(222, 210, 180);
+    tft.fillRect(r.x, r.y, r.w, r.h, back);
 
     int16_t cell = 20;
     while (cell > 10 && (r.w / cell) * (r.h / cell) < MAX_TAKEN) {
@@ -1266,7 +1375,8 @@ void ChessGame::drawTaken(AppContext& host, uint8_t side) const {
         char more[8];
         snprintf(more, sizeof(more), "+%u", static_cast<unsigned>(n - shown));
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(Ui::muted(), Ui::panel());
+        tft.setTextColor(side == 0 ? Ui::rgb(240, 236, 228) : Ui::rgb(60, 50, 40),
+                         back);
         tft.drawString(more,
                        static_cast<int16_t>(r.x + (shown % cols) * cell + cell / 2),
                        static_cast<int16_t>(r.y + (shown / cols) * cell + cell / 2),
@@ -1278,8 +1388,7 @@ void ChessGame::drawTaken(AppContext& host, uint8_t side) const {
 void ChessGame::drawAction(AppContext& host) const {
     Ui::Renderer& tft = host.display();
     const Rect r = actionRect(host);
-    const bool over = status_ == Status::Checkmate ||
-                      status_ == Status::Stalemate || status_ == Status::Ended;
+    const bool over = gameOver();
     const bool confirming = !over && confirmUntilMs_ != 0;
     /* Warning colour only while it is asking. A destructive control that looks
      * alarming all the time stops meaning anything by the second game. */

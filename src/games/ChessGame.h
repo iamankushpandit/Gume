@@ -90,14 +90,35 @@ private:
          * for the one move immediately after a double push, which is why it is
          * part of the position rather than a flag on the pawn. */
         uint8_t epSquare;
+        /* Plies since the last capture or pawn move. The fifty-move rule is
+         * a hundred of these. Part of the position because it is reset by the
+         * move that is being made, not by anything the screen knows. */
+        uint8_t halfmove;
     };
 
-    /* Ended is a game somebody stopped rather than finished. Two children
-     * abandon a game far more often than they mate each other, and before this
-     * existed the only way out of a position nobody could win was to leave the
-     * screen -- which, now that the board is saved, would simply bring the same
-     * stuck game back. A declared end is a real result and is stored as one. */
-    enum class Status : uint8_t { Playing, Check, Checkmate, Stalemate, Ended };
+    /* How the game stands, including all the ways it can be over.
+     *
+     * The three draws matter more here than they would in a chess program for
+     * adults, and DrawMaterial matters most of all: beginners trade everything
+     * off, so two bare kings is the position they reach constantly. Leaving it
+     * undetected meant the console sat there saying "White to move" for a game
+     * that was already over by the rules, and the only way out was End game --
+     * which then reported "no result" for what chess calls a draw. A child
+     * learning the game would take that as the truth, which is the worst kind
+     * of bug this console can have.
+     *
+     * Ended is different from all of them: a game somebody stopped rather than
+     * one the rules finished. Kept separate on purpose -- calling an abandoned
+     * game a draw would teach the same wrong lesson in the other direction. */
+    enum class Status : uint8_t {
+        Playing,
+        Check,
+        Checkmate,
+        Stalemate,
+        DrawMaterial,   // neither side has the pieces to mate with
+        DrawFifty,      // fifty moves each with no capture and no pawn moved
+        Ended,          // a player stopped it
+    };
 
     /* How this game is being played.
      *
@@ -137,6 +158,15 @@ private:
     /* Legal moves: pseudo-legal, minus any that leave the mover in check. */
     static uint8_t legalMoves(const Position& p, uint8_t from, uint8_t* out);
     static bool hasAnyLegalMove(const Position& p);
+    /* A dead position: neither side could mate even with the other's help.
+     *
+     * The four standard cases and no more -- king alone against king, king and
+     * one knight, king and one bishop, and two lone bishops on same-coloured
+     * squares. Anything with a pawn, rook or queen still on the board can be
+     * mated with, so it is not dead however hopeless it looks. Deliberately
+     * NOT "can the side to move force a win", which is a search and would need
+     * a chess engine this game does not have. */
+    static bool deadPosition(const Position& p);
 
     // ---- layout, all measured from the live panel ------------------------
     /* True when the panel is wider than it is tall, which is the only thing
@@ -220,6 +250,13 @@ private:
     void startRemote(const NearbySeat& seat, uint8_t session, bool weAreWhite);
     /** True when it is this console's turn in a remote game. */
     bool ourTurn() const;
+    /* Nothing more can be played. One definition, because there are now five
+     * ways to reach it and three places that ask. */
+    bool gameOver() const {
+        return status_ == Status::Checkmate || status_ == Status::Stalemate ||
+               status_ == Status::DrawMaterial || status_ == Status::DrawFifty ||
+               status_ == Status::Ended;
+    }
     /** What to call the opponent on screen: their name, else their tag. */
     const char* opponentLabel() const {
         return opponentName_[0] != 0 ? opponentName_ : opponent_;
@@ -283,6 +320,7 @@ private:
         uint8_t whiteToMove;
         uint8_t castle[4];
         uint8_t epSquare;
+        uint8_t halfmove;
         uint8_t status;
         uint8_t mode;
         uint8_t remoteIsWhite;
@@ -298,5 +336,5 @@ private:
         int8_t taken[2][MAX_TAKEN];
     };
     static constexpr uint16_t SAVE_MAGIC = 0xC4E5;
-    static constexpr uint8_t SAVE_VERSION = 2;
+    static constexpr uint8_t SAVE_VERSION = 3;
 };
