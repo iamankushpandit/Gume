@@ -150,6 +150,29 @@ changes what a screen shows — theme, brightness, layout, idle timeouts, mute
 out the theme hypothesis; it wants committing properly, with profile names
 deliberately left out for the same reason the SSID already is.
 
+**CI and releases build the console, not the bench probes.** `platformio.ini`
+declares twenty-one environments and seven of them are Braino!; the other
+fourteen are hardware probes — `bringup`, `batdiag`, `audiodiag`, `wifidiag`,
+`s3diag`, `diag4`, `diag32p` and their per-board copies. Every workflow was
+building all of them anyway: eighteen on a push to `main` or `dev`, eighteen
+again on the Pages deploy minutes later, and all twenty-one on a tag, where
+fourteen probe images were attached as downloads nobody had a use for.
+
+Each environment now says which it is, once, with `custom_env_kind`, and
+`tools/envs.py` is the only place a workflow, checker or packer reads it. A
+probe is built when its own source or `platformio.ini` moves and not otherwise,
+and it is still one command away when a board needs triaging: `pio run -e
+batdiag -t upload`.
+
+**Three hand-kept lists of environments went away, and they had already
+drifted.** `ci.yml` and `pages.yml` each named eighteen and neither named
+`audiodiag`, `diag32p` or `audiodiag_e32r32p`, which had been in
+`platformio.ini` for months — exactly the "an environment nobody builds is one
+that is already broken and has not been told yet" failure `pages.yml` warns
+about in its own comment. A list written into a workflow can be checked for
+typos and cannot be checked for completeness. `check_boards.py` now fails a
+workflow that runs `pio run` without asking `envs.py`.
+
 ## 5.9.1 — 2026-09-08
 
 **A hotfix. 5.9.0 was withdrawn: it broke the display on two of the seven
