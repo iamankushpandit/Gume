@@ -10,6 +10,40 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
+**Cursive** — trace joined-up handwriting, in three modes: capitals,
+lowercase, and **easy words**. Words are the point of cursive: a child who can
+draw a lone `c` still has to learn that `cat` is one movement across the page,
+so ten three-letter words come with it.
+
+The letterforms are **taken from a real cursive hand**, not invented here. The
+first attempt authored all 52 by hand as Bezier curves and it was not close —
+almost every capital came out as a print letter with rounded corners, `n` read
+as `m`, and `a` read as `or`. Cursive has real proportions and guessing control
+points for it blind does not work.
+
+They now come from *FRB American Cursive ArrowPath* by Fredrick R. Brennan,
+which is **GPLv3, the same licence as Braino** — which is the only reason it
+could be used. It is a teaching font whose glyphs are drawn as evenly spaced
+**dots along the stroke path**, and that is exactly what a tracing game needs:
+an ordinary cursive font's glyph is the *outline* of a thick stroke, so
+following it traces around the letter rather than along it. Here the dot
+centres, in the order the font stores them, are the centreline. The font itself
+is not shipped — Braino carries the geometry, not the font.
+
+Stroke order came out of the same data. Within a stroke the dots are 36 units
+apart; where the hand lifts — the dot on an `i`, the crossbar of a `t` — the
+gap jumps to between 190 and 600, so pen lifts are found by measurement rather
+than by anybody deciding where they are. One thing did have to be corrected:
+the font stores those small marks *before* the letter they belong to, which
+would ask a child to place the dot in mid-air and then hang a stem under it.
+The body now comes first.
+
+**The finger-tracing engine is now shared.** Everything Trace did — the
+waypoint resampling, the pulsing next-dot, the side columns of controls, the
+progress bar — moved to `LetterTracer`, unchanged in behaviour, before Cursive
+was written. Both games are now three facts each: which glyph table, which
+alphabets, and their own name. The alternative was copying four hundred lines.
+
 **Sea Battle** — battleships, and the second game to use the nearby
 two-player service. Play it by passing one console between two people, or
 against another console in the room.

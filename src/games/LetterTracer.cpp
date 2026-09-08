@@ -22,7 +22,6 @@ constexpr int16_t DRAW_Y = 36;
 constexpr int16_t DRAW_W = 164;
 constexpr int16_t DRAW_H = 160;
 constexpr int16_t COORD_MAX = 200;
-constexpr int16_t WAYPOINT_SPACING = 20;
 constexpr int16_t HIT_RADIUS = 16;
 constexpr uint32_t PULSE_PERIOD_MS = 500;
 
@@ -67,6 +66,36 @@ void LetterTracer::begin() {
     glyphIndex_ = setFirstIndex();
     loadGlyph();
     markFullDirty();
+}
+
+/* What the child is being asked to write, as a string.
+ *
+ * A letter set can answer from Glyph::label, which is one char and is all a
+ * letter needs. A word set cannot -- its glyphs each hold a whole word, and
+ * Glyph::label carries only the first letter -- so it supplies its own names
+ * and this reads them. Falling back to the label rather than to nothing means
+ * a set that forgets its names shows something wrong rather than nothing at
+ * all, which is easier to notice. */
+const char* LetterTracer::caption(char* buf, size_t len) const {
+    if (sets_ != nullptr && setCount_ > 0 && sets_[setIndex_].names != nullptr) {
+        const uint8_t n = static_cast<uint8_t>(glyphIndex_ - setFirstIndex());
+        if (n < sets_[setIndex_].count) {
+            return sets_[setIndex_].names[n];
+        }
+    }
+    if (glyphs_ == nullptr || len < 2) return "";
+    buf[0] = glyphs_[glyphIndex_].label;
+    buf[1] = 0;
+    return buf;
+}
+
+/* The active set's dot spacing, or the default. A word is a third of a
+ * letter's height, so the same number would put two dots on each letter and
+ * make the guide useless. */
+int16_t LetterTracer::waypointSpacing() const {
+    if (sets_ == nullptr || setCount_ == 0) return DEFAULT_SPACING;
+    const uint8_t s = sets_[setIndex_].spacing;
+    return s != 0 ? s : DEFAULT_SPACING;
 }
 
 uint8_t LetterTracer::setFirstIndex() const {
@@ -130,7 +159,8 @@ void LetterTracer::resampleWaypoints() {
         pts_[totalPts].y = scaleY(st.pts[1]);
         ++totalPts;
 
-        float distanceToNext = WAYPOINT_SPACING;
+        const int16_t spacing = waypointSpacing();
+        float distanceToNext = spacing;
         for (uint8_t i = 0; i + 1 < st.count && totalPts < MAX_POINTS; ++i) {
             const int16_t x1 = st.pts[i * 2];
             const int16_t y1 = st.pts[i * 2 + 1];
@@ -150,7 +180,7 @@ void LetterTracer::resampleWaypoints() {
                 pts_[totalPts].x = scaleX(static_cast<int16_t>(x1 + dx * ratio));
                 pts_[totalPts].y = scaleY(static_cast<int16_t>(y1 + dy * ratio));
                 ++totalPts;
-                distanceToNext = WAYPOINT_SPACING;
+                distanceToNext = spacing;
             }
             distanceToNext -= (segLen - walked);
         }
@@ -396,10 +426,15 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
     }
 
     tft.fillRect(DRAW_X - 2, DRAW_Y - 2, DRAW_W + 4, DRAW_H + 4, Ui::bg());
+    /* A faint watermark of what is being traced, behind the dots. Deliberately
+     * the panel colour on the background: it answers "what am I drawing?"
+     * without competing with the guide, which is the thing to look at. */
+    char buf[2];
+    (void)g;
     tft.setTextColor(Ui::panel(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    char label[2] = {g.label, 0};
-    tft.drawString(label, DRAW_X + DRAW_W / 2, DRAW_Y + DRAW_H / 2, 1);
+    tft.drawString(caption(buf, sizeof(buf)), DRAW_X + DRAW_W / 2,
+                   DRAW_Y + DRAW_H / 2, 1);
 
     drawGuide(tft);
     drawProgress(tft);

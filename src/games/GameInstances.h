@@ -24,6 +24,7 @@
 #include "games/PianoGame.h"
 #include "games/ChessGame.h"
 #include "games/SeaBattleGame.h"
+#include "games/CursiveGame.h"
 #include "games/PercentCircleGame.h"
 #include "games/ProfileGame.h"
 #include "games/ScoresGame.h"
@@ -79,6 +80,7 @@ struct GameInstances {
     PianoGame piano;
     ChessGame chess;
     SeaBattleGame seaBattle;
+    CursiveGame cursive;
     ProfileGame profile;
     ScoresGame scores;
     AboutGame about;

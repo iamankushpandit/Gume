@@ -452,6 +452,97 @@ def sea_battle():
     return im
 
 
+def cursive():
+    """Cursive: tracing the word 'cat', with Words the active mode.
+
+    The word rather than a letter, because Trace already contributes two
+    letter-tracing stills and joining up is what this game adds. The dots come
+    from the real table in src/games/CursiveGlyphData.cpp, so the picture
+    cannot drift from the letterforms the device draws -- the one thing a
+    hand-drawn mock-up of a generated glyph is guaranteed to get wrong.
+    Geometry matches LetterTracer: canvas at 78,36 sized 164x160, controls in
+    the side columns, and the word set's 12px dot spacing.
+    """
+    import math as _m
+    import re as _re
+    im, d = blank(); topbar(d, "Cursive")
+    for label, y, col in [["ABC", 40, PANEL], ["abc", 72, PANEL],
+                          ["Words", 104, WARN]]:
+        d.rounded_rectangle([4, y, 72, y + 26], 4, fill=col, outline=OUTLINE)
+        d.text((38 - d.textlength(label, font=F1) / 2, y + 9), label, font=F1,
+               fill=PANEL if col == WARN else TEXT)
+    for label, y in [["Again", 40], ["Next", 72]]:
+        d.rounded_rectangle([248, y, 316, y + 26], 4, fill=PANEL, outline=OUTLINE)
+        d.text((282 - d.textlength(label, font=F1) / 2, y + 9), label, font=F1,
+               fill=TEXT)
+    d.rounded_rectangle([4, 160, 72, 190], 4, fill=PANEL, outline=OUTLINE)
+    d.text((38 - d.textlength("Prev", font=F1) / 2, 170), "Prev", font=F1, fill=TEXT)
+    d.rectangle([76, 34, 242, 196], fill=SURFACE, outline=OUTLINE)
+
+    src = (ROOT / "src" / "games" / "CursiveGlyphData.cpp").read_text(encoding="utf-8")
+
+    def stroke(tag):
+        m = _re.search(r"static const int16_t %s\[\] = \{([^}]*)\}" % tag, src)
+        n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
+        return [(78 + n[i] * 164 // 200, 36 + n[i + 1] * 160 // 200)
+                for i in range(0, len(n), 2)]
+
+    def resample(pts, step):
+        out, carry = [pts[0]], 0.0
+        for a, b in zip(pts, pts[1:]):
+            seg = _m.dist(a, b)
+            if seg <= 0:
+                continue
+            pos = step - carry
+            while pos <= seg:
+                t = pos / seg
+                out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+                pos += step
+            carry = seg - (pos - step)
+        return out
+
+    # 'cat' is four strokes: c, a, the t's body, then its crossbar.
+    tags = ["W_CAT_s%d" % i for i in range(4)]
+    paths = [stroke(t) for t in tags]
+
+    # Every stroke faintly, so the word reads as a word.
+    for pts in paths:
+        d.line(pts, fill=OUTLINE, width=1)
+
+    # The first letter finished, the second part way through.
+    done = resample(paths[0], 12)
+    d.line(done, fill=SUCCESS, width=3)
+    for x, y in done:
+        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
+
+    way = resample(paths[1], 12)
+    inked = len(way) // 3
+    d.line(way[:inked + 1], fill=SUCCESS, width=3)
+    for i, (x, y) in enumerate(way):
+        if i < inked:
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
+        elif i == inked:
+            d.ellipse([x - 5, y - 5, x + 5, y + 5], fill=WARN)
+        else:
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+    hx, hy = way[0]
+    d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
+    d.text((hx - 3, hy - 4), "2", font=F1, fill=PANEL)
+
+    # Strokes not started yet, as faint dots.
+    for pts in paths[2:]:
+        for x, y in resample(pts, 12):
+            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+
+    total = sum(len(resample(p, 12)) for p in paths)
+    barW, barX, barY = 120, (W - 120) // 2, 222
+    d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
+                        outline=OUTLINE)
+    fill = int(barW * (len(done) + inked) / max(1, total))
+    d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
+    return im
+
+
 def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
@@ -2321,6 +2412,7 @@ EXTRA_SCREENS = [
     ("piano", piano, "Piano: one octave"),
     ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
     ("seabattle", sea_battle, "Sea Battle: hunting the fleet, your sea beside it"),
+    ("cursive", cursive, "Cursive: joined-up letters and easy words"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

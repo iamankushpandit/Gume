@@ -22,9 +22,9 @@ constexpr AppMetadata TRACE_METADATA = {
  * rather than end indices: an off-by-one in a boundary silently offers the
  * wrong letter, and a count that is wrong is obviously wrong. */
 constexpr LetterTracer::Set TRACE_SETS[] = {
-    {"ABC", 0, 26},
-    {"abc", 26, 26},
-    {"123", 52, 10},
+    {"ABC", 0, 26, 0},
+    {"abc", 26, 26, 0},
+    {"123", 52, 10, 0},
 };
 
 }   // namespace

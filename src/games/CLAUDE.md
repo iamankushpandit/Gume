@@ -111,6 +111,29 @@ Who can use it:
 - **Naming a peer stays admin-only.** It is a device-wide label, not a personal
   one, and it is what every screen then calls that console.
 
+## Tracing games
+
+`LetterTracer` is the finger-tracing engine: waypoint resampling, hit testing,
+the pulsing next-dot, the side columns of controls, the progress bar. Trace
+(print) and Cursive are shells over it -- a glyph table, a list of alphabets,
+and a name. Add a third tracing game the same way; do not copy the engine.
+
+- **The controls are in side columns and must stay there.** A child tracing the
+  top of a letter runs a finger off the top edge, and buttons above or below the
+  canvas sit in the natural overshoot of the gesture the game teaches.
+- **A `Set` carries its own dot spacing.** A single letter fills the canvas and
+  wants 20px; a three-letter word is a third of the height and gets two dots
+  per letter at that number. Zero means the default.
+- **A `Set` may carry `names`** when one character cannot say what is being
+  traced -- that is how the word sets caption themselves, since `Glyph::label`
+  is a single char.
+- **Cursive's letterforms are generated** by `tools/gen_cursive_glyphs.py` from
+  a GPLv3 dotted teaching font. Both `CursiveGlyphData.h` and `.cpp` are
+  generated, including the counts, which are `constexpr` because the game's
+  `Set` table is. Edit the script, never the output, and **look at
+  `docs/cursive-sheet.png`** afterwards: a malformed cursive `q` reads as a
+  perfectly good 9 until a child copies it, and nothing else will tell you.
+
 ## Shared data
 
 - `CountryData.{h,cpp}`: 195 countries: ISO2, capital, continent, difficulty tier.

@@ -212,7 +212,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 34 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 35 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -408,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,408,581 / 3,145,728 bytes,
-**76.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 75,492 / 327,680 (23.0%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,427,801 / 3,145,728 bytes,
+**77.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 76,220 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -839,7 +839,7 @@ src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPl
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           LetterTracer (the finger-tracing engine Trace and
-                          Cursive share) +
+                          Cursive share), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
@@ -854,6 +854,9 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_cursive_glyphs.py (cursive letterforms, from a
+                          GPLv3 dotted teaching font -- writes a preview sheet
+                          that MUST be looked at),
                           check_boards.py, check_catalog.py,
                           check_frame_rules.py, build_stamp.py,
                           pack_release.py, split_render.py,

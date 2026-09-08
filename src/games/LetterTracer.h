@@ -40,16 +40,38 @@ public:
     /* One selectable alphabet, and the tab that switches to it. `count` rather
      * than a last index: an off-by-one in a boundary is silent and picks the
      * wrong letter, and a count cannot be off by one without being obviously
-     * wrong. */
+     * wrong.
+     *
+     * `spacing` is how far apart the dots a child chases are, in pixels. It
+     * belongs to the set rather than to the engine because a single letter
+     * fills the canvas and wants generous spacing, while a three-letter word
+     * is a third of the height and would get two dots per letter at the same
+     * number. Zero means the default. */
     struct Set {
         const char* label;
         uint8_t first;
         uint8_t count;
+        uint8_t spacing;
+        /* What to print under the canvas for each entry in this set, when a
+         * single character is not enough to say what is being traced. Null for
+         * an alphabet -- Glyph::label already carries the letter. A word set
+         * points this at its own array of words. */
+        const char* const* names;
     };
 
-    /** Longest resampled stroke run. A queen's-worth of dots is plenty. */
-    static constexpr uint8_t MAX_POINTS = 96;
-    static constexpr uint8_t MAX_STROKES = 4;
+    /* Longest resampled run, across all of a glyph's strokes.
+     *
+     * Raised from 96 for word tracing: three letters at a tighter spacing than
+     * a single letter needs is comfortably more dots than any one letter, and
+     * running out silently truncates the last stroke -- a word whose final
+     * letter cannot be finished, with nothing on screen to say why. 128 points
+     * is 512 bytes of static RAM, which on this device is nothing; see
+     * CLAUDE.md's memory rule on trading RAM for certainty. */
+    static constexpr uint8_t MAX_POINTS = 128;
+    /* Six, for a word: three letters plus the marks on an i, j or t. A single
+     * letter never needs more than three. */
+    static constexpr uint8_t MAX_STROKES = 6;
+    static constexpr uint8_t DEFAULT_SPACING = 20;
     /** Three tabs is what the left column holds; see the layout note in .cpp. */
     static constexpr uint8_t MAX_SETS = 3;
 
@@ -80,6 +102,8 @@ private:
     void resampleWaypoints();
     int16_t scaleX(int16_t nx) const;
     int16_t scaleY(int16_t ny) const;
+    /** What is being traced, as text: the letter, or the whole word. */
+    const char* caption(char* buf, size_t len) const;
     void drawGuide(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
     void drawCompleteStatus(Ui::Renderer& tft);
@@ -89,6 +113,7 @@ private:
     void nextGlyph();
     uint8_t setFirstIndex() const;
     uint8_t setLastIndex() const;
+    int16_t waypointSpacing() const;
     void markDirty() { dirty_ = true; }
     void markFullDirty() { dirty_ = true; fullDirty_ = true; }
 

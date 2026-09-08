@@ -1,5 +1,7 @@
 #include "ui/LauncherIcons.h"
 
+#include <math.h>   // sinf(), for the Cursive icon
+
 /* Launcher tile artwork.
  *
  * These sit on saturated blue, green and red tiles that rotate per slot, so an
@@ -488,6 +490,21 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.drawRect(cx - 16, cy - 16, 32, 32, snow());
             tft.fillCircle(cx + 4, cy - 4, 3, amber());
             tft.fillCircle(cx - 8, cy + 8, 3, snow());
+            break;
+        case LauncherIcon::Cursive:
+            /* A looped script letter on a ruled line. Rule 5: Trace's icon is
+             * an upright printed A with a straight guide; this is a slanted
+             * loop, so the two read as print and joined-up rather than as the
+             * same game twice. */
+            tft.drawFastHLine(cx - 18, cy + 12, 36, snow());
+            tft.drawFastHLine(cx - 18, cy - 12, 36, ink());
+            for (int8_t i = 0; i < 22; ++i) {
+                const float t = static_cast<float>(i) / 21.0f;
+                const int16_t x = static_cast<int16_t>(cx - 12 + t * 22);
+                const int16_t y = static_cast<int16_t>(
+                    cy + 12 - 26.0f * sinf(t * 3.14159f));
+                tft.fillCircle(x, y, 2, amber());
+            }
             break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
