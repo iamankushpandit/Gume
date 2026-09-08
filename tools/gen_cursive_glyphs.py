@@ -187,6 +187,13 @@ def normalise(items):
     scale = min(span / wide, span / high) if wide and high else 1.0
     # One baseline for the group, from the group's own top edge.
     top = max(ys)
+    # Centred vertically, as a GROUP rather than glyph by glyph. Aspect is
+    # preserved, so whichever axis is not the limiting one leaves slack: a
+    # word is wide and short and only fills about half the height. Pinning it
+    # to the top edge left it visibly high in the canvas. Centring the group
+    # rather than each glyph is what keeps the baseline shared across an
+    # alphabet, which is the thing that matters when paging through one.
+    oy = MARGIN + (span - high * scale) / 2.0
 
     out = []
     for label, strokes in items:
@@ -199,13 +206,13 @@ def normalise(items):
             pts, last = [], None
             for x, y in s:
                 p = (int(round(ox + (x - left) * scale)),
-                     int(round(MARGIN + (top - y) * scale)))
+                     int(round(oy + (top - y) * scale)))
                 if last is None or math.dist(p, last) >= MIN_STEP:
                     pts.append(p)
                     last = p
             # The end of a stroke is where the pen stops; never decimate it away.
             end = (int(round(ox + (s[-1][0] - left) * scale)),
-                   int(round(MARGIN + (top - s[-1][1]) * scale)))
+                   int(round(oy + (top - s[-1][1]) * scale)))
             if not pts or pts[-1] != end:
                 pts.append(end)
             if len(pts) >= 2:
