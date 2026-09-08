@@ -24,6 +24,25 @@ not where the ink meets — an `a` is written from the top right of its oval, so
 its first dot is nowhere near its left edge. The shapes were always joined; only
 the stroke list was not.
 
+**Trace and Cursive show a direction arrow at every turn.** A small arrow
+appears just past the next point where the stroke changes direction, pointing
+where to go — the dot says *where* and the arrow says *which way*. Only one is
+shown at a time, always the next one, so it never becomes clutter.
+
+Which points count as turns is measured rather than authored: the angle between
+arriving at a waypoint and leaving it. A gentle curve bends about
+step-over-radius per dot, so at 10px spacing a 50px radius bends 11° and gets
+nothing, while the tight bottom of a cursive undercurve bends past 45° and gets
+an arrow. The first point of every stroke always gets one, because "which way
+do I set off?" is the question at that moment — in cursive a letter can begin
+by going up, down or sideways.
+
+A turn also cannot be marked within three dots of the last one. Without that a
+tight curve fired on three or four consecutive waypoints and marked "you are on
+a curve" rather than "now turn": cursive `o` produced seven arrows in eighteen
+dots. With the gap, `o` gets two and printed `A` gets exactly the three that
+matter — the start, the apex and the crossbar.
+
 **Every glyph was being drawn 22% too short, and that was the real cause of
 the flatness.** The tracer scaled x by canvas-width/200 and y by
 canvas-height/200 — two different numbers. At the old 164x160 canvas they were

@@ -65,6 +65,30 @@ constexpr int16_t BAR_Y = 220;
 constexpr int16_t DOT_R = 2;
 constexpr int16_t NEXT_R = 3;
 
+/* HOW SHARP A TURN HAS TO BE TO EARN AN ARROW.
+ *
+ * A waypoint on a gentle curve turns by roughly step/radius radians -- at 10px
+ * spacing, a 50px radius bends 11 degrees per dot and wants no arrow, while
+ * the 15px radius at the bottom of a cursive undercurve bends nearly 40. So
+ * the threshold separates "keep going round" from "now go the other way",
+ * which is exactly the distinction a child needs pointing out.
+ *
+ * Too low and a curve sprouts an arrow every few dots; too high and the sharp
+ * turn inside a cursive 'k' gets nothing. */
+constexpr float CORNER_COS = 0.70f;      // ~46 degrees
+/* And a turn cannot be marked within this many dots of the last one.
+ *
+ * Without it a tight curve fires on three or four consecutive waypoints,
+ * because each of them individually bends past the threshold. Measured on the
+ * real tables: cursive 'o' produced seven arrows in eighteen dots and print
+ * 'S' four in twenty-two, which marks "you are on a curve" rather than "now
+ * turn". With a three-dot gap the same letters get two and two, and print 'A'
+ * gets exactly the three that matter -- the start, the apex, and the
+ * crossbar. */
+constexpr uint8_t CORNER_GAP = 3;
+constexpr int16_t ARROW_LEN = 11;        // tip, measured from the waypoint
+constexpr int16_t ARROW_HALF = 4;        // half the base width
+
 Rect setTabRect(uint8_t i) {
     return Rect{COL_L_X, static_cast<int16_t>(SET_Y + i * SET_STEP), COL_W, BTN_H};
 }
@@ -188,6 +212,7 @@ void LetterTracer::loadGlyph() {
     lastPulseChange_ = millis();
     pulseState_ = false;
     resampleWaypoints();
+    arrowAt_ = nextCorner();
     markFullDirty();
 }
 
@@ -268,6 +293,80 @@ void LetterTracer::resampleWaypoints() {
         strokeLen_[s] = static_cast<uint8_t>(totalPts - strokeStart_[s]);
     }
     strokeCount_ = g.strokeCount > MAX_STROKES ? MAX_STROKES : g.strokeCount;
+    findCorners();
+}
+
+/* Which waypoints are turns.
+ *
+ * The first point of every stroke counts, always: at the start there is no
+ * previous direction to have changed from, and "which way do I set off?" is
+ * the question a child actually has at that moment -- especially in cursive,
+ * where a letter can begin by going up, down or sideways.
+ *
+ * After that it is the angle between arriving and leaving. The last point of a
+ * stroke is never a corner: there is nowhere further to go. */
+void LetterTracer::findCorners() {
+    for (bool& c : corner_) c = false;
+
+    for (uint8_t s = 0; s < strokeCount_; ++s) {
+        const uint8_t start = strokeStart_[s];
+        const uint8_t len = strokeLen_[s];
+        if (len == 0) continue;
+        corner_[start] = true;
+        uint8_t lastMarked = 0;
+
+        for (uint8_t i = 1; i + 1 < len && start + i + 1 < MAX_POINTS; ++i) {
+            if (i - lastMarked < CORNER_GAP) continue;
+            const uint8_t p = static_cast<uint8_t>(start + i);
+            const float ax = static_cast<float>(pts_[p].x - pts_[p - 1].x);
+            const float ay = static_cast<float>(pts_[p].y - pts_[p - 1].y);
+            const float bx = static_cast<float>(pts_[p + 1].x - pts_[p].x);
+            const float by = static_cast<float>(pts_[p + 1].y - pts_[p].y);
+            const float la = sqrtf(ax * ax + ay * ay);
+            const float lb = sqrtf(bx * bx + by * by);
+            if (la < 0.5f || lb < 0.5f) continue;
+            /* cos of the turn: 1 is straight on, 0 is a right angle. */
+            if ((ax * bx + ay * by) / (la * lb) < CORNER_COS) {
+                corner_[p] = true;
+                lastMarked = i;
+            }
+        }
+    }
+}
+
+uint8_t LetterTracer::nextCorner() const {
+    if (activeStroke_ >= strokeCount_) return NO_CORNER;
+    const uint8_t start = strokeStart_[activeStroke_];
+    const uint8_t len = strokeLen_[activeStroke_];
+    for (uint8_t i = nextPoint_; i + 1 < len && start + i < MAX_POINTS; ++i) {
+        if (corner_[start + i]) return static_cast<uint8_t>(start + i);
+    }
+    return NO_CORNER;
+}
+
+/* A small arrow just past the waypoint, pointing where the stroke goes next.
+ *
+ * Past it rather than on it, so it does not bury the dot the finger is aiming
+ * for -- the dot says WHERE and the arrow says WHICH WAY, and they are easier
+ * to read as two things than as one. */
+void LetterTracer::drawArrow(Ui::Renderer& tft, uint8_t index) {
+    if (index == NO_CORNER || index + 1 >= MAX_POINTS) return;
+    const float dx = static_cast<float>(pts_[index + 1].x - pts_[index].x);
+    const float dy = static_cast<float>(pts_[index + 1].y - pts_[index].y);
+    const float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.5f) return;
+    const float ux = dx / len;
+    const float uy = dy / len;
+
+    const float bx = static_cast<float>(pts_[index].x) + ux * NEXT_R;
+    const float by = static_cast<float>(pts_[index].y) + uy * NEXT_R;
+    const int16_t tipX = static_cast<int16_t>(bx + ux * ARROW_LEN);
+    const int16_t tipY = static_cast<int16_t>(by + uy * ARROW_LEN);
+    const int16_t leftX = static_cast<int16_t>(bx - uy * ARROW_HALF);
+    const int16_t leftY = static_cast<int16_t>(by + ux * ARROW_HALF);
+    const int16_t rightX = static_cast<int16_t>(bx + uy * ARROW_HALF);
+    const int16_t rightY = static_cast<int16_t>(by - ux * ARROW_HALF);
+    tft.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, Ui::warning());
 }
 
 int16_t LetterTracer::scaleX(int16_t nx) const {
@@ -335,6 +434,14 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
             if (d2 < (int32_t)HIT_RADIUS * HIT_RADIUS) {
                 ++nextPoint_;
                 markDirty();
+                /* The arrow moving is a change of shape, not an addition, so
+                 * it earns a full repaint -- the old one has to go. Corners
+                 * are a handful per glyph, so this is rare. */
+                const uint8_t corner = nextCorner();
+                if (corner != arrowAt_) {
+                    arrowAt_ = corner;
+                    markFullDirty();
+                }
 
                 if (nextPoint_ >= strokeLen_[activeStroke_]) {
                     host.beepOk();
@@ -542,6 +649,7 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         tft.fillRect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H, Ui::bg());
         drawGhost(tft);
         drawAllDots(tft);
+        drawArrow(tft, arrowAt_);
         drawProgress(tft);
         if (complete_) drawCompleteStatus(tft);
         paintedStroke_ = activeStroke_;

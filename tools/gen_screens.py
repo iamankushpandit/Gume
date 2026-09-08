@@ -532,6 +532,9 @@ def cursive():
             d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
         else:
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+    ahead = [c for c in _corners(way) if c >= inked]
+    if ahead:
+        _arrow(d, way, ahead[0])
     hx, hy = way[0]
     d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
     d.text((hx - 3, hy - 4), "1", font=F1, fill=PANEL)
@@ -697,6 +700,43 @@ def _resample(pts, step):
     return out
 
 
+def _corners(way, cos_t=0.70, gap=3):
+    """Which waypoints LetterTracer would mark as turns. Same rule, restated."""
+    import math as _m
+    out, last = [], 0
+    for i in range(len(way)):
+        hit = (i == 0)
+        if 0 < i < len(way) - 1:
+            if i - last < gap:
+                continue
+            ax, ay = way[i][0] - way[i - 1][0], way[i][1] - way[i - 1][1]
+            bx, by = way[i + 1][0] - way[i][0], way[i + 1][1] - way[i][1]
+            la, lb = _m.hypot(ax, ay), _m.hypot(bx, by)
+            hit = la >= 0.5 and lb >= 0.5 and (ax * bx + ay * by) / (la * lb) < cos_t
+        if hit:
+            out.append(i)
+            last = i
+    return out
+
+
+def _arrow(d, way, index):
+    """The direction arrow, just past a turn, pointing where the stroke goes."""
+    import math as _m
+    if index + 1 >= len(way):
+        return
+    ax, ay = way[index]
+    bx, by = way[index + 1]
+    dx, dy = bx - ax, by - ay
+    n = _m.hypot(dx, dy)
+    if n < 0.5:
+        return
+    ux, uy = dx / n, dy / n
+    bx0, by0 = ax + ux * 3, ay + uy * 3
+    d.polygon([(bx0 + ux * 11, by0 + uy * 11),
+               (bx0 - uy * 4, by0 + ux * 4),
+               (bx0 + uy * 4, by0 - ux * 4)], fill=WARN)
+
+
 def _tracer_canvas(d, paths, spacing, fraction, badge="1"):
     """The ghost, the traced part, the pulsing next dot and the rest."""
     for pts in paths:
@@ -712,6 +752,10 @@ def _tracer_canvas(d, paths, spacing, fraction, badge="1"):
             d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
         else:
             d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+    # The arrow at the next turn at or after the finger -- one at a time.
+    ahead = [c for c in _corners(way) if c >= inked]
+    if ahead:
+        _arrow(d, way, ahead[0])
     hx, hy = way[0]
     d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
     d.text((hx - 3, hy - 4), badge, font=F1, fill=PANEL)
@@ -729,7 +773,8 @@ def _tracer_canvas(d, paths, spacing, fraction, badge="1"):
 def trace():
     im, d = blank(); topbar(d, "Trace")
     _tracer_chrome(d, "A", ["ABC", "abc", "123"], 0)
-    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20, 0.55)
+    # Traced short of the apex on purpose, so the turn arrow is in shot.
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20, 0.30)
     return im
 
 

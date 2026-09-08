@@ -130,6 +130,17 @@ and a name. Add a third tracing game the same way; do not copy the engine.
 - **A `Set` may open at a random entry** (`randomStart`). Right for words and
   wrong for an alphabet: ABC is the order a child is learning, while always
   being handed the same word first makes fifty words feel like one.
+- **A glyph table declares the box it was authored in.** `configure()` takes
+  `coordW`/`coordH` and the tracer scales BOTH axes by one number, letterboxing
+  the remainder. Two scales is how every glyph came to be drawn 22% short:
+  x by canvas-width/200 and y by canvas-height/200 are only equal when the
+  canvas is square. If you author a new table, give it the canvas's shape when
+  width matters (words) and a square when it does not (single letters).
+- **Direction arrows come from the geometry, not from the data.** A waypoint is
+  a turn when the angle between arriving and leaving exceeds `CORNER_COS`, and
+  no turn is marked within `CORNER_GAP` dots of the last -- without that gap a
+  tight curve marks every dot. The arrow moving is a change of shape, so it
+  takes a full repaint; corners are a handful per glyph, so that is rare.
 - **Cursive's letterforms are generated** by `tools/gen_cursive_glyphs.py` from
   a GPLv3 dotted teaching font. Both `CursiveGlyphData.h` and `.cpp` are
   generated, including the counts, which are `constexpr` because the game's

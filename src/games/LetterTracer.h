@@ -130,6 +130,14 @@ private:
     void drawCaption(Ui::Renderer& tft);
     /** The finished shape, faintly, as the thing to aim at. */
     void drawGhost(Ui::Renderer& tft);
+    /* Work out which waypoints are turns rather than continuations. Called
+     * once per glyph, from resampleWaypoints(). */
+    void findCorners();
+    /* The next waypoint at or after the finger that is a turn, or NO_CORNER.
+     * One arrow at a time, always the one that matters next. */
+    uint8_t nextCorner() const;
+    /** A small arrow at `index`, pointing the way the stroke goes next. */
+    void drawArrow(Ui::Renderer& tft, uint8_t index);
     void drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to);
     void drawAllDots(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
@@ -157,7 +165,13 @@ private:
     uint8_t setCount_ = 0;
     uint8_t setIndex_ = 0;
 
+    static constexpr uint8_t NO_CORNER = 0xFF;
+
     Pt pts_[MAX_POINTS] = {};
+    /* Which waypoints are turns. A byte each rather than a bitfield: 128
+     * bytes of static RAM against the arithmetic and the off-by-one risk of
+     * packing it, on a device with 250KB spare. */
+    bool corner_[MAX_POINTS] = {};
     uint8_t strokeStart_[MAX_STROKES] = {};
     uint8_t strokeLen_[MAX_STROKES] = {};
     uint8_t strokeCount_ = 0;
@@ -174,6 +188,10 @@ private:
     bool dirty_ = true;
     bool fullDirty_ = true;
     bool justCompleted_ = false;
+    /* Where the arrow currently is. When it moves the picture changes shape,
+     * so that earns a full repaint -- see render(). Corners are a handful per
+     * glyph, so this is a handful of full repaints per letter. */
+    uint8_t arrowAt_ = NO_CORNER;
     /* What the panel already shows, so a partial frame can draw only what has
      * appeared since. See the note above render() in the .cpp. */
     uint8_t paintedStroke_ = 0;
