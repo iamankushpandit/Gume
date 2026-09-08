@@ -24,7 +24,20 @@ not where the ink meets — an `a` is written from the top right of its oval, so
 its first dot is nowhere near its left edge. The shapes were always joined; only
 the stroke list was not.
 
-**Fifty words, one or two for every letter of the alphabet**, shuffled rather
+**One scale for every word**, which is what stops a word looking flat. Words
+were each fitted to the canvas on their own to win back some size, and on the
+device that put `way` on screen at half the x-height of `dog` — a word with no
+ascender and no descender is wide and short, so fitting it alone blows it up
+horizontally and squashes it. Every word now shares one scale and one baseline,
+the way a handwriting workbook does. The cost is that the widest word sets the
+size for all of them, so the list is deliberately short and narrow — cursive
+letters are not equally wide, `t` is 224 font units against `m` at 841, so
+two-letter words like `be` and `we` are in there to cover their letters without
+making everything else smaller. A guard fails the build if any word exceeds the
+width cap, because one wide word shrinks the whole set and the symptom is just
+"the letters got small" with nothing to point at.
+
+**Thirty-nine words, one for every letter but q**, shuffled rather
 than alphabetical so the Words tab does not spend its first entries on `a` and
 `b`, and opening the tab lands on a random one. Four letters — b, o, v, w — end
 high, where cursive joins them from, so a word that follows one of those with a

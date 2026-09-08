@@ -453,7 +453,7 @@ def sea_battle():
 
 
 def cursive():
-    """Cursive: the word 'quiz' part traced, with the target behind it.
+    """Cursive: the word 'dog' part traced, with the target behind it.
 
     A word rather than a letter, because Trace already contributes two
     letter-tracing stills and joining up is what this game adds. The dots come
@@ -478,7 +478,7 @@ def cursive():
     d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
     d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
 
-    word = "quiz"
+    word = "dog"
     d.text((160 - d.textlength(word, font=F2) / 2, 33), word, font=F2, fill=TEXT)
 
     src = (ROOT / "src" / "games" / "CursiveGlyphData.cpp").read_text(encoding="utf-8")
@@ -508,10 +508,10 @@ def cursive():
     paths = []
     while True:
         try:
-            paths.append(stroke("W_QUIZ_s%d" % len(paths)))
+            paths.append(stroke("W_DOG_s%d" % len(paths)))
         except LookupError:
             break
-    assert paths, "W_QUIZ strokes not found in CursiveGlyphData.cpp"
+    assert paths, "W_DOG strokes not found in CursiveGlyphData.cpp"
 
     # The finished shape, faintly: the thing the child is matching.
     for pts in paths:

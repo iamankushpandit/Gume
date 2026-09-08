@@ -43,7 +43,7 @@ constexpr AppMetadata CURSIVE_METADATA = {
 constexpr LetterTracer::Set CURSIVE_SETS[] = {
     {"ABC", 0, 26, 0, nullptr, false},
     {"abc", 26, 26, 0, nullptr, false},
-    {"Words", CURSIVE_WORD_FIRST, CURSIVE_WORD_COUNT, 12, CURSIVE_WORDS, true},
+    {"Words", CURSIVE_WORD_FIRST, CURSIVE_WORD_COUNT, 10, CURSIVE_WORDS, true},
 };
 
 }   // namespace

@@ -60,45 +60,42 @@ LIFT_GAP = 80         # font units; within-stroke steps are 36
 # keeping every one of them would be flash spent on invisible detail.
 MIN_STEP = 4
 
-# One or two short words for every letter of the alphabet, so a child who
-# has just learned a letter can go and write something that starts with it.
-# All lowercase and all short: this is a handwriting exercise, not a spelling
-# test, and a five-letter word at this canvas size is already small.
+# A short word for every letter of the alphabet, and SHORT IS THE WHOLE
+# CONSTRAINT.
 #
-# These are ordinary sight words -- the same ones every handwriting workbook
-# uses, because they are the words a beginner already reads. Nothing here is
-# copied from anybody's worksheet; the artwork on those is theirs, the fact
-# that "and" is a common word is not.
+# Every word shares one scale (see normalise()), so the widest word decides how
+# big all of them are. The first list had 'way' at 1843 font units against
+# 'let' at 715, and the result on the device was exactly what you would expect
+# and what was reported: 'way' looked flat and 'dog' looked right. Per-word
+# scaling was the cause -- a word with no ascender and no descender is wide and
+# short, so fitting it to the box made its x-height half of a word that has
+# both.
 #
-# x has no easy word that starts with it, so it gets one that contains it.
+# So one scale for all of them, and then the list has to be narrow or every
+# word pays for the widest one. Cursive letters are not equally wide: t is 224
+# units and m is 841, so 'me' costs less than 'kit'. Two-letter words are
+# allowed here for that reason -- 'be', 'we', 'ox' -- because covering the
+# alphabet matters more than every entry having three letters.
+#
+# q has no short word at all: 'quiz' is 1766 units and would shrink every other
+# word by a quarter on its own. It is covered in the letter sets and left out
+# here. x has no word that starts with it either, so it gets one that contains
+# it -- 'six', because 'ox' puts a high-ending o straight into a low-starting
+# x and comes out reading as "orx".
 WORDS = [
-    'and', 'ate', 'big', 'bed', 'cat', 'cup', 'dog', 'day', 'egg', 'eat',
-    'fun', 'fig', 'got', 'get', 'hat', 'hop', 'ink', 'if', 'jam', 'jug',
-    'kid', 'key', 'log', 'let', 'mix', 'mud', 'net', 'nap', 'old', 'oat',
-    'pig', 'pen', 'quiz', 'red', 'run', 'sun', 'sit', 'top', 'ten', 'up',
-    'use', 'vet', 'wet', 'way', 'six', 'yes', 'you', 'zip', 'out', 'cut',
+    'ate', 'be', 'cat', 'dog', 'eat', 'fig', 'got', 'he', 'if', 'jet',
+    'kit', 'let', 'me', 'net', 'oat', 'pet', 'rat', 'set', 'ten', 'up',
+    'vet', 'we', 'six', 'yet', 'zoo',
+    'log', 'get', 'cut', 'out', 'old', 'egg', 'top', 'use', 'sit', 'red',
+    'wet', 'yes', 'bed', 'you',
 ]
 
-# SOME PAIRS OF LETTERS DO NOT JOIN WELL AND THE WORD LIST AVOIDS THEM.
-#
-# Four letters -- b, o, v, w -- end high, at about y=172, because that is
-# where cursive joins them from. Every other letter ends just above the
-# baseline at about y=58. So a high-ending letter followed by one that STARTS
-# at the baseline makes the connector plunge 170 units down and come straight
-# back up, and the spare loop that leaves reads as an extra letter: 'box' came
-# out as "borx", 'win' as "wrin", 'one' as "ovne".
-#
-# Real hands solve this with a different join, and this font has the alternate
-# glyphs for it (the .rlow and .fina variants), but wiring those up means
-# implementing contextual selection. Choosing words that do not need it costs
-# nothing and is honest about what is implemented. If a word is ever added
-# here, look at the sheet: the failure is obvious and only obvious there.
+# No word may be wider than this, in font units. It is a guard and not a
+# preference: one wide word silently shrinks every other word in the set, and
+# the symptom is "the letters got small" with nothing to point at. Measured
+# widths run 715 ('let') to 1377 ('you'); the cap leaves a little room.
+WORD_WIDTH_CAP = 1450
 
-# Words are emitted in a fixed shuffled order rather than alphabetically, so
-# the Words tab does not walk a b c and spend its first ten entries on 'a' and
-# 'b'. Seeded, so a rebuild produces the same table -- a build that reorders
-# its own data every time is a build whose flash figure moves for no reason.
-# The game also opens the set at a random entry; see CursiveGame.
 SHUFFLE_SEED = 20260908
 
 MAX_STROKES = 6       # LetterTracer::MAX_STROKES
@@ -419,15 +416,31 @@ def main():
     # fills the canvas. Within a set the baseline is still shared, which is
     # the part that matters when you page through an alphabet.
     #
-    # Words go further and are normalised ONE AT A TIME. As a group the scale
-    # is set by the widest word and by the ascender-plus-descender range, so
-    # 'cat' -- which has neither a descender nor much width -- rendered at
-    # about a third of the canvas. Each word filling its own box is worth more
-    # here than the words matching each other.
+    # Words share one scale too, for the same reason and more strongly. They
+    # were normalised one at a time to win back some size, and that is what put
+    # 'way' on screen at half the x-height of 'dog' -- a word with no ascender
+    # and no descender is wide and short, so fitting it to the box on its own
+    # blows it up horizontally and leaves it flat. One scale and one baseline
+    # for the whole set is what a handwriting workbook does, and it is why the
+    # word list has to stay narrow: see WORD_WIDTH_CAP.
     letters = normalise(upper) + normalise(lower)
     order = list(WORDS)
     random.Random(SHUFFLE_SEED).shuffle(order)
-    words = [normalise([(w, word_strokes(gs, cmap, w))])[0] for w in order]
+    built = [(w, word_strokes(gs, cmap, w)) for w in order]
+
+    wide = []
+    for w, strokes in built:
+        xs = [x for st in strokes for x, _ in st]
+        if xs and max(xs) - min(xs) > WORD_WIDTH_CAP:
+            wide.append((w, max(xs) - min(xs)))
+    if wide:
+        for w, n in sorted(wide, key=lambda t: -t[1]):
+            sys.stderr.write("'%s' is %d units wide, over WORD_WIDTH_CAP (%d) "
+                             "-- it would shrink every other word.\n"
+                             % (w, n, WORD_WIDTH_CAP))
+        return 1
+
+    words = normalise(built)
 
     bad = 0
     for label, strokes in letters + words:
@@ -449,6 +462,10 @@ def main():
     print('         %d letters, %d words, %d points, %d strokes max'
           % (len(letters), len(words), pts,
              max(len(ss) for _, ss in letters + words)))
+    if words:
+        widest = max(max(x for st in ss for x, _ in st) -
+                     min(x for st in ss for x, _ in st) for _, ss in words)
+        print('         widest word %d of %d box units' % (widest, COORD_MAX))
     preview(letters, words)
     print('\nLOOK AT THE PREVIEW SHEET. Green dot = stroke start; each stroke')
     print('is a different colour, in writing order.')
