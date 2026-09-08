@@ -10,6 +10,36 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
+**Sea Battle** — battleships, and the second game to use the nearby
+two-player service. Play it by passing one console between two people, or
+against another console in the room.
+
+It needed **no new wire format and no new call**, which was the point of making
+that a service rather than part of Chess: an invitation, a coin toss for who
+fires first, a numbered turn each way, and an ending. A turn says "I fire at
+square S" and "your last shot was a miss, a hit, or a hit that sank something".
+
+The grid is **eight by eight rather than the usual ten**, and that is the radio
+deciding: the service carries two six-bit values per turn, which is 0–63, which
+is exactly a square on an 8×8 board. Ten by ten would need a seventh bit and the
+advertisement is already full at 31 bytes. Eight also gives 25-pixel cells on
+the smallest panel, which is what a child's finger on a resistive screen needs.
+
+**Nothing about a fleet is ever transmitted.** Each console keeps its own ships
+and answers questions about them one square at a time — which is exactly how the
+board game works, and happens to make this the most private thing the device
+does. A win is derived on both sides by counting, so no result is sent either.
+
+Ships are placed for you, with a **Shuffle** button. Tap-to-place with a rotate
+control is four more controls and a lot of mis-taps at 25 pixels a cell, and the
+interesting half of battleships is the guessing. On one console a full-screen
+curtain between turns keeps each player's sea their own.
+
+It is **landscape only**, and that is a fit rather than a shortcut: battleships
+is two grids, and a screen wider than it is tall is the shape that holds both.
+The board takes the height and the column beside it carries a small live picture
+of your own sea, so you can watch shots land on you without changing screens.
+
 **Chess now calls a draw a draw.** Two bare kings is the position beginners
 reach constantly -- they trade everything off -- and the console did not know it
 was over. It sat saying "White to move" for a game the rules had already ended,

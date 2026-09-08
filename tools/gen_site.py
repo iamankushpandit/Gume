@@ -170,6 +170,7 @@ SCREEN_CAPTIONS = {
     "elements-quiz": "Elements: find it in the table",
     "piano": "Piano: one octave, tap a key",
     "chess": "Chess: tap a piece to see its moves",
+    "seabattle": "Sea Battle: hunt the hidden fleet",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
     "flags-capital": "Flags: capital bonus",
@@ -253,6 +254,7 @@ PLAYABLE_STILLS = {
     "elements": ("elements", "elements-card", "elements-quiz"),
     "piano": ("piano",),
     "chess": ("chess",),
+    "seabattle": ("seabattle",),
 }
 
 SYSTEM_SHOWCASE = (

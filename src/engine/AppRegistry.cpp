@@ -38,6 +38,7 @@ Game& coinFlip(GameInstances& games) { return games.coinFlip; }
 Game& elements(GameInstances& games) { return games.elements; }
 Game& piano(GameInstances& games) { return games.piano; }
 Game& chess(GameInstances& games) { return games.chess; }
+Game& seaBattle(GameInstances& games) { return games.seaBattle; }
 Game& scores(GameInstances& games) { return games.scores; }
 Game& profiles(GameInstances& games) { return games.profile; }
 Game& settings(GameInstances& games) { return games.settings; }
@@ -100,6 +101,9 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
      * raw renderer instead of the fixed 320x240 canvas. */
     metadataCatalogApp(pianoAppMetadata(), piano, true),
     metadataCatalogApp(chessAppMetadata(), chess, true),
+    /* Landscape only, so no followsLayout: two grids side by side is the shape
+     * battleships wants, and the fixed canvas upscales on a bigger panel. */
+    metadataCatalogApp(seaBattleAppMetadata(), seaBattle),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,

@@ -1,7 +1,7 @@
 # Contributing
 
 GUme is the repository behind **Braino!**, a small firmware project with a
-large code surface: 33 built-in games, 7
+large code surface: 34 built-in games, 7
 system apps, hardware drivers, generated screenshots, a web installer and CI.
 The repo includes explicit instructions and machine checks to keep that
 surface consistent. Read those instructions first; they are part of the

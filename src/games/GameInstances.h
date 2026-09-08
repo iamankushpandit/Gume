@@ -23,6 +23,7 @@
 #include "games/OddOneOutGame.h"
 #include "games/PianoGame.h"
 #include "games/ChessGame.h"
+#include "games/SeaBattleGame.h"
 #include "games/PercentCircleGame.h"
 #include "games/ProfileGame.h"
 #include "games/ScoresGame.h"
@@ -77,6 +78,7 @@ struct GameInstances {
     ElementsGame elements;
     PianoGame piano;
     ChessGame chess;
+    SeaBattleGame seaBattle;
     ProfileGame profile;
     ScoresGame scores;
     AboutGame about;

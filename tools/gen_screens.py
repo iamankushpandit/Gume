@@ -382,6 +382,76 @@ def chess():
     return im
 
 
+def sea_battle():
+    """Sea Battle: hunting the enemy fleet, with your own sea beside it.
+
+    Geometry restated from SeaBattleGame: the board takes the canvas height and
+    the panel takes the width left over. Landscape only, on the fixed 320x240
+    canvas, which is why there is no orientation branch here either.
+    """
+    im, d = blank(); topbar(d, "Sea Battle")
+    top, m, gap = 33, 3, 3
+    action_h, status_h, tally_h, label_h = 26, 24, 12, 11
+    side = (H - top - m) // 8 * 8
+    bx, by = m, top
+    cell = side // 8
+
+    px = bx + side + gap
+    pw = W - px - m
+
+    SEA, GRIDL = (30, 62, 104), (58, 96, 142)
+    MISS, HIT, SHIP = (150, 168, 190), (214, 66, 54), (120, 128, 140)
+
+    # A game part way through: some misses, some hits, one ship going down.
+    misses = {5, 9, 18, 22, 33, 41, 47, 52, 58, 61}
+    hits = {26, 27, 28, 35}
+    pending = {13}
+
+    for c in range(64):
+        col, row = c % 8, c // 8
+        x0, y0 = bx + col * cell, by + row * cell
+        d.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=SEA, outline=GRIDL)
+        cx, cy = x0 + cell // 2, y0 + cell // 2
+        if c in misses:
+            r = cell // 6
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=MISS)
+        elif c in hits:
+            r = cell // 3
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=HIT)
+        elif c in pending:
+            r = cell // 3
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=WARN)
+    d.rectangle([bx, by, bx + side - 1, by + side - 1], outline=OUTLINE)
+
+    # Our own sea, small, in the column: ships, damage, and their wasted shots.
+    ms = (pw // 8) * 8
+    mx, my = px + (pw - ms) // 2, by + label_h
+    mcell = ms // 8
+    d.text((mx, my - label_h), "Your sea", font=F1, fill=MUTED)
+    ours = {1, 2, 3, 4, 19, 27, 35, 44, 45, 58, 59}
+    incoming = {4, 19, 27, 30, 51, 58}
+    for c in range(64):
+        col, row = c % 8, c // 8
+        x0, y0 = mx + col * mcell, my + row * mcell
+        if c in ours and c in incoming:
+            fill = HIT
+        elif c in ours:
+            fill = SHIP
+        elif c in incoming:
+            fill = MISS
+        else:
+            fill = SEA
+        d.rectangle([x0, y0, x0 + mcell - 1, y0 + mcell - 1], fill=fill)
+    d.rectangle([mx, my, mx + ms - 1, my + ms - 1], outline=OUTLINE)
+
+    sy = my + ms + gap + 2
+    d.text((px, sy), "Hit!", font=F2, fill=SUCCESS)
+    d.text((px, sy + 14), "fire again", font=F1, fill=MUTED)
+    d.text((px, sy + status_h), "Hits 4/11  lost 3", font=F1, fill=MUTED)
+    button(d, (px, by + side - action_h, pw, action_h), "End game")
+    return im
+
+
 def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
@@ -2250,6 +2320,7 @@ EXTRA_SCREENS = [
     ("elements-quiz", elements_quiz, "Elements: find it in the table"),
     ("piano", piano, "Piano: one octave"),
     ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
+    ("seabattle", sea_battle, "Sea Battle: hunting the fleet, your sea beside it"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

@@ -475,6 +475,20 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.fillCircle(cx + 4, cy + 4, 7, amber());
             tft.drawCircle(cx + 4, cy + 4, 7, ink());
             break;
+        case LauncherIcon::SeaBattle:
+            /* A grid of open sea with one shot landed in it. Rule 5: the other
+             * grid icons (Tic-Tac-Toe, Memory, Sliding Puzzle, Chess) are all
+             * uniform light cells; this one is a dark field with a rule over
+             * it, so it reads as water rather than as a board. */
+            tft.fillRect(cx - 16, cy - 16, 32, 32, ink());
+            for (int8_t i = 1; i < 4; ++i) {
+                tft.drawFastHLine(cx - 16, cy - 16 + i * 8, 32, snow());
+                tft.drawFastVLine(cx - 16 + i * 8, cy - 16, 32, snow());
+            }
+            tft.drawRect(cx - 16, cy - 16, 32, 32, snow());
+            tft.fillCircle(cx + 4, cy - 4, 3, amber());
+            tft.fillCircle(cx - 8, cy + 8, 3, snow());
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

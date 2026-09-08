@@ -4,15 +4,15 @@
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
 [![Version](https://img.shields.io/badge/version-5.9.0--SNAPSHOT-9a6700)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-33-2d7d9a)](#the-games)
+[![Games](https://img.shields.io/badge/games-34-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-76.3%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-76.6%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 33-game educational console for young players, running on an **ESP32-32E
+A 34-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -29,9 +29,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 33 |
-| Flash | 2,399,233 / 3,145,728 bytes (**76.3%**) |
-| RAM | 74,900 / 327,680 bytes (**22.9%**) |
+| Games | 34 |
+| Flash | 2,408,377 / 3,145,728 bytes (**76.6%**) |
+| RAM | 75,492 / 327,680 bytes (**23.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -293,6 +293,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a child can make something rather than be tested on it, and the note names are on the keys so the naming comes for free | 3+ |
 | **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
+| **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -462,6 +463,7 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/chess.png" width="300" alt="Chess: legal moves ringed, captures beside the board">
+  <img src="docs/screens/seabattle.png" width="300" alt="Sea Battle: hunting the fleet, your sea beside it">
 </p>
 
 ### Logic, memory and attention
