@@ -97,6 +97,21 @@ void Board::begin() {
 #endif
 
     tft_.init();
+    /* Some panels come up with their colours inverted relative to the driver
+     * TFT_eSPI was built with, and this is the ONE line that fixes it.
+     *
+     * TFT_eSPI's own TFT_INVERT_COLORS macro does NOT do this job here: it is
+     * only consulted by the ST7789 and ST7735 init sequences. Build an
+     * ILI9341 driver and define it and absolutely nothing happens -- which is
+     * exactly what happened on the bench, twice, and looked like the flag
+     * being ignored rather than being inapplicable.
+     *
+     * So the profile states it and the call is made here, after init() and
+     * before anything is drawn. A board whose panel is genuinely the driver's
+     * own answers false and nothing is sent. */
+    if (BOARD.panel.invertColours) {
+        tft_.invertDisplay(true);
+    }
     tft_.setRotation(BOARD.panel.landscapeRotation);
     displayRotation_ = BOARD.panel.landscapeRotation;
     tft_.setTextWrap(false, false);

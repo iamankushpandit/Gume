@@ -74,6 +74,7 @@ inline constexpr BoardProfile BOARD = {
         /* portraitRotation     */ 0,
         /* backlightPin         */ 27,
         /* backlightActiveHigh  */ true,
+        /* invertColours        */ false,
     },
 
     /* touch: the XPT2046 rides the display's own hardware SPI bus, arbitrated

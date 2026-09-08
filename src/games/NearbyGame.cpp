@@ -198,9 +198,15 @@ void NearbyGame::rebuildRows(GameHost& host) {
             const bool justPoked = pokedId_[0] != '\0' &&
                 strncmp(pokedId_, peer.deviceId, sizeof(pokedId_)) == 0 &&
                 millis() - pokedAtMs_ < POKED_LABEL_MS;
+            /* The owner's own label, like everything else that names a
+             * console. The chip is the one place that still said the tag, and
+             * a button reading "Poke A4F2" directly under a heading reading
+             * "RAVI" invites exactly the doubt that naming was meant to
+             * remove. The tag stays visible as its own row above. */
+            const char* who = label != nullptr ? label : peer.deviceId;
             char chipLabel[RowList::LABEL_MAX];
             snprintf(chipLabel, sizeof(chipLabel), justPoked ? "Poked %s" : "Poke %s",
-                     peer.deviceId);
+                     who);
             snprintf(pokeTargets_[pokeTargetCount_], sizeof(pokeTargets_[0]), "%s",
                      peer.deviceId);
             rows_.addAction(chipLabel, static_cast<int8_t>(pokeTargetCount_));

@@ -33,19 +33,111 @@ silently diverge.
 | `0x09` Complete Local Name | `Braino-<id>` |
 | `0xFF` Manufacturer Data | see below |
 
-### Manufacturer data, layout version 3
+### Manufacturer data, layout version 4
 
 | Offset | Bytes | Field |
 |---|---|---|
 | 0 | 2 | Company id `0xFFFF`, little endian |
 | 2 | 2 | Family tag `"BR"` |
-| 4 | 1 | Layout version — `3` |
+| 4 | 1 | Layout version — `4` |
 | 5 | 2 | Device id, the two MAC bytes |
-| 7 | 1 | Flags. Bit 0 = shares Nearby activity, bit 1 = poking; the rest reserved, sent as zero |
-| 8 | 1 | *(sharing or poking)* Open game, an index into the playable app registry |
-| 9 | 4 | *(sharing, not poking)* Best score for that game, little endian |
-| 9 | 2 | *(poking only)* Poke target — the device id being poked |
-| 11 | 1 | *(poking only)* Poke nonce |
+| 7 | 1 | Flags. Bit 0 = shares Nearby activity, bit 1 = poking, bit 2 = game invitation, bit 3 = game turn; the rest reserved, sent as zero |
+| 8 | 1 | *(any flag set)* Open game, an index into the playable app registry |
+| 9 | 4 | *(sharing, no poke/invite/move)* Best score for that game, little endian |
+| 9 | 2 | *(poke or invite)* Target — the device id being poked or invited |
+| 11 | 1 | *(poke or invite)* Nonce; for an invitation, 6 bits of session id plus bit 6 = the invited console moves first |
+| 9 | 4 | *(move only)* Packed move, little endian — see below |
+
+**None of this is chess.** Bits 2 and 3 carry a *two-player game session* --
+whose invitations, turns and endings are the same shape whatever the game is,
+and the payload already says which game via the Open game byte. `NearbyPlay`
+is the service that owns this, and chess is simply its first caller. The field
+names in `BleBeacon.h` say `turn` and `session` for that reason.
+
+**Version 4 exists because a turn is the same length as a score.** A turn
+block and an activity block are both thirteen bytes, so length alone cannot
+tell them apart — only the flag can. A version-3 reader meeting a version-4
+move would decode it as a best score and cheerfully show somebody several
+million points. That is the identical failure that took version 2 to 3 when the
+poke's *shorter* block arrived, and the lesson has now been learned twice:
+**gate every field on its own length AND its own flag.**
+
+#### The packed move
+
+Thirty-two bits, little endian, in the four bytes the best score would
+otherwise occupy:
+
+| Bits | Field |
+|---|---|
+| 31–26 | Session id (6) — which game, so two boards in one room do not merge |
+| 25–19 | Ply (7) — move number, modulo 128 |
+| 18–13 | From square (6) — 0–63 |
+| 12–7 | To square (6) — 0–63 |
+| 6–0 | Ack (7) — the highest ply of *theirs* this device has applied |
+
+There is nothing else, and there is nowhere to put anything else: the sharing
+payload already uses all 31 legal bytes, so a move had to **displace** the
+score rather than follow it. While a game is running the score is structurally
+absent, exactly as it is during a poke.
+
+Ply wraps at 128. That is safe because the two sides only ever advance one ply
+at a time and each carries the other's ack, so they can never be more than a
+move or two apart.
+
+#### Why a move is a state and a poke is an event
+
+A poke stops after `POKE_ADVERTISE_MS`. A move does **not**: it stays on the
+air until the next move replaces it. That is the whole reliability story — an
+opponent may have missed three scan windows, or only just walked back into
+range, and it can pick the game up from any later window. The acknowledgement
+rides the opponent's own advertisement, so there is no separate ack message
+that could itself go missing.
+
+An *invitation*, by contrast, is an event and uses the poke's exact wire shape
+and timer. That reuse is deliberate: an invitation is the same kind of thing —
+aimed at one peer, repeated because scan windows have gaps, acted on once per
+(device id, nonce) — and sharing the layout means sharing the idempotence
+argument rather than writing a second one slightly differently.
+
+The invitation's nonce byte doubles as the session id, in its low six bits,
+with **bit 6 saying which of the two consoles moves first**. That bit is set by
+the console *sending* the invitation, from a coin toss, so that asking for a
+game is not also a way to claim the first move. It travels with the invitation
+because the alternative is a second round trip on a medium that guarantees
+nothing.
+
+#### Ending a game
+
+A turn whose `from` and `to` are **both 63** means "I am stopping" rather than
+"I moved". Not a legal move in any game that moves a thing from one place to
+another, so it is safe to reserve — and it is the service's encoding, not any
+game's, so the next two-player game cannot invent a second one.
+
+It has to be 63 and 63 specifically. A console answers an invitation by
+publishing ply 0 with `from` and `to` both **zero**, which is a presence and
+not an ending; testing `from == to` alone would confuse the two and would only
+work as long as every reader remembered to check the ply first. Games never see
+any of this — they see a flag.
+
+#### What a receiver must do with a move
+
+Four tests, all required:
+
+1. **From the peer we are playing.** Another console's game must not leak in.
+2. **In this session.** Nor an earlier game between the same two consoles.
+3. **The ply we are expecting.** An advertisement repeats; acting once is what
+   makes it a move rather than a stutter.
+4. **Legal in the receiver's own position.** This is the safety property: a
+   move is applied only if it is legal on the board the receiver already has,
+   so a confused or hostile advertiser cannot force a position that is not
+   reachable by playing the game. At worst — and only by guessing both the
+   session and the exact ply — it can play a legal move.
+
+None of the above carries a name. Consoles can be given local labels, and those
+labels are what a player sees on screen, but they are resolved on the receiving
+device from its own NVS and **never transmitted**. `BleBeacon` does not read
+them and must not be given a reason to: the advertisement is identical byte for
+byte whether every peer is named or none is.
 
 Everything from offset 8 on is present **only** when the flag that names it is
 set. With Nearby off the block is eight bytes and stops at the flag byte — the

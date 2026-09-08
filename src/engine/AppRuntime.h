@@ -16,6 +16,14 @@ public:
     void begin();
     void loop();
 
+private:
+    /* Everything needed to tell one board on the bench from another, printed
+     * at boot from the chip itself rather than from the compiled-in profile.
+     * See the comment on the definition. */
+    void logIdentity();
+
+public:
+
     Ui::Renderer& display() override;
 
     /** Reset per-paint renderer state so no screen inherits another's. */
@@ -40,6 +48,22 @@ public:
     void drawTopBar(const char* title) override;
     void goHome() override;
     void relaunchActiveGame() override;
+
+    /* Two-player games on nearby consoles. Thin: every one of these forwards
+     * to NearbyPlay, which owns the policy, which in turn asks BleScan and
+     * BleBeacon, which own the radio. The layering is the point -- an app
+     * never touches a radio and the hal never learns what a chess move is. */
+    uint8_t nearbySeatCount() override;
+    bool nearbySeatAt(uint8_t index, NearbySeat& out) override;
+    bool nearbyInvite(const char* deviceId, uint8_t session,
+                      bool& weMoveFirst) override;
+    bool nearbyInviteForUs(NearbySeat& out) override;
+    void nearbyPublish(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
+                       uint8_t ack) override;
+    void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) override;
+    void nearbyStop() override;
+    bool nearbyTurnFrom(const char* deviceId, uint8_t session,
+                        NearbyTurn& out) override;
     void openSettings() override;
     void openWifi() override;
     void openProfiles() override;

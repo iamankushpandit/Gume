@@ -52,6 +52,7 @@ inline constexpr BoardProfile BOARD = {
         /* portraitRotation     */ 0,
         /* backlightPin         */ 45,
         /* backlightActiveHigh  */ true,
+        /* invertColours        */ false,
     },
 
     /* touch: FT6336U on I2C, SHARED with the ES8311 audio codec at 0x18. The

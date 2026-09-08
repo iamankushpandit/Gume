@@ -10,6 +10,376 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.8.0 it is ahead of.
 
+**Cursive** — trace joined-up handwriting, in three modes: capitals,
+lowercase, and **easy words**. Words are the point of cursive: a child who can
+draw a lone `c` still has to learn that `cat` is one movement across the page.
+
+**A word is one unbroken stroke**, which took two attempts. The first kept one
+stroke per letter, so the game asked for a pen lift between every letter —
+print in a fancy hand, not cursive, and it was rightly called out as such. What
+made that look defensible was a bad measurement: the gap between where one
+glyph's dot run *ends* and the next one's *begins* is 185–408 font units, which
+looked like proof the letters do not touch. Those are drawing-order endpoints,
+not where the ink meets — an `a` is written from the top right of its oval, so
+its first dot is nowhere near its left edge. The shapes were always joined; only
+the stroke list was not.
+
+**The arrow moves without repainting the screen.** It was first written to
+mark the whole screen dirty whenever it moved, on the reasoning that a moving
+arrow changes the picture's shape and turns are rare. Turns are not rare: a
+three-letter joined word has about eleven of them, so tracing one word cleared
+the screen eleven times and the device visibly flashed. It now erases the
+arrow's own box and repaints the guide over it, which works because those draw
+functions are idempotent -- re-running them whole is a no-op everywhere except
+inside the box just cleared.
+
+That misjudgement is now a written rule in `CLAUDE.md`, `AGENTS.md` and
+`src/games/CLAUDE.md`, for every game and not just this one: **a full redraw is
+the exception and has to be earned.** Something appeared, draw it; something
+moved, erase its own derived box; something animating on its own clock, change
+its colour rather than its size so it never needs erasing; repaint fully only
+when the scene genuinely changed.
+
+**Trace and Cursive show a direction arrow at every turn.** A small arrow
+appears just past the next point where the stroke changes direction, pointing
+where to go — the dot says *where* and the arrow says *which way*. Only one is
+shown at a time, always the next one, so it never becomes clutter.
+
+Which points count as turns is measured rather than authored: the angle between
+arriving at a waypoint and leaving it. A gentle curve bends about
+step-over-radius per dot, so at 10px spacing a 50px radius bends 11° and gets
+nothing, while the tight bottom of a cursive undercurve bends past 45° and gets
+an arrow. The first point of every stroke always gets one, because "which way
+do I set off?" is the question at that moment — in cursive a letter can begin
+by going up, down or sideways.
+
+A turn also cannot be marked within three dots of the last one. Without that a
+tight curve fired on three or four consecutive waypoints and marked "you are on
+a curve" rather than "now turn": cursive `o` produced seven arrows in eighteen
+dots. With the gap, `o` gets two and printed `A` gets exactly the three that
+matter — the start, the apex and the crossbar.
+
+**Every glyph was being drawn 22% too short, and that was the real cause of
+the flatness.** The tracer scaled x by canvas-width/200 and y by
+canvas-height/200 — two different numbers. At the old 164x160 canvas they were
+0.82 and 0.80 and nobody noticed; widening it to 200x156 made them 1.00 and
+0.78, so every letter and word was squashed. A short word like `six` has no
+ascender and no descender, so the squash was all there was to see and no amount
+of choosing better words would have fixed it.
+
+There is now one scale for both axes, and a glyph table declares the box it was
+authored in so the tracer can letterbox rather than stretch. Trace's letters
+are authored square and get margins; Cursive's are authored to the canvas's own
+shape, so a joined word gets the full width. **The preview sheet's cells are at
+the panel's aspect too** — they were square, which is precisely why the sheet
+said the words were fine while the device disagreed. A preview that does not
+share the target's proportions is not a preview.
+
+**One scale for every word**, which also matters. Words
+were each fitted to the canvas on their own to win back some size, and on the
+device that put `way` on screen at half the x-height of `dog` — a word with no
+ascender and no descender is wide and short, so fitting it alone blows it up
+horizontally and squashes it. Every word now shares one scale and one baseline,
+the way a handwriting workbook does. The cost is that the widest word sets the
+size for all of them, so the list is deliberately short and narrow — cursive
+letters are not equally wide, `t` is 224 font units against `m` at 841, so
+two-letter words like `be` and `we` are in there to cover their letters without
+making everything else smaller. A guard fails the build if any word exceeds the
+width cap, because one wide word shrinks the whole set and the symptom is just
+"the letters got small" with nothing to point at.
+
+**Forty-eight words, two for every letter**, taken from the practice sheets
+the maintainer supplied — 166 of them across 24 pages, the ordinary Dolch sight
+words. Two filters cut that to 48 and both are worth stating.
+
+*Width*, which is arithmetic. Every word shares one scale so the widest sets
+the size for all, and the touch radius is 16px, so below about a 25px x-height
+the waypoints sit closer together than a finger can distinguish. That caps a
+word at 1900 font units and keeps 84 of the 166 — everything dropped is five
+letters or more (`always`, `elephant`, `kangaroo`, `umbrella`). Supporting
+those wants a canvas that scrolls under the finger so word length stops
+mattering, which is a feature and not a constant.
+
+Within a letter the *shortest* words win, not the sheets' own order — that is
+arbitrary, and taking the first two that fit under `d` gave `do` and `done`
+while dropping `dog`. A three-letter word a child already reads beats a
+four-letter one they do not, and it is cheaper in flash too, so both things
+this filter cares about agree.
+
+*Budget*, because a word costs about 230 bytes of flash and more apps are
+coming. All 84 would be ~19KB on a partition already three quarters full, and
+no child works through 84 words — past the first couple per letter the extra
+ones buy variety rather than learning. Two per letter covers the alphabet for
+about 11KB. The full 166 stay in the generator so the choice can be re-run if
+the budget ever loosens.
+
+Words are shuffled rather than alphabetical so the Words tab does not spend its first entries on `a` and
+`b`, and opening the tab lands on a random one. Four letters — b, o, v, w — end
+high, where cursive joins them from, so a word that follows one of those with a
+letter starting on the baseline leaves a spare loop that reads as an extra
+letter: `box` came out as "borx" and `one` as "ovne". The font has alternate
+glyphs for that join; wiring up contextual selection is not implemented, so the
+word list avoids the pairs that need it.
+
+**The tracing screen was rebuilt around the letter**, after seeing it on the
+device. The control columns went from 68px to 52px and their buttons from 26px
+to 22px, which grows the canvas from 164x160 to 200x156 — a fifth more area,
+most of it in the direction a joined word needs. The word or letter is now
+**printed in ordinary type above the canvas**: there was only a font-1
+watermark behind the dots before, illegible at word size, so a child tracing
+`quiz` had no way to read what the word was. The dots shrank from radius 3 to
+2, because at the word set's 12px spacing the old ones merged the letters into
+a chain of blobs. And **the finished shape is drawn faintly underneath** — the
+thing a child is matching, the way a handwriting workbook prints a grey letter.
+
+**It also stopped repainting the whole canvas to move one dot.** Every dirty
+frame used to wipe 200x156 pixels and redraw the ghost, every dot and the
+badge — and the pulsing next-dot made that happen twice a second whether or not
+anybody was tracing. What actually changes is additive: a dot goes green, a
+short line appears, the next dot changes colour. So a partial frame overdraws
+those and the progress bar and touches nothing else. That is also why the pulse
+now changes colour instead of size: a dot that never grows never has to be
+erased. Full repaints are kept for the events that change the picture's shape —
+a new glyph, a new alphabet, a stroke finishing, completion.
+
+**Scoring counts practice and never ends.** Every letter and every word finished
+adds one, for as long as a child keeps going. A count rather than a best,
+because there is nothing to win here and nothing to lose — inventing a win
+condition would turn handwriting practice into a test. It is written through on
+every completion, so a console taken away mid-session keeps what was done.
+
+The letterforms are **taken from a real cursive hand**, not invented here. The
+first attempt authored all 52 by hand as Bezier curves and it was not close —
+almost every capital came out as a print letter with rounded corners, `n` read
+as `m`, and `a` read as `or`. Cursive has real proportions and guessing control
+points for it blind does not work.
+
+They now come from *FRB American Cursive ArrowPath* by Fredrick R. Brennan,
+which is **GPLv3, the same licence as Braino** — which is the only reason it
+could be used. It is a teaching font whose glyphs are drawn as evenly spaced
+**dots along the stroke path**, and that is exactly what a tracing game needs:
+an ordinary cursive font's glyph is the *outline* of a thick stroke, so
+following it traces around the letter rather than along it. Here the dot
+centres, in the order the font stores them, are the centreline. The font itself
+is not shipped — Braino carries the geometry, not the font.
+
+Stroke order came out of the same data. Within a stroke the dots are 36 units
+apart; where the hand lifts — the dot on an `i`, the crossbar of a `t` — the
+gap jumps to between 190 and 600, so pen lifts are found by measurement rather
+than by anybody deciding where they are. One thing did have to be corrected:
+the font stores those small marks *before* the letter they belong to, which
+would ask a child to place the dot in mid-air and then hang a stem under it.
+The body now comes first.
+
+**The finger-tracing engine is now shared.** Everything Trace did — the
+waypoint resampling, the pulsing next-dot, the side columns of controls, the
+progress bar — moved to `LetterTracer`, unchanged in behaviour, before Cursive
+was written. Both games are now three facts each: which glyph table, which
+alphabets, and their own name. The alternative was copying four hundred lines.
+
+**Sea Battle** — battleships, and the second game to use the nearby
+two-player service. Play it by passing one console between two people, or
+against another console in the room.
+
+It needed **no new wire format and no new call**, which was the point of making
+that a service rather than part of Chess: an invitation, a coin toss for who
+fires first, a numbered turn each way, and an ending. A turn says "I fire at
+square S" and "your last shot was a miss, a hit, or a hit that sank something".
+
+The grid is **eight by eight rather than the usual ten**, and that is the radio
+deciding: the service carries two six-bit values per turn, which is 0–63, which
+is exactly a square on an 8×8 board. Ten by ten would need a seventh bit and the
+advertisement is already full at 31 bytes. Eight also gives 25-pixel cells on
+the smallest panel, which is what a child's finger on a resistive screen needs.
+
+**Nothing about a fleet is ever transmitted.** Each console keeps its own ships
+and answers questions about them one square at a time — which is exactly how the
+board game works, and happens to make this the most private thing the device
+does. A win is derived on both sides by counting, so no result is sent either.
+
+Ships are placed for you, with a **Shuffle** button. Tap-to-place with a rotate
+control is four more controls and a lot of mis-taps at 25 pixels a cell, and the
+interesting half of battleships is the guessing. On one console a full-screen
+curtain between turns keeps each player's sea their own.
+
+It is **landscape only**, and that is a fit rather than a shortcut: battleships
+is two grids, and a screen wider than it is tall is the shape that holds both.
+The board takes the height and the column beside it carries a small live picture
+of your own sea, so you can watch shots land on you without changing screens.
+
+**Chess now calls a draw a draw.** Two bare kings is the position beginners
+reach constantly -- they trade everything off -- and the console did not know it
+was over. It sat saying "White to move" for a game the rules had already ended,
+and the only way out was End game, which then reported "no result" for what
+chess calls a draw. A child learning the game would have taken that as the
+truth, which is the worst kind of defect this console can carry.
+
+Both draws that can be decided by counting are now detected and named:
+**too few pieces** (king against king, king and one minor piece against a bare
+king, or one bishop each on same-shaded squares) and **fifty moves with no
+capture and no pawn moved**. Stalemate now reads "Draw / stalemate" rather than
+burying the word. Every one of them says *why*: "Draw" on its own teaches
+nothing, and the reason is the whole lesson of the endgame they have just
+reached.
+
+Threefold repetition is **not** detected -- it needs a history of positions
+rather than a counter, and it is the rarest of the three for beginners. A game
+that repeats forever can still be stopped with End game.
+
+A game somebody stopped is still called "Game ended", never a draw. Those are
+different things and blurring them would teach the wrong lesson in the other
+direction.
+
+**The captured pieces are easier to tell apart.** Both strips used the same
+background, which on a photographed 4-inch panel made White's losses and
+Black's losses nearly indistinguishable -- defeating the point of showing them
+separately. Each strip is now backed by the shade its pieces are not, borrowing
+the board's own two square colours.
+
+**A third 2.8-inch CYD variant is supported, and this one is verified on
+hardware.** Flash `app_esp32_2432s028_inv` if your board draws everything
+perfectly with every colour wrong. The 2.8-inch "cheap yellow display" ships
+with at least three combinations of panel and backlight behind the same
+silkscreen and they are not distinguishable by eye; this one wants the ILI9341
+sequence with a runtime inversion and its backlight on GPIO21. Every
+combination was flashed onto one board and the screen looked at, which is the
+only way any of it could have been established.
+
+The existing ST7789 profile was deliberately **left alone**. It has never been
+verified on hardware and overwriting it with measurements from a different
+board would have been the same mistake in reverse.
+
+**The boot log now says what the board is, from the chip rather than the
+build.** Four boards on one desk, COM numbers that Windows reshuffles on every
+replug, and a banner that only carried the board *name* — which is compiled in,
+so it reports which firmware is on the chip and not which panel is under it.
+Between them those cost most of a session: a 2.8-inch board reported itself as
+a 4-inch quite happily, and a board nobody had seen before was identified from
+an image that had been put on it half an hour earlier.
+
+It now prints the MAC (burned into eFuse, unique per chip, and the only
+identifier that survives being flashed with the wrong image), the chip model
+and revision, the real flash and PSRAM sizes, the panel driver this binary was
+*built* with, its size, rotation and backlight pin, the display controller's
+own ID register where MISO is wired back to read it, and the touch controller
+with its pins. "Which board is this?" is now a paste rather than an afternoon.
+
+**Also fixed: `identify_boards.py` truncated board names at whitespace.** A
+board called `ESP32-2432S028Rv3 (ST7789)` read back as `ESP32-2432S028Rv3` and
+the tool then reported a mismatch against its own registry. Board names are
+single tokens now and `BoardProfile.h` says why.
+
+**Playing another console nearby is a service, not a chess feature.** The
+invitations, the turns, who moves first and either side stopping are all stated
+in terms every two-player game shares, and the transport is named for turns and
+sessions rather than for chess. Backgammon will not need a byte of new wire
+format. Two questions are settled once, in the service, so that the next game
+cannot settle them differently: **who moves first is a coin toss**, made by the
+console being asked to decide rather than by the one doing the asking, and
+carried on the invitation so there is nothing to negotiate; and **"I am
+stopping"** is a reserved turn the service owns, which games see as a flag.
+
+**Consoles you have named are called by their name.** Give a console a label in
+the Nearby app and it is what every screen calls it -- the poke, the arrival
+banner, the chess lobby, the status line while you wait for their move. The
+label is resolved on this device from its own storage and is still never
+transmitted; the advertisement is identical byte for byte whether every peer is
+named or none is.
+
+**Games without a score are no longer invisible to the room.** Which game a
+console has open and what its best score is are two facts, and the beacon was
+treating them as one: an app with no score -- Chess, Piano, Dice, Trace --
+advertised no game at all, so a peer playing one showed as "Choosing a game".
+The game index now goes out whenever there is a game, with a zero score when
+there is nothing to be best at. An invitation also states its own game rather
+than inheriting whatever the activity block was advertising, which is what
+turned "RAVI wants to play Chess" into "RAVI wants to play".
+
+**An invitation now reaches you wherever you are.** It raises a banner and
+makes a noise, exactly as a poke does, saying who wants to play and which game.
+Before this an invitation only appeared if the other player happened to be
+sitting in that game's lobby already, which made a two-player game close to
+impossible to start. The game is named from what the peer advertises, so this
+works for the next two-player game without a line of new code.
+
+**Fixed: a peer's moves were recorded exactly once, ever.** The peer table
+copied session traffic across inside the branch that handles a console *first
+coming into range*, so the first sighting was recorded and every move after it
+was dropped. Nothing complained: the scanner saw the moves and the payload
+decoded correctly. Together with the handshake defect below, nearby play could
+not have worked at all.
+
+**Two consoles can play the same game of chess.** Open Chess and the first
+screen now asks how: pass the device, or play someone in the room. The moves
+ride the beacon that is already there -- the same opt-in switch, still
+non-connectable, still not a new outbound flow. What goes on air is a session
+number, a move number, two square numbers and an acknowledgement: thirty-two
+bits, in the four bytes the best score was using, because the advertisement is
+already exactly 31 bytes and a move had to displace something rather than
+follow it. No name, no profile and no score travels with a move, and that is
+structural rather than careful -- the surface a game is given is move-shaped,
+so a game could not put arbitrary bytes on the air if it wanted to. It is a
+**broadcast**: everyone in range hears the moves, and only the two playing act
+on them. Every move received is checked for legality on the receiver's own
+board and discarded unless it is legal there, so a confused or hostile
+advertiser cannot force a position that is not reachable by playing chess.
+
+**Chess remembers the game.** The board is written to NVS after every move and
+again on the way out, so pressing Lock, going Home or running the battery flat
+brings the same position back. This was the wrong way round before: children
+put the device down constantly, and a game that evaporated because somebody
+pressed a button is a game they stop starting. A remote game is saved too,
+session and all -- the moves are advertised state rather than messages, so the
+opponent's board is still on the air when you come back and there is nothing to
+re-sync. Guest keeps no game, for the same reason Guest keeps no scores.
+
+**Chess has an End game button, which is also how you reset one.** Once a board
+survives leaving the screen, walking away stops being a way to abandon a game
+nobody can finish -- so there is now a way to say so. It asks twice, relabelling
+itself rather than opening a dialog, and once the game is over the same button
+offers a new one. In a remote game the declaration reaches the opponent on the
+move field with `from` equal to `to`, which is never a legal move and therefore
+cannot be confused with one; it costs no extra bytes on a payload with none to
+spare. It is tested before the whose-turn check, because a player gives up when
+they are stuck, which is usually while they are waiting for you.
+
+**Chess uses the whole screen in landscape.** The board was square, sized from
+the shorter axis, and left two empty gutters either side of it on a landscape
+panel. It is now sized from the full height -- 200px instead of 176 on a
+320x240 console -- and the column that buys carries the pieces each side has
+lost, the status and the button. In portrait the same four rectangles become a
+band underneath. **Captured pieces are shown for both sides**, as silhouettes
+rather than letters, in the order they were taken.
+
+**Fixed: a remote game could never start.** The console accepting an invitation
+publishes ply 0 as its answer -- there is no separate acceptance message,
+because a separate message is one that can go missing -- but the publish was
+gated on having already made a move, and the acceptor plays Black. So the
+inviter waited forever for an answer the acceptor was never going to send.
+
+**Fixed: the piano's tone broke up while a key was held.** Two causes, both
+real. A resistive panel loses contact mid-press as a matter of course, which
+the runtime reports as a release; the note was dropped and restarted a few
+milliseconds later, several times a second. The lock screen already allowed for
+exactly this and the piano now uses the same grace period. Separately, holding a
+key re-arms the note before the last one runs out, and the synthesiser was
+snapping the oscillator phase back to zero at that seam -- a step in the
+waveform, which is a click. `arm()` now recognises the same script arriving
+again while it is still sounding and carries the phase across.
+
+**Fixed: sounds were cut off by the repaint that followed them.** Audio
+generation has moved from the frame loop to its own task. The old arrangement
+argued that the DMA is far deeper than a frame -- 96ms against a 20ms budget --
+which is true of a typical frame and false of the one that matters: a launcher
+page turn repaints the whole screen, and on the 4-inch panel that is comfortably
+longer than the buffer it has to outlast. So the cue was armed, the DMA filled,
+and the buffer ran dry in the middle of the repaint. This is what Previous and
+Next sounded like, and it was reported twice. Deepening the buffer would only
+have moved the threshold; the worst frame is not bounded by anything. A task
+is, and it refills *during* the repaint. It runs above the loop task on the
+same core so that it can preempt one, generates under a mutex and blocks
+outside it, so `playSound()` never waits on the DMA.
+
 ## 5.8.0 — 2026-09-07
 
 **Piano and Chess** — the first two apps here that are not drills, and the

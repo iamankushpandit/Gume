@@ -68,6 +68,7 @@ void PianoGame::begin(AppContext& host) {
     lit_ = NO_KEY;
     drawnLit_ = NO_KEY;
     litSinceMs_ = 0;
+    lastContactMs_ = 0;
     markFullDirty();
 }
 
@@ -128,34 +129,43 @@ Sound PianoGame::soundFor(uint8_t key) const {
 
 void PianoGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
+    if (touch.down) lastContactMs_ = now;
 
     if (touch.justPressed) {
         const uint8_t key = keyAt(host, touch.x, touch.y);
-        if (key != NO_KEY) {
+        /* A press edge on the key already sounding is contact coming back
+         * after a dropout, not a new strike -- see CONTACT_GRACE_MS. Letting
+         * it fall through would re-arm the note from the start, which is the
+         * click this is here to remove. */
+        if (key != NO_KEY && key != held_) {
             held_ = key;
             lit_ = key;
             litSinceMs_ = now;
             lastArmMs_ = now;
             host.playSound(soundFor(key));
             markDirty();
+        } else if (key == NO_KEY) {
+            held_ = NO_KEY;
         }
         return;
     }
 
-    if (touch.justReleased) {
+    /* Letting go, once the panel has been quiet for long enough to believe it.
+     * justReleased on its own is not evidence: it fires on every dropout. The
+     * light is not released with the finger either -- it runs out on its own
+     * timer below, so a quick tap still shows which key was struck. */
+    if (held_ != NO_KEY && !touch.down &&
+        now - lastContactMs_ >= CONTACT_GRACE_MS) {
         held_ = NO_KEY;
-        /* The light is not released with the finger: it runs out on its own
-         * timer below, so a quick tap still shows which key was struck. */
-        return;
     }
 
     /* Held keys keep sounding. A cue runs for SOUND_NOTE_MS and then stops,
      * so a finger resting on a key went quiet while it was still pressed --
      * which is not what a piano does. Re-arming slightly before the note ends
-     * leaves no audible gap: the tone has constant amplitude and the
-     * synthesiser slews gain over a few milliseconds, so the seam does not
-     * click. It is a re-trigger rather than true sustain, which the
-     * synthesiser has no notion of. */
+     * leaves no audible gap, and arm() recognises the repeat and carries the
+     * oscillator phase across the seam rather than snapping it back to zero,
+     * so there is no click either. It is a re-trigger rather than true
+     * sustain, which the synthesiser has no notion of. */
     if (held_ != NO_KEY && now - lastArmMs_ >= SOUND_NOTE_MS - 40) {
         lastArmMs_ = now;
         litSinceMs_ = now;

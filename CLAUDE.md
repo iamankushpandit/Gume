@@ -212,7 +212,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 33 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 35 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -408,9 +408,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,390,053 / 3,145,728 bytes,
-**76.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 74,492 / 327,680 (22.2%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,439,425 / 3,145,728 bytes,
+**77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 76,508 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -532,7 +532,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
-| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, header notifications, the sharing switch |
+| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, header notifications, the sharing switch, and the two-player session service |
 
 ### Invariants worth knowing before editing
 
@@ -601,6 +601,51 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   re-derives that gate every frame rather than trusting an ordering contract with
   Settings, so turning the radio off takes the feature with it. What it shares is
   a game index and a best score, never a name or anything profile-scoped.
+- **Two-player-over-the-air is a SERVICE, not a chess feature.** `NearbyPlay`
+  plus `AppContext`'s nearby calls are stated in the terms every two-player
+  game shares -- who is in the room, who offered whom a game, which of the two
+  moves first, one numbered turn at a time, and either side stopping. Nothing
+  in it knows what a move means, and the wire layer is named `turn`/`session`
+  rather than `chess` for exactly that reason. Two questions are answered
+  **once, here**, so the next game cannot answer them differently: **who moves
+  first** is a coin toss inside `nearbyInvite()` -- the console that asks for a
+  game must not also claim the first move -- and **"I am stopping"** is a
+  reserved turn encoding the service owns, surfaced to games as
+  `NearbyTurn::ended`. If a future game needs something this cannot say, widen
+  it here rather than reaching past it into `BleBeacon`.
+- **Peer labels are a display concern that travels one way.** `NearbySeat`
+  carries the owner's own name for a console beside the tag it advertises, and
+  every notification goes through `NearbyPlay`'s `displayName()`, so naming a
+  peer changes what the whole device calls it rather than what one screen does.
+  The direction is the invariant: names are read from local NVS towards the
+  screen and there is no path back to the radio. `BleBeacon` does not read them
+  and must never be given a reason to -- the advertisement is identical byte
+  for byte whether every peer is named or none is.
+- **Two consoles can play each other, and the moves ride the same beacon.**
+  Agreed with the maintainer before the code existed, which is the rule for a
+  change to what the device transmits. It is not a new outbound flow: it is the
+  existing opt-in beacon, gated on the same two switches, still
+  non-connectable. What goes on air is a session number, a move number, two
+  square numbers and an ack -- thirty-two bits, in the four bytes the score was
+  using, because the payload is already exactly 31 bytes and a move had to
+  displace something. **No name, no profile, no label, no score travels with a
+  move**, and that is structural: `AppContext`'s nearby surface is move-shaped,
+  so a game cannot put arbitrary bytes on the air even if it wanted to. Every
+  received move is checked for legality in the receiver's own position, which
+  is what stops a hostile advertiser corrupting a board. It is a BROADCAST --
+  everyone in range hears the moves, only the two playing act on them -- and
+  the docs must keep saying so. **Ending a game rides the move field with
+  `from == to`**, which is never a legal move and so cannot be confused with
+  one; it adds no bytes to a payload that has none to spare, and it is tested
+  before the whose-turn check because a player gives up while they are waiting.
+- **A game that persists needs a way to be abandoned.** Chess writes its board
+  to NVS after every move and on the way out, which is right -- children put the
+  device down constantly and a game that evaporated is a game they stop
+  starting. But it retires the oldest exit there was: before this, walking away
+  ended a game nobody could finish, and now walking away brings it straight
+  back. So End game is not a nicety bolted on beside persistence, it is the
+  other half of it. The same applies to anything else here that learns to
+  remember an unfinished state.
 - **Local peer names never reach the radio, and that is structural.**
   `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
   one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never
@@ -654,11 +699,22 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   that reason. Adding a cue is adding a word to a language: do it when a game
   has something genuinely new to say, not when an existing cue is nearly right.
 - **A cue is armed, never played.** `playSound()` copies a script and returns
-  in microseconds; `Board::tickAudio()`, called once per frame beside
-  `tickRgb()`, generates only as many samples as the I2S DMA will take without
-  blocking. Never write a blocking `i2s_write` on a render path -- a 300ms note
-  is fifteen frame budgets and `Watchdog` will log the stall. `src/s3_diag.cpp`
+  in microseconds; a dedicated task, `braino-audio`, generates the samples.
+  Never write a blocking `i2s_write` on a render path -- a 300ms note is
+  fifteen frame budgets and `Watchdog` will log the stall. `src/s3_diag.cpp`
   does block, correctly, because a bring-up probe has no frame budget.
+- **Audio generation is on a task because a frame is not a deadline it can
+  meet.** It used to run from `tickAudio()` in the loop, on the argument that
+  the DMA holds 96ms against a 20ms budget. That holds for a typical frame and
+  fails for the one that matters: a launcher page turn repaints the whole
+  screen, which on the 4-inch panel outlasts the buffer, so the cue armed just
+  before it was cut off mid-sound. A deeper buffer only moves the threshold --
+  the worst frame is bounded by nothing. The task runs above the loop on the
+  same core so it preempts the repaint, generates under `audioLock` and blocks
+  *outside* it, so `playSound()` never waits on the DMA. This is the same move
+  the responsiveness rule already prescribes for the battery gauge and the
+  watchdog: **work whose deadline is not the frame's does not belong on the
+  frame.**
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## Adding a game or an app â€” the whole checklist
@@ -747,6 +803,44 @@ which is why `Game` carries two levels of invalidation:
 
 - `markDirty()` â€” content changed; repaint moving parts only.
 - `markFullDirty()` â€” layout changed; repaint background/chrome too.
+
+**A FULL REDRAW IS THE EXCEPTION, IN EVERY GAME. Earn it.**
+
+`markFullDirty()` clears the screen and repaints the chrome: ~150KB over SPI
+and roughly 30ms of visible blanking, which is one and a half frame budgets.
+Doing it to change a few pixels is not a lost optimisation, it is a **visible
+flash** in the player's hand, and on a screen that updates often it is the
+first thing anybody notices.
+
+Before reaching for it, ask what actually changed on the panel:
+
+- **Something appeared?** Draw it. Nothing needs erasing, so nothing needs
+  clearing: overdraw it and touch nothing else.
+- **Something moved?** Erase its own box and repaint the guide over that box.
+  Derive the box from the geometry that drew the thing; never type in a
+  rectangle. Drawing functions that paint exactly what is already there in the
+  same colours are **idempotent**, so re-running one whole is visually a no-op
+  outside the box you cleared, which is usually cheaper and always simpler than
+  working out precisely which pieces overlapped.
+- **Something animating on its own clock?** Make it change colour rather than
+  size. A marker that never grows never has to be erased, which is what keeps
+  the incremental path available at all.
+- **The scene genuinely changed** (a new question, a new letter, a new screen,
+  an end-of-game banner)? *Then* repaint fully. A stable picture is worth the
+  frame it costs when the whole picture is new.
+
+This is not theoretical. `LetterTracer`'s direction arrow was first written to
+`markFullDirty()` whenever it moved, on the reasoning that a moving arrow
+changes the picture's shape and turns are rare. Turns are not rare: a
+three-letter joined word has about eleven, so tracing one word cleared the
+screen eleven times, and it was reported from the device as the screen
+flashing. The fix was fifteen lines (erase the arrow's own box, repaint the
+ghost and the dots over it) and the reasoning that produced the bug was a guess
+about frequency that was never checked.
+
+The same rule holds for the top bar: route clock, battery and notification
+changes through `requestChromeRender()`, not `requestRender()`.
+
 - `render()` should guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally.
 
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
@@ -782,6 +876,8 @@ src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPl
                           AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
+                          LetterTracer (the finger-tracing engine Trace and
+                          Cursive share), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
@@ -796,6 +892,9 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_cursive_glyphs.py (cursive letterforms, from a
+                          GPLv3 dotted teaching font -- writes a preview sheet
+                          that MUST be looked at),
                           check_boards.py, check_catalog.py,
                           check_frame_rules.py, build_stamp.py,
                           pack_release.py, split_render.py,
@@ -936,6 +1035,23 @@ rather than trusting generic ESP32 pinouts online, and never copy a pin map
 between CYD variants: GPIO34 is battery sense here and the light sensor on the
 ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 
+- **A panel can be colour-inverted, and TFT_eSPI's macro will not fix it.**
+  A CYD panel can invert every channel relative to the driver it is built
+  with: the board comes up with backlight, touch, layout and a clean serial
+  log, and only the colours are wrong, which reads as a theme bug. `TFT_INVERT_COLORS` is consulted **only** by TFT_eSPI's ST7789 and
+  ST7735 init paths, so defining it on an ILI9341 build does nothing at all --
+  that was tried on the bench and looked like the flag being ignored. The fix
+  is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
+  `invertDisplay()` after `init()` and before anything is drawn.
+- **The boot log states what the board IS, from the chip rather than the
+  build.** `[boot] mac=...` is burned into eFuse and is the only identifier
+  that survives being flashed with the wrong image -- which is exactly how a
+  2.8-inch board reported itself as a 4-inch for half an hour. `board=` and
+  `panel=` are compiled in and therefore describe the firmware, not the
+  hardware; `id=` is read back off the controller and is the one line that can
+  contradict the profile, though it answers zeroes on any board whose MISO is
+  not wired back. Keep all four: between them they turn "which board is this?"
+  into a paste rather than an afternoon.
 - **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
   (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the

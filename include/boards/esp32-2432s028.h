@@ -31,11 +31,18 @@
  * cross-checks the two descriptions against each other so they cannot drift.
  */
 inline constexpr BoardProfile BOARD = {
-    "ESP32-2432S028Rv3 (ST7789)",
+    "ESP32-2432S028Rv3-ST7789",
 
     /* panel: 1 is landscape with the USB edge at the bottom (rotation 1).
      * 2 is the quarter-turn from it (portrait). Board::pollTouch()
-     * compensates for every rotation, so don't hand-correct in game code. */
+     * compensates for every rotation, so don't hand-correct in game code.
+     *
+     * STILL UNVERIFIED ON HARDWARE, and kept that way deliberately. A
+     * dual-USB board on this desk turned out to want the ILI9341 sequence
+     * with a runtime inversion and its backlight on IO21 -- see
+     * esp32-2432s028-inv.h. That is a DIFFERENT variant, not a correction to
+     * this one, and folding the two together is how a board nobody owns ends
+     * up describing a board somebody does. */
     PanelProfile{
         /* nativeWidth          */ 240,
         /* nativeHeight         */ 320,
@@ -43,6 +50,7 @@ inline constexpr BoardProfile BOARD = {
         /* portraitRotation     */ 2,
         /* backlightPin         */ 27,
         /* backlightActiveHigh  */ true,
+        /* invertColours        */ false,
     },
 
     /* touch: a bus of its own, bit-banged rather than using a second

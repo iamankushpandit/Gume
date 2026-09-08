@@ -53,6 +53,13 @@ struct PanelProfile {
     uint8_t portraitRotation;     // the quarter-turn from that
     int8_t  backlightPin;         // must equal TFT_BL; see BoardConfig.h
     bool    backlightActiveHigh;
+    /* True when the panel's colours come out inverted under the driver this
+     * board is built with. A hardware fact about the glass, not a preference:
+     * an ILI9341 build on an ST7789-style panel draws everything perfectly
+     * with every channel flipped, which reads as a theme bug rather than as a
+     * wrong driver. Board::begin() acts on it -- TFT_eSPI's TFT_INVERT_COLORS
+     * macro cannot, because only its ST7789/ST7735 init paths consult it. */
+    bool    invertColours;
 };
 
 /* Which kind of touch controller the board wires. This is a property of the
@@ -217,6 +224,12 @@ struct BatteryProfile {
 };
 
 struct BoardProfile {
+    /* NO WHITESPACE IN THIS NAME. It is printed in the boot banner as
+     * `[boot] board=<name>` and tools/identify_boards.py reads that back as a
+     * single token, so a name with a space in it is silently truncated and the
+     * tool then reports a mismatch against its own registry. One board here
+     * shipped as "ESP32-2432S028Rv3 (ST7789)" and did exactly that. Hyphens,
+     * not spaces. */
     const char*   name;           // what About and System Info show the owner
     PanelProfile  panel;
     TouchProfile  touch;

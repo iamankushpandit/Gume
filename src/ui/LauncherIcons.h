@@ -37,6 +37,8 @@ enum class LauncherIcon : uint8_t {
     Elements,
     Piano,
     Chess,
+    SeaBattle,
+    Cursive,
     Profiles,
     Scores,
     Settings,
