@@ -10,6 +10,51 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Hardware identifiers are out of this repository, and a check now keeps them
+out.** `tools/board_registry.json` mapped six development boards' MAC
+addresses to the exact firmware environment each one was running. It was
+tracked for three commits and shipped inside two release tarballs before
+anybody noticed.
+
+A MAC is burned into eFuse. It cannot be changed, rotated or regenerated, so
+publishing one names that board for the life of the silicon — and this file
+published each one *beside the firmware that board runs*, which is a list of
+specific devices in somebody's home and what is on them. Deleting the file
+does not undo it: history, clones, forks and the release tarballs all keep
+their copies. Whether to rewrite history is the maintainer's call; what is
+fixed here is the tree, and the possibility of a repeat.
+
+- **A board now identifies itself with an id the firmware owns.**
+  `Board::deviceId()` generates `R28T-9F3A2C71` on first boot from the MAC, the
+  wall clock, 64 bits of `esp_random()` and the time since boot, runs the lot
+  through SHA-256 and keeps four bytes. The MAC makes a collision between two
+  devices impossible; the clock separates successive ids on one board after a
+  reset; the random bits are what make the digest un-guessable. The hash is the
+  point — it is one-way, so the id cannot be turned back into a MAC. The
+  `BoardProfile::idTag` prefix names the *model*, so an id still tells you
+  which firmware a board wants, and a factory reset issues a new one, which is
+  the property a MAC can never have.
+- **The boot banner prints `device=` instead of `mac=`.** That line is the one
+  people paste into public issues, which is how a local identifier stops being
+  local.
+- **The registry is gitignored**, with `board_registry.example.json` shipping
+  placeholders and `identify_boards.py --learn` filling in the real one per
+  machine. esptool still reads a MAC off the chip when a board cannot
+  introduce itself — an empty flash, or after a merged-image install wiped
+  NVS — and it stays on that machine.
+- **`tools/check_identifiers.py` runs in CI on every pull request**, failing on
+  MAC addresses in either separator style and on public IP addresses. It was
+  tested against both before being wired in. It cannot recognise an SSID, a
+  hostname or a child's name, so the rule in `CLAUDE.md` covers what a machine
+  cannot.
+
+**Still open, and needing a decision rather than code:** `BleBeacon` composes
+its advertised `deviceId` from the last two bytes of the BT MAC, so those two
+bytes go out over the air. Moving it to `Board::deviceId()` would be strictly
+better, but it changes what the device transmits and what peers key their saved
+names on, so it needs agreement first — like any other change to the
+advertisement.
+
 **First thing this cycle: a two-console regression check of nearby play.** It
 has now been carried over twice. Two defects in that path were fixed late in
 5.9.0 — the acceptor never published its ply-0 answer, and a peer's turn was

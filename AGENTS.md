@@ -74,6 +74,33 @@ If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static — the credits, the
 privacy statements — must be re-read whenever the thing it describes changes.
 
+## No identifiers in this repository — the rule that cannot be broken
+
+**Never commit anything that identifies one physical device, one network or one
+person.** Not in a tool file, not in a comment, not in a fixture, not
+temporarily, and not because the design reads better that way. Such values live
+on the machine that owns the hardware, gitignored.
+
+An agent wrote `tools/board_registry.json`, mapping six boards' **MAC
+addresses** to the firmware each ran. It was tracked for three commits and
+shipped in two release tarballs. It was a deliberate, reasonable-looking design
+decision, which is the point: reasonable is not the test.
+
+A MAC is burned into eFuse — it cannot be changed, so publishing one names that
+board for the life of the silicon, and deleting the file does not un-publish it
+because history, clones, forks and tarballs all keep copies.
+
+- Identify a board by **`Board::deviceId()`** (`R28T-9F3A2C71`): firmware
+  generated, one-way hashed so the MAC cannot be recovered, prefixed with the
+  *model* tag, and reissued by a factory reset.
+- The boot banner prints `device=`, never `mac=`. That line gets pasted into
+  public issues.
+- `tools/board_registry.json` is gitignored; the `.example.json` ships with
+  placeholders and `identify_boards.py --learn` fills in the real one locally.
+- `python tools/check_identifiers.py` runs in CI. It catches MACs and public
+  IPs; it cannot catch an SSID or a person's name, so a clean run is not
+  permission.
+
 ## No data collection — the rule that outranks the feature
 
 Braino collects nothing about the player using it, and no change may alter

@@ -50,6 +50,7 @@
  */
 inline constexpr BoardProfile BOARD = {
     "E32R28T-1",
+    "R28T",
 
     /* panel: 3 is landscape with the USB edge at the bottom (1 is the same
      * view rotated 180). 0 is the quarter-turn from it. Board::pollTouch()

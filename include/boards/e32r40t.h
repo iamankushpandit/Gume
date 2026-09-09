@@ -55,6 +55,7 @@
  */
 inline constexpr BoardProfile BOARD = {
     "E32R40T",
+    "R40T",
 
     /* panel: 3 is landscape, confirmed by drawing into it. */
     PanelProfile{

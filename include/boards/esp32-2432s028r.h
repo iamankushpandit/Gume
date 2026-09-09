@@ -56,6 +56,7 @@
  */
 inline constexpr BoardProfile BOARD = {
     "ESP32-2432S028R (ILI9341)",
+    "CYDR",
 
     /* panel: 1 is landscape with the USB edge at the bottom.
      * 0 is the quarter-turn from it (portrait). Board::pollTouch()

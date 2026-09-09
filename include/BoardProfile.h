@@ -231,6 +231,18 @@ struct BoardProfile {
      * shipped as "ESP32-2432S028Rv3 (ST7789)" and did exactly that. Hyphens,
      * not spaces. */
     const char*   name;           // what About and System Info show the owner
+
+    /* A SHORT TAG FOR THIS MODEL, up to 7 characters, no whitespace.
+     *
+     * It prefixes the firmware-generated device id -- `R28T-9F3A2C71` -- so
+     * that an id tells you which build a board wants without telling anyone
+     * which board it is. That distinction is the point: the tag names a MODEL,
+     * of which many exist in the world, while the eight hex characters name
+     * this unit and mean nothing off the device. Neither half is a MAC, and
+     * the id cannot be turned back into one.
+     *
+     * Keep it terse and stable. Changing it changes every id on that model. */
+    const char*   idTag;
     PanelProfile  panel;
     TouchProfile  touch;
     ButtonProfile button;         // beside touch: both are how a person acts
