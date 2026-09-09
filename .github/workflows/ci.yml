@@ -89,6 +89,7 @@ jobs:
           python -m py_compile tools/check_catalog.py
           python -m py_compile tools/check_frame_rules.py
           python -m py_compile tools/check_privacy.py
+          python -m py_compile tools/check_identifiers.py
           python -m py_compile tools/gen_site.py
 
       - name: Run repository checks
@@ -98,6 +99,12 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
           python tools/check_privacy.py
+          # A hardware identifier cannot be un-published: a MAC is burned into
+          # eFuse, so it names that board for its whole life. board_registry.json
+          # mapped six of them to the firmware each was running and reached two
+          # releases before anybody noticed. This check runs on every PR because
+          # noticing is exactly what did not happen.
+          python tools/check_identifiers.py
 
       # Site generation is cheap -- seconds, pure standard library, no
       # PlatformIO -- and it MUST run on every pull request. Do not put this

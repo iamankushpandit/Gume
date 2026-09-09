@@ -27,7 +27,7 @@
  *                            backlight IO21                    (MEASURED)
  *
  * HOW THIS ONE WAS ESTABLISHED. Every combination was flashed onto one board
- * (MAC 8c:4f:00:2f:80:38) and the screen looked at:
+ * and the screen looked at:
  *
  *   ILI9341, no inversion          draws perfectly, every colour flipped --
  *                                  dark theme white, green purple, blue salmon
@@ -60,6 +60,7 @@
  */
 inline constexpr BoardProfile BOARD = {
     "ESP32-2432S028-inv",
+    "CYDINV",
 
     /* 3 is landscape with the USB edge at the bottom, as on the E32R28T-1.
      * Board::pollTouch() compensates for every rotation, so don't hand-correct

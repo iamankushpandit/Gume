@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "TEMPLATE. Copy to tools/board_registry.json, which is gitignored, and",
+    "let `python tools/identify_boards.py --learn` fill it in from the",
+    "boards on YOUR desk.",
+    "",
+    "WHY THIS FILE IS A TEMPLATE AND THE REAL ONE IS NEVER COMMITTED.",
+    "A board's MAC is burned into eFuse: it cannot be changed, ever. So",
+    "publishing one publishes a permanent identifier for a specific piece",
+    "of hardware in somebody's home -- and publishing it in THIS file",
+    "publishes it next to the exact firmware that board runs, which is",
+    "strictly worse than either fact alone. The real registry was tracked",
+    "for three commits and reached two releases before this was caught;",
+    "see CLAUDE.md, 'No identifiers in this repository'.",
+    "",
+    "The MACs below are placeholders and match no real device. The map is",
+    "still keyed by MAC because that is the only identifier that survives",
+    "a replug, a reflash and an empty flash chip -- a COM number is",
+    "assigned in plug order and is stale by the next reboot.",
+    "",
+    "`how` records what an identification RESTS on. 'boot banner' and",
+    "'confirmed on the panel by the owner' are different levels of",
+    "confidence and this file must not hide which one it has: the banner",
+    "is compiled in, so it reports the firmware on the chip rather than",
+    "the panel underneath it."
+  ],
+  "boards": {
+    "aa:bb:cc:00:00:01": {
+      "board": "E32R28T-1",
+      "env": "app",
+      "note": "Placeholder. Replace with your own board via --learn.",
+      "how": "example entry, not a real device"
+    },
+    "aa:bb:cc:00:00:02": {
+      "board": "Freenove-FNK0104B",
+      "env": "app_fnk0104b",
+      "note": "Placeholder. The only ESP32-S3 in the set, so chip type alone identifies it.",
+      "how": "example entry, not a real device"
+    }
+  },
+  "skip_ports": {
+    "COM3": "Not a board. A component of the laptop itself -- do not open it, do not flash it."
+  }
+}

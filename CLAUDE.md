@@ -56,6 +56,62 @@ If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static â€” the credits, the
 privacy statements â€” must be re-read whenever the thing it describes changes.
 
+## No identifiers in this repository - the rule that cannot be broken
+
+**Nothing that identifies one physical device, one network or one person may
+ever be committed to this repository.** Not in a tool file, not in a comment,
+not in a test fixture, not "temporarily", and not because a design needs it.
+If a workflow needs such a value, it lives on the machine that owns the
+hardware and it is gitignored.
+
+This rule is written in the past tense of a failure. `tools/board_registry.json`
+mapped six boards' **MAC addresses** to the exact firmware environment each was
+running. It was tracked for three commits and shipped inside two release
+tarballs before anyone noticed. It was created deliberately, by an agent, as
+the sensible core of a tool that answers "which board is on which port" -- and
+being sensible is not the test.
+
+**Understand why this particular mistake is unrecoverable.** A MAC is burned
+into eFuse. It cannot be changed, regenerated or rotated: it names that board
+for the life of the silicon. Deleting the file does not un-publish it, because
+git history keeps every version and clones, forks, the API and release
+tarballs all keep their copies. And the harm is worse than a bare MAC, because
+the file paired each one with the firmware that board runs -- which is a list
+of specific devices, in someone's home, and what is on them.
+
+So:
+
+- **Identify a board by `Board::deviceId()`**, not by its MAC. The firmware
+  generates it on first boot from the MAC, the clock, 64 bits of `esp_random()`
+  and the time since boot, puts all of that through SHA-256, and keeps four
+  bytes: `R28T-9F3A2C71`. The hash is what makes it safe -- it cannot be turned
+  back into the MAC -- and the `BoardProfile::idTag` prefix says which *model*
+  it is, which is a fact about a product rather than about a person's house. A
+  factory reset issues a new one, which is the property a MAC can never have.
+- **The boot banner prints `device=`, not `mac=`.** That line is what gets
+  pasted into a public issue, which is how a "local" identifier stops being
+  local. Do not add the MAC back to it.
+- **`tools/board_registry.json` is gitignored.** `board_registry.example.json`
+  ships instead, with placeholder ids, and `identify_boards.py --learn` fills
+  in the real one per machine. Reading a MAC off a chip with esptool is still
+  correct when a board cannot introduce itself -- an empty flash, or after a
+  merged-image install wiped NVS -- but it stays on that machine.
+- **`python tools/check_identifiers.py` runs in CI on every pull request.** It
+  fails on MAC addresses in either separator style and on public IP addresses.
+  It cannot recognise an SSID, a hostname or a child's name, so a clean run is
+  not permission: it catches the shapes a machine can catch, and this rule
+  covers the rest.
+
+Storing is not publishing: a MAC held in NVS on the device, or in a gitignored
+file on the maintainer's laptop, is fine. Committing it is not.
+
+**Related, and still open:** `BleBeacon` composes its advertised `deviceId`
+from the last two bytes of the BT MAC (`esp_read_mac(mac, ESP_MAC_BT)`). Those
+two bytes go out over the air. Moving it to `Board::deviceId()` would be
+strictly better, but it changes what the device transmits and what peers key
+their saved names on -- so it needs the maintainer's agreement first, like any
+other change to the advertisement.
+
 ## No data collection - the rule that outranks the feature
 
 Braino collects nothing about the player using it, and no change may alter
@@ -408,9 +464,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,439,073 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,439,357 / 3,145,728 bytes,
 **77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,508 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
+at 76,532 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -896,12 +952,16 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),
                           check_boards.py, check_catalog.py,
-                          check_frame_rules.py, build_stamp.py,
+                          check_frame_rules.py, check_identifiers.py (no MAC
+                          or public IP may reach this repo -- see the rule
+                          above), build_stamp.py,
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),
-                          identify_boards.py + board_registry.json
-                          (which board is on which port, keyed by MAC)
+                          identify_boards.py + board_registry.example.json
+                          (which board is on which port, keyed by the
+                          firmware's own Board::deviceId(); the real registry
+                          is gitignored because it names one person's boards)
 site/                     index.template.html â€” the GitHub Pages landing page
 .github/workflows/        ci.yml validates checks + builds; pages.yml publishes
                           the site from the same firmware set;

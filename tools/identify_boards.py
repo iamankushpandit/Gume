@@ -56,9 +56,15 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGISTRY = os.path.join(ROOT, "tools", "board_registry.json")
+EXAMPLE_REGISTRY = os.path.join(ROOT, "tools", "board_registry.example.json")
 
 BANNER_RE = re.compile(r"\[boot\] board=(\S+)")
-MAC_RE = re.compile(r"^MAC:\s*([0-9a-f:]{17})", re.I | re.M)
+# The firmware's own id for itself -- `[boot] device=R28T-9F3A2C71`. THIS, not
+# the MAC, is what the registry is keyed on. A MAC is burned into eFuse and
+# cannot be changed, so a file mapping MACs to firmware is a permanent list of
+# specific devices; this repository shipped exactly that for two releases. See
+# CLAUDE.md, "No identifiers in this repository".
+DEVICE_RE = re.compile(r"\[boot\] device=(\S+)")
 CHIP_RE = re.compile(r"^Chip is (.+?)(?:\s*\(|\s*$)", re.I | re.M)
 
 
@@ -77,8 +83,38 @@ def esptool_py():
 
 
 def load_registry():
+    """Load the local registry, seeding it from the template on first run.
+
+    tools/board_registry.json is GITIGNORED and must stay that way: it names
+    the boards on one person's desk. board_registry.example.json ships in its
+    place with placeholder ids, and --learn fills the real one in here.
+    """
+    if not os.path.exists(REGISTRY):
+        with open(EXAMPLE_REGISTRY, encoding="utf-8") as f:
+            seed = json.load(f)
+        seed["boards"] = {}          # the template's entries are placeholders
+        seed["_comment"] = [
+            "Local, gitignored, and specific to this machine. Populated by",
+            "`python tools/identify_boards.py --learn`.",
+        ]
+        with open(REGISTRY, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(seed, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print("Created %s from the template -- run --learn to populate it."
+              % os.path.relpath(REGISTRY, ROOT))
     with open(REGISTRY, encoding="utf-8") as f:
-        return json.load(f)
+        reg = json.load(f)
+    # A registry written before 5.10.0 was keyed by MAC. Those keys are exactly
+    # what must not be kept, so they are dropped rather than migrated: the
+    # boards re-introduce themselves by device id on the next run.
+    stale = [k for k in reg.get("boards", {}) if ":" in k]
+    if stale:
+        for key in stale:
+            del reg["boards"][key]
+        print("Dropped %d MAC-keyed entr%s from the local registry; run "
+              "--learn to re-record them by device id."
+              % (len(stale), "y" if len(stale) == 1 else "ies"))
+    return reg
 
 
 def list_ports(py):
@@ -110,23 +146,32 @@ def read_banner(py, port, seconds=4.0):
         "s.close(); sys.stdout.write(d.decode('utf-8','replace'))\n"
     ) % (port, seconds)
     out = subprocess.run([py, "-c", script], capture_output=True, text=True)
-    m = BANNER_RE.search(out.stdout or "")
-    return m.group(1) if m else None
+    text = out.stdout or ""
+    board = BANNER_RE.search(text)
+    device = DEVICE_RE.search(text)
+    return (board.group(1) if board else None,
+            device.group(1) if device else None)
 
 
 def read_chip(py, esptool, port):
-    """(chip, mac) from eFuse. Works on a blank board; that is the whole point."""
+    """The chip model, and whether an ESP answered at all.
+
+    THE MAC IS READ BY esptool AND DELIBERATELY DISCARDED HERE. It is the one
+    identifier that answers on a board with no firmware, so it stays useful for
+    proving something is alive -- but it is never returned, stored or printed,
+    because a file or a log carrying it publishes a permanent identifier for
+    that board. Identity comes from `[boot] device=`, which the firmware owns.
+    """
     if not esptool:
-        return None, None
+        return None, False
     out = subprocess.run(
         [py, esptool, "--port", port, "--before", "default_reset",
          "--after", "hard_reset", "chip_id"],
         capture_output=True, text=True)
     text = (out.stdout or "") + (out.stderr or "")
-    mac = MAC_RE.search(text)
     chip = CHIP_RE.search(text)
-    return (chip.group(1).strip() if chip else None,
-            mac.group(1).lower() if mac else None)
+    alive = "Chip is" in text
+    return (chip.group(1).strip() if chip else None, alive)
 
 
 def lock_path():
@@ -245,10 +290,9 @@ def env_for_board_name(reg, name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--learn", action="store_true",
-                    help="record any new MAC whose board the banner identified")
+                    help="record any new device id whose board the banner "
+                         "identified")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
-    ap.add_argument("--no-banner", action="store_true",
-                    help="MAC lookup only; skip the reset-and-listen step")
     ap.add_argument("--flash", action="store_true",
                     help="flash every identified board with its own env")
     args = ap.parse_args()
@@ -263,18 +307,18 @@ def main():
                             "why": skip[device]})
             continue
 
-        chip, mac = read_chip(py, esptool, device)
-        if mac is None:
+        chip, alive = read_chip(py, esptool, device)
+        if not alive:
             results.append({"port": device, "status": "no-esp",
                             "why": "no ESP32 answered here", "desc": desc})
             continue
 
-        known = reg["boards"].get(mac)
-        banner = None if args.no_banner else read_banner(py, device)
+        banner, device_id = read_banner(py, device)
+        known = reg["boards"].get(device_id) if device_id else None
 
         if known:
-            row = {"port": device, "status": "known", "mac": mac, "chip": chip,
-                   "board": known["board"], "env": known["env"]}
+            row = {"port": device, "status": "known", "device": device_id,
+                   "chip": chip, "board": known["board"], "env": known["env"]}
             # The registry is a record, not an authority. If the board itself
             # now says something different, say so rather than papering over it.
             if banner and banner != known["board"]:
@@ -283,10 +327,11 @@ def main():
             results.append(row)
         elif banner:
             env = env_for_board_name(reg, banner)
-            results.append({"port": device, "status": "new", "mac": mac,
-                            "chip": chip, "board": banner, "env": env})
-            if args.learn and env:
-                reg["boards"][mac] = {
+            row = {"port": device, "status": "new", "device": device_id,
+                   "chip": chip, "board": banner, "env": env}
+            results.append(row)
+            if args.learn and env and device_id:
+                reg["boards"][device_id] = {
                     "board": banner, "env": env,
                     "note": "learned from the boot banner on %s"
                             % time.strftime("%Y-%m-%d"),
@@ -294,8 +339,13 @@ def main():
                 }
                 learned += 1
         else:
-            results.append({"port": device, "status": "unknown", "mac": mac,
-                            "chip": chip})
+            # No banner means no device id, so there is nothing to look up.
+            # A blank board, a diag build or a sleeping one all land here: the
+            # answer is to flash a candidate build and read the banner back,
+            # which is what --learn then records.
+            results.append({"port": device, "status": "unknown", "chip": chip,
+                            "why": "said nothing on reset -- no firmware, a "
+                                   "diag build, or asleep"})
 
     if learned:
         with open(REGISTRY, "w", encoding="utf-8") as f:
@@ -318,9 +368,10 @@ def main():
             print("  %s  %-20s env:%s   (new -- re-run with --learn)"
                   % (p, r["board"], r["env"] or "?"))
         elif s == "unknown":
-            print("  %s  UNKNOWN  chip=%s mac=%s" % (p, r["chip"], r["mac"]))
-            print("  %s  Not guessing. Flash a build, read the banner, "
-                  "then --learn." % (" " * width))
+            print("  %s  UNKNOWN  chip=%s -- %s"
+                  % (p, r["chip"] or "?", r.get("why", "did not identify")))
+            print("  %s  Not guessing. Flash a candidate build, read the "
+                  "banner, then --learn." % (" " * width))
         else:
             print("  %s  -- %s" % (p, r["why"]))
 
