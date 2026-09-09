@@ -164,6 +164,53 @@ probe is built when its own source or `platformio.ini` moves and not otherwise,
 and it is still one command away when a board needs triaging: `pio run -e
 batdiag -t upload`.
 
+**The build stamp is a generated header, not two `-D` flags — and a commit no
+longer rebuilds the world.** `tools/build_stamp.py` appended
+`GUME_BUILD_BRANCH`/`GUME_BUILD_COMMIT` to the global `CPPDEFINES`, which
+reaches the Arduino core and NimBLE as well as our own sources. Measured:
+
+| | before | after |
+|---|---|---|
+| `pio run -e app`, nothing changed | 66 s, 1 object | **45 s, 0 objects** |
+| `pio run -e app`, different commit | 333 s, 336 objects | **63 s, 4 objects** |
+
+336 objects to change a string that one translation unit reads — and a commit
+hash changes on every commit, so that was the standing cost of committing. The
+old comment defended it as "that is when the tree needed rebuilding anyway";
+89 of those 336 objects are ours, and usually one of them is what moved. It
+also meant CI could never cache build output, because every CI run is a new
+commit.
+
+**The build time moved into that header too, and had to.** It came from the
+compiler's `__DATE__`/`__TIME__` with the script deleting `BuildStamp.cpp.o`
+to keep it fresh. That stops working the moment an object cache exists: SCons
+restores the object instead of recompiling it — a legitimate hit, the source
+has not changed — and the reported build time freezes at whenever the first
+build happened. It was caught doing exactly that. A stale build time is worse
+than none, because it is believed.
+
+**The diagnostics stopped recompiling the world too.** `-D CYD_BRINGUP_ONLY`
+and its siblings are read only under `src/`, but as global flags they changed
+NimBLE's compile command as well — so `env:bringup` cost **306 s, identical to
+a full app build**, to test one `#ifdef` in `main.cpp`. They are now
+`build_src_flags`, and `[platformio] build_cache_dir` holds the shared objects:
+
+| built from scratch, warm cache | before | after |
+|---|---|---|
+| `bringup` | 306 s, 336 objects | **44 s, 20 objects** |
+| `batdiag` | 91 s | **19 s, 8 objects** |
+
+The cache cannot make two *boards* share objects, and nothing here pretends
+otherwise: TFT_eSPI is a library and must be told the panel at compile time, so
+the board macros stay global where every library sees them.
+
+All three workflows now cache `.pio/build_cache` between runs, which was
+pointless before the stamp changed and is the point now.
+
+Flash is 52 bytes smaller and RAM 24 bytes smaller: `builtAt()` returns a
+generated literal instead of assembling one into an 18-byte static buffer with
+`snprintf`.
+
 **Three hand-kept lists of environments went away, and they had already
 drifted.** `ci.yml` and `pages.yml` each named eighteen and neither named
 `audiodiag`, `diag32p` or `audiodiag_e32r32p`, which had been in

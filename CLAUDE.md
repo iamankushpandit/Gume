@@ -350,36 +350,56 @@ when you need it:
   `check_boards.py`'s `BOARDLESS_ENVS`, because a `[board_*]` section is a
   claim of support and neither board is supported yet.
 
-### Every build is stamped, and the time is not a `-D`
+### Every build is stamped, and nothing about the stamp is a `-D`
 
 `tools/build_stamp.py` is a pre-build script wired in from `[esp32_common]`, so
-every environment gets it. It injects the branch and the abbreviated commit as
-`-D GUME_BUILD_BRANCH` / `-D GUME_BUILD_COMMIT`, and the firmware reads them
-through `BuildStamp::` -- never the macros directly, outside
-`include/BuildStamp.h`. About's last page, System Info's Device tab and the
-`[boot] build=` serial line all read the same three accessors, so the answer to
-"which firmware is on this board?" is one fact with three viewers.
+every environment gets it. It writes the branch and the abbreviated commit into
+a generated `GumeBuildStamp.h` in the build directory, `src/BuildStamp.cpp` is
+the only file that includes it, and the firmware reads the values through
+`BuildStamp::` -- never the macros directly, outside `include/BuildStamp.h`.
+About's last page, System Info's Device tab and the `[boot] build=` serial line
+all read the same three accessors, so the answer to "which firmware is on this
+board?" is one fact with three viewers.
 
 `BRAINO_VERSION` cannot answer that question: it is identical across every
 flash of a release, which is exactly the case where you need to know.
 
-**Do not add the build time as a third `-D`.** PlatformIO folds build flags into
-its build signature, so a flag whose value changes on every invocation -- which
-a clock does by definition -- invalidates every object in the tree and turns
-`pio run` into a permanent full rebuild: roughly 100 seconds instead of 25, for
-everyone, forever. The time comes from the compiler's own `__DATE__` and
-`__TIME__` inside `src/BuildStamp.cpp`, and the script deletes that one object
-file so they are always current. One file recompiles per build, not the tree.
-The consequence to know is that the stamp is the build machine's local clock in
-C's format, not UTC and not ISO -- it identifies a build, it is not a timestamp
-to compute with.
+**Nothing whose value changes per build may become a build flag.** PlatformIO
+folds the flags into its build signature, and `env.Append(CPPDEFINES=...)` in a
+pre-script reaches the Arduino core and NimBLE as well as `src/`. The branch and
+the commit were flags until 5.9.x, and the cost was measured rather than
+assumed:
 
-Branch and commit *do* cost a full rebuild when they change, which is correct:
-that is when the tree needed rebuilding anyway. On GitHub Actions the checkout
-is a detached HEAD, so the script prefers `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`
-over `git rev-parse --abbrev-ref`, which would otherwise say "HEAD". A tree with
-no `.git` at all -- a source tarball -- is a supported way to build, and stamps
-"unknown" rather than inventing something plausible.
+```
+pio run -e app, nothing changed            66 s,    1 object
+pio run -e app, branch name different     333 s,  336 objects
+```
+
+Every object, to change a string that one translation unit reads -- and since a
+commit hash changes on every commit, that was the cost of committing. It also
+meant CI could never cache build output at all, because every CI run is a new
+commit. The generated header fixes both: the include *path* is a flag and never
+moves, the header's *contents* are not a flag and move freely, and only the file
+that includes it is rebuilt.
+
+The same reasoning is why the diagnostic environments carry `-D
+CYD_BRINGUP_ONLY` and friends in `build_src_flags` rather than `build_flags`.
+Those macros are read only under `src/`, but as global flags they changed
+NimBLE's compile command too -- so `env:bringup` measured 306 s, *identical to a
+full app build*, to test one `#ifdef` in `main.cpp`. With them src-scoped and
+`build_cache_dir` on, it reuses the objects the app build already made.
+
+The build time stays out of all of this: `__DATE__` and `__TIME__` come from the
+compiler for free, and the script deletes `BuildStamp.cpp.o` so they are always
+current. The consequence to know is that the stamp is the build machine's local
+clock in C's format, not UTC and not ISO -- it identifies a build, it is not a
+timestamp to compute with.
+
+On GitHub Actions the checkout is a detached HEAD, so the script prefers
+`GITHUB_HEAD_REF` / `GITHUB_REF_NAME` over `git rev-parse --abbrev-ref`, which
+would otherwise say "HEAD". A tree with no `.git` at all -- a source tarball --
+is a supported way to build, and stamps "unknown" rather than inventing
+something plausible.
 
 ### Build gotchas
 

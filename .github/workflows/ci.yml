@@ -78,6 +78,30 @@ jobs:
           key: pio-${{ hashFiles('platformio.ini') }}
           restore-keys: pio-
 
+      # The compiled-object cache. Separate from the PlatformIO *packages* cache
+      # above, which holds the toolchain: this holds build output, and until
+      # 5.9.x there was no point caching it. tools/build_stamp.py appended the
+      # commit hash to the global CPPDEFINES, so every object in the tree had a
+      # different compile command on every commit -- and every CI run is a new
+      # commit. Measured locally: 333 s and 336 objects for a changed commit
+      # name, against 66 s and one object for a build where nothing had moved.
+      #
+      # With the stamp in a generated header instead, the objects are stable
+      # across commits and this cache starts paying. It is content-addressed,
+      # so a restored entry is either right or is not a hit -- there is no
+      # stale-artifact failure mode to guard against. The key rotates per run
+      # so the cache keeps absorbing new objects; restore-keys is what makes
+      # the previous run's copy the starting point.
+      - name: Cache compiled objects
+        if: steps.scope.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .pio/build_cache
+          key: objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
+            objects-${{ runner.os }}-
+
       - name: Install PlatformIO
         if: steps.scope.outputs.code == 'true'
         run: pip install --upgrade platformio
