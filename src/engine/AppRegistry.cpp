@@ -40,6 +40,7 @@ Game& piano(GameInstances& games) { return games.piano; }
 Game& chess(GameInstances& games) { return games.chess; }
 Game& seaBattle(GameInstances& games) { return games.seaBattle; }
 Game& cursive(GameInstances& games) { return games.cursive; }
+Game& ludo(GameInstances& games) { return games.ludo; }
 Game& scores(GameInstances& games) { return games.scores; }
 Game& profiles(GameInstances& games) { return games.profile; }
 Game& settings(GameInstances& games) { return games.settings; }
@@ -106,6 +107,8 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
      * battleships wants, and the fixed canvas upscales on a bigger panel. */
     metadataCatalogApp(seaBattleAppMetadata(), seaBattle),
     metadataCatalogApp(cursiveAppMetadata(), cursive),
+    /* Landscape only, like Sea Battle: a square board and a panel beside it. */
+    metadataCatalogApp(ludoAppMetadata(), ludo),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,

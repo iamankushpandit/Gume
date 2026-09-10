@@ -122,6 +122,47 @@ Who can use it:
 - **Naming a peer stays admin-only.** It is a device-wide label, not a personal
   one, and it is what every screen then calls that console.
 
+## Ludo
+
+Split on purpose: `LudoRules` (rules and the computer player), `LudoGame.cpp`
+(flow, input, saving), `LudoBoard.cpp` (board geometry and every pixel of play)
+and `LudoLobby.cpp` (the seat picker). The header comment in `LudoRules.h` states the rules as played; read it
+before changing one, because several are decisions rather than the only reading
+of the board game.
+
+- **`LudoRules` is pure C++ and must stay that way.** No Arduino, no drawing,
+  no `millis()`, no `random()`. Every function is a function of a flat `State`
+  and a seed. That is what will let a second console compute the same game from
+  the same inputs, and what lets the rules be tested off the device:
+  `test/host/ludo_rules_test.cpp` builds against the real `LudoRules.cpp` with
+  any host compiler (the command is at its top) and plays 3,000 seeded games
+  checking invariants after every move. Run it after touching a rule. CI does
+  not, yet.
+- **The dice are a function, not a generator.** Roll *k* of a game is
+  `Ludo::die(seed, k)`. Nothing may draw a die any other way, and the computer
+  player's tie-breaks come from a separately salted `mix()` of the same seed so
+  that asking it for a move can never change what the die says next.
+- **Legality has one definition: `Ludo::target()`.** `move()`, the highlights,
+  the computer player and `tokenAt()` all ask it. Never test a move any other
+  way, and never apply one without going through `move()`, which refuses an
+  illegal one and changes nothing.
+- **The phase is derived, never saved.** `enterTurn()` works out whether a
+  seat must roll, is holding a roll, or is looking at a roll it cannot use,
+  from the rules state alone. A restored game therefore cannot disagree with
+  its own position -- and cannot grant a free reroll for putting the device
+  down, because the roll it was holding is part of the state.
+- **The screen draws `shown_`, not the state.** A move is applied to the rules
+  at once and saved at once; the hopping token is `shown_` catching up a square
+  at a time. Keep those two apart, or a Lock pressed mid-hop loses the move.
+- **Repaint is per place.** 225 grid cells, 16 yard spots and the centre each
+  have a dirty bit, and each is drawn by an idempotent function that paints its
+  whole box. A move repaints two or three places. `markFullDirty()` is for
+  entering the screen and starting a game, nothing else.
+- **Computer seats are a seat kind, not a mode.** Any mix of Player and
+  Computer, at least two seats and at least one Player. The computer's roll and
+  its move are each delayed (`CPU_ROLL_MS`, `CPU_MOVE_MS`) so a child can see
+  what it did; without them a computer's whole turn is one frame.
+
 ## Tracing games
 
 `LetterTracer` is the finger-tracing engine: waypoint resampling, hit testing,

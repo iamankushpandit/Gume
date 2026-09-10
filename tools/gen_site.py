@@ -214,6 +214,8 @@ SCREEN_CAPTIONS = {
     "piano": "Piano: one octave, tap a key",
     "chess": "Chess: tap a piece to see its moves",
     "seabattle": "Sea Battle: hunt the hidden fleet",
+    "ludo": "Ludo: race home, against friends or the computer",
+    "ludo-lobby": "Ludo: pick who sits in each seat",
     "cursive": "Cursive: trace joined-up letters and words",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
@@ -300,6 +302,7 @@ PLAYABLE_STILLS = {
     "chess": ("chess",),
     "seabattle": ("seabattle",),
     "cursive": ("cursive",),
+    "ludo": ("ludo", "ludo-lobby"),
 }
 
 SYSTEM_SHOWCASE = (

@@ -268,7 +268,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 35 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 36 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -556,9 +556,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,448,885 / 3,145,728 bytes,
-**77.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,660 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,462,145 / 3,145,728 bytes,
+**78.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 76,868 / 327,680 (23.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -738,7 +738,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 31 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 36 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it is 22px at `72` and 36px at `100` on the charger -- and in that widest state the row has about 4px spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
@@ -1037,7 +1037,12 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
-                          (the tab bodies), SettingsPin (the PIN pad)
+                          (the tab bodies), SettingsPin (the PIN pad).
+                          Ludo is three .cpp against one header -- LudoGame
+                          (flow, input, saving), LudoBoard (geometry and
+                          drawing) and LudoLobby (the seat picker) -- over
+                          LudoRules (the rules and the computer player, pure
+                          C++ with no Arduino)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
@@ -1259,7 +1264,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     cannot be removed; the *active* player cannot be removed either (from a
     cable that would pull a profile out from under a running game); two
     players cannot share a name. Games at launcher index 32+ cannot be hidden
-    yet -- visibility is a 32-bit mask and the catalogue is 35 -- and the
+    yet -- visibility is a 32-bit mask and the catalogue is 36 -- and the
     console says so rather than answering ok.
   - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
     under the closed privacy list.

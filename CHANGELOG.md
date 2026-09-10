@@ -10,6 +10,32 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Ludo, for two to four -- and any of them can be the computer.** The classic
+race round the cross-shaped board, on one console. Each of the four seats is a
+Player, a Computer or Empty; at least two seats and at least one person. The
+computer plays at **Easy** (a random legal move, except that it always brings a
+token out when it can) or **Normal** (capture, get home, come out, reach
+safety, escape a threat, advance the leader -- one step of lookahead, no
+search). The rules as played are stated in `LudoRules.h`; the ones that are
+choices rather than the only reading are that the third six forfeits only that
+roll, a capture earns a roll but reaching home does not, and blocks do not form
+on safe squares, so no start square can be walled off.
+
+- **The dice are a function of the game's seed, not a stream.** Roll *k* is
+  `die(seed, k)`, so a move only has to name a token and anything that knows
+  the seed can check it. That is what a later, connected version needs, and it
+  costs nothing now: the rules are pure C++ with no Arduino in them.
+- **A 13px cell is too small to aim at**, so the tokens that can move light up
+  and a tap picks the nearest one; a move that is the only one plays itself.
+- **Every colour has its own token shape** -- circle, square, diamond,
+  triangle -- so the game does not depend on telling red from green.
+- **Remembered, like Chess**: saved after every roll and every move, including
+  a roll not yet used, so putting the device down is not a free reroll. End
+  game asks twice.
+- **Ludo cannot be hidden per player**, like Chess, Sea Battle and Cursive: its
+  launcher index is past the 32-bit visibility mask.
+- Flash 2,462,145 bytes (78.3%, +13,260), RAM 76,868 (23.5%, +208).
+
 **Hardware identifiers are out of this repository, and a check now keeps them
 out.** `tools/board_registry.json` mapped six development boards' MAC
 addresses to the exact firmware environment each one was running. It was
