@@ -1,7 +1,7 @@
 {
   "_comment": [
     "TEMPLATE. Copy to tools/board_registry.json, which is gitignored, and",
-    "let `python tools/identify_boards.py --learn` fill it in from the",
+    "let `python tools/ESP32_boardUtil.py --learn` fill it in from the",
     "boards on YOUR desk.",
     "",
     "WHY THIS FILE IS A TEMPLATE AND THE REAL ONE IS NEVER COMMITTED.",

@@ -33,6 +33,30 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW);
  * the header and pager correctly reached the edges. A default of 320/240 here
  * would be that same literal, just hidden where nobody would look for it. */
 Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH);
-uint8_t pageSize(Board::LayoutMode mode);
+
+/* How many columns and rows of tiles the launcher shows. One answer, read by
+ * tileRect(), pageSize() and the tile colouring, so the grid that is drawn,
+ * the grid that is hit-tested and the number of apps per page cannot disagree.
+ *
+ * Landscape is 2x3 on every panel. Portrait is 2x2, except on a panel whose
+ * short side is at least DENSE_PORTRAIT_MIN_W -- today only the 4-inch board
+ * -- where it is 3x3: 96x112 tiles there, still wider than the 2.8-inch
+ * board's portrait tiles are tall, and nine apps a page instead of four. It is
+ * decided from the glass, not from which board this is, because nothing under
+ * src/ may name a board. */
+struct Grid {
+    uint8_t cols;
+    uint8_t rows;
+};
+constexpr int16_t DENSE_PORTRAIT_MIN_W = 320;
+/** The most tiles any grid puts on one page. */
+constexpr uint8_t MAX_PAGE_SIZE = 9;
+Grid grid(Board::LayoutMode mode, int16_t screenW, int16_t screenH);
+uint8_t pageSize(Board::LayoutMode mode, int16_t screenW, int16_t screenH);
+
+/* Which of the palette's three tile fills a slot gets. slot % 3 on a
+ * two-column grid, as it always was; on a three-column grid that would paint
+ * every column one colour, so there it steps by row as well. */
+uint8_t tileFillIndex(uint8_t slot, const Grid& g);
 
 }  // namespace LauncherLayout

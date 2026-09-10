@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,448,109 / 3,145,728 bytes (**77.8%**) |
+| Flash | 2,448,885 / 3,145,728 bytes (**77.8%**) |
 | RAM | 76,660 / 327,680 bytes (**23.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1200,7 +1200,7 @@ wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
 game off for every player at once. Chess, Sea Battle and Cursive cannot be
 hidden yet (a known limit of per-player visibility).
 
-`python tools/identify_boards.py` uses `identify` to say which board is on
+`python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
 which port. To set up several boards at once, copy
 `tools/bench_config.example.json` to `tools/bench_config.json` (gitignored)
 and run `python tools/configure_boards.py`.

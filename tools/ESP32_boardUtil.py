@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Say which board is on which serial port, without anyone being asked.
 
-    python tools/identify_boards.py            # identify everything attached
-    python tools/identify_boards.py --learn    # ...and record what it found
-    python tools/identify_boards.py --json     # machine-readable, for scripting
-    python tools/identify_boards.py --flash    # build and flash each one correctly
-    python tools/identify_boards.py --no-reset # ask only; never restart a board
+    python tools/ESP32_boardUtil.py            # identify everything attached
+    python tools/ESP32_boardUtil.py --learn    # ...and record what it found
+    python tools/ESP32_boardUtil.py --json     # machine-readable, for scripting
+    python tools/ESP32_boardUtil.py --flash    # build each model once, flash all at once
+    python tools/ESP32_boardUtil.py --flash --board E32R40T   # ...only that board
+    python tools/ESP32_boardUtil.py --no-reset # ask only; never restart a board
 
 Why this exists
 ---------------
@@ -17,8 +18,8 @@ session, which is two times too many.
 
 So the port is treated as an address, not an identity. At each address:
 
-1. **Ask.** Current firmware answers `identify?` with one `[ident]` line --
-   device id, board, version, build -- and keeps running. Nothing is reset, so
+1. **Ask.** Current firmware answers `identify?` with one `ok v="1" ...` line
+   -- device id, board, version, build -- and keeps running. Nothing is reset, so
    a game in progress or another agent's test is not disturbed. This is the
    normal path.
 2. **Reset and listen**, only if nothing answered: older firmware, a diag
@@ -110,7 +111,7 @@ def load_registry():
         seed["boards"] = {}          # the template's entries are placeholders
         seed["_comment"] = [
             "Local, gitignored, and specific to this machine. Populated by",
-            "`python tools/identify_boards.py --learn`.",
+            "`python tools/ESP32_boardUtil.py --learn`.",
         ]
         with open(REGISTRY, "w", encoding="utf-8", newline="\n") as f:
             json.dump(seed, f, indent=2, ensure_ascii=False)
@@ -246,20 +247,56 @@ def lock_path():
     return os.path.join(common, "gume-board.lock")
 
 
-def flash_all(results):
-    """Flash every identified board with its own environment.
+def flash_all(results, boards=None):
+    """Flash every identified board with its own environment -- in parallel.
 
     Refuses outright if anything is UNKNOWN. Flashing a board with the wrong
     panel's build is the failure this whole file exists to prevent, and
     "most of them were right" is not a state anybody can act on afterwards.
+
+    `boards` narrows it to the board being worked on: a list of BOARD_NAMEs
+    (`E32R40T`) or environments (`app_e32r40t`), case-insensitive. Without it
+    a change meant for one board rebuilt and reflashed the whole bench -- four
+    full builds side by side, since a new commit changes the build stamp and
+    so every object -- to test something only one panel could show. With it,
+    an UNKNOWN port elsewhere on the bench is reported rather than refused:
+    it cannot be matched, so it cannot be flashed by mistake.
+
+    Two phases, under ONE hold of the board lock:
+
+    1. BUILD each distinct environment once, all at the same time. Boards of
+       the same model share a build. Measured after a new commit, four
+       environments one after another took 210 s and in parallel 97 s: each
+       rebuild is one changed object plus dependency scanning and linking,
+       which is mostly single-core, so side by side they barely compete. Each
+       environment has its own build directory and its own generated stamp
+       header, and the object cache is safe to share between processes.
+    2. UPLOAD to every port at once, one process per port, with `-t nobuild`
+       so nothing is rebuilt. Each board is its own USB device on its own
+       port, so this is safe; one board failing does not stop the others.
+
+    The lock is still global. Parallel flashing is for ONE agent's boards --
+    two agents flashing the bench at the same time is exactly what the lock
+    exists to stop, and nothing here changes that.
     """
     unknown = [r for r in results if r["status"] in ("unknown", "silent")]
-    if unknown:
+    if unknown and not boards:
         print("Refusing to flash: %d port(s) unidentified (%s)."
               % (len(unknown), ", ".join(r["port"] for r in unknown)))
         return 1
+    if unknown:
+        print("Not flashing %d unidentified port(s): %s."
+              % (len(unknown), ", ".join(r["port"] for r in unknown)))
 
-    targets = [r for r in results if r["status"] in ("known", "new", "learned") and r.get("env")]
+    targets = [r for r in results
+               if r["status"] in ("known", "new", "learned") and r.get("env")]
+    if boards:
+        wanted = {b.lower() for b in boards}
+        targets = [r for r in targets
+                   if r["board"].lower() in wanted or r["env"].lower() in wanted]
+        if not targets:
+            print("No connected board matches --board %s." % ", ".join(boards))
+            return 1
     if not targets:
         print("Nothing to flash.")
         return 1
@@ -277,13 +314,56 @@ def flash_all(results):
 
     failed = []
     try:
-        for r in targets:
-            print("\n=== %s  %s  env:%s" % (r["port"], r["board"], r["env"]))
-            rc = subprocess.run(
-                ["pio", "run", "-e", r["env"], "-t", "upload",
-                 "--upload-port", r["port"]], cwd=ROOT, shell=True).returncode
-            if rc != 0:
-                failed.append(r["port"])
+        envs = sorted({r["env"] for r in targets})
+        built = set()
+        print("\n=== building %d environment(s) at once: %s"
+              % (len(envs), ", ".join(envs)))
+        t0 = time.time()
+        builds = []
+        for env in envs:
+            log = open(os.path.join(ROOT, ".pio", "build-%s.log" % env),
+                       "w", encoding="utf-8", errors="replace")
+            builds.append((env, log, subprocess.Popen(
+                ["pio", "run", "-e", env], cwd=ROOT, shell=True,
+                stdout=log, stderr=subprocess.STDOUT), time.time()))
+        for env, log, proc, started in builds:
+            rc = proc.wait()
+            log.close()
+            print("  %s env:%-24s %3ds" % ("ok " if rc == 0 else "ERR", env,
+                                           time.time() - started))
+            if rc == 0:
+                built.add(env)
+            else:
+                failed += [r["port"] for r in targets if r["env"] == env]
+                print("       see %s" % os.path.relpath(log.name, ROOT))
+        print("=== builds finished in %ds" % (time.time() - t0))
+
+        uploads = [r for r in targets if r["env"] in built]
+        if uploads:
+            print("\n=== uploading to %d board(s) at once: %s"
+                  % (len(uploads), ", ".join("%s(%s)" % (r["port"], r["env"])
+                                             for r in uploads)))
+            t0 = time.time()
+            procs = []
+            for r in uploads:
+                log = open(os.path.join(ROOT, ".pio", "upload-%s.log" % r["port"]),
+                           "w", encoding="utf-8", errors="replace")
+                p = subprocess.Popen(
+                    ["pio", "run", "-e", r["env"], "-t", "nobuild", "-t", "upload",
+                     "--upload-port", r["port"]],
+                    cwd=ROOT, shell=True, stdout=log, stderr=subprocess.STDOUT)
+                procs.append((r, p, log))
+            for r, p, log in procs:
+                rc = p.wait()
+                log.close()
+                ok = rc == 0 and "Hash of data verified" in open(
+                    log.name, encoding="utf-8", errors="replace").read()
+                print("  %s %-6s %-22s env:%s" % ("ok " if ok else "ERR", r["port"],
+                                                r["board"], r["env"]))
+                if not ok:
+                    failed.append(r["port"])
+                    print("       see %s" % os.path.relpath(log.name, ROOT))
+            print("=== uploads finished in %ds" % (time.time() - t0))
     finally:
         # Released on every path, including a failed flash and a Ctrl-C. A
         # lock left behind blocks every later agent, and stale locks here are
@@ -351,6 +431,10 @@ def main():
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--flash", action="store_true",
                     help="flash every identified board with its own env")
+    ap.add_argument("--board", action="append", metavar="NAME",
+                    help="with --flash, flash only boards whose BOARD_NAME or "
+                         "env is NAME (e.g. E32R40T or app_e32r40t); repeat "
+                         "for more than one")
     ap.add_argument("--no-reset", action="store_true",
                     help="only ask; never reset a board that does not answer")
     args = ap.parse_args()
@@ -460,7 +544,9 @@ def main():
         print("\nRecorded %d new board(s) in tools/board_registry.json." % learned)
 
     if args.flash:
-        return flash_all(results)
+        return flash_all(results, args.board)
+    if args.board:
+        print("--board only narrows --flash; nothing was flashed.")
 
     unknown = sum(1 for r in results if r["status"] in ("unknown", "silent"))
     return 1 if unknown else 0

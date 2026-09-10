@@ -34,7 +34,9 @@ private:
      * previous page has no frame to reuse, and drawing only its interior leaves
      * a bare rectangle with no rounded edge, border or shadow.
      *
-     * Six tiles in landscape, four in portrait; eight is room to spare. */
-    static constexpr uint8_t MAX_TILES = 8;
+     * Six tiles in landscape, four in portrait, nine in portrait on the
+     * 4-inch panel. Must be at least LauncherLayout::MAX_PAGE_SIZE, which
+     * renderStatic() static_asserts. */
+    static constexpr uint8_t MAX_TILES = 9;
     bool slotHasButton_[MAX_TILES] = {};
 };

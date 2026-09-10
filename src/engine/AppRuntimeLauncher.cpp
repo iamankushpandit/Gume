@@ -21,14 +21,44 @@ void copyFittedText(Ui::Renderer& tft, const char* source, char* dest, size_t ca
         dest[strlen(dest) - 1] = '\0';
     }
 }
+
+/* Break `source` at a space into two lines that each fit `maxW`, keeping the
+ * first line as long as it can be. False when there is no such break -- a
+ * single word too wide for the tile, or text that needs three lines. */
+bool splitIntoTwoLines(Ui::Renderer& tft, const char* source, char* first, char* second,
+                       size_t cap, int16_t maxW, uint8_t font) {
+    if (cap == 0 || source == nullptr) {
+        return false;
+    }
+    snprintf(first, cap, "%s", source);
+    for (size_t i = strlen(first); i-- > 1;) {
+        if (first[i] != ' ') {
+            continue;
+        }
+        first[i] = '\0';
+        if (tft.textWidth(first, font) > maxW) {
+            first[i] = ' ';
+            continue;
+        }
+        // The shortest second line there can be; if this misses, all do.
+        snprintf(second, cap, "%s", first + i + 1);
+        return tft.textWidth(second, font) <= maxW;
+    }
+    return false;
+}
 }
 
 uint8_t BrainoApp::launcherEntryCount() {
     return appVisibleCount(board_);
 }
 
+/* Against the live panel, because the portrait grid depends on its size. The
+ * launcher's rotation is applied before its begin(), so this is always the
+ * orientation the page is about to be drawn in. */
 uint8_t BrainoApp::launcherPageSize() {
-    return LauncherLayout::pageSize(board_.layoutMode());
+    return LauncherLayout::pageSize(board_.layoutMode(),
+                                    static_cast<int16_t>(renderer_.width()),
+                                    static_cast<int16_t>(renderer_.height()));
 }
 
 const AppDefinition& BrainoApp::launcherEntry(uint8_t filteredIndex) {
@@ -272,6 +302,8 @@ bool LauncherGame::renderChrome(GameHost& host) {
 
 /* Background and header. Only on a full repaint -- paging does not touch it. */
 void LauncherGame::renderStatic(GameHost& host) {
+    static_assert(MAX_TILES >= LauncherLayout::MAX_PAGE_SIZE,
+                  "slotHasButton_ cannot cover every tile on a page");
     Ui::clear(host.display());
     drawHeader(host);
     /* The panel has just been wiped, so no slot has a frame on it any more. */
@@ -305,6 +337,12 @@ void LauncherGame::renderDynamic(GameHost& host) {
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t start = page_ * pageSize;
     const uint8_t total = host.launcherEntryCount();
+    const LauncherLayout::Grid grid = LauncherLayout::grid(mode, lW, lH);
+    /* Three columns in portrait -- the 4-inch panel -- leaves 88px for a
+     * subtitle, and five of them are wider than that at font 1, which is
+     * already the smallest font the firmware carries. So there, and only
+     * there, a subtitle that does not fit goes onto two lines. */
+    const bool wrapSubtitles = tall && grid.cols >= 3;
 
     /* One text size for the whole page, chosen so every label on it fits.
      *
@@ -376,7 +414,7 @@ void LauncherGame::renderDynamic(GameHost& host) {
          * before this lists the same three colours, so nothing changed for
          * them -- but a theme made of four shades of green cannot have bright
          * blue, green and red rectangles as the first thing anyone sees. */
-        const uint16_t fill = Ui::tileFill(slot % 3);
+        const uint16_t fill = Ui::tileFill(LauncherLayout::tileFillIndex(slot, grid));
         /* The button itself is invariant across pages -- its rect comes from
          * the slot and its colour from `slot % 3`, neither of which a page
          * change touches. Ui::drawButton pushes TWO full tile areas (a shadow
@@ -456,16 +494,41 @@ void LauncherGame::renderDynamic(GameHost& host) {
             drawLauncherIcon(icon, entry.icon(), r, fill,
                              static_cast<int16_t>(cxT / iconScale),
                              static_cast<int16_t>(iconY / iconScale));
+            /* With wrapping on, the title sits one subtitle line higher on
+             * EVERY tile, whether its own subtitle wraps or not. A grid
+             * implies its cells are alike -- titles at two heights on one page
+             * would read as a fault, and would jump as pages turn. */
+            const int16_t textW = static_cast<int16_t>(r.w - 8);
+            const int16_t subPitch = static_cast<int16_t>(10 * textScale);
+            const int16_t subY = static_cast<int16_t>(r.y + r.h * 0.906f);
+            const int16_t titleY = static_cast<int16_t>(
+                r.y + r.h * 0.708f - (wrapSubtitles ? subPitch : 0));
             tft.setTextColor(TFT_WHITE, fill);
             tft.setTextDatum(MC_DATUM);
             tft.setTextSize(textScale);
-            copyFittedText(tft, entry.title(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 8), 2);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.708f), 2);
+            copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
+            tft.drawString(label, cxT, titleY, 2);
             tft.setTextColor(Ui::rgb(235, 245, 255), fill);
-            copyFittedText(tft, entry.subtitle(), label, sizeof(label),
-                           static_cast<int16_t>(r.w - 8), 1);
-            tft.drawString(label, cxT, static_cast<int16_t>(r.y + r.h * 0.906f), 1);
+            char second[sizeof(label)];
+            if (!wrapSubtitles) {
+                copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
+                tft.drawString(label, cxT, subY, 1);
+            } else if (tft.textWidth(entry.subtitle(), 1) > textW &&
+                       splitIntoTwoLines(tft, entry.subtitle(), label, second,
+                                         sizeof(label), textW, 1)) {
+                tft.drawString(label, cxT, static_cast<int16_t>(subY - subPitch), 1);
+                tft.drawString(second, cxT, subY, 1);
+            } else {
+                /* One line, centred in the two-line block. Cut with a dot if
+                 * even wrapping could not save it, so a clipped word never
+                 * passes for a whole one. */
+                copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
+                const size_t kept = strlen(label);
+                if (kept > 0 && kept < strlen(entry.subtitle())) {
+                    label[kept - 1] = '.';
+                }
+                tft.drawString(label, cxT, static_cast<int16_t>(subY - subPitch / 2), 1);
+            }
             tft.setTextSize(1);
         } else {
             /* Everything hangs off the tile's own centre line.

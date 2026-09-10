@@ -308,6 +308,11 @@ private:
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;
     int16_t ssav_textCy_ = -1;
+    /* Where each paddle was last painted, and in what colour; -1 means not
+     * painted yet. The paddles repaint only when these change. */
+    int16_t ssav_lyDrawn_ = -1;
+    int16_t ssav_ryDrawn_ = -1;
+    uint16_t ssav_padColorDrawn_ = 0;
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;

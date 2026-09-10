@@ -9,22 +9,42 @@ description: Identify which Braino board is on which serial port, and flash the 
 single session and it is answerable in about ten seconds. Run this instead:
 
 ```bash
-python tools/identify_boards.py
+python tools/ESP32_boardUtil.py
 ```
 
 It prints one line per port: the board, the PlatformIO environment to flash it
-with, the firmware version, and `asked` or `reset` -- how it found out. To flash
-every connected board correctly, in one step, taking and releasing the board
-lock on its own:
+with, the firmware version, and `asked` or `reset` -- how it found out.
+
+**While testing a change, flash only the board you are working on:**
 
 ```bash
-python tools/identify_boards.py --flash
+python tools/ESP32_boardUtil.py --flash --board E32R40T
 ```
+
+`--board` takes a `BOARD_NAME` or an environment (`app_e32r40t`), and repeats
+for more than one. This is the default for testing. A new commit changes the
+build stamp, so every environment it builds is a full rebuild: flashing the
+whole bench to test a 4-inch launcher change cost four of them side by side,
+more than ten minutes, for one panel's worth of answer.
+
+Flash **every** connected board only when the owner asks for the whole bench
+-- checking a release on each board, say:
+
+```bash
+python tools/ESP32_boardUtil.py --flash
+```
+
+Either way it takes and releases the board lock on its own. It builds every distinct environment **at the same time**, then uploads to **all
+boards at the same time** -- one agent flashing its whole bench in parallel is
+intended; two agents flashing at once is what the lock prevents. A failed build
+or board has its log in `.pio/build-<env>.log` / `.pio/upload-<port>.log` and
+does not stop the others. A first build of a board model can take minutes, so
+run it in the background.
 
 If other agents may be testing on the boards, never restart any of them:
 
 ```bash
-python tools/identify_boards.py --no-reset
+python tools/ESP32_boardUtil.py --no-reset
 ```
 
 ## Configure the bench — never by hand
@@ -99,7 +119,7 @@ s.open()`), or opening it resets the board.
   notice. Flash a candidate build, read `[boot] board=` back, then record it:
 
   ```bash
-  python tools/identify_boards.py --learn
+  python tools/ESP32_boardUtil.py --learn
   ```
 
 ## The banner's honest limit

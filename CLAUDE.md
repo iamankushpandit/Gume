@@ -92,7 +92,7 @@ So:
   pasted into a public issue, which is how a "local" identifier stops being
   local. Do not add the MAC back to it.
 - **`tools/board_registry.json` is gitignored.** `board_registry.example.json`
-  ships instead, with placeholder ids, and `identify_boards.py --learn` fills
+  ships instead, with placeholder ids, and `ESP32_boardUtil.py --learn` fills
   in the real one per machine. Reading a MAC off a chip with esptool is still
   correct when a board cannot introduce itself -- an empty flash, or after a
   merged-image install wiped NVS -- but it stays on that machine.
@@ -515,6 +515,21 @@ That path resolves to the same file from every worktree, and is never committed.
 "$PID|flash|$(Get-Location)|$(Get-Date -Format o)" | Set-Content $lock -Encoding utf8
 ```
 
+**The lock is per agent, not per board.** Two agents must never flash the
+bench at the same time -- that is what it is for. But the one agent holding it
+may flash several boards at once, and should: each board is its own USB device
+on its own port. `python tools/ESP32_boardUtil.py --flash` does exactly that
+under one hold of the lock -- it builds each distinct environment once, all at
+the same time, then uploads to every port in parallel with `-t nobuild`, with
+one log per build and per port in `.pio/`. **When testing, add `--board
+<BOARD_NAME>` and flash only the board the change is for**; the whole bench is
+for when the owner asks for it, since a new commit makes every environment a
+full rebuild. Parallel builds were measured, not
+assumed: after a new commit, four environments took 210 s one after another
+and 97 s side by side, because each rebuild is mostly single-core dependency
+scanning and linking. Do not hand-roll a second parallel flasher; extend that
+one.
+
 **Release it in all cases** when the build, flash or monitor session ends â€” including on failure. `Remove-Item $lock`.
 
 ### If the lock is already held
@@ -541,7 +556,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,448,109 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,448,885 / 3,145,728 bytes,
 **77.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,660 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -993,7 +1008,7 @@ So: write the geometry once, at file scope, and derive every clear rectangle fro
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
-Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape).
+Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
 
 **System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
@@ -1048,7 +1063,7 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           configure_boards.py + bench_config.example.json
                           (set every board up from one config over the
                           serial console; the real config is gitignored),
-                          identify_boards.py + board_registry.example.json
+                          ESP32_boardUtil.py + board_registry.example.json
                           (which board is on which port, keyed by the
                           firmware's own Board::deviceId(); the real registry
                           is gitignored because it names one person's boards)
@@ -1203,7 +1218,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   describe the firmware, not the hardware, which is exactly how a 2.8-inch
   board reported itself as a 4-inch for half an hour.
 - **A running board answers `identify` with the same facts, unreset.** One
-  line, every value quoted; `identify_boards.py` asks before it resets
+  line, every value quoted; `ESP32_boardUtil.py` asks before it resets
   anything. It carries **only the banner's facts** (no MAC, profile, score or
   SSID) and needs no PIN. Open the port with DTR and RTS already low, or
   opening it resets the board and defeats the point.
@@ -1224,7 +1239,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     matches `(\w+)="..."`. **Add a command as a row, never as another string
     match**, and never give it a second reply shape. `identify?`, `settings`
     and `settings?` are kept as aliases because tools on `dev` already send
-    them; `identify_boards.py` also accepts the `[ident] ...` reply that
+    them; `ESP32_boardUtil.py` also accepts the `[ident] ...` reply that
     pre-console snapshot builds give.
   - **CRUD, where the entity has it.** Settings are fixed keys, so they are
     Read and Update: `get [key]` and `set <key> <value>` over one settings

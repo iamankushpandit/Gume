@@ -389,7 +389,7 @@ public:
      * home, and nothing can undo it afterwards. This id is the opposite in
      * every respect that matters -- the firmware owns it, it means nothing off
      * this device, and a factory reset issues a new one. Prefer it anywhere a
-     * board has to be told apart: the boot banner, tools/identify_boards.py,
+     * board has to be told apart: the boot banner, tools/ESP32_boardUtil.py,
      * a bug report.
      *
      * The trade is honest and worth knowing: because it lives in NVS it does
