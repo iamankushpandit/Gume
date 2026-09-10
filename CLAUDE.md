@@ -521,7 +521,10 @@ may flash several boards at once, and should: each board is its own USB device
 on its own port. `python tools/ESP32_boardUtil.py --flash` does exactly that
 under one hold of the lock -- it builds each distinct environment once, all at
 the same time, then uploads to every port in parallel with `-t nobuild`, with
-one log per build and per port in `.pio/`. Parallel builds were measured, not
+one log per build and per port in `.pio/`. **When testing, add `--board
+<BOARD_NAME>` and flash only the board the change is for**; the whole bench is
+for when the owner asks for it, since a new commit makes every environment a
+full rebuild. Parallel builds were measured, not
 assumed: after a new commit, four environments took 210 s one after another
 and 97 s side by side, because each rebuild is mostly single-core dependency
 scanning and linking. Do not hand-roll a second parallel flasher; extend that

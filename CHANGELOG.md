@@ -139,6 +139,9 @@ connected board's environment once, all at the same time, then uploads to
 every port in parallel under one hold of the board lock. The old name
 described half of what it does. `configure_boards.py` imports it under the new
 name; entries for earlier releases below keep the name it had then.
+`--flash --board E32R40T` flashes only that board, which is what testing a
+change should use: flashing the whole bench to test a 4-inch change rebuilt
+four environments from scratch.
 
 **The 4-inch launcher shows nine apps a page in portrait.** A 3x3 grid of
 96x112 tiles instead of 2x2, so the catalogue is five pages rather than eleven.
