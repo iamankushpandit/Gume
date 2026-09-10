@@ -256,7 +256,7 @@ def flash_all(results):
               % (len(unknown), ", ".join(r["port"] for r in unknown)))
         return 1
 
-    targets = [r for r in results if r["status"] in ("known", "new") and r.get("env")]
+    targets = [r for r in results if r["status"] in ("known", "new", "learned") and r.get("env")]
     if not targets:
         print("Nothing to flash.")
         return 1
@@ -363,7 +363,10 @@ def main():
             continue
 
         # Ask first. A board on current firmware answers without being reset.
-        reply = query_board(py, device)
+        # Twice, because the reply shares the UART with every other task's
+        # logging: on the bench a NimBLE scan line landed in the middle of one
+        # and it did not parse. A second ask is cheap; a reset is not.
+        reply = query_board(py, device) or query_board(py, device)
         if reply:
             banner, device_id = reply.get("board"), reply.get("device")
             version, chip, via = reply.get("version"), reply.get("chip"), "asked"
@@ -406,6 +409,7 @@ def main():
                     "how": how,
                 }
                 learned += 1
+                row["status"] = "learned"
         else:
             # No banner means no device id, so there is nothing to look up.
             # A blank board, a diag build or a sleeping one all land here: the
@@ -438,6 +442,9 @@ def main():
         elif s == "new":
             print("  %s  %-20s env:%-24s %s   (new -- re-run with --learn)"
                   % (p, r["board"], r["env"] or "?", tail))
+        elif s == "learned":
+            print("  %s  %-20s env:%-24s %s   (recorded)"
+                  % (p, r["board"], r["env"], tail))
         elif s == "unknown":
             print("  %s  UNKNOWN  chip=%s -- %s"
                   % (p, r["chip"] or "?", r.get("why", "did not identify")))

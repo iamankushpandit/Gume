@@ -1120,14 +1120,17 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   DTR and RTS already low, or opening it resets the board and defeats the
   point. Anything that widens it into a command channel needs the same
   scrutiny as a new outbound flow.
-- **An EN reset can strand an E32R40T.** Seen on the bench: after the reset
-  button, the ROM looped `flash read err, 988` / `RTCWDT_RTC_RESET` every
-  ~350ms with the panel dark, and only pulling the battery recovered it.
-  Suspected, not proven: GPIO12 is both the MTDI strap (high at reset selects
-  1.8V flash) and the MISO the ST7796 and XPT2046 share, and EN resets
-  neither peripheral. A dark 4-inch board is worth a passive serial capture
-  before it is worth a reflash. The permanent fix, `espefuse.py
-  set_flash_voltage 3.3V`, is irreversible and is the owner's call.
+- **An EN reset can strand an E32R40T.** Seen on the bench three times in one
+  day: after the reset button, an RTS reset from a serial tool, or a USB power
+  surge, the ROM loops `flash read err, 988` / `RTCWDT_RTC_RESET` every ~350ms
+  with the panel dark, and only pulling the battery recovers it. **It is not
+  the GPIO12 strap**, which was the first guess (GPIO12 is also the shared
+  MISO): the ROM prints `boot:0x17`, whose MTDI bit is clear, so 3.3V flash was
+  selected. Everything seen fits the flash chip itself being left in a state
+  an EN reset does not clear -- EN resets the ESP32, not the flash -- after
+  the app has been running; a board fresh from esptool boots. Cause not yet
+  found. A dark 4-inch board is worth a passive serial capture before it is
+  worth a reflash, and it cannot be flashed while looping.
 - **There is no `id=` field in the banner, and putting one back needs more
   care than it looks.** 5.9.0 printed the controller's ID register and broke the
   display on two of the seven boards: `tft.readcommand8()` writes an
