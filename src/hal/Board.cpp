@@ -175,11 +175,29 @@ String Board::profileName(uint8_t index) {
     return String("Player ") + static_cast<int>(index + 1);
 }
 
-void Board::setProfileName(uint8_t index, const String& name) {
+void Board::copyProfileName(uint8_t index, char* out, size_t cap) {
+    if (out == nullptr || cap == 0) return;
+    out[0] = '\0';
+    if (index == GUEST_INDEX) {
+        snprintf(out, cap, "Guest");
+        return;
+    }
+    char key[10];
+    snprintf(key, sizeof(key), "pname%u", index);
+    if (prefs_.isKey(key)) prefs_.getString(key, out, cap);
+    // Same fallback as profileName(): an unnamed slot is "Player N".
+    if (out[0] == '\0') snprintf(out, cap, "Player %u", (unsigned)(index + 1));
+}
+
+void Board::setProfileName(uint8_t index, const char* name) {
     if (index >= MAX_PLAYERS) return;
     char key[10];
     snprintf(key, sizeof(key), "pname%u", index);
-    prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
+    // Same PROFILE_NAME_MAX truncation substring() applied, without a temporary.
+    char stored[PROFILE_NAME_MAX + 1];
+    strncpy(stored, name ? name : "", PROFILE_NAME_MAX);
+    stored[PROFILE_NAME_MAX] = '\0';
+    prefs_.putString(key, stored);
 }
 
 uint8_t Board::addPlayer(const char* name) {

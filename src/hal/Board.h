@@ -280,7 +280,15 @@ public:
     uint8_t activeProfile();
     void setActiveProfile(uint8_t index);
     String profileName(uint8_t index);
-    void setProfileName(uint8_t index, const String& name);
+    /* The same name into a caller's buffer, allocating nothing -- for the
+     * serial console, which compares and prints names from a fixed buffer. */
+    void copyProfileName(uint8_t index, char* out, size_t cap);
+    /* The char* form is the real one, as with addPlayer(); the String
+     * overload is kept for ProfileGame's draft name. */
+    void setProfileName(uint8_t index, const char* name);
+    void setProfileName(uint8_t index, const String& name) {
+        setProfileName(index, name.c_str());
+    }
 
     /** How many player profiles exist (0..MAX_PLAYERS). Guest is always extra. */
     uint8_t playerCount();
@@ -411,6 +419,8 @@ public:
     void setGameVisible(uint8_t catalogIndex, bool visible);
     bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true);
     void setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible);
+    /** Launcher indices at or above this cannot be hidden (see VISIBILITY_BITS). */
+    static constexpr uint8_t gameVisibilityLimit() { return VISIBILITY_BITS; }
     String wifiSsid();
     String wifiPassword();
     /* The char* form is the real one, as with addPlayer(): the serial console
