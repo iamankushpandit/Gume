@@ -92,7 +92,7 @@ So:
   pasted into a public issue, which is how a "local" identifier stops being
   local. Do not add the MAC back to it.
 - **`tools/board_registry.json` is gitignored.** `board_registry.example.json`
-  ships instead, with placeholder ids, and `identify_boards.py --learn` fills
+  ships instead, with placeholder ids, and `ESP32_boardUtil.py --learn` fills
   in the real one per machine. Reading a MAC off a chip with esptool is still
   correct when a board cannot introduce itself -- an empty flash, or after a
   merged-image install wiped NVS -- but it stays on that machine.
@@ -518,7 +518,7 @@ That path resolves to the same file from every worktree, and is never committed.
 **The lock is per agent, not per board.** Two agents must never flash the
 bench at the same time -- that is what it is for. But the one agent holding it
 may flash several boards at once, and should: each board is its own USB device
-on its own port. `python tools/identify_boards.py --flash` does exactly that
+on its own port. `python tools/ESP32_boardUtil.py --flash` does exactly that
 under one hold of the lock -- it builds each distinct environment once, all at
 the same time, then uploads to every port in parallel with `-t nobuild`, with
 one log per build and per port in `.pio/`. Parallel builds were measured, not
@@ -1060,7 +1060,7 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           configure_boards.py + bench_config.example.json
                           (set every board up from one config over the
                           serial console; the real config is gitignored),
-                          identify_boards.py + board_registry.example.json
+                          ESP32_boardUtil.py + board_registry.example.json
                           (which board is on which port, keyed by the
                           firmware's own Board::deviceId(); the real registry
                           is gitignored because it names one person's boards)
@@ -1215,7 +1215,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   describe the firmware, not the hardware, which is exactly how a 2.8-inch
   board reported itself as a 4-inch for half an hour.
 - **A running board answers `identify` with the same facts, unreset.** One
-  line, every value quoted; `identify_boards.py` asks before it resets
+  line, every value quoted; `ESP32_boardUtil.py` asks before it resets
   anything. It carries **only the banner's facts** (no MAC, profile, score or
   SSID) and needs no PIN. Open the port with DTR and RTS already low, or
   opening it resets the board and defeats the point.
@@ -1236,7 +1236,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     matches `(\w+)="..."`. **Add a command as a row, never as another string
     match**, and never give it a second reply shape. `identify?`, `settings`
     and `settings?` are kept as aliases because tools on `dev` already send
-    them; `identify_boards.py` also accepts the `[ident] ...` reply that
+    them; `ESP32_boardUtil.py` also accepts the `[ident] ...` reply that
     pre-console snapshot builds give.
   - **CRUD, where the entity has it.** Settings are fixed keys, so they are
     Read and Update: `get [key]` and `set <key> <value>` over one settings

@@ -96,10 +96,10 @@ because history, clones, forks and tarballs all keep copies.
 - The boot banner prints `device=`, never `mac=`. That line gets pasted into
   public issues.
 - `tools/board_registry.json` is gitignored; the `.example.json` ships with
-  placeholders and `identify_boards.py --learn` fills in the real one locally.
+  placeholders and `ESP32_boardUtil.py --learn` fills in the real one locally.
 - **Ask a board before you reset it.** Current firmware answers `identify` on
   the serial port with one `ok ...` line (device id, board, version, build)
-  and keeps running; `identify_boards.py` does this first and resets only a
+  and keeps running; `ESP32_boardUtil.py` does this first and resets only a
   board that stays silent. `--no-reset` never resets. A reset discards another
   agent's in-flight test, and on the bench an E32R40T once needed its battery
   pulled to boot again after one.

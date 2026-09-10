@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Say which board is on which serial port, without anyone being asked.
 
-    python tools/identify_boards.py            # identify everything attached
-    python tools/identify_boards.py --learn    # ...and record what it found
-    python tools/identify_boards.py --json     # machine-readable, for scripting
-    python tools/identify_boards.py --flash    # build each model once, flash all at once
-    python tools/identify_boards.py --no-reset # ask only; never restart a board
+    python tools/ESP32_boardUtil.py            # identify everything attached
+    python tools/ESP32_boardUtil.py --learn    # ...and record what it found
+    python tools/ESP32_boardUtil.py --json     # machine-readable, for scripting
+    python tools/ESP32_boardUtil.py --flash    # build each model once, flash all at once
+    python tools/ESP32_boardUtil.py --no-reset # ask only; never restart a board
 
 Why this exists
 ---------------
@@ -110,7 +110,7 @@ def load_registry():
         seed["boards"] = {}          # the template's entries are placeholders
         seed["_comment"] = [
             "Local, gitignored, and specific to this machine. Populated by",
-            "`python tools/identify_boards.py --learn`.",
+            "`python tools/ESP32_boardUtil.py --learn`.",
         ]
         with open(REGISTRY, "w", encoding="utf-8", newline="\n") as f:
             json.dump(seed, f, indent=2, ensure_ascii=False)

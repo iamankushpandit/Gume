@@ -38,7 +38,7 @@ fixed here is the tree, and the possibility of a repeat.
   people paste into public issues, which is how a local identifier stops being
   local.
 - **The registry is gitignored**, with `board_registry.example.json` shipping
-  placeholders and `identify_boards.py --learn` filling in the real one per
+  placeholders and `ESP32_boardUtil.py --learn` filling in the real one per
   machine. esptool still reads a MAC off the chip when a board cannot
   introduce itself — an empty flash, or after a merged-image install wiped
   NVS — and it stays on that machine.
@@ -56,7 +56,7 @@ names on, so it needs agreement first — like any other change to the
 advertisement.
 
 **A running board can be asked what it is, without being reset.** The boot
-banner prints once, at power-up, so `identify_boards.py` used to reset every
+banner prints once, at power-up, so `ESP32_boardUtil.py` used to reset every
 board on the desk to hear it — discarding whatever each was doing, and not even
 reliably: one bench board's USB bridge drops off the bus for a moment as the
 app starts, taking the banner with it, and a 4-inch board reset from its
@@ -69,7 +69,7 @@ button can refuse to boot until its battery is pulled.
   arguments, no state change, nothing granted — and carries the banner's facts
   only: never the MAC, a profile, a score or an SSID. A query does not count as
   activity, so a tool polling the desk does not keep screens awake.
-- **`identify_boards.py` asks first** and falls back to reset-and-listen only
+- **`ESP32_boardUtil.py` asks first** and falls back to reset-and-listen only
   for a board that does not answer (older firmware, a diag build, a blank
   flash). It now prints each board's firmware version and whether the board was
   *asked* or *reset*. `--no-reset` asks and never resets.
@@ -87,7 +87,7 @@ calls the same services the UI does:
   `help` is derived from the table. Every command answers with exactly one
   line: `ok key="value" ...` or `err <code> <message>`. `identify` now answers
   in that grammar too (`ok v="1" device=...` instead of `[ident] v="1" ...`);
-  `identify?` and `settings?` still work as aliases, and `identify_boards.py`
+  `identify?` and `settings?` still work as aliases, and `ESP32_boardUtil.py`
   accepts both reply forms.
 - **CRUD, where the entity has it.** `get [key]` / `set <key> <value>` cover
   every setting the Settings and Wi-Fi screens offer — theme, brightness,
@@ -132,6 +132,13 @@ issues. `CONFIG_NIMBLE_CPP_LOG_LEVEL=2` keeps NimBLE's warnings and errors;
 the same board now prints 2 bytes a second. It was not the cause of slow
 frames: the loop ran at 48.9 frames a second before and 49.6 after, and the
 ~150 ms worst frame is unchanged, so that is a separate question.
+
+**`tools/identify_boards.py` is now `tools/ESP32_boardUtil.py`.** It stopped
+being only an identifier when it learned to flash: `--flash` builds each
+connected board's environment once, all at the same time, then uploads to
+every port in parallel under one hold of the board lock. The old name
+described half of what it does. `configure_boards.py` imports it under the new
+name; entries for earlier releases below keep the name it had then.
 
 **The 4-inch launcher shows nine apps a page in portrait.** A 3x3 grid of
 96x112 tiles instead of 2x2, so the catalogue is five pages rather than eleven.

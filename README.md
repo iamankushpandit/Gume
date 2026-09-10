@@ -1200,7 +1200,7 @@ wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
 game off for every player at once. Chess, Sea Battle and Cursive cannot be
 hidden yet (a known limit of per-player visibility).
 
-`python tools/identify_boards.py` uses `identify` to say which board is on
+`python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
 which port. To set up several boards at once, copy
 `tools/bench_config.example.json` to `tools/bench_config.json` (gitignored)
 and run `python tools/configure_boards.py`.

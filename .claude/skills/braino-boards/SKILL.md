@@ -9,7 +9,7 @@ description: Identify which Braino board is on which serial port, and flash the 
 single session and it is answerable in about ten seconds. Run this instead:
 
 ```bash
-python tools/identify_boards.py
+python tools/ESP32_boardUtil.py
 ```
 
 It prints one line per port: the board, the PlatformIO environment to flash it
@@ -18,7 +18,7 @@ every connected board correctly, in one step, taking and releasing the board
 lock on its own:
 
 ```bash
-python tools/identify_boards.py --flash
+python tools/ESP32_boardUtil.py --flash
 ```
 
 It builds every distinct environment **at the same time**, then uploads to **all
@@ -31,7 +31,7 @@ run it in the background.
 If other agents may be testing on the boards, never restart any of them:
 
 ```bash
-python tools/identify_boards.py --no-reset
+python tools/ESP32_boardUtil.py --no-reset
 ```
 
 ## Configure the bench — never by hand
@@ -106,7 +106,7 @@ s.open()`), or opening it resets the board.
   notice. Flash a candidate build, read `[boot] board=` back, then record it:
 
   ```bash
-  python tools/identify_boards.py --learn
+  python tools/ESP32_boardUtil.py --learn
   ```
 
 ## The banner's honest limit

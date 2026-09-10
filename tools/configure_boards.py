@@ -60,7 +60,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import identify_boards as ib  # noqa: E402  (reuse discovery, registry, lock)
+import ESP32_boardUtil as ib  # noqa: E402  (reuse discovery, registry, lock)
 
 DEFAULT_CONFIG = os.path.join(HERE, "bench_config.json")
 EXAMPLE_CONFIG = os.path.join(HERE, "bench_config.example.json")

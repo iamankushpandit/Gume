@@ -124,7 +124,7 @@ void BrainoApp::logIdentity() {
 /* ASKED, NOT RESET: THE SERIAL PORT ANSWERS ONE QUESTION.
  *
  * The boot banner is printed once, at power-up, so the only way to hear it
- * again was to reset the board -- which is what tools/identify_boards.py did
+ * again was to reset the board -- which is what tools/ESP32_boardUtil.py did
  * to every board on the desk, every time. A reset throws away whatever the
  * board was doing (a game half played, a test another agent was running), and
  * it is not even reliable: one bench board's USB bridge drops off the bus for
@@ -138,7 +138,7 @@ void BrainoApp::logIdentity() {
  *      panel="ILI9341_2" up="3605"
  *
  * (one line on the wire; wrapped here). 5.10.0-SNAPSHOT builds from before the
- * console answered with an `[ident]` tag in place of `ok`; identify_boards.py
+ * console answered with an `[ident]` tag in place of `ok`; ESP32_boardUtil.py
  * accepts both. Every value is quoted, because
  * BOARD_NAME and the build time can both contain spaces and the tool once cut
  * a board name off at one. `v` is the format's own version, so a later field
@@ -148,7 +148,7 @@ void BrainoApp::logIdentity() {
  * a property of the bench, not of Braino. Any image flashed onto one of these
  * boards -- the diag builds, a bring-up probe, a future firmware under another
  * name -- can answer the same query with the same line, and
- * identify_boards.py will recognise it without changing. The `board=` field is
+ * ESP32_boardUtil.py will recognise it without changing. The `board=` field is
  * what says which firmware answered.
  *
  * The reply must never become a second way to read player data: it is the
