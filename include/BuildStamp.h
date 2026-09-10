@@ -11,14 +11,21 @@
  * list and the product name: derive, do not restate. Nothing may type a commit
  * or a branch into a screen.
  *
- * ## Why the time is not a build flag like the other two
+ * ## They arrive in a generated header, not as `-D`
  *
- * PlatformIO folds the build flags into its build signature, so a `-D` whose
- * value changes on every invocation -- which a timestamp does, by definition --
- * invalidates every object in the tree and makes `pio run` a full rebuild every
- * time, for everyone. So the clock comes from the compiler's own `__DATE__`
- * and `__TIME__` in `src/BuildStamp.cpp`, and the script deletes that one
- * object file to keep them honest. The full reasoning is in the script.
+ * The script writes `GumeBuildStamp.h` into the build directory and
+ * `src/BuildStamp.cpp` is the only file that includes it. They used to be
+ * appended to `CPPDEFINES`, which reaches the Arduino core and NimBLE as well
+ * as our own sources -- so changing the commit recompiled 336 objects and took
+ * 333 s, against 66 s and one object for a build where nothing had changed.
+ * The include path is a flag and is constant; the header's contents are not a
+ * flag and are free to change. The full reasoning is in the script.
+ *
+ * ## Why the time is not in that header either
+ *
+ * It comes from the compiler's own `__DATE__` and `__TIME__` in
+ * `src/BuildStamp.cpp`, which needs no mechanism at all, and the script
+ * deletes that one object file so they are always this build's.
  *
  * The consequence worth knowing: the time is the build machine's local clock in
  * C's own format ("Aug 26 2026 14:28"), not ISO and not UTC. It identifies a
@@ -39,6 +46,10 @@
 
 #ifndef GUME_BUILD_COMMIT
 #define GUME_BUILD_COMMIT "unknown"
+#endif
+
+#ifndef GUME_BUILD_TIME
+#define GUME_BUILD_TIME "unknown"
 #endif
 
 namespace BuildStamp {

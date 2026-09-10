@@ -150,6 +150,84 @@ changes what a screen shows — theme, brightness, layout, idle timeouts, mute
 out the theme hypothesis; it wants committing properly, with profile names
 deliberately left out for the same reason the SSID already is.
 
+**CI and releases build the console, not the bench probes.** `platformio.ini`
+declares twenty-one environments and seven of them are Braino!; the other
+fourteen are hardware probes — `bringup`, `batdiag`, `audiodiag`, `wifidiag`,
+`s3diag`, `diag4`, `diag32p` and their per-board copies. Every workflow was
+building all of them anyway: eighteen on a push to `main` or `dev`, eighteen
+again on the Pages deploy minutes later, and all twenty-one on a tag, where
+fourteen probe images were attached as downloads nobody had a use for.
+
+Each environment now says which it is, once, with `custom_env_kind`, and
+`tools/envs.py` is the only place a workflow, checker or packer reads it. A
+probe is built when its own source or `platformio.ini` moves and not otherwise,
+and it is still one command away when a board needs triaging: `pio run -e
+batdiag -t upload`.
+
+**The build stamp is a generated header, not two `-D` flags — and a commit no
+longer rebuilds the world.** `tools/build_stamp.py` appended
+`GUME_BUILD_BRANCH`/`GUME_BUILD_COMMIT` to the global `CPPDEFINES`, which
+reaches the Arduino core and NimBLE as well as our own sources. Measured:
+
+| | before | after |
+|---|---|---|
+| `pio run -e app`, nothing changed | 66 s, 1 object | **45 s, 0 objects** |
+| `pio run -e app`, different commit | 333 s, 336 objects | **63 s, 4 objects** |
+
+336 objects to change a string that one translation unit reads — and a commit
+hash changes on every commit, so that was the standing cost of committing. The
+old comment defended it as "that is when the tree needed rebuilding anyway";
+89 of those 336 objects are ours, and usually one of them is what moved. It
+also meant CI could never cache build output, because every CI run is a new
+commit.
+
+**The build time moved into that header too, and had to.** It came from the
+compiler's `__DATE__`/`__TIME__` with the script deleting `BuildStamp.cpp.o`
+to keep it fresh. That stops working the moment an object cache exists: SCons
+restores the object instead of recompiling it — a legitimate hit, the source
+has not changed — and the reported build time freezes at whenever the first
+build happened. It was caught doing exactly that. A stale build time is worse
+than none, because it is believed.
+
+**The diagnostic defines are source-scoped.** `-D CYD_BRINGUP_ONLY` and its
+siblings are read only under `src/`, so they are now `build_src_flags` rather
+than global flags that also reached NimBLE and the core.
+
+**`[platformio] build_cache_dir` caches objects per environment — and only per
+environment.** Measured on this branch, each case starting from an empty build
+directory with the cache already warm:
+
+| | compiled | from cache | time |
+|---|---|---|---|
+| `app`, after `app` had been built | 1 | 351 | **49 s** |
+| `bringup` (same board), after `app` | 343 | 0 | 338 s |
+| `app_esp32_2432s028r`, after three other boards | 340 | 0 | 367 s |
+
+So a fresh checkout of an environment that has been built before — which is
+exactly what a CI job with a restored cache is — rebuilds in under a minute.
+Two environments never share, not even two for the same board: each builds
+into its own directory, and the output path is part of the cache key. An
+earlier draft of this change measured `bringup` reusing `app`'s objects; that
+did not reproduce, and limiting the board macros to TFT_eSPI to let boards
+share was tried and reverted for the same reason — it saved nothing.
+
+All three workflows now cache `.pio/build_cache` between runs, one cache per
+environment, which was pointless before the stamp changed and is the point
+now.
+
+Flash is 52 bytes smaller and RAM 24 bytes smaller: `builtAt()` returns a
+generated literal instead of assembling one into an 18-byte static buffer with
+`snprintf`.
+
+**Three hand-kept lists of environments went away, and they had already
+drifted.** `ci.yml` and `pages.yml` each named eighteen and neither named
+`audiodiag`, `diag32p` or `audiodiag_e32r32p`, which had been in
+`platformio.ini` for months — exactly the "an environment nobody builds is one
+that is already broken and has not been told yet" failure `pages.yml` warns
+about in its own comment. A list written into a workflow can be checked for
+typos and cannot be checked for completeness. `check_boards.py` now fails a
+workflow that runs `pio run` without asking `envs.py`.
+
 ## 5.9.1 — 2026-09-08
 
 **A hotfix. 5.9.0 was withdrawn: it broke the display on two of the seven

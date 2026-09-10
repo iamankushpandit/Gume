@@ -67,6 +67,29 @@ jobs:
           key: pio-${{ hashFiles('platformio.ini') }}
           restore-keys: pio-
 
+      # The compiled-object cache. Separate from the PlatformIO *packages* cache
+      # above, which holds the toolchain: this holds build output, and until
+      # 5.9.x there was no point caching it. tools/build_stamp.py appended the
+      # commit hash to the global CPPDEFINES, so every object in the tree had a
+      # different compile command on every commit -- and every CI run is a new
+      # commit. Measured locally: 333 s and 336 objects for a changed commit
+      # name, against 66 s and one object for a build where nothing had moved.
+      #
+      # With the stamp in a generated header instead, the objects are stable
+      # across commits and this cache starts paying. It is content-addressed,
+      # so a restored entry is either right or is not a hit -- there is no
+      # stale-artifact failure mode to guard against. The key rotates per run
+      # so the cache keeps absorbing new objects; restore-keys is what makes
+      # the previous run's copy the starting point.
+      - name: Cache compiled objects
+        uses: actions/cache@v4
+        with:
+          path: .pio/build_cache
+          key: objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
+            objects-${{ runner.os }}-
+
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
@@ -111,13 +134,20 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 
-      # Every environment platformio.ini declares, derived rather than listed.
-      # pages.yml hard-coded its list once and deploys died silently for two
-      # pushes; the release equivalent is a download that is simply absent.
-      - name: Build every firmware environment
+      # The seven product environments, derived by tools/envs.py rather than
+      # listed here. It used to be every [env:*] in platformio.ini, which meant
+      # a release carried fourteen diagnostic images -- a bringup, a batdiag and
+      # an audiodiag per board, plus four boardless probes -- as downloads.
+      #
+      # Nobody wants one. A probe is flashed at a board on a desk by somebody
+      # who has the toolchain open anyway, and `pio run -e batdiag -t upload`
+      # is the way they get it; a stale copy attached to a release is a slower
+      # route to an older build. Fourteen builds and fourteen merged images per
+      # tag bought a longer release, a longer download list and nothing else.
+      - name: Build the firmware this release publishes
         run: |
           set -euo pipefail
-          envs="$(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")"
+          envs="$(python tools/envs.py --product --pio-args)"
           echo "Building: $envs"
           pio run $envs
 

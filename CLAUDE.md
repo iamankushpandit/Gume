@@ -278,7 +278,63 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Five diagnostic environments exist for hardware triage:
+### An environment is either the product or a bench probe, and it says which
+
+`platformio.ini` declares twenty-one environments; seven of them are Braino!.
+Each one states which it is, once, beside itself:
+
+```ini
+custom_env_kind = product      ; or: diagnostic
+```
+
+`tools/envs.py` reads that and is the only place any workflow, checker or
+packer learns which environments to build. **Nothing may write a list of
+environments into a workflow again.** Three files each kept their own list --
+ci.yml, pages.yml and the size-table loop -- all three named eighteen
+environments, and none of them named `audiodiag`, `diag32p` or
+`audiodiag_e32r32p`, which had been in this file for months. That is exactly
+the failure pages.yml warned about in its own comment while committing it: an
+environment nobody builds is one that is already broken and has not been told
+yet. A hand-kept list can be checked for typos and cannot be checked for
+completeness, so it has to be derived.
+
+What follows from the classification:
+
+- **CI builds the seven product environments** on a push to `main` or `dev`,
+  and on a pull request builds `app` plus whatever the diff reaches.
+- **Each environment builds in its own job, in parallel.** `ci.yml` is three
+  jobs: `plan` runs every repository check, asks `envs.py` what to build and
+  installs all the toolchains once into the one cache it alone saves; `build`
+  is a matrix with one runner per environment and `fail-fast: false`, each
+  named after its board (`build E32R28T-1 (app)` -- `envs.py --matrix` reads
+  `BOARD_NAME` from the board section, so a red job says which board broke and
+  the environment beside it says how to reproduce it), each
+  restoring that toolchain cache read-only plus its own per-environment object
+  cache; `verify` waits for both and fails if either did. One runner building
+  seven boards in turn was 14-15 minutes on a push to `dev`. **`verify` is the
+  required status check in the branch rulesets -- never rename it, and never
+  make the matrix jobs required instead:** their names carry the environment,
+  so the set changes with the diff, and a ruleset can only wait for names it
+  knows. `verify` runs `if: always()` so a docs-only pull request, where
+  `build` is skipped, still reports.
+- **A diagnostic is built only when its own source or `platformio.ini`
+  moves** -- `tools/envs.py --for-changes` derives that from each one's
+  `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
+  batdiag environments and nothing else. A board header does not trigger one:
+  the product environment for that board already compiles the same header, so
+  building the probe again is a slower way of learning the same thing.
+- **The Pages workflow builds product environments only.** It offers no probe
+  for download, so it has no business compiling one.
+- **A release publishes product environments only.** Every tag used to attach
+  fourteen probe images nobody downloads; whoever needs one has the toolchain
+  open and runs `pio run -e batdiag -t upload`, which gives them the current
+  build rather than one a tag froze.
+- **A new environment with no `custom_env_kind` fails the checks.** An
+  unclassified environment cannot be a default in either direction without the
+  wrong answer being silent.
+
+Fourteen diagnostic environments exist for hardware triage. Build one by name
+when you need it:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
 - `pio run -e batdiag` — builds `src/battery_diag.cpp` **alone**, an eight-page
@@ -309,36 +365,56 @@ Five diagnostic environments exist for hardware triage:
   `check_boards.py`'s `BOARDLESS_ENVS`, because a `[board_*]` section is a
   claim of support and neither board is supported yet.
 
-### Every build is stamped, and the time is not a `-D`
+### Every build is stamped, and nothing about the stamp is a `-D`
 
 `tools/build_stamp.py` is a pre-build script wired in from `[esp32_common]`, so
-every environment gets it. It injects the branch and the abbreviated commit as
-`-D GUME_BUILD_BRANCH` / `-D GUME_BUILD_COMMIT`, and the firmware reads them
-through `BuildStamp::` -- never the macros directly, outside
-`include/BuildStamp.h`. About's last page, System Info's Device tab and the
-`[boot] build=` serial line all read the same three accessors, so the answer to
-"which firmware is on this board?" is one fact with three viewers.
+every environment gets it. It writes the branch and the abbreviated commit into
+a generated `GumeBuildStamp.h` in the build directory, `src/BuildStamp.cpp` is
+the only file that includes it, and the firmware reads the values through
+`BuildStamp::` -- never the macros directly, outside `include/BuildStamp.h`.
+About's last page, System Info's Device tab and the `[boot] build=` serial line
+all read the same three accessors, so the answer to "which firmware is on this
+board?" is one fact with three viewers.
 
 `BRAINO_VERSION` cannot answer that question: it is identical across every
 flash of a release, which is exactly the case where you need to know.
 
-**Do not add the build time as a third `-D`.** PlatformIO folds build flags into
-its build signature, so a flag whose value changes on every invocation -- which
-a clock does by definition -- invalidates every object in the tree and turns
-`pio run` into a permanent full rebuild: roughly 100 seconds instead of 25, for
-everyone, forever. The time comes from the compiler's own `__DATE__` and
-`__TIME__` inside `src/BuildStamp.cpp`, and the script deletes that one object
-file so they are always current. One file recompiles per build, not the tree.
-The consequence to know is that the stamp is the build machine's local clock in
-C's format, not UTC and not ISO -- it identifies a build, it is not a timestamp
-to compute with.
+**Nothing whose value changes per build may become a build flag.** PlatformIO
+folds the flags into its build signature, and `env.Append(CPPDEFINES=...)` in a
+pre-script reaches the Arduino core and NimBLE as well as `src/`. The branch and
+the commit were flags until 5.9.x, and the cost was measured rather than
+assumed:
 
-Branch and commit *do* cost a full rebuild when they change, which is correct:
-that is when the tree needed rebuilding anyway. On GitHub Actions the checkout
-is a detached HEAD, so the script prefers `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`
-over `git rev-parse --abbrev-ref`, which would otherwise say "HEAD". A tree with
-no `.git` at all -- a source tarball -- is a supported way to build, and stamps
-"unknown" rather than inventing something plausible.
+```
+pio run -e app, nothing changed            66 s,    1 object
+pio run -e app, branch name different     333 s,  336 objects
+```
+
+Every object, to change a string that one translation unit reads -- and since a
+commit hash changes on every commit, that was the cost of committing. It also
+meant CI could never cache build output at all, because every CI run is a new
+commit. The generated header fixes both: the include *path* is a flag and never
+moves, the header's *contents* are not a flag and move freely, and only the file
+that includes it is rebuilt.
+
+The same reasoning is why the diagnostic environments carry `-D
+CYD_BRINGUP_ONLY` and friends in `build_src_flags` rather than `build_flags`.
+Those macros are read only under `src/`, but as global flags they changed
+NimBLE's compile command too -- so `env:bringup` measured 306 s, *identical to a
+full app build*, to test one `#ifdef` in `main.cpp`. With them src-scoped and
+`build_cache_dir` on, it reuses the objects the app build already made.
+
+The build time stays out of all of this: `__DATE__` and `__TIME__` come from the
+compiler for free, and the script deletes `BuildStamp.cpp.o` so they are always
+current. The consequence to know is that the stamp is the build machine's local
+clock in C's format, not UTC and not ISO -- it identifies a build, it is not a
+timestamp to compute with.
+
+On GitHub Actions the checkout is a detached HEAD, so the script prefers
+`GITHUB_HEAD_REF` / `GITHUB_REF_NAME` over `git rev-parse --abbrev-ref`, which
+would otherwise say "HEAD". A tree with no `.git` at all -- a source tarball --
+is a supported way to build, and stamps "unknown" rather than inventing
+something plausible.
 
 ### Build gotchas
 
@@ -465,9 +541,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,448,161 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,448,109 / 3,145,728 bytes,
 **77.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,676 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
+at 76,660 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -964,6 +1040,8 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
                           above), build_stamp.py,
+                          envs.py (which environments are the product and
+                          which are bench probes -- the only list),
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),
@@ -975,7 +1053,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           firmware's own Board::deviceId(); the real registry
                           is gitignored because it names one person's boards)
 site/                     index.template.html â€” the GitHub Pages landing page
-.github/workflows/        ci.yml validates checks + builds; pages.yml publishes
+.github/workflows/        ci.yml validates checks, then builds one job per
+                          environment in parallel (`verify` is the required
+                          check that judges them); pages.yml publishes
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
                           every firmware image attached
@@ -992,10 +1072,12 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds every environment
-`platformio.ini` declares, packs them with `tools/pack_release.py`, and
-publishes a GitHub release with all four parts plus a single `-merged.bin`
-per environment, `SHA256SUMS.txt` and `FLASHING.txt`.
+`.github/workflows/release.yml` then builds the seven product environments --
+`tools/envs.py --product`, never a list in the YAML -- packs them with
+`tools/pack_release.py`, and publishes a GitHub release with all four parts
+plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
+`FLASHING.txt`. The diagnostics are deliberately not attached; they are built
+from source by whoever is holding the board.
 
 Before tagging, on `main`:
 

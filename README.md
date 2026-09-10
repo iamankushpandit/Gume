@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,448,161 / 3,145,728 bytes (**77.8%**) |
-| RAM | 76,676 / 327,680 bytes (**23.4%**) |
+| Flash | 2,448,109 / 3,145,728 bytes (**77.8%**) |
+| RAM | 76,660 / 327,680 bytes (**23.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1124,9 +1124,12 @@ Dependencies resolve automatically:
 | `h2zero/NimBLE-Arduino` | BLE beacon -- ~192 KB for host plus controller, against several times that for the core's Bluedroid stack |
 | [`map-n-flag`](https://github.com/iamankushpandit/map-n-flag) | Flag and outline artwork |
 
-Both diagnostic builds below, and the app itself, are also on the
-[web installer](#install-it-without-a-toolchain) — useful when the board is not
-on the machine that has PlatformIO.
+The console is on the [web installer](#install-it-without-a-toolchain), one
+firmware per supported board — useful when the board is not on the machine that
+has PlatformIO. The diagnostics below are **not** offered there and are not
+attached to releases: they are bench tools, built from source by whoever is
+holding the board, and a copy frozen into a release would only ever be older
+than the one in the tree.
 
 To check the page itself before pushing:
 
@@ -1139,6 +1142,23 @@ firmware. The binaries are *not* built locally; the flash button only works
 against the published site, where CI has put them there.
 
 ### Diagnostics
+
+Fourteen environments in `platformio.ini` are hardware probes rather than the
+console — `bringup`, `batdiag`, `audiodiag`, `wifidiag`, `s3diag`, `diag4`,
+`diag32p` and their per-board copies. Each environment declares which it is
+with `custom_env_kind`, and `tools/envs.py` is what every workflow asks:
+
+```bash
+python tools/envs.py --product        # the seven that are Braino!
+python tools/envs.py --diagnostic     # the fourteen bench probes
+```
+
+CI builds a probe when its own source or `platformio.ini` changes, and not
+otherwise; nothing publishes one. Build the one you need by name:
+
+```bash
+pio run -e batdiag -t upload
+```
 
 An isolated Wi-Fi radio test, built with **no** display, touch or game code:
 
