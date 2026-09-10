@@ -5,6 +5,7 @@
     python tools/identify_boards.py --learn    # ...and record what it found
     python tools/identify_boards.py --json     # machine-readable, for scripting
     python tools/identify_boards.py --flash    # build and flash each one correctly
+    python tools/identify_boards.py --no-reset # ask only; never restart a board
 
 Why this exists
 ---------------
@@ -14,13 +15,19 @@ morning and COM9/10/12/13 in the afternoon, and each shuffle turned "flash all
 the boards" back into a question for the owner. Asked three times in one
 session, which is two times too many.
 
-The MAC is burned into eFuse. It is unique per chip, it never moves, and
-esptool reads it in about two seconds from a board with *no firmware on it at
-all* -- which is the one case where reading the boot banner cannot help, and
-also the case you are in immediately after a failed flash.
+So the port is treated as an address, not an identity. At each address:
 
-So the port is treated as an address, not an identity: read the MAC at the
-address, look the MAC up in tools/board_registry.json, and the board is known.
+1. **Ask.** Current firmware answers `braino?` with one `[ident]` line --
+   device id, board, version, build -- and keeps running. Nothing is reset, so
+   a game in progress or another agent's test is not disturbed. This is the
+   normal path.
+2. **Reset and listen**, only if nothing answered: older firmware, a diag
+   build, or a board stuck before its app. esptool proves an ESP32 is there
+   (it reads the MAC to do so, and that MAC is discarded -- see read_chip()),
+   then the boot banner supplies the device id.
+
+Either way the device id is looked up in tools/board_registry.json, and the
+board is known.
 
 How a board gets into the registry in the first place
 -----------------------------------------------------
@@ -65,7 +72,12 @@ BANNER_RE = re.compile(r"\[boot\] board=(\S+)")
 # specific devices; this repository shipped exactly that for two releases. See
 # CLAUDE.md, "No identifiers in this repository".
 DEVICE_RE = re.compile(r"\[boot\] device=(\S+)")
+VERSION_RE = re.compile(r"\[boot\] build=.*\bversion=(\S+)")
 CHIP_RE = re.compile(r"^Chip is (.+?)(?:\s*\(|\s*$)", re.I | re.M)
+# The reply to `braino?` -- one line, every value quoted. See
+# BrainoApp::tickSerialQuery() in src/engine/AppRuntimeIdentity.cpp.
+IDENT_LINE_RE = re.compile(r"^\[ident\] (.*)$", re.M)
+IDENT_FIELD_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
 def pio_python():
@@ -128,11 +140,49 @@ def list_ports(py):
     return json.loads(out.stdout.strip().splitlines()[-1])
 
 
-def read_banner(py, port, seconds=4.0):
-    """Reset the board and catch its [boot] board= line. None if it says nothing.
+def query_board(py, port, seconds=1.5):
+    """Ask a running board what it is. A dict of its reply, or None.
 
-    A board that is asleep, mid-game or running a diag build will not print it,
-    and that is not an error -- the MAC path does not depend on this.
+    This is the first thing tried on every port because it does not reset
+    the board: whatever it was doing -- a game, a test, the screen saver --
+    carries on. The port is opened with DTR and RTS already low, because on
+    the auto-reset circuit these boards use, opening a port the ordinary way
+    pulls EN and resets the board anyway, which would defeat the point.
+
+    None means nobody answered: firmware older than the query, a diag build,
+    a blank flash, or a board stuck before its app. The reset path below is
+    the fallback for all of those.
+    """
+    script = (
+        "import serial,sys,time\n"
+        "s=serial.Serial()\n"
+        "s.port=%r; s.baudrate=115200; s.timeout=0.1\n"
+        "s.dtr=False; s.rts=False\n"      # set BEFORE open: opening must not reset
+        "s.open()\n"
+        "s.reset_input_buffer()\n"
+        "s.write(b'\\nbraino?\\n'); s.flush()\n"   # leading \\n ends any partial line
+        "d=b''; t=time.time()\n"
+        "while time.time()-t < %f:\n"
+        "    d += s.read(512)\n"
+        "    i = d.find(b'[ident] ')\n"
+        "    if i >= 0 and b'\\n' in d[i:]: break\n"
+        "s.close(); sys.stdout.write(d.decode('utf-8','replace'))\n"
+    ) % (port, seconds)
+    out = subprocess.run([py, "-c", script], capture_output=True, text=True)
+    line = IDENT_LINE_RE.search((out.stdout or "").replace("\r", ""))
+    if not line:
+        return None
+    fields = dict(IDENT_FIELD_RE.findall(line.group(1)))
+    return fields if fields.get("board") else None
+
+
+def read_banner(py, port, seconds=4.0):
+    """Reset the board and catch its banner: (board, device id, version).
+
+    The fallback when query_board() got no answer. A board that is asleep,
+    mid-game or running a diag build will not print it, and that is not an
+    error. Waits for the build= line, which follows board=, so the version is
+    caught too.
     """
     script = (
         "import serial,sys,time\n"
@@ -142,15 +192,18 @@ def read_banner(py, port, seconds=4.0):
         "d=b''; t=time.time()\n"
         "while time.time()-t < %f:\n"
         "    d += s.read(512)\n"
-        "    if b'[boot] board=' in d: break\n"
+        "    i = d.find(b' version=')\n"
+        "    if i >= 0 and b'\\n' in d[i:]: break\n"
         "s.close(); sys.stdout.write(d.decode('utf-8','replace'))\n"
     ) % (port, seconds)
     out = subprocess.run([py, "-c", script], capture_output=True, text=True)
     text = out.stdout or ""
     board = BANNER_RE.search(text)
     device = DEVICE_RE.search(text)
+    version = VERSION_RE.search(text)
     return (board.group(1) if board else None,
-            device.group(1) if device else None)
+            device.group(1) if device else None,
+            version.group(1) if version else None)
 
 
 def read_chip(py, esptool, port):
@@ -197,7 +250,7 @@ def flash_all(results):
     panel's build is the failure this whole file exists to prevent, and
     "most of them were right" is not a state anybody can act on afterwards.
     """
-    unknown = [r for r in results if r["status"] == "unknown"]
+    unknown = [r for r in results if r["status"] in ("unknown", "silent")]
     if unknown:
         print("Refusing to flash: %d port(s) unidentified (%s)."
               % (len(unknown), ", ".join(r["port"] for r in unknown)))
@@ -295,6 +348,8 @@ def main():
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--flash", action="store_true",
                     help="flash every identified board with its own env")
+    ap.add_argument("--no-reset", action="store_true",
+                    help="only ask; never reset a board that does not answer")
     args = ap.parse_args()
 
     py, esptool, reg = pio_python(), esptool_py(), load_registry()
@@ -307,18 +362,30 @@ def main():
                             "why": skip[device]})
             continue
 
-        chip, alive = read_chip(py, esptool, device)
-        if not alive:
-            results.append({"port": device, "status": "no-esp",
-                            "why": "no ESP32 answered here", "desc": desc})
+        # Ask first. A board on current firmware answers without being reset.
+        reply = query_board(py, device)
+        if reply:
+            banner, device_id = reply.get("board"), reply.get("device")
+            version, chip, via = reply.get("version"), reply.get("chip"), "asked"
+        elif args.no_reset:
+            results.append({"port": device, "status": "silent",
+                            "why": "did not answer, and --no-reset says not to "
+                                   "reset it", "desc": desc})
             continue
-
-        banner, device_id = read_banner(py, device)
+        else:
+            chip, alive = read_chip(py, esptool, device)
+            if not alive:
+                results.append({"port": device, "status": "no-esp",
+                                "why": "no ESP32 answered here", "desc": desc})
+                continue
+            banner, device_id, version = read_banner(py, device)
+            via = "reset"
         known = reg["boards"].get(device_id) if device_id else None
 
         if known:
             row = {"port": device, "status": "known", "device": device_id,
-                   "chip": chip, "board": known["board"], "env": known["env"]}
+                   "chip": chip, "board": known["board"], "env": known["env"],
+                   "version": version, "via": via}
             # The registry is a record, not an authority. If the board itself
             # now says something different, say so rather than papering over it.
             if banner and banner != known["board"]:
@@ -328,14 +395,15 @@ def main():
         elif banner:
             env = env_for_board_name(reg, banner)
             row = {"port": device, "status": "new", "device": device_id,
-                   "chip": chip, "board": banner, "env": env}
+                   "chip": chip, "board": banner, "env": env,
+                   "version": version, "via": via}
             results.append(row)
             if args.learn and env and device_id:
+                how = "asked over serial" if via == "asked" else "boot banner"
                 reg["boards"][device_id] = {
                     "board": banner, "env": env,
-                    "note": "learned from the boot banner on %s"
-                            % time.strftime("%Y-%m-%d"),
-                    "how": "boot banner",
+                    "note": "learned (%s) on %s" % (how, time.strftime("%Y-%m-%d")),
+                    "how": how,
                 }
                 learned += 1
         else:
@@ -360,13 +428,16 @@ def main():
     for r in results:
         p = r["port"].ljust(width)
         s = r["status"]
+        # "asked" means the board answered and was left running; "reset"
+        # means it was restarted to make it print its banner.
+        tail = "%-18s %s" % (r.get("version") or "version ?", r.get("via", ""))
         if s == "known":
-            print("  %s  %-20s env:%s" % (p, r["board"], r["env"]))
+            print("  %s  %-20s env:%-24s %s" % (p, r["board"], r["env"], tail))
             if "conflict" in r:
                 print("  %s  !! %s" % (" " * width, r["conflict"]))
         elif s == "new":
-            print("  %s  %-20s env:%s   (new -- re-run with --learn)"
-                  % (p, r["board"], r["env"] or "?"))
+            print("  %s  %-20s env:%-24s %s   (new -- re-run with --learn)"
+                  % (p, r["board"], r["env"] or "?", tail))
         elif s == "unknown":
             print("  %s  UNKNOWN  chip=%s -- %s"
                   % (p, r["chip"] or "?", r.get("why", "did not identify")))

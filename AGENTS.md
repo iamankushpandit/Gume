@@ -97,6 +97,12 @@ because history, clones, forks and tarballs all keep copies.
   public issues.
 - `tools/board_registry.json` is gitignored; the `.example.json` ships with
   placeholders and `identify_boards.py --learn` fills in the real one locally.
+- **Ask a board before you reset it.** Current firmware answers `braino?` on
+  the serial port with one `[ident]` line (device id, board, version, build)
+  and keeps running; `identify_boards.py` does this first and resets only a
+  board that stays silent. `--no-reset` never resets. A reset discards another
+  agent's in-flight test, and on the bench an E32R40T once needed its battery
+  pulled to boot again after one.
 - `python tools/check_identifiers.py` runs in CI. It catches MACs and public
   IPs; it cannot catch an SSID or a person's name, so a clean run is not
   permission.

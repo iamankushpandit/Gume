@@ -1,6 +1,7 @@
 #include "AppRuntime.h"
 
 #include <esp_chip_info.h>
+#include <string.h>
 #include "AppVersion.h"
 #include "BuildStamp.h"
 
@@ -46,28 +47,20 @@ void BrainoApp::logBootBanner() {
  * The fix is that the device says what it is, from the parts of itself that
  * cannot be wrong:
  *
- *   mac    burned into eFuse, unique per chip, and the ONLY identifier here
- *          that survives being flashed with the wrong image. This is the line
- *          that tells two identical-looking boards apart.
+ *   device the firmware's own id for this board (Board::deviceId()) -- what
+ *          tells two identical-looking boards apart. Not the MAC; see below.
  *   chip   model, revision and core count, straight from esp_chip_info().
  *   flash  size as the ROM reports it, not as the profile claims.
  *   panel  the driver this binary was BUILT with, its size, rotation and
  *          backlight pin -- so a wrong-profile flash is visible in one line
  *          instead of being inferred from a photograph of odd colours.
- *   id     the display controller's own ID register, read back over MISO.
- *          This is the only fact here that comes from the PANEL rather than
- *          from the build, which makes it the one that can contradict the
- *          profile. 0x00 0x93 0x41 is an ILI9341; 0x85 0x85 0x52 is an
- *          ST7789. All-zero or all-ones means MISO is not wired back, which
- *          is common and is not itself a fault -- it just means this
- *          particular check cannot help on this board.
  *   touch  controller and its pins, since a silent panel and a dead digitiser
  *          look identical from across a room.
  *
- * The MAC is a hardware serial number, not personal data: it identifies the
- * board on the bench and never leaves the wire. No profile name, no Wi-Fi
- * credential and no player data is printed here -- see the note by the
- * Wi-Fi line below, which is the rule this has to keep. */
+ * No profile name, no Wi-Fi credential and no player data is printed here --
+ * see the note by the Wi-Fi line in logBootBanner(), which is the rule this
+ * has to keep. The same facts can be asked for later without a reset; see
+ * tickSerialQuery() below. */
 void BrainoApp::logIdentity() {
     esp_chip_info_t chip{};
     esp_chip_info(&chip);
@@ -126,4 +119,84 @@ void BrainoApp::logIdentity() {
                   BOARD.hasSdSlot() ? "yes" : "no",
                   BOARD.hasRgbLed() ? "yes" : "no",
                   BOARD.hasBatterySense() ? "yes" : "no");
+}
+
+/* ASKED, NOT RESET: THE SERIAL PORT ANSWERS ONE QUESTION.
+ *
+ * The boot banner is printed once, at power-up, so the only way to hear it
+ * again was to reset the board -- which is what tools/identify_boards.py did
+ * to every board on the desk, every time. A reset throws away whatever the
+ * board was doing (a game half played, a test another agent was running), and
+ * it is not even reliable: one bench board's USB bridge drops off the bus for
+ * a moment as the app starts, taking the banner with it, and a 4-inch board
+ * reset by its button can refuse to boot at all until it is power-cycled.
+ *
+ * So a running board answers `braino?` followed by a newline with one line:
+ *
+ *   [ident] v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="5.10.0"
+ *           build="dev @ 1a2b3c4" built="Sep 10 2026 10:00" chip="ESP32-D0WD-V3"
+ *           panel="ILI9341_2" up="3605"
+ *
+ * (one line on the wire; wrapped here). Every value is quoted, because
+ * BOARD_NAME and the build time can both contain spaces and the tool once cut
+ * a board name off at one. `v` is the format's own version, so a later field
+ * can be added without the tool guessing.
+ *
+ * What it must never become:
+ *   - A second way to read player data. The reply is the banner's facts and
+ *     nothing else: no profile, no score, no SSID, never the MAC. The same
+ *     rules as the banner, for the same reason -- this text gets pasted.
+ *   - A command channel. It takes no arguments, changes no state, grants
+ *     nothing, and anything that is not exactly the query is dropped. A cable
+ *     is local, but the admin PIN would mean nothing if a string on a serial
+ *     port could do what the PIN guards.
+ *   - Activity. It does not touch lastActivityMs_: a tool polling the desk
+ *     must not keep every screen awake, or change what it is testing.
+ *
+ * Cost: at most QUERY_BYTES_PER_FRAME reads per loop, which with nothing
+ * waiting is one Serial.available(). The reply is ~200 bytes, which can block
+ * for a few milliseconds while the UART drains -- once, when asked. */
+namespace {
+
+constexpr char IDENTIFY_QUERY[] = "braino?";
+constexpr size_t IDENTIFY_QUERY_LEN = sizeof(IDENTIFY_QUERY) - 1;
+// Room for the query and nothing more; a longer line is not the query.
+constexpr size_t QUERY_CAP = IDENTIFY_QUERY_LEN;
+constexpr int QUERY_BYTES_PER_FRAME = 32;
+
+char queryBuf[QUERY_CAP];
+size_t queryLen = 0;
+bool queryOverlong = false;
+
+}  // namespace
+
+void BrainoApp::tickSerialQuery() {
+    for (int budget = QUERY_BYTES_PER_FRAME; budget > 0 && Serial.available() > 0;
+         --budget) {
+        const int c = Serial.read();
+        if (c < 0) break;
+        if (c == '\r' || c == '\n') {
+            const bool match = !queryOverlong && queryLen == IDENTIFY_QUERY_LEN &&
+                               memcmp(queryBuf, IDENTIFY_QUERY, IDENTIFY_QUERY_LEN) == 0;
+            queryLen = 0;
+            queryOverlong = false;
+            if (match) replyIdentify();
+            continue;
+        }
+        if (queryLen < QUERY_CAP) {
+            queryBuf[queryLen++] = static_cast<char>(c);
+        } else {
+            queryOverlong = true;
+        }
+    }
+}
+
+void BrainoApp::replyIdentify() {
+    Serial.printf("[ident] v=\"1\" device=\"%s\" board=\"%s\" version=\"%s\" "
+                  "build=\"%s\" built=\"%s\" chip=\"%s\" panel=\"%s%s\" up=\"%lu\"\n",
+                  board_.deviceId(), BOARD.name, BRAINO_VERSION,
+                  BuildStamp::describe(), BuildStamp::builtAt(),
+                  ESP.getChipModel(),
+                  GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",
+                  (unsigned long)(millis() / 1000UL));
 }

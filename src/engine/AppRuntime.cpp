@@ -260,6 +260,7 @@ void BrainoApp::loop() {
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
     tickUpdateNotice(nowMs);
+    tickSerialQuery();
 
     /* A notification appearing or expiring changes the header, and the header
      * belongs to the screen underneath -- so the chrome has to repaint before

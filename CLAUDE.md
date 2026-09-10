@@ -464,9 +464,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,439,461 / 3,145,728 bytes,
-**77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,532 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,439,885 / 3,145,728 bytes,
+**77.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 76,548 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1104,13 +1104,32 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   that was tried on the bench and looked like the flag being ignored. The fix
   is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
   `invertDisplay()` after `init()` and before anything is drawn.
-- **The boot log states what the board IS, from the chip rather than the
-  build.** `[boot] mac=...` is burned into eFuse and is the only identifier
-  that survives being flashed with the wrong image -- which is exactly how a
-  2.8-inch board reported itself as a 4-inch for half an hour. `board=` and
-  `panel=` are compiled in and therefore describe the firmware, not the
-  hardware. **There is no `id=` field, and putting one back needs more care
-  than it looks.** 5.9.0 printed the controller's ID register and broke the
+- **The boot log states what the board IS.** `[boot] device=...` is the
+  firmware's own id (`Board::deviceId()`), never the MAC -- see "No identifiers
+  in this repository". `board=` and `panel=` are compiled in and therefore
+  describe the firmware, not the hardware, which is exactly how a 2.8-inch
+  board reported itself as a 4-inch for half an hour.
+- **A running board answers `braino?` with the same facts, unreset.** One
+  `[ident]` line, every value quoted, from `BrainoApp::tickSerialQuery()` in
+  `AppRuntimeIdentity.cpp`; `identify_boards.py` asks before it resets
+  anything. Three properties are load-bearing: it is **read-only** (no
+  arguments, no state change -- a string on a cable must never do what the
+  admin PIN guards), it carries **only the banner's facts** (no MAC, profile,
+  score or SSID), and it is **not activity** (it leaves `lastActivityMs_`
+  alone, so polling the desk does not keep screens awake). Open the port with
+  DTR and RTS already low, or opening it resets the board and defeats the
+  point. Anything that widens it into a command channel needs the same
+  scrutiny as a new outbound flow.
+- **An EN reset can strand an E32R40T.** Seen on the bench: after the reset
+  button, the ROM looped `flash read err, 988` / `RTCWDT_RTC_RESET` every
+  ~350ms with the panel dark, and only pulling the battery recovered it.
+  Suspected, not proven: GPIO12 is both the MTDI strap (high at reset selects
+  1.8V flash) and the MISO the ST7796 and XPT2046 share, and EN resets
+  neither peripheral. A dark 4-inch board is worth a passive serial capture
+  before it is worth a reflash. The permanent fix, `espefuse.py
+  set_flash_voltage 3.3V`, is irreversible and is the owner's call.
+- **There is no `id=` field in the banner, and putting one back needs more
+  care than it looks.** 5.9.0 printed the controller's ID register and broke the
   display on two of the seven boards: `tft.readcommand8()` writes an
   undocumented 0xD9, toggles CS mid-sequence and restores neither the address
   window nor MADCTL, so a panel whose MISO is not wired back is left
