@@ -21,6 +21,13 @@ lock on its own:
 python tools/identify_boards.py --flash
 ```
 
+It builds every distinct environment **at the same time**, then uploads to **all
+boards at the same time** -- one agent flashing its whole bench in parallel is
+intended; two agents flashing at once is what the lock prevents. A failed build
+or board has its log in `.pio/build-<env>.log` / `.pio/upload-<port>.log` and
+does not stop the others. A first build of a board model can take minutes, so
+run it in the background.
+
 If other agents may be testing on the boards, never restart any of them:
 
 ```bash

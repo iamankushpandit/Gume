@@ -515,6 +515,18 @@ That path resolves to the same file from every worktree, and is never committed.
 "$PID|flash|$(Get-Location)|$(Get-Date -Format o)" | Set-Content $lock -Encoding utf8
 ```
 
+**The lock is per agent, not per board.** Two agents must never flash the
+bench at the same time -- that is what it is for. But the one agent holding it
+may flash several boards at once, and should: each board is its own USB device
+on its own port. `python tools/identify_boards.py --flash` does exactly that
+under one hold of the lock -- it builds each distinct environment once, all at
+the same time, then uploads to every port in parallel with `-t nobuild`, with
+one log per build and per port in `.pio/`. Parallel builds were measured, not
+assumed: after a new commit, four environments took 210 s one after another
+and 97 s side by side, because each rebuild is mostly single-core dependency
+scanning and linking. Do not hand-roll a second parallel flasher; extend that
+one.
+
 **Release it in all cases** when the build, flash or monitor session ends â€” including on failure. `Remove-Item $lock`.
 
 ### If the lock is already held

@@ -4,7 +4,7 @@
     python tools/identify_boards.py            # identify everything attached
     python tools/identify_boards.py --learn    # ...and record what it found
     python tools/identify_boards.py --json     # machine-readable, for scripting
-    python tools/identify_boards.py --flash    # build and flash each one correctly
+    python tools/identify_boards.py --flash    # build each model once, flash all at once
     python tools/identify_boards.py --no-reset # ask only; never restart a board
 
 Why this exists
@@ -17,8 +17,8 @@ session, which is two times too many.
 
 So the port is treated as an address, not an identity. At each address:
 
-1. **Ask.** Current firmware answers `identify?` with one `[ident]` line --
-   device id, board, version, build -- and keeps running. Nothing is reset, so
+1. **Ask.** Current firmware answers `identify?` with one `ok v="1" ...` line
+   -- device id, board, version, build -- and keeps running. Nothing is reset, so
    a game in progress or another agent's test is not disturbed. This is the
    normal path.
 2. **Reset and listen**, only if nothing answered: older firmware, a diag
@@ -247,11 +247,28 @@ def lock_path():
 
 
 def flash_all(results):
-    """Flash every identified board with its own environment.
+    """Flash every identified board with its own environment -- in parallel.
 
     Refuses outright if anything is UNKNOWN. Flashing a board with the wrong
     panel's build is the failure this whole file exists to prevent, and
     "most of them were right" is not a state anybody can act on afterwards.
+
+    Two phases, under ONE hold of the board lock:
+
+    1. BUILD each distinct environment once, all at the same time. Boards of
+       the same model share a build. Measured after a new commit, four
+       environments one after another took 210 s and in parallel 97 s: each
+       rebuild is one changed object plus dependency scanning and linking,
+       which is mostly single-core, so side by side they barely compete. Each
+       environment has its own build directory and its own generated stamp
+       header, and the object cache is safe to share between processes.
+    2. UPLOAD to every port at once, one process per port, with `-t nobuild`
+       so nothing is rebuilt. Each board is its own USB device on its own
+       port, so this is safe; one board failing does not stop the others.
+
+    The lock is still global. Parallel flashing is for ONE agent's boards --
+    two agents flashing the bench at the same time is exactly what the lock
+    exists to stop, and nothing here changes that.
     """
     unknown = [r for r in results if r["status"] in ("unknown", "silent")]
     if unknown:
@@ -259,7 +276,8 @@ def flash_all(results):
               % (len(unknown), ", ".join(r["port"] for r in unknown)))
         return 1
 
-    targets = [r for r in results if r["status"] in ("known", "new", "learned") and r.get("env")]
+    targets = [r for r in results
+               if r["status"] in ("known", "new", "learned") and r.get("env")]
     if not targets:
         print("Nothing to flash.")
         return 1
@@ -277,13 +295,56 @@ def flash_all(results):
 
     failed = []
     try:
-        for r in targets:
-            print("\n=== %s  %s  env:%s" % (r["port"], r["board"], r["env"]))
-            rc = subprocess.run(
-                ["pio", "run", "-e", r["env"], "-t", "upload",
-                 "--upload-port", r["port"]], cwd=ROOT, shell=True).returncode
-            if rc != 0:
-                failed.append(r["port"])
+        envs = sorted({r["env"] for r in targets})
+        built = set()
+        print("\n=== building %d environment(s) at once: %s"
+              % (len(envs), ", ".join(envs)))
+        t0 = time.time()
+        builds = []
+        for env in envs:
+            log = open(os.path.join(ROOT, ".pio", "build-%s.log" % env),
+                       "w", encoding="utf-8", errors="replace")
+            builds.append((env, log, subprocess.Popen(
+                ["pio", "run", "-e", env], cwd=ROOT, shell=True,
+                stdout=log, stderr=subprocess.STDOUT), time.time()))
+        for env, log, proc, started in builds:
+            rc = proc.wait()
+            log.close()
+            print("  %s env:%-24s %3ds" % ("ok " if rc == 0 else "ERR", env,
+                                           time.time() - started))
+            if rc == 0:
+                built.add(env)
+            else:
+                failed += [r["port"] for r in targets if r["env"] == env]
+                print("       see %s" % os.path.relpath(log.name, ROOT))
+        print("=== builds finished in %ds" % (time.time() - t0))
+
+        uploads = [r for r in targets if r["env"] in built]
+        if uploads:
+            print("\n=== uploading to %d board(s) at once: %s"
+                  % (len(uploads), ", ".join("%s(%s)" % (r["port"], r["env"])
+                                             for r in uploads)))
+            t0 = time.time()
+            procs = []
+            for r in uploads:
+                log = open(os.path.join(ROOT, ".pio", "upload-%s.log" % r["port"]),
+                           "w", encoding="utf-8", errors="replace")
+                p = subprocess.Popen(
+                    ["pio", "run", "-e", r["env"], "-t", "nobuild", "-t", "upload",
+                     "--upload-port", r["port"]],
+                    cwd=ROOT, shell=True, stdout=log, stderr=subprocess.STDOUT)
+                procs.append((r, p, log))
+            for r, p, log in procs:
+                rc = p.wait()
+                log.close()
+                ok = rc == 0 and "Hash of data verified" in open(
+                    log.name, encoding="utf-8", errors="replace").read()
+                print("  %s %-6s %-22s env:%s" % ("ok " if ok else "ERR", r["port"],
+                                                r["board"], r["env"]))
+                if not ok:
+                    failed.append(r["port"])
+                    print("       see %s" % os.path.relpath(log.name, ROOT))
+            print("=== uploads finished in %ds" % (time.time() - t0))
     finally:
         # Released on every path, including a failed flash and a Ctrl-C. A
         # lock left behind blocks every later agent, and stale locks here are
