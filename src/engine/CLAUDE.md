@@ -40,7 +40,14 @@ Single source of truth for the launchable app list. Each playable game declares 
 
 If you add a playable game, update `PLAYABLE_APP_COUNT`, put the launcher index/icon/default visibility in the game's own `AppMetadata`, and add the new `metadataCatalogApp(...AppMetadata(), instance)` line at the matching registry position. `tools/check_catalog.py` checks that indices stay contiguous, icon pairing still matches the app id, playable apps subclass `AppGame`, and system apps declare capabilities.
 
-## NearbyPlay.{h,cpp}
+## NearbyPlay.{h,cpp} + NearbySession.cpp + NearbyPlayState.h
+
+`NearbyPlay.cpp` is the score exchange and the notifications; `NearbySession.cpp`
+is the two-player session half -- seats, invitations, turns and the reserved
+ending. Both read one peer table, which lives in `NearbyPlayState.h` in
+`NearbyPlay::detail` rather than in an anonymous namespace; nothing outside
+those three files may include that header. The app-facing forwarders
+(`BrainoApp::nearby*`) are in `AppRuntimeNearby.cpp`.
 
 Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the header notifications. `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
 

@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 36 |
-| Flash | 2,462,145 / 3,145,728 bytes (**78.3%**) |
+| Flash | 2,462,177 / 3,145,728 bytes (**78.3%**) |
 | RAM | 76,868 / 327,680 bytes (**23.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1248,6 +1248,7 @@ src/
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeIdentity.cpp  boot banner: which board, which build
+    AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded
     AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
     AppRuntimeConsoleSettings.cpp  console: get/set over one settings table
     AppRuntimeConsoleProfiles.cpp  console: players and their games (CRUD)
@@ -1257,6 +1258,7 @@ src/
     GameCatalog.cpp     derived playable-game catalog view
     ScoreCatalog.cpp    derived scored-app catalog view
     NearbyPlay.cpp      anonymous peer scores, notifications, sharing switch
+    NearbySession.cpp   games on nearby consoles: seats, invites, turns
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
