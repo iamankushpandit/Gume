@@ -413,7 +413,13 @@ public:
     void setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible);
     String wifiSsid();
     String wifiPassword();
-    void setWifiCredentials(const String& ssid, const String& password);
+    /* The char* form is the real one, as with addPlayer(): the serial console
+     * has the values in a stack buffer and should not build Strings to hand
+     * them over. The String overload is kept for WifiGame. */
+    void setWifiCredentials(const char* ssid, const char* password);
+    void setWifiCredentials(const String& ssid, const String& password) {
+        setWifiCredentials(ssid.c_str(), password.c_str());
+    }
     void clearWifiCredentials();
     bool hasWifiCredentials();
     bool ntpEnabled();
