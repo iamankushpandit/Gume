@@ -556,7 +556,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,448,109 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,448,885 / 3,145,728 bytes,
 **77.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,660 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
