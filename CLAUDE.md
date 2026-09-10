@@ -464,7 +464,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,439,885 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,439,889 / 3,145,728 bytes,
 **77.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,548 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1109,7 +1109,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   in this repository". `board=` and `panel=` are compiled in and therefore
   describe the firmware, not the hardware, which is exactly how a 2.8-inch
   board reported itself as a 4-inch for half an hour.
-- **A running board answers `braino?` with the same facts, unreset.** One
+- **A running board answers `identify?` with the same facts, unreset.** One
   `[ident]` line, every value quoted, from `BrainoApp::tickSerialQuery()` in
   `AppRuntimeIdentity.cpp`; `identify_boards.py` asks before it resets
   anything. Three properties are load-bearing: it is **read-only** (no

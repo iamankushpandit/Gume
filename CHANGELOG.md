@@ -62,7 +62,7 @@ reliably: one bench board's USB bridge drops off the bus for a moment as the
 app starts, taking the banner with it, and a 4-inch board reset from its
 button can refuse to boot until its battery is pulled.
 
-- **The firmware answers `braino?` on the serial port** with one line:
+- **The firmware answers `identify?` on the serial port** with one line:
   `[ident] v="1" device="…" board="…" version="…" build="…" built="…"
   chip="…" panel="…" up="…"`. Every value is quoted, because board names and
   the build time contain spaces. It is read-only by construction — no

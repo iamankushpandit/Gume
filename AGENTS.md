@@ -97,7 +97,7 @@ because history, clones, forks and tarballs all keep copies.
   public issues.
 - `tools/board_registry.json` is gitignored; the `.example.json` ships with
   placeholders and `identify_boards.py --learn` fills in the real one locally.
-- **Ask a board before you reset it.** Current firmware answers `braino?` on
+- **Ask a board before you reset it.** Current firmware answers `identify?` on
   the serial port with one `[ident]` line (device id, board, version, build)
   and keeps running; `identify_boards.py` does this first and resets only a
   board that stays silent. `--no-reset` never resets. A reset discards another

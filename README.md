@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,439,885 / 3,145,728 bytes (**77.6%**) |
+| Flash | 2,439,889 / 3,145,728 bytes (**77.6%**) |
 | RAM | 76,548 / 327,680 bytes (**23.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1143,7 +1143,7 @@ async `scanNetworks()`/`scanComplete()` pair was silently failing on this board,
 while a blocking scan found 58 access points.
 
 A running board can also be asked what it is, without resetting it: send
-`braino?` and a newline at 115200 and it answers with one line --
+`identify?` and a newline at 115200 and it answers with one line --
 `[ident] v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="…" build="…"
 built="…" chip="…" panel="…" up="…"` -- and carries on. It is read-only and
 carries only what the boot banner already prints. `python

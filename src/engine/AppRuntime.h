@@ -24,7 +24,7 @@ private:
     /* The whole boot banner -- identity, board, build, time sync -- printed
      * once from begin(). Lives in AppRuntimeIdentity.cpp. */
     void logBootBanner();
-    /* Answers `braino?` on the serial port with the banner's facts, so a
+    /* Answers `identify?` on the serial port with the banner's facts, so a
      * tool can ask a running board what it is without resetting it. Called
      * every loop; reads at most a few bytes. Read-only by design. */
     void tickSerialQuery();

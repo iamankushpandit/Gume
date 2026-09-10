@@ -40,7 +40,7 @@ or printed (see "No identifiers in this repository" in `CLAUDE.md`).
 
 ## Ask, don't reset
 
-Current firmware answers `braino?` on the serial port with one `[ident]` line
+Current firmware answers `identify?` on the serial port with one `[ident]` line
 and keeps running, so the tool asks first. Only a board that stays silent --
 older firmware, a diag build, a blank flash -- gets reset so its boot banner can
 be read. Resetting is not free: it discards whatever the board was doing, one

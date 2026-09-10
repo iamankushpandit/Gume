@@ -17,7 +17,7 @@ session, which is two times too many.
 
 So the port is treated as an address, not an identity. At each address:
 
-1. **Ask.** Current firmware answers `braino?` with one `[ident]` line --
+1. **Ask.** Current firmware answers `identify?` with one `[ident]` line --
    device id, board, version, build -- and keeps running. Nothing is reset, so
    a game in progress or another agent's test is not disturbed. This is the
    normal path.
@@ -74,7 +74,7 @@ BANNER_RE = re.compile(r"\[boot\] board=(\S+)")
 DEVICE_RE = re.compile(r"\[boot\] device=(\S+)")
 VERSION_RE = re.compile(r"\[boot\] build=.*\bversion=(\S+)")
 CHIP_RE = re.compile(r"^Chip is (.+?)(?:\s*\(|\s*$)", re.I | re.M)
-# The reply to `braino?` -- one line, every value quoted. See
+# The reply to `identify?` -- one line, every value quoted. See
 # BrainoApp::tickSerialQuery() in src/engine/AppRuntimeIdentity.cpp.
 IDENT_LINE_RE = re.compile(r"^\[ident\] (.*)$", re.M)
 IDENT_FIELD_RE = re.compile(r'(\w+)="([^"]*)"')
@@ -160,7 +160,7 @@ def query_board(py, port, seconds=1.5):
         "s.dtr=False; s.rts=False\n"      # set BEFORE open: opening must not reset
         "s.open()\n"
         "s.reset_input_buffer()\n"
-        "s.write(b'\\nbraino?\\n'); s.flush()\n"   # leading \\n ends any partial line
+        "s.write(b'\\nidentify?\\n'); s.flush()\n"   # leading \\n ends any partial line
         "d=b''; t=time.time()\n"
         "while time.time()-t < %f:\n"
         "    d += s.read(512)\n"
@@ -452,7 +452,7 @@ def main():
     if args.flash:
         return flash_all(results)
 
-    unknown = sum(1 for r in results if r["status"] == "unknown")
+    unknown = sum(1 for r in results if r["status"] in ("unknown", "silent"))
     return 1 if unknown else 0
 
 

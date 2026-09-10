@@ -131,7 +131,7 @@ void BrainoApp::logIdentity() {
  * a moment as the app starts, taking the banner with it, and a 4-inch board
  * reset by its button can refuse to boot at all until it is power-cycled.
  *
- * So a running board answers `braino?` followed by a newline with one line:
+ * So a running board answers `identify?` followed by a newline with one line:
  *
  *   [ident] v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="5.10.0"
  *           build="dev @ 1a2b3c4" built="Sep 10 2026 10:00" chip="ESP32-D0WD-V3"
@@ -141,6 +141,13 @@ void BrainoApp::logIdentity() {
  * BOARD_NAME and the build time can both contain spaces and the tool once cut
  * a board name off at one. `v` is the format's own version, so a later field
  * can be added without the tool guessing.
+ *
+ * The query is `identify?`, not anything naming the product, on purpose: it is
+ * a property of the bench, not of Braino. Any image flashed onto one of these
+ * boards -- the diag builds, a bring-up probe, a future firmware under another
+ * name -- can answer the same query with the same `[ident]` line, and
+ * identify_boards.py will recognise it without changing. The `board=` field is
+ * what says which firmware answered.
  *
  * What it must never become:
  *   - A second way to read player data. The reply is the banner's facts and
@@ -158,7 +165,7 @@ void BrainoApp::logIdentity() {
  * for a few milliseconds while the UART drains -- once, when asked. */
 namespace {
 
-constexpr char IDENTIFY_QUERY[] = "braino?";
+constexpr char IDENTIFY_QUERY[] = "identify?";
 constexpr size_t IDENTIFY_QUERY_LEN = sizeof(IDENTIFY_QUERY) - 1;
 // Room for the query and nothing more; a longer line is not the query.
 constexpr size_t QUERY_CAP = IDENTIFY_QUERY_LEN;
