@@ -189,23 +189,31 @@ has not changed — and the reported build time freezes at whenever the first
 build happened. It was caught doing exactly that. A stale build time is worse
 than none, because it is believed.
 
-**The diagnostics stopped recompiling the world too.** `-D CYD_BRINGUP_ONLY`
-and its siblings are read only under `src/`, but as global flags they changed
-NimBLE's compile command as well — so `env:bringup` cost **306 s, identical to
-a full app build**, to test one `#ifdef` in `main.cpp`. They are now
-`build_src_flags`, and `[platformio] build_cache_dir` holds the shared objects:
+**The diagnostic defines are source-scoped.** `-D CYD_BRINGUP_ONLY` and its
+siblings are read only under `src/`, so they are now `build_src_flags` rather
+than global flags that also reached NimBLE and the core.
 
-| built from scratch, warm cache | before | after |
-|---|---|---|
-| `bringup` | 306 s, 336 objects | **44 s, 20 objects** |
-| `batdiag` | 91 s | **19 s, 8 objects** |
+**`[platformio] build_cache_dir` caches objects per environment — and only per
+environment.** Measured on this branch, each case starting from an empty build
+directory with the cache already warm:
 
-The cache cannot make two *boards* share objects, and nothing here pretends
-otherwise: TFT_eSPI is a library and must be told the panel at compile time, so
-the board macros stay global where every library sees them.
+| | compiled | from cache | time |
+|---|---|---|---|
+| `app`, after `app` had been built | 1 | 351 | **49 s** |
+| `bringup` (same board), after `app` | 343 | 0 | 338 s |
+| `app_esp32_2432s028r`, after three other boards | 340 | 0 | 367 s |
 
-All three workflows now cache `.pio/build_cache` between runs, which was
-pointless before the stamp changed and is the point now.
+So a fresh checkout of an environment that has been built before — which is
+exactly what a CI job with a restored cache is — rebuilds in under a minute.
+Two environments never share, not even two for the same board: each builds
+into its own directory, and the output path is part of the cache key. An
+earlier draft of this change measured `bringup` reusing `app`'s objects; that
+did not reproduce, and limiting the board macros to TFT_eSPI to let boards
+share was tried and reverted for the same reason — it saved nothing.
+
+All three workflows now cache `.pio/build_cache` between runs, one cache per
+environment, which was pointless before the stamp changed and is the point
+now.
 
 Flash is 52 bytes smaller and RAM 24 bytes smaller: `builtAt()` returns a
 generated literal instead of assembling one into an 18-byte static buffer with

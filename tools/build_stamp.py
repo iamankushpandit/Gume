@@ -32,9 +32,8 @@ every run was a cold build of every environment.
 So the values go into a generated header instead. The include *path* is a
 build flag and is constant, so it perturbs the signature once and never again;
 the header's *contents* change freely, and only the one translation unit that
-includes it is rebuilt. `src/BuildStamp.cpp` is deleted below on every build
-anyway, for `__DATE__`/`__TIME__`, so in practice the stamp now costs exactly
-the file it was always going to cost.
+includes it -- `src/BuildStamp.cpp` -- is rebuilt. So the stamp costs exactly
+one file, not the tree.
 
 ## The time is in that header too, and it has to be
 
