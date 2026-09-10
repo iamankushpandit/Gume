@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-77.5%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-77.6%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,439,357 / 3,145,728 bytes (**77.5%**) |
-| RAM | 76,532 / 327,680 bytes (**23.4%**) |
+| Flash | 2,439,889 / 3,145,728 bytes (**77.6%**) |
+| RAM | 76,548 / 327,680 bytes (**23.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1142,10 +1142,17 @@ what proved the radio was fine when the app's scan was returning nothing — the
 async `scanNetworks()`/`scanComplete()` pair was silently failing on this board,
 while a blocking scan found 58 access points.
 
+A running board can also be asked what it is, without resetting it: send
+`identify?` and a newline at 115200 and it answers with one line --
+`[ident] v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="…" build="…"
+built="…" chip="…" panel="…" up="…"` -- and carries on. It is read-only and
+carries only what the boot banner already prints. `python
+tools/identify_boards.py` uses it to say which board is on which port.
+
 The main firmware also traces the clock over serial at 115200:
 
 ```
-[boot] ntp=1 creds=1 ssid='MyNetwork' tzmin=-360
+[boot] ntp=1 creds=1 tzmin=-360
 [time] wifi up, ip=192.168.1.142 rssi=-57
 [time] configTzTime US Central (CST6CDT,M3.2.0,M11.1.0)
 [time] UDP NTP OK, clock set from pool.ntp.org
@@ -1179,6 +1186,7 @@ src/
     AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimeIdentity.cpp  boot banner: which board, which build
     Game.h              base class; lifecycle + full vs partial invalidation
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view
