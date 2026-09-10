@@ -12,12 +12,19 @@ single session and it is answerable in about ten seconds. Run this instead:
 python tools/identify_boards.py
 ```
 
-It prints one line per port: the board, and the PlatformIO environment to flash
-it with. To flash every connected board correctly, in one step, taking and
-releasing the board lock on its own:
+It prints one line per port: the board, the PlatformIO environment to flash it
+with, the firmware version, and `asked` or `reset` -- how it found out. To flash
+every connected board correctly, in one step, taking and releasing the board
+lock on its own:
 
 ```bash
 python tools/identify_boards.py --flash
+```
+
+If other agents may be testing on the boards, never restart any of them:
+
+```bash
+python tools/identify_boards.py --no-reset
 ```
 
 ## Why the port is not the answer
@@ -26,11 +33,24 @@ A COM number is assigned by Windows in plug order, so the same four boards were
 COM9/10/11/12 in the morning and COM9/10/12/13 in the afternoon. Anything keyed
 on the port is stale by the next reboot.
 
-The **MAC** is burned into eFuse: unique per chip, never moves, and readable
-from a board with no firmware on it at all — which is exactly the situation
-after a failed flash, and the situation where a boot banner tells you nothing.
-`tools/board_registry.json` maps MAC → board → env, and is the memory that makes
-the question answerable once instead of every time.
+A board identifies itself by its **device id** (`[boot] device=R28T-…`), which
+the firmware generates and owns -- never by its MAC, which must not be stored
+or printed (see "No identifiers in this repository" in `CLAUDE.md`).
+`tools/board_registry.json` (gitignored, local) maps device id → board → env.
+
+## Ask, don't reset
+
+Current firmware answers `identify?` on the serial port with one `[ident]` line
+and keeps running, so the tool asks first. Only a board that stays silent --
+older firmware, a diag build, a blank flash -- gets reset so its boot banner can
+be read. Resetting is not free: it discards whatever the board was doing, one
+2.8-inch board's USB drops off the bus as its app starts (so the banner is
+lost), and an E32R40T has been seen stuck in a `flash read err` boot loop
+after a reset until its battery was pulled.
+
+If you write your own serial script, open the port with DTR and RTS already
+low (`s = serial.Serial(); s.dtr = False; s.rts = False; s.port = ...;
+s.open()`), or opening it resets the board.
 
 ## Rules this must not break
 
@@ -53,7 +73,8 @@ the question answerable once instead of every time.
 
 ## The banner's honest limit
 
-`[boot] board=<NAME>` is compiled in, so it reports which *firmware* is on the
+`[boot] board=<NAME>` (and the `[ident]` reply's `board=`) is compiled in, so it
+reports which *firmware* is on the
 board, not which *panel* is underneath it. It is right whenever the board was
 last flashed correctly and confidently wrong when it was not. That is why the
 registry keeps a `how` field recording what each identification rested on —

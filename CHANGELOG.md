@@ -55,6 +55,27 @@ better, but it changes what the device transmits and what peers key their saved
 names on, so it needs agreement first — like any other change to the
 advertisement.
 
+**A running board can be asked what it is, without being reset.** The boot
+banner prints once, at power-up, so `identify_boards.py` used to reset every
+board on the desk to hear it — discarding whatever each was doing, and not even
+reliably: one bench board's USB bridge drops off the bus for a moment as the
+app starts, taking the banner with it, and a 4-inch board reset from its
+button can refuse to boot until its battery is pulled.
+
+- **The firmware answers `identify?` on the serial port** with one line:
+  `[ident] v="1" device="…" board="…" version="…" build="…" built="…"
+  chip="…" panel="…" up="…"`. Every value is quoted, because board names and
+  the build time contain spaces. It is read-only by construction — no
+  arguments, no state change, nothing granted — and carries the banner's facts
+  only: never the MAC, a profile, a score or an SSID. A query does not count as
+  activity, so a tool polling the desk does not keep screens awake.
+- **`identify_boards.py` asks first** and falls back to reset-and-listen only
+  for a board that does not answer (older firmware, a diag build, a blank
+  flash). It now prints each board's firmware version and whether the board was
+  *asked* or *reset*. `--no-reset` asks and never resets.
+- **The boot banner moved to `AppRuntimeIdentity.cpp`**, taking
+  `AppRuntime.cpp` from 816 lines to under 700, as its own commit.
+
 **Nearby scanning no longer floods the serial log.** NimBLE-Arduino takes its
 log level from the Arduino core's when it is not given one, and the core runs
 at INFO, so every advertiser a Nearby scan heard printed
