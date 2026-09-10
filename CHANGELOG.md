@@ -133,6 +133,18 @@ the same board now prints 2 bytes a second. It was not the cause of slow
 frames: the loop ran at 48.9 frames a second before and 49.6 after, and the
 ~150 ms worst frame is unchanged, so that is a separate question.
 
+**A low battery no longer flashes the whole screen.** The battery and update
+notices asked for a full repaint to show their banner and another to take it
+away, and the battery one repeated for as long as the cell stayed low. They
+now repaint only the header, as the Nearby banner already did.
+
+**The screen saver's paddles stop flickering.** Both were blanked and redrawn
+on every frame, including the one standing still for half of each rally, and
+the wordmark's full-width erase band cut through both as it bobbed. The band
+now stops short of the paddles, and a paddle repaints only when it moves,
+changes colour or the ball passes through it -- erasing only the rows it has
+left, so it does not blink on its way past.
+
 **First thing this cycle: a two-console regression check of nearby play.** It
 has now been carried over twice. Two defects in that path were fixed late in
 5.9.0 — the acceptor never published its ply-0 answer, and a peer's turn was

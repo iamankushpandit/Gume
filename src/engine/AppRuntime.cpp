@@ -547,13 +547,17 @@ void BrainoApp::tickBatteryWarning(uint32_t nowMs) {
     requestBannerRepaint();
 }
 
-/* The strip is painted over the screen's own header, so the screen underneath
- * has to redraw before it can genuinely go away again. */
+/* The strip is painted over the screen's own header, so the header underneath
+ * has to redraw before it can genuinely go away again -- the header, not the
+ * screen. This used to call requestRender(), so the battery warning wiped the
+ * whole panel twice per cycle, once to appear and once to leave, and repeated
+ * that for as long as the cell stayed low. Nearby's banner had already moved
+ * to the chrome path; this is the same fix for the battery and update notices.
+ * A screen that cannot repaint its chrome alone still gets a full repaint,
+ * through the fallback in loop(). */
 void BrainoApp::requestBannerRepaint() {
     bannerNeedsPaint_ = true;
-    if (view_ == View::Game && activeGame_ != nullptr) {
-        activeGame_->requestRender();
-    }
+    requestChromeRender();
 }
 
 void BrainoApp::drawHeaderBanner(bool screenRepainted) {
