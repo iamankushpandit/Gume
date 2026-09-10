@@ -24,11 +24,51 @@ private:
     /* The whole boot banner -- identity, board, build, time sync -- printed
      * once from begin(). Lives in AppRuntimeIdentity.cpp. */
     void logBootBanner();
-    /* Answers `identify?` on the serial port with the banner's facts, so a
-     * tool can ask a running board what it is without resetting it. Called
-     * every loop; reads at most a few bytes. Read-only by design. */
+    /* The serial console (AppRuntimeConsole.cpp): one line reader, one
+     * command table, one reply grammar (`ok key="v" ...` / `err <code> ...`).
+     * Reads are open; writes need the admin PIN. Never counted as activity. */
+    struct ConsoleCommand {
+        const char* name;
+        const char* usage;
+        const char* help;
+        uint32_t capability;     // AppCapability flags; writes are PIN-gated
+        uint8_t argsMin;
+        uint8_t argsMax;
+        void (BrainoApp::*run)(int argc, char** argv, Print& out);
+    };
+    /* One row per device setting, behind `get` and `set`
+     * (AppRuntimeConsoleSettings.cpp). `set` returns nullptr on success or
+     * an error reply body, "<code> <message>". */
+    struct ConsoleSetting {
+        const char* key;
+        const char* values;      // what `set` accepts, for help and errors
+        void (*listValues)(Print& out);  // optional: choices from a table
+        void (*get)(BrainoApp& app, char* out, size_t cap);
+        const char* (*set)(BrainoApp& app, const char* value);
+    };
+    static const ConsoleCommand* consoleTable(size_t& count);
+    static const ConsoleSetting* consoleSettings(size_t& count);
     void tickSerialQuery();
-    void replyIdentify();
+    void runConsoleLine(char* line, Print& out);
+    // AppRuntimeConsole.cpp
+    void cmdIdentify(int argc, char** argv, Print& out);
+    void cmdHelp(int argc, char** argv, Print& out);
+    void cmdUnlock(int argc, char** argv, Print& out);
+    void cmdLock(int argc, char** argv, Print& out);
+    void cmdWifi(int argc, char** argv, Print& out);
+    // AppRuntimeConsoleSettings.cpp
+    void cmdGet(int argc, char** argv, Print& out);
+    void cmdSet(int argc, char** argv, Print& out);
+    // AppRuntimeConsoleProfiles.cpp
+    void cmdProfiles(int argc, char** argv, Print& out);
+    void cmdProfileAdd(int argc, char** argv, Print& out);
+    void cmdProfileRename(int argc, char** argv, Print& out);
+    void cmdProfileRemove(int argc, char** argv, Print& out);
+    void cmdGames(int argc, char** argv, Print& out);
+    void cmdGame(int argc, char** argv, Print& out);
+    void replyIdentify(Print& out);
+    void repaintAfterConsoleChange();
+    void refreshAfterProfileChange();
 
 public:
 

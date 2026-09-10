@@ -392,7 +392,11 @@ void Board::setBrightness(uint8_t percent) {
     if (percent < BRIGHTNESS_MIN) percent = BRIGHTNESS_MIN;
     if (percent > 100) percent = 100;
     prefs_.putUChar("bright", percent);
-    applyBrightness();
+    /* Not while the panel sleeps: that would light the backlight over a dark
+     * panel. Unreachable from the Settings slider -- nobody can touch it with
+     * the screen off -- but the serial console can set brightness at any
+     * time, and displayWake() re-applies the stored value anyway. */
+    if (!displayAsleep_) applyBrightness();
 }
 
 void Board::applyBrightness() {

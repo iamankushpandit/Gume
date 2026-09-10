@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-77.5%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-77.8%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,438,961 / 3,145,728 bytes (**77.5%**) |
-| RAM | 76,548 / 327,680 bytes (**23.4%**) |
+| Flash | 2,448,161 / 3,145,728 bytes (**77.8%**) |
+| RAM | 76,676 / 327,680 bytes (**23.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -960,6 +960,15 @@ guess the time zone on first connect (the picker overrides it, and you can skip
 Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
 
+### The USB cable
+
+A computer connected by USB can ask the device what it is (board, firmware
+version, an id the firmware generated) and what its settings are (as counts
+and on/off flags). It never answers with a player's name, a score, the Wi-Fi
+network's name or its password. Changing settings over the cable needs the
+admin PIN, the same one the device asks for on screen. Nothing about this
+involves a radio.
+
 ### The update check
 
 Once a day, a console with Wi-Fi configured downloads one small file listing the
@@ -1142,12 +1151,39 @@ what proved the radio was fine when the app's scan was returning nothing — the
 async `scanNetworks()`/`scanComplete()` pair was silently failing on this board,
 while a blocking scan found 58 access points.
 
-A running board can also be asked what it is, without resetting it: send
-`identify?` and a newline at 115200 and it answers with one line --
-`[ident] v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="…" build="…"
-built="…" chip="…" panel="…" up="…"` -- and carries on. It is read-only and
-carries only what the boot banner already prints. `python
-tools/identify_boards.py` uses it to say which board is on which port.
+The same serial port (115200) is a small console, and a running board answers
+it without being reset. One command per line; every reply is one line,
+`ok key="value" ...` or `err <code> <message>`:
+
+```
+identify      ok v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="…" build="…" …
+get           ok v="1" theme="Dark" brightness="80" layout="horizontal" sound="on" …
+get theme     ok key="theme" value="Dark" values="Dark|Light|Midnight|…"
+help          ok commands="identify get set wifi profiles profile-add …"
+```
+
+Those are open, and carry only facts about the device — never a player's name,
+a score, the Wi-Fi network's name or the MAC. Everything else needs the admin
+PIN: after `unlock <PIN>`,
+
+| What | Commands |
+|---|---|
+| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp, ntp_hours, timezone |
+| Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
+| Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
+| Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+
+then `lock`. Every change goes through the same code the screens use, with the
+same refusals: the admin profile and the player currently in use cannot be
+removed, and Nearby needs the beacon. The password is never echoed, and three
+wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
+game off for every player at once. Chess, Sea Battle and Cursive cannot be
+hidden yet (a known limit of per-player visibility).
+
+`python tools/identify_boards.py` uses `identify` to say which board is on
+which port. To set up several boards at once, copy
+`tools/bench_config.example.json` to `tools/bench_config.json` (gitignored)
+and run `python tools/configure_boards.py`.
 
 The main firmware also traces the clock over serial at 115200:
 
@@ -1187,6 +1223,10 @@ src/
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeIdentity.cpp  boot banner: which board, which build
+    AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
+    AppRuntimeConsoleSettings.cpp  console: get/set over one settings table
+    AppRuntimeConsoleProfiles.cpp  console: players and their games (CRUD)
+    ConsoleText.h       console argument parsing, allocation-free
     Game.h              base class; lifecycle + full vs partial invalidation
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view

@@ -105,7 +105,7 @@ String Board::wifiPassword() {
     return wifiPassCache_;
 }
 
-void Board::setWifiCredentials(const String& ssid, const String& password) {
+void Board::setWifiCredentials(const char* ssid, const char* password) {
     const size_t nS = prefs_.putString("wifiSsid", ssid);
     const size_t nP = prefs_.putString("wifiPass", password);
     wifiSsidCache_ = ssid;

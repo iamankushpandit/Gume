@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Template for tools/configure_boards.py. Copy to tools/bench_config.json,",
+    "which is GITIGNORED because it holds a Wi-Fi password and player names.",
+    "Every key except pin is optional; a key left out is a setting left alone.",
+    "settings: any key `get` lists on the board (theme, brightness, layout,",
+    "sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp,",
+    "ntp_hours, timezone); true/false mean on/off.",
+    "wifi may be {\"ssid\": ..., \"password\": ...} or the string \"clear\".",
+    "Players are addressed by name. games: {\"all\" or a name: {id: true/false}}."
+  ],
+  "pin": "0000",
+  "settings": {
+    "theme": "Midnight",
+    "brightness": 70,
+    "beacon": true,
+    "nearby": true
+  },
+  "wifi": {"ssid": "YOUR-NETWORK", "password": "YOUR-PASSWORD"},
+  "profiles": ["Player1", "Player2"],
+  "rename_profiles": {},
+  "remove_profiles": [],
+  "games": {}
+}

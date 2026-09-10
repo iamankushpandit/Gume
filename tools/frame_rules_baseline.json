@@ -175,7 +175,7 @@
       "heap": 0
     },
     "src/hal/Board.cpp": {
-      "String": 5,
+      "String": 4,
       "delay": 1,
       "heap": 0
     },
@@ -185,7 +185,7 @@
       "heap": 0
     },
     "src/hal/BoardNetwork.cpp": {
-      "String": 14,
+      "String": 13,
       "delay": 1,
       "heap": 0
     },
