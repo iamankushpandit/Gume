@@ -133,6 +133,18 @@ the same board now prints 2 bytes a second. It was not the cause of slow
 frames: the loop ran at 48.9 frames a second before and 49.6 after, and the
 ~150 ms worst frame is unchanged, so that is a separate question.
 
+**The 4-inch launcher shows nine apps a page in portrait.** A 3x3 grid of
+96x112 tiles instead of 2x2, so the catalogue is five pages rather than eleven.
+Landscape keeps its 2x3, and every smaller panel is unchanged: the grid is
+chosen from the panel's size by `LauncherLayout::grid()`, which the tile
+rects, the page size and the tile colours all read. Tile colours step by row as
+well as column on a three-wide grid, since `slot % 3` would have painted each
+column one colour. At 88px a subtitle no longer fits five of the apps -- Math's
+"addition & subtraction" is the widest -- and font 1 is already the smallest
+font the firmware carries, so there a subtitle that does not fit goes onto two
+lines; every title on the page moves up one line to match, so the grid stays
+even.
+
 **A low battery no longer flashes the whole screen.** The battery and update
 notices asked for a full repaint to show their banner and another to take it
 away, and the battery one repeated for as long as the cell stayed low. They

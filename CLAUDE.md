@@ -1005,7 +1005,7 @@ So: write the geometry once, at file scope, and derive every clear rectangle fro
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
-Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape).
+Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
 
 **System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
