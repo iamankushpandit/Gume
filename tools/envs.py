@@ -36,6 +36,7 @@ nothing else.
 
 import argparse
 import io
+import json
 import os
 import re
 import sys
@@ -125,6 +126,29 @@ def classify(ini=None):
     if not kinds:
         die("platformio.ini declares no [env:*] sections")
     return kinds
+
+
+def board_name(env, ini=None):
+    """The BOARD_NAME an environment builds for, or None for a boardless probe.
+
+    Followed through the `${board_<id>.build_flags}` the environment composes,
+    to the `BOARD_NAME` that board section states -- the same fact the
+    firmware prints as `[boot] board=`, read from the one place it is written.
+    Used to name CI jobs after the board, so a red job says which board broke.
+    """
+    ini = read_ini() if ini is None else ini
+    body = dict(sections(ini)).get(env)
+    if body is None:
+        return None
+    ref = re.search(r"\$\{board_(\w+)\.build_flags\}", body)
+    if not ref:
+        return None
+    section = re.search(r"^\[board_%s\](.*?)(?=^\[|\Z)" % re.escape(ref.group(1)),
+                        ini, re.M | re.S)
+    if not section:
+        return None
+    name = re.search(r'BOARD_NAME=\\"([^\\"]+)\\"', section.group(1))
+    return name.group(1) if name else None
 
 
 def of_kind(kind, ini=None):
@@ -218,6 +242,9 @@ def main():
                              "environment, whatever the change was")
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
+    parser.add_argument("--matrix", action="store_true",
+                        help="print a JSON list of {env, board, name} for a CI "
+                             "matrix; name is what the job is called")
     args = parser.parse_args()
 
     ini = read_ini()
@@ -230,7 +257,17 @@ def main():
     else:
         envs = of_kind(args.kind, ini)
 
-    if args.pio_args:
+    if args.matrix:
+        # "E32R28T-1 (app)": the board first, because that is what a person
+        # reading a red job needs; the environment beside it, because that is
+        # what they type to reproduce it. A boardless probe is its env alone.
+        rows = []
+        for env in envs:
+            board = board_name(env, ini)
+            rows.append({"env": env, "board": board or "",
+                         "name": "%s (%s)" % (board, env) if board else env})
+        print(json.dumps(rows))
+    elif args.pio_args:
         # Nothing to build is not an empty `pio run` -- that builds default_envs.
         # The caller has to be able to see the difference, so print nothing and
         # let it test for an empty string.

@@ -21,16 +21,21 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Three jobs, because the builds are independent and a runner is not:
+#
+#   plan    every repository check, then decides which environments to build
+#           and installs their toolchains once, into one shared cache.
+#   build   one job PER ENVIRONMENT, on its own runner, all at once. A push to
+#           dev builds seven boards; one after another on one runner that was
+#           14-15 minutes, in parallel it is roughly the slowest single board.
+#   verify  the required status check. It waits for the builds and fails if
+#           any failed -- see the note on it below.
 jobs:
-  # `verify` is the required status check in the "Protect main" and
-  # "Protect dev" rulesets, so this job must report on EVERY pull request,
-  # including documentation-only ones. That is why the build is skipped with a
-  # step-level `if:` rather than by adding `paths-ignore:` to the trigger above:
-  # a required check that does not run is not "passed", it is "expected", and
-  # the pull request stays unmergeable forever waiting for a status that will
-  # never arrive. The job always runs; only the expensive half is conditional.
-  verify:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      envs: ${{ steps.environments.outputs.envs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,6 +73,12 @@ jobs:
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The toolchains, ONCE. This job installs every package the chosen
+      # environments need and is the only job that saves this cache; the
+      # build jobs restore it read-only. Seven jobs each caching their own
+      # ~/.platformio would be seven copies of roughly a gigabyte against the
+      # repository's 10 GB cache, and eviction would quietly make runs slow
+      # again. The ESP32-S3 toolchain lives in the same cache as the ESP32 one.
       - name: Cache PlatformIO
         if: steps.scope.outputs.code == 'true'
         uses: actions/cache@v4
@@ -75,32 +86,8 @@ jobs:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-
-
-      # The compiled-object cache. Separate from the PlatformIO *packages* cache
-      # above, which holds the toolchain: this holds build output, and until
-      # 5.9.x there was no point caching it. tools/build_stamp.py appended the
-      # commit hash to the global CPPDEFINES, so every object in the tree had a
-      # different compile command on every commit -- and every CI run is a new
-      # commit. Measured locally: 333 s and 336 objects for a changed commit
-      # name, against 66 s and one object for a build where nothing had moved.
-      #
-      # With the stamp in a generated header instead, the objects are stable
-      # across commits and this cache starts paying. It is content-addressed,
-      # so a restored entry is either right or is not a hit -- there is no
-      # stale-artifact failure mode to guard against. The key rotates per run
-      # so the cache keeps absorbing new objects; restore-keys is what makes
-      # the previous run's copy the starting point.
-      - name: Cache compiled objects
-        if: steps.scope.outputs.code == 'true'
-        uses: actions/cache@v4
-        with:
-          path: .pio/build_cache
-          key: objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
-          restore-keys: |
-            objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
-            objects-${{ runner.os }}-
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
 
       - name: Install PlatformIO
         if: steps.scope.outputs.code == 'true'
@@ -203,10 +190,104 @@ jobs:
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             WITH_PRODUCT="--with-product"
           fi
-          ARGS="$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < "$RUNNER_TEMP/changed.txt")"
-          echo "pio run $ARGS"
-          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
+          # The build job's matrix: one {env, board, name} per environment,
+          # named after the board so a red job says which board broke. [] when
+          # nothing needs building.
+          ENVS="$(python tools/envs.py --for-changes $WITH_PRODUCT --matrix < "$RUNNER_TEMP/changed.txt")"
+          echo "Matrix: $ENVS"
+          echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
+          echo "args=$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < "$RUNNER_TEMP/changed.txt")" >> "$GITHUB_OUTPUT"
 
-      - name: Build firmware
-        if: steps.scope.outputs.code == 'true' && steps.environments.outputs.args != ''
-        run: pio run ${{ steps.environments.outputs.args }}
+      # Download every toolchain and library the chosen environments need, so
+      # the cache above holds all of them and no build job downloads anything.
+      - name: Install the toolchains the builds will need
+        if: steps.scope.outputs.code == 'true' && steps.environments.outputs.envs != '[]'
+        run: pio pkg install ${{ steps.environments.outputs.args }}
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.code == 'true' && needs.plan.outputs.envs != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      # Every board reports. One broken board must not cancel the others and
+      # hide whether they were broken too.
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.envs) }}
+    # "build E32R28T-1 (app)": the board, then the environment to reproduce it.
+    name: build ${{ matrix.target.name }}
+    steps:
+      # A shallow checkout is enough: tools/build_stamp.py reads the branch
+      # from GITHUB_HEAD_REF / GITHUB_REF_NAME and the commit from
+      # `git rev-parse`, and neither needs history.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Read-only: `plan` installed and saved it. Restoring the exact key
+      # first means a hit is the complete set, not a partial older one.
+      - name: Restore PlatformIO
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      # The compiled-object cache, one per ENVIRONMENT. Every board's display
+      # macros are global compile flags, so no two boards produce the same
+      # object and there is nothing to share between them; a per-board key
+      # keeps each cache small and each job restoring only what it can use.
+      #
+      # Until the build stamp moved out of CPPDEFINES there was no point
+      # caching build output at all: every object's compile command carried
+      # the commit hash, and every CI run is a new commit. Measured locally
+      # after the move: one object and ~35 s for a new commit, against every
+      # object and ~8 minutes before. The cache is content-addressed, so a
+      # restored entry is either right or is not a hit. The key rotates per
+      # run so it keeps absorbing new objects; restore-keys makes the previous
+      # run's copy the starting point.
+      - name: Cache compiled objects
+        uses: actions/cache@v4
+        with:
+          path: .pio/build_cache
+          key: objects-${{ runner.os }}-${{ matrix.target.env }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            objects-${{ runner.os }}-${{ matrix.target.env }}-${{ hashFiles('platformio.ini') }}-
+            objects-${{ runner.os }}-${{ matrix.target.env }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build ${{ matrix.target.name }}
+        run: pio run -e ${{ matrix.target.env }}
+
+  # `verify` is the required status check in the "Protect main" and "Protect
+  # dev" rulesets, so it must report on EVERY pull request, including
+  # documentation-only ones -- a required check that does not run is not
+  # "passed", it is "expected", and the pull request stays unmergeable
+  # forever. That is why it runs `if: always()` and judges the other two
+  # jobs itself rather than being skipped with them.
+  #
+  # Do not rename this job, and do not make the matrix jobs the required
+  # check: their names carry the environment, so the set of names changes
+  # with the diff, and a ruleset can only wait for names it knows.
+  verify:
+    needs: [plan, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Judge the checks and the builds
+        run: |
+          echo "plan:  ${{ needs.plan.result }}"
+          echo "build: ${{ needs.build.result }}"
+          # plan must succeed. build may be skipped (nothing needed building)
+          # but must not fail or be cancelled.
+          [ "${{ needs.plan.result }}" = "success" ] || exit 1
+          case "${{ needs.build.result }}" in
+            success|skipped) exit 0 ;;
+            *) exit 1 ;;
+          esac

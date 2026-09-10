@@ -302,6 +302,21 @@ What follows from the classification:
 
 - **CI builds the seven product environments** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
+- **Each environment builds in its own job, in parallel.** `ci.yml` is three
+  jobs: `plan` runs every repository check, asks `envs.py` what to build and
+  installs all the toolchains once into the one cache it alone saves; `build`
+  is a matrix with one runner per environment and `fail-fast: false`, each
+  named after its board (`build E32R28T-1 (app)` -- `envs.py --matrix` reads
+  `BOARD_NAME` from the board section, so a red job says which board broke and
+  the environment beside it says how to reproduce it), each
+  restoring that toolchain cache read-only plus its own per-environment object
+  cache; `verify` waits for both and fails if either did. One runner building
+  seven boards in turn was 14-15 minutes on a push to `dev`. **`verify` is the
+  required status check in the branch rulesets -- never rename it, and never
+  make the matrix jobs required instead:** their names carry the environment,
+  so the set changes with the diff, and a ruleset can only wait for names it
+  knows. `verify` runs `if: always()` so a docs-only pull request, where
+  `build` is skipped, still reports.
 - **A diagnostic is built only when its own source or `platformio.ini`
   moves** -- `tools/envs.py --for-changes` derives that from each one's
   `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
@@ -1038,7 +1053,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           firmware's own Board::deviceId(); the real registry
                           is gitignored because it names one person's boards)
 site/                     index.template.html â€” the GitHub Pages landing page
-.github/workflows/        ci.yml validates checks + builds; pages.yml publishes
+.github/workflows/        ci.yml validates checks, then builds one job per
+                          environment in parallel (`verify` is the required
+                          check that judges them); pages.yml publishes
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
                           every firmware image attached
