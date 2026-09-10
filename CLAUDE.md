@@ -343,6 +343,7 @@ no `.git` at all -- a source tarball -- is a supported way to build, and stamps
 ### Build gotchas
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
+- **NimBLE's log level is set on its own, to warnings.** Left unset, NimBLE-Arduino copies `CORE_DEBUG_LEVEL` (`NimBLELog.h`), so the core's INFO made it print `New advertiser: <MAC>` for every device a Nearby scan heard -- 3.6 KB/s on the bench, 99.9% of all serial output, strangers' Bluetooth addresses in logs that get pasted into issues, and lines interleaved into the middle of `[boot]` and `[ident]` replies. `CONFIG_NIMBLE_CPP_LOG_LEVEL=2` in `[common]` fixes it without touching the core's own level. It did not change the frame rate -- NimBLE prints from its own task -- so do not expect it to explain a slow `worst=`.
 - `lib_ldf_mode = deep+` is required on `env:app` â€” transitive library headers do not resolve without it.
 - **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` â€” editing one would do nothing.
 - **One board = one `[board_*]` section plus one profile header.** `platformio.ini` splits into `[common]` (true of every board), `[esp32_common]` (the MCU), and a `[board_*]` section per board holding only the TFT_eSPI macros, `BOARD_NAME` and `GUME_BOARD_HEADER`. An environment composes `${common.build_flags}` with exactly one `${board_*.build_flags}`. Put a board-specific `-D` in `[common]` and it becomes a claim about every board â€” `check_boards.py` fails on that. The panel is described twice, to TFT_eSPI and to us, and `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against the profile so the two cannot disagree past the compiler.
@@ -464,8 +465,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,439,889 / 3,145,728 bytes,
-**77.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,438,961 / 3,145,728 bytes,
+**77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,548 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
