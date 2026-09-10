@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 35 |
-| Flash | 2,439,357 / 3,145,728 bytes (**77.5%**) |
+| Flash | 2,439,461 / 3,145,728 bytes (**77.5%**) |
 | RAM | 76,532 / 327,680 bytes (**23.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1179,6 +1179,7 @@ src/
     AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimeIdentity.cpp  boot banner: which board, which build
     Game.h              base class; lifecycle + full vs partial invalidation
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view

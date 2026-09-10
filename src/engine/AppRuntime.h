@@ -21,6 +21,9 @@ private:
      * at boot from the chip itself rather than from the compiled-in profile.
      * See the comment on the definition. */
     void logIdentity();
+    /* The whole boot banner -- identity, board, build, time sync -- printed
+     * once from begin(). Lives in AppRuntimeIdentity.cpp. */
+    void logBootBanner();
 
 public:
 
