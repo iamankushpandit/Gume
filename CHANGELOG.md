@@ -89,25 +89,37 @@ calls the same services the UI does:
   in that grammar too (`ok v="1" device=...` instead of `[ident] v="1" ...`);
   `identify?` and `settings?` still work as aliases, and `identify_boards.py`
   accepts both reply forms.
-- `settings` reports the device settings as counts and flags — never a
-  profile name or the network's name.
-- **Reads are open; writes need the admin PIN.** After `unlock <PIN>`:
-  `theme <name>`, `brightness <25-100>`, `beacon on|off`, `nearby on|off`,
-  `wifi "<network>" "<password>"`, `wifi clear` and `profile-add "<name>"`,
-  then `lock`. The gate is keyed on each row's capability, so a new write
-  command cannot forget it. Each change goes through the same code the
-  Settings, Wi-Fi and Profiles screens use, with the same refusals, and the
-  screen showing the old value repaints. The password is never echoed, and the
-  line buffer is wiped after every command. Three wrong PINs lock the console
-  for 30 seconds; the unlock lapses two minutes after the last command.
+- **CRUD, where the entity has it.** `get [key]` / `set <key> <value>` cover
+  every setting the Settings and Wi-Fi screens offer — theme, brightness,
+  layout, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby,
+  ntp, ntp_hours, timezone — with those screens' choices; `get <key>` lists
+  what it accepts. Players: `profiles`, `profile-add`, `profile-rename`,
+  `profile-remove`. Games per player: `games <slot>` and
+  `game <slot|all> <game-id> on|off`, so a teacher can switch a game off for
+  every player at once. Wi-Fi: `wifi "<network>" "<password>"`, `wifi clear`.
+- **Device reads are open; changes, and reading player names, need the admin
+  PIN.** The gate is keyed on each row's capability, so a new command cannot
+  forget it. Each change goes through the same code the screens use, with the
+  same refusals, and the screen showing the old value repaints. The admin
+  profile and the player currently in use cannot be removed; two players
+  cannot share a name. The password is never echoed, and the line buffer is
+  wiped after every command. Three wrong PINs lock the console for 30
+  seconds; the unlock lapses two minutes after the last command.
 - Serial only: a console over Wi-Fi or Bluetooth would be a new outbound flow.
 - `tools/configure_boards.py` applies one config file to every board that
   answers — `tools/bench_config.json`, gitignored, from the committed
-  `bench_config.example.json`. Profiles that already exist are skipped, so it
-  can be re-run.
-- Deliberately absent: factory reset, removing profiles, reading scores.
+  `bench_config.example.json` — addressing players by name, since slots shift.
+  It is safe to re-run.
+- Deliberately absent: factory reset, reading or clearing scores, changing the
+  admin PIN or which profile is admin, peer labels.
+- Known limit, not fixed here: per-player visibility holds 32 games and the
+  catalogue has 35, so Chess, Sea Battle and Cursive cannot be hidden — on the
+  device as well. The console refuses with `err limit` rather than answering
+  ok for a change that did not happen.
 - Fixed on the way: `Board::setBrightness()` lit the backlight even while the
-  panel slept. The slider cannot reach that state; a cable can.
+  panel slept. The slider cannot reach that state; a cable can. `Board` also
+  gains `char*` forms of `setWifiCredentials()` and `setProfileName()` and a
+  `copyProfileName()`, so the console handles names without allocating.
 
 **Nearby scanning no longer floods the serial log.** NimBLE-Arduino takes its
 log level from the Arduino core's when it is not given one, and the core runs

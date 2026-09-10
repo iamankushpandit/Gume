@@ -109,9 +109,11 @@ because history, clones, forks and tarballs all keep copies.
   answers `identify`, through the serial console behind the admin PIN. Never
   commit that file, and never paste the tool's input into an issue.
 - **A new console command is a row in the table** in
-  `src/engine/AppRuntimeConsole.cpp`, answering with one `ok key="v"` or
-  `err <code> <message>` line. Anything that writes gets a write capability,
-  which puts it behind the PIN automatically.
+  `src/engine/AppRuntimeConsole.cpp`, and a new device setting is a row in
+  `AppRuntimeConsoleSettings.cpp` -- never another string match. Each answers
+  with one `ok key="v"` or `err <code> <message>` line, keys in word
+  characters only. Anything that writes, or reads player data, gets a gated
+  capability, which puts it behind the PIN automatically.
 - `python tools/check_identifiers.py` runs in CI. It catches MACs and public
   IPs; it cannot catch an SSID or a person's name, so a clean run is not
   permission.

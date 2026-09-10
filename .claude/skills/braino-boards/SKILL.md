@@ -29,8 +29,8 @@ python tools/identify_boards.py --no-reset
 
 ## Configure the bench — never by hand
 
-To give every connected board the same profiles, theme, brightness, Nearby and
-Wi-Fi settings (after a flash, or to put a bench into a known state):
+To give every connected board the same settings, Wi-Fi, players and per-player
+game lists (after a flash, or to put a bench into a known state):
 
 ```bash
 python tools/configure_boards.py --dry-run
@@ -43,11 +43,15 @@ the owner's Wi-Fi password and player names. If it does not exist, copy
 inventing them. Never commit it, print it, or paste it anywhere. `--board
 E32R40T` or `--port COM12` narrows the run to one model or one port.
 
-It finds boards with `identify?`, unlocks each with the admin PIN from the
-config, sends the settings, reads back `settings?`, and locks again. Boards on
-firmware older than the console are reported and skipped. Nothing is reset. A
-board refusing `unlock` has a different PIN, and three wrong PINs lock its
-console out for 30 seconds, so don't retry in a loop.
+It finds boards with `identify`, unlocks each with the admin PIN from the
+config, applies `settings` (any key `get` lists), `wifi`, `profiles`,
+`rename_profiles`, `remove_profiles` and `games`, reads back `get`, and locks
+again. Players are addressed by **name**, never slot -- slots shift when a
+player is removed. Boards on firmware older than the console are reported and
+skipped. Nothing is reset. A board refusing `unlock` has a different PIN, and
+three wrong PINs lock its console out for 30 seconds, so don't retry in a loop.
+`remove_profiles` deletes a player's scores and progress for good -- only put a
+name there when the owner asked for it.
 
 Taking the board lock is done for you. To send one command by hand, open the
 port with DTR/RTS low and type `help`: the board lists its own commands, and

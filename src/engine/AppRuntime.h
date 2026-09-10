@@ -36,22 +36,39 @@ private:
         uint8_t argsMax;
         void (BrainoApp::*run)(int argc, char** argv, Print& out);
     };
+    /* One row per device setting, behind `get` and `set`
+     * (AppRuntimeConsoleSettings.cpp). `set` returns nullptr on success or
+     * an error reply body, "<code> <message>". */
+    struct ConsoleSetting {
+        const char* key;
+        const char* values;      // what `set` accepts, for help and errors
+        void (*listValues)(Print& out);  // optional: choices from a table
+        void (*get)(BrainoApp& app, char* out, size_t cap);
+        const char* (*set)(BrainoApp& app, const char* value);
+    };
     static const ConsoleCommand* consoleTable(size_t& count);
+    static const ConsoleSetting* consoleSettings(size_t& count);
     void tickSerialQuery();
     void runConsoleLine(char* line, Print& out);
+    // AppRuntimeConsole.cpp
     void cmdIdentify(int argc, char** argv, Print& out);
-    void cmdSettings(int argc, char** argv, Print& out);
     void cmdHelp(int argc, char** argv, Print& out);
     void cmdUnlock(int argc, char** argv, Print& out);
     void cmdLock(int argc, char** argv, Print& out);
-    void cmdTheme(int argc, char** argv, Print& out);
-    void cmdBrightness(int argc, char** argv, Print& out);
-    void cmdBeacon(int argc, char** argv, Print& out);
-    void cmdNearby(int argc, char** argv, Print& out);
     void cmdWifi(int argc, char** argv, Print& out);
+    // AppRuntimeConsoleSettings.cpp
+    void cmdGet(int argc, char** argv, Print& out);
+    void cmdSet(int argc, char** argv, Print& out);
+    // AppRuntimeConsoleProfiles.cpp
+    void cmdProfiles(int argc, char** argv, Print& out);
     void cmdProfileAdd(int argc, char** argv, Print& out);
+    void cmdProfileRename(int argc, char** argv, Print& out);
+    void cmdProfileRemove(int argc, char** argv, Print& out);
+    void cmdGames(int argc, char** argv, Print& out);
+    void cmdGame(int argc, char** argv, Print& out);
     void replyIdentify(Print& out);
     void repaintAfterConsoleChange();
+    void refreshAfterProfileChange();
 
 public:
 

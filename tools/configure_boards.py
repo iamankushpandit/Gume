@@ -12,38 +12,49 @@ password and player names. Copy tools/bench_config.example.json to start:
 
     {
       "pin": "0000",
-      "theme": "Midnight",
-      "brightness": 70,
-      "beacon": true,
-      "nearby": true,
+      "settings": {"theme": "Midnight", "brightness": 70, "beacon": true,
+                   "nearby": true, "timezone": "US Central"},
       "wifi": {"ssid": "YOUR-NETWORK", "password": "YOUR-PASSWORD"},
-      "profiles": ["Player1", "Player2"]
+      "profiles": ["Player1", "Player2"],
+      "rename_profiles": {"Player 3": "Player3"},
+      "remove_profiles": ["Old player"],
+      "games": {"all": {"chess": false}, "Player1": {"maze": true}}
     }
 
-Every key except "pin" is optional; leave one out and that setting is not
-touched. "wifi": "clear" forgets the network. Profiles that already exist are
-skipped, so running this twice is harmless.
+Every key except "pin" is optional; a key left out is left alone.
+
+  settings         any key `get` lists on the board; true/false mean on/off
+  wifi             {"ssid", "password"}, or "clear" to forget the network
+  profiles         players that must exist; one already there is skipped
+  rename_profiles  {"current name": "new name"}
+  remove_profiles  players to delete, with their scores and progress. The
+                   admin and the active player are refused by the board.
+  games            {"all" or a player name: {"game-id": true/false}}
+
+Players are addressed by NAME, never by slot: slots shift when a player is
+removed, and a slot number that was right on one board is wrong on the next.
+The tool reads `profiles` on each board and works the slots out.
 
 How it works
 ------------
-Boards are found the way identify_boards.py finds them -- by asking
-`identify?`, never by resetting -- and each is configured in one quiet serial
-session: the port is opened with DTR and RTS already low, so opening it does
-not reset the board. The firmware side is the command table in
-src/engine/AppRuntimeConsole.cpp (`help` on the device lists it); every
-command that changes something needs `unlock <admin PIN>` first, exactly as
-the Settings screen needs the admin profile. Replies are one line each,
-`ok key="v" ...` or `err <code> <message>`. Three wrong PINs lock the console
-out for 30 seconds.
+Boards are found by asking `identify`, never by resetting -- and each is
+configured in one quiet serial session: the port is opened with DTR and RTS
+already low, so opening it does not reset the board. The firmware side is the
+command table in src/engine/AppRuntimeConsole*.cpp (`help` on the device lists
+it). Anything that changes a board, and reading player names, needs `unlock
+<admin PIN>` first, exactly as the Settings screen needs the admin profile.
+Replies are one line each, `ok key="v" ...` or `err <code> <message>`. Three
+wrong PINs lock the console out for 30 seconds, so a refused PIN stops that
+board rather than retrying.
 
-Nothing personal is printed here: the password is never shown, even with
---dry-run, and the firmware's replies carry counts and flags, not names.
+Nothing secret is printed: the PIN and the password are masked even with
+--dry-run, and player names are shown only as a count.
 """
 
 import argparse
 import json
 import os
-import subprocess
+import re
 import sys
 import time
 
@@ -54,7 +65,9 @@ import identify_boards as ib  # noqa: E402  (reuse discovery, registry, lock)
 DEFAULT_CONFIG = os.path.join(HERE, "bench_config.json")
 EXAMPLE_CONFIG = os.path.join(HERE, "bench_config.example.json")
 REPLY_TIMEOUT_S = 3.0
-KNOWN_KEYS = {"pin", "theme", "brightness", "beacon", "nearby", "wifi", "profiles"}
+KNOWN_KEYS = {"pin", "settings", "wifi", "profiles", "rename_profiles",
+              "remove_profiles", "games"}
+FIELD_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
 def ensure_pyserial():
@@ -71,46 +84,30 @@ def ensure_pyserial():
 
 
 def quote(value):
+    value = str(value)
     if '"' in value:
         raise ValueError("a value cannot contain a double quote: %r" % value)
     return '"%s"' % value
 
 
-def onoff(v):
-    return "on" if v else "off"
+def setting_value(v):
+    if isinstance(v, bool):
+        return "on" if v else "off"
+    return quote(v) if " " in str(v) else str(v)
 
 
-def build_commands(cfg):
-    """(command, label) pairs, in the order they must be sent."""
+def validate(cfg):
     unknown = {k for k in cfg if not k.startswith("_")} - KNOWN_KEYS
     if unknown:
         raise ValueError("unknown config key(s): %s" % ", ".join(sorted(unknown)))
     pin = str(cfg.get("pin", ""))
     if len(pin) != 4 or not pin.isdigit():
         raise ValueError('"pin" must be the four-digit admin PIN, as a string')
-
-    cmds = [("unlock %s" % pin, "unlock")]
-    if "theme" in cfg:
-        cmds.append(("theme %s" % cfg["theme"], "theme"))
-    if "brightness" in cfg:
-        cmds.append(("brightness %d" % int(cfg["brightness"]), "brightness"))
-    # Beacon before Nearby: the firmware refuses Nearby while the beacon is off.
-    if "beacon" in cfg:
-        cmds.append(("beacon %s" % onoff(cfg["beacon"]), "beacon"))
-    if "nearby" in cfg:
-        cmds.append(("nearby %s" % onoff(cfg["nearby"]), "nearby"))
-    if "wifi" in cfg:
-        w = cfg["wifi"]
-        if w == "clear" or w is None:
-            cmds.append(("wifi clear", "wifi"))
-        else:
-            cmds.append(("wifi %s %s" % (quote(w["ssid"]), quote(w.get("password", ""))),
-                         "wifi"))
-    for name in cfg.get("profiles", []):
-        cmds.append(("profile-add %s" % quote(name), "profile"))
-    cmds.append(("settings", "settings"))
-    cmds.append(("lock", "lock"))
-    return cmds
+    for name in list(cfg.get("profiles", [])) + list(cfg.get("remove_profiles", [])):
+        quote(name)
+    for old, new in cfg.get("rename_profiles", {}).items():
+        quote(old), quote(new)
+    return pin
 
 
 def shown(cmd):
@@ -119,53 +116,117 @@ def shown(cmd):
         return 'wifi "<name>" "<password>"'
     if cmd.startswith("unlock "):
         return "unlock ****"
+    if cmd.startswith("profile-") or cmd.startswith("game "):
+        return re.sub(r'"[^"]*"', '"<name>"', cmd)
     return cmd
 
 
-def send(port_handle, cmd):
-    """Send one command; return its reply line, skipping unrelated log lines.
-
-    Every command answers with exactly one `ok key="v" ...` or
-    `err <code> <message>` line; log lines never start with either."""
-    port_handle.reset_input_buffer()
-    port_handle.write(b"\n" + cmd.encode("ascii") + b"\n")
-    port_handle.flush()
-    want = ("ok ", "err ")
-    buf = b""
-    deadline = time.time() + REPLY_TIMEOUT_S
-    while time.time() < deadline:
-        buf += port_handle.read(256)
-        while b"\n" in buf:
-            line, buf = buf.split(b"\n", 1)
-            text = line.decode("utf-8", "replace").strip()
-            if text.startswith(want):
-                return text
-    return None
+def shown_reply(cmd, reply):
+    """Replies carrying names are summarised rather than printed."""
+    if reply and cmd == "profiles" and reply.startswith("ok "):
+        return 'ok (%s players)' % FIELD_RE.search(reply).group(2)
+    if reply and cmd.startswith("profile-rename") and reply.startswith("ok "):
+        return re.sub(r'name="[^"]*"', 'name="<name>"', reply)
+    return reply or "(no reply)"
 
 
-def configure(port, cmds):
-    import serial
-    s = serial.Serial()
-    s.port = port
-    s.baudrate = 115200
-    s.timeout = 0.1
-    s.dtr = False          # set BEFORE open: opening must not reset the board
-    s.rts = False
-    s.open()
-    results = []
-    try:
-        for cmd, label in cmds:
-            reply = send(s, cmd)
-            results.append((label, cmd, reply))
-            if label == "unlock" and not (reply or "").startswith("ok "):
-                break      # nothing else will be accepted
-    finally:
+class Session:
+    """One quiet serial session on one board."""
+
+    def __init__(self, port):
+        import serial
+        self.s = serial.Serial()
+        self.s.port = port
+        self.s.baudrate = 115200
+        self.s.timeout = 0.1
+        self.s.dtr = False     # set BEFORE open: opening must not reset the board
+        self.s.rts = False
+        self.s.open()
+        self.failures = 0
+
+    def send(self, cmd, quiet=False):
+        """Send one command; return its reply, skipping unrelated log lines.
+        Every command answers with exactly one `ok ...` or `err ...` line."""
+        self.s.reset_input_buffer()
+        self.s.write(b"\n" + cmd.encode("ascii") + b"\n")
+        self.s.flush()
+        reply, buf = None, b""
+        deadline = time.time() + REPLY_TIMEOUT_S
+        while reply is None and time.time() < deadline:
+            buf += self.s.read(256)
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                text = line.decode("utf-8", "replace").strip()
+                if text.startswith(("ok ", "err ")):
+                    reply = text
+                    break
+        ok = reply is not None and reply.startswith("ok ")
+        if not ok:
+            self.failures += 1
+        if not quiet or not ok:
+            print("  %s %-34s %s" % ("ok " if ok else "ERR", shown(cmd),
+                                      shown_reply(cmd, reply)))
+        return reply if ok else None
+
+    def players(self):
+        """{lowercase name: slot} from `profiles`."""
+        reply = self.send("profiles", quiet=True)
+        found = {}
+        for key, val in FIELD_RE.findall(reply or ""):
+            if re.fullmatch(r"p\d+", key):
+                found[val.lower()] = int(key[1:])
+        return found
+
+    def close(self):
         try:
-            if results and results[-1][0] != "lock":
-                send(s, "lock")
+            self.send("lock", quiet=True)
         finally:
-            s.close()
-    return results
+            self.s.close()
+
+
+def configure(port, cfg, pin):
+    sess = Session(port)
+    try:
+        if not sess.send("unlock " + pin):
+            return sess.failures          # nothing else will be accepted
+        for key, val in cfg.get("settings", {}).items():
+            sess.send("set %s %s" % (key, setting_value(val)))
+        if "wifi" in cfg:
+            w = cfg["wifi"]
+            if w in ("clear", None):
+                sess.send("wifi clear")
+            else:
+                sess.send("wifi %s %s" % (quote(w["ssid"]), quote(w.get("password", ""))))
+        for name in cfg.get("profiles", []):
+            sess.send("profile-add %s" % quote(name))
+        for old, new in cfg.get("rename_profiles", {}).items():
+            slot = sess.players().get(str(old).lower())
+            if slot is None:
+                print("  --  rename: no player by that name here -- skipped")
+                continue
+            sess.send("profile-rename %d %s" % (slot, quote(new)))
+        for name in cfg.get("remove_profiles", []):
+            # Re-read every time: removing a player shifts the later slots.
+            slot = sess.players().get(str(name).lower())
+            if slot is None:
+                print("  --  remove: no player by that name here -- skipped")
+                continue
+            sess.send("profile-remove %d" % slot)
+        for who, games in cfg.get("games", {}).items():
+            if str(who).lower() == "all":
+                target = "all"
+            else:
+                slot = sess.players().get(str(who).lower())
+                if slot is None:
+                    print("  --  games: no player by that name here -- skipped")
+                    continue
+                target = str(slot)
+            for game_id, visible in games.items():
+                sess.send("game %s %s %s" % (target, game_id, "on" if visible else "off"))
+        sess.send("get")
+    finally:
+        sess.close()
+    return sess.failures
 
 
 def main():
@@ -182,14 +243,9 @@ def main():
     with open(args.config, encoding="utf-8") as f:
         cfg = json.load(f)
     try:
-        cmds = build_commands(cfg)
+        pin = validate(cfg)
     except (ValueError, KeyError, TypeError) as e:
         sys.exit("Bad config: %s" % e)
-
-    if args.dry_run:
-        print("Would send, to each board:")
-        for cmd, _ in cmds:
-            print("  " + shown(cmd))
 
     ensure_pyserial()
     py = ib.pio_python()
@@ -202,7 +258,7 @@ def main():
             continue
         reply = ib.query_board(py, port) or ib.query_board(py, port)
         if not reply:
-            print("  %-6s -- did not answer identify? (older firmware?) -- skipped" % port)
+            print("  %-6s -- did not answer identify (older firmware?) -- skipped" % port)
             continue
         if args.board and reply.get("board") != args.board:
             continue
@@ -212,6 +268,12 @@ def main():
         print("No boards to configure.")
         return 1
     if args.dry_run:
+        print("Would configure (settings: %s; %d player(s) to ensure, %d to rename, "
+              "%d to remove; wifi: %s):"
+              % (", ".join(cfg.get("settings", {})) or "none",
+                 len(cfg.get("profiles", [])), len(cfg.get("rename_profiles", {})),
+                 len(cfg.get("remove_profiles", [])),
+                 "clear" if cfg.get("wifi") == "clear" else ("set" if "wifi" in cfg else "unchanged")))
         for port, reply in targets:
             print("  %-6s %s %s" % (port, reply.get("board"), reply.get("version")))
         return 0
@@ -229,11 +291,7 @@ def main():
     try:
         for port, reply in targets:
             print("\n=== %s  %s  %s" % (port, reply.get("board"), reply.get("device")))
-            for label, cmd, answer in configure(port, cmds):
-                ok = answer is not None and answer.startswith("ok ")
-                failures += 0 if ok else 1
-                print("  %s %-24s %s" % ("ok " if ok else "ERR", shown(cmd),
-                                         answer or "(no reply)"))
+            failures += configure(port, cfg, pin)
     finally:
         if lock and os.path.exists(lock):
             os.remove(lock)

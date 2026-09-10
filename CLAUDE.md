@@ -465,8 +465,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,442,773 / 3,145,728 bytes,
-**77.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,448,161 / 3,145,728 bytes,
+**77.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 76,676 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
@@ -936,7 +936,8 @@ src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
-                          AppRuntimeConsole,
+                          AppRuntimeConsole (+Settings, +Profiles),
+                          ConsoleText,
                           ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
@@ -1127,37 +1128,57 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - **The serial port is a console, and it was widened on purpose.** The
   maintainer asked for bench boards to be set up from a cable rather than by
   hand, and plans a layered framework whose shell reaches every service the UI
-  does (`docs/FRAMEWORK_PLAN.md` on the platform-separation branch), so
-  `AppRuntimeConsole.cpp` is built to grow:
+  does (`docs/FRAMEWORK_PLAN.md` on the platform-separation branch), so the
+  console is built to grow. It is three files: `AppRuntimeConsole.cpp` (the
+  reader, the command table, the session and Wi-Fi),
+  `AppRuntimeConsoleSettings.cpp` (every device setting) and
+  `AppRuntimeConsoleProfiles.cpp` (players and their games), with parsing in
+  `ConsoleText.h`.
   - **One line reader, one command table, one reply grammar.** A command is a
     row -- name, usage, help, `AppCapability`, argument counts, handler -- and
     `help` is derived from the table. Every reply is exactly one line,
-    `ok key="value" ...` or `err <code> <message>`. **Add a command as a row,
-    never as another string match**, and never give it a second reply shape.
-    `identify?` and `settings?` are kept as aliases because tools on `dev`
-    already send them; `identify_boards.py` also accepts the `[ident] ...`
-    reply that pre-console snapshot builds give.
-  - Today's rows: `identify`, `settings` (counts and flags only), `help`,
-    `unlock`, `lock`, and behind the PIN `theme`, `brightness`, `beacon`,
-    `nearby`, `wifi`, `profile-add`. `tools/configure_boards.py` applies one
-    gitignored config file to every board that answers.
-  - **Reads are open, writes need the PIN.** `needsUnlock()` keys on the row's
-    capability (settings, network, profiles, scores, factory reset), so a new
-    write row cannot forget the gate. Three wrong PINs lock the console out
-    for 30s, and only exactly four digits are judged.
+    `ok key="value" ...` or `err <code> <message>`, and **reply keys are word
+    characters only** (`ntp_hours`, not `ntp-hours`), because every tool
+    matches `(\w+)="..."`. **Add a command as a row, never as another string
+    match**, and never give it a second reply shape. `identify?`, `settings`
+    and `settings?` are kept as aliases because tools on `dev` already send
+    them; `identify_boards.py` also accepts the `[ident] ...` reply that
+    pre-console snapshot builds give.
+  - **CRUD, where the entity has it.** Settings are fixed keys, so they are
+    Read and Update: `get [key]` and `set <key> <value>` over one settings
+    table whose rows are exactly the settings the Settings and Wi-Fi screens
+    offer, with those screens' choices -- a new setting is a row there too.
+    Players are full CRUD: `profiles`, `profile-add`, `profile-rename`,
+    `profile-remove`. Per-player games are Read and Update: `games <slot>`,
+    `game <slot|all> <id> on|off` (`all` is the classroom case). Wi-Fi is
+    create/update and delete (`wifi`, `wifi clear`), read only as a flag.
+  - **Device reads are open; writes, and reads of player data, need the
+    PIN.** `needsUnlock()` keys on the row's capability (settings, network,
+    profiles, scores, factory reset), so a new row cannot forget the gate.
+    `profiles` prints names, so it carries the profiles capability and is
+    gated like a change. Three wrong PINs lock the console out for 30s, and
+    only exactly four digits are judged.
+  - **The same refusals as the screens, and two more.** The admin profile
+    cannot be removed; the *active* player cannot be removed either (from a
+    cable that would pull a profile out from under a running game); two
+    players cannot share a name. Games at launcher index 32+ cannot be hidden
+    yet -- visibility is a 32-bit mask and the catalogue is 35 -- and the
+    console says so rather than answering ok.
   - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
     under the closed privacy list.
   - **It goes through the same doors as the screens**: the same `Board`
     setters and the same refusals (Nearby without the beacon), then a repaint
     of whatever screen is showing the old value.
-  - **Nothing personal comes back**: no profile name, no network name, never
-    the password, and the line buffer is wiped after every command.
+  - **Nothing personal comes back unasked**: `get` and `identify` carry no
+    name; player names only from the PIN-gated `profiles`; never the network's
+    name or password; and the line buffer is wiped after every command.
   - **It is not activity**: nothing touches `lastActivityMs_`, and
     `Board::setBrightness()` no longer lights the backlight over a sleeping
     panel -- unreachable from the slider, reachable from a cable.
-  - **Deliberately absent**: factory reset, removing profiles, reading scores.
-    Adding anything that changes the device or reads player data is a
-    decision for the maintainer, not a convenience.
+  - **Deliberately absent**: factory reset, reading or clearing scores,
+    changing the admin PIN or which profile is admin, peer labels, the update
+    check and the NTP server. Each is a decision for the maintainer, not a
+    convenience.
 - **An EN reset can strand an E32R40T.** Seen on the bench three times in one
   day: after the reset button, an RTS reset from a serial tool, or a USB power
   surge, the ROM loops `flash read err, 988` / `RTCWDT_RTC_RESET` every ~350ms
