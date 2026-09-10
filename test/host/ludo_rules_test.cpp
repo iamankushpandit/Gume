@@ -382,6 +382,167 @@ static void testBotDeterministic() {
     CHECK(botChoose(c, Level::Normal, 7) == 1, "Normal captures");
 }
 
+// ---- a table of consoles -------------------------------------------------
+
+static void testStartWord() {
+    for (uint8_t h = 2; h <= 4; ++h) {
+        for (uint8_t c = 0; c <= 2 && h + c <= 4; ++c) {
+            for (uint8_t lv = 0; lv < 2; ++lv) {
+                for (uint8_t rc = 0; rc < 64; rc += 7) {
+                    Net::Start st;
+                    st.humans = h;
+                    st.computers = c;
+                    st.level = lv;
+                    st.rosterCheck = rc;
+                    uint8_t from = 0, to = 0;
+                    Net::encodeStart(st, from, to);
+                    CHECK(from >= 32 && from < 64 && to < 64, "range %u %u", from, to);
+                    CHECK(!(from == 63 && to == 63), "collides with the service's end");
+                    Net::Start back;
+                    CHECK(Net::decodeStart(from, to, back) && back.humans == h &&
+                              back.computers == c && back.level == lv && back.rosterCheck == rc,
+                          "start round trip h%u c%u", h, c);
+                }
+            }
+        }
+    }
+    Net::Start junk;
+    CHECK(!Net::decodeStart(0, 0, junk), "presence is not a start");
+    CHECK(!Net::decodeStart(63, 63, junk), "an ending is not a start");
+    CHECK(!Net::decodeStart(Net::moveFrom(2), 1, junk), "a move is not a start");
+    for (uint8_t s = 0; s < 4; ++s) {
+        CHECK(Net::isMove(Net::moveFrom(s)) && Net::moveFrom(s) < 32, "move from");
+    }
+    CHECK(!Net::isMove(0) && !Net::isMove(32), "not moves");
+}
+
+static void testPlyOrder() {
+    CHECK(Net::atOrAfter(5, 5) && Net::atOrAfter(6, 5) && !Net::atOrAfter(4, 5), "plain");
+    CHECK(Net::atOrAfter(2, 126) && !Net::atOrAfter(126, 2), "across the wrap");
+    CHECK(!Net::atOrAfter(Net::NOT_STARTED, 0), "not started is before the start");
+    CHECK(Net::atOrAfter(0, Net::NOT_STARTED), "the start is after not started");
+    CHECK(Net::nextPly(127) == 0 && Net::nextPly(Net::NOT_STARTED) == 0, "next ply wraps");
+}
+
+static void testIdsAndDeal() {
+    char a[4][5] = {"B1C3", "A4F2", "FF00", "0A0A"};
+    char b[4][5] = {"FF00", "0A0A", "B1C3", "A4F2"};
+    Net::sortIds(a, 4);
+    Net::sortIds(b, 4);
+    CHECK(std::memcmp(a, b, sizeof(a)) == 0, "sort is order-independent");
+    CHECK(std::strcmp(a[0], "0A0A") == 0 && std::strcmp(a[3], "FF00") == 0, "ascending");
+    CHECK(Net::rosterCheck(a, 4) == Net::rosterCheck(b, 4), "roster check agrees");
+    CHECK(Net::tableSeed(9, a, 4) != Net::tableSeed(10, a, 4), "session changes the seed");
+
+    long counts[4][4] = {{0}};
+    for (uint32_t seed = 0; seed < 4000; ++seed) {
+        for (uint8_t h = 2; h <= 4; ++h) {
+            for (uint8_t c = 0; c <= 2 && h + c <= 4; ++c) {
+                uint8_t out[4];
+                const uint8_t mask = Net::deal(mix(seed), h, c, out);
+                const uint8_t n = h + c;
+                int seen[4] = {0, 0, 0, 0};
+                int placed = 0;
+                for (uint8_t col = 0; col < 4; ++col) {
+                    const bool on = (mask >> col) & 1;
+                    CHECK(on == (out[col] != NO_SEAT), "mask matches the deal");
+                    if (on) {
+                        CHECK(out[col] < n, "participant in range");
+                        seen[out[col]]++;
+                        ++placed;
+                    }
+                }
+                CHECK(placed == n, "everyone seated");
+                for (uint8_t p = 0; p < n; ++p) CHECK(seen[p] == 1, "seated once");
+                if (n == 2) CHECK(mask == 0x05, "two sit opposite");
+                if (n == 3) CHECK(mask == 0x07, "three leave Blue empty");
+                if (h == 4 && c == 0) {
+                    for (uint8_t col = 0; col < 4; ++col) counts[out[col]][col]++;
+                }
+                const uint8_t first = Net::firstSeat(mix(seed), mask);
+                CHECK((mask >> first) & 1, "first seat plays");
+            }
+        }
+    }
+    for (int p = 0; p < 4; ++p)
+        for (int col = 0; col < 4; ++col)
+            CHECK(counts[p][col] > 850 && counts[p][col] < 1150,
+                  "console %d colour %d dealt %ld of 4000", p, col, counts[p][col]);
+}
+
+/* Several consoles, each with its own copy of the game, joined only by what
+ * the service would carry: for each roll, the console that owns the seat
+ * decides and publishes (ply, seat, code); every other console checks it with
+ * accept() and applies it. After every roll all copies must be identical. */
+static void testConsolesAgree() {
+    long games = 0, plies = 0;
+    for (uint32_t g = 0; g < 600; ++g) {
+        const uint8_t humans = static_cast<uint8_t>(2 + g % 3);
+        const uint8_t wanted = static_cast<uint8_t>((g / 3) % 3);
+        const uint8_t computers = static_cast<uint8_t>(wanted > 4 - humans ? 4 - humans : wanted);
+        char ids[4][5] = {"C0DE", "0B0E", "F00D", "1A2B"};
+        Net::sortIds(ids, humans);
+        const uint32_t seed = Net::tableSeed(static_cast<uint8_t>(g & 0x3F), ids, humans);
+        uint8_t owner[4];
+        const uint8_t mask = Net::deal(seed, humans, computers, owner);
+        /* Zeroed first: the copies are compared with memcmp, padding and all,
+         * and reset() sets every field but cannot promise the padding. */
+        State copies[4];
+        std::memset(copies, 0, sizeof(copies));
+        for (uint8_t c = 0; c < humans; ++c) reset(copies[c], mask, Net::firstSeat(seed, mask));
+        int steps = 0;
+        while (!copies[0].over && ++steps < 20000) {
+            const uint8_t seat = copies[0].turn;
+            // Computers are played by the host, which is chair 0 here.
+            const uint8_t decider = owner[seat] < humans ? owner[seat] : 0;
+            State& mine = copies[decider];
+            const RollResult r = roll(mine, seed);
+            uint8_t code = Net::SKIP;
+            if (r == RollResult::Choose) {
+                code = botChoose(mine, owner[seat] < humans ? Level::Easy : Level::Normal,
+                                 seed ^ decider);
+            }
+            // Every other console must accept exactly this and nothing else.
+            for (uint8_t c = 0; c < humans; ++c) {
+                if (c == decider) continue;
+                CHECK(Net::accept(copies[c], seed, code), "a true move is accepted");
+                for (uint8_t other = 0; other <= Net::SKIP; ++other) {
+                    if (other == code) continue;
+                    State probe = copies[c];
+                    State after = probe;
+                    const RollResult rr = roll(after, seed);
+                    const bool legal = other == Net::SKIP
+                                           ? rr != RollResult::Choose
+                                           : rr == RollResult::Choose &&
+                                                 target(after, after.turn, other, after.pending) != YARD;
+                    CHECK(Net::accept(probe, seed, other) == legal, "accept agrees with the rules");
+                }
+            }
+            MoveInfo m;
+            if (code == Net::SKIP) skip(mine);
+            else CHECK(move(mine, code, m), "the decider's move applies");
+            for (uint8_t c = 0; c < humans; ++c) {
+                if (c == decider) continue;
+                roll(copies[c], seed);
+                if (code == Net::SKIP) skip(copies[c]);
+                else CHECK(move(copies[c], code, m), "a received move applies");
+            }
+            for (uint8_t c = 1; c < humans; ++c) {
+                if (std::memcmp(&copies[c], &copies[0], sizeof(State)) != 0) {
+                    ++failures;
+                    std::printf("  game %u: console %u diverged at ply %d\n", g, c, steps);
+                    c = humans;
+                    steps = 20000;
+                }
+            }
+            ++plies;
+        }
+        CHECK(copies[0].over, "table game %u finished", g);
+        ++games;
+    }
+    std::printf("  %ld table games, %ld plies, every console identical throughout\n", games, plies);
+}
+
 int main() {
     testReset();
     testDie();
@@ -395,6 +556,10 @@ int main() {
     testBotDeterministic();
     testManyGames();
     testNormalBeatsEasy();
+    testStartWord();
+    testPlyOrder();
+    testIdsAndDeal();
+    testConsolesAgree();
     std::printf("%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;
 }

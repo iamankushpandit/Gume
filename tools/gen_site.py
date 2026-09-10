@@ -216,6 +216,7 @@ SCREEN_CAPTIONS = {
     "seabattle": "Sea Battle: hunt the hidden fleet",
     "ludo": "Ludo: race home, against friends or the computer",
     "ludo-lobby": "Ludo: pick who sits in each seat",
+    "ludo-table": "Ludo: invite up to three consoles nearby",
     "cursive": "Cursive: trace joined-up letters and words",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
@@ -302,7 +303,7 @@ PLAYABLE_STILLS = {
     "chess": ("chess",),
     "seabattle": ("seabattle",),
     "cursive": ("cursive",),
-    "ludo": ("ludo", "ludo-lobby"),
+    "ludo": ("ludo", "ludo-lobby", "ludo-table"),
 }
 
 SYSTEM_SHOWCASE = (

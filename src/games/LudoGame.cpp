@@ -57,6 +57,17 @@ void LudoGame::begin(AppContext& host) {
 
 void LudoGame::end(AppContext& host) {
     saveGame(host);
+    /* Hands the radio back, as Chess does: a turn stays on the air until it is
+     * replaced, so leaving without clearing it would leave this console
+     * advertising a game it is no longer in. A game across consoles is saved
+     * and says the same thing again when this screen comes back. */
+    if (net_ || mode_ == Mode::Table) {
+        host.nearbyStop();
+    }
+    if (mode_ == Mode::Table) {
+        leaveTable(host);
+        mode_ = Mode::Lobby;
+    }
 }
 
 bool LudoGame::canStart() const {
@@ -75,7 +86,7 @@ bool LudoGame::canStart() const {
 
 uint32_t LudoGame::pace(uint32_t ms) const {
     for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        if (kind_[s] == SeatKind::Player && Ludo::playing(state_, s) && state_.place[s] == 0) {
+        if (Ludo::playing(state_, s) && state_.place[s] == 0 && !isComputer(s)) {
             return ms;
         }
     }
@@ -87,6 +98,10 @@ void LudoGame::setMessage(const char* text) {
 }
 
 void LudoGame::startGame(AppContext& host) {
+    /* A local game: whatever a previous table left on the air goes. */
+    host.nearbyStop();
+    net_ = false;
+    ended_ = false;
     uint8_t mask = 0;
     uint8_t seats[Ludo::SEATS];
     uint8_t count = 0;
@@ -134,13 +149,17 @@ void LudoGame::enterTurn(uint32_t now, bool bonus) {
         return;
     }
     const uint8_t seat = state_.turn;
+    /* Seats nobody here taps for: a computer, or a seat another console
+     * decides. Both get the computer's pacing, so a move arriving over the air
+     * is shown at the speed a computer's would be. */
+    const bool autoSeat = isComputer(seat) || remoteSeat(seat);
     /* A restored game can be holding a roll. Pick up exactly there rather
      * than rolling again, which would be a free reroll for putting the
      * console down. */
     if (state_.pending != 0) {
         if (Ludo::movable(state_) != 0) {
             phase_ = Phase::Choose;
-            if (isComputer(seat)) {
+            if (autoSeat) {
                 timerMs_ = now + pace(CPU_MOVE_MS);
                 setMessage("");
             } else {
@@ -163,6 +182,8 @@ void LudoGame::enterTurn(uint32_t now, bool bonus) {
     face_ = 0;
     if (isComputer(seat)) {
         setMessage("Thinking...");
+    } else if (remoteSeat(seat)) {
+        setMessage("Waiting...");
     } else {
         setMessage(bonus ? "Roll again!" : "Tap to roll");
     }
@@ -170,13 +191,14 @@ void LudoGame::enterTurn(uint32_t now, bool bonus) {
 }
 
 void LudoGame::doRoll(AppContext& host, uint32_t now) {
+    const uint8_t seat = state_.turn;
     const Ludo::RollResult result = Ludo::roll(state_, seed_);
     face_ = state_.pending;
     host.playSound(Sound::Tap);
     switch (result) {
         case Ludo::RollResult::Choose:
             phase_ = Phase::Choose;
-            if (isComputer(state_.turn)) {
+            if (isComputer(seat) || remoteSeat(seat)) {
                 timerMs_ = now + pace(CPU_MOVE_MS);
                 setMessage("");
             } else {
@@ -202,6 +224,11 @@ void LudoGame::doRoll(AppContext& host, uint32_t now) {
             setMessage("Three 6s!");
             break;
     }
+    /* A roll nobody could use is decided the moment it is made, so a seat
+     * this console plays says so now. A usable one waits for its move. */
+    if (net_ && ownsSeat(seat) && result != Ludo::RollResult::Choose) {
+        publishPly(host, seat, Ludo::Net::SKIP);
+    }
     saveGame(host);
     markDirty();
 }
@@ -223,8 +250,12 @@ uint8_t LudoGame::onlyChoice() const {
 }
 
 void LudoGame::startMove(AppContext& host, uint8_t token, uint32_t now) {
+    const uint8_t seat = state_.turn;
     if (!Ludo::move(state_, token, anim_)) {
         return;
+    }
+    if (net_ && ownsSeat(seat)) {
+        publishPly(host, seat, token);
     }
     animAt_ = anim_.from;
     phase_ = Phase::Moving;
@@ -261,11 +292,14 @@ void LudoGame::finishMove(AppContext& host, uint32_t now) {
 
     /* One cue per move, the one that says the most. */
     if (anim_.seatFinished) {
+        /* Whether somebody holding THIS console is playing, and whether it
+         * was them: a console across the room finishing is news, not a win. */
         bool anyPlayer = false;
         for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-            anyPlayer = anyPlayer || kind_[s] == SeatKind::Player;
+            anyPlayer = anyPlayer ||
+                        (Ludo::playing(state_, s) && ownsSeat(s) && !isComputer(s));
         }
-        if (!isComputer(anim_.seat)) {
+        if (!isComputer(anim_.seat) && ownsSeat(anim_.seat)) {
             host.pulseRgb(0, 255, 40, 450);
             host.playSound(Sound::Victory);
         } else if (state_.place[anim_.seat] == 1 && anyPlayer) {
@@ -325,12 +359,39 @@ uint8_t LudoGame::tokenAt(int16_t x, int16_t y) const {
 }
 
 void LudoGame::pressAction(AppContext& host, uint32_t now) {
-    if (phase_ == Phase::Over || now < confirmUntilMs_) {
-        /* New game after a finish, or the second press of End game: back to
-         * the lobby with the same seats, which is what "again" usually means. */
+    if (phase_ == Phase::Over) {
+        /* New game after a finish: back to the lobby with the same seats,
+         * which is what "again" usually means. */
+        leaveTable(host);
         mode_ = Mode::Lobby;
         confirmUntilMs_ = 0;
         confirmShown_ = false;
+        lobbyStale_ = true;
+        host.playSound(Sound::Select);
+        saveGame(host);
+        markFullDirty();
+        return;
+    }
+    if (now < confirmUntilMs_) {
+        /* The second press of End game. Alone, back to the lobby. At a table,
+         * tell the others first -- through the service's own ending, which
+         * stays on the air like a move so it cannot be the message that goes
+         * missing -- and stay on the finished board until New game. */
+        confirmUntilMs_ = 0;
+        confirmShown_ = false;
+        if (net_) {
+            host.nearbyEnd(session_, Ludo::Net::nextPly(applied_), applied_);
+            ended_ = true;
+            phase_ = Phase::Over;
+            setMessage("You stopped");
+            seatsStale_ = true;
+            actionStale_ = true;
+            host.playSound(Sound::Select);
+            saveGame(host);
+            markDirty();
+            return;
+        }
+        mode_ = Mode::Lobby;
         lobbyStale_ = true;
         host.playSound(Sound::Select);
         saveGame(host);
@@ -352,22 +413,40 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
         pressAction(host, now);
         return;
     }
+    if (net_) {
+        pollTable(host, now);   // may take another console's roll
+    }
 
-    const bool computer = isComputer(state_.turn);
+    const uint8_t seat = state_.turn;
+    const bool computer = isComputer(seat);
+    const bool remote = remoteSeat(seat);
     switch (phase_) {
         case Phase::Roll:
+            if (remote) {
+                break;   // pollTable() rolls for it when its turn arrives
+            }
             if (computer) {
-                if (now >= timerMs_) {
+                if (now >= timerMs_ && (!net_ || canPublish(host))) {
                     doRoll(host, now);
                 }
             } else if (touch.justPressed &&
                        (dieRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) ||
                         boardRect().contains(touch.x, touch.y))) {
-                doRoll(host, now);
+                if (net_ && !canPublish(host)) {
+                    /* Somebody has not caught up with our last move yet. */
+                    setMessage("Waiting...");
+                    markDirty();
+                } else {
+                    doRoll(host, now);
+                }
             }
             break;
         case Phase::Choose:
-            if (computer) {
+            if (remote) {
+                if (now >= timerMs_) {
+                    startMove(host, netCode_, now);
+                }
+            } else if (computer) {
                 if (now >= timerMs_) {
                     startMove(host, Ludo::botChoose(state_, level_, seed_), now);
                 }
@@ -400,6 +479,20 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
 }
 
 void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    /* An invitation to Ludo is announced in the header by the service; the
+     * lobby says where to answer it. Re-read on the peer cadence, not every
+     * frame. */
+    const uint32_t now = millis();
+    if (now - peersAtMs_ >= 1000) {
+        peersAtMs_ = now;
+        NearbySeat seat;
+        const bool waiting = host.nearbyInviteForUs(seat) && seat.forThisGame;
+        if (waiting != inviteWaiting_) {
+            inviteWaiting_ = waiting;
+            lobbyStale_ = true;
+            markDirty();
+        }
+    }
     if (!touch.justPressed) {
         return;
     }
@@ -425,6 +518,11 @@ void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
             return;
         }
     }
+    if (nearbyRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        host.playSound(Sound::Select);
+        openTable(host);
+        return;
+    }
     if (startRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (canStart()) {
             startGame(host);
@@ -435,78 +533,9 @@ void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
 }
 
 void LudoGame::update(AppContext& host, const TouchPoint& touch) {
-    if (mode_ == Mode::Lobby) {
-        updateLobby(host, touch);
-    } else {
-        updatePlay(host, touch, millis());
+    switch (mode_) {
+        case Mode::Lobby: updateLobby(host, touch); break;
+        case Mode::Table: updateTable(host, touch); break;
+        case Mode::Play: updatePlay(host, touch, millis()); break;
     }
-}
-
-void LudoGame::saveGame(AppContext& host) const {
-    Saved out{};
-    out.magic = SAVE_MAGIC;
-    out.version = SAVE_VERSION;
-    out.inGame = (mode_ == Mode::Play && !state_.over) ? 1 : 0;
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        out.kind[s] = static_cast<uint8_t>(kind_[s]);
-    }
-    out.level = static_cast<uint8_t>(level_);
-    out.seed = seed_;
-    out.state = state_;
-    host.saveBlob("game", &out, sizeof(out));
-}
-
-bool LudoGame::restoreGame(AppContext& host) {
-    Saved in{};
-    host.loadBlob("game", &in, sizeof(in));
-    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) {
-        return false;
-    }
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        if (in.kind[s] > static_cast<uint8_t>(SeatKind::Computer)) {
-            return false;
-        }
-    }
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        kind_[s] = static_cast<SeatKind>(in.kind[s]);
-    }
-    level_ = in.level != 0 ? Ludo::Level::Normal : Ludo::Level::Easy;
-    if (!in.inGame) {
-        return false;
-    }
-
-    /* Refuse anything a game could not have reached rather than drawing a
-     * token off the edge of the board. */
-    const Ludo::State& st = in.state;
-    if (st.over || st.turn >= Ludo::SEATS || st.pending > 6 || st.sixes > 3 ||
-        !Ludo::playing(st, st.turn)) {
-        return false;
-    }
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        for (uint8_t t = 0; t < Ludo::TOKENS; ++t) {
-            const uint8_t p = st.pos[s][t];
-            if (p != Ludo::YARD && p > Ludo::HOME) {
-                return false;
-            }
-        }
-    }
-    /* A seat that was playing has to still be filled. The kinds are saved
-     * beside the state, so this only fails on a damaged blob. */
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        if (Ludo::playing(st, s) && kind_[s] == SeatKind::Empty) {
-            return false;
-        }
-    }
-
-    state_ = st;
-    seed_ = in.seed;
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        for (uint8_t t = 0; t < Ludo::TOKENS; ++t) {
-            shown_[s][t] = state_.pos[s][t];
-        }
-    }
-    face_ = state_.pending;
-    mode_ = Mode::Play;
-    enterTurn(millis(), false);
-    return true;
 }

@@ -69,6 +69,11 @@ void fillSeat(Board& board, const Known& k, NearbySeat& out) {
         out.name[0] = 0;
     }
     out.inviting = k.inviting;
+    /* An invitation states its game (see BleBeacon::invitePeer), and while it
+     * is on air that is the game the peer advertises -- so this is the one
+     * comparison that stops a lobby accepting somebody else's game. */
+    out.forThisGame = k.inviting && k.lastGame == activeGameIndex_ &&
+                      activeGameIndex_ != BleBeacon::GAME_NONE;
     out.session = static_cast<uint8_t>(k.inviteSession & SESSION_MASK);
     out.weMoveFirst = (k.inviteSession & SIDE_BIT) != 0;
 }
@@ -157,6 +162,10 @@ bool turnFrom(const char* deviceId, uint8_t session, NearbyTurn& out) {
         return true;
     }
     return false;
+}
+
+const char* selfId() {
+    return sessionsAllowed() ? BleBeacon::configured().deviceId : "";
 }
 
 }   // namespace NearbyPlay

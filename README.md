@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-78.3%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-78.5%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 36 |
-| Flash | 2,462,177 / 3,145,728 bytes (**78.3%**) |
-| RAM | 76,868 / 327,680 bytes (**23.5%**) |
+| Flash | 2,470,321 / 3,145,728 bytes (**78.5%**) |
+| RAM | 77,124 / 327,680 bytes (**23.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -337,7 +337,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
 | **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-eight easy words covering every letter. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, and an arrow appears at each point where the direction changes. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
-| **Ludo** | The classic race round the cross-shaped board for two to four, on one console: each seat is a player or the computer, at Easy or Normal. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |
+| **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -513,6 +513,9 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/ludo.png" width="300" alt="Ludo: tokens racing round the board, the die beside it">
   <img src="docs/screens/ludo-lobby.png" width="300" alt="Ludo: choosing who sits in each seat">
+</p>
+<p align="center">
+  <img src="docs/screens/ludo-table.png" width="300" alt="Ludo: inviting consoles in the room">
 </p>
 
 ### Logic, memory and attention
@@ -1018,13 +1021,18 @@ stable so you can recognise your own device in a scanner. Nobody types it and it
 is not derived from anything a player entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
-**Two consoles can play a two-player game over it.** When two players start a
-game from the Chess lobby, each console advertises its latest turn: a session
-number, a move number, and the two squares. Nothing about it is chess-specific
--- it is a service any future two-player game uses, which is why the wire
-format talks about turns rather than pieces. That is all — no name, no profile and no
+**Consoles can play each other over it.** When players start a game from the
+Chess, Sea Battle or Ludo lobby, each console advertises its latest turn: a
+session number, a move number, two small numbers saying what was played, and
+how far it has caught up with everyone else. In Chess the two numbers are
+squares; in Ludo they are a seat and a token, and the die is never sent at all
+-- every console at the table works each roll out for itself and checks every
+move against it. Nothing about the format is specific to one game, which is why
+it talks about turns rather than pieces. That is all — no name, no profile and no
 score travels with a move, and the moves occupy the same four bytes the best
 score normally uses, because the advertisement is already full at 31 bytes.
+Ludo seats up to four consoles; that uses the same turn, read by more consoles,
+and adds nothing to what any one of them transmits.
 
 Consoles can be given names, and a name is what you see on screen -- but a name
 is stored on your own device and is never transmitted. The advertisement is
@@ -1032,7 +1040,7 @@ identical byte for byte whether every console you know is named or none is.
 
 It is a **broadcast**, and worth being plain about: anyone in range with the
 right software hears the moves, exactly as they can already hear that a device
-is present. Only the two consoles in the game act on them. Every move received
+is present. Only the consoles in the game act on them. Every move received
 is checked against the receiver's own board and discarded unless it is legal
 there, so a bad actor cannot corrupt a game — at worst they can be ignored.
 

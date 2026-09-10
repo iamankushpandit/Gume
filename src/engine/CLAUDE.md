@@ -49,6 +49,12 @@ ending. Both read one peer table, which lives in `NearbyPlayState.h` in
 those three files may include that header. The app-facing forwarders
 (`BrainoApp::nearby*`) are in `AppRuntimeNearby.cpp`.
 
+Two calls exist for games with more than two seats, and neither transmits
+anything: `NearbySeat::forThisGame` compares the game an invitation names
+(the peer's advertised game index, which `invitePeer()` sets) with the app open
+here, and `selfId()` returns this console's own advertised tag so every console
+at a table can order it alike.
+
 Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the header notifications. `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
 
 - **Off by default, and gated on the beacon.** `tick()` re-derives `board.nearbyEnabled() && BleBeacon::enabled()` every frame rather than relying on an ordering contract with Settings, so the feature follows the radio in both directions. Both reads are from RAM.

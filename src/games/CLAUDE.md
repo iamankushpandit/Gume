@@ -107,6 +107,18 @@ the console doing the asking must not also claim first move. **"I am stopping"**
 is a reserved turn encoding the service owns, delivered as `NearbyTurn::ended`;
 never invent a second one.
 
+**An invitation names its game.** A lobby accepts one only when
+`NearbySeat::forThisGame` is set -- otherwise a Sea Battle invitation answered
+from the Chess lobby is two consoles playing different games at each other.
+Ludo checks it; Chess and Sea Battle predate it and do not yet.
+
+**More than two seats is the same service.** Ludo reads every other console's
+turn by tag, invites them one at a time (only one invitation is on the air at
+once), and orders the table with `nearbySelfId()`. Who moves first there comes
+from the table's seed rather than the coin toss -- a toss between two cannot
+seat four -- and a console replaces its turn only once every other console has
+acknowledged it. See the Ludo section below and `LudoRules.h`'s `Net`.
+
 Who can use it:
 
 - **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,
@@ -124,11 +136,13 @@ Who can use it:
 
 ## Ludo
 
-Split on purpose: `LudoRules` (rules and the computer player), `LudoGame.cpp`
-(flow, input, saving), `LudoBoard.cpp` (board geometry and every pixel of play)
-and `LudoLobby.cpp` (the seat picker). The header comment in `LudoRules.h` states the rules as played; read it
-before changing one, because several are decisions rather than the only reading
-of the board game.
+Split on purpose: `LudoRules` (rules, the computer player and the table
+protocol), `LudoGame.cpp` (flow and input), `LudoBoard.cpp` (the board),
+`LudoPanel.cpp` (the side panel), `LudoLobby.cpp` (the seat picker and the
+table lobby), `LudoTable.cpp` (play across consoles) and `LudoSave.cpp`. The
+header comment in `LudoRules.h` states the rules as played; read it before
+changing one, because several are decisions rather than the only reading of the
+board game.
 
 - **`LudoRules` is pure C++ and must stay that way.** No Arduino, no drawing,
   no `millis()`, no `random()`. Every function is a function of a flat `State`
@@ -162,6 +176,19 @@ of the board game.
   Computer, at least two seats and at least one Player. The computer's roll and
   its move are each delayed (`CPU_ROLL_MS`, `CPU_MOVE_MS`) so a child can see
   what it did; without them a computer's whole turn is one frame.
+- **Across consoles, every seat has one decider.** `ownsSeat()` is true for
+  the person holding this console and, on the host, for the computer seats;
+  every other seat is `remoteSeat()` and its turns come only off the air, in
+  ply order, through `Ludo::Net::accept()` -- which checks them against the die
+  this console computed, so nothing is applied that the rules did not allow.
+  A seat this console owns publishes its ply the moment the roll is resolved
+  (`publishPly()` from `doRoll()` or `startMove()`), and may only roll once
+  `canPublish()` says everyone has the previous one. The test plays 600 tables
+  of separate state copies and requires them identical after every roll.
+- **One console stopping ends the table.** A seat nobody plays stops everyone,
+  so End game sends the service's ending and every other console shows who
+  stopped. A console that simply walks away stalls the game instead -- the
+  radio cannot tell away from slow -- and anyone can then End it.
 
 ## Tracing games
 

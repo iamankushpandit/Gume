@@ -34,6 +34,32 @@ on safe squares, so no start square can be walled off.
   game asks twice.
 - **Ludo cannot be hidden per player**, like Chess, Sea Battle and Cursive: its
   launcher index is past the 32-bit visibility mask.
+
+**Ludo across up to four consoles, over the beacon Chess already uses.** Nearby
+in the Ludo lobby lists the consoles in the room; tap them to invite, add up to
+two computers, and Start once at least one has joined. The console being asked
+sees the invitation in its header and joins from its own Ludo lobby.
+
+- **Nothing new goes on the air.** No new flag, no version bump, and consoles
+  on older 5.x firmware can still see this one. A Ludo turn is the same turn
+  Chess sends -- session, move number, two six-bit numbers and an ack -- read
+  as a seat and a token. The die is never sent: every console works each roll
+  out from the table's seed and refuses any move that does not fit it. Agreed
+  by the maintainer on 2026-09-10 in conversation rather than in an issue; see
+  the invariant in `CLAUDE.md`.
+- **Who sits where and who moves first come from the seed**, not from the
+  invitation's coin toss, so the console that set the table up does not choose.
+- **A console replaces its move only once every other console has it**, which
+  is what makes a bonus roll -- or the host playing a computer straight after
+  itself -- survive a scan window that missed something.
+- **The service can now say which game an invitation is for**
+  (`NearbySeat::forThisGame`), so the Ludo lobby cannot accept a Chess
+  invitation. Chess and Sea Battle do not check it yet.
+- **One console ending the game ends it for the table**, and the others show
+  who stopped. A console that walks out of range stalls the game rather than
+  being dropped: the radio cannot tell gone from slow.
+- The host test now also plays 600 tables of separate consoles and requires
+  every copy of the game to be identical after every roll.
 - Flash 2,462,145 bytes (78.3%, +13,260), RAM 76,868 (23.5%, +208).
 
 **Hardware identifiers are out of this repository, and a check now keeps them

@@ -176,4 +176,84 @@ enum class Level : uint8_t {
  * always give the same choice, which is what makes a game replayable. */
 uint8_t botChoose(const State& s, Level level, uint32_t seed);
 
+/* ---- a table of consoles ------------------------------------------------
+ *
+ * How a game on several consoles is spelled in the nearby service's turn --
+ * (session, ply, from, to, ack), six bits each for from and to, seven for ply
+ * and ack. Nothing new goes on the air for Ludo: this is the same turn Chess
+ * and Sea Battle send, read with Ludo's meaning. Kept here, beside the rules,
+ * so it is pure and testable like them.
+ *
+ *   presence  ply 0, from 0, to 0      a console that accepted an invitation
+ *   start     ply 0, from 32..61       the host's word: how many people, how
+ *             to = roster check          many computers, what level, and a
+ *                                       check on who the people are
+ *   move      ply 1.., from 8 + seat   one roll: `to` is the token moved, or
+ *             to = token or SKIP        SKIP when the roll could not be used
+ *   ack       the last ply this console has applied; NOT_STARTED before the
+ *             start word was
+ *
+ * The die never goes on the air. Every console knows the seed, so it knows
+ * what each roll was, and accept() checks a move against that before anything
+ * is applied: a console can only ever play a move that is legal with the die
+ * it actually got. None of `from = to = 63` is producible, which is the
+ * service's reserved "I am stopping". */
+namespace Net {
+
+constexpr uint8_t PRESENCE = 0;
+constexpr uint8_t START_BASE = 32;
+constexpr uint8_t MOVE_BASE = 8;
+constexpr uint8_t SKIP = 4;
+constexpr uint8_t PLY_MASK = 0x7F;
+constexpr uint8_t NOT_STARTED = 0x7F;
+/** A table is two to four consoles; computers fill up to four seats. */
+constexpr uint8_t MAX_HUMANS = SEATS;
+constexpr uint8_t MAX_COMPUTERS = 2;
+
+struct Start {
+    uint8_t humans = 2;        // consoles at the table, host included
+    uint8_t computers = 0;     // computer seats, played by the host
+    uint8_t level = 0;         // Level, for every computer seat
+    uint8_t rosterCheck = 0;   // of the sorted console tags
+};
+
+void encodeStart(const Start& st, uint8_t& from, uint8_t& to);
+/** False for anything that is not a start word a host could have sent. */
+bool decodeStart(uint8_t from, uint8_t to, Start& out);
+
+inline uint8_t moveFrom(uint8_t seat) { return static_cast<uint8_t>(MOVE_BASE + seat); }
+inline bool isMove(uint8_t from) { return from >= MOVE_BASE && from < MOVE_BASE + SEATS; }
+inline uint8_t nextPly(uint8_t ply) { return static_cast<uint8_t>((ply + 1) & PLY_MASK); }
+/* Seven-bit sequence order: is `a` at or after `b`? Plies wrap at 128, and
+ * the consoles at a table are never more than a handful apart, so half the
+ * circle either way is unambiguous. */
+inline bool atOrAfter(uint8_t a, uint8_t b) { return ((a - b) & PLY_MASK) < 64; }
+
+/** Sort four-character tags ascending, in place. Every console sorts alike. */
+void sortIds(char (*ids)[5], uint8_t n);
+/** Six bits over sorted tags: whether two consoles agree who is at the table. */
+uint8_t rosterCheck(const char (*ids)[5], uint8_t n);
+/** The game's seed, from the session and the sorted tags. */
+uint32_t tableSeed(uint8_t session, const char (*ids)[5], uint8_t n);
+
+/* Deal the colours. `out[colour]` is the participant sitting there -- 0 to
+ * humans-1 for the sorted tags, humans onwards for the computers -- or
+ * NO_SEAT for an empty colour. Returns the playing mask. Two seats sit in
+ * opposite corners and three leave Blue empty, as in a local game.
+ *
+ * Shuffled from the seed, so nobody chooses where they sit and every console
+ * deals the same table. The host picks the session and so could, in
+ * principle, try sessions until it liked the deal; a child with a Ludo board
+ * is not the threat model, and the alternative is a second round trip. */
+uint8_t deal(uint32_t seed, uint8_t humans, uint8_t computers, uint8_t out[SEATS]);
+/** Which playing seat moves first, from the seed. */
+uint8_t firstSeat(uint32_t seed, uint8_t playingMask);
+
+/* Would roll, then `code`, be a correct account of the next turn? Checked on
+ * a copy before anything is applied, so a move from the air that does not fit
+ * the die this console computed changes nothing at all. */
+bool accept(const State& s, uint32_t seed, uint8_t code);
+
+}   // namespace Net
+
 }   // namespace Ludo

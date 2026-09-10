@@ -362,4 +362,117 @@ uint8_t botChoose(const State& s, Level level, uint32_t seed) {
     return best;
 }
 
+/* ---- a table of consoles ---------------------------------------------- */
+
+namespace Net {
+
+void encodeStart(const Start& st, uint8_t& from, uint8_t& to) {
+    from = static_cast<uint8_t>(START_BASE | (((st.humans - 1) & 0x03) << 3) |
+                                ((st.computers & 0x03) << 1) | (st.level & 0x01));
+    to = static_cast<uint8_t>(st.rosterCheck & 0x3F);
+}
+
+bool decodeStart(uint8_t from, uint8_t to, Start& out) {
+    if ((from & 0x20) == 0 || from > 0x3F || to > 0x3F) {
+        return false;
+    }
+    out.humans = static_cast<uint8_t>(((from >> 3) & 0x03) + 1);
+    out.computers = static_cast<uint8_t>((from >> 1) & 0x03);
+    out.level = static_cast<uint8_t>(from & 0x01);
+    out.rosterCheck = to;
+    return out.humans >= 2 && out.computers <= MAX_COMPUTERS &&
+           out.humans + out.computers <= SEATS;
+}
+
+namespace {
+bool idLess(const char* a, const char* b) {
+    for (uint8_t i = 0; i < 4; ++i) {
+        if (a[i] != b[i]) return static_cast<uint8_t>(a[i]) < static_cast<uint8_t>(b[i]);
+    }
+    return false;
+}
+
+uint32_t hashIds(uint32_t h, const char (*ids)[5], uint8_t n) {
+    for (uint8_t i = 0; i < n; ++i) {
+        for (uint8_t c = 0; c < 4; ++c) {
+            h = (h ^ static_cast<uint8_t>(ids[i][c])) * 16777619U;   // FNV-1a
+        }
+    }
+    return h;
+}
+}   // namespace
+
+void sortIds(char (*ids)[5], uint8_t n) {
+    for (uint8_t i = 1; i < n; ++i) {
+        for (uint8_t j = i; j > 0 && idLess(ids[j], ids[j - 1]); --j) {
+            for (uint8_t c = 0; c < 5; ++c) {
+                const char t = ids[j][c];
+                ids[j][c] = ids[j - 1][c];
+                ids[j - 1][c] = t;
+            }
+        }
+    }
+}
+
+uint8_t rosterCheck(const char (*ids)[5], uint8_t n) {
+    return static_cast<uint8_t>(mix(hashIds(2166136261U ^ n, ids, n)) & 0x3F);
+}
+
+uint32_t tableSeed(uint8_t session, const char (*ids)[5], uint8_t n) {
+    return mix(hashIds(2166136261U ^ (0x5EA7U * ((session & 0x3FU) + 1U)), ids, n));
+}
+
+uint8_t deal(uint32_t seed, uint8_t humans, uint8_t computers, uint8_t out[SEATS]) {
+    for (uint8_t c = 0; c < SEATS; ++c) {
+        out[c] = NO_SEAT;
+    }
+    const uint8_t n = static_cast<uint8_t>(humans + computers);
+    if (n < 2 || n > SEATS) {
+        return 0;
+    }
+    /* The same colours a local game uses for the same number of seats. */
+    static const uint8_t COLOURS[3][SEATS] = {{0, 2, 0, 0}, {0, 1, 2, 0}, {0, 1, 2, 3}};
+    const uint8_t* colours = COLOURS[n - 2];
+    uint8_t who[SEATS];
+    for (uint8_t i = 0; i < n; ++i) {
+        who[i] = i;
+    }
+    for (uint8_t i = static_cast<uint8_t>(n - 1); i > 0; --i) {   // Fisher-Yates
+        const uint8_t j = static_cast<uint8_t>(mix(seed ^ (0xDEA1U + i)) % (i + 1));
+        const uint8_t t = who[i];
+        who[i] = who[j];
+        who[j] = t;
+    }
+    uint8_t mask = 0;
+    for (uint8_t i = 0; i < n; ++i) {
+        out[colours[i]] = who[i];
+        mask = static_cast<uint8_t>(mask | (1U << colours[i]));
+    }
+    return mask;
+}
+
+uint8_t firstSeat(uint32_t seed, uint8_t playingMask) {
+    uint8_t seats[SEATS];
+    uint8_t n = 0;
+    for (uint8_t s = 0; s < SEATS; ++s) {
+        if (playingMask & (1U << s)) seats[n++] = s;
+    }
+    return n == 0 ? 0 : seats[mix(seed ^ 0xF1257U) % n];
+}
+
+bool accept(const State& s, uint32_t seed, uint8_t code) {
+    if (s.over || s.pending != 0) {
+        return false;
+    }
+    State c = s;
+    const RollResult r = roll(c, seed);
+    if (code == SKIP) {
+        return r != RollResult::Choose;
+    }
+    return r == RollResult::Choose && code < TOKENS &&
+           target(c, c.turn, code, c.pending) != YARD;
+}
+
+}   // namespace Net
+
 }   // namespace Ludo

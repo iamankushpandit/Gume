@@ -55,7 +55,16 @@ public:
     enum class SeatKind : uint8_t { Empty = 0, Player = 1, Computer = 2 };
 
 private:
-    enum class Mode : uint8_t { Lobby, Play };
+    /*   Lobby   who sits in each seat on this console
+     *   Table   inviting consoles in the room, or waiting to be started by one
+     *   Play    a game, local or across consoles */
+    enum class Mode : uint8_t { Lobby, Table, Play };
+
+    /* Our part in a game across consoles. The host invited the others, deals
+     * nothing -- the seed does that -- and plays any computer seats; a guest
+     * accepted an invitation. Once play starts the two are equal except for
+     * the computer seats. */
+    enum class Role : uint8_t { None, Host, Guest };
 
     /* Where a turn is.
      *
@@ -88,7 +97,13 @@ private:
     /* The single move a player would make anyway -- one movable token, or
      * several standing on one square, which are the same move. */
     uint8_t onlyChoice() const;
+    /* A computer plays this seat. At a table of consoles that comes from the
+     * deal, not from the lobby's seat kinds, which stay as the owner left them
+     * for the next local game. */
     bool isComputer(uint8_t seat) const {
+        if (net_) {
+            return owner_[seat] != Ludo::NO_SEAT && owner_[seat] >= chairCount_;
+        }
         return kind_[seat] == SeatKind::Computer;
     }
     bool canStart() const;
@@ -100,6 +115,50 @@ private:
     void setMessage(const char* text);
     void saveGame(AppContext& host) const;
     bool restoreGame(AppContext& host);
+
+    // ---- a table of consoles (LudoTable.cpp) ------------------------------
+    /* The nearby service carries it; LudoRules' Net namespace spells it. What
+     * is here is the part only a screen can do: who was invited, who has
+     * answered, when to start, and taking each console's turn off the air in
+     * order. See LudoRules.h for the encoding. */
+    void openTable(AppContext& host);
+    void leaveTable(AppContext& host);
+    void updateTable(AppContext& host, const TouchPoint& touch);
+    void refreshPeers(AppContext& host);
+    /** A peer that answered our invitation with its presence. */
+    bool joined(AppContext& host, const char* id);
+    uint8_t joinedCount(AppContext& host);
+    bool hostCanStart(AppContext& host);
+    void hostStart(AppContext& host);
+    /** A guest seeing the host's start word, with everyone it names present. */
+    bool guestTryStart(AppContext& host);
+    void startNetGame(AppContext& host, const Ludo::Net::Start& st);
+    /** Every frame of a game across consoles: our word, endings, others' turns. */
+    void pollTable(AppContext& host, uint32_t now);
+    /* May we replace the ply we are advertising? Only once every other
+     * console has applied it -- otherwise a console that missed it could never
+     * catch up, because nothing would be carrying it any more. In plain turn
+     * order this is already true by the time our turn comes round; it is what
+     * makes a bonus roll, or the host playing a computer seat straight after
+     * its own, safe. */
+    bool canPublish(AppContext& host);
+    /** Put the roll just resolved for `seat` on the air as the next ply. */
+    void publishPly(AppContext& host, uint8_t seat, uint8_t code);
+    /** This console decides for `seat`: a person here, or a computer we host. */
+    bool ownsSeat(uint8_t seat) const;
+    /** A seat decided by the air, not by this console. */
+    bool remoteSeat(uint8_t seat) const { return net_ && !ownsSeat(seat); }
+    /** The console whose word carries `seat`'s turns. */
+    const char* ownerId(uint8_t seat) const;
+    /** "You", a console's label or tag, or "CPU". nullptr in a local game. */
+    const char* seatLabel(uint8_t seat) const;
+    void renderTable(AppContext& host);
+    static Rect tableRowRect(uint8_t row);
+    static Rect tableComputersRect();
+    static Rect tableLevelRect();
+    static Rect tableBackRect();
+    static Rect tableStartRect();
+    static Rect nearbyRect();
 
     // ---- geometry and drawing (LudoBoard.cpp; the lobby in LudoLobby.cpp) --
     /* The board is the classic 15x15 cross: four 6x6 yards in the corners,
@@ -119,6 +178,10 @@ private:
     static uint16_t seatText(uint8_t seat);
     /** The board's paper, behind the track squares and a chip's token. */
     static uint16_t paperColour();
+    /** The near-black every outline, pip and digit is drawn in. */
+    static uint16_t inkColour();
+    /** A token on a square, and in the panel's seat list. */
+    static constexpr int16_t TOKEN_R = 5;
 
     struct Cell { int8_t col; int8_t row; };
     static Cell trackCell(uint8_t abs);
@@ -191,6 +254,54 @@ private:
     char message_[20] = {0};
     uint32_t confirmUntilMs_ = 0;
 
+    // ---- a table of consoles ------------------------------------------------
+    /* One console at the table. The label is the owner's own name for that
+     * console, read from local NVS when the table formed; it is shown and
+     * never sent. */
+    struct Chair {
+        char id[5];
+        char name[11];
+    };
+    bool net_ = false;
+    Role role_ = Role::None;
+    uint8_t session_ = 0;
+    char hostId_[5] = {0};
+    Chair chairs_[Ludo::Net::MAX_HUMANS] = {};   // sorted by tag
+    uint8_t chairCount_ = 0;
+    uint8_t selfChair_ = 0;
+    /* Colour -> participant: a chair index, chairCount_ onwards for the
+     * computers, NO_SEAT for an empty colour. From Ludo::Net::deal(). */
+    uint8_t owner_[Ludo::SEATS] = {Ludo::NO_SEAT, Ludo::NO_SEAT, Ludo::NO_SEAT,
+                                   Ludo::NO_SEAT};
+    /* The last ply this console has applied, and the word it is advertising.
+     * Both survive a save, so a console that was put down comes back saying
+     * exactly what it said before. */
+    uint8_t applied_ = Ludo::Net::NOT_STARTED;
+    uint8_t myPly_ = 0;
+    uint8_t myFrom_ = 0;
+    uint8_t myTo_ = 0;
+    /* The move another console made with the roll in hand, accepted and
+     * waiting for the screen to animate it. */
+    uint8_t netCode_ = 0;
+    /* Somebody ended the game. Our own word stays on the air saying so, and
+     * nothing may overwrite it with a move. */
+    bool ended_ = false;
+
+    // The table lobby.
+    static constexpr uint8_t MAX_PEERS = 6;
+    NearbySeat peers_[MAX_PEERS] = {};
+    uint8_t peerCount_ = 0;
+    uint32_t peersAtMs_ = 0;
+    char invited_[Ludo::Net::MAX_HUMANS - 1][5] = {};
+    uint8_t invitedCount_ = 0;
+    uint8_t inviteCursor_ = 0;
+    uint32_t nextInviteMs_ = 0;
+    uint8_t computers_ = 0;
+    bool tableStale_ = true;
+    uint32_t tableSig_ = 0;
+    /* The local lobby says so when an invitation to Ludo is waiting. */
+    bool inviteWaiting_ = false;
+
     // ---- what is on the panel, so only changes are repainted ---------------
     static constexpr uint8_t PLACE_CENTRE = 241;
     static constexpr uint8_t PLACE_COUNT = 242;
@@ -222,7 +333,24 @@ private:
         uint8_t level;
         uint32_t seed;
         Ludo::State state;
+        // A game across consoles, when net is set.
+        uint8_t net;
+        uint8_t role;
+        uint8_t session;
+        uint8_t chairCount;
+        uint8_t selfChair;
+        uint8_t applied;
+        uint8_t myPly;
+        uint8_t myFrom;
+        uint8_t myTo;
+        uint8_t netCode;
+        uint8_t ended;
+        uint8_t owner[Ludo::SEATS];
+        char hostId[5];
+        Chair chairs[Ludo::Net::MAX_HUMANS];
     };
     static constexpr uint16_t SAVE_MAGIC = 0x1D05;
-    static constexpr uint8_t SAVE_VERSION = 1;
+    /* 2 added the table fields. A version-1 blob is a different length, so
+     * loadBlob() refuses it and the lobby comes back with its defaults. */
+    static constexpr uint8_t SAVE_VERSION = 2;
 };

@@ -40,3 +40,7 @@ bool BrainoApp::nearbyTurnFrom(const char* deviceId, uint8_t session,
                                NearbyTurn& out) {
     return NearbyPlay::turnFrom(deviceId, session, out);
 }
+
+const char* BrainoApp::nearbySelfId() {
+    return NearbyPlay::selfId();
+}

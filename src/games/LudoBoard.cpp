@@ -24,7 +24,6 @@ uint16_t rule()     { return Ui::rgb(120, 124, 132); }   // grid lines
 uint16_t ink()      { return Ui::rgb(26, 34, 48); }
 uint16_t spot()     { return Ui::rgb(226, 229, 234); }   // an empty yard spot
 uint16_t starInk()  { return Ui::rgb(150, 154, 162); }
-uint16_t dieFace()  { return Ui::rgb(252, 252, 250); }
 /* Behind a token that can move. Cyan because it is none of the four seat
  * colours, so it reads as "you can tap this" on every square it lands on. */
 uint16_t hilite()   { return Ui::rgb(120, 230, 255); }
@@ -47,24 +46,7 @@ constexpr int16_t SPOT_NEAR = 24;
 constexpr int16_t SPOT_FAR = 54;
 constexpr int16_t SPOT_R = 8;
 constexpr int16_t YARD_TOKEN_R = 6;
-constexpr int16_t TOKEN_R = 5;
 constexpr int16_t MINI_R = 3;
-
-/* The panel beside the board. Its x is asserted against the board in
- * LudoGame::dieRect(), where the board's own constants are in scope. */
-constexpr int16_t PANEL_X = 209;
-constexpr int16_t PANEL_W = GAME_CANVAS_WIDTH - PANEL_X - 6;
-constexpr Rect TURN_RECT{PANEL_X, 38, PANEL_W, 18};
-constexpr Rect DIE_RECT{PANEL_X + (PANEL_W - 44) / 2, 62, 44, 44};
-constexpr Rect MESSAGE_RECT{PANEL_X, 112, PANEL_W, 18};
-constexpr int16_t SEAT_ROW_H = 17;
-constexpr Rect SEATS_RECT{PANEL_X, 132, PANEL_W, 4 * SEAT_ROW_H};
-constexpr Rect ACTION_RECT{PANEL_X + 6, 204, PANEL_W - 14, 28};
-static_assert(PANEL_W >= 100, "the panel must hold 'Yellow (CPU)' at font 2");
-static_assert(SEATS_RECT.y + SEATS_RECT.h <= ACTION_RECT.y,
-              "seat rows run into the button");
-static_assert(ACTION_RECT.y + ACTION_RECT.h + Ui::BUTTON_SHADOW_DY <= GAME_CANVAS_HEIGHT,
-              "the button's shadow falls off the canvas");
 
 /* A quarter turn clockwise about the centre of the 15x15 grid, `times` over. */
 void rotate(int8_t& col, int8_t& row, uint8_t times) {
@@ -81,11 +63,6 @@ void centreText(Ui::Renderer& tft, const char* text, int16_t x, int16_t y,
     tft.setTextColor(colour);
     tft.drawString(text, x, y, font);
     tft.setTextDatum(TL_DATUM);
-}
-
-const char* placeName(uint8_t place) {
-    static const char* const NAMES[5] = {"", "1st", "2nd", "3rd", "4th"};
-    return place <= 4 ? NAMES[place] : "";
 }
 
 }   // namespace
@@ -111,6 +88,10 @@ uint16_t LudoGame::seatText(uint8_t seat) {
 
 uint16_t LudoGame::paperColour() {
     return paper();
+}
+
+uint16_t LudoGame::inkColour() {
+    return ink();
 }
 
 // ---- geometry ------------------------------------------------------------
@@ -194,14 +175,6 @@ void LudoGame::tokenCentre(uint8_t seat, uint8_t token, int16_t& x, int16_t& y) 
     x = static_cast<int16_t>(r.x + CELL / 2 + 1);
     y = static_cast<int16_t>(r.y + CELL / 2 + 1);
 }
-
-Rect LudoGame::dieRect() {
-    static_assert(PANEL_X == BOARD_X + BOARD_PX + 8, "the panel must start beside the board");
-    static_assert(BOARD_Y + BOARD_PX <= GAME_CANVAS_HEIGHT, "the board falls off the canvas");
-    return DIE_RECT;
-}
-
-Rect LudoGame::actionRect() { return ACTION_RECT; }
 
 // ---- tokens ----------------------------------------------------------------
 
@@ -394,101 +367,12 @@ void LudoGame::drawBoard(Ui::Renderer& tft) const {
     drawCentre(tft);
 }
 
-// ---- the panel ---------------------------------------------------------------
-
-void LudoGame::drawTurn(Ui::Renderer& tft) const {
-    tft.fillRect(TURN_RECT.x, TURN_RECT.y, TURN_RECT.w, TURN_RECT.h, Ui::bg());
-    if (phase_ == Phase::Over) {
-        Ui::drawLabel(tft, TURN_RECT, "Game over", Ui::text(), 2, Align::Center);
-        return;
-    }
-    const uint8_t seat = state_.turn;
-    drawToken(tft, TURN_RECT.x + 7, TURN_RECT.y + TURN_RECT.h / 2, seat, 6, 1);
-    char line[16];
-    snprintf(line, sizeof(line), "%s%s", seatName(seat), isComputer(seat) ? " (CPU)" : "");
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(line, TURN_RECT.x + 17, TURN_RECT.y + 1, 2);
-}
-
-void LudoGame::drawDie(Ui::Renderer& tft) const {
-    const Rect r = DIE_RECT;
-    /* The frame is the colour of whoever the die belongs to right now, so a
-     * glance at it answers "whose go is it?" without reading anything. */
-    const uint16_t frame = phase_ == Phase::Over ? Ui::outline() : seatColour(state_.turn);
-    tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, frame);
-    tft.fillRoundRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8, 6, dieFace());
-    if (face_ < 1 || face_ > 6) {
-        return;   // blank until rolled
-    }
-    const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
-    const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
-    constexpr int16_t D = 10;
-    constexpr int16_t PIP = 4;
-    const bool centre = face_ & 1;
-    const bool corners = face_ >= 2;
-    const bool others = face_ >= 4;
-    const bool sides = face_ == 6;
-    if (centre) tft.fillCircle(cx, cy, PIP, ink());
-    if (corners) {
-        tft.fillCircle(cx - D, cy - D, PIP, ink());
-        tft.fillCircle(cx + D, cy + D, PIP, ink());
-    }
-    if (others) {
-        tft.fillCircle(cx + D, cy - D, PIP, ink());
-        tft.fillCircle(cx - D, cy + D, PIP, ink());
-    }
-    if (sides) {
-        tft.fillCircle(cx - D, cy, PIP, ink());
-        tft.fillCircle(cx + D, cy, PIP, ink());
-    }
-}
-
-void LudoGame::drawMessage(Ui::Renderer& tft) const {
-    tft.fillRect(MESSAGE_RECT.x, MESSAGE_RECT.y, MESSAGE_RECT.w, MESSAGE_RECT.h, Ui::bg());
-    if (message_[0] != 0) {
-        Ui::drawLabel(tft, MESSAGE_RECT, message_, Ui::text(), 2, Align::Center);
-    }
-}
-
-void LudoGame::drawSeats(Ui::Renderer& tft) const {
-    tft.fillRect(SEATS_RECT.x, SEATS_RECT.y, SEATS_RECT.w, SEATS_RECT.h, Ui::bg());
-    int16_t y = SEATS_RECT.y;
-    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
-        if (!Ludo::playing(state_, s)) {
-            continue;
-        }
-        drawToken(tft, SEATS_RECT.x + 7, y + SEAT_ROW_H / 2, s, TOKEN_R, 1);
-        tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(seatName(s), SEATS_RECT.x + 17, y + 1, 2);
-        const char* right = state_.place[s] != 0 ? placeName(state_.place[s])
-                                                 : (isComputer(s) ? "CPU" : "");
-        if (right[0] != 0) {
-            tft.setTextDatum(TR_DATUM);
-            tft.setTextColor(state_.place[s] != 0 ? Ui::text() : Ui::muted(), Ui::bg());
-            tft.drawString(right, SEATS_RECT.x + SEATS_RECT.w - 2, y + 1, 2);
-            tft.setTextDatum(TL_DATUM);
-        }
-        y = static_cast<int16_t>(y + SEAT_ROW_H);
-    }
-}
-
-void LudoGame::drawAction(Ui::Renderer& tft, bool sure) const {
-    const Rect r = ACTION_RECT;
-    tft.fillRect(r.x, r.y, r.w + Ui::BUTTON_SHADOW_DX, r.h + Ui::BUTTON_SHADOW_DY, Ui::bg());
-    if (phase_ == Phase::Over) {
-        Ui::drawButton(tft, r, "New game", Ui::success(), Ui::outline(), TFT_BLACK);
-    } else if (sure) {
-        Ui::drawButton(tft, r, "Sure?", Ui::warning(), Ui::outline(), TFT_BLACK);
-    } else {
-        Ui::drawButton(tft, r, "End game", Ui::panel(), Ui::outline(), Ui::text());
-    }
-}
-
 // ---- the render passes ------------------------------------------------------------
 
 uint16_t LudoGame::highlights() const {
-    if (mode_ != Mode::Play || phase_ != Phase::Choose || isComputer(state_.turn)) {
-        return 0;
+    if (mode_ != Mode::Play || phase_ != Phase::Choose || isComputer(state_.turn) ||
+        !ownsSeat(state_.turn)) {
+        return 0;   // and never another console's choice
     }
     return static_cast<uint16_t>(Ludo::movable(state_) << (state_.turn * Ludo::TOKENS));
 }
@@ -521,8 +405,9 @@ void LudoGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
-    if (mode_ == Mode::Lobby) {
+    if (mode_ != Mode::Play) {
         lobbyStale_ = true;
+        tableStale_ = true;
         return;
     }
     hi_ = highlights();
@@ -551,6 +436,13 @@ void LudoGame::renderDynamic(AppContext& host) {
         if (lobbyStale_) {
             renderLobby(host);
             lobbyStale_ = false;
+        }
+        return;
+    }
+    if (mode_ == Mode::Table) {
+        if (tableStale_) {
+            renderTable(host);
+            tableStale_ = false;
         }
         return;
     }

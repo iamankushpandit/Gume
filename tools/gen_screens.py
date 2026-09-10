@@ -653,7 +653,31 @@ def ludo_lobby():
     button(d, (212, 138, 94, 30), "Normal", fill=SURFACE, tc=TEXT)
     hint = "Tap a seat to change who sits there"
     d.text((8 + (304 - d.textlength(hint, font=F2)) / 2, 178), hint, font=F2, fill=MUTED)
-    button(d, (100, 198, 120, 34), "Start")
+    button(d, (60, 198, 120, 34), "Start")
+    button(d, (192, 198, 120, 34), "Nearby")
+    return im
+
+
+def ludo_table():
+    """Ludo: the table lobby, as the host sees it. Geometry from LudoLobby.cpp.
+
+    One console has answered, one is still being asked -- invitations go out
+    one at a time -- and one has not been invited. A computer fills the fourth
+    seat. The tags are the four hex digits a console advertises; a console the
+    owner has named would show the name instead, looked up on this device.
+    """
+    im, d = blank(); topbar(d, "Ludo")
+    rows = [("A4F2 joined", PANEL, SUCCESS), ("Asking B1C3...", PANEL, TEXT),
+            ("Invite 7E09", SURFACE, TEXT)]
+    for i, (label, fill, ink) in enumerate(rows):
+        button(d, (8, 36 + i * 34, 304, 30), label, fill=fill, tc=ink)
+    note = "Moves travel by Bluetooth. Anyone near hears them."
+    d.text((8 + (304 - d.textlength(note, font=F1)) / 2, 36 + 3 * 34 + 4), note, font=F1,
+           fill=MUTED)
+    button(d, (8, 172, 148, 26), "Computers: 1", fill=SURFACE)
+    button(d, (164, 172, 148, 26), "Level: Easy", fill=SURFACE)
+    button(d, (8, 204, 110, 30), "Back")
+    button(d, (202, 204, 110, 30), "Start")
     return im
 
 
@@ -2686,6 +2710,7 @@ EXTRA_SCREENS = [
     ("cursive", cursive, "Cursive: joined-up letters and easy words"),
     ("ludo", ludo, "Ludo: a choice to make, the die beside the board"),
     ("ludo-lobby", ludo_lobby, "Ludo: who sits in each seat"),
+    ("ludo-table", ludo_table, "Ludo: inviting consoles in the room"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

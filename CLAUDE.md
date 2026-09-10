@@ -556,9 +556,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,462,177 / 3,145,728 bytes,
-**78.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,868 / 327,680 (23.5%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,470,321 / 3,145,728 bytes,
+**78.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 77,124 / 327,680 (23.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -791,6 +791,26 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `from == to`**, which is never a legal move and so cannot be confused with
   one; it adds no bytes to a payload that has none to spare, and it is tested
   before the whose-turn check because a player gives up while they are waiting.
+- **Ludo seats up to four consoles on the same turn, and the wire did not
+  change.** Agreed by the maintainer in conversation on 2026-09-10, explicitly
+  without an issue -- a departure from the rule above, recorded here so it is
+  not mistaken for precedent. It needed no new flag and no version bump: a
+  console reads every other console's turn by tag (`nearbyTurnFrom()`), the
+  host invites them one at a time, and `Ludo::Net` (in `LudoRules.h`) spells
+  Ludo's meaning into the same `from`/`to`/`ack` six-and-seven-bit fields --
+  a seat and a token, or a presence, or the host's start word. **The die never
+  goes on the air**: every console derives each roll from the table's seed and
+  `Ludo::Net::accept()` refuses any move that does not fit it. Two things
+  differ from two-player play and must stay stated: **who moves first comes
+  from the seed**, not from `nearbyInvite()`'s coin toss, because a toss
+  between two cannot seat four -- the deal is a shuffle nobody chooses; and
+  **a console replaces its turn only once every other console has acked it**
+  (`LudoGame::canPublish()`), which is what makes a bonus roll or the host
+  playing a computer seat safe on a medium that drops things. The service
+  gained two calls for it, neither of which transmits anything:
+  `NearbySeat::forThisGame` (an invitation names its game; a lobby must not
+  accept another game's) and `nearbySelfId()` (so every console orders the
+  table alike). Still a BROADCAST: everyone in range hears every move.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- children put the
   device down constantly and a game that evaporated is a game they stop
@@ -1038,11 +1058,12 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
                           (the tab bodies), SettingsPin (the PIN pad).
-                          Ludo is three .cpp against one header -- LudoGame
-                          (flow, input, saving), LudoBoard (geometry and
-                          drawing) and LudoLobby (the seat picker) -- over
-                          LudoRules (the rules and the computer player, pure
-                          C++ with no Arduino)
+                          Ludo is six .cpp against one header -- LudoGame
+                          (flow, input), LudoBoard (the board), LudoPanel
+                          (the side panel), LudoLobby (both lobbies),
+                          LudoTable (play across consoles) and LudoSave --
+                          over LudoRules (the rules, the computer player and
+                          the table protocol, pure C++ with no Arduino)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
