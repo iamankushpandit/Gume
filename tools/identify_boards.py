@@ -74,9 +74,12 @@ BANNER_RE = re.compile(r"\[boot\] board=(\S+)")
 DEVICE_RE = re.compile(r"\[boot\] device=(\S+)")
 VERSION_RE = re.compile(r"\[boot\] build=.*\bversion=(\S+)")
 CHIP_RE = re.compile(r"^Chip is (.+?)(?:\s*\(|\s*$)", re.I | re.M)
-# The reply to `identify?` -- one line, every value quoted. See
-# BrainoApp::tickSerialQuery() in src/engine/AppRuntimeIdentity.cpp.
-IDENT_LINE_RE = re.compile(r"^\[ident\] (.*)$", re.M)
+# The reply to `identify?` -- one line, every value quoted. Current firmware
+# answers in the console's grammar, `ok v="1" device=...`; 5.10.0-SNAPSHOT
+# builds from before the console said `[ident] v="1" ...`. Both are accepted,
+# because a bench is never all on one build. See
+# src/engine/AppRuntimeConsole.cpp.
+IDENT_LINE_RE = re.compile(r'^(?:\[ident\]|ok) (v="1".*)$', re.M)
 IDENT_FIELD_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
@@ -164,7 +167,7 @@ def query_board(py, port, seconds=1.5):
         "d=b''; t=time.time()\n"
         "while time.time()-t < %f:\n"
         "    d += s.read(512)\n"
-        "    i = d.find(b'[ident] ')\n"
+        "    i = max(d.find(b'[ident] '), d.find(b'ok v=\"1\"'))\n"
         "    if i >= 0 and b'\\n' in d[i:]: break\n"
         "s.close(); sys.stdout.write(d.decode('utf-8','replace'))\n"
     ) % (port, seconds)

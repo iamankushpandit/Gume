@@ -22,3 +22,6 @@ dist
 # eFuse and cannot be changed, so publishing one is permanent, and publishing
 # it beside the firmware that board runs is worse than publishing it alone.
 tools/board_registry.json
+# configure_boards.py's real config: a Wi-Fi password and player names. The
+# committed template is tools/bench_config.example.json.
+tools/bench_config.json

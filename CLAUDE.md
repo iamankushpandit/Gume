@@ -465,9 +465,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,438,961 / 3,145,728 bytes,
-**77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,548 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,442,773 / 3,145,728 bytes,
+**77.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 76,676 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -607,12 +607,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   Sound belongs on that list for a reason worth stating: the speaker belongs to
   whoever is in the room, and a console that came back loud because a different
   player picked it up is a poor thing to hand a child in a quiet house. Per-profile: scores, mastery blobs, game visibility.
-- **The admin PIN gates the two routes into the admin profile**: switching to
-  it, and opening its Edit menu (rename plus its per-player game list). One
-  profile is admin (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it
-  in NVS). Add a third way to become admin and it needs the same gate. It is
-  asked **every time**, including when already admin: being admin is not
-  evidence about who is holding the device, which is the whole threat model.
+- **The admin PIN gates every route to admin powers**: switching to the admin
+  profile, opening its Edit menu (rename plus its per-player game list), and
+  the serial console's `unlock` (see Hardware notes). One profile is admin
+  (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it in NVS). Add
+  another way to become admin and it needs the same gate. It is asked **every
+  time**, including when already admin: being admin is not evidence about who
+  is holding the device, which is the whole threat model. The console's
+  unlock is the one that lasts beyond a single action -- a batch of commands,
+  expiring two minutes after the last one -- because a script configuring a
+  bench is one decision, not twenty; `lock` ends it and the tool always sends
+  it.
 - **Per-player game visibility and profile removal are admin-only; renaming is
   not.** `ProfileGame` gates on `board.isAdminProfile(board.activeProfile())`
   — the *actor*, not the profile being edited. Those two are different
@@ -931,6 +936,7 @@ src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
+                          AppRuntimeConsole,
                           ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
@@ -960,6 +966,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),
+                          configure_boards.py + bench_config.example.json
+                          (set every board up from one config over the
+                          serial console; the real config is gitignored),
                           identify_boards.py + board_registry.example.json
                           (which board is on which port, keyed by the
                           firmware's own Board::deviceId(); the real registry
@@ -1110,17 +1119,45 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   in this repository". `board=` and `panel=` are compiled in and therefore
   describe the firmware, not the hardware, which is exactly how a 2.8-inch
   board reported itself as a 4-inch for half an hour.
-- **A running board answers `identify?` with the same facts, unreset.** One
-  `[ident]` line, every value quoted, from `BrainoApp::tickSerialQuery()` in
-  `AppRuntimeIdentity.cpp`; `identify_boards.py` asks before it resets
-  anything. Three properties are load-bearing: it is **read-only** (no
-  arguments, no state change -- a string on a cable must never do what the
-  admin PIN guards), it carries **only the banner's facts** (no MAC, profile,
-  score or SSID), and it is **not activity** (it leaves `lastActivityMs_`
-  alone, so polling the desk does not keep screens awake). Open the port with
-  DTR and RTS already low, or opening it resets the board and defeats the
-  point. Anything that widens it into a command channel needs the same
-  scrutiny as a new outbound flow.
+- **A running board answers `identify` with the same facts, unreset.** One
+  line, every value quoted; `identify_boards.py` asks before it resets
+  anything. It carries **only the banner's facts** (no MAC, profile, score or
+  SSID) and needs no PIN. Open the port with DTR and RTS already low, or
+  opening it resets the board and defeats the point.
+- **The serial port is a console, and it was widened on purpose.** The
+  maintainer asked for bench boards to be set up from a cable rather than by
+  hand, and plans a layered framework whose shell reaches every service the UI
+  does (`docs/FRAMEWORK_PLAN.md` on the platform-separation branch), so
+  `AppRuntimeConsole.cpp` is built to grow:
+  - **One line reader, one command table, one reply grammar.** A command is a
+    row -- name, usage, help, `AppCapability`, argument counts, handler -- and
+    `help` is derived from the table. Every reply is exactly one line,
+    `ok key="value" ...` or `err <code> <message>`. **Add a command as a row,
+    never as another string match**, and never give it a second reply shape.
+    `identify?` and `settings?` are kept as aliases because tools on `dev`
+    already send them; `identify_boards.py` also accepts the `[ident] ...`
+    reply that pre-console snapshot builds give.
+  - Today's rows: `identify`, `settings` (counts and flags only), `help`,
+    `unlock`, `lock`, and behind the PIN `theme`, `brightness`, `beacon`,
+    `nearby`, `wifi`, `profile-add`. `tools/configure_boards.py` applies one
+    gitignored config file to every board that answers.
+  - **Reads are open, writes need the PIN.** `needsUnlock()` keys on the row's
+    capability (settings, network, profiles, scores, factory reset), so a new
+    write row cannot forget the gate. Three wrong PINs lock the console out
+    for 30s, and only exactly four digits are judged.
+  - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
+    under the closed privacy list.
+  - **It goes through the same doors as the screens**: the same `Board`
+    setters and the same refusals (Nearby without the beacon), then a repaint
+    of whatever screen is showing the old value.
+  - **Nothing personal comes back**: no profile name, no network name, never
+    the password, and the line buffer is wiped after every command.
+  - **It is not activity**: nothing touches `lastActivityMs_`, and
+    `Board::setBrightness()` no longer lights the backlight over a sleeping
+    panel -- unreachable from the slider, reachable from a cable.
+  - **Deliberately absent**: factory reset, removing profiles, reading scores.
+    Adding anything that changes the device or reads player data is a
+    decision for the maintainer, not a convenience.
 - **An EN reset can strand an E32R40T.** Seen on the bench three times in one
   day: after the reset button, an RTS reset from a serial tool, or a USB power
   surge, the ROM loops `flash read err, 988` / `RTCWDT_RTC_RESET` every ~350ms

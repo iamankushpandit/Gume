@@ -97,12 +97,21 @@ because history, clones, forks and tarballs all keep copies.
   public issues.
 - `tools/board_registry.json` is gitignored; the `.example.json` ships with
   placeholders and `identify_boards.py --learn` fills in the real one locally.
-- **Ask a board before you reset it.** Current firmware answers `identify?` on
-  the serial port with one `[ident]` line (device id, board, version, build)
+- **Ask a board before you reset it.** Current firmware answers `identify` on
+  the serial port with one `ok ...` line (device id, board, version, build)
   and keeps running; `identify_boards.py` does this first and resets only a
   board that stays silent. `--no-reset` never resets. A reset discards another
   agent's in-flight test, and on the bench an E32R40T once needed its battery
   pulled to boot again after one.
+- **Configure boards with `python tools/configure_boards.py`, not by hand.** It
+  applies `tools/bench_config.json` (gitignored -- it holds a Wi-Fi password
+  and names; start from `bench_config.example.json`) to every board that
+  answers `identify`, through the serial console behind the admin PIN. Never
+  commit that file, and never paste the tool's input into an issue.
+- **A new console command is a row in the table** in
+  `src/engine/AppRuntimeConsole.cpp`, answering with one `ok key="v"` or
+  `err <code> <message>` line. Anything that writes gets a write capability,
+  which puts it behind the PIN automatically.
 - `python tools/check_identifiers.py` runs in CI. It catches MACs and public
   IPs; it cannot catch an SSID or a person's name, so a clean run is not
   permission.

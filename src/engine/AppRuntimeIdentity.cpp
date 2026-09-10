@@ -131,13 +131,15 @@ void BrainoApp::logIdentity() {
  * a moment as the app starts, taking the banner with it, and a 4-inch board
  * reset by its button can refuse to boot at all until it is power-cycled.
  *
- * So a running board answers `identify?` followed by a newline with one line:
+ * So a running board answers `identify` (or `identify?`) with one line:
  *
- *   [ident] v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="5.10.0"
- *           build="dev @ 1a2b3c4" built="Sep 10 2026 10:00" chip="ESP32-D0WD-V3"
- *           panel="ILI9341_2" up="3605"
+ *   ok v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="5.10.0"
+ *      build="dev @ 1a2b3c4" built="Sep 10 2026 10:00" chip="ESP32-D0WD-V3"
+ *      panel="ILI9341_2" up="3605"
  *
- * (one line on the wire; wrapped here). Every value is quoted, because
+ * (one line on the wire; wrapped here). 5.10.0-SNAPSHOT builds from before the
+ * console answered with an `[ident]` tag in place of `ok`; identify_boards.py
+ * accepts both. Every value is quoted, because
  * BOARD_NAME and the build time can both contain spaces and the tool once cut
  * a board name off at one. `v` is the format's own version, so a later field
  * can be added without the tool guessing.
@@ -145,65 +147,26 @@ void BrainoApp::logIdentity() {
  * The query is `identify?`, not anything naming the product, on purpose: it is
  * a property of the bench, not of Braino. Any image flashed onto one of these
  * boards -- the diag builds, a bring-up probe, a future firmware under another
- * name -- can answer the same query with the same `[ident]` line, and
+ * name -- can answer the same query with the same line, and
  * identify_boards.py will recognise it without changing. The `board=` field is
  * what says which firmware answered.
  *
- * What it must never become:
- *   - A second way to read player data. The reply is the banner's facts and
- *     nothing else: no profile, no score, no SSID, never the MAC. The same
- *     rules as the banner, for the same reason -- this text gets pasted.
- *   - A command channel. It takes no arguments, changes no state, grants
- *     nothing, and anything that is not exactly the query is dropped. A cable
- *     is local, but the admin PIN would mean nothing if a string on a serial
- *     port could do what the PIN guards.
- *   - Activity. It does not touch lastActivityMs_: a tool polling the desk
- *     must not keep every screen awake, or change what it is testing.
+ * The reply must never become a second way to read player data: it is the
+ * banner's facts and nothing else -- no profile, no score, no SSID, never the
+ * MAC -- for the same reason as the banner: this text gets pasted.
  *
- * Cost: at most QUERY_BYTES_PER_FRAME reads per loop, which with nothing
- * waiting is one Serial.available(). The reply is ~200 bytes, which can block
- * for a few milliseconds while the UART drains -- once, when asked. */
-namespace {
+ * `identify` is one row of the serial console's table in
+ * AppRuntimeConsole.cpp, which also carries the PIN-gated commands that set a
+ * board up. It stays what it was: no PIN, no arguments, no state change, and
+ * not activity. The reply is ~200 bytes, which can block for
+ * a few milliseconds while the UART drains -- once, when asked. */
 
-constexpr char IDENTIFY_QUERY[] = "identify?";
-constexpr size_t IDENTIFY_QUERY_LEN = sizeof(IDENTIFY_QUERY) - 1;
-// Room for the query and nothing more; a longer line is not the query.
-constexpr size_t QUERY_CAP = IDENTIFY_QUERY_LEN;
-constexpr int QUERY_BYTES_PER_FRAME = 32;
-
-char queryBuf[QUERY_CAP];
-size_t queryLen = 0;
-bool queryOverlong = false;
-
-}  // namespace
-
-void BrainoApp::tickSerialQuery() {
-    for (int budget = QUERY_BYTES_PER_FRAME; budget > 0 && Serial.available() > 0;
-         --budget) {
-        const int c = Serial.read();
-        if (c < 0) break;
-        if (c == '\r' || c == '\n') {
-            const bool match = !queryOverlong && queryLen == IDENTIFY_QUERY_LEN &&
-                               memcmp(queryBuf, IDENTIFY_QUERY, IDENTIFY_QUERY_LEN) == 0;
-            queryLen = 0;
-            queryOverlong = false;
-            if (match) replyIdentify();
-            continue;
-        }
-        if (queryLen < QUERY_CAP) {
-            queryBuf[queryLen++] = static_cast<char>(c);
-        } else {
-            queryOverlong = true;
-        }
-    }
-}
-
-void BrainoApp::replyIdentify() {
-    Serial.printf("[ident] v=\"1\" device=\"%s\" board=\"%s\" version=\"%s\" "
-                  "build=\"%s\" built=\"%s\" chip=\"%s\" panel=\"%s%s\" up=\"%lu\"\n",
-                  board_.deviceId(), BOARD.name, BRAINO_VERSION,
-                  BuildStamp::describe(), BuildStamp::builtAt(),
-                  ESP.getChipModel(),
-                  GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",
-                  (unsigned long)(millis() / 1000UL));
+void BrainoApp::replyIdentify(Print& out) {
+    out.printf("ok v=\"1\" device=\"%s\" board=\"%s\" version=\"%s\" "
+               "build=\"%s\" built=\"%s\" chip=\"%s\" panel=\"%s%s\" up=\"%lu\"\n",
+               board_.deviceId(), BOARD.name, BRAINO_VERSION,
+               BuildStamp::describe(), BuildStamp::builtAt(),
+               ESP.getChipModel(),
+               GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",
+               (unsigned long)(millis() / 1000UL));
 }

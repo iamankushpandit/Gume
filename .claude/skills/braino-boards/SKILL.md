@@ -27,6 +27,33 @@ If other agents may be testing on the boards, never restart any of them:
 python tools/identify_boards.py --no-reset
 ```
 
+## Configure the bench — never by hand
+
+To give every connected board the same profiles, theme, brightness, Nearby and
+Wi-Fi settings (after a flash, or to put a bench into a known state):
+
+```bash
+python tools/configure_boards.py --dry-run
+python tools/configure_boards.py
+```
+
+It reads `tools/bench_config.json`. That file is **gitignored** because it holds
+the owner's Wi-Fi password and player names. If it does not exist, copy
+`tools/bench_config.example.json` and ask the owner for the values rather than
+inventing them. Never commit it, print it, or paste it anywhere. `--board
+E32R40T` or `--port COM12` narrows the run to one model or one port.
+
+It finds boards with `identify?`, unlocks each with the admin PIN from the
+config, sends the settings, reads back `settings?`, and locks again. Boards on
+firmware older than the console are reported and skipped. Nothing is reset. A
+board refusing `unlock` has a different PIN, and three wrong PINs lock its
+console out for 30 seconds, so don't retry in a loop.
+
+Taking the board lock is done for you. To send one command by hand, open the
+port with DTR/RTS low and type `help`: the board lists its own commands, and
+`help <command>` gives usage and whether it needs the PIN. Every reply is one
+line, `ok key="v" ...` or `err <code> <message>`.
+
 ## Why the port is not the answer
 
 A COM number is assigned by Windows in plug order, so the same four boards were
@@ -40,8 +67,8 @@ or printed (see "No identifiers in this repository" in `CLAUDE.md`).
 
 ## Ask, don't reset
 
-Current firmware answers `identify?` on the serial port with one `[ident]` line
-and keeps running, so the tool asks first. Only a board that stays silent --
+Current firmware answers `identify` (or `identify?`) on the serial port with one
+`ok v="1" device=...` line and keeps running, so the tool asks first. Only a board that stays silent --
 older firmware, a diag build, a blank flash -- gets reset so its boot banner can
 be read. Resetting is not free: it discards whatever the board was doing, one
 2.8-inch board's USB drops off the bus as its app starts (so the banner is
@@ -73,7 +100,7 @@ s.open()`), or opening it resets the board.
 
 ## The banner's honest limit
 
-`[boot] board=<NAME>` (and the `[ident]` reply's `board=`) is compiled in, so it
+`[boot] board=<NAME>` (and the `identify` reply's `board=`) is compiled in, so it
 reports which *firmware* is on the
 board, not which *panel* is underneath it. It is right whenever the board was
 last flashed correctly and confidently wrong when it was not. That is why the
