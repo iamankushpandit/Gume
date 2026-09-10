@@ -55,6 +55,18 @@ better, but it changes what the device transmits and what peers key their saved
 names on, so it needs agreement first — like any other change to the
 advertisement.
 
+**Nearby scanning no longer floods the serial log.** NimBLE-Arduino takes its
+log level from the Arduino core's when it is not given one, and the core runs
+at INFO, so every advertiser a Nearby scan heard printed
+`I NimBLEScan: New advertiser: <MAC>`. Measured on an E32R40T with Nearby on:
+3,604 bytes a second of serial output, 73.5 of those lines a second, and 99.9%
+of everything the board printed — burying the `[boot]` and `[wdt]` lines, and
+putting other people's Bluetooth addresses into logs that get pasted into
+issues. `CONFIG_NIMBLE_CPP_LOG_LEVEL=2` keeps NimBLE's warnings and errors;
+the same board now prints 2 bytes a second. It was not the cause of slow
+frames: the loop ran at 48.9 frames a second before and 49.6 after, and the
+~150 ms worst frame is unchanged, so that is a separate question.
+
 **First thing this cycle: a two-console regression check of nearby play.** It
 has now been carried over twice. Two defects in that path were fixed late in
 5.9.0 — the acceptor never published its ply-0 answer, and a peer's turn was
