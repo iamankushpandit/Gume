@@ -236,6 +236,35 @@ the same board now prints 2 bytes a second. It was not the cause of slow
 frames: the loop ran at 48.9 frames a second before and 49.6 after, and the
 ~150 ms worst frame is unchanged, so that is a separate question.
 
+**The two 2.8-inch boards have sound.** The E32R28T-1 and the inverted-panel
+ESP32-2432S028 both have a JST 1.25 speaker connector fed from GPIO26 through
+an onboard amplifier, and both were silent by construction since 5.5.1. Two
+things kept them that way. Their touch clock is GPIO25, the other built-in DAC
+pad, and 5.5.0 lost touch there -- so `beginAudio()` now powers the unused DAC
+channel down and hands its pad back to the GPIO matrix once the driver is up,
+logs the pad's state either side (`[audio] GPIO25 released: ...`), and
+`Board::begin()` re-applies the touch pins after it. And on the E32R28T-1, IO4
+was declared as the green LED when it is the FM8002E amplifier's enable,
+active low, so turning the "LED" off every boot held the amplifier in
+shutdown. IO4 is now the amplifier enable and the LED uses the vendor's pins,
+red IO22, green IO16, blue IO17. `BoardConfig.h` allows a touch pin on the DAC
+pad the speaker does not use, and still refuses everything else there.
+
+**The battery shows its percentage and nothing else.** No board here has a
+charge-status line, so "charging" was inferred from how the cell voltage
+moved, and a lightning bolt drew that guess as a fact. The inference, the bolt,
+`getChargingState()`, `getPowerSource()` and System Info's Source and Charging
+rows are gone. The low-battery warning stays -- at 15%, escalating at 5% -- and
+is now the percentage alone, so on the charger it clears once the reading
+climbs back over the threshold rather than the moment a cable is sensed.
+
+**The screen saver keeps still.** "Braino!" and the copyright sit centred on
+whichever way the panel is held, instead of bobbing; "Braino!" takes a dim
+shade of the rally colour and changes with each hit, which is an overdraw
+rather than an erase. The battery was erased and redrawn every frame and so
+visibly flickered; it now repaints only when its number changes or the ball
+crosses it. The net skips the stretches behind both.
+
 **`tools/identify_boards.py` is now `tools/ESP32_boardUtil.py`.** It stopped
 being only an identifier when it learned to flash: `--flash` builds each
 connected board's environment once, all at the same time, then uploads to

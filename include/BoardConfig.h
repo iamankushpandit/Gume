@@ -45,24 +45,23 @@
  * 4-inch, whose touch is on GPIO14 -- the board that would have shown the
  * fault was the one nobody flashed.
  *
- * So it is a compile error now. A board may put its SPEAKER on a DAC pad --
- * that is the whole point -- and nothing else may go near either of them. */
+ * A board may put its SPEAKER on a DAC pad -- that is the whole point. Since
+ * 5.10.0 the OTHER pad may carry a touch pin: beginAudio() switches the unused
+ * DAC channel off and returns its pad to the GPIO matrix once the driver is up
+ * (and logs the pad's state either side), and Board::begin() re-applies the
+ * resistive touch pin setup after beginAudio(). That is what gives the two
+ * 2.8-inch boards their sound back. Touch on the speaker's own pad, and
+ * anything else on either pad, is still a compile error: nothing re-asserts
+ * those after audio comes up. */
 #if GUME_HAS_AUDIO_DAC
 constexpr bool gumeOnDacPad(int8_t pin) { return pin == 25 || pin == 26; }
+constexpr bool gumeOnSpeakerPad(int8_t pin) { return pin == BOARD.audio.speakerPin; }
 
-static_assert(!gumeOnDacPad(BOARD.touch.sclk),
-    "GUME_HAS_AUDIO_DAC: touch.sclk is on a DAC pad (GPIO25/26). Enabling the "
-    "built-in DAC claims both pads and the touch clock stops working. This is "
-    "the 5.5.0 defect. Either the board cannot have DAC audio, or the pin is "
-    "wrong.");
-static_assert(!gumeOnDacPad(BOARD.touch.mosi),
-    "GUME_HAS_AUDIO_DAC: touch.mosi is on a DAC pad (GPIO25/26).");
-static_assert(!gumeOnDacPad(BOARD.touch.miso),
-    "GUME_HAS_AUDIO_DAC: touch.miso is on a DAC pad (GPIO25/26).");
-static_assert(!gumeOnDacPad(BOARD.touch.cs),
-    "GUME_HAS_AUDIO_DAC: touch.cs is on a DAC pad (GPIO25/26).");
-static_assert(!gumeOnDacPad(BOARD.touch.irq),
-    "GUME_HAS_AUDIO_DAC: touch.irq is on a DAC pad (GPIO25/26).");
+static_assert(!gumeOnSpeakerPad(BOARD.touch.sclk) && !gumeOnSpeakerPad(BOARD.touch.mosi) &&
+              !gumeOnSpeakerPad(BOARD.touch.miso) && !gumeOnSpeakerPad(BOARD.touch.cs) &&
+              !gumeOnSpeakerPad(BOARD.touch.irq),
+    "GUME_HAS_AUDIO_DAC: a touch pin is on the speaker's DAC pad. The DAC "
+    "drives that pad for as long as audio is up.");
 static_assert(!gumeOnDacPad(BOARD.panel.backlightPin),
     "GUME_HAS_AUDIO_DAC: the backlight is on a DAC pad (GPIO25/26).");
 static_assert(!gumeOnDacPad(BOARD.sd.cs) && !gumeOnDacPad(BOARD.sd.mosi) &&

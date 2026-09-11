@@ -7,12 +7,11 @@
 #define GUME_TOUCH_CAPACITIVE 0
 
 #define GUME_HAS_AUDIO_CODEC 0
-/* NO DAC AUDIO. The XPT2046's bit-banged clock is GPIO25, which is ESP32 DAC
- * channel 1, and bringing up I2S in I2S_MODE_DAC_BUILT_IN takes that pad away
- * from the GPIO matrix -- the panel draws perfectly and nothing responds to a
- * finger. That shipped once, in 5.5.0, and is why 5.5.1 exists. Same conflict
- * as the E32R28T-1; see e32r28t1.h for the full account. */
-#define GUME_HAS_AUDIO_DAC   0
+/* DAC audio on GPIO26, with the touch clock on the other DAC pad, GPIO25.
+ * That is the combination 5.5.0 got wrong; beginAudio() now hands GPIO25 back
+ * once the driver is up. Same arrangement as the E32R28T-1 -- see e32r28t1.h
+ * for the full account. */
+#define GUME_HAS_AUDIO_DAC   1
 
 /* ESP32-2432S028, dual-USB, INVERTING PANEL. 2.8-inch, 240x320.
  *
@@ -117,9 +116,11 @@ inline constexpr BoardProfile BOARD = {
         /* commonAnode */ true,
     },
 
-    /* Silent by construction -- see GUME_HAS_AUDIO_DAC above. */
+    /* GPIO26 (DAC channel 2) feeds an onboard SC8002B amplifier and the JST
+     * 1.25 speaker connector. The amplifier has no enable line to drive --
+     * confirmed by the owner. maxVolume 75 is the CYD ceiling set by ear. */
     AudioProfile{
-        /* speakerPin          */ PIN_NONE,
+        /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
         /* i2sMclk             */ PIN_NONE,
         /* i2sBclk             */ PIN_NONE,

@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-79.1%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-79.7%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,489,533 / 3,145,728 bytes (**79.1%**) |
-| RAM | 78,196 / 327,680 bytes (**23.9%**) |
+| Flash | 2,507,597 / 3,145,728 bytes (**79.7%**) |
+| RAM | 79,708 / 327,680 bytes (**24.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -143,10 +143,10 @@ broken:**
 | Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. The colour half of the feedback is a no-op — the sounds still play — and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
 | SD card | The slot is **SDMMC 4-bit**; `SdProfile` describes an SPI card. Optional SD content is simply not loaded, which everything has defaults for | [#73](https://github.com/iamankushpandit/Gume/issues/73) |
 
-The battery **percentage** is correct, but the **charging/discharging verdict**
-is not yet validated on this board's charger — those constants were measured
-against the E32R28T-1's TP4054 ([#74](https://github.com/iamankushpandit/Gume/issues/74)).
-Partition sizing on the 16 MB part and a first-frame time worth checking are
+The battery **percentage** is correct. The firmware no longer shows a
+charging state on any board, so the old question of whether this board's
+charger fooled the inference ([#74](https://github.com/iamankushpandit/Gume/issues/74))
+no longer arises. Partition sizing on the 16 MB part and a first-frame time worth checking are
 tracked in [#75](https://github.com/iamankushpandit/Gume/issues/75).
 
 `pio run -e s3diag` is a standalone bring-up probe for this board: panel,
@@ -227,8 +227,10 @@ Two things are worth knowing if you are porting another variant:
 
 Confirmed on hardware: panel, colour inversion, backlight, touch, rotation,
 flash size. Inherited from the E32R28T-1 and not exercised: SD card, RGB LED
-order, battery divider. **Silent by construction** — its touch clock is GPIO25,
-which is DAC channel 1, the same conflict that made 5.5.1 necessary.
+order, battery divider. **Sound** comes from GPIO26 into the onboard SC8002B
+amplifier and the JST 1.25 speaker connector. Its touch clock is GPIO25, the
+other DAC pad -- the conflict that made 5.5.1 switch sound off on the 2.8-inch
+boards -- so the firmware hands GPIO25 back to touch once audio is up.
 
 ### E32R32P (3.2-inch ST7789P3)
 
@@ -898,22 +900,11 @@ Percentage comes off a piecewise LiPo discharge curve, not a straight line: a
 cell sits near 3.7V for most of its life, so a linear map reads about 20 points
 high through the middle.
 
-**Charging is inferred, because this board has no charge-status line.** The
-charger's CHRG pin never reaches a GPIO, so the cell voltage on GPIO34 is the
-only thing the firmware can see. Three signals are read from it: a step between
-consecutive samples (plugging the cable in lifts the terminal voltage well
-beyond ADC noise within a couple of seconds, and unplugging drops it back under
-load), a voltage held above 4.21V that no resting cell reaches, and — for
-everything in between — the direction the voltage has moved over the last 45
-seconds. Mid-discharge a LiPo sits on a plateau where 40% of the capacity spans
-about 20mV, which is why the slow window has to be that long, and why a window
-that comes out genuinely flat leaves the previous verdict standing rather than
-flapping between charging and not.
-
-"Charged" is only ever reached from "charging". A pack resting at 4.15V off the
-cable and one that has just finished charging read identically from a single
-sample, so the firmware will not claim a battery is full unless it watched it
-get there.
+**There is no charging indicator, because this board has no charge-status
+line.** The charger's CHRG pin never reaches a GPIO, so the only thing the
+firmware can see is the cell voltage on GPIO34. It used to infer "charging"
+from how that voltage moved; that was a guess shown as a fact, so since 5.10.0
+the icon shows the percentage and nothing else.
 
 The **battery icon shows the percentage as a number**, inside the shell, the
 way an iPhone or an Android status bar does it — because eleven pixels of fill
@@ -922,8 +913,7 @@ question. Underneath the digits a two-pixel gauge still runs along the inside
 of the shell, so the analogue cue is there too: green above 40%, amber down to
 16%, and at or below **15%** the shell and the digits both go red. That red
 outline is what makes *charge me* visible across a room, which is why nothing
-else colours the shell. A lightning bolt appears inside the icon whenever the
-charger is attached.
+else colours the shell.
 
 **This board cannot tell whether a battery is fitted, and the gauge does not
 claim to.** The charger holds its BAT output at float voltage whether or not a
@@ -935,17 +925,15 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
-The icon is deliberately **not** a fixed size: it is 22px wide showing `72`
-and 36px showing `100` on the charger, and the status rows around it are laid
+The icon is deliberately **not** a fixed size: it grows with its digits, widest
+at `100`, and the status rows around it are laid
 out from its measured width rather than a constant offset.
 
 At **15% or less** a strip also appears across the top of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
 charger* at 5%. It shows for six seconds and repeats every two minutes, so it
-stays a warning rather than becoming furniture. Plugging in clears it within a
-couple of seconds — the warning is driven off the charge verdict, not the
-percentage, so it goes away when the user does the thing it asked for rather
-than waiting for the reading to climb.
+stays a warning rather than becoming furniture. It is driven by the percentage
+alone, so on the charger it clears once the reading climbs back above 15%.
 
 The divider ratio itself is still an assumption pending a meter on the board.
 

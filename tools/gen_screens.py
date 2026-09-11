@@ -169,33 +169,31 @@ def topbar(d, title, synced=True, bars=3):
     d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
 
 
-BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 15, 3, 6, 2, 2
+BATT_H, BATT_PAD, BATT_TERM_W = 15, 3, 2
 BATT_TRACK_H = 4
 
 
-def battery_width(pct=72, charging=False):
+def battery_width(pct=72):
     """Mirrors Ui::batteryBadgeWidth. Font 1 advances exactly 6px on the
     device, so the width is counted in characters rather than measured with
     PIL's proportional stand-in -- otherwise the mock-up packs differently
     from the firmware and stops being evidence."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
-    inner = BATT_PAD * 2 + (BATT_BOLT_W + BATT_BOLT_GAP if charging else 0) + 6 * len(text)
+    inner = BATT_PAD * 2 + 6 * len(text)
     return max(inner, 11) + 2 + BATT_TERM_W
 
 
-def battery_badge(d, cx, cy, pct=72, charging=False):
+def battery_badge(d, cx, cy, pct=72):
     """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
-    shell, a bordered two-pixel level gauge along the inside bottom, and the
-    charging bolt inside the shell. Variable width -- see battery_width."""
+    shell over a bordered two-pixel level gauge along the inside bottom. No
+    charging state. Variable width -- see battery_width."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
-    total = battery_width(pct, charging)
+    total = battery_width(pct)
     shell = total - BATT_TERM_W
     bx, by = cx - total // 2, cy - BATT_H // 2
-    low = (not charging) and 0 <= pct <= 15
+    low = 0 <= pct <= 15
     out = ERROR if low else MUTED
-    if charging:
-        level = SUCCESS
-    elif pct <= 15:
+    if pct <= 15:
         level = ERROR
     elif pct <= 40:
         level = WARN
@@ -212,10 +210,6 @@ def battery_badge(d, cx, cy, pct=72, charging=False):
         gw = max(1, int(pct * (track_w - 2) / 100))
         d.rectangle([track_x + 1, track_y + 1, track_x + gw, track_y + BATT_TRACK_H - 2], fill=level)
     penx = bx + 1 + BATT_PAD
-    if charging:
-        d.polygon([(penx + 4, cy - 5), (penx, cy + 1), (penx + 4, cy + 1)], fill=level)
-        d.polygon([(penx + 1, cy + 5), (penx + 5, cy - 1), (penx + 1, cy - 1)], fill=level)
-        penx += BATT_BOLT_W + BATT_BOLT_GAP
     if text:
         d.text((penx, cy - 6), text, font=F1, fill=out)
 
@@ -1617,15 +1611,28 @@ def timezone_picker():
 
 
 def screensaver():
+    """Mirrors BrainoApp::renderScreenSaver(): the wordmark still and centred,
+    "Braino!" in a 60% shade of the rally colour, the battery at top centre,
+    and a net that skips the stretches behind both."""
     im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
-    for y in range(0, H, 14):
-        d.rectangle([W // 2 - 1, y, W // 2, y + 8], fill=(40, 40, 40))
     rally = (255, 160, 60)
+    mid_x, mid_y = W // 2, H // 2
+    text_w = int(max(d.textlength(PRODUCT, font=F4), d.textlength(COPYRIGHT_SHORT, font=F1))) + 8
+    text_y, text_h = mid_y - 26, 48
+    bat_y, bat_h = 14 - 8, 16
+    for y in range(0, H, 14):
+        behind_text = y + 8 > text_y and y < text_y + text_h
+        behind_bat = y + 8 > bat_y and y < bat_y + bat_h
+        if not behind_text and not behind_bat:
+            d.rectangle([mid_x - 1, y, mid_x, y + 8], fill=(40, 40, 40))
+    name = tuple(c * 60 // 100 for c in rally)
+    d.text((mid_x - d.textlength(PRODUCT, font=F4) / 2, mid_y - 22), PRODUCT, font=F4, fill=name)
+    d.text((mid_x - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, mid_y + 9), COPYRIGHT_SHORT, font=F1, fill=(70, 76, 92))
+    battery_badge(d, mid_x, 14, 72)
     d.rounded_rectangle([7, 70, 13, 110], 3, fill=rally)
     d.rounded_rectangle([307, 130, 313, 170], 3, fill=rally)
-    d.rounded_rectangle([150, 108, 162, 120], 2, fill=rally)
-    d.rounded_rectangle([153, 111, 159, 117], 1, fill=WHITE)
-    d.text((W / 2 - 6, 4), "7", font=F2, fill=(70, 70, 76))
+    d.rounded_rectangle([230, 180, 242, 192], 2, fill=rally)
+    d.rounded_rectangle([233, 183, 239, 189], 1, fill=WHITE)
     return im
 
 

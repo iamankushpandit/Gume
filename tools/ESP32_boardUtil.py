@@ -305,7 +305,10 @@ def flash_all(results, boards=None):
     if lock and os.path.exists(lock):
         print("Board lock held: %s\n  %s\nCheck whether that PID is alive "
               "before clearing it -- see CLAUDE.md."
-              % (lock, open(lock, encoding="utf-8").read().strip()))
+              # utf-8-sig: PowerShell's Set-Content writes a byte-order mark,
+              # and printing that to a cp1252 console crashed the tool here
+              # instead of saying who holds the lock.
+              % (lock, open(lock, encoding="utf-8-sig").read().strip()))
         return 1
     if lock:
         with open(lock, "w", encoding="utf-8") as f:

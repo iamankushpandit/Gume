@@ -20,6 +20,22 @@
 
 Board::Board() : sdSpi_(VSPI) {}
 
+#if !GUME_TOUCH_CAPACITIVE
+namespace {
+/* The bit-banged XPT2046 bus, idle: clock low, chip deselected. Called twice
+ * on a board with DAC audio -- see the second call in Board::begin(). */
+void configureResistiveTouchPins() {
+    pinMode(BOARD.touch.mosi, OUTPUT);
+    pinMode(BOARD.touch.miso, INPUT);
+    pinMode(BOARD.touch.sclk, OUTPUT);
+    pinMode(BOARD.touch.cs, OUTPUT);
+    pinMode(BOARD.touch.irq, INPUT);
+    digitalWrite(BOARD.touch.cs, HIGH);
+    digitalWrite(BOARD.touch.sclk, LOW);
+}
+}  // namespace
+#endif
+
 void Board::begin() {
     Serial.begin(115200);
     delay(100);
@@ -96,15 +112,7 @@ void Board::begin() {
         }
     }
 #else
-    {
-        pinMode(BOARD.touch.mosi, OUTPUT);
-        pinMode(BOARD.touch.miso, INPUT);
-        pinMode(BOARD.touch.sclk, OUTPUT);
-        pinMode(BOARD.touch.cs, OUTPUT);
-        pinMode(BOARD.touch.irq, INPUT);
-        digitalWrite(BOARD.touch.cs, HIGH);
-        digitalWrite(BOARD.touch.sclk, LOW);
-    }
+    configureResistiveTouchPins();
 #endif
 
     tft_.init();
@@ -146,6 +154,13 @@ void Board::begin() {
     applyBrightness();
     loadTouchCalibration();
     beginAudio();
+#if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE
+    /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
+     * beginAudio() hands it back, and this puts it back into the state the
+     * touch driver expects. Cheap, idempotent, and the difference between a
+     * board with sound and a board with sound and touch -- see BoardConfig.h. */
+    configureResistiveTouchPins();
+#endif
     mountSd();
     BleBeacon::begin(bleBeaconEnabled());
 }

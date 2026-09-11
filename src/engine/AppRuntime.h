@@ -308,7 +308,13 @@ private:
     uint8_t ssav_hits_ = 0;
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;
-    int16_t ssav_textCy_ = -1;
+    /* What the saver last painted, so the wordmark and the battery repaint
+     * only when they change: the wordmark's colour, and the battery's
+     * percentage and box width (-2 is "not painted", -1 being a real value). */
+    bool ssav_textDrawn_ = false;
+    uint16_t ssav_textColorDrawn_ = 0;
+    int8_t ssav_batPctDrawn_ = -2;
+    int16_t ssav_batBoxW_ = 0;
     /* Where each paddle was last painted, and in what colour; -1 means not
      * painted yet. The paddles repaint only when these change. */
     int16_t ssav_lyDrawn_ = -1;
@@ -342,9 +348,7 @@ private:
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
 
-    /* Track battery state to invalidate screens when charging state or
-     * percentage changes, so the battery badge updates in real-time without
-     * waiting for a screen switch. */
-    Board::ChargingState lastChargingState_ = Board::ChargingState::UNKNOWN;
+    /* The percentage last drawn, so the battery badge updates in real time
+     * without waiting for a screen switch. */
     int8_t lastBatteryPercent_ = -1;
 };

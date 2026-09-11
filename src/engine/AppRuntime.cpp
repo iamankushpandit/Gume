@@ -158,7 +158,6 @@ void BrainoApp::begin() {
     lastBannerGeneration_ = NearbyPlay::bannerGeneration();
     lastClockMinute_ = Clock::minuteKey();
     lastActivityMs_ = millis();
-    lastChargingState_ = board_.getChargingState();
     lastBatteryPercent_ = board_.getBatteryPercent();
     /* The two enums are kept numerically identical (see the static_asserts in
      * Ui.cpp), so this is a cast rather than a mapping. It used to be
@@ -277,17 +276,14 @@ void BrainoApp::loop() {
     }
 
     /* Keep the battery badge live rather than only correct at a screen change.
-     * Charging state and percentage move independently, so both are watched.
      *
      * Header-only, like the clock above it. This was the worst of the three
      * full repaints: the percentage crosses a boundary far more often than the
      * cell actually discharges -- see Board::getBatteryPercent() -- so the
      * panel was being wiped every couple of seconds, on every screen, for a
      * badge 22 pixels wide. */
-    const Board::ChargingState chargingNow = board_.getChargingState();
     const int8_t percentNow = board_.getBatteryPercent();
-    if (chargingNow != lastChargingState_ || percentNow != lastBatteryPercent_) {
-        lastChargingState_ = chargingNow;
+    if (percentNow != lastBatteryPercent_) {
         lastBatteryPercent_ = percentNow;
         requestChromeRender();
     }
@@ -419,9 +415,9 @@ void BrainoApp::loop() {
  * just redrawn over it -- not on every frame. Repainting a 320x30 strip at
  * 50Hz for five seconds would spend milliseconds a frame redrawing text that
  * has not changed, and the frame budget is 20ms for everything. */
-/* The charger is the only way out of this state, so the warning is driven off
- * Board's charge verdict rather than the percentage alone: plugging in clears
- * it within a couple of seconds, long before the reading climbs. */
+/* The battery warning is driven by the percentage alone -- at or below 15%,
+ * escalating at 5%. There is no charge verdict to consult any more, so on the
+ * charger it clears once the reading climbs back over the threshold. */
 /* Announce a newer firmware, once a day, to whoever is holding the device.
  *
  * Deliberately not admin-only. The person who can act on this is often not the
