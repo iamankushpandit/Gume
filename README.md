@@ -42,22 +42,22 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 
 ## Help wanted
 
-**Board ports.** Braino is developed and tested against the E32R28T-1. Two
-ESP32-2432S028 CYD variants ship as ports built from published pin maps and
-have not been verified on real hardware; the Freenove FNK0104B *has* been
-verified on hardware but ships with three peripherals switched off (see
+**Board ports.** Braino is developed and tested against the E32R28T-1, and
+every supported board has been run on hardware (see
+[Which board do you have?](#which-board-do-you-have)). The Freenove FNK0104B
+ships with three peripherals switched off (see
 [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
 has had its panel, backlight and touch confirmed on hardware but ships with four
 peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
 the 3.2-inch **E32R32P** has had its display, touch, battery sense and
 radios confirmed on hardware, with the RGB LED order and the battery
 divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3)); and one
-dual-USB CYD variant whose colours come out inverted *has* been verified on
+dual-USB CYD variant whose colours come out inverted has been verified on
 hardware (see
-[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel))
-— if you own any of those, telling us whether it works is the single
-most useful thing you can send. The CYD family has many variants whose
-differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
+[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel)). A board
+that is not in that list becomes supported when someone who owns one runs
+it -- that report is the single most useful thing you can send. The CYD
+family has many variants whose differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
 files and nowhere else: a profile header in `include/boards/` and a
 `[board_*]` section in `platformio.ini`. No file under `src/` names a GPIO,
@@ -118,6 +118,23 @@ The picker offers one image per board, and you have to choose the one that
 matches yours: two boards sold under the same name can carry different display
 controllers, and the wrong image gives inverted colours, dead touch or a blank
 screen rather than an error.
+
+### Which board do you have?
+
+Five boards are supported, and each has been flashed and run on hardware. Tell
+them apart by screen size, touch type and USB ports:
+
+| Screen | Touch | USB | Board | Pick in the installer |
+|---|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T | [E32R40T](#e32r40t-4-inch-st7796) |
+| 3.2-inch | resistive | one USB-C | E32R32P | [E32R32P](#e32r32p-32-inch-st7789p3) |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B | [FNK0104B](#freenove-fnk0104b-esp32-s3) |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 | [E32R28T-1](BOARD_E32R28T-1.md) |
+| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) |
+
+The two 2.8-inch resistive boards look alike; the second USB socket is the
+difference. If your board is not in this table, it is not supported -- a
+different image is likely to give a blank or wrongly coloured screen.
 
 ### Freenove FNK0104B (ESP32-S3)
 

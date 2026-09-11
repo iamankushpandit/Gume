@@ -18,9 +18,18 @@ got its own profile, `esp32-2432s028-inv`, and the two guesses stayed behind:
 built by CI, offered by the web installer as supported, and never once run on
 a board. Their profiles, board sections, product and bench environments, and
 installer entries are gone. What is left is exactly what was flashed and
-checked for this release: the E32R28T-1, the dual-USB ESP32-2432S028 with the
-inverted panel, the E32R32P, the E32R40T and the Freenove FNK0104B. A board
-comes back when someone who owns one runs it.
+checked for this release, and the README and the installer's picker now
+describe each by what you can see on it:
+
+| Screen | Touch | USB | Board |
+|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T |
+| 3.2-inch | resistive | one USB-C | E32R32P |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 |
+| 2.8-inch | resistive | USB-C and micro-USB | ESP32-2432S028, inverted panel |
+
+A board comes back when someone who owns one runs it.
 
 **`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
 changed.** Ports were identified before the builds and uploaded to after them,

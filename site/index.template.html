@@ -283,10 +283,17 @@ footer {
       <tr>
         <th style="width:26%">Board</th>
         <td>
-          One of the supported ESP32 boards with a 320&times;240 or larger touchscreen
-          (see the board selector above for options). Common variants include the
-          E32R28T-1 (2.8-inch ILI9341) and ESP32-2432S028 (2.4-inch ST7789), both with
-          XPT2046 <b>resistive</b> touch, 4 MB flash, and onboard Li-ion charging.
+          One of the five supported boards, each of which has been run on hardware.
+          Tell them apart by screen size, touch type and USB ports:
+          <ul>
+            <li><b>4-inch</b>, resistive touch, one USB-C &mdash; E32R40T</li>
+            <li><b>3.2-inch</b>, resistive touch, one USB-C &mdash; E32R32P</li>
+            <li><b>2.8-inch</b>, capacitive touch, one USB-C &mdash; Freenove FNK0104B</li>
+            <li><b>2.8-inch</b>, resistive touch, one USB-C &mdash; E32R28T-1</li>
+            <li><b>2.8-inch</b>, resistive touch, USB-C <i>and</i> micro-USB &mdash; ESP32-2432S028 (inverted panel)</li>
+          </ul>
+          A board not in this list is not supported: a mismatched image gives a blank
+          or wrongly coloured screen rather than an error.
         </td>
       </tr>
       <tr>

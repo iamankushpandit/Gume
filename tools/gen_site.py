@@ -149,28 +149,28 @@ VARIANTS = (
 # the site from generating rather than being quietly dropped.
 BOARD_DETAILS = {
     "e32r28t1": {
-        "label": "E32R28T-1 / ESP32-32E -- 2.8 inch ILI9341 + XPT2046 (resistive)",
+        "label": "2.8-inch, resistive touch, one USB-C port -- E32R28T-1 / ESP32-32E (ILI9341 + XPT2046)",
         "chip": "ESP32",
         "buy": "https://www.amazon.com/dp/B0D92C9MMH"
                "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1",
     },
     "esp32_2432s028_inv": {
-        "label": "ESP32-2432S028 -- 2.8 inch dual-USB CYD whose colours come out inverted (ILI9341 + XPT2046 resistive touch)",
+        "label": "2.8-inch, resistive touch, USB-C plus micro-USB -- ESP32-2432S028 CYD, inverted panel (ILI9341 + XPT2046)",
         "chip": "ESP32",
         "buy": "https://www.espboards.dev/esp32/cyd-esp32-2432s028/",
     },
     "e32r32p": {
-        "label": "E32R32P / ESP32-32E -- 3.2 inch ST7789P3 + XPT2046 (resistive)",
+        "label": "3.2-inch, resistive touch, one USB-C port -- E32R32P / ESP32-32E (ST7789P3 + XPT2046)",
         "chip": "ESP32",
         "buy": "https://www.lcdwiki.com/3.2inch_ESP32-32E_Display",
     },
     "e32r40t": {
-        "label": "E32R40T / ESP32-32E -- 4 inch ST7796 + XPT2046 (resistive)",
+        "label": "4-inch, resistive touch, one USB-C port -- E32R40T / ESP32-32E (ST7796 + XPT2046)",
         "chip": "ESP32",
         "buy": "https://www.lcdwiki.com/4.0inch_ESP32-32E_Display",
     },
     "fnk0104b": {
-        "label": "Freenove FNK0104B -- 2.8 inch ESP32-S3 (ILI9341 + FT6336U capacitive touch, USB-C)",
+        "label": "2.8-inch, capacitive touch, one USB-C port -- Freenove FNK0104B, ESP32-S3 (ILI9341 + FT6336U)",
         "chip": "ESP32-S3",
         "buy": "https://store.freenove.com/products/fnk0104",
     },
