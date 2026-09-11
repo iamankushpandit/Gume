@@ -207,6 +207,14 @@ A board that boots is not a board that ships. In the same commit:
   prose. `gen_site.py` refuses to generate with a second board until that is
   generalised, on purpose: offering a firmware the page then mislabels is worse
   than not offering it.
+- `docs/boards/<BOARD_NAME>.md` — how to recognise the board, what has been
+  checked on hardware, and its sources with the date checked and an archived
+  copy where one exists; leave an empty GENERATED block and run
+  `python tools/gen_board_docs.py`, which fills in the pin table and draws the
+  pin diagram from the profile. CI fails on a supported board with no page.
+  Link the vendor's photos and drawings rather than copying them, and strip a
+  photo of your own of its metadata -- the tool does, and CI refuses one that
+  still carries any. Add a row to `docs/boards/README.md`.
 - `CHANGELOG.md`.
 
 ## What is *not* decoupled yet
