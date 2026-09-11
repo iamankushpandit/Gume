@@ -132,6 +132,10 @@ them apart by screen size, touch type and USB ports:
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
 
+Every board has its own page in [docs/boards/](docs/boards/): how to
+recognise it, what has been checked on it, its sources, and a pin table and
+diagram generated from the firmware itself.
+
 The two 2.8-inch resistive boards look alike; the second USB socket is the
 difference -- and so is power. The dual-USB board has **no battery hardware**
 the firmware can use: no battery sense line, so no battery badge and no

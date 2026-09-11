@@ -1089,6 +1089,8 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_board_docs.py (each board's pin table and pin
+                          diagram, from its profile; --check runs in CI),
                           gen_cursive_glyphs.py (cursive letterforms, from a
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),
@@ -1115,7 +1117,9 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
                           every firmware image attached
-docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/
+docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
+                          boards/ (one page per supported board; the pin
+                          tables and diagrams in it are generated)
 cases/                    printable enclosures, one folder per BOARD_NAME;
                           optional -- a board is supported without one
 ```
