@@ -53,8 +53,11 @@ sees the invitation in its header and joins from its own Ludo lobby.
   is what makes a bonus roll -- or the host playing a computer straight after
   itself -- survive a scan window that missed something.
 - **The service can now say which game an invitation is for**
-  (`NearbySeat::forThisGame`), so the Ludo lobby cannot accept a Chess
-  invitation. Chess and Sea Battle do not check it yet.
+  (`NearbySeat::forThisGame`), and every lobby now checks it. Before, the Chess
+  and Sea Battle lobbies showed any invitation in the room as "A4F2 invites
+  you" -- a Sea Battle invitation included -- and accepting it left two
+  consoles playing different games at each other. An invitation to another
+  game now reads as an ordinary "Play A4F2" row.
 - **One console ending the game ends it for the table**, and the others show
   who stopped. A console that walks out of range stalls the game rather than
   being dropped: the radio cannot tell gone from slow.

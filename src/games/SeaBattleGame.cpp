@@ -509,7 +509,13 @@ void SeaBattleGame::updateLobby(AppContext& host, const TouchPoint& touch) {
         const uint8_t n = host.nearbySeatCount();
         for (uint8_t i = 0; i < n && count < 6; ++i) {
             NearbySeat seat;
-            if (host.nearbySeatAt(i, seat)) fresh[count++] = seat;
+            if (host.nearbySeatAt(i, seat)) {
+                /* An invitation to some other game is not one to accept here:
+                 * answering it would leave two consoles playing different
+                 * games at each other. The row reads "Play A4F2" instead. */
+                seat.inviting = seat.inviting && seat.forThisGame;
+                fresh[count++] = seat;
+            }
         }
         /* Compare the rows and not just how many: a peer that starts inviting
          * changes what its row says without changing the count. */

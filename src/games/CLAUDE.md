@@ -110,7 +110,10 @@ never invent a second one.
 **An invitation names its game.** A lobby accepts one only when
 `NearbySeat::forThisGame` is set -- otherwise a Sea Battle invitation answered
 from the Chess lobby is two consoles playing different games at each other.
-Ludo checks it; Chess and Sea Battle predate it and do not yet.
+Every lobby checks it: Ludo's table lobby directly, and Chess and Sea Battle by
+folding it into `inviting` as the seat list is copied, so an invitation to
+another game reads as an ordinary "Play A4F2" row. A new two-player lobby
+should do the same at the same place.
 
 **More than two seats is the same service.** Ludo reads every other console's
 turn by tag, invites them one at a time (only one invitation is on the air at
