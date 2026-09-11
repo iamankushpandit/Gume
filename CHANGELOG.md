@@ -1,14 +1,16 @@
 # Changelog
 
-## 5.10.0-SNAPSHOT — Unreleased
+## 5.10.0 — 2026-09-11
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.9.1
-release, and `release.yml` refuses to publish a tag whose version carries it.
-
-`Board::compareVersions()` sorts a pre-release before the release of the same
-number, so a console on this build is correctly told that nothing newer exists
-rather than being nagged all cycle to install the 5.9.1 it is ahead of.
+**Two new games, both playable across the room, on five boards that have
+each been run on hardware.** Ludo seats two to four -- any of them the
+computer -- and plays across up to four consoles; Backgammon plays on one
+console, against the computer or against a console nearby. Neither changed
+what goes on the air: the dice are worked out on every console from a shared
+seed and never sent. The two 2.8-inch resistive boards gained sound, the
+battery badge shows its percentage and nothing it had to guess -- and none
+at all on the dual-USB CYD, which has no battery hardware -- and a board can
+now be asked what it is, or set up entirely, over its USB cable. 37 games.
 
 **Only boards that have run on hardware are supported: five, down from
 seven.** The ESP32-2432S028R (micro-USB, ILI9341) and the ESP32-2432S028Rv3
@@ -357,23 +359,6 @@ the wordmark's full-width erase band cut through both as it bobbed. The band
 now stops short of the paddles, and a paddle repaints only when it moves,
 changes colour or the ball passes through it -- erasing only the rows it has
 left, so it does not blink on its way past.
-
-**First thing this cycle: a two-console regression check of nearby play.** It
-has now been carried over twice. Two defects in that path were fixed late in
-5.9.0 — the acceptor never published its ply-0 answer, and a peer's turn was
-recorded only on the sighting that first brought it into range — so the code
-that shipped is not the code that was exercised on two boards, and it is the
-headline feature of that release.
-
-**Second: the boot banner should carry the device's stored STATE, not just its
-identity.** Diagnosing the 5.9.1 panel bug took far longer than it should
-have, because four boards on one commit produced four healthy, nearly
-identical logs while looking different from each other. Everything that
-changes what a screen shows — theme, brightness, layout, idle timeouts, mute
-— lives in NVS, survives a flash, and appeared nowhere in the log. A
-`[boot] state=` line was written during that investigation and used to rule
-out the theme hypothesis; it wants committing properly, with profile names
-deliberately left out for the same reason the SSID already is.
 
 **CI and releases build the console, not the bench probes.** `platformio.ini`
 declares twenty-one environments and seven of them are Braino!; the other
