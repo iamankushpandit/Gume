@@ -10,6 +10,18 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Sounds no longer click on and off.** A recording of Piano on a DAC board
+showed a sharp click as every note started and another about 300ms later as
+it stopped -- and the same happened to every beep on the device. The I2S
+driver was filling an idle DMA with zero words, which is silence for a codec
+but 0 V for the ESP32's built-in DAC, whose silence is mid-scale: the speaker
+line dropped to ground whenever a sound ended and jumped back when the next
+began. The DAC's idle buffers are now filled with mid-scale instead. Every
+sound, on every board, also fades out over about 25ms rather than stopping
+mid-waveform, Mute fades rather than cuts, and the CYD boards' amplifier stays
+on for two seconds after a sound instead of 150ms, so playing notes does not
+switch it on and off between each one.
+
 **Trace and Cursive mark each stroke the way a handwriting workbook does.**
 The direction arrow used to sit on the path itself, one at a time, and jump to
 the next turn as the finger reached it. User testing with five-year-olds said
