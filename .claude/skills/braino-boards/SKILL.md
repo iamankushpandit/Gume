@@ -9,16 +9,74 @@ description: Identify which Braino board is on which serial port, and flash the 
 single session and it is answerable in about ten seconds. Run this instead:
 
 ```bash
-python tools/identify_boards.py
+python tools/ESP32_boardUtil.py
 ```
 
-It prints one line per port: the board, and the PlatformIO environment to flash
-it with. To flash every connected board correctly, in one step, taking and
-releasing the board lock on its own:
+It prints one line per port: the board, the PlatformIO environment to flash it
+with, the firmware version, and `asked` or `reset` -- how it found out.
+
+**While testing a change, flash only the board you are working on:**
 
 ```bash
-python tools/identify_boards.py --flash
+python tools/ESP32_boardUtil.py --flash --board E32R40T
 ```
+
+`--board` takes a `BOARD_NAME` or an environment (`app_e32r40t`), and repeats
+for more than one. This is the default for testing. A new commit changes the
+build stamp, so every environment it builds is a full rebuild: flashing the
+whole bench to test a 4-inch launcher change cost four of them side by side,
+more than ten minutes, for one panel's worth of answer.
+
+Flash **every** connected board only when the owner asks for the whole bench
+-- checking a release on each board, say:
+
+```bash
+python tools/ESP32_boardUtil.py --flash
+```
+
+Either way it takes and releases the board lock on its own. It builds every distinct environment **at the same time**, then uploads to **all
+boards at the same time** -- one agent flashing its whole bench in parallel is
+intended; two agents flashing at once is what the lock prevents. A failed build
+or board has its log in `.pio/build-<env>.log` / `.pio/upload-<port>.log` and
+does not stop the others. A first build of a board model can take minutes, so
+run it in the background.
+
+If other agents may be testing on the boards, never restart any of them:
+
+```bash
+python tools/ESP32_boardUtil.py --no-reset
+```
+
+## Configure the bench — never by hand
+
+To give every connected board the same settings, Wi-Fi, players and per-player
+game lists (after a flash, or to put a bench into a known state):
+
+```bash
+python tools/configure_boards.py --dry-run
+python tools/configure_boards.py
+```
+
+It reads `tools/bench_config.json`. That file is **gitignored** because it holds
+the owner's Wi-Fi password and player names. If it does not exist, copy
+`tools/bench_config.example.json` and ask the owner for the values rather than
+inventing them. Never commit it, print it, or paste it anywhere. `--board
+E32R40T` or `--port COM12` narrows the run to one model or one port.
+
+It finds boards with `identify`, unlocks each with the admin PIN from the
+config, applies `settings` (any key `get` lists), `wifi`, `profiles`,
+`rename_profiles`, `remove_profiles` and `games`, reads back `get`, and locks
+again. Players are addressed by **name**, never slot -- slots shift when a
+player is removed. Boards on firmware older than the console are reported and
+skipped. Nothing is reset. A board refusing `unlock` has a different PIN, and
+three wrong PINs lock its console out for 30 seconds, so don't retry in a loop.
+`remove_profiles` deletes a player's scores and progress for good -- only put a
+name there when the owner asked for it.
+
+Taking the board lock is done for you. To send one command by hand, open the
+port with DTR/RTS low and type `help`: the board lists its own commands, and
+`help <command>` gives usage and whether it needs the PIN. Every reply is one
+line, `ok key="v" ...` or `err <code> <message>`.
 
 ## Why the port is not the answer
 
@@ -26,11 +84,27 @@ A COM number is assigned by Windows in plug order, so the same four boards were
 COM9/10/11/12 in the morning and COM9/10/12/13 in the afternoon. Anything keyed
 on the port is stale by the next reboot.
 
-The **MAC** is burned into eFuse: unique per chip, never moves, and readable
-from a board with no firmware on it at all — which is exactly the situation
-after a failed flash, and the situation where a boot banner tells you nothing.
-`tools/board_registry.json` maps MAC → board → env, and is the memory that makes
-the question answerable once instead of every time.
+A board identifies itself by its **device id** (`[boot] device=R28T-…`), which
+the firmware generates and owns -- never by its MAC, which must not be stored
+or printed (see "No identifiers in this repository" in `CLAUDE.md`).
+`tools/board_registry.json` (gitignored, local) maps device id → board → env.
+
+## Ask, don't reset
+
+Current firmware answers `identify` (or `identify?`) on the serial port with one
+`ok v="1" device=...` line and keeps running, so the tool asks first. Only a board that stays silent --
+older firmware, a diag build, a blank flash -- gets reset so its boot banner can
+be read. Resetting is not free: it discards whatever the board was doing, one
+2.8-inch board's USB drops off the bus as its app starts (so the banner is
+lost), and an E32R40T is regularly left in a `flash read err` / `invalid
+header` ROM boot loop by a reset -- including the one at the end of an upload.
+`--flash` checks every board it flashed afterwards and brings a looping one
+back by itself (a reset from download mode, no battery pull); a board it could
+not recover is reported as FAILED.
+
+If you write your own serial script, open the port with DTR and RTS already
+low (`s = serial.Serial(); s.dtr = False; s.rts = False; s.port = ...;
+s.open()`), or opening it resets the board.
 
 ## Rules this must not break
 
@@ -48,12 +122,13 @@ the question answerable once instead of every time.
   notice. Flash a candidate build, read `[boot] board=` back, then record it:
 
   ```bash
-  python tools/identify_boards.py --learn
+  python tools/ESP32_boardUtil.py --learn
   ```
 
 ## The banner's honest limit
 
-`[boot] board=<NAME>` is compiled in, so it reports which *firmware* is on the
+`[boot] board=<NAME>` (and the `identify` reply's `board=`) is compiled in, so it
+reports which *firmware* is on the
 board, not which *panel* is underneath it. It is right whenever the board was
 last flashed correctly and confidently wrong when it was not. That is why the
 registry keeps a `how` field recording what each identification rested on —
@@ -63,3 +138,17 @@ confidence and the file should not hide which one it has.
 If the registry and a live banner disagree, the tool prints `!! registry says X,
 board says Y` rather than silently preferring either. Investigate; don't paper
 over it.
+
+The device id carries a second opinion: its prefix (`R40T-...`) is the tag of
+the firmware that first issued it, and it survives a reflash. When that tag
+disagrees with `board=`, the tool marks the port `!! ... probably the wrong
+image` and refuses to flash it -- that is how a 4-inch board running the
+2.8-inch image shows up. Look at the panel, then flash the right environment
+by hand.
+
+**Ports move while a flash is running.** A whole-bench build can take twenty
+minutes, and a replug or a USB power surge renumbers the COM ports in that
+time. That is how a 4-inch board once received the 2.8-inch image. `--flash`
+now asks every port again immediately before its upload and skips any that
+does not give the device id it gave at the start; if you flash by hand, do the
+same.

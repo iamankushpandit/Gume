@@ -49,22 +49,6 @@ uint32_t deltaCounter(uint32_t current, uint32_t previous) {
                                : (0xFFFFFFFFUL - previous) + current + 1UL;
 }
 
-String powerText(Board::PowerState pwr) {
-    if (pwr == Board::PowerState::BATTERY) return "Battery";
-    if (pwr == Board::PowerState::EXTERNAL_POWER) return "External USB";
-    return "Unknown";
-}
-
-String chargingText(Board::ChargingState state) {
-    switch (state) {
-        case Board::ChargingState::CHARGING:    return "Charging";
-        case Board::ChargingState::FULL:        return "Charged (on USB)";
-        case Board::ChargingState::DISCHARGING: return "On battery";
-        default: break;
-    }
-    return "Unknown";
-}
-
 String uptimeText(uint32_t seconds) {
     const uint32_t hours = seconds / 3600UL;
     const uint32_t mins = (seconds % 3600UL) / 60UL;
@@ -297,19 +281,23 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("Uptime", uptimeText(millis() / 1000UL));
 
     rows_.addSection("Power");
-    rows_.addRow("Source", powerText(board.getPowerSource()));
-    rows_.addRow("Charging", chargingText(board.getChargingState()));
-    /* A negative percentage means the ADC read outside a plausible range, not
-     * that the pack is missing: this board cannot tell whether one is fitted
-     * (see BoardPower.cpp), so it must not claim to. */
-    rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
-           (pct >= 0 ? " (" + String(pct) + "%)" : " (sensor fault)"));
-    rows_.addRow("Charge level", pct < 0 ? String("Sensor out of range")
-                                : board.isBatteryCritical() ? String("Critical - charge now")
-                                : board.isBatteryLow() ? String("Low - charge soon")
-                                : String("OK"));
-    rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
-    rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
+    /* No battery hardware (the dual-USB CYD): say so, rather than a zero
+     * volts that reads as a flat pack or a sensor fault. */
+    if (!BOARD.hasBatterySense()) {
+        rows_.addRow("Battery", "None - use USB power");
+    } else {
+        /* A negative percentage means the ADC read outside a plausible range, not
+         * that the pack is missing: this board cannot tell whether one is fitted
+         * (see BoardPower.cpp), so it must not claim to. */
+        rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
+               (pct >= 0 ? " (" + String(pct) + "%)" : " (sensor fault)"));
+        rows_.addRow("Charge level", pct < 0 ? String("Sensor out of range")
+                                    : board.isBatteryCritical() ? String("Critical - charge now")
+                                    : board.isBatteryLow() ? String("Low - charge soon")
+                                    : String("OK"));
+        rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
+        rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
+    }
 
     rows_.addSection("Flash");
     rows_.addRow("Chip size", formatBytes(ESP.getFlashChipSize()));

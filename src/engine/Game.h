@@ -28,6 +28,11 @@ struct NearbySeat {
     char deviceId[5] = {0};
     char name[11] = {0};        // local label, empty when unnamed
     bool inviting = false;      // offering us a game right now
+    /* The offer is for the app that is open on THIS console. An invitation
+     * names its game, and a lobby must not offer to accept one for another --
+     * a Sea Battle invitation answered from the Chess lobby is two consoles
+     * playing different games at each other. Only meaningful with `inviting`. */
+    bool forThisGame = false;
     uint8_t session = 0;
     /* Which side we take if we accept. The console that offers the game flips
      * for it rather than keeping the advantage of moving first, and the answer
@@ -119,6 +124,12 @@ public:
     /** The named peer's latest move in `session`, if it has one on the air. */
     virtual bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                                 NearbyTurn& out) = 0;
+    /* This console's own tag, as its peers see it -- the four hex digits it
+     * already advertises about itself -- or "" while sessions are not allowed.
+     * A game with more than two seats needs it to put every console, itself
+     * included, in the same order on every console. It is the same identifier
+     * every peer already has, so handing it to an app reveals nothing new. */
+    virtual const char* nearbySelfId() = 0;
 };
 
 class GameHost : public AppContext {

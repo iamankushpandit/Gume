@@ -6,7 +6,7 @@ and uploading, kept here rather than in YAML for one reason: YAML in a workflow
 is only ever executed by the workflow, on a tag, when it is far too late to
 find out it was wrong. This can be run against a local build:
 
-    pio run -e app -e bringup -e wifidiag -e batdiag
+    pio run $(python tools/envs.py --product --pio-args)
     python tools/pack_release.py --version 5.0.1 --out dist/
 
 It produces, per environment:
@@ -27,6 +27,15 @@ declared only ("app",), and every Pages deploy from 2026-08-15 died after a
 clean build -- the installer silently stayed on an old version for two pushes.
 A release that quietly omits an environment fails the same way, except the
 evidence is a missing download rather than a red run.
+
+It is the *product* environments, though, not every one. A release used to
+carry all twenty-one, so fourteen of the images attached to a tag were bench
+probes -- a bringup, a batdiag and an audiodiag per board, plus four boardless
+ones. Nobody downloads a probe: whoever needs one has the toolchain open and
+runs `pio run -e batdiag -t upload`, which gives them the build in front of
+them rather than the one a tag froze. `tools/envs.py` reads the `custom_env_kind`
+each environment declares, so which images a release publishes is a fact stated
+once, beside the environments themselves.
 
 **The flash mode, frequency and size are `keep`**, so esptool copies them out
 of the bootloader image the build just produced. Writing `dio` / `40m` / `4MB`
@@ -50,6 +59,9 @@ import shutil
 import subprocess
 import sys
 import textwrap
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import envs as env_kinds       # noqa: E402  (path set immediately above)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -147,7 +159,7 @@ ENV_BLURBS = {
 def env_role(env, board):
     """The environment's role, with any board suffix stripped.
 
-    `app_esp32_2432s028r` on board `esp32_2432s028r` is the `app` role. The
+    `app_esp32_2432s028_inv` on board `esp32_2432s028_inv` is the `app` role. The
     board id is matched exactly rather than splitting on the first underscore,
     so a role whose own name contains one cannot be truncated silently.
     """
@@ -176,7 +188,7 @@ def firmware_version():
 
 
 def environments(ini):
-    """Every [env:*] in platformio.ini, with the board each one composes.
+    """Every product [env:*] in platformio.ini, with the board each one composes.
 
     An environment that references no [board_*] section is board-agnostic --
     wifidiag builds src/wifi_diag.cpp alone and touches no board peripheral.
@@ -186,7 +198,7 @@ def environments(ini):
     """
     boards = re.findall(r"^\[board_(\w+)\]", ini, re.M)
     found = []
-    for env in re.findall(r"^\[env:(\w+)\]", ini, re.M):
+    for env in env_kinds.of_kind(env_kinds.PRODUCT, ini):
         body = re.search(r"^\[env:%s\](.*?)(?=^\[|\Z)" % re.escape(env),
                          ini, re.M | re.S).group(1)
         used = [b for b in boards
@@ -321,8 +333,10 @@ def flashing_notes(version, built, entries):
             lines.append("  %-*s %s" % (column, "", extra))
     lines += [
         "",
-        "The diagnostics are for hardware triage. Flashing one replaces the",
-        "console until you flash the app image back.",
+        "The bench probes -- bringup, batdiag, audiodiag, wifidiag and the",
+        "board bring-up diagnostics -- are deliberately NOT attached here.",
+        "They are built from source when a board needs triaging:",
+        "  pio run -e batdiag -t upload",
         "",
         "-" * 70,
         "Flashing the merged image (one command)",
@@ -356,7 +370,7 @@ def flashing_notes(version, built, entries):
         lines.append("")
     lines += [
         "",
-        "Substitute another environment's name to flash a diagnostic.",
+        "Substitute another environment's name to flash a different board.",
         "",
         "-" * 70,
         "What flashing destroys",
@@ -396,9 +410,11 @@ def pack(version, out_dir, built, strict):
     for env, board in environments(ini):
         env_dir = os.path.join(ROOT, ".pio", "build", env)
         if not os.path.isdir(env_dir):
-            die("no build for [env:%s] at %s -- every environment in "
+            die("no build for [env:%s] at %s -- every product environment in "
                 "platformio.ini has to be built before packing, or the "
-                "release quietly ships without it" % (env, env_dir))
+                "release quietly ships without it. Build them with "
+                "`pio run $(python tools/envs.py --product --pio-args)`."
+                % (env, env_dir))
 
         label = "-".join(filter(None, ("braino", version, board, env)))
         parts = {}

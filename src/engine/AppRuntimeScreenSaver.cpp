@@ -135,18 +135,21 @@ void BrainoApp::renderScreenSaver() {
         ssav_ry_ = effH / 2.0f;
         ssav_hits_ = 0;
         ssav_color_ = Ui::rgb(80, 180, 255);
-        ssav_textCy_ = -1;
+        ssav_textDrawn_ = false;
+        ssav_batPctDrawn_ = -2;
+        ssav_batBoxW_ = 0;
+        ssav_lyDrawn_ = -1;
+        ssav_ryDrawn_ = -1;
         ssav_initialized_ = true;
     }
 
     constexpr int16_t PAD_H = 40;
     constexpr int16_t PAD_W = 6;
+    constexpr int16_t PAD_R = 3;
     constexpr int16_t BALL = 6;
     constexpr int16_t LX = 10;
     const int16_t RX = static_cast<int16_t>(effW - 10);
 
-    tft.fillRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2 - 2), PAD_W, PAD_H + 4, TFT_BLACK);
-    tft.fillRect(RX - PAD_W / 2, static_cast<int16_t>(ssav_ry_ - PAD_H / 2 - 2), PAD_W, PAD_H + 4, TFT_BLACK);
     /* Kept, because everything below has to know where the hole is. The ball is
      * the only thing that moves across the whole panel, so it is the only
      * thing that can punch through the text, the net or the badge -- and those
@@ -207,78 +210,131 @@ void BrainoApp::renderScreenSaver() {
         resetScreenSaverRally(effW, effH);
     }
 
-    const float bobAmplitude = fmaxf(10.0f, effH / 2.0f - 40.0f);
-    const float bob = sinf(static_cast<float>(millis()) * 0.00035f) * bobAmplitude;
-    const int16_t cy = static_cast<int16_t>(effH / 2.0f + bob);
-    constexpr int16_t TEXT_BAND_TOP = 26;
-    constexpr int16_t TEXT_BAND_BOTTOM = 22;
-    constexpr int16_t TEXT_BAND_H = TEXT_BAND_TOP + TEXT_BAND_BOTTOM;
-
     auto hitsBall = [&](int16_t x, int16_t y, int16_t w, int16_t h) {
         return ballEraseX < x + w && ballEraseX + BALL * 2 > x &&
                ballEraseY < y + h && ballEraseY + BALL * 2 > y;
     };
 
-    /* THE WORDMARK IS REPAINTED WHEN IT MOVES, NOT WHEN A FRAME HAPPENS.
+    /* THE WORDMARK STANDS STILL, CENTRED ON WHICHEVER WAY THE PANEL IS HELD.
      *
-     * The bob is a sine with an eighteen-second period, and on a 480x320 panel
-     * an amplitude of 120px. That is about one pixel per frame at the fastest
-     * part of the swing and none at all at the turns -- yet the old code erased
-     * a full-width 48px band and redrew both strings every frame, which on that
-     * panel is 23,040 pixels pushed to move text by nothing. Over an hour of
-     * screen saver it is the single largest thing this device does.
+     * It used to bob up and down on an eighteen-second sine, which meant
+     * erasing and redrawing a band of the screen whenever the integer position
+     * changed -- a visible shimmer for no information. effW and effH are the
+     * live panel, so the centre is right in landscape and portrait alike.
      *
-     * The integer y is what matters, so the band is only touched when THAT
-     * changes -- or when the ball has gone through the text, which is the one
-     * other thing that can damage it. */
-    const int16_t bandY = static_cast<int16_t>(cy - TEXT_BAND_TOP);
-    const bool textMoved = (cy != ssav_textCy_);
-    const bool textHit = hitsBall(0, bandY, effW, TEXT_BAND_H);
-    if (textMoved || textHit) {
-        if (ssav_textCy_ >= 0) {
-            tft.fillRect(0, static_cast<int16_t>(ssav_textCy_ - TEXT_BAND_TOP), effW,
-                         TEXT_BAND_H, TFT_BLACK);
-        }
+     * What changes instead is colour: "Braino!" takes a dim shade of the rally
+     * colour, so it shifts with every paddle hit. A colour change is an
+     * overdraw -- the text is drawn with an opaque background in the same
+     * place -- so nothing is erased and nothing flashes. The only other thing
+     * that repaints it is the ball passing through, which has already punched
+     * its own square out of it. */
+    const int16_t midX = static_cast<int16_t>(effW / 2);
+    const int16_t midY = static_cast<int16_t>(effH / 2);
+    const int16_t nameY = static_cast<int16_t>(midY - 10);
+    const int16_t copyY = static_cast<int16_t>(midY + 14);
+    const int16_t textW = static_cast<int16_t>(
+        max<int16_t>(static_cast<int16_t>(tft.textWidth(BRAINO_PRODUCT_NAME, 4)),
+                     static_cast<int16_t>(tft.textWidth(BRAINO_COPYRIGHT, 1))) + 8);
+    const int16_t textX = static_cast<int16_t>(midX - textW / 2);
+    const int16_t textY = static_cast<int16_t>(midY - 26);
+    constexpr int16_t TEXT_H = 48;
+    const uint16_t nameColour = Ui::shade(ssav_color_, 60);
+    if (!ssav_textDrawn_ || nameColour != ssav_textColorDrawn_ ||
+        hitsBall(textX, textY, textW, TEXT_H)) {
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(Ui::rgb(120, 128, 150), TFT_BLACK);
-        tft.drawString(BRAINO_PRODUCT_NAME, effW / 2, static_cast<int16_t>(cy - 10), 4);
+        tft.setTextColor(nameColour, TFT_BLACK);
+        tft.drawString(BRAINO_PRODUCT_NAME, midX, nameY, 4);
         tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
-        tft.drawString(BRAINO_COPYRIGHT, effW / 2, static_cast<int16_t>(cy + 14), 1);
+        tft.drawString(BRAINO_COPYRIGHT, midX, copyY, 1);
         tft.setTextDatum(TL_DATUM);
-        ssav_textCy_ = cy;
+        ssav_textDrawn_ = true;
+        ssav_textColorDrawn_ = nameColour;
     }
 
-    /* THE NET AND THE BADGE ARE REDRAWN EVERY FRAME, DELIBERATELY.
+    /* THE BATTERY IS REPAINTED WHEN ITS NUMBER CHANGES, NOT EVERY FRAME.
      *
-     * Both were gated on "did something erase you" and both were wrong for it.
-     * The net was tested against the band's NEW position while the erase had
-     * used the OLD one, so the segments actually removed were not the ones put
-     * back. The badge sits at rows 6..22 and the wordmark's bob carries its
-     * 48px band up to row 14 at the top of the swing -- so the band wipes the
-     * badge, and nothing in the ball test noticed.
-     *
-     * They are also nearly free: twenty-three 2x8 fills and one small badge,
-     * against the 23,040-pixel band erase that gating the TEXT actually saves.
-     * That was the win worth having; these two were greed, and they cost a net
-     * with holes in it and a battery that kept vanishing. */
-    for (int16_t y = 0; y < effH; y += 14) {
-        tft.fillRect(effW / 2 - 1, y, 2, 8, Ui::rgb(40, 40, 40));
-    }
-
-    const int16_t batCx = effW / 2;
+     * It was erased and redrawn on every frame, which is a badge visibly
+     * flickering at 25Hz. Its percentage is a RAM read and moves rarely, so
+     * it now repaints on a change -- erasing the old box first, because the
+     * badge's width follows its digits -- or when the ball has cut into it,
+     * in which case an overdraw is enough. */
+    const int16_t batCx = midX;
     const int16_t batCy = 14;
     const int8_t batPct = board_.getBatteryPercent();
-    const Ui::PowerHint batPower = Ui::powerHint(board_);
-    const int16_t batW = Ui::batteryBadgeWidth(tft, batPct, batPower);
-    const int16_t batX = static_cast<int16_t>(batCx - batW / 2 - 2);
+    /* Zero on a board with no battery hardware: no badge, so no box, and the
+     * net below runs straight through where it would have been. */
+    const int16_t badgeW = Ui::batteryBadgeWidth(tft, batPct);
+    const int16_t batW = badgeW > 0 ? static_cast<int16_t>(badgeW + 6) : 0;
     const int16_t batY = static_cast<int16_t>(batCy - 8);
-    /* Cleared to the badge's own width: it is variable, and a fixed 24px wipe
-     * would leave the tail of a wider one behind as the ball goes past. */
-    tft.fillRect(batX, batY, static_cast<int16_t>(batW + 6), 16, TFT_BLACK);
-    Ui::drawBatteryBadge(tft, batCx, batCy, batPct, batPower, TFT_BLACK);
+    constexpr int16_t BAT_H = 16;
+    const bool batChanged = batPct != ssav_batPctDrawn_;
+    const bool batHit = ssav_batBoxW_ > 0 &&
+                        hitsBall(static_cast<int16_t>(batCx - ssav_batBoxW_ / 2), batY,
+                                 ssav_batBoxW_, BAT_H);
+    if (batChanged || batHit) {
+        if (batChanged && ssav_batBoxW_ > 0) {
+            tft.fillRect(static_cast<int16_t>(batCx - ssav_batBoxW_ / 2), batY,
+                         ssav_batBoxW_, BAT_H, TFT_BLACK);
+        }
+        Ui::drawBatteryBadge(tft, batCx, batCy, batPct, TFT_BLACK);
+        ssav_batPctDrawn_ = batPct;
+        ssav_batBoxW_ = batW;
+    }
 
-    tft.fillRoundRect(LX - PAD_W / 2, static_cast<int16_t>(ssav_ly_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);
-    tft.fillRoundRect(RX - PAD_W / 2, static_cast<int16_t>(ssav_ry_ - PAD_H / 2), PAD_W, PAD_H, 3, ssav_color_);
+    /* The net is redrawn every frame -- it is twenty-odd 2x8 fills in a colour
+     * that never changes, so overdrawing it costs nothing visible and repairs
+     * wherever the ball went through. It skips the stretches behind the
+     * wordmark and the battery, so it no longer cuts through either. */
+    for (int16_t y = 0; y < effH; y += 14) {
+        const bool behindText = y + 8 > textY && y < textY + TEXT_H;
+        const bool behindBattery = y + 8 > batY && y < batY + BAT_H;
+        if (!behindText && !behindBattery) {
+            tft.fillRect(static_cast<int16_t>(midX - 1), y, 2, 8, Ui::rgb(40, 40, 40));
+        }
+    }
+
+    /* THE PADDLES ARE REPAINTED WHEN THEY MOVE, NOT WHEN A FRAME HAPPENS.
+     *
+     * Only one paddle tracks the ball at a time, so the other stands still for
+     * half of every rally -- and both used to be erased to black and redrawn
+     * every frame regardless, which on the panel is a paddle flickering while
+     * it does nothing. Now a paddle is touched only when its integer position
+     * or its colour changes, or the ball's erase has cut into it.
+     *
+     * A moving paddle erases just the rows it has left: the old rect minus the
+     * new one's straight-sided middle. The overlap is repainted in the colour
+     * it already had, so it does not blink on its way past. */
+    const bool recolour = (ssav_color_ != ssav_padColorDrawn_);
+    auto paintPaddle = [&](int16_t cx, float yCentre, int16_t& drawnTop) {
+        const int16_t left = static_cast<int16_t>(cx - PAD_W / 2);
+        const int16_t top = static_cast<int16_t>(yCentre - PAD_H / 2);
+        const bool painted = drawnTop >= 0;
+        const bool damaged = painted && hitsBall(left, drawnTop, PAD_W, PAD_H);
+        if (painted && top == drawnTop && !recolour && !damaged) {
+            return;
+        }
+        if (painted && top != drawnTop) {
+            const int16_t oldBottom = static_cast<int16_t>(drawnTop + PAD_H);
+            const int16_t keepTop = static_cast<int16_t>(top + PAD_R);
+            const int16_t keepBottom = static_cast<int16_t>(top + PAD_H - PAD_R);
+            const int16_t upperEnd = min(oldBottom, keepTop);
+            if (upperEnd > drawnTop) {
+                tft.fillRect(left, drawnTop, PAD_W, static_cast<int16_t>(upperEnd - drawnTop),
+                             TFT_BLACK);
+            }
+            const int16_t lowerStart = max(drawnTop, keepBottom);
+            if (oldBottom > lowerStart) {
+                tft.fillRect(left, lowerStart, PAD_W, static_cast<int16_t>(oldBottom - lowerStart),
+                             TFT_BLACK);
+            }
+        }
+        tft.fillRoundRect(left, top, PAD_W, PAD_H, PAD_R, ssav_color_);
+        drawnTop = top;
+    };
+    paintPaddle(LX, ssav_ly_, ssav_lyDrawn_);
+    paintPaddle(RX, ssav_ry_, ssav_ryDrawn_);
+    ssav_padColorDrawn_ = ssav_color_;
+
     tft.fillRoundRect(static_cast<int16_t>(ssav_bx_ - BALL), static_cast<int16_t>(ssav_by_ - BALL), BALL * 2, BALL * 2, 2, ssav_color_);
     tft.fillRoundRect(static_cast<int16_t>(ssav_bx_ - BALL / 2), static_cast<int16_t>(ssav_by_ - BALL / 2), BALL, BALL, 1, TFT_WHITE);
 }

@@ -7,27 +7,29 @@
 #define GUME_TOUCH_CAPACITIVE 0
 
 #define GUME_HAS_AUDIO_CODEC 0
-/* NO DAC AUDIO. The XPT2046's bit-banged clock is GPIO25, which is ESP32 DAC
- * channel 1, and bringing up I2S in I2S_MODE_DAC_BUILT_IN takes that pad away
- * from the GPIO matrix -- the panel draws perfectly and nothing responds to a
- * finger. That shipped once, in 5.5.0, and is why 5.5.1 exists. Same conflict
- * as the E32R28T-1; see e32r28t1.h for the full account. */
-#define GUME_HAS_AUDIO_DAC   0
+/* DAC audio on GPIO26, with the touch clock on the other DAC pad, GPIO25.
+ * That is the combination 5.5.0 got wrong; beginAudio() now hands GPIO25 back
+ * once the driver is up. Same arrangement as the E32R28T-1 -- see e32r28t1.h
+ * for the full account. */
+#define GUME_HAS_AUDIO_DAC   1
 
 /* ESP32-2432S028, dual-USB, INVERTING PANEL. 2.8-inch, 240x320.
  *
- * A THIRD CYD VARIANT, and the reason this file exists rather than being folded
- * into one of the other two. The 2.8-inch "cheap yellow display" ships with at
+ * The one CYD variant this firmware supports, and the reason it has its own
+ * file rather than a generic CYD profile. The 2.8-inch "cheap yellow display" ships with at
  * least three different combinations of panel and backlight behind the same
  * silkscreen, and they are not distinguishable by looking at the board:
  *
- *   esp32-2432s028r.h        micro-USB, ILI9341, backlight IO21, no inversion
- *   esp32-2432s028.h         dual-USB, ST7789, backlight IO27  (UNVERIFIED)
- *   this file                dual-USB, ILI9341 sequence + runtime inversion,
- *                            backlight IO21                    (MEASURED)
+ *   micro-USB, ILI9341, backlight IO21, no inversion  (ESP32-2432S028R)
+ *   dual-USB, ST7789, backlight IO27                   (the Rv3)
+ *   this file: dual-USB, ILI9341 sequence + runtime inversion,
+ *              backlight IO21                          (MEASURED)
+ *
+ * Only this one is supported. Profiles for the other two existed until
+ * 5.10.0 and were removed unrun: nobody here owns either board.
  *
  * HOW THIS ONE WAS ESTABLISHED. Every combination was flashed onto one board
- * (MAC 8c:4f:00:2f:80:38) and the screen looked at:
+ * and the screen looked at:
  *
  *   ILI9341, no inversion          draws perfectly, every colour flipped --
  *                                  dark theme white, green purple, blue salmon
@@ -48,18 +50,25 @@
  *
  *   measured   panel, colour inversion, backlight IO21, touch, rotation,
  *              4MB flash and no PSRAM (from the chip, see the [boot] lines)
- *   inherited  SD, RGB LED and battery pins, taken from the E32R28T-1 which
- *              this board matches pin-for-pin everywhere that WAS checked
+ *   published  RGB LED red IO4 / green IO16 / blue IO17, and GPIO34 as the
+ *              light sensor (LDR) -- Random Nerd Tutorials' CYD guide, which
+ *              is the reference for this family (docs/boards/)
+ *   inherited  SD pins, taken from the E32R28T-1
  *
- * The RGB order is the one to distrust: the E32R28T-1's own vendor table has
- * red and green crossed, and that was only found by driving each channel and
- * looking. A wrong-coloured status LED here is expected, not surprising.
+ * Until 5.10.0 the LED and battery were inherited from the E32R28T-1 too,
+ * and both were wrong for a CYD: the LED had red and green crossed, and
+ * GPIO34 was read as a battery through a 2:1 divider when on this board it
+ * is a photoresistor -- so the gauge showed a light level as a charge. This
+ * board has no battery sense line, and the gauge now says so by showing no
+ * digits. Neither the LED order nor the absence of a battery line has been
+ * checked on the board here yet; both follow the published pin map.
  *
  * The display's own SPI pins are not here -- TFT_eSPI reads them from the `-D`
  * flags in platformio.ini, and BoardConfig.h cross-checks the two.
  */
 inline constexpr BoardProfile BOARD = {
     "ESP32-2432S028-inv",
+    "CYDINV",
 
     /* 3 is landscape with the USB edge at the bottom, as on the E32R28T-1.
      * Board::pollTouch() compensates for every rotation, so don't hand-correct
@@ -108,17 +117,19 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
-    /* Inherited, and see the note above about distrusting the order. */
+    /* The CYD's published order -- see the note above. Common anode. */
     RgbLedProfile{
-        /* r           */ 16,
-        /* g           */ 4,
+        /* r           */ 4,
+        /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
     },
 
-    /* Silent by construction -- see GUME_HAS_AUDIO_DAC above. */
+    /* GPIO26 (DAC channel 2) feeds an onboard SC8002B amplifier and the JST
+     * 1.25 speaker connector. The amplifier has no enable line to drive --
+     * confirmed by the owner. maxVolume 75 is the CYD ceiling set by ear. */
     AudioProfile{
-        /* speakerPin          */ PIN_NONE,
+        /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
         /* i2sMclk             */ PIN_NONE,
         /* i2sBclk             */ PIN_NONE,
@@ -130,13 +141,13 @@ inline constexpr BoardProfile BOARD = {
         /* maxVolume           */ 75,
     },
 
-    /* Inherited: IO34 through a 2:1 divider. sensorMaxVolts is an ADC fault
-     * ceiling and NOT a pack-present test -- hal/BoardPower.cpp records why no
-     * threshold can tell a missing pack from a present one on this family. */
+    /* No battery sense. GPIO34 on a CYD is the light sensor, not a battery
+     * divider; reading it as one showed a light level as a charge. PIN_NONE
+     * makes the gauge show no digits, which is the honest answer. */
     BatteryProfile{
-        /* adcPin        */ 34,
-        /* dividerRatio  */ 2.0f,
-        /* sensorMaxVolts*/ 4.50f,
+        /* adcPin        */ PIN_NONE,
+        /* dividerRatio  */ 0.0f,
+        /* sensorMaxVolts*/ 0.0f,
     },
 
     /* 4 MB part, huge_app.csv: 3 MB for the app. Read back from the chip at

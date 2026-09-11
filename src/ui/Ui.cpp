@@ -361,8 +361,7 @@ void drawTopBar(Board& board, const String& title) {
      * with the number it is showing. Everything here used to be a constant
      * offset, which is exactly what a variable-width badge invalidates. */
     const int8_t battPct = board.getBatteryPercent();
-    const Ui::PowerHint battPower = Ui::powerHint(board);
-    const int16_t battW = Ui::batteryBadgeWidth(tft, battPct, battPower);
+    const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
     const int16_t battRight = static_cast<int16_t>(w - 40);   // gear starts at w-34
     const int16_t battCx = static_cast<int16_t>(battRight - battW / 2);
     const int16_t wifiCx = static_cast<int16_t>(battRight - battW - 6 - 8);
@@ -385,7 +384,7 @@ void drawTopBar(Board& board, const String& title) {
     tft.drawString(Clock::timeText(), clockRight, TOP_BAR_HEIGHT / 2, 2);
     Ui::drawSyncBadge(tft, syncCx, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
     Ui::drawWifiBadge(tft, wifiCx, TOP_BAR_HEIGHT / 2, COLOR_BAR);
-    Ui::drawBatteryBadge(tft, battCx, TOP_BAR_HEIGHT / 2, battPct, battPower, COLOR_BAR);
+    Ui::drawBatteryBadge(tft, battCx, TOP_BAR_HEIGHT / 2, battPct, COLOR_BAR);
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -529,19 +528,6 @@ void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
     }
 }
 
-PowerHint powerHint(Board& board) {
-    switch (board.getChargingState()) {
-        case Board::ChargingState::CHARGING: return PowerHint::Charging;
-        case Board::ChargingState::FULL:     return PowerHint::Charged;
-        default: break;
-    }
-    /* No verdict yet (the first seconds after boot) or no pack at all: fall
-     * back to the source, which is what tells the empty-bolt case apart. */
-    return board.getPowerSource() == Board::PowerState::EXTERNAL_POWER
-               ? PowerHint::Charging
-               : PowerHint::OnBattery;
-}
-
 /* ---- battery badge -------------------------------------------------------
  *
  * The shell carries the number, the way both iOS and Android status bars do it:
@@ -550,16 +536,13 @@ PowerHint powerHint(Board& board) {
  * inside bottom, so the analogue cue and the digits are both there and neither
  * is guessing.
  *
- * The badge is therefore VARIABLE WIDTH: "8" unplugged is 22px, "100" while
- * charging is 35px. Callers must lay out from batteryBadgeWidth() rather than
- * assuming a size -- the launcher header has about five pixels of slack in the
- * widest state, and it is the surface that will break first. */
+ * The badge is therefore VARIABLE WIDTH, growing with the digits. Callers must
+ * lay out from batteryBadgeWidth() rather than assuming a size. It used to be
+ * wider still while charging, to fit a bolt; there is no charging state now. */
 namespace {
 
 constexpr int16_t BATT_H        = 15;   // shell height, outline included
 constexpr int16_t BATT_PAD      = 3;    // inner padding, each side
-constexpr int16_t BATT_BOLT_W   = 6;
-constexpr int16_t BATT_BOLT_GAP = 2;
 constexpr int16_t BATT_TERM_W   = 2;    // the positive terminal nub
 constexpr int16_t BATT_MIN_INNER = 11;  // the no-battery case still needs a shell
 constexpr int16_t BATT_TRACK_H  = 4;    // border plus the two-pixel gauge fill
@@ -577,9 +560,8 @@ void batteryText(char* out, size_t len, int8_t percent) {
     snprintf(out, len, "%d", static_cast<int>(percent));
 }
 
-int16_t batteryShellWidth(Ui::Renderer& tft, const char* text, bool onCharger) {
+int16_t batteryShellWidth(Ui::Renderer& tft, const char* text) {
     int16_t inner = BATT_PAD * 2;
-    if (onCharger) inner = static_cast<int16_t>(inner + BATT_BOLT_W + BATT_BOLT_GAP);
     if (text[0] != '\0') inner = static_cast<int16_t>(inner + tft.textWidth(text, 1));
     if (inner < BATT_MIN_INNER) inner = BATT_MIN_INNER;
     return static_cast<int16_t>(inner + 2);   // the two outline pixels
@@ -587,36 +569,41 @@ int16_t batteryShellWidth(Ui::Renderer& tft, const char* text, bool onCharger) {
 
 }  // namespace
 
-int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent, PowerHint power) {
+int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
+    /* A board with no battery hardware has no badge at all -- not an empty
+     * shell, which would read as a flat battery. Width 0 lets every header
+     * that packs itself off this function reclaim the space. */
+    if (!BOARD.hasBatterySense()) {
+        return 0;
+    }
     char text[8];
     batteryText(text, sizeof(text), percent);
-    return static_cast<int16_t>(
-        batteryShellWidth(tft, text, power != PowerHint::OnBattery) + BATT_TERM_W);
+    return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
 }
 
-void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, PowerHint power, uint16_t bg) {
-    const bool onCharger = power != PowerHint::OnBattery;
+void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg) {
+    if (!BOARD.hasBatterySense()) {
+        return;   // no battery hardware, no badge -- see batteryBadgeWidth()
+    }
     char text[8];
     batteryText(text, sizeof(text), percent);
 
-    const int16_t shellW = batteryShellWidth(tft, text, onCharger);
+    const int16_t shellW = batteryShellWidth(tft, text);
     const int16_t totalW = static_cast<int16_t>(shellW + BATT_TERM_W);
     const int16_t bx = static_cast<int16_t>(cx - totalW / 2);
     const int16_t by = static_cast<int16_t>(cy - BATT_H / 2);
 
     const uint16_t neutralClr = (s_theme == Theme::Light) ? rgb(120, 126, 138) : rgb(160, 164, 180);
-    const bool low = !onCharger && percent >= 0 && percent <= Board::BATTERY_LOW_PERCENT;
-    /* Shell and digits stay neutral except when it is low AND unplugged. Red is
-     * the "charge me" signal and it only works while it is rare -- colouring
-     * the shell at every level is what would spend it. */
+    const bool low = percent >= 0 && percent <= Board::BATTERY_LOW_PERCENT;
+    /* Shell and digits stay neutral except when it is low. Red is the "charge
+     * me" signal and it only works while it is rare -- colouring the shell at
+     * every level is what would spend it. */
     const uint16_t outClr = low ? COLOR_ERROR : neutralClr;
 
-    /* The gauge and the bolt carry the level instead. Four bands, matching what
-     * the fill used to say: red means charge it, amber means soon. */
+    /* The gauge carries the level instead. Three bands: red means charge it,
+     * amber means soon. */
     uint16_t levelCol;
-    if (onCharger) {
-        levelCol = COLOR_SUCCESS;
-    } else if (percent <= Board::BATTERY_LOW_PERCENT) {
+    if (percent <= Board::BATTERY_LOW_PERCENT) {
         levelCol = COLOR_ERROR;
     } else if (percent <= 40) {
         levelCol = COLOR_WARNING;
@@ -639,7 +626,7 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
         tft.drawRect(trackX, trackY, trackW, BATT_TRACK_H, trackBorder);
     }
 
-    // Gauge first, so the bolt and the digits sit over it rather than under.
+    // Gauge first, so the digits sit over it rather than under.
     if (percent > 0 && trackW > 2) {
         const int16_t fillTrack = static_cast<int16_t>(trackW - 2);
         int16_t gw = static_cast<int16_t>((static_cast<int32_t>(percent) * fillTrack) / 100);
@@ -648,18 +635,7 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
                      gw, static_cast<int16_t>(BATT_TRACK_H - 2), levelCol);
     }
 
-    int16_t penX = static_cast<int16_t>(bx + 1 + BATT_PAD);
-    if (onCharger) {
-        /* Lightning bolt, two wedges around the centre line. Drawn in the level
-         * colour so "plugged in" and "how full" are one glance, not two. */
-        tft.fillTriangle(static_cast<int16_t>(penX + 4), static_cast<int16_t>(cy - 5),
-                         penX,                            static_cast<int16_t>(cy + 1),
-                         static_cast<int16_t>(penX + 4), static_cast<int16_t>(cy + 1), levelCol);
-        tft.fillTriangle(static_cast<int16_t>(penX + 1), static_cast<int16_t>(cy + 5),
-                         static_cast<int16_t>(penX + 5), static_cast<int16_t>(cy - 1),
-                         static_cast<int16_t>(penX + 1), static_cast<int16_t>(cy - 1), levelCol);
-        penX = static_cast<int16_t>(penX + BATT_BOLT_W + BATT_BOLT_GAP);
-    }
+    const int16_t penX = static_cast<int16_t>(bx + 1 + BATT_PAD);
 
     if (text[0] != '\0') {
         /* Transparent text: the gauge runs under the glyph box and a filled

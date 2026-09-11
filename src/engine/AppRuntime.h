@@ -21,6 +21,54 @@ private:
      * at boot from the chip itself rather than from the compiled-in profile.
      * See the comment on the definition. */
     void logIdentity();
+    /* The whole boot banner -- identity, board, build, time sync -- printed
+     * once from begin(). Lives in AppRuntimeIdentity.cpp. */
+    void logBootBanner();
+    /* The serial console (AppRuntimeConsole.cpp): one line reader, one
+     * command table, one reply grammar (`ok key="v" ...` / `err <code> ...`).
+     * Reads are open; writes need the admin PIN. Never counted as activity. */
+    struct ConsoleCommand {
+        const char* name;
+        const char* usage;
+        const char* help;
+        uint32_t capability;     // AppCapability flags; writes are PIN-gated
+        uint8_t argsMin;
+        uint8_t argsMax;
+        void (BrainoApp::*run)(int argc, char** argv, Print& out);
+    };
+    /* One row per device setting, behind `get` and `set`
+     * (AppRuntimeConsoleSettings.cpp). `set` returns nullptr on success or
+     * an error reply body, "<code> <message>". */
+    struct ConsoleSetting {
+        const char* key;
+        const char* values;      // what `set` accepts, for help and errors
+        void (*listValues)(Print& out);  // optional: choices from a table
+        void (*get)(BrainoApp& app, char* out, size_t cap);
+        const char* (*set)(BrainoApp& app, const char* value);
+    };
+    static const ConsoleCommand* consoleTable(size_t& count);
+    static const ConsoleSetting* consoleSettings(size_t& count);
+    void tickSerialQuery();
+    void runConsoleLine(char* line, Print& out);
+    // AppRuntimeConsole.cpp
+    void cmdIdentify(int argc, char** argv, Print& out);
+    void cmdHelp(int argc, char** argv, Print& out);
+    void cmdUnlock(int argc, char** argv, Print& out);
+    void cmdLock(int argc, char** argv, Print& out);
+    void cmdWifi(int argc, char** argv, Print& out);
+    // AppRuntimeConsoleSettings.cpp
+    void cmdGet(int argc, char** argv, Print& out);
+    void cmdSet(int argc, char** argv, Print& out);
+    // AppRuntimeConsoleProfiles.cpp
+    void cmdProfiles(int argc, char** argv, Print& out);
+    void cmdProfileAdd(int argc, char** argv, Print& out);
+    void cmdProfileRename(int argc, char** argv, Print& out);
+    void cmdProfileRemove(int argc, char** argv, Print& out);
+    void cmdGames(int argc, char** argv, Print& out);
+    void cmdGame(int argc, char** argv, Print& out);
+    void replyIdentify(Print& out);
+    void repaintAfterConsoleChange();
+    void refreshAfterProfileChange();
 
 public:
 
@@ -62,6 +110,7 @@ public:
                        uint8_t ack) override;
     void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) override;
     void nearbyStop() override;
+    const char* nearbySelfId() override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;
     void openSettings() override;
@@ -259,7 +308,18 @@ private:
     uint8_t ssav_hits_ = 0;
     uint16_t ssav_color_ = 0;
     uint32_t ssav_lastFrameMs_ = 0;
-    int16_t ssav_textCy_ = -1;
+    /* What the saver last painted, so the wordmark and the battery repaint
+     * only when they change: the wordmark's colour, and the battery's
+     * percentage and box width (-2 is "not painted", -1 being a real value). */
+    bool ssav_textDrawn_ = false;
+    uint16_t ssav_textColorDrawn_ = 0;
+    int8_t ssav_batPctDrawn_ = -2;
+    int16_t ssav_batBoxW_ = 0;
+    /* Where each paddle was last painted, and in what colour; -1 means not
+     * painted yet. The paddles repaint only when these change. */
+    int16_t ssav_lyDrawn_ = -1;
+    int16_t ssav_ryDrawn_ = -1;
+    uint16_t ssav_padColorDrawn_ = 0;
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;
@@ -288,9 +348,7 @@ private:
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
 
-    /* Track battery state to invalidate screens when charging state or
-     * percentage changes, so the battery badge updates in real-time without
-     * waiting for a screen switch. */
-    Board::ChargingState lastChargingState_ = Board::ChargingState::UNKNOWN;
+    /* The percentage last drawn, so the battery badge updates in real time
+     * without waiting for a screen switch. */
     int8_t lastBatteryPercent_ = -1;
 };

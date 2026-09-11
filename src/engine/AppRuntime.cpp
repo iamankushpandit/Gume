@@ -1,12 +1,9 @@
 #include "AppRuntime.h"
 
-#include <esp_chip_info.h>
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <math.h>
 #include "engine/NearbyPlay.h"
-#include "AppVersion.h"
-#include "BuildStamp.h"
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
@@ -59,45 +56,6 @@ Ui::Renderer& BrainoApp::display() {
         return scaledRenderer_;
     }
     return renderer_;
-}
-
-/* ---------------------------------------------------- nearby two-player
- *
- * Forwarding only. NearbyPlay decides what is allowed and what a sighting
- * means; this just narrows it to the shape an app is given. */
-uint8_t BrainoApp::nearbySeatCount() {
-    return NearbyPlay::seatCount();
-}
-
-bool BrainoApp::nearbySeatAt(uint8_t index, NearbySeat& out) {
-    return NearbyPlay::seatAt(board_, index, out);
-}
-
-bool BrainoApp::nearbyInvite(const char* deviceId, uint8_t session,
-                             bool& weMoveFirst) {
-    return NearbyPlay::invite(deviceId, session, weMoveFirst);
-}
-
-bool BrainoApp::nearbyInviteForUs(NearbySeat& out) {
-    return NearbyPlay::inviteForUs(board_, out);
-}
-
-void BrainoApp::nearbyPublish(uint8_t session, uint8_t ply, uint8_t from,
-                              uint8_t to, uint8_t ack) {
-    NearbyPlay::publishTurn(session, ply, from, to, ack);
-}
-
-void BrainoApp::nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) {
-    NearbyPlay::publishEnd(session, ply, ack);
-}
-
-void BrainoApp::nearbyStop() {
-    NearbyPlay::stopTurns();
-}
-
-bool BrainoApp::nearbyTurnFrom(const char* deviceId, uint8_t session,
-                               NearbyTurn& out) {
-    return NearbyPlay::turnFrom(deviceId, session, out);
 }
 
 Board& BrainoApp::board() {
@@ -192,29 +150,7 @@ void BrainoApp::begin() {
      * engine/Entropy.h. */
     content_.begin(board_);
     Clock::begin();
-    logIdentity();
-    Serial.printf("[boot] board=%s rot=%d layout=%s (landscape=%d portrait=%d)\n",
-                  BOARD.name,
-                  (int)board_.displayRotation(),
-                  board_.layoutMode() == Board::LayoutMode::Vertical ? "Vertical" : "Horizontal",
-                  (int)BOARD.panel.landscapeRotation,
-                  (int)BOARD.panel.portraitRotation);
-    /* Beside the board line, so a serial log pasted into an issue identifies
-     * the firmware that produced it. "Which build was that?" has cost more
-     * than one round trip on a bug report. */
-    Serial.printf("[boot] build=%s built=%s version=%s\n",
-                  BuildStamp::describe(), BuildStamp::builtAt(), BRAINO_VERSION);
-    /* The saved SSID is deliberately absent from this line, and from every
-     * other Serial write in the tree. A serial log is the one artifact of
-     * this device that routinely leaves the house -- pasted into a bug
-     * report, captured by whoever plugs a cable in -- and the network's name
-     * belongs to the household, not to the firmware. `creds` answers the only
-     * question a log needs answered: whether a network is configured at all.
-     * The name itself is still on the device, in System Info and the network
-     * activity list, where the person reading it is the person holding it. */
-    Serial.printf("[boot] ntp=%d creds=%d tzmin=%d\n",
-                  (int)board_.ntpEnabled(), (int)board_.hasWifiCredentials(),
-                  (int)board_.tzOffsetMinutes());
+    logBootBanner();
     board_.beginTimeSync();
     /* After Board::begin(), which is what brings the beacon up: Nearby play
      * rides on that radio and must not try to arm itself before it exists. */
@@ -222,7 +158,6 @@ void BrainoApp::begin() {
     lastBannerGeneration_ = NearbyPlay::bannerGeneration();
     lastClockMinute_ = Clock::minuteKey();
     lastActivityMs_ = millis();
-    lastChargingState_ = board_.getChargingState();
     lastBatteryPercent_ = board_.getBatteryPercent();
     /* The two enums are kept numerically identical (see the static_asserts in
      * Ui.cpp), so this is a cast rather than a mapping. It used to be
@@ -263,98 +198,6 @@ void BrainoApp::begin() {
     board_.playSound(Sound::Boot);
 }
 
-/* WHO AM I, PRINTED BEFORE ANYTHING ELSE CAN GO WRONG.
- *
- * Four boards on one desk, COM numbers that Windows reshuffles on every
- * replug, and a boot banner that only said the board NAME -- which is compiled
- * in, so it reports which firmware is on the chip and not which panel is under
- * it. Between them those cost most of an afternoon: a 2.8-inch board was
- * flashed with the 4-inch build and reported itself as a 4-inch quite
- * happily, and a board nobody had seen before was identified from a firmware
- * image I had put there myself half an hour earlier.
- *
- * The fix is that the device says what it is, from the parts of itself that
- * cannot be wrong:
- *
- *   mac    burned into eFuse, unique per chip, and the ONLY identifier here
- *          that survives being flashed with the wrong image. This is the line
- *          that tells two identical-looking boards apart.
- *   chip   model, revision and core count, straight from esp_chip_info().
- *   flash  size as the ROM reports it, not as the profile claims.
- *   panel  the driver this binary was BUILT with, its size, rotation and
- *          backlight pin -- so a wrong-profile flash is visible in one line
- *          instead of being inferred from a photograph of odd colours.
- *   id     the display controller's own ID register, read back over MISO.
- *          This is the only fact here that comes from the PANEL rather than
- *          from the build, which makes it the one that can contradict the
- *          profile. 0x00 0x93 0x41 is an ILI9341; 0x85 0x85 0x52 is an
- *          ST7789. All-zero or all-ones means MISO is not wired back, which
- *          is common and is not itself a fault -- it just means this
- *          particular check cannot help on this board.
- *   touch  controller and its pins, since a silent panel and a dead digitiser
- *          look identical from across a room.
- *
- * The MAC is a hardware serial number, not personal data: it identifies the
- * board on the bench and never leaves the wire. No profile name, no Wi-Fi
- * credential and no player data is printed here -- see the note by the
- * Wi-Fi line below, which is the rule this has to keep. */
-void BrainoApp::logIdentity() {
-    uint8_t mac[6] = {0};
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-
-    esp_chip_info_t chip{};
-    esp_chip_info(&chip);
-
-    Serial.printf("[boot] mac=%02X:%02X:%02X:%02X:%02X:%02X "
-                  "chip=%s rev=%u cores=%u flash=%luKB psram=%luKB\n",
-                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-                  ESP.getChipModel(), (unsigned)ESP.getChipRevision(),
-                  (unsigned)chip.cores,
-                  (unsigned long)(ESP.getFlashChipSize() / 1024),
-                  (unsigned long)(ESP.getPsramSize() / 1024));
-
-    /* THERE IS NO `id=` FIELD HERE, AND THERE MUST NOT BE ONE AGAIN.
-     *
-     * 5.9.0 read the controller's ID register with three
-     * `tft.readcommand8(0x04, n)` calls and printed the answer. It shipped,
-     * and it broke the display on two of the seven boards: the panel came up
-     * with the top bar crushed into a band at the bottom edge and the rest of
-     * the screen never painted -- an address-window symptom, on a board whose
-     * loop was meanwhile running at 48fps with a 23ms worst frame, a flat heap
-     * and no stall. Every diagnostic said the firmware was healthy, because it
-     * was. The corruption was in the panel, put there by the diagnostic.
-     *
-     * TFT_eSPI's readcommand8() is not a read. It writes 0xD9 -- an
-     * undocumented index-register command -- toggles CS mid-sequence, issues
-     * the command and clocks a byte back, and it restores neither the address
-     * window nor MADCTL. On a panel that answers you get an ID; on a panel
-     * whose MISO is not wired back you get whatever the bus floats to AND a
-     * controller left mid-command, which the next write inherits.
-     *
-     * The field was worth nothing even where it appeared to work: across all
-     * seven supported boards it only ever answered 00:00:00 (MISO absent) or
-     * FF:FF:FF (floating high). Not one returned a real ID. So this was a
-     * diagnostic that could not diagnose, paid for with a corrupted panel.
-     *
-     * If a future board genuinely wires MISO back and the ID is genuinely
-     * wanted, it needs a PanelProfile field saying so and a setRotation()
-     * reissued afterwards to rebuild the window -- never an unconditional
-     * read. Until a board needs it, the correct version of this line is the
-     * one that does not touch the panel at all. */
-    Serial.printf("[boot] panel=%s%s %dx%d bl=IO%d\n",
-                  GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",
-                  (int)BOARD.panel.nativeWidth, (int)BOARD.panel.nativeHeight,
-                  (int)BOARD.panel.backlightPin);
-
-    Serial.printf("[boot] touch=%s cs=IO%d irq=IO%d sd=%s rgb=%s bat=%s\n",
-                  BOARD.touch.kind == TouchKind::CapacitiveFt6336u
-                      ? "FT6336U/i2c" : "XPT2046/bitbang",
-                  (int)BOARD.touch.cs, (int)BOARD.touch.irq,
-                  BOARD.hasSdSlot() ? "yes" : "no",
-                  BOARD.hasRgbLed() ? "yes" : "no",
-                  BOARD.hasBatterySense() ? "yes" : "no");
-}
-
 void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
@@ -377,6 +220,7 @@ void BrainoApp::loop() {
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
     tickUpdateNotice(nowMs);
+    tickSerialQuery();
 
     /* A notification appearing or expiring changes the header, and the header
      * belongs to the screen underneath -- so the chrome has to repaint before
@@ -432,17 +276,14 @@ void BrainoApp::loop() {
     }
 
     /* Keep the battery badge live rather than only correct at a screen change.
-     * Charging state and percentage move independently, so both are watched.
      *
      * Header-only, like the clock above it. This was the worst of the three
      * full repaints: the percentage crosses a boundary far more often than the
      * cell actually discharges -- see Board::getBatteryPercent() -- so the
      * panel was being wiped every couple of seconds, on every screen, for a
      * badge 22 pixels wide. */
-    const Board::ChargingState chargingNow = board_.getChargingState();
     const int8_t percentNow = board_.getBatteryPercent();
-    if (chargingNow != lastChargingState_ || percentNow != lastBatteryPercent_) {
-        lastChargingState_ = chargingNow;
+    if (percentNow != lastBatteryPercent_) {
         lastBatteryPercent_ = percentNow;
         requestChromeRender();
     }
@@ -574,9 +415,9 @@ void BrainoApp::loop() {
  * just redrawn over it -- not on every frame. Repainting a 320x30 strip at
  * 50Hz for five seconds would spend milliseconds a frame redrawing text that
  * has not changed, and the frame budget is 20ms for everything. */
-/* The charger is the only way out of this state, so the warning is driven off
- * Board's charge verdict rather than the percentage alone: plugging in clears
- * it within a couple of seconds, long before the reading climbs. */
+/* The battery warning is driven by the percentage alone -- at or below 15%,
+ * escalating at 5%. There is no charge verdict to consult any more, so on the
+ * charger it clears once the reading climbs back over the threshold. */
 /* Announce a newer firmware, once a day, to whoever is holding the device.
  *
  * Deliberately not admin-only. The person who can act on this is often not the
@@ -663,13 +504,17 @@ void BrainoApp::tickBatteryWarning(uint32_t nowMs) {
     requestBannerRepaint();
 }
 
-/* The strip is painted over the screen's own header, so the screen underneath
- * has to redraw before it can genuinely go away again. */
+/* The strip is painted over the screen's own header, so the header underneath
+ * has to redraw before it can genuinely go away again -- the header, not the
+ * screen. This used to call requestRender(), so the battery warning wiped the
+ * whole panel twice per cycle, once to appear and once to leave, and repeated
+ * that for as long as the cell stayed low. Nearby's banner had already moved
+ * to the chrome path; this is the same fix for the battery and update notices.
+ * A screen that cannot repaint its chrome alone still gets a full repaint,
+ * through the fallback in loop(). */
 void BrainoApp::requestBannerRepaint() {
     bannerNeedsPaint_ = true;
-    if (view_ == View::Game && activeGame_ != nullptr) {
-        activeGame_->requestRender();
-    }
+    requestChromeRender();
 }
 
 void BrainoApp::drawHeaderBanner(bool screenRepainted) {

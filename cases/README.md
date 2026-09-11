@@ -22,6 +22,8 @@ cases/
 | Board | Case | Notes |
 |---|---|---|
 | [E32R28T-1](E32R28T-1/) | Two-part screwed shell | Printed and assembled; a stopgap. The designed enclosure is [#13](https://github.com/iamankushpandit/Gume/issues/13), queued behind [#8](https://github.com/iamankushpandit/Gume/issues/8) |
+| [E32R32P](E32R32P/) | Front shell with printed fasteners, back plate with an 8 Ω speaker grille | Printed and fitted; print settings not recorded yet |
+| [E32R40T](E32R40T/) | Front shell, back plate and four printed fasteners on one plate | Printed and fitted; print settings not recorded yet |
 
 ## Adding a case for your board
 

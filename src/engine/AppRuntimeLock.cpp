@@ -297,12 +297,11 @@ void BrainoApp::renderLock() {
          * takes its proportions from the rect it is given. */
         /* Two rows, not one. The launcher and Profiles both put the
          * copyright on the wordmark's row, but they do not also carry the
-         * battery: the badge is variable width -- 22px at 72, 36px at 100 on
-         * the charger -- and on the 240px portrait panel a wordmark, a 114px
+         * battery: the badge is variable width -- widest at 100 -- and on the 240px portrait panel a wordmark, a 114px
          * copyright and a badge at its widest do not fit on one line with
          * anything left for gaps. Giving the copyright its own row costs 10px
          * of height, which this screen has, and removes the collision that
-         * would otherwise appear only on a charging device at full battery.
+         * would otherwise appear only at full battery.
          *
          * Both rows are drawn off measured widths rather than constants, the
          * same rule the launcher header follows. */
@@ -311,11 +310,10 @@ void BrainoApp::renderLock() {
         tft.drawString(BRAINO_PRODUCT_NAME, HEADER_PAD, HEADER_ROW1_CY, 2);
 
         const int8_t battPct = board_.getBatteryPercent();
-        const Ui::PowerHint battPower = Ui::powerHint(board_);
-        const int16_t battW = Ui::batteryBadgeWidth(tft, battPct, battPower);
+        const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
         Ui::drawBatteryBadge(tft,
                              static_cast<int16_t>(W - HEADER_PAD - battW / 2),
-                             HEADER_ROW1_CY, battPct, battPower, Ui::bg());
+                             HEADER_ROW1_CY, battPct, Ui::bg());
 
         tft.setTextDatum(TL_DATUM);
         tft.setTextColor(Ui::muted(), Ui::bg());

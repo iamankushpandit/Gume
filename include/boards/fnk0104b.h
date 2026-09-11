@@ -35,6 +35,7 @@
  */
 inline constexpr BoardProfile BOARD = {
     "Freenove-FNK0104B",
+    "FNK",
 
     /* panel.
      *

@@ -56,6 +56,62 @@ If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static â€” the credits, the
 privacy statements â€” must be re-read whenever the thing it describes changes.
 
+## No identifiers in this repository - the rule that cannot be broken
+
+**Nothing that identifies one physical device, one network or one person may
+ever be committed to this repository.** Not in a tool file, not in a comment,
+not in a test fixture, not "temporarily", and not because a design needs it.
+If a workflow needs such a value, it lives on the machine that owns the
+hardware and it is gitignored.
+
+This rule is written in the past tense of a failure. `tools/board_registry.json`
+mapped six boards' **MAC addresses** to the exact firmware environment each was
+running. It was tracked for three commits and shipped inside two release
+tarballs before anyone noticed. It was created deliberately, by an agent, as
+the sensible core of a tool that answers "which board is on which port" -- and
+being sensible is not the test.
+
+**Understand why this particular mistake is unrecoverable.** A MAC is burned
+into eFuse. It cannot be changed, regenerated or rotated: it names that board
+for the life of the silicon. Deleting the file does not un-publish it, because
+git history keeps every version and clones, forks, the API and release
+tarballs all keep their copies. And the harm is worse than a bare MAC, because
+the file paired each one with the firmware that board runs -- which is a list
+of specific devices, in someone's home, and what is on them.
+
+So:
+
+- **Identify a board by `Board::deviceId()`**, not by its MAC. The firmware
+  generates it on first boot from the MAC, the clock, 64 bits of `esp_random()`
+  and the time since boot, puts all of that through SHA-256, and keeps four
+  bytes: `R28T-9F3A2C71`. The hash is what makes it safe -- it cannot be turned
+  back into the MAC -- and the `BoardProfile::idTag` prefix says which *model*
+  it is, which is a fact about a product rather than about a person's house. A
+  factory reset issues a new one, which is the property a MAC can never have.
+- **The boot banner prints `device=`, not `mac=`.** That line is what gets
+  pasted into a public issue, which is how a "local" identifier stops being
+  local. Do not add the MAC back to it.
+- **`tools/board_registry.json` is gitignored.** `board_registry.example.json`
+  ships instead, with placeholder ids, and `ESP32_boardUtil.py --learn` fills
+  in the real one per machine. Reading a MAC off a chip with esptool is still
+  correct when a board cannot introduce itself -- an empty flash, or after a
+  merged-image install wiped NVS -- but it stays on that machine.
+- **`python tools/check_identifiers.py` runs in CI on every pull request.** It
+  fails on MAC addresses in either separator style and on public IP addresses.
+  It cannot recognise an SSID, a hostname or a child's name, so a clean run is
+  not permission: it catches the shapes a machine can catch, and this rule
+  covers the rest.
+
+Storing is not publishing: a MAC held in NVS on the device, or in a gitignored
+file on the maintainer's laptop, is fine. Committing it is not.
+
+**Related, and still open:** `BleBeacon` composes its advertised `deviceId`
+from the last two bytes of the BT MAC (`esp_read_mac(mac, ESP_MAC_BT)`). Those
+two bytes go out over the air. Moving it to `Board::deviceId()` would be
+strictly better, but it changes what the device transmits and what peers key
+their saved names on -- so it needs the maintainer's agreement first, like any
+other change to the advertisement.
+
 ## No data collection - the rule that outranks the feature
 
 Braino collects nothing about the player using it, and no change may alter
@@ -212,7 +268,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 35 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 37 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -222,7 +278,63 @@ pio run -t upload        # build + flash at 460800 baud
 pio device monitor       # serial, 115200 baud
 ```
 
-Five diagnostic environments exist for hardware triage:
+### An environment is either the product or a bench probe, and it says which
+
+`platformio.ini` declares fifteen environments; five of them are Braino!.
+Each one states which it is, once, beside itself:
+
+```ini
+custom_env_kind = product      ; or: diagnostic
+```
+
+`tools/envs.py` reads that and is the only place any workflow, checker or
+packer learns which environments to build. **Nothing may write a list of
+environments into a workflow again.** Three files each kept their own list --
+ci.yml, pages.yml and the size-table loop -- all three named eighteen
+environments, and none of them named `audiodiag`, `diag32p` or
+`audiodiag_e32r32p`, which had been in this file for months. That is exactly
+the failure pages.yml warned about in its own comment while committing it: an
+environment nobody builds is one that is already broken and has not been told
+yet. A hand-kept list can be checked for typos and cannot be checked for
+completeness, so it has to be derived.
+
+What follows from the classification:
+
+- **CI builds the five product environments** on a push to `main` or `dev`,
+  and on a pull request builds `app` plus whatever the diff reaches.
+- **Each environment builds in its own job, in parallel.** `ci.yml` is three
+  jobs: `plan` runs every repository check, asks `envs.py` what to build and
+  installs all the toolchains once into the one cache it alone saves; `build`
+  is a matrix with one runner per environment and `fail-fast: false`, each
+  named after its board (`build E32R28T-1 (app)` -- `envs.py --matrix` reads
+  `BOARD_NAME` from the board section, so a red job says which board broke and
+  the environment beside it says how to reproduce it), each
+  restoring that toolchain cache read-only plus its own per-environment object
+  cache; `verify` waits for both and fails if either did. One runner building
+  seven boards in turn was 14-15 minutes on a push to `dev`. **`verify` is the
+  required status check in the branch rulesets -- never rename it, and never
+  make the matrix jobs required instead:** their names carry the environment,
+  so the set changes with the diff, and a ruleset can only wait for names it
+  knows. `verify` runs `if: always()` so a docs-only pull request, where
+  `build` is skipped, still reports.
+- **A diagnostic is built only when its own source or `platformio.ini`
+  moves** -- `tools/envs.py --for-changes` derives that from each one's
+  `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
+  batdiag environments and nothing else. A board header does not trigger one:
+  the product environment for that board already compiles the same header, so
+  building the probe again is a slower way of learning the same thing.
+- **The Pages workflow builds product environments only.** It offers no probe
+  for download, so it has no business compiling one.
+- **A release publishes product environments only.** Every tag used to attach
+  fourteen probe images nobody downloads; whoever needs one has the toolchain
+  open and runs `pio run -e batdiag -t upload`, which gives them the current
+  build rather than one a tag froze.
+- **A new environment with no `custom_env_kind` fails the checks.** An
+  unclassified environment cannot be a default in either direction without the
+  wrong answer being silent.
+
+Ten diagnostic environments exist for hardware triage. Build one by name
+when you need it:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
 - `pio run -e batdiag` — builds `src/battery_diag.cpp` **alone**, an eight-page
@@ -232,9 +344,10 @@ Five diagnostic environments exist for hardware triage:
   get in the way of watching an ADC for an hour. BOOT cycles pages; CSV
   (`ms,raw,adc_mv,cell_mv,pct,state`) streams to serial for capturing a full
   discharge. It reads the divider ratio and the ADC fault ceiling from the same
-  board profile the product does. Its charge-inference constants are still
-  copied from `BoardPower.cpp` deliberately, so what it shows is what the
-  product will do — **if you change one of those, change both.**
+  board profile the product does. It still carries its own charge-inference
+  constants, which the product no longer has -- 5.10.0 removed the charging
+  display -- so they are a bench aid for watching a charge, not a mirror of
+  the firmware.
 - `pio run -e s3diag` -- builds `src/s3_diag.cpp` **alone**, a bring-up probe
   for the Freenove FNK0104B. It skips the touch calibration wizard on purpose:
   `env:bringup` runs that on a board with no stored calibration, which on a
@@ -253,40 +366,61 @@ Five diagnostic environments exist for hardware triage:
   `check_boards.py`'s `BOARDLESS_ENVS`, because a `[board_*]` section is a
   claim of support and neither board is supported yet.
 
-### Every build is stamped, and the time is not a `-D`
+### Every build is stamped, and nothing about the stamp is a `-D`
 
 `tools/build_stamp.py` is a pre-build script wired in from `[esp32_common]`, so
-every environment gets it. It injects the branch and the abbreviated commit as
-`-D GUME_BUILD_BRANCH` / `-D GUME_BUILD_COMMIT`, and the firmware reads them
-through `BuildStamp::` -- never the macros directly, outside
-`include/BuildStamp.h`. About's last page, System Info's Device tab and the
-`[boot] build=` serial line all read the same three accessors, so the answer to
-"which firmware is on this board?" is one fact with three viewers.
+every environment gets it. It writes the branch and the abbreviated commit into
+a generated `GumeBuildStamp.h` in the build directory, `src/BuildStamp.cpp` is
+the only file that includes it, and the firmware reads the values through
+`BuildStamp::` -- never the macros directly, outside `include/BuildStamp.h`.
+About's last page, System Info's Device tab and the `[boot] build=` serial line
+all read the same three accessors, so the answer to "which firmware is on this
+board?" is one fact with three viewers.
 
 `BRAINO_VERSION` cannot answer that question: it is identical across every
 flash of a release, which is exactly the case where you need to know.
 
-**Do not add the build time as a third `-D`.** PlatformIO folds build flags into
-its build signature, so a flag whose value changes on every invocation -- which
-a clock does by definition -- invalidates every object in the tree and turns
-`pio run` into a permanent full rebuild: roughly 100 seconds instead of 25, for
-everyone, forever. The time comes from the compiler's own `__DATE__` and
-`__TIME__` inside `src/BuildStamp.cpp`, and the script deletes that one object
-file so they are always current. One file recompiles per build, not the tree.
-The consequence to know is that the stamp is the build machine's local clock in
-C's format, not UTC and not ISO -- it identifies a build, it is not a timestamp
-to compute with.
+**Nothing whose value changes per build may become a build flag.** PlatformIO
+folds the flags into its build signature, and `env.Append(CPPDEFINES=...)` in a
+pre-script reaches the Arduino core and NimBLE as well as `src/`. The branch and
+the commit were flags until 5.9.x, and the cost was measured rather than
+assumed:
 
-Branch and commit *do* cost a full rebuild when they change, which is correct:
-that is when the tree needed rebuilding anyway. On GitHub Actions the checkout
-is a detached HEAD, so the script prefers `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`
-over `git rev-parse --abbrev-ref`, which would otherwise say "HEAD". A tree with
-no `.git` at all -- a source tarball -- is a supported way to build, and stamps
-"unknown" rather than inventing something plausible.
+```
+pio run -e app, nothing changed            66 s,    1 object
+pio run -e app, branch name different     333 s,  336 objects
+```
+
+Every object, to change a string that one translation unit reads -- and since a
+commit hash changes on every commit, that was the cost of committing. It also
+meant CI could never cache build output at all, because every CI run is a new
+commit. The generated header fixes both: the include *path* is a flag and never
+moves, the header's *contents* are not a flag and move freely, and only the file
+that includes it is rebuilt.
+
+The same reasoning is why the diagnostic environments carry `-D
+CYD_BRINGUP_ONLY` and friends in `build_src_flags` rather than `build_flags`.
+Those macros are read only under `src/`, but as global flags they changed
+NimBLE's compile command too -- so `env:bringup` measured 306 s, *identical to a
+full app build*, to test one `#ifdef` in `main.cpp`. With them src-scoped and
+`build_cache_dir` on, it reuses the objects the app build already made.
+
+The build time stays out of all of this: `__DATE__` and `__TIME__` come from the
+compiler for free, and the script deletes `BuildStamp.cpp.o` so they are always
+current. The consequence to know is that the stamp is the build machine's local
+clock in C's format, not UTC and not ISO -- it identifies a build, it is not a
+timestamp to compute with.
+
+On GitHub Actions the checkout is a detached HEAD, so the script prefers
+`GITHUB_HEAD_REF` / `GITHUB_REF_NAME` over `git rev-parse --abbrev-ref`, which
+would otherwise say "HEAD". A tree with no `.git` at all -- a source tarball --
+is a supported way to build, and stamps "unknown" rather than inventing
+something plausible.
 
 ### Build gotchas
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
+- **NimBLE's log level is set on its own, to warnings.** Left unset, NimBLE-Arduino copies `CORE_DEBUG_LEVEL` (`NimBLELog.h`), so the core's INFO made it print `New advertiser: <MAC>` for every device a Nearby scan heard -- 3.6 KB/s on the bench, 99.9% of all serial output, strangers' Bluetooth addresses in logs that get pasted into issues, and lines interleaved into the middle of `[boot]` and `[ident]` replies. `CONFIG_NIMBLE_CPP_LOG_LEVEL=2` in `[common]` fixes it without touching the core's own level. It did not change the frame rate -- NimBLE prints from its own task -- so do not expect it to explain a slow `worst=`.
 - `lib_ldf_mode = deep+` is required on `env:app` â€” transitive library headers do not resolve without it.
 - **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` â€” editing one would do nothing.
 - **One board = one `[board_*]` section plus one profile header.** `platformio.ini` splits into `[common]` (true of every board), `[esp32_common]` (the MCU), and a `[board_*]` section per board holding only the TFT_eSPI macros, `BOARD_NAME` and `GUME_BOARD_HEADER`. An environment composes `${common.build_flags}` with exactly one `${board_*.build_flags}`. Put a board-specific `-D` in `[common]` and it becomes a claim about every board â€” `check_boards.py` fails on that. The panel is described twice, to TFT_eSPI and to us, and `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against the profile so the two cannot disagree past the compiler.
@@ -382,6 +516,21 @@ That path resolves to the same file from every worktree, and is never committed.
 "$PID|flash|$(Get-Location)|$(Get-Date -Format o)" | Set-Content $lock -Encoding utf8
 ```
 
+**The lock is per agent, not per board.** Two agents must never flash the
+bench at the same time -- that is what it is for. But the one agent holding it
+may flash several boards at once, and should: each board is its own USB device
+on its own port. `python tools/ESP32_boardUtil.py --flash` does exactly that
+under one hold of the lock -- it builds each distinct environment once, all at
+the same time, then uploads to every port in parallel with `-t nobuild`, with
+one log per build and per port in `.pio/`. **When testing, add `--board
+<BOARD_NAME>` and flash only the board the change is for**; the whole bench is
+for when the owner asks for it, since a new commit makes every environment a
+full rebuild. Parallel builds were measured, not
+assumed: after a new commit, four environments took 210 s one after another
+and 97 s side by side, because each rebuild is mostly single-core dependency
+scanning and linking. Do not hand-roll a second parallel flasher; extend that
+one.
+
 **Release it in all cases** when the build, flash or monitor session ends â€” including on failure. `Remove-Item $lock`.
 
 ### If the lock is already held
@@ -408,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,439,057 / 3,145,728 bytes,
-**77.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,508 / 327,680 (23.3%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,507,569 / 3,145,728 bytes,
+**79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 79,708 / 327,680 (24.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -550,12 +699,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   Sound belongs on that list for a reason worth stating: the speaker belongs to
   whoever is in the room, and a console that came back loud because a different
   player picked it up is a poor thing to hand a child in a quiet house. Per-profile: scores, mastery blobs, game visibility.
-- **The admin PIN gates the two routes into the admin profile**: switching to
-  it, and opening its Edit menu (rename plus its per-player game list). One
-  profile is admin (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it
-  in NVS). Add a third way to become admin and it needs the same gate. It is
-  asked **every time**, including when already admin: being admin is not
-  evidence about who is holding the device, which is the whole threat model.
+- **The admin PIN gates every route to admin powers**: switching to the admin
+  profile, opening its Edit menu (rename plus its per-player game list), and
+  the serial console's `unlock` (see Hardware notes). One profile is admin
+  (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it in NVS). Add
+  another way to become admin and it needs the same gate. It is asked **every
+  time**, including when already admin: being admin is not evidence about who
+  is holding the device, which is the whole threat model. The console's
+  unlock is the one that lasts beyond a single action -- a batch of commands,
+  expiring two minutes after the last one -- because a script configuring a
+  bench is one decision, not twenty; `lock` ends it and the tool always sends
+  it.
 - **Per-player game visibility and profile removal are admin-only; renaming is
   not.** `ProfileGame` gates on `board.isAdminProfile(board.activeProfile())`
   — the *actor*, not the profile being edited. Those two are different
@@ -585,10 +739,10 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 31 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
-- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it is 22px at `72` and 36px at `100` on the charger -- and in that widest state the row has about 4px spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
@@ -638,6 +792,36 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `from == to`**, which is never a legal move and so cannot be confused with
   one; it adds no bytes to a payload that has none to spare, and it is tested
   before the whose-turn check because a player gives up while they are waiting.
+- **Ludo seats up to four consoles on the same turn, and the wire did not
+  change.** Agreed by the maintainer in conversation on 2026-09-10, explicitly
+  without an issue -- a departure from the rule above, recorded here so it is
+  not mistaken for precedent. It needed no new flag and no version bump: a
+  console reads every other console's turn by tag (`nearbyTurnFrom()`), the
+  host invites them one at a time, and `Ludo::Net` (in `LudoRules.h`) spells
+  Ludo's meaning into the same `from`/`to`/`ack` six-and-seven-bit fields --
+  a seat and a token, or a presence, or the host's start word. **The die never
+  goes on the air**: every console derives each roll from the table's seed and
+  `Ludo::Net::accept()` refuses any move that does not fit it. Two things
+  differ from two-player play and must stay stated: **who moves first comes
+  from the seed**, not from `nearbyInvite()`'s coin toss, because a toss
+  between two cannot seat four -- the deal is a shuffle nobody chooses; and
+  **a console replaces its turn only once every other console has acked it**
+  (`LudoGame::canPublish()`), which is what makes a bonus roll or the host
+  playing a computer seat safe on a medium that drops things. The service
+  gained two calls for it, neither of which transmits anything:
+  `NearbySeat::forThisGame` (an invitation names its game; a lobby must not
+  accept another game's) and `nearbySelfId()` (so every console orders the
+  table alike). Still a BROADCAST: everyone in range hears every move.
+- **Backgammon's dice do not go on the air either, and that is what made it
+  fit.** An earlier plan ruled nearby Backgammon out because the turn has no
+  field for dice. It does not need one: as in Ludo, both consoles derive every
+  roll from `Bg::tableSeed(session, both tags)`, and a move is one checker --
+  `from` a point or BAR (24), `to` a point or OFF (25) -- which is the
+  two-player turn exactly as Chess sends it. Every move received is played only
+  if `Bg::findMove()` finds it legal with the dice the receiver computed, the
+  forced-move rules included. A turn goes on the air on Done, one checker per
+  ply, each once the other console has acked the last; a turn with no legal
+  move sends nothing, because both consoles compute that it has none.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- children put the
   device down constantly and a game that evaporated is a game they stop
@@ -855,7 +1039,7 @@ So: write the geometry once, at file scope, and derive every clear rectangle fro
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
-Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape).
+Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
 
 **System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
@@ -873,7 +1057,10 @@ src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
-                          AppRuntime, AppRuntimeLock, ScoreCatalog, Progress,
+                          AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
+                          AppRuntimeConsole (+Settings, +Profiles),
+                          ConsoleText,
+                          ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           LetterTracer (the finger-tracing engine Trace and
@@ -881,7 +1068,17 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
-                          (the tab bodies), SettingsPin (the PIN pad)
+                          (the tab bodies), SettingsPin (the PIN pad).
+                          Ludo is six .cpp against one header -- LudoGame
+                          (flow, input), LudoBoard (the board), LudoPanel
+                          (the side panel), LudoLobby (both lobbies),
+                          LudoTable (play across consoles) and LudoSave --
+                          over LudoRules (the rules, the computer player and
+                          the table protocol, pure C++ with no Arduino).
+                          Backgammon likewise: BackgammonGame (flow, input),
+                          BackgammonDraw, BackgammonNet (the nearby game),
+                          BackgammonSave, over BackgammonRules and
+                          BackgammonAi (pure, host-tested)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
@@ -896,14 +1093,25 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),
                           check_boards.py, check_catalog.py,
-                          check_frame_rules.py, build_stamp.py,
+                          check_frame_rules.py, check_identifiers.py (no MAC
+                          or public IP may reach this repo -- see the rule
+                          above), build_stamp.py,
+                          envs.py (which environments are the product and
+                          which are bench probes -- the only list),
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),
-                          identify_boards.py + board_registry.json
-                          (which board is on which port, keyed by MAC)
+                          configure_boards.py + bench_config.example.json
+                          (set every board up from one config over the
+                          serial console; the real config is gitignored),
+                          ESP32_boardUtil.py + board_registry.example.json
+                          (which board is on which port, keyed by the
+                          firmware's own Board::deviceId(); the real registry
+                          is gitignored because it names one person's boards)
 site/                     index.template.html â€” the GitHub Pages landing page
-.github/workflows/        ci.yml validates checks + builds; pages.yml publishes
+.github/workflows/        ci.yml validates checks, then builds one job per
+                          environment in parallel (`verify` is the required
+                          check that judges them); pages.yml publishes
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
                           every firmware image attached
@@ -920,10 +1128,12 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds every environment
-`platformio.ini` declares, packs them with `tools/pack_release.py`, and
-publishes a GitHub release with all four parts plus a single `-merged.bin`
-per environment, `SHA256SUMS.txt` and `FLASHING.txt`.
+`.github/workflows/release.yml` then builds the five product environments --
+`tools/envs.py --product`, never a list in the YAML -- packs them with
+`tools/pack_release.py`, and publishes a GitHub release with all four parts
+plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
+`FLASHING.txt`. The diagnostics are deliberately not attached; they are built
+from source by whoever is holding the board.
 
 Before tagging, on `main`:
 
@@ -1043,13 +1253,90 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   that was tried on the bench and looked like the flag being ignored. The fix
   is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
   `invertDisplay()` after `init()` and before anything is drawn.
-- **The boot log states what the board IS, from the chip rather than the
-  build.** `[boot] mac=...` is burned into eFuse and is the only identifier
-  that survives being flashed with the wrong image -- which is exactly how a
-  2.8-inch board reported itself as a 4-inch for half an hour. `board=` and
-  `panel=` are compiled in and therefore describe the firmware, not the
-  hardware. **There is no `id=` field, and putting one back needs more care
-  than it looks.** 5.9.0 printed the controller's ID register and broke the
+- **The boot log states what the board IS.** `[boot] device=...` is the
+  firmware's own id (`Board::deviceId()`), never the MAC -- see "No identifiers
+  in this repository". `board=` and `panel=` are compiled in and therefore
+  describe the firmware, not the hardware, which is exactly how a 2.8-inch
+  board reported itself as a 4-inch for half an hour.
+- **A running board answers `identify` with the same facts, unreset.** One
+  line, every value quoted; `ESP32_boardUtil.py` asks before it resets
+  anything. It carries **only the banner's facts** (no MAC, profile, score or
+  SSID) and needs no PIN. Open the port with DTR and RTS already low, or
+  opening it resets the board and defeats the point.
+- **The serial port is a console, and it was widened on purpose.** The
+  maintainer asked for bench boards to be set up from a cable rather than by
+  hand, and plans a layered framework whose shell reaches every service the UI
+  does (`docs/FRAMEWORK_PLAN.md` on the platform-separation branch), so the
+  console is built to grow. It is three files: `AppRuntimeConsole.cpp` (the
+  reader, the command table, the session and Wi-Fi),
+  `AppRuntimeConsoleSettings.cpp` (every device setting) and
+  `AppRuntimeConsoleProfiles.cpp` (players and their games), with parsing in
+  `ConsoleText.h`.
+  - **One line reader, one command table, one reply grammar.** A command is a
+    row -- name, usage, help, `AppCapability`, argument counts, handler -- and
+    `help` is derived from the table. Every reply is exactly one line,
+    `ok key="value" ...` or `err <code> <message>`, and **reply keys are word
+    characters only** (`ntp_hours`, not `ntp-hours`), because every tool
+    matches `(\w+)="..."`. **Add a command as a row, never as another string
+    match**, and never give it a second reply shape. `identify?`, `settings`
+    and `settings?` are kept as aliases because tools on `dev` already send
+    them; `ESP32_boardUtil.py` also accepts the `[ident] ...` reply that
+    pre-console snapshot builds give.
+  - **CRUD, where the entity has it.** Settings are fixed keys, so they are
+    Read and Update: `get [key]` and `set <key> <value>` over one settings
+    table whose rows are exactly the settings the Settings and Wi-Fi screens
+    offer, with those screens' choices -- a new setting is a row there too.
+    Players are full CRUD: `profiles`, `profile-add`, `profile-rename`,
+    `profile-remove`. Per-player games are Read and Update: `games <slot>`,
+    `game <slot|all> <id> on|off` (`all` is the classroom case). Wi-Fi is
+    create/update and delete (`wifi`, `wifi clear`), read only as a flag.
+  - **Device reads are open; writes, and reads of player data, need the
+    PIN.** `needsUnlock()` keys on the row's capability (settings, network,
+    profiles, scores, factory reset), so a new row cannot forget the gate.
+    `profiles` prints names, so it carries the profiles capability and is
+    gated like a change. Three wrong PINs lock the console out for 30s, and
+    only exactly four digits are judged.
+  - **The same refusals as the screens, and two more.** The admin profile
+    cannot be removed; the *active* player cannot be removed either (from a
+    cable that would pull a profile out from under a running game); two
+    players cannot share a name. Games at launcher index 32+ cannot be hidden
+    yet -- visibility is a 32-bit mask and the catalogue is 37 -- and the
+    console says so rather than answering ok.
+  - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
+    under the closed privacy list.
+  - **It goes through the same doors as the screens**: the same `Board`
+    setters and the same refusals (Nearby without the beacon), then a repaint
+    of whatever screen is showing the old value.
+  - **Nothing personal comes back unasked**: `get` and `identify` carry no
+    name; player names only from the PIN-gated `profiles`; never the network's
+    name or password; and the line buffer is wiped after every command.
+  - **It is not activity**: nothing touches `lastActivityMs_`, and
+    `Board::setBrightness()` no longer lights the backlight over a sleeping
+    panel -- unreachable from the slider, reachable from a cable.
+  - **Deliberately absent**: factory reset, reading or clearing scores,
+    changing the admin PIN or which profile is admin, peer labels, the update
+    check and the NTP server. Each is a decision for the maintainer, not a
+    convenience.
+- **An EN reset can strand an E32R40T, and the flash tool now recovers it.**
+  After the reset button, an RTS reset from a serial tool, a USB power surge
+  -- and, most often, the hard reset at the end of an upload -- the ROM loops
+  `flash read err, 988` or `invalid header: 0x20000368` / `RTCWDT_RTC_RESET`
+  every ~350ms with the panel dark. **It is not the GPIO12 strap**, which was
+  the first guess (GPIO12 is also the shared MISO): the ROM prints
+  `boot:0x17`, whose MTDI bit is clear, so 3.3V flash was selected. **Nor is
+  the image damaged**: read back while looping, the bootloader at 0x1000 was
+  byte for byte correct, and the failing read differed from it by three bits
+  at the same address -- a marginal read at the moment of some resets. Cause
+  not yet found. What recovers it without a battery pull is a reset that comes
+  *from download mode*: `esptool --after no_reset flash_id`, then `esptool
+  --before no_reset --after hard_reset read_mac`, repeating the pair (never
+  the second step alone) if it fails. `ESP32_boardUtil.py --flash` asks every
+  board it flashed for its build afterwards and runs that recovery on any
+  whose serial shows the loop (`check_boot()`), so a flash no longer leaves a
+  dark 4-inch board behind. By hand: capture the serial passively before
+  reflashing; it cannot be flashed while looping.
+- **There is no `id=` field in the banner, and putting one back needs more
+  care than it looks.** 5.9.0 printed the controller's ID register and broke the
   display on two of the seven boards: `tft.readcommand8()` writes an
   undocumented 0xD9, toggles CS mid-sequence and restores neither the address
   window nor MADCTL, so a panel whose MISO is not wired back is left
@@ -1061,25 +1348,29 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   only ever answered `00:00:00` or `FF:FF:FF`; not one returned a real ID, so
   it could not do the job it cost a panel to attempt. The remaining three lines
   turn "which board is this?" into a paste rather than an afternoon.
-- **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
+- **The E32R28T-1's RGB LED is red IO22, green IO16, blue IO17**, from the vendor's pin table, and **IO4 is its amplifier enable, active low** -- not an LED. It was once declared `rgb.r = 16`, `rgb.g = 4` on the belief that red and green were crossed; the observations behind that (orange came out green, purple came out cyan) are exactly what IO16 being green produces, and driving IO4 as an LED held the speaker's amplifier in shutdown. Common anode, so drive is inverted -- which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
   (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
   display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
   is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
   3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` on the E32R28T-1, E32R32P, E32R40T and ESP32-2432S028R
+- `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
+  variant, E32R32P and E32R40T
   reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
-  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on those boards; the I2S
+  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on all of them; the I2S
   peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
   1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
   `BoardProfile.audio` is 85 for the codec board and 75 for the bare-DAC CYD
   boards (unamplifed driver distorts above 75%). See `src/hal/CLAUDE.md`.
-  `GUME_HAS_AUDIO_DAC` is **off** on the E32R28T-1 and the ESP32-2432S028R --
-  see 5.5.1 -- and on for the E32R40T and the E32R32P, whose touch clocks are
-  GPIO14 rather than the DAC's GPIO25.
+  Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
+  whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
+  `beginAudio()` powers that channel down and returns the pad to the GPIO
+  matrix, logging `[audio] GPIO25 released: ...`, and `Board::begin()`
+  re-applies the touch pins after it; `BoardConfig.h` allows a touch pin on
+  the non-speaker DAC pad and nothing else.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions

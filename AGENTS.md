@@ -74,6 +74,50 @@ If you are about to type a fact into About that the firmware already knows, read
 it from the firmware instead. Anything genuinely static — the credits, the
 privacy statements — must be re-read whenever the thing it describes changes.
 
+## No identifiers in this repository — the rule that cannot be broken
+
+**Never commit anything that identifies one physical device, one network or one
+person.** Not in a tool file, not in a comment, not in a fixture, not
+temporarily, and not because the design reads better that way. Such values live
+on the machine that owns the hardware, gitignored.
+
+An agent wrote `tools/board_registry.json`, mapping six boards' **MAC
+addresses** to the firmware each ran. It was tracked for three commits and
+shipped in two release tarballs. It was a deliberate, reasonable-looking design
+decision, which is the point: reasonable is not the test.
+
+A MAC is burned into eFuse — it cannot be changed, so publishing one names that
+board for the life of the silicon, and deleting the file does not un-publish it
+because history, clones, forks and tarballs all keep copies.
+
+- Identify a board by **`Board::deviceId()`** (`R28T-9F3A2C71`): firmware
+  generated, one-way hashed so the MAC cannot be recovered, prefixed with the
+  *model* tag, and reissued by a factory reset.
+- The boot banner prints `device=`, never `mac=`. That line gets pasted into
+  public issues.
+- `tools/board_registry.json` is gitignored; the `.example.json` ships with
+  placeholders and `ESP32_boardUtil.py --learn` fills in the real one locally.
+- **Ask a board before you reset it.** Current firmware answers `identify` on
+  the serial port with one `ok ...` line (device id, board, version, build)
+  and keeps running; `ESP32_boardUtil.py` does this first and resets only a
+  board that stays silent. `--no-reset` never resets. A reset discards another
+  agent's in-flight test, and on the bench an E32R40T once needed its battery
+  pulled to boot again after one.
+- **Configure boards with `python tools/configure_boards.py`, not by hand.** It
+  applies `tools/bench_config.json` (gitignored -- it holds a Wi-Fi password
+  and names; start from `bench_config.example.json`) to every board that
+  answers `identify`, through the serial console behind the admin PIN. Never
+  commit that file, and never paste the tool's input into an issue.
+- **A new console command is a row in the table** in
+  `src/engine/AppRuntimeConsole.cpp`, and a new device setting is a row in
+  `AppRuntimeConsoleSettings.cpp` -- never another string match. Each answers
+  with one `ok key="v"` or `err <code> <message>` line, keys in word
+  characters only. Anything that writes, or reads player data, gets a gated
+  capability, which puts it behind the PIN automatically.
+- `python tools/check_identifiers.py` runs in CI. It catches MACs and public
+  IPs; it cannot catch an SSID or a person's name, so a clean run is not
+  permission.
+
 ## No data collection — the rule that outranks the feature
 
 Braino collects nothing about the player using it, and no change may alter
@@ -355,7 +399,7 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
    - Each subsystem has a simple test: fill colors, show coordinates, read voltage, scan networks
    - Display full-screen color test + rotation check + brightness slider
    - Touch: show crosshairs, tap them, verify coordinates match screen, check pressure threshold
-   - Battery: show voltage, percentage, charging state; physically plug/unplug USB and verify state changes within 2s
+   - Battery: show voltage and percentage against a meter (there is no charging state -- the CYD boards have no charge-status line)
    - BLE: turn beacon on/off, use phone scanner to verify name and payload format
    - Wi-Fi: connect to network, fetch NTP time, verify clock advances
    - RGB LED: show all colours, verify no crossed polarity or missing channels
@@ -364,7 +408,7 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
 2. **All tests must pass before merging the variant into main:**
    - [ ] Display renders all colors correctly at native resolution
    - [ ] Touch calibration works; coordinates accurate to ±10 pixels
-   - [ ] Battery readings within 0.1V of meter; charging/discharging detected within 2s of USB plug/unplug
+   - [ ] Battery readings within 0.1V of meter; percentage tracks a real discharge
    - [ ] BLE beacon visible on phone with correct device name and manufacturer data payload
    - [ ] Wi-Fi connects and fetches time; clock is correct
    - [ ] RGB LED shows correct colours (no crossed channels)

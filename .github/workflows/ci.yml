@@ -21,16 +21,21 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Three jobs, because the builds are independent and a runner is not:
+#
+#   plan    every repository check, then decides which environments to build
+#           and installs their toolchains once, into one shared cache.
+#   build   one job PER ENVIRONMENT, on its own runner, all at once. A push to
+#           dev builds every product board; one after another on one runner that was
+#           14-15 minutes, in parallel it is roughly the slowest single board.
+#   verify  the required status check. It waits for the builds and fails if
+#           any failed -- see the note on it below.
 jobs:
-  # `verify` is the required status check in the "Protect main" and
-  # "Protect dev" rulesets, so this job must report on EVERY pull request,
-  # including documentation-only ones. That is why the build is skipped with a
-  # step-level `if:` rather than by adding `paths-ignore:` to the trigger above:
-  # a required check that does not run is not "passed", it is "expected", and
-  # the pull request stays unmergeable forever waiting for a status that will
-  # never arrive. The job always runs; only the expensive half is conditional.
-  verify:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      envs: ${{ steps.environments.outputs.envs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,6 +73,12 @@ jobs:
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The toolchains, ONCE. This job installs every package the chosen
+      # environments need and is the only job that saves this cache; the
+      # build jobs restore it read-only. Seven jobs each caching their own
+      # ~/.platformio would be seven copies of roughly a gigabyte against the
+      # repository's 10 GB cache, and eviction would quietly make runs slow
+      # again. The ESP32-S3 toolchain lives in the same cache as the ESP32 one.
       - name: Cache PlatformIO
         if: steps.scope.outputs.code == 'true'
         uses: actions/cache@v4
@@ -75,8 +86,8 @@ jobs:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
 
       - name: Install PlatformIO
         if: steps.scope.outputs.code == 'true'
@@ -89,6 +100,7 @@ jobs:
           python -m py_compile tools/check_catalog.py
           python -m py_compile tools/check_frame_rules.py
           python -m py_compile tools/check_privacy.py
+          python -m py_compile tools/check_identifiers.py
           python -m py_compile tools/gen_site.py
 
       - name: Run repository checks
@@ -98,6 +110,12 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
           python tools/check_privacy.py
+          # A hardware identifier cannot be un-published: a MAC is burned into
+          # eFuse, so it names that board for its whole life. board_registry.json
+          # mapped six of them to the firmware each was running and reached two
+          # releases before anybody noticed. This check runs on every PR because
+          # noticing is exactly what did not happen.
+          python tools/check_identifiers.py
 
       # Site generation is cheap -- seconds, pure standard library, no
       # PlatformIO -- and it MUST run on every pull request. Do not put this
@@ -129,62 +147,147 @@ jobs:
             --out /tmp/gume-site-check \
             --repo "${{ github.server_url }}/${{ github.repository }}"
 
-      # Detect which environments to build based on file changes.
-      # On pushes to main/dev: build all (conservative).
-      # On feature branches: build only affected environments.
-      - name: Detect which environments to build
+      # Which environments to build, decided by tools/envs.py rather than by
+      # a list in this file.
+      #
+      # Two lists lived here before -- one for the push path, one for the pull
+      # request path -- and pages.yml carried a third. All three had drifted:
+      # none of them built `audiodiag`, `diag32p` or `audiodiag_e32r32p`, which
+      # had existed for months. A list of environments maintained in YAML is a
+      # list that is wrong and cannot say so.
+      #
+      # The rule the tool applies: the five `product` environments are Braino!
+      # and are what CI is protecting. The ten `diagnostic` ones are bench
+      # probes -- they are built when their own source or platformio.ini moves,
+      # and not otherwise. A push to main or dev builds every product
+      # environment regardless, because that is the branch the installer and
+      # the release are cut from.
+      - name: Decide which environments to build
         id: environments
         if: steps.scope.outputs.code == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ENVS="app"
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
+          else
+            # A first push to a branch has no `before` commit to diff against.
+            before="${{ github.event.before }}"
+            zero=0000000000000000000000000000000000000000
+            if [ -n "$before" ] && [ "$before" != "$zero" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
+              git diff --name-only "$before" "${{ github.sha }}" > "$RUNNER_TEMP/changed.txt"
+            else
+              echo platformio.ini > "$RUNNER_TEMP/changed.txt"   # unknown scope: build the lot
+            fi
+          fi
+          echo "Files considered:"
+          sed 's/^/  /' "$RUNNER_TEMP/changed.txt"
 
-          # On pushes to main/dev, build all environments (conservative safety net)
+          # --with-product on a push: every board is proven on the branches the
+          # installer and the release are cut from, whatever the diff said.
+          WITH_PRODUCT=""
           if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Building all environments (push to main/dev)"
-            ENVS="app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 app_esp32_2432s028_inv bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789 app_fnk0104b app_e32r40t app_e32r32p bringup_e32r32p batdiag_e32r32p s3diag diag4"
-          else
-            # On PRs, check which files changed and build selectively
-            files=$(gh api --paginate \
-              "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
-              --jq '.[].filename')
-
-            # Build bringup if HAL/board files changed
-            if printf '%s\n' "$files" | grep -qE '^(src/hal/|include/boards/|include/BoardProfile|include/BoardConfig|platformio.ini)'; then
-              ENVS="$ENVS bringup"
-              echo "Building bringup (HAL/board files changed)"
-            fi
-
-            # Build batdiag if battery files changed
-            if printf '%s\n' "$files" | grep -qE '(battery|Battery|src/battery_diag)'; then
-              ENVS="$ENVS batdiag"
-              echo "Building batdiag (battery files changed)"
-            fi
-
-            # Build wifidiag if WiFi files changed
-            if printf '%s\n' "$files" | grep -qE '(wifi|WiFi|network|Network)'; then
-              ENVS="$ENVS wifidiag"
-              echo "Building wifidiag (WiFi files changed)"
-            fi
+            WITH_PRODUCT="--with-product"
           fi
-
-          echo "Environments to build: $ENVS"
+          # The build job's matrix: one {env, board, name} per environment,
+          # named after the board so a red job says which board broke. [] when
+          # nothing needs building.
+          ENVS="$(python tools/envs.py --for-changes $WITH_PRODUCT --matrix < "$RUNNER_TEMP/changed.txt")"
+          echo "Matrix: $ENVS"
           echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
+          echo "args=$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < "$RUNNER_TEMP/changed.txt")" >> "$GITHUB_OUTPUT"
 
-      - name: Build firmware
-        if: steps.scope.outputs.code == 'true'
+      # Download every toolchain and library the chosen environments need, so
+      # the cache above holds all of them and no build job downloads anything.
+      - name: Install the toolchains the builds will need
+        if: steps.scope.outputs.code == 'true' && steps.environments.outputs.envs != '[]'
+        run: pio pkg install ${{ steps.environments.outputs.args }}
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.code == 'true' && needs.plan.outputs.envs != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      # Every board reports. One broken board must not cancel the others and
+      # hide whether they were broken too.
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.envs) }}
+    # "build E32R28T-1 (app)": the board, then the environment to reproduce it.
+    name: build ${{ matrix.target.name }}
+    steps:
+      # A shallow checkout is enough: tools/build_stamp.py reads the branch
+      # from GITHUB_HEAD_REF / GITHUB_REF_NAME and the commit from
+      # `git rev-parse`, and neither needs history.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Read-only: `plan` installed and saved it. Restoring the exact key
+      # first means a hit is the complete set, not a partial older one.
+      - name: Restore PlatformIO
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      # The compiled-object cache, one per ENVIRONMENT. Every board's display
+      # macros are global compile flags, so no two boards produce the same
+      # object and there is nothing to share between them; a per-board key
+      # keeps each cache small and each job restoring only what it can use.
+      #
+      # Until the build stamp moved out of CPPDEFINES there was no point
+      # caching build output at all: every object's compile command carried
+      # the commit hash, and every CI run is a new commit. Measured locally
+      # after the move: one object and ~35 s for a new commit, against every
+      # object and ~8 minutes before. The cache is content-addressed, so a
+      # restored entry is either right or is not a hit. The key rotates per
+      # run so it keeps absorbing new objects; restore-keys makes the previous
+      # run's copy the starting point.
+      - name: Cache compiled objects
+        uses: actions/cache@v4
+        with:
+          path: .pio/build_cache
+          key: objects-${{ runner.os }}-${{ matrix.target.env }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            objects-${{ runner.os }}-${{ matrix.target.env }}-${{ hashFiles('platformio.ini') }}-
+            objects-${{ runner.os }}-${{ matrix.target.env }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build ${{ matrix.target.name }}
+        run: pio run -e ${{ matrix.target.env }}
+
+  # `verify` is the required status check in the "Protect main" and "Protect
+  # dev" rulesets, so it must report on EVERY pull request, including
+  # documentation-only ones -- a required check that does not run is not
+  # "passed", it is "expected", and the pull request stays unmergeable
+  # forever. That is why it runs `if: always()` and judges the other two
+  # jobs itself rather than being skipped with them.
+  #
+  # Do not rename this job, and do not make the matrix jobs the required
+  # check: their names carry the environment, so the set of names changes
+  # with the diff, and a ruleset can only wait for names it knows.
+  verify:
+    needs: [plan, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Judge the checks and the builds
         run: |
-          # Build environments with explicit -e flags for check_boards.py verification
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # On pushes to main/dev: build all environments
-            pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e app_esp32_2432s028_inv -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e app_e32r40t -e app_e32r32p -e bringup_e32r32p -e batdiag_e32r32p -e s3diag -e diag4
-          else
-            # On PR: build only affected environments
-            ENVS="${{ steps.environments.outputs.envs }}"
-            ARGS=""
-            for env in $ENVS; do
-              ARGS="$ARGS -e $env"
-            done
-            pio run $ARGS
-          fi
+          echo "plan:  ${{ needs.plan.result }}"
+          echo "build: ${{ needs.build.result }}"
+          # plan must succeed. build may be skipped (nothing needed building)
+          # but must not fail or be cancelled.
+          [ "${{ needs.plan.result }}" = "success" ] || exit 1
+          case "${{ needs.build.result }}" in
+            success|skipped) exit 0 ;;
+            *) exit 1 ;;
+          esac

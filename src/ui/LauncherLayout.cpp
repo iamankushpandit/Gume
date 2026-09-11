@@ -56,8 +56,8 @@ int16_t topBarTitleLeft(int16_t screenW) {
 Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
     if (mode == Board::LayoutMode::Vertical) {
         /* Portrait badge row (centred on y=60), left of the gear. The badges
-         * before it end near x=155 in the widest state ("100" while charging,
-         * plus the beacon rune), and the gear starts at screenW-32. */
+         * before it end near x=155 in the widest state ("100" plus the beacon
+         * rune), and the gear starts at screenW-32. */
         return Rect{static_cast<int16_t>(screenW - 64), 51, 18, 18};
     }
     /* Landscape: the left-hand end of the badge row, inside the hairline.
@@ -111,22 +111,48 @@ Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t scr
 
     const bool tall = mode == Board::LayoutMode::Vertical;
     const int16_t headerH = tall ? LAUNCHER_HEADER_H_TALL : LAUNCHER_HEADER_H_WIDE;
-    const uint8_t rows = tall ? 2 : 3;
+    const Grid g = grid(mode, screenW, screenH);
 
-    // Two columns either way: three gaps across, one more than the row count down.
-    const int16_t tileW = static_cast<int16_t>((screenW - GAP * 3) / 2);
+    // One more gap than there are tiles, in each direction.
+    const int16_t tileW = static_cast<int16_t>((screenW - GAP * (g.cols + 1)) / g.cols);
     const int16_t tileH = static_cast<int16_t>(
-        (screenH - headerH - FOOTER_H - GAP * (rows + 1)) / rows);
+        (screenH - headerH - FOOTER_H - GAP * (g.rows + 1)) / g.rows);
 
-    const uint8_t col = slot % 2;
-    const uint8_t row = slot / 2;
+    const uint8_t col = slot % g.cols;
+    const uint8_t row = slot / g.cols;
     return Rect{static_cast<int16_t>(GAP + col * (tileW + GAP)),
                 static_cast<int16_t>(headerH + GAP + row * (tileH + GAP)),
                 tileW, tileH};
 }
 
-uint8_t pageSize(Board::LayoutMode mode) {
-    return mode == Board::LayoutMode::Vertical ? 4 : 6;
+namespace {
+constexpr Grid GRID_WIDE{2, 3};
+constexpr Grid GRID_TALL{2, 2};
+constexpr Grid GRID_TALL_DENSE{3, 3};
+static_assert(GRID_WIDE.cols * GRID_WIDE.rows <= MAX_PAGE_SIZE &&
+              GRID_TALL.cols * GRID_TALL.rows <= MAX_PAGE_SIZE &&
+              GRID_TALL_DENSE.cols * GRID_TALL_DENSE.rows <= MAX_PAGE_SIZE,
+              "a launcher grid holds more tiles than MAX_PAGE_SIZE");
+}  // namespace
+
+Grid grid(Board::LayoutMode mode, int16_t screenW, int16_t screenH) {
+    if (mode != Board::LayoutMode::Vertical) {
+        return GRID_WIDE;
+    }
+    const int16_t shortSide = screenW < screenH ? screenW : screenH;
+    return shortSide >= DENSE_PORTRAIT_MIN_W ? GRID_TALL_DENSE : GRID_TALL;
+}
+
+uint8_t pageSize(Board::LayoutMode mode, int16_t screenW, int16_t screenH) {
+    const Grid g = grid(mode, screenW, screenH);
+    return static_cast<uint8_t>(g.cols * g.rows);
+}
+
+uint8_t tileFillIndex(uint8_t slot, const Grid& g) {
+    if (g.cols % 3 != 0) {
+        return static_cast<uint8_t>(slot % 3);
+    }
+    return static_cast<uint8_t>((slot % g.cols + slot / g.cols) % 3);
 }
 
 }  // namespace LauncherLayout

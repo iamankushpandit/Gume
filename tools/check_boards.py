@@ -62,6 +62,7 @@ BOARDLESS_ENVS = ("wifidiag", "s3diag", "diag4", "diag32p", "audiodiag")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pack_release            # noqa: E402  (path set immediately above)
+import envs as env_kinds       # noqa: E402
 
 
 def read(*parts):
@@ -202,52 +203,71 @@ def check_ini(problems, headers):
         else:
             board_envs.setdefault(used[0], []).append(env)
 
-    check_reachable(problems, boards, board_envs)
+    check_reachable(problems, boards, board_envs, text)
     check_boardless_blurbs(problems, text)
     check_workflow_envs(problems, text)
 
 
 def check_workflow_envs(problems, ini):
-    """Every environment the workflows name has to exist, and the command that
-    names them has to parse.
+    """Every environment a workflow names has to exist, and every workflow that
+    builds firmware has to ask tools/envs.py which environments those are.
 
-    THIS EXISTS BECAUSE A DANGLING `-e` SHIPPED AND BROKE THE SITE. Removing a
-    board from `.github/workflows/pages.yml` left
+    THE FIRST HALF EXISTS BECAUSE A DANGLING `-e` SHIPPED AND BROKE THE SITE.
+    Removing a board from `.github/workflows/pages.yml` left
 
         -e app_e32r40t -e -e app_e32r32p
 
     which PlatformIO rejects with "Got unexpected extra argument". CI went
-    green anyway, because a pull request builds a SELECTIVE list through the
-    ENVS variable and only the full-build path carries that flag list -- so the
-    fault was latent in ci.yml and fatal in pages.yml, which always builds
+    green anyway, because a pull request built a SELECTIVE list through a shell
+    variable and only the full-build path carried that flag list -- so the
+    fault was latent in ci.yml and fatal in pages.yml, which always built
     everything. The Pages deploy failed 49 seconds in, the site silently stayed
     on the previous release, and the first anybody knew was noticing the game
     count was wrong on the published page.
 
-    check_reachable() above could not have caught it: it asks whether each
-    board's env is mentioned, and a mention is exactly what a dangling flag
-    leaves intact. So this checks the shape of the command rather than its
-    contents, plus the reverse direction -- an env named in a workflow but
-    absent from platformio.ini, which is how a rename silently stops building
-    something.
+    THE SECOND HALF EXISTS BECAUSE THE LISTS THEMSELVES WERE WRONG. ci.yml and
+    pages.yml each named eighteen environments and neither named `audiodiag`,
+    `diag32p` or `audiodiag_e32r32p`; all three had been in platformio.ini for
+    months, and pages.yml's own comment argued that an environment nobody
+    builds is one that is already broken and has not been told yet. Checking
+    that a hand-kept list parses does not check that it is complete, and no
+    check can: the list has to be derived. So the workflows call
+    `tools/envs.py`, and this is what notices if one of them stops.
     """
     envs = set(re.findall(r"^\[env:([\w.-]+)\]", ini, re.M))
     if not envs:
         problems.append("parsed no [env:*] sections out of platformio.ini")
         return
 
-    for name in ("ci.yml", "pages.yml"):
+    # An environment that has not said whether it is product or diagnostic is
+    # an environment nothing can decide to build. envs.py exits on that, which
+    # would take every consumer down with it, so ask here where the message
+    # lands with the other problems.
+    try:
+        env_kinds.classify(ini)
+    except SystemExit:
+        problems.append(
+            "platformio.ini has an [env:*] with no `custom_env_kind` -- see "
+            "tools/envs.py. Run `python tools/envs.py --all` for the detail.")
+
+    for name in ("ci.yml", "pages.yml", "release.yml"):
         try:
             text = read(".github", "workflows", name)
         except OSError:
             continue                     # check_reachable() reports the absence
 
-        for line in text.splitlines():
-            if "pio run" not in line:
-                continue
+        builds = [line for line in text.splitlines() if "pio run" in line]
+        if builds and "tools/envs.py" not in text:
+            problems.append(
+                ".github/workflows/%s runs `pio run` without asking "
+                "tools/envs.py which environments to build. A list of "
+                "environments written into a workflow is a list that goes "
+                "stale silently -- three of them did." % name)
+
+        for line in builds:
             # A -e with no environment after it. PlatformIO fails the whole
             # command, so this is a build that never happens.
-            if re.search(r"-e\s+(?=-e\b)", line) or re.search(r"-e\s*$", line):
+            if re.search(r"-e\s+(?=-e)", line) or re.search(r"-e\s*$", line):
                 problems.append(
                     ".github/workflows/%s has a `-e` with no environment after "
                     "it: PlatformIO rejects the whole command, so nothing in it "
@@ -256,16 +276,14 @@ def check_workflow_envs(problems, ini):
                 continue
             for env in re.findall(r"-e\s+([\w.-]+)", line):
                 if env.startswith("$"):
-                    continue             # ENVS variable, expanded at run time
+                    continue             # derived, expanded at run time
                 if env not in envs:
                     problems.append(
                         ".github/workflows/%s builds `-e %s`, which is not an "
                         "[env:*] in platformio.ini -- that build fails the "
                         "whole command." % (name, env))
 
-        # The space-separated lists (ENVS=, `for env in ...`) are how a pull
-        # request picks a subset, and a typo there skips a build silently
-        # rather than failing loudly.
+        # Any surviving hand-kept list is still checked for typos.
         for listing in re.findall(r'ENVS="([^"$]+)"', text):
             for env in listing.split():
                 if env not in envs:
@@ -273,6 +291,8 @@ def check_workflow_envs(problems, ini):
                         ".github/workflows/%s lists env `%s` in ENVS, which is "
                         "not in platformio.ini." % (name, env))
         for listing in re.findall(r"for env in ([^;]+);", text):
+            if "$(" in listing:
+                continue                 # derived, expanded at run time
             for env in listing.split():
                 if env.startswith("$"):
                     continue             # expanded at run time
@@ -282,7 +302,7 @@ def check_workflow_envs(problems, ini):
                         "not in platformio.ini." % (name, env))
 
 
-def check_reachable(problems, boards, board_envs):
+def check_reachable(problems, boards, board_envs, ini):
     """A board that can be supported has to be flashable from the web page.
 
     "Supported" is not a private fact about this repository. Someone who owns
@@ -292,8 +312,15 @@ def check_reachable(problems, boards, board_envs):
     unfinished port rather than a supported board. gen_site.py derives its
     picker from these same sections; this check is what stops one being added
     without the label and the CI build that make the offer real.
+
+    "CI builds it" is now a question about platformio.ini rather than about the
+    text of a workflow: ci.yml and pages.yml ask tools/envs.py which
+    environments are the product, so an environment is built exactly when it
+    declares `custom_env_kind = product`. That is the fact this checks; that
+    the workflows still ask is checked in check_workflow_envs().
     """
     site = read("tools", "gen_site.py")
+    product_envs = set(env_kinds.of_kind(env_kinds.PRODUCT, ini))
     offered = set(re.findall(r'"env":\s*"(\w+)"', site))
     labelled = set(re.findall(r'^\s{4}"(\w+)":\s*\{', site, re.M))
 
@@ -323,15 +350,17 @@ def check_reachable(problems, boards, board_envs):
                 "not supported" % board_id)
 
         for env in games:
-            for name, text in sorted(workflows.items()):
-                if not re.search(r"pio run\b[^\n]*-e %s\b" % re.escape(env), text):
-                    problems.append(
-                        "board '%s' is offered as firmware '%s', but "
-                        ".github/workflows/%s never builds it -- its manifest "
-                        "would point at binaries that do not exist"
-                        % (board_id, env, name))
+            if env not in product_envs:
+                problems.append(
+                    "board '%s' is offered as firmware '%s', but [env:%s] is "
+                    "not `custom_env_kind = product` -- CI and the Pages "
+                    "workflow build the product environments, so its manifest "
+                    "would point at binaries that do not exist"
+                    % (board_id, env, env))
 
         for env in envs:
+            if env not in product_envs:
+                continue          # not published, so nothing has to describe it
             role = pack_release.env_role(env, board_id)
             if role not in pack_release.ENV_BLURBS:
                 problems.append(
@@ -343,7 +372,7 @@ def check_reachable(problems, boards, board_envs):
 
 
 def check_boardless_blurbs(problems, ini):
-    """Every environment needs a description, including the boardless ones.
+    """Every PUBLISHED environment needs a description, boardless ones included.
 
     check_reachable() below walks the environments that compose a [board_*]
     section, which misses exactly the envs in BOARDLESS_ENVS -- and
@@ -352,8 +381,13 @@ def check_boardless_blurbs(problems, ini):
     the release workflow failed on `pack_release` AFTER the v5.6.0 tag had been
     pushed. Finding it at the tag is the worst possible moment, because the tag
     is the thing that is awkward to take back.
+
+    It asks only of the `product` environments now, because those are the only
+    ones a release attaches. A diagnostic that nothing publishes owes nobody a
+    download description -- what it owes is a paragraph in CLAUDE.md saying what
+    it is for, which is a different check and a different reader.
     """
-    for env in re.findall(r"^\[env:(\w+)\]", ini, re.M):
+    for env in env_kinds.of_kind(env_kinds.PRODUCT, ini):
         role = pack_release.env_role(env, "")
         if role in pack_release.ENV_BLURBS:
             continue

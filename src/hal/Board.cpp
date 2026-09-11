@@ -1,5 +1,16 @@
 #include "Board.h"
 
+/* For Board::deviceId(): the MAC and the clocks are the ingredients, mbedtls
+ * does the one-way step that stops the MAC being recoverable from the result.
+ * OUTSIDE the capacitive-touch guard below -- these have nothing to do with
+ * touch, and putting them inside it compiled them out on every resistive
+ * board, which is most of them. */
+#include <esp_mac.h>
+#include <esp_random.h>
+#include <esp_timer.h>
+#include <time.h>
+#include <mbedtls/sha256.h>
+
 #if GUME_TOUCH_CAPACITIVE
 #include <Wire.h>
 #endif
@@ -8,6 +19,22 @@
 #include "ui/Ui.h"
 
 Board::Board() : sdSpi_(VSPI) {}
+
+#if !GUME_TOUCH_CAPACITIVE
+namespace {
+/* The bit-banged XPT2046 bus, idle: clock low, chip deselected. Called twice
+ * on a board with DAC audio -- see the second call in Board::begin(). */
+void configureResistiveTouchPins() {
+    pinMode(BOARD.touch.mosi, OUTPUT);
+    pinMode(BOARD.touch.miso, INPUT);
+    pinMode(BOARD.touch.sclk, OUTPUT);
+    pinMode(BOARD.touch.cs, OUTPUT);
+    pinMode(BOARD.touch.irq, INPUT);
+    digitalWrite(BOARD.touch.cs, HIGH);
+    digitalWrite(BOARD.touch.sclk, LOW);
+}
+}  // namespace
+#endif
 
 void Board::begin() {
     Serial.begin(115200);
@@ -85,15 +112,7 @@ void Board::begin() {
         }
     }
 #else
-    {
-        pinMode(BOARD.touch.mosi, OUTPUT);
-        pinMode(BOARD.touch.miso, INPUT);
-        pinMode(BOARD.touch.sclk, OUTPUT);
-        pinMode(BOARD.touch.cs, OUTPUT);
-        pinMode(BOARD.touch.irq, INPUT);
-        digitalWrite(BOARD.touch.cs, HIGH);
-        digitalWrite(BOARD.touch.sclk, LOW);
-    }
+    configureResistiveTouchPins();
 #endif
 
     tft_.init();
@@ -135,6 +154,21 @@ void Board::begin() {
     applyBrightness();
     loadTouchCalibration();
     beginAudio();
+#if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
+    /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
+     * beginAudio() hands it back, and this puts it back into the state the
+     * touch driver expects. Cheap, idempotent, and the difference between a
+     * board with sound and a board with sound and touch -- see BoardConfig.h.
+     *
+     * NOT on a board where touch shares the display's bus (TOUCH_CS defined:
+     * the E32R40T and E32R32P). There the touch pins ARE the panel's MOSI,
+     * MISO and SCLK, and this runs after tft_.init(): pinMode() on them
+     * re-routes the pads from the SPI peripheral to plain GPIO, and every
+     * draw after that goes nowhere. The 4-inch came up with a dark panel and a
+     * perfectly healthy serial log. The first call, before tft_.init(), is
+     * harmless on those boards because init() takes the pads back. */
+    configureResistiveTouchPins();
+#endif
     mountSd();
     BleBeacon::begin(bleBeaconEnabled());
 }
@@ -164,11 +198,29 @@ String Board::profileName(uint8_t index) {
     return String("Player ") + static_cast<int>(index + 1);
 }
 
-void Board::setProfileName(uint8_t index, const String& name) {
+void Board::copyProfileName(uint8_t index, char* out, size_t cap) {
+    if (out == nullptr || cap == 0) return;
+    out[0] = '\0';
+    if (index == GUEST_INDEX) {
+        snprintf(out, cap, "Guest");
+        return;
+    }
+    char key[10];
+    snprintf(key, sizeof(key), "pname%u", index);
+    if (prefs_.isKey(key)) prefs_.getString(key, out, cap);
+    // Same fallback as profileName(): an unnamed slot is "Player N".
+    if (out[0] == '\0') snprintf(out, cap, "Player %u", (unsigned)(index + 1));
+}
+
+void Board::setProfileName(uint8_t index, const char* name) {
     if (index >= MAX_PLAYERS) return;
     char key[10];
     snprintf(key, sizeof(key), "pname%u", index);
-    prefs_.putString(key, name.substring(0, PROFILE_NAME_MAX));
+    // Same PROFILE_NAME_MAX truncation substring() applied, without a temporary.
+    char stored[PROFILE_NAME_MAX + 1];
+    strncpy(stored, name ? name : "", PROFILE_NAME_MAX);
+    stored[PROFILE_NAME_MAX] = '\0';
+    prefs_.putString(key, stored);
 }
 
 uint8_t Board::addPlayer(const char* name) {
@@ -313,6 +365,81 @@ void Board::setSleepSeconds(uint16_t seconds) {
  * screen-saving device, and Preferences is flash-backed. Defaults to on --
  * the guard is the point of the feature, and an owner who wants the old
  * single-touch behaviour can say so in Settings. */
+/* THE DEVICE'S OWN NAME FOR ITSELF. Generated once, on first boot, and kept
+ * in NVS for the life of the installation.
+ *
+ * WHY THIS EXISTS. Identification used to mean the MAC, and the MAC is burned
+ * into eFuse -- it cannot be changed, so publishing one publishes a permanent
+ * identifier for a specific piece of hardware in somebody's home, and no
+ * later commit can undo it. That happened here: tools/board_registry.json
+ * mapped six boards' MACs to the firmware each was running, and it reached a
+ * public repository and two releases before anybody noticed. This id is the
+ * replacement, and it is better in every direction -- the firmware owns it, it
+ * means nothing off this device, and a factory reset issues a new one.
+ *
+ * HOW IT IS BUILT, AND WHY EACH INGREDIENT IS THERE.
+ *
+ *   the MAC          the only globally unique input available, and what makes
+ *                    a collision between two devices impossible rather than
+ *                    merely unlikely
+ *   the wall clock   distinguishes successive ids on the SAME board, which a
+ *                    MAC alone cannot -- after a factory reset the new id has
+ *                    to differ from the old one. Weak at first boot, before
+ *                    NTP, which is precisely why it is not relied on alone
+ *   64 bits of RNG   esp_random() draws on the hardware entropy source. This
+ *                    is the ingredient that makes the digest un-guessable: an
+ *                    attacker who knew the MAC and the minute could otherwise
+ *                    search the whole input space
+ *   time since boot  microseconds, free, and different on every unit
+ *
+ * They go through SHA-256 and only the first four bytes of the digest are
+ * kept. THE HASH IS THE POINT, not a formality: it is one-way, so the id
+ * cannot be turned back into the MAC that helped make it. Truncating to 32
+ * bits is safe against reversal for the same reason -- the 64 random bits are
+ * not in the attacker's hands -- and 32 bits is ample for telling apart the
+ * handful of boards on one desk, which is the entire job.
+ *
+ * The id is NOT a secret and does not need to be: it identifies a board to its
+ * owner, not a person to anybody. It is also NOT a hardware fact -- it does
+ * not survive a merged-image install, which paves the NVS region, and a board
+ * with no firmware has none at all. Those two cases are why esptool still
+ * reads a MAC when a board cannot introduce itself, LOCALLY, on the machine
+ * holding the hardware, and never into a file this repository tracks. */
+const char* Board::deviceId() {
+    if (cachedDeviceId_[0] != 0) {
+        return cachedDeviceId_;
+    }
+
+    /* An id already issued is never regenerated -- it is how the owner's own
+     * notes refer to this board. */
+    if (prefs_.getString("devId", cachedDeviceId_, sizeof(cachedDeviceId_)) > 0
+        && cachedDeviceId_[0] != 0) {
+        return cachedDeviceId_;
+    }
+
+    struct {
+        uint8_t  mac[6];
+        uint64_t wallClock;
+        uint32_t random[2];
+        uint64_t sinceBoot;
+    } seed{};
+
+    esp_read_mac(seed.mac, ESP_MAC_WIFI_STA);
+    seed.wallClock = (uint64_t)time(nullptr);
+    seed.random[0] = esp_random();
+    seed.random[1] = esp_random();
+    seed.sinceBoot = (uint64_t)esp_timer_get_time();
+
+    uint8_t digest[32] = {0};
+    mbedtls_sha256((const unsigned char*)&seed, sizeof(seed), digest, 0);
+
+    snprintf(cachedDeviceId_, sizeof(cachedDeviceId_), "%s-%02X%02X%02X%02X",
+             BOARD.idTag, digest[0], digest[1], digest[2], digest[3]);
+    prefs_.putString("devId", cachedDeviceId_);
+    Serial.printf("[boot] issued a new device id: %s\n", cachedDeviceId_);
+    return cachedDeviceId_;
+}
+
 bool Board::wakeLockEnabled() {
     if (!wakeLockCached_) {
         cachedWakeLock_ = prefs_.getBool("wakeLock", true);

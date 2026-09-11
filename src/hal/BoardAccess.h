@@ -94,11 +94,9 @@ class BoardPowerAccess {
 public:
     explicit BoardPowerAccess(Board& board) : board_(board) {}
 
-    Board::PowerState source() { return board_.getPowerSource(); }
     Board::BatteryTelemetry batteryTelemetry() { return board_.readBatteryTelemetry(); }
     float batteryVoltage() { return board_.getBatteryVoltage(); }
     int8_t batteryPercent() { return board_.getBatteryPercent(); }
-    Board::ChargingState chargingState() { return board_.getChargingState(); }
     bool batteryLow() { return board_.isBatteryLow(); }
     bool batteryCritical() { return board_.isBatteryCritical(); }
     uint16_t screenSaverSeconds() { return board_.screenSaverSeconds(); }

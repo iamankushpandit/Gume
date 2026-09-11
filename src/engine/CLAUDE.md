@@ -10,7 +10,7 @@ All catalog games run through `AppGame` and only get `Ui::Renderer` drawing, con
 
 Lifecycle is `begin()` -> `update()`/`render()` per frame -> `end()`. `end()` is called exactly once when the screen is replaced, before the next screen's `begin()`, and every transition in the `BrainoApp` runtime funnels through `leaveActiveGame()` so no path can skip it.
 
-`BrainoApp` lives in `AppRuntime.cpp` plus `AppRuntimeLauncher.cpp`, `AppRuntimeScreenSaver.cpp` and `AppRuntimeLock.cpp`, rather than keeping launcher/runtime/saver logic embedded in `main.cpp`. `AppRuntimeLauncher.cpp` implements `LauncherGame`, so home screen touch/render goes through the same lifecycle as the app screens; only ScreenSaver, Asleep and Locked remain runtime views. `AppRuntimeLock.cpp` owns the hold-to-unlock guard and `lockAndSleepNow()`, the Lock button's entry point -- the deliberate way into the same guard, which sleeps through the ordinary `enterSleep()` and leaves `activeGame_` alone so a completed hold resumes it. The guard itself: it lays itself out against the live `tft.width()`/`height()` and applies no rotation of its own, because `resumeUnderlyingScreen()` applies the returning screen's rotation and rotating twice for a screen that is up for a second costs two full repaints.
+`BrainoApp` lives in `AppRuntime.cpp` plus `AppRuntimeLauncher.cpp`, `AppRuntimeScreenSaver.cpp`, `AppRuntimeLock.cpp` and `AppRuntimeIdentity.cpp` (the boot banner, and the `identify?` reply -- the same facts, so a board can be identified without a reset, never the MAC), `AppRuntimeConsole.cpp` + `AppRuntimeConsoleSettings.cpp` + `AppRuntimeConsoleProfiles.cpp` (the serial console: one line reader, one command table, one reply grammar `ok key="v"` / `err <code> <message>` with word-character keys; `get`/`set` over one settings table mirroring the Settings and Wi-Fi screens, CRUD for players, per-player game visibility; device reads open, changes and player-name reads behind `unlock <admin PIN>` keyed on each row's `AppCapability`; same `Board` setters and refusals as the screens, not counted as activity -- add a command or a setting as a row, never a string match; parsing in `ConsoleText.h`), rather than keeping launcher/runtime/saver logic embedded in `main.cpp`. `AppRuntimeLauncher.cpp` implements `LauncherGame`, so home screen touch/render goes through the same lifecycle as the app screens; only ScreenSaver, Asleep and Locked remain runtime views. `AppRuntimeLock.cpp` owns the hold-to-unlock guard and `lockAndSleepNow()`, the Lock button's entry point -- the deliberate way into the same guard, which sleeps through the ordinary `enterSleep()` and leaves `activeGame_` alone so a completed hold resumes it. The guard itself: it lays itself out against the live `tft.width()`/`height()` and applies no rotation of its own, because `resumeUnderlyingScreen()` applies the returning screen's rotation and rotating twice for a screen that is up for a second costs two full repaints.
 
 The default `end()` does nothing, which is right for the games: they hold only their own members and `begin()` resets those. Override it if a screen acquires anything that outlives a frame: a cached buffer, a sampling cadence, a radio or a file handle. Nothing runs off a task or timer today, so no screen keeps burning cycles once you leave it; the hook exists so that stays true as screens grow. `SystemInfoGame` uses it to clear its fixed-buffer row list.
 
@@ -40,7 +40,20 @@ Single source of truth for the launchable app list. Each playable game declares 
 
 If you add a playable game, update `PLAYABLE_APP_COUNT`, put the launcher index/icon/default visibility in the game's own `AppMetadata`, and add the new `metadataCatalogApp(...AppMetadata(), instance)` line at the matching registry position. `tools/check_catalog.py` checks that indices stay contiguous, icon pairing still matches the app id, playable apps subclass `AppGame`, and system apps declare capabilities.
 
-## NearbyPlay.{h,cpp}
+## NearbyPlay.{h,cpp} + NearbySession.cpp + NearbyPlayState.h
+
+`NearbyPlay.cpp` is the score exchange and the notifications; `NearbySession.cpp`
+is the two-player session half -- seats, invitations, turns and the reserved
+ending. Both read one peer table, which lives in `NearbyPlayState.h` in
+`NearbyPlay::detail` rather than in an anonymous namespace; nothing outside
+those three files may include that header. The app-facing forwarders
+(`BrainoApp::nearby*`) are in `AppRuntimeNearby.cpp`.
+
+Two calls exist for games with more than two seats, and neither transmits
+anything: `NearbySeat::forThisGame` compares the game an invitation names
+(the peer's advertised game index, which `invitePeer()` sets) with the app open
+here, and `selfId()` returns this console's own advertised tag so every console
+at a table can order it alike.
 
 Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the header notifications. `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
 

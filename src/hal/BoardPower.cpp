@@ -46,34 +46,7 @@ constexpr CurvePoint LIPO_CURVE[] = {
 };
 constexpr uint8_t LIPO_CURVE_COUNT = sizeof(LIPO_CURVE) / sizeof(LIPO_CURVE[0]);
 
-/* ---- Charge inference ------------------------------------------------
- * There is no CHRG line on this board, so "is it charging?" has to come out
- * of the cell voltage alone. Three signals, cheapest first:
- *
- * 1. A step between two consecutive samples. Attaching USB pulls the terminal
- *    voltage up within a second or two, and unplugging drops it back under
- *    load; both are far larger than ADC noise, which is why this is the signal
- *    that makes the icon respond to a cable within ~2s.
- * 2. A voltage no resting cell reaches. A pack off the cable was measured at
- *    4.066V, while the charger holds the rail up to 4.224-4.238V, so anything
- *    above V_CHARGER_HELD is a charger holding it there. The old 4.24f sat
- *    above the measured maximum and so never fired at all.
- * 3. The slow trend, for everything in between. Mid-discharge a LiPo sits on a
- *    plateau where 40% of the capacity spans 20mV, so the window has to be
- *    long enough that real movement clears the noise -- and when the window is
- *    genuinely flat the previous verdict stands rather than flapping.
- */
-constexpr float CHARGE_STEP_V = 0.060f;        // plug/unplug, sample to sample
-constexpr float V_CHARGER_HELD = 4.21f;        // above a resting cell, below
-                                               // the 4.238V measured on charge
-constexpr float CHARGE_FULL_V = 4.13f;         // charged, once charging is known
-constexpr uint32_t CHARGE_WINDOW_MS = 45000;   // slow-trend window
-constexpr float CHARGE_TREND_V = 0.012f;       // movement that clears ADC noise
-constexpr float CHARGE_SMOOTH_ALPHA = 0.30f;   // low-pass on the trend input
-
-/* Gauge filter: separate from charge inference. Charge detection needs to
- * notice a cable within ~2s (fast), while the gauge must ignore load transients
- * over seconds (slow). A ~40s time constant at 2s sample rate (alpha ~0.05)
+/* Gauge filter: the gauge must ignore load transients over seconds. A ~40s time constant at 2s sample rate (alpha ~0.05)
  * ignores SPI bursts and backlight steps but still follows real discharge. */
 constexpr float GAUGE_SMOOTH_ALPHA = 0.05f;    // low-pass on displayed percentage
 
@@ -104,14 +77,11 @@ uint32_t backlightDuty(uint8_t percent) {
  * core 1. The loop now only ever reads a settled snapshot, and cannot be the
  * thing that makes the gauge advance.
  *
- * Everything the filters carry -- chargeState_, chargeSmoothV_, gaugeFilteredV_,
- * displayPct_ -- is touched by this task alone once begin() has returned.
+ * Everything the filters carry -- gaugeFilteredV_ and displayPct_ -- is touched by this task alone once begin() has returned.
  * Readers see only batteryPublished_, swapped under a spinlock, so a snapshot
  * is always one consistent sample rather than a voltage from one and a
  * percentage from the next. */
 void Board::sampleBattery() {
-    const uint32_t now = millis();
-
     /* No sense line means no reading. A zeroed sample reads as implausible
      * downstream, which is already how the gauge says "I cannot see this". */
     if (!BOARD.hasBatterySense()) {
@@ -138,7 +108,6 @@ void Board::sampleBattery() {
     sample.adcVoltage = esp_adc_cal_raw_to_voltage(sample.rawAdc, &s_adcChars) / 1000.0f;
     sample.batteryVoltage = sample.adcVoltage * DIVIDER_RATIO;
 
-    updateChargeState(sample.batteryVoltage, now);
     updateGaugeFilter(sample.batteryVoltage);
 
     /* The deadband is applied here, once per sample, rather than in the getter.
@@ -159,7 +128,6 @@ void Board::sampleBattery() {
 
     portENTER_CRITICAL(&batteryMux_);
     batteryPublished_.sample = sample;
-    batteryPublished_.state = chargeState_;
     batteryPublished_.pct = displayPct_;
     portEXIT_CRITICAL(&batteryMux_);
 }
@@ -200,77 +168,9 @@ Board::BatteryTelemetry Board::readBatteryTelemetry() {
     return batterySnapshot().sample;
 }
 
-/* Called only on a fresh sample, so "the previous sample" is BATTERY_SAMPLE_MS
- * ago regardless of how often the render path asked for telemetry. */
-void Board::updateChargeState(float volts, uint32_t nowMs) {
-    if (volts < V_IMPLAUSIBLE || volts > V_SENSOR_MAX) {
-        // Sensor out of range: there is no trend worth reading.
-        chargeState_ = ChargingState::UNKNOWN;
-        chargeTracking_ = false;
-        return;
-    }
-
-    if (!chargeTracking_) {
-        chargeLastV_ = volts;
-        chargeSmoothV_ = volts;
-        chargeRefV_ = volts;
-        chargeRefMs_ = nowMs;
-        chargeTracking_ = true;
-        return;   // UNKNOWN until there is something to compare against
-    }
-
-    const float step = volts - chargeLastV_;
-    chargeLastV_ = volts;
-    chargeSmoothV_ += (volts - chargeSmoothV_) * CHARGE_SMOOTH_ALPHA;
-
-    if (step <= -CHARGE_STEP_V) {
-        /* Tested before the held-high level on purpose: a cell that is still
-         * above V_CHARGER_HELD while falling is coming down, not charging. */
-        chargeState_ = ChargingState::DISCHARGING;
-    } else if (step >= CHARGE_STEP_V || volts >= V_CHARGER_HELD) {
-        chargeState_ = ChargingState::CHARGING;
-    } else if (nowMs - chargeRefMs_ < CHARGE_WINDOW_MS) {
-        return;   // window still open: no new evidence, keep the last verdict
-    } else {
-        const float trend = chargeSmoothV_ - chargeRefV_;
-        if (trend >= CHARGE_TREND_V) {
-            chargeState_ = ChargingState::CHARGING;
-        } else if (trend <= -CHARGE_TREND_V) {
-            chargeState_ = ChargingState::DISCHARGING;
-        } else if (chargeState_ == ChargingState::CHARGING &&
-                   chargeSmoothV_ >= CHARGE_FULL_V) {
-            /* Flat and high, having been charging: the charger has tapered
-             * off. A pack resting at the same voltage off the cable reads the
-             * same, which is why this is only reachable from CHARGING. */
-            chargeState_ = ChargingState::FULL;
-        } else if (chargeState_ == ChargingState::FULL ||
-                   chargeState_ == ChargingState::CHARGING) {
-            /* Flat voltage, low level, and we thought we were charging: the
-             * charger must have been unplugged. Exit to DISCHARGING. This
-             * handles the case where USB is removed but voltage drops gradually
-             * (below V_CHARGER_HELD) without a large step, so the state must
-             * transition back based on the low level after a flat window. */
-            if (chargeSmoothV_ < CHARGE_FULL_V) {
-                chargeState_ = ChargingState::DISCHARGING;
-            }
-        } else if (chargeState_ == ChargingState::UNKNOWN &&
-                   chargeSmoothV_ < CHARGE_FULL_V) {
-            /* Flat, low, and nothing has said charger: it is running on cell.
-             * The level test is what makes this "low" -- without it a board
-             * booted on USB and sitting flat at float voltage fell through
-             * here and reported DISCHARGING after CHARGE_WINDOW_MS. */
-            chargeState_ = ChargingState::DISCHARGING;
-        }
-    }
-
-    chargeRefV_ = chargeSmoothV_;
-    chargeRefMs_ = nowMs;
-}
-
 /* Called only on a fresh sample (every BATTERY_SAMPLE_MS) to smooth the voltage
- * that feeds the battery percentage display. Separate from charge inference:
- * charge detection must be fast (~2s to notice a cable), while the gauge must
- * be slow to ignore transients. Prime on first sample rather than converging
+ * that feeds the battery percentage display. Slow on purpose, to ignore
+ * transients. Prime on first sample rather than converging
  * from zero, so the gauge does not ramp for 30s after every boot. */
 void Board::updateGaugeFilter(float volts) {
     if (!gaugeFilterReady_) {
@@ -283,23 +183,6 @@ void Board::updateGaugeFilter(float volts) {
 
 float Board::getBatteryVoltage() {
     return readBatteryTelemetry().batteryVoltage;
-}
-
-Board::PowerState Board::getPowerSource() {
-    const BatteryPublic snap = batterySnapshot();
-    const float vBat = snap.sample.batteryVoltage;
-    if (vBat >= V_IMPLAUSIBLE && vBat <= V_SENSOR_MAX) {
-        /* The cell voltage is all there is to go on, and it sits in the same
-         * range whether the cable is in, out, or there is no pack at all -- so
-         * the charge verdict is the only thing that tells them apart. There is
-         * deliberately no "no pack" answer here; see V_SENSOR_MAX above. */
-        if (snap.state == ChargingState::CHARGING ||
-            snap.state == ChargingState::FULL) {
-            return PowerState::EXTERNAL_POWER;
-        }
-        return PowerState::BATTERY;
-    }
-    return PowerState::UNKNOWN;
 }
 
 /* The curve mapping alone, with no memory in it. getBatteryPercent() is what
@@ -337,8 +220,8 @@ int8_t Board::curvePercent(float vBat) const {
  * couple of seconds. The repaint is cheap now; this stops the number itself
  * from twitching, which is the other half of the same complaint.
  *
- * The band is applied to the percentage, not to the measurement: the voltage,
- * the charge verdict and the gauge filter all still read the filtered value
+ * The band is applied to the percentage, not to the measurement: the voltage
+ * and the gauge filter still read the filtered value
  * directly. A real discharge still tracks, in steps of PERCENT_DEADBAND rather
  * than one at a time.
  *
@@ -355,31 +238,14 @@ int8_t Board::getBatteryPercent() {
     return batterySnapshot().pct;   // -1 means sensor fault, NOT "no pack"
 }
 
-Board::ChargingState Board::getChargingState() {
-    return batterySnapshot().state;
-}
-
-/* One snapshot for both reads: taking the percentage from one sample and the
- * charge verdict from the next could report a low battery that the same
- * snapshot says is on the charger. */
 bool Board::isBatteryLow() {
-    const BatteryPublic snap = batterySnapshot();
-    if (snap.pct < 0) return false;
-    if (snap.state == ChargingState::CHARGING ||
-        snap.state == ChargingState::FULL) {
-        return false;
-    }
-    return snap.pct <= BATTERY_LOW_PERCENT;
+    const int8_t pct = getBatteryPercent();
+    return pct >= 0 && pct <= BATTERY_LOW_PERCENT;
 }
 
 bool Board::isBatteryCritical() {
-    const BatteryPublic snap = batterySnapshot();
-    if (snap.pct < 0) return false;
-    if (snap.state == ChargingState::CHARGING ||
-        snap.state == ChargingState::FULL) {
-        return false;
-    }
-    return snap.pct <= BATTERY_CRITICAL_PERCENT;
+    const int8_t pct = getBatteryPercent();
+    return pct >= 0 && pct <= BATTERY_CRITICAL_PERCENT;
 }
 
 uint8_t Board::brightness() {
@@ -392,7 +258,11 @@ void Board::setBrightness(uint8_t percent) {
     if (percent < BRIGHTNESS_MIN) percent = BRIGHTNESS_MIN;
     if (percent > 100) percent = 100;
     prefs_.putUChar("bright", percent);
-    applyBrightness();
+    /* Not while the panel sleeps: that would light the backlight over a dark
+     * panel. Unreachable from the Settings slider -- nobody can touch it with
+     * the screen off -- but the serial console can set brightness at any
+     * time, and displayWake() re-applies the stored value anyway. */
+    if (!displayAsleep_) applyBrightness();
 }
 
 void Board::applyBrightness() {

@@ -3,16 +3,16 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.9.1-blue)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-35-2d7d9a)](#the-games)
+[![Version](https://img.shields.io/badge/version-5.10.0-blue)](CHANGELOG.md)
+[![Games](https://img.shields.io/badge/games-37-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-77.5%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-79.7%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 35-game educational console for young players, running on an **ESP32-32E
+A 37-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -29,9 +29,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 35 |
-| Flash | 2,439,057 / 3,145,728 bytes (**77.5%**) |
-| RAM | 76,508 / 327,680 bytes (**23.3%**) |
+| Games | 37 |
+| Flash | 2,507,569 / 3,145,728 bytes (**79.7%**) |
+| RAM | 79,708 / 327,680 bytes (**24.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -42,22 +42,22 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 
 ## Help wanted
 
-**Board ports.** Braino is developed and tested against the E32R28T-1. Two
-ESP32-2432S028 CYD variants ship as ports built from published pin maps and
-have not been verified on real hardware; the Freenove FNK0104B *has* been
-verified on hardware but ships with three peripherals switched off (see
+**Board ports.** Braino is developed and tested against the E32R28T-1, and
+every supported board has been run on hardware (see
+[Which board do you have?](#which-board-do-you-have)). The Freenove FNK0104B
+ships with three peripherals switched off (see
 [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
 has had its panel, backlight and touch confirmed on hardware but ships with four
 peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
 the 3.2-inch **E32R32P** has had its display, touch, battery sense and
 radios confirmed on hardware, with the RGB LED order and the battery
 divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3)); and one
-dual-USB CYD variant whose colours come out inverted *has* been verified on
+dual-USB CYD variant whose colours come out inverted has been verified on
 hardware (see
-[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel))
-— if you own any of those, telling us whether it works is the single
-most useful thing you can send. The CYD family has many variants whose
-differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
+[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel)). A board
+that is not in that list becomes supported when someone who owns one runs
+it -- that report is the single most useful thing you can send. The CYD
+family has many variants whose differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
 files and nowhere else: a profile header in `include/boards/` and a
 `[board_*]` section in `platformio.ini`. No file under `src/` names a GPIO,
@@ -119,6 +119,30 @@ matches yours: two boards sold under the same name can carry different display
 controllers, and the wrong image gives inverted colours, dead touch or a blank
 screen rather than an error.
 
+### Which board do you have?
+
+Five boards are supported, and each has been flashed and run on hardware. Tell
+them apart by screen size, touch type and USB ports:
+
+| Screen | Touch | USB | Board | Pick in the installer | Vendor page |
+|---|---|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T | [E32R40T](#e32r40t-4-inch-st7796) | [LCDWIKI 4.0inch ESP32-32E](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display) |
+| 3.2-inch | resistive | one USB-C | E32R32P | [E32R32P](#e32r32p-32-inch-st7789p3) | [LCDWIKI 3.2inch ESP32-32E](https://www.lcdwiki.com/3.2inch_ESP32-32E_Display) |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
+| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+
+The two 2.8-inch resistive boards look alike; the second USB socket is the
+difference -- and so is power. The dual-USB board has **no battery hardware**
+the firmware can use: no battery sense line, so no battery badge and no
+low-battery warning. Run it from USB: a wall adapter, a computer, or a USB
+power bank for a portable console (for example
+[this 5,000 mAh bank](https://www.walmart.com/ip/5K-PWR-BNK/14769668232) -- a suggestion,
+not something we have tested with this board). The capacitive board is the same design under two brands: the
+LCDWIKI ES3C28P's published pins match the Freenove FNK0104B profile pin for
+pin -- display, touch, audio and battery -- so the one image runs both. If your board is not in this table, it is not supported -- a
+different image is likely to give a blank or wrongly coloured screen.
+
 ### Freenove FNK0104B (ESP32-S3)
 
 **The Freenove FNK0104B** is a 2.8-inch ESP32-S3 board with the same ILI9341
@@ -143,10 +167,10 @@ broken:**
 | Status LED | One **WS2812** addressable pixel on GPIO42; `RgbLedProfile` describes three PWM channels. The colour half of the feedback is a no-op — the sounds still play — and the screen saver loses its rally colour | [#72](https://github.com/iamankushpandit/Gume/issues/72) |
 | SD card | The slot is **SDMMC 4-bit**; `SdProfile` describes an SPI card. Optional SD content is simply not loaded, which everything has defaults for | [#73](https://github.com/iamankushpandit/Gume/issues/73) |
 
-The battery **percentage** is correct, but the **charging/discharging verdict**
-is not yet validated on this board's charger — those constants were measured
-against the E32R28T-1's TP4054 ([#74](https://github.com/iamankushpandit/Gume/issues/74)).
-Partition sizing on the 16 MB part and a first-frame time worth checking are
+The battery **percentage** is correct. The firmware no longer shows a
+charging state on any board, so the old question of whether this board's
+charger fooled the inference ([#74](https://github.com/iamankushpandit/Gume/issues/74))
+no longer arises. Partition sizing on the 16 MB part and a first-frame time worth checking are
 tracked in [#75](https://github.com/iamankushpandit/Gume/issues/75).
 
 `pio run -e s3diag` is a standalone bring-up probe for this board: panel,
@@ -196,15 +220,13 @@ wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
 **If your 2.8-inch CYD draws everything perfectly but every colour is wrong,
 this is your build.** Flash `app_esp32_2432s028_inv`.
 
-The 2.8-inch "cheap yellow display" ships with at least three different
+The 2.8-inch "cheap yellow display" ships with several different
 combinations of panel and backlight behind the same silkscreen, and you cannot
-tell them apart by looking:
-
-| Profile | USB | Panel | Backlight | Verified? |
-|---|---|---|---|---|
-| `esp32-2432s028r.h` | micro-USB | ILI9341 | GPIO21 | from a published pin map |
-| `esp32-2432s028.h` | dual-USB | ST7789 | GPIO27 | from a published pin map |
-| `esp32-2432s028-inv.h` | dual-USB | ILI9341 + runtime inversion | GPIO21 | **on hardware** |
+tell them apart by looking. This firmware supports exactly one of them, the
+dual-USB board with an ILI9341 panel wanting runtime inversion and its
+backlight on GPIO21 (`esp32-2432s028-inv.h`), because that is the one that has
+been run on hardware. Other CYD variants -- the micro-USB ESP32-2432S028R, the
+ST7789 Rv3 -- are not supported.
 
 The symptom that identifies this one is specific and easy to misread: the board
 comes up with the backlight on, touch working, the layout correct and a
@@ -226,9 +248,19 @@ Two things are worth knowing if you are porting another variant:
   `invertDisplay()` and which works under any driver.
 
 Confirmed on hardware: panel, colour inversion, backlight, touch, rotation,
-flash size. Inherited from the E32R28T-1 and not exercised: SD card, RGB LED
-order, battery divider. **Silent by construction** — its touch clock is GPIO25,
-which is DAC channel 1, the same conflict that made 5.5.1 necessary.
+flash size, and **no battery sense**: with a pack and USB connected, GPIO34
+read a steady 0.21 V where a battery behind a 2:1 divider would read about
+2 V. On a CYD that pin is the light sensor. So this board shows **no battery
+badge, no low-battery warning and no battery rows in System Info**, and it
+should be run from USB power -- a wall adapter, a computer, or a power bank
+(for example [this 5,000 mAh one](https://www.walmart.com/ip/5K-PWR-BNK/14769668232), a
+suggestion we have not tested with this board). Until 5.10.0 the battery and
+the RGB LED were copied from the E32R28T-1, and the gauge read a light level
+as a charge. The RGB LED now follows the published CYD pin map (red IO4,
+green IO16, blue IO17). Inherited and not exercised: the SD card. **Sound** comes from GPIO26 into the onboard SC8002B
+amplifier and the JST 1.25 speaker connector. Its touch clock is GPIO25, the
+other DAC pad -- the conflict that made 5.5.1 switch sound off on the 2.8-inch
+boards -- so the firmware hands GPIO25 back to touch once audio is up.
 
 ### E32R32P (3.2-inch ST7789P3)
 
@@ -276,10 +308,10 @@ at this board's pins.
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
 [this Amazon board](https://www.amazon.com/dp/B0D92C9MMH?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1).
-The two **ESP32-2432S028** entries (classic ILI9341 and Rv3 ST7789) are ports
-built from published pin maps and have **not been verified on hardware**; they
-are offered so somebody who owns one can try them and report back. Other ESP32
-boards may accept a binary, but their display and touch pins will not match.
+Every board offered has been flashed and run on hardware: the E32R28T-1, the
+dual-USB ESP32-2432S028 with the inverted panel, the E32R32P, the E32R40T and
+the Freenove FNK0104B. Other ESP32 boards may accept a binary, but their
+display and touch pins will not match.
 
 That page is generated by `tools/gen_site.py` and published by
 `.github/workflows/pages.yml`, which builds every PlatformIO environment `platformio.ini` declares on
@@ -337,6 +369,8 @@ needs without touching anyone else's. Only the admin can change it.
 | **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
 | **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-eight easy words covering every letter. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, and an arrow appears at each point where the direction changes. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
+| **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |
+| **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk | 7+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -508,6 +542,17 @@ One screen per game, in launcher order.
   <img src="docs/screens/chess.png" width="300" alt="Chess: legal moves ringed, captures beside the board">
   <img src="docs/screens/seabattle.png" width="300" alt="Sea Battle: hunting the fleet, your sea beside it">
   <img src="docs/screens/cursive.png" width="300" alt="Cursive: tracing the word cat">
+</p>
+<p align="center">
+  <img src="docs/screens/ludo.png" width="300" alt="Ludo: tokens racing round the board, the die beside it">
+  <img src="docs/screens/ludo-lobby.png" width="300" alt="Ludo: choosing who sits in each seat">
+</p>
+<p align="center">
+  <img src="docs/screens/ludo-table.png" width="300" alt="Ludo: inviting consoles in the room">
+</p>
+<p align="center">
+  <img src="docs/screens/backgammon.png" width="300" alt="Backgammon: a checker picked up, where it can go">
+  <img src="docs/screens/backgammon-lobby.png" width="300" alt="Backgammon: one console, the computer, or nearby">
 </p>
 
 ### Logic, memory and attention
@@ -885,22 +930,11 @@ Percentage comes off a piecewise LiPo discharge curve, not a straight line: a
 cell sits near 3.7V for most of its life, so a linear map reads about 20 points
 high through the middle.
 
-**Charging is inferred, because this board has no charge-status line.** The
-charger's CHRG pin never reaches a GPIO, so the cell voltage on GPIO34 is the
-only thing the firmware can see. Three signals are read from it: a step between
-consecutive samples (plugging the cable in lifts the terminal voltage well
-beyond ADC noise within a couple of seconds, and unplugging drops it back under
-load), a voltage held above 4.21V that no resting cell reaches, and — for
-everything in between — the direction the voltage has moved over the last 45
-seconds. Mid-discharge a LiPo sits on a plateau where 40% of the capacity spans
-about 20mV, which is why the slow window has to be that long, and why a window
-that comes out genuinely flat leaves the previous verdict standing rather than
-flapping between charging and not.
-
-"Charged" is only ever reached from "charging". A pack resting at 4.15V off the
-cable and one that has just finished charging read identically from a single
-sample, so the firmware will not claim a battery is full unless it watched it
-get there.
+**There is no charging indicator, because this board has no charge-status
+line.** The charger's CHRG pin never reaches a GPIO, so the only thing the
+firmware can see is the cell voltage on GPIO34. It used to infer "charging"
+from how that voltage moved; that was a guess shown as a fact, so since 5.10.0
+the icon shows the percentage and nothing else.
 
 The **battery icon shows the percentage as a number**, inside the shell, the
 way an iPhone or an Android status bar does it — because eleven pixels of fill
@@ -909,8 +943,7 @@ question. Underneath the digits a two-pixel gauge still runs along the inside
 of the shell, so the analogue cue is there too: green above 40%, amber down to
 16%, and at or below **15%** the shell and the digits both go red. That red
 outline is what makes *charge me* visible across a room, which is why nothing
-else colours the shell. A lightning bolt appears inside the icon whenever the
-charger is attached.
+else colours the shell.
 
 **This board cannot tell whether a battery is fitted, and the gauge does not
 claim to.** The charger holds its BAT output at float voltage whether or not a
@@ -922,17 +955,15 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
-The icon is deliberately **not** a fixed size: it is 22px wide showing `72`
-and 36px showing `100` on the charger, and the status rows around it are laid
+The icon is deliberately **not** a fixed size: it grows with its digits, widest
+at `100`, and the status rows around it are laid
 out from its measured width rather than a constant offset.
 
 At **15% or less** a strip also appears across the top of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
 charger* at 5%. It shows for six seconds and repeats every two minutes, so it
-stays a warning rather than becoming furniture. Plugging in clears it within a
-couple of seconds — the warning is driven off the charge verdict, not the
-percentage, so it goes away when the user does the thing it asked for rather
-than waiting for the reading to climb.
+stays a warning rather than becoming furniture. It is driven by the percentage
+alone, so on the charger it clears once the reading climbs back above 15%.
 
 The divider ratio itself is still an assumption pending a meter on the board.
 
@@ -959,6 +990,15 @@ Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip
 Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
+
+### The USB cable
+
+A computer connected by USB can ask the device what it is (board, firmware
+version, an id the firmware generated) and what its settings are (as counts
+and on/off flags). It never answers with a player's name, a score, the Wi-Fi
+network's name or its password. Changing settings over the cable needs the
+admin PIN, the same one the device asks for on screen. Nothing about this
+involves a radio.
 
 ### The update check
 
@@ -1004,13 +1044,19 @@ stable so you can recognise your own device in a scanner. Nobody types it and it
 is not derived from anything a player entered. Advertising is **non-connectable**:
 there is no GATT server, so there is nothing to connect to.
 
-**Two consoles can play a two-player game over it.** When two players start a
-game from the Chess lobby, each console advertises its latest turn: a session
-number, a move number, and the two squares. Nothing about it is chess-specific
--- it is a service any future two-player game uses, which is why the wire
-format talks about turns rather than pieces. That is all — no name, no profile and no
+**Consoles can play each other over it.** When players start a game from the
+Chess, Sea Battle, Ludo or Backgammon lobby, each console advertises its latest turn: a
+session number, a move number, two small numbers saying what was played, and
+how far it has caught up with everyone else. In Chess the two numbers are
+squares; in Ludo they are a seat and a token, in Backgammon the point a checker
+left and the point it reached, and the dice are never sent at all
+-- every console at the table works each roll out for itself and checks every
+move against it. Nothing about the format is specific to one game, which is why
+it talks about turns rather than pieces. That is all — no name, no profile and no
 score travels with a move, and the moves occupy the same four bytes the best
 score normally uses, because the advertisement is already full at 31 bytes.
+Ludo seats up to four consoles; that uses the same turn, read by more consoles,
+and adds nothing to what any one of them transmits.
 
 Consoles can be given names, and a name is what you see on screen -- but a name
 is stored on your own device and is never transmitted. The advertisement is
@@ -1018,7 +1064,7 @@ identical byte for byte whether every console you know is named or none is.
 
 It is a **broadcast**, and worth being plain about: anyone in range with the
 right software hears the moves, exactly as they can already hear that a device
-is present. Only the two consoles in the game act on them. Every move received
+is present. Only the consoles in the game act on them. Every move received
 is checked against the receiver's own board and discarded unless it is legal
 there, so a bad actor cannot corrupt a game — at worst they can be ignored.
 
@@ -1090,9 +1136,8 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.9.1** — a hotfix withdrawing **5.9.0**, which broke
-the display on two boards and shipped a Freenove image that could not boot. See
-[CHANGELOG.md](CHANGELOG.md) for what has changed since.
+Current release: **5.10.0** — the previous release was **5.9.1**. See
+[CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ---
 
@@ -1115,9 +1160,12 @@ Dependencies resolve automatically:
 | `h2zero/NimBLE-Arduino` | BLE beacon -- ~192 KB for host plus controller, against several times that for the core's Bluedroid stack |
 | [`map-n-flag`](https://github.com/iamankushpandit/map-n-flag) | Flag and outline artwork |
 
-Both diagnostic builds below, and the app itself, are also on the
-[web installer](#install-it-without-a-toolchain) — useful when the board is not
-on the machine that has PlatformIO.
+The console is on the [web installer](#install-it-without-a-toolchain), one
+firmware per supported board — useful when the board is not on the machine that
+has PlatformIO. The diagnostics below are **not** offered there and are not
+attached to releases: they are bench tools, built from source by whoever is
+holding the board, and a copy frozen into a release would only ever be older
+than the one in the tree.
 
 To check the page itself before pushing:
 
@@ -1131,6 +1179,23 @@ against the published site, where CI has put them there.
 
 ### Diagnostics
 
+Fourteen environments in `platformio.ini` are hardware probes rather than the
+console — `bringup`, `batdiag`, `audiodiag`, `wifidiag`, `s3diag`, `diag4`,
+`diag32p` and their per-board copies. Each environment declares which it is
+with `custom_env_kind`, and `tools/envs.py` is what every workflow asks:
+
+```bash
+python tools/envs.py --product        # the five that are Braino!
+python tools/envs.py --diagnostic     # the fourteen bench probes
+```
+
+CI builds a probe when its own source or `platformio.ini` changes, and not
+otherwise; nothing publishes one. Build the one you need by name:
+
+```bash
+pio run -e batdiag -t upload
+```
+
 An isolated Wi-Fi radio test, built with **no** display, touch or game code:
 
 ```bash
@@ -1142,10 +1207,44 @@ what proved the radio was fine when the app's scan was returning nothing — the
 async `scanNetworks()`/`scanComplete()` pair was silently failing on this board,
 while a blocking scan found 58 access points.
 
+The same serial port (115200) is a small console, and a running board answers
+it without being reset. One command per line; every reply is one line,
+`ok key="value" ...` or `err <code> <message>`:
+
+```
+identify      ok v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="…" build="…" …
+get           ok v="1" theme="Dark" brightness="80" layout="horizontal" sound="on" …
+get theme     ok key="theme" value="Dark" values="Dark|Light|Midnight|…"
+help          ok commands="identify get set wifi profiles profile-add …"
+```
+
+Those are open, and carry only facts about the device — never a player's name,
+a score, the Wi-Fi network's name or the MAC. Everything else needs the admin
+PIN: after `unlock <PIN>`,
+
+| What | Commands |
+|---|---|
+| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp, ntp_hours, timezone |
+| Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
+| Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
+| Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+
+then `lock`. Every change goes through the same code the screens use, with the
+same refusals: the admin profile and the player currently in use cannot be
+removed, and Nearby needs the beacon. The password is never echoed, and three
+wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
+game off for every player at once. Chess, Sea Battle, Cursive, Ludo and
+Backgammon cannot be hidden yet (a known limit of per-player visibility).
+
+`python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
+which port. To set up several boards at once, copy
+`tools/bench_config.example.json` to `tools/bench_config.json` (gitignored)
+and run `python tools/configure_boards.py`.
+
 The main firmware also traces the clock over serial at 115200:
 
 ```
-[boot] ntp=1 creds=1 ssid='MyNetwork' tzmin=-360
+[boot] ntp=1 creds=1 tzmin=-360
 [time] wifi up, ip=192.168.1.142 rssi=-57
 [time] configTzTime US Central (CST6CDT,M3.2.0,M11.1.0)
 [time] UDP NTP OK, clock set from pool.ntp.org
@@ -1179,11 +1278,18 @@ src/
     AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimeIdentity.cpp  boot banner: which board, which build
+    AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded
+    AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
+    AppRuntimeConsoleSettings.cpp  console: get/set over one settings table
+    AppRuntimeConsoleProfiles.cpp  console: players and their games (CRUD)
+    ConsoleText.h       console argument parsing, allocation-free
     Game.h              base class; lifecycle + full vs partial invalidation
     LauncherGame.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view
     ScoreCatalog.cpp    derived scored-app catalog view
     NearbyPlay.cpp      anonymous peer scores, notifications, sharing switch
+    NearbySession.cpp   games on nearby consoles: seats, invites, turns
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app

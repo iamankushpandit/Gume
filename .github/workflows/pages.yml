@@ -102,17 +102,48 @@ jobs:
           key: pio-${{ hashFiles('platformio.ini') }}
           restore-keys: pio-
 
+      # The compiled-object cache. Separate from the PlatformIO *packages* cache
+      # above, which holds the toolchain: this holds build output, and until
+      # 5.9.x there was no point caching it. tools/build_stamp.py appended the
+      # commit hash to the global CPPDEFINES, so every object in the tree had a
+      # different compile command on every commit -- and every CI run is a new
+      # commit. Measured locally: 333 s and 336 objects for a changed commit
+      # name, against 66 s and one object for a build where nothing had moved.
+      #
+      # With the stamp in a generated header instead, the objects are stable
+      # across commits and this cache starts paying. It is content-addressed,
+      # so a restored entry is either right or is not a hit -- there is no
+      # stale-artifact failure mode to guard against. The key rotates per run
+      # so the cache keeps absorbing new objects; restore-keys is what makes
+      # the previous run's copy the starting point.
+      - name: Cache compiled objects
+        uses: actions/cache@v4
+        with:
+          path: .pio/build_cache
+          key: objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
+            objects-${{ runner.os }}-
+
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      # Every environment, not just the ones the installer offers. batdiag
-      # was built by neither workflow for its whole life: check_docs.py only
-      # validates environments listed in gen_site.py's VARIANTS, and a bench
-      # tool is deliberately not offered on the flashing page, so it fell
-      # through every net. An environment nobody builds is an environment
-      # that is already broken and has not been told yet.
-      - name: Build firmware
-        run: pio run -e app -e bringup -e batdiag -e wifidiag -e app_esp32_2432s028r -e bringup_esp32_2432s028r -e batdiag_esp32_2432s028r -e app_esp32_2432s028_st7789 -e app_esp32_2432s028_inv -e bringup_esp32_2432s028_st7789 -e batdiag_esp32_2432s028_st7789 -e app_fnk0104b -e app_e32r40t -e app_e32r32p -e bringup_e32r32p -e batdiag_e32r32p -e s3diag -e diag4
+      # Only the environments the installer actually offers -- the five
+      # `product` ones, derived by tools/envs.py from platformio.ini rather
+      # than listed here.
+      #
+      # This step used to name eighteen environments, on the reasoning that an
+      # environment nobody builds is one that is already broken and has not
+      # been told yet. The reasoning was right and the list was still wrong:
+      # `audiodiag`, `diag32p` and `audiodiag_e32r32p` had been added months
+      # earlier and appeared in neither this list nor ci.yml's. Eleven
+      # diagnostic builds ran on every push to main to publish a page that
+      # offers none of them, and the three that needed watching were the three
+      # nobody watched. ci.yml builds a probe when its own source or
+      # platformio.ini moves, which is the change that can break it; the page
+      # deploy has no business compiling a bench tool at all.
+      - name: Build the firmware the installer offers
+        run: pio run $(python tools/envs.py --product --pio-args)
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -123,7 +154,7 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in app bringup batdiag wifidiag app_esp32_2432s028r bringup_esp32_2432s028r batdiag_esp32_2432s028r app_esp32_2432s028_st7789 app_esp32_2432s028_inv bringup_esp32_2432s028_st7789 batdiag_esp32_2432s028_st7789 app_fnk0104b app_e32r40t app_e32r32p bringup_e32r32p batdiag_e32r32p s3diag diag4; do
+            for env in $(python tools/envs.py --product); do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"

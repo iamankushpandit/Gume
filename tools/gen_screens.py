@@ -16,6 +16,7 @@ Output: docs/screens/*.png
 """
 from __future__ import annotations
 
+import math
 import re
 import sys
 from pathlib import Path
@@ -168,33 +169,31 @@ def topbar(d, title, synced=True, bars=3):
     d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
 
 
-BATT_H, BATT_PAD, BATT_BOLT_W, BATT_BOLT_GAP, BATT_TERM_W = 15, 3, 6, 2, 2
+BATT_H, BATT_PAD, BATT_TERM_W = 15, 3, 2
 BATT_TRACK_H = 4
 
 
-def battery_width(pct=72, charging=False):
+def battery_width(pct=72):
     """Mirrors Ui::batteryBadgeWidth. Font 1 advances exactly 6px on the
     device, so the width is counted in characters rather than measured with
     PIL's proportional stand-in -- otherwise the mock-up packs differently
     from the firmware and stops being evidence."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
-    inner = BATT_PAD * 2 + (BATT_BOLT_W + BATT_BOLT_GAP if charging else 0) + 6 * len(text)
+    inner = BATT_PAD * 2 + 6 * len(text)
     return max(inner, 11) + 2 + BATT_TERM_W
 
 
-def battery_badge(d, cx, cy, pct=72, charging=False):
+def battery_badge(d, cx, cy, pct=72):
     """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
-    shell, a bordered two-pixel level gauge along the inside bottom, and the
-    charging bolt inside the shell. Variable width -- see battery_width."""
+    shell over a bordered two-pixel level gauge along the inside bottom. No
+    charging state. Variable width -- see battery_width."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
-    total = battery_width(pct, charging)
+    total = battery_width(pct)
     shell = total - BATT_TERM_W
     bx, by = cx - total // 2, cy - BATT_H // 2
-    low = (not charging) and 0 <= pct <= 15
+    low = 0 <= pct <= 15
     out = ERROR if low else MUTED
-    if charging:
-        level = SUCCESS
-    elif pct <= 15:
+    if pct <= 15:
         level = ERROR
     elif pct <= 40:
         level = WARN
@@ -211,10 +210,6 @@ def battery_badge(d, cx, cy, pct=72, charging=False):
         gw = max(1, int(pct * (track_w - 2) / 100))
         d.rectangle([track_x + 1, track_y + 1, track_x + gw, track_y + BATT_TRACK_H - 2], fill=level)
     penx = bx + 1 + BATT_PAD
-    if charging:
-        d.polygon([(penx + 4, cy - 5), (penx, cy + 1), (penx + 4, cy + 1)], fill=level)
-        d.polygon([(penx + 1, cy + 5), (penx + 5, cy - 1), (penx + 1, cy - 1)], fill=level)
-        penx += BATT_BOLT_W + BATT_BOLT_GAP
     if text:
         d.text((penx, cy - 6), text, font=F1, fill=out)
 
@@ -449,6 +444,355 @@ def sea_battle():
     d.text((px, sy + 14), "fire again", font=F1, fill=MUTED)
     d.text((px, sy + status_h), "Hits 4/11  lost 3", font=F1, fill=MUTED)
     button(d, (px, by + side - action_h, pw, action_h), "End game")
+    return im
+
+
+# Ludo. Every number here is restated from src/games/LudoBoard.cpp -- the
+# cell size, the board and panel origins, the yard insets and spot offsets,
+# the colours -- so the picture is the device's layout rather than an
+# impression of it. Change one there, change it here.
+LUDO_SEAT = [(220, 48, 48), (36, 160, 72), (240, 196, 24), (32, 112, 216)]
+LUDO_NAMES = ["Red", "Green", "Yellow", "Blue"]
+LUDO_PAPER, LUDO_RULE, LUDO_INK = (250, 250, 244), (120, 124, 132), (26, 34, 48)
+LUDO_SPOT, LUDO_STAR, LUDO_HI = (226, 229, 234), (150, 154, 162), (120, 230, 255)
+LUDO_QUARTER = [(1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 5), (6, 4), (6, 3),
+                (6, 2), (6, 1), (6, 0), (7, 0), (8, 0)]
+LUDO_YARD = [(0, 0), (9, 0), (9, 9), (0, 9)]
+LUDO_CELL, LUDO_BX, LUDO_BY = 13, 6, 37
+LUDO_PX = LUDO_BX + 15 * LUDO_CELL + 8
+LUDO_PW = W - LUDO_PX - 6
+
+
+def _ludo_rot(c, times):
+    col, row = c
+    for _ in range(times):
+        col, row = 14 - row, col
+    return col, row
+
+
+def _ludo_track(a):
+    return _ludo_rot(LUDO_QUARTER[a % 13], a // 13)
+
+
+def _ludo_home(seat, step):
+    return _ludo_rot((1 + step, 7), seat)
+
+
+def _ludo_cell_xy(c):
+    return LUDO_BX + c[0] * LUDO_CELL, LUDO_BY + c[1] * LUDO_CELL
+
+
+def _ludo_on_seat(seat):
+    return LUDO_INK if seat == 2 else WHITE
+
+
+def _ludo_token(d, cx, cy, seat, r, count=1):
+    """One token: a shape per colour as well as the colour, as on the device."""
+    fill = LUDO_SEAT[seat]
+    if seat == 0:
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill, outline=LUDO_INK)
+    elif seat == 1:
+        d.rectangle([cx - r + 1, cy - r + 1, cx + r - 1, cy + r - 1], fill=fill, outline=LUDO_INK)
+    elif seat == 2:
+        d.polygon([(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)], fill=fill, outline=LUDO_INK)
+    else:
+        d.polygon([(cx, cy - r), (cx + r, cy + r), (cx - r, cy + r)], fill=fill, outline=LUDO_INK)
+    if count > 1:
+        s = str(count)
+        d.text((cx - d.textlength(s, font=F1) / 2, cy - 5), s, font=F1, fill=_ludo_on_seat(seat))
+
+
+def _ludo_star(d, cx, cy, r, fill):
+    pts = []
+    for i in range(10):
+        rad = r if i % 2 == 0 else r * 0.45
+        ang = -math.pi / 2 + i * math.pi / 5
+        pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
+    d.polygon(pts, fill=fill)
+
+
+def _ludo_board(d, pos, lit):
+    """pos: seat -> four relative squares (None = yard, 56 = home).
+    lit: set of (seat, token) that can move and are lit cyan."""
+    C = LUDO_CELL
+    d.rectangle([LUDO_BX - 1, LUDO_BY - 1, LUDO_BX + 15 * C, LUDO_BY + 15 * C], outline=LUDO_INK)
+    for s in range(4):
+        yx, yy = LUDO_BX + LUDO_YARD[s][0] * C, LUDO_BY + LUDO_YARD[s][1] * C
+        d.rectangle([yx, yy, yx + 6 * C - 1, yy + 6 * C - 1], fill=LUDO_SEAT[s])
+        d.rounded_rectangle([yx + 9, yy + 9, yx + 6 * C - 10, yy + 6 * C - 10], 6, fill=LUDO_PAPER)
+        for t in range(4):
+            sx = yx + (54 if t & 1 else 24)
+            sy = yy + (54 if t & 2 else 24)
+            here = s in pos and pos[s][t] is None
+            d.ellipse([sx - 8, sy - 8, sx + 8, sy + 8],
+                      fill=LUDO_HI if here and (s, t) in lit else LUDO_SPOT, outline=LUDO_SEAT[s])
+            if here:
+                _ludo_token(d, sx, sy, s, 6)
+
+    # Who stands on which grid cell.
+    at = {}
+    for s, toks in pos.items():
+        for t, rel in enumerate(toks):
+            if rel is None or rel >= 56:
+                continue
+            c = _ludo_track((rel + 13 * s) % 52) if rel <= 50 else _ludo_home(s, rel - 51)
+            at.setdefault(c, []).append((s, t))
+
+    cells = [(_ludo_track(a), a) for a in range(52)]
+    cells += [(_ludo_home(s, k), None) for s in range(4) for k in range(5)]
+    home_seat = {_ludo_home(s, k): s for s in range(4) for k in range(5)}
+    for c, a in cells:
+        x, y = _ludo_cell_xy(c)
+        if a is not None and a % 13 == 0:
+            base = LUDO_SEAT[a // 13]
+        elif a is None:
+            base = LUDO_SEAT[home_seat[c]]
+        else:
+            base = LUDO_PAPER
+        here = at.get(c, [])
+        is_lit = any(k in lit for k in here)
+        d.rectangle([x, y, x + C - 1, y + C - 1], fill=LUDO_RULE)
+        d.rectangle([x + 1, y + 1, x + C - 1, y + C - 1], fill=LUDO_HI if is_lit else base)
+        cx, cy = x + C // 2 + 1, y + C // 2 + 1
+        if a is not None and a % 13 == 8 and not here:
+            _ludo_star(d, cx, cy, 5, LUDO_STAR)
+        seats = sorted({s for s, _ in here})
+        if len(seats) == 1:
+            _ludo_token(d, cx, cy, seats[0], 5, len(here))
+        elif seats:
+            corner = [(-3, -3), (3, -3), (3, 3), (-3, 3)]
+            for s in seats:
+                _ludo_token(d, cx + corner[s][0], cy + corner[s][1], s, 3)
+
+    x0, y0 = LUDO_BX + 6 * C, LUDO_BY + 6 * C
+    x1, y1 = x0 + 3 * C - 1, y0 + 3 * C - 1
+    mx, my = (x0 + x1) // 2, (y0 + y1) // 2
+    d.polygon([(x0, y0), (x0, y1), (mx, my)], fill=LUDO_SEAT[0])
+    d.polygon([(x0, y0), (x1, y0), (mx, my)], fill=LUDO_SEAT[1])
+    d.polygon([(x1, y0), (x1, y1), (mx, my)], fill=LUDO_SEAT[2])
+    d.polygon([(x0, y1), (x1, y1), (mx, my)], fill=LUDO_SEAT[3])
+    d.line([(x0, y0), (x1, y1)], fill=LUDO_INK)
+    d.line([(x1, y0), (x0, y1)], fill=LUDO_INK)
+    span, mid = 3 * C - 1, (3 * C - 1) // 2
+    spots = [(x0 + 7, y0 + mid), (x0 + mid, y0 + 7), (x0 + span - 7, y0 + mid), (x0 + mid, y0 + span - 7)]
+    for s, toks in pos.items():
+        home = sum(1 for rel in toks if rel is not None and rel >= 56)
+        if home:
+            hx, hy = spots[s]
+            d.text((hx - d.textlength(str(home), font=F1) / 2, hy - 5), str(home), font=F1,
+                   fill=_ludo_on_seat(s))
+
+
+def ludo():
+    """Ludo: Red, a player, holding a 4 against two computers.
+
+    Red's two tokens on one square are a block and carry a 2; Green shares a
+    star with nobody yet; Yellow has one token home and one in its column. The
+    two squares Red can move from are lit, which is what a player sees after
+    rolling when there is a real choice to make.
+    """
+    im, d = blank(); topbar(d, "Ludo")
+    pos = {0: [None, 3, 20, 20], 1: [None, None, 8, 17], 2: [8, 30, 53, 56]}
+    _ludo_board(d, pos, lit={(0, 1), (0, 2), (0, 3)})
+
+    px, pw = LUDO_PX, LUDO_PW
+    _ludo_token(d, px + 7, 38 + 9, 0, 6)
+    d.text((px + 17, 39), "Red", font=F2, fill=TEXT)
+
+    dx, dy = px + (pw - 44) // 2, 62
+    d.rounded_rectangle([dx, dy, dx + 43, dy + 43], 8, fill=LUDO_SEAT[0])
+    d.rounded_rectangle([dx + 4, dy + 4, dx + 39, dy + 39], 6, fill=(252, 252, 250))
+    cx, cy = dx + 22, dy + 22
+    for ox, oy in ((-10, -10), (10, 10), (10, -10), (-10, 10)):
+        d.ellipse([cx + ox - 4, cy + oy - 4, cx + ox + 4, cy + oy + 4], fill=LUDO_INK)
+
+    msg = "Pick a token"
+    d.text((px + (pw - d.textlength(msg, font=F2)) / 2, 114), msg, font=F2, fill=TEXT)
+
+    y = 132
+    for s, right in ((0, ""), (1, "CPU"), (2, "CPU")):
+        if s == 0:
+            # The turn dot, lit: it blinks beside whoever's turn it is.
+            d.ellipse([px + 1, y + 5, px + 7, y + 11], fill=TEXT)
+        _ludo_token(d, px + 14, y + 8, s, 5)
+        d.text((px + 23, y + 1), LUDO_NAMES[s], font=F2, fill=TEXT)
+        if right:
+            d.text((px + pw - 2 - d.textlength(right, font=F2), y + 1), right, font=F2, fill=MUTED)
+        y += 17
+    button(d, (px + 6, 204, pw - 14, 28), "End game")
+    return im
+
+
+def ludo_lobby():
+    """Ludo: the lobby. Each seat in its own corner, as on the board.
+
+    Tapping a seat cycles Empty, Player, Computer. The level applies to every
+    computer in the game. Start needs two seats and at least one person.
+    """
+    im, d = blank(); topbar(d, "Ludo")
+    kinds = ["Player", "Computer", "Player", "Empty"]
+    for s in range(4):
+        col = 1 if s in (1, 2) else 0
+        row = 1 if s >= 2 else 0
+        x, y, w, h = 8 + col * 156, 38 + row * 50, 148, 44
+        empty = kinds[s] == "Empty"
+        d.rounded_rectangle([x, y, x + w - 1, y + h - 1], 6,
+                            fill=SURFACE if empty else LUDO_SEAT[s], outline=OUTLINE)
+        tx, ty = x + 20, y + h // 2
+        d.ellipse([tx - 12, ty - 12, tx + 12, ty + 12], fill=LUDO_PAPER)
+        _ludo_token(d, tx, ty, s, 8)
+        ink = MUTED if empty else _ludo_on_seat(s)
+        d.text((x + 40, y + 5), LUDO_NAMES[s], font=F2, fill=ink)
+        d.text((x + 40, y + 23), kinds[s], font=F2, fill=ink)
+
+    d.text((8, 145), "Computer", font=F2, fill=TEXT)
+    button(d, (112, 138, 94, 30), "Easy", fill=TEXT, tc=BG)
+    button(d, (212, 138, 94, 30), "Normal", fill=SURFACE, tc=TEXT)
+    hint = "Tap a seat to change who sits there"
+    d.text((8 + (304 - d.textlength(hint, font=F2)) / 2, 178), hint, font=F2, fill=MUTED)
+    button(d, (60, 198, 120, 34), "Start")
+    button(d, (192, 198, 120, 34), "Nearby")
+    return im
+
+
+def ludo_table():
+    """Ludo: the table lobby, as the host sees it. Geometry from LudoLobby.cpp.
+
+    One console has answered, one is still being asked -- invitations go out
+    one at a time -- and one has not been invited. A computer fills the fourth
+    seat. The tags are the four hex digits a console advertises; a console the
+    owner has named would show the name instead, looked up on this device.
+    """
+    im, d = blank(); topbar(d, "Ludo")
+    rows = [("A4F2 joined", PANEL, SUCCESS), ("Asking B1C3...", PANEL, TEXT),
+            ("Invite 7E09", SURFACE, TEXT)]
+    for i, (label, fill, ink) in enumerate(rows):
+        button(d, (8, 36 + i * 34, 304, 30), label, fill=fill, tc=ink)
+    note = "Moves travel by Bluetooth. Anyone near hears them."
+    d.text((8 + (304 - d.textlength(note, font=F1)) / 2, 36 + 3 * 34 + 4), note, font=F1,
+           fill=MUTED)
+    button(d, (8, 172, 148, 26), "Computers: 1", fill=SURFACE)
+    button(d, (164, 172, 148, 26), "Level: Easy", fill=SURFACE)
+    button(d, (8, 204, 110, 30), "Back")
+    button(d, (202, 204, 110, 30), "Start")
+    return im
+
+
+# Backgammon. Restated from src/games/BackgammonDraw.cpp -- the board origin,
+# the point width, the bar and tray, the checker size and pitch, the panel.
+BG_BX, BG_BY, BG_COL, BG_BAR_W = 4, 34, 17, 14
+BG_BAR_X = BG_BX + 6 * BG_COL
+BG_RIGHT_X = BG_BAR_X + BG_BAR_W
+BG_BOARD_R = BG_RIGHT_X + 6 * BG_COL
+BG_TRAY_X, BG_TRAY_W = BG_BOARD_R + 2, 18
+BG_BOARD_H, BG_PT_H, BG_TRI_H, BG_R, BG_PITCH = 202, 96, 88, 7, 15
+BG_PANEL_X = BG_TRAY_X + BG_TRAY_W + 4
+BG_PANEL_W = W - BG_PANEL_X - 4
+BG_FELT, BG_WOOD, BG_TRAY = (28, 96, 62), (96, 62, 38), (70, 45, 28)
+BG_TRI = [(222, 190, 140), (160, 70, 52)]
+BG_WHITE, BG_WHITE_EDGE = (246, 242, 232), (120, 110, 95)
+BG_BLACK, BG_BLACK_EDGE = (44, 44, 54), (190, 190, 205)
+BG_HI, BG_INK = (120, 230, 255), (26, 34, 48)
+
+
+def _bg_point_rect(i):
+    if i < 6:
+        x = BG_RIGHT_X + (5 - i) * BG_COL
+    elif i < 12:
+        x = BG_BX + (11 - i) * BG_COL
+    elif i < 18:
+        x = BG_BX + (i - 12) * BG_COL
+    else:
+        x = BG_RIGHT_X + (i - 18) * BG_COL
+    y = BG_BY if i >= 12 else BG_BY + BG_BOARD_H - BG_PT_H
+    return x, y
+
+
+def _bg_checker(d, cx, cy, white):
+    fill, edge = (BG_WHITE, BG_WHITE_EDGE) if white else (BG_BLACK, BG_BLACK_EDGE)
+    d.ellipse([cx - BG_R, cy - BG_R, cx + BG_R, cy + BG_R], fill=fill, outline=edge)
+    d.ellipse([cx - BG_R + 3, cy - BG_R + 3, cx + BG_R - 3, cy + BG_R - 3], outline=edge)
+
+
+def backgammon():
+    """Backgammon against the computer: a 5-3 rolled, the checker on White's
+    13-point picked up, and the two points it can reach marked.
+
+    The position is a plausible middle game with fifteen checkers a side; the
+    pip counts in the panel are computed from it, not typed.
+    """
+    im, d = blank(); topbar(d, "Backgammon")
+    pt = [0] * 24
+    for i, n in ((5, 4), (7, 3), (12, 4), (15, 1), (23, 2), (3, 1)):
+        pt[i] = n
+    for i, n in ((0, 2), (11, 4), (16, 3), (18, 4), (20, 2)):
+        pt[i] = -n
+    selected, targets = 12, {7, 9}
+    d.rectangle([BG_BX - 2, BG_BY - 2, BG_BOARD_R + 1, BG_BY + BG_BOARD_H + 1], fill=BG_WOOD)
+    for i in range(24):
+        x, y = _bg_point_rect(i)
+        top = i >= 12
+        cx = x + BG_COL // 2
+        d.rectangle([x, y, x + BG_COL - 1, y + BG_PT_H - 1], fill=BG_FELT)
+        if top:
+            d.polygon([(x, y), (x + BG_COL - 1, y), (cx, y + BG_TRI_H)], fill=BG_TRI[i & 1])
+        else:
+            base = y + BG_PT_H - 1
+            d.polygon([(x, base), (x + BG_COL - 1, base), (cx, base - BG_TRI_H)], fill=BG_TRI[i & 1])
+        n = abs(pt[i])
+
+        def slot(s, top=top, y=y):
+            return y + BG_R + 1 + s * BG_PITCH if top else y + BG_PT_H - 2 - BG_R - s * BG_PITCH
+        for s in range(min(n, 5)):
+            _bg_checker(d, cx, slot(s), pt[i] > 0)
+        if i == selected:
+            cy = slot(min(n, 5) - 1)
+            d.ellipse([cx - BG_R, cy - BG_R, cx + BG_R, cy + BG_R], outline=BG_HI, width=2)
+        if i in targets:
+            cy = slot(min(n, 4))
+            d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=BG_HI)
+            d.rectangle([x, y, x + BG_COL - 1, y + BG_PT_H - 1], outline=BG_HI)
+    d.rectangle([BG_BAR_X, BG_BY, BG_RIGHT_X - 1, BG_BY + BG_BOARD_H - 1], fill=BG_WOOD)
+    d.rectangle([BG_TRAY_X, BG_BY, BG_TRAY_X + BG_TRAY_W - 1, BG_BY + BG_BOARD_H - 1], fill=BG_TRAY)
+
+    px, pw = BG_PANEL_X, BG_PANEL_W
+    d.ellipse([px, 38, px + 12, 50], fill=BG_WHITE, outline=BG_WHITE_EDGE)
+    d.text((px + 16, 37), "You", font=F2, fill=TEXT)
+    for k, face in enumerate((5, 3)):
+        x0 = px + 2 + k * 36
+        d.rounded_rectangle([x0, 56, x0 + 27, 83], 5, fill=(252, 252, 250), outline=BG_INK)
+        cx, cy = x0 + 14, 70
+        spots = {5: [(-8, -8), (8, 8), (8, -8), (-8, 8), (0, 0)], 3: [(-8, -8), (0, 0), (8, 8)]}[face]
+        for ox, oy in spots:
+            d.ellipse([cx + ox - 3, cy + oy - 3, cx + ox + 3, cy + oy + 3], fill=BG_INK)
+
+    def pips(white):
+        total = 0
+        for i, v in enumerate(pt):
+            if white and v > 0:
+                total += v * (i + 1)
+            if not white and v < 0:
+                total += -v * (24 - i)
+        return total
+    d.text((px + 2, 98), "W%d B%d" % (pips(True), pips(False)), font=F1, fill=MUTED)
+    d.text((px, 110), "Pick a", font=F2, fill=TEXT)
+    d.text((px, 128), "point", font=F2, fill=TEXT)
+    button(d, (px, 150, pw, 26), "Roll", fill=SURFACE, tc=MUTED)
+    button(d, (px, 180, pw, 24), "Undo", fill=SURFACE, tc=MUTED)
+    button(d, (px, 207, pw, 26), "End")
+    return im
+
+
+def backgammon_lobby():
+    """Backgammon: three ways to play -- one console, the computer, or a
+    console nearby. One nearby console is offering a game."""
+    im, d = blank(); topbar(d, "Backgammon")
+    rows = [("Two players", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+    for r, (label, fill, ink) in enumerate(rows):
+        button(d, (10, 38 + r * 34, 300, 30), label, fill=fill, tc=ink)
+    note = "Moves travel by Bluetooth. Anyone near hears them."
+    d.text(((W - d.textlength(note, font=F1)) / 2, H - 14), note, font=F1, fill=MUTED)
     return im
 
 
@@ -1267,15 +1611,28 @@ def timezone_picker():
 
 
 def screensaver():
+    """Mirrors BrainoApp::renderScreenSaver(): the wordmark still and centred,
+    "Braino!" in a 60% shade of the rally colour, the battery at top centre,
+    and a net that skips the stretches behind both."""
     im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
-    for y in range(0, H, 14):
-        d.rectangle([W // 2 - 1, y, W // 2, y + 8], fill=(40, 40, 40))
     rally = (255, 160, 60)
+    mid_x, mid_y = W // 2, H // 2
+    text_w = int(max(d.textlength(PRODUCT, font=F4), d.textlength(COPYRIGHT_SHORT, font=F1))) + 8
+    text_y, text_h = mid_y - 26, 48
+    bat_y, bat_h = 14 - 8, 16
+    for y in range(0, H, 14):
+        behind_text = y + 8 > text_y and y < text_y + text_h
+        behind_bat = y + 8 > bat_y and y < bat_y + bat_h
+        if not behind_text and not behind_bat:
+            d.rectangle([mid_x - 1, y, mid_x, y + 8], fill=(40, 40, 40))
+    name = tuple(c * 60 // 100 for c in rally)
+    d.text((mid_x - d.textlength(PRODUCT, font=F4) / 2, mid_y - 22), PRODUCT, font=F4, fill=name)
+    d.text((mid_x - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, mid_y + 9), COPYRIGHT_SHORT, font=F1, fill=(70, 76, 92))
+    battery_badge(d, mid_x, 14, 72)
     d.rounded_rectangle([7, 70, 13, 110], 3, fill=rally)
     d.rounded_rectangle([307, 130, 313, 170], 3, fill=rally)
-    d.rounded_rectangle([150, 108, 162, 120], 2, fill=rally)
-    d.rounded_rectangle([153, 111, 159, 117], 1, fill=WHITE)
-    d.text((W / 2 - 6, 4), "7", font=F2, fill=(70, 70, 76))
+    d.rounded_rectangle([230, 180, 242, 192], 2, fill=rally)
+    d.rounded_rectangle([233, 183, 239, 189], 1, fill=WHITE)
     return im
 
 
@@ -2479,6 +2836,11 @@ EXTRA_SCREENS = [
     ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
     ("seabattle", sea_battle, "Sea Battle: hunting the fleet, your sea beside it"),
     ("cursive", cursive, "Cursive: joined-up letters and easy words"),
+    ("ludo", ludo, "Ludo: a choice to make, the die beside the board"),
+    ("ludo-lobby", ludo_lobby, "Ludo: who sits in each seat"),
+    ("ludo-table", ludo_table, "Ludo: inviting consoles in the room"),
+    ("backgammon", backgammon, "Backgammon: a checker picked up, where it can go"),
+    ("backgammon-lobby", backgammon_lobby, "Backgammon: one console, the computer, or nearby"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

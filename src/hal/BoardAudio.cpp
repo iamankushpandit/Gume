@@ -13,6 +13,12 @@
 #include <string.h>
 #endif
 
+#if GUME_HAS_AUDIO_DAC
+#include <driver/dac_common.h>
+#include <driver/rtc_io.h>
+#include <soc/rtc_io_reg.h>
+#endif
+
 /* ------------------------------------------------------------------ audio
  *
  * On a board with an audio codec the console makes sound. On a board without
@@ -766,6 +772,23 @@ constexpr Segment CUE_POP[] = {
     slide(300, 1300, 45, 76),
 };
 
+/* One square of a counter's walk -- Ludo plays one per hop, and a hop is
+ * 110ms, so this has to be over well inside that or a walk becomes one long
+ * buzz. Sine and quiet, because a six is six of them in a row. */
+constexpr Segment CUE_STEP[] = {
+    tone(988, 35, 58),      // B5
+};
+
+/* The same note twice, a doorbell: it asks for attention without saying
+ * anything was right or wrong, which is why it neither rises like Correct nor
+ * falls like Wrong. Heard after the other seats have been playing, so it is
+ * allowed to be louder than a Tap. */
+constexpr Segment CUE_YOUR_TURN[] = {
+    tone(784, 70, 80),      // G5
+    hush(45),
+    tone(784, 120, 80),
+};
+
 /* The four pads. Sine rather than square: they are the only cue that plays
  * repeatedly at a steady pulse, and a square wave becomes wearing after two
  * dozen of them. 260ms fits inside Cinnamon's 600ms lit period with room, so
@@ -1059,6 +1082,39 @@ void Board::beginAudio() {
         return;
     }
 
+    /* HAND THE OTHER DAC PAD BACK.
+     *
+     * Installing I2S in I2S_MODE_DAC_BUILT_IN claims BOTH DAC pads, and the
+     * i2s_set_dac_mode() call above only chooses which one carries samples --
+     * it does not release the other. 5.5.0 is the proof: the two 2.8-inch
+     * boards, whose resistive touch clock is GPIO25, drew perfectly and could
+     * not be touched, and 5.5.1 answered by switching their audio off.
+     *
+     * So the unused channel is powered down and its pad returned to the GPIO
+     * matrix here, explicitly, and Board::begin() re-applies the touch pin
+     * setup after this function returns. The pad's state is logged either
+     * side, because this is the line to read when a board comes up with sound
+     * and no touch: "rtc_mux 1->0" means the pad was claimed and is now back.
+     * The MUX_SEL and XPD_DAC bits sit at the same positions in both pad
+     * registers, which the static_assert keeps honest. */
+    {
+        static_assert(RTC_IO_PDAC1_MUX_SEL == RTC_IO_PDAC2_MUX_SEL &&
+                      RTC_IO_PDAC1_XPD_DAC == RTC_IO_PDAC2_XPD_DAC,
+                      "DAC pad register layouts differ; read each by name");
+        const bool speakerOnDac2 = BOARD.audio.speakerPin == DAC2_GPIO;
+        const int8_t otherPad = speakerOnDac2 ? DAC1_GPIO : DAC2_GPIO;
+        const uint32_t padReg = speakerOnDac2 ? RTC_IO_PAD_DAC1_REG : RTC_IO_PAD_DAC2_REG;
+        const bool rtcBefore = GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_MUX_SEL) != 0;
+        const bool outBefore = GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_XPD_DAC) != 0;
+        dac_output_disable(speakerOnDac2 ? DAC_CHANNEL_1 : DAC_CHANNEL_2);
+        rtc_gpio_deinit(static_cast<gpio_num_t>(otherPad));
+        Serial.printf("[audio] GPIO%d released: rtc_mux %d->%d, dac_out %d->%d\n",
+                      static_cast<int>(otherPad), rtcBefore ? 1 : 0,
+                      GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_MUX_SEL) != 0 ? 1 : 0,
+                      outBefore ? 1 : 0,
+                      GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_XPD_DAC) != 0 ? 1 : 0);
+    }
+
     /* Write mid-scale (0x8000) to silence the DAC output without snapping it
      * to zero (which would DC-bias the speaker through the ground reference)
      * or to full scale (which would pop). Mid-scale is the natural "nothing
@@ -1190,6 +1246,8 @@ void Board::playSound(Sound cue) {
         case Sound::Countdown: armCue(CUE_COUNTDOWN); break;
         case Sound::Whoosh:    armCue(CUE_WHOOSH); break;
         case Sound::Pop:       armCue(CUE_POP); break;
+        case Sound::Step:      armCue(CUE_STEP); break;
+        case Sound::YourTurn:  armCue(CUE_YOUR_TURN); break;
         case Sound::Pad1:      armCue(CUE_PAD_1); break;
         case Sound::Pad2:      armCue(CUE_PAD_2); break;
         case Sound::Pad3:      armCue(CUE_PAD_3); break;

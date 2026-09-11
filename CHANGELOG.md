@@ -1,5 +1,443 @@
 # Changelog
 
+## 5.10.0 — 2026-09-11
+
+**Two new games, both playable across the room, on five boards that have
+each been run on hardware.** Ludo seats two to four -- any of them the
+computer -- and plays across up to four consoles; Backgammon plays on one
+console, against the computer or against a console nearby. Neither changed
+what goes on the air: the dice are worked out on every console from a shared
+seed and never sent. The two 2.8-inch resistive boards gained sound, the
+battery badge shows its percentage and nothing it had to guess -- and none
+at all on the dual-USB CYD, which has no battery hardware -- and a board can
+now be asked what it is, or set up entirely, over its USB cable. 37 games.
+
+**Only boards that have run on hardware are supported: five, down from
+seven.** The ESP32-2432S028R (micro-USB, ILI9341) and the ESP32-2432S028Rv3
+(ST7789) profiles were written from published pin maps on 2026-08-26, while
+the dual-USB CYD was being brought up. That board turned out to be neither and
+got its own profile, `esp32-2432s028-inv`, and the two guesses stayed behind:
+built by CI, offered by the web installer as supported, and never once run on
+a board. Their profiles, board sections, product and bench environments, and
+installer entries are gone. What is left is exactly what was flashed and
+checked for this release, and the README and the installer's picker now
+describe each by what you can see on it:
+
+| Screen | Touch | USB | Board |
+|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T |
+| 3.2-inch | resistive | one USB-C | E32R32P |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 |
+| 2.8-inch | resistive | USB-C and micro-USB | ESP32-2432S028, inverted panel |
+
+A board comes back when someone who owns one runs it.
+
+**The dual-USB ESP32-2432S028 has no battery badge, because it has no
+battery hardware.** Its battery and RGB LED pins had been copied from the
+E32R28T-1. Measured on the board with a pack and USB connected, GPIO34 read a
+steady 0.21 V where a battery behind the assumed 2:1 divider would read about
+2 V -- on a CYD that pin is the light sensor -- so the gauge had been showing
+a light level as a charge. Its profile now declares no battery sense, and a
+board without it shows no battery badge anywhere -- top bar, launcher, lock
+screen, screen saver -- no low-battery warning, and one "None - use USB
+power" row in System Info instead of four readings of nothing. The header
+layouts, which already pack themselves off the badge's measured width,
+close the gap on their own. Run this board from USB power; the README
+suggests a power bank for portable use. The LED now follows the published
+CYD order, red IO4, green IO16, blue IO17.
+
+**`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
+changed.** Ports were identified before the builds and uploaded to after them,
+up to twenty minutes later, and COM numbers move in that time -- a replug, or a
+USB power surge renumbering everything. A 4-inch E32R40T came back on the port
+an E32R28T-1 had been identified on and received the 2.8-inch image: a dark
+panel with a working speaker. Every port is now asked again immediately before
+its upload and skipped unless it gives the same device id. And a board whose
+device id was issued by one model's firmware (`R40T-...`) while it reports
+another model (`board=E32R28T-1`) is refused as probably carrying the wrong
+image, rather than being flashed with that wrong image again; the tags are
+read from the board profiles through `platformio.ini`, not listed.
+
+**`ESP32_boardUtil.py --flash` checks that every board booted, and brings a
+stuck 4-inch board back by itself.** The reset at the end of an upload
+regularly left the E32R40T in a ROM boot loop -- `invalid header` or `flash
+read err`, panel dark -- with an intact image in flash. After the uploads, still
+holding the board lock, the tool now asks each board it flashed which build it
+is running, without resetting it. One that is silent and whose serial shows the
+loop gets a reset from download mode (esptool `flash_id` staying in the
+bootloader, then `read_mac` with a hard reset), up to three times, which is
+what had been bringing it back by hand; it writes nothing, and the MAC esptool
+prints is discarded unread. A board still looping is reported as FAILED; one
+running a build other than the commit just built is flagged.
+
+**Nearby stops repainting its list for every beacon it hears.** The peer
+table's change counter moves on every advertisement received, not only when
+something about a peer changed, so with a few consoles in the room the list was
+wiped and refilled several times a second to show the same words -- and each
+refill looked up this player's score for every peer. `RowList::drawChanged()`
+now remembers a hash of what each row drew and repaints only rows whose text
+moved, overdrawing text rather than clearing it first; the list rect is wiped
+only when rows arrive, leave or scroll, and a refresh that changed nothing
+draws nothing. A heard advertisement rebuilds the list at most four times a
+second, and pressing the Sharing switch no longer repaints the top bar. The
+one-second refresh now runs with nobody in range too, so "Listening" no longer
+sits on "Radio starting" until a peer turns up.
+
+**Ludo, for two to four -- and any of them can be the computer.** The classic
+race round the cross-shaped board, on one console. Each of the four seats is a
+Player, a Computer or Empty; at least two seats and at least one person. The
+computer plays at **Easy** (a random legal move, except that it always brings a
+token out when it can) or **Normal** (capture, get home, come out, reach
+safety, escape a threat, advance the leader -- one step of lookahead, no
+search). The rules as played are stated in `LudoRules.h`; the ones that are
+choices rather than the only reading are that the third six forfeits only that
+roll, a capture earns a roll but reaching home does not, and blocks do not form
+on safe squares, so no start square can be walled off.
+
+- **The dice are a function of the game's seed, not a stream.** Roll *k* is
+  `die(seed, k)`, so a move only has to name a token and anything that knows
+  the seed can check it. That is what a later, connected version needs, and it
+  costs nothing now: the rules are pure C++ with no Arduino in them.
+- **A 13px cell is too small to aim at**, so the tokens that can move light up
+  and a tap picks the nearest one; a move that is the only one plays itself.
+- **Every colour has its own token shape** -- circle, square, diamond,
+  triangle -- so the game does not depend on telling red from green.
+- **Remembered, like Chess**: saved after every roll and every move, including
+  a roll not yet used, so putting the device down is not a free reroll. End
+  game asks twice.
+- **Ludo cannot be hidden per player**, like Chess, Sea Battle and Cursive: its
+  launcher index is past the 32-bit visibility mask.
+
+**Backgammon, for two -- one console, the computer, or a console nearby.** The
+full race: roll, tap a checker and the points it can reach light up, Undo until
+Done. Every forced-move rule is enforced -- as many dice as possible, the higher
+die when only one of two can be played -- and a game ends as a single, a gammon
+or a backgammon. The pip count shows how far each side has to go. No doubling
+cube, and no score: a win is not a number.
+
+- **The computer** plays every complete legal sequence through a position score
+  -- pip lead, made points (home points and runs of them more), opponents on
+  the bar, blots weighted by how many checkers can reach them -- and shows its
+  moves one at a time so a child can follow them. One level.
+- **Nearby play is the lobby's third way to play**, and it needed no change to
+  what is transmitted. An earlier plan ruled it out because the turn has no
+  field for dice; it does not need one. As in Ludo, both consoles derive every
+  roll from the session and their two tags, a move is the checker's two points
+  in the same turn Chess sends, and each move received is played only if it is
+  legal with the dice the receiver computed.
+- **Pure rules, host-tested.** `test/host/backgammon_rules_test.cpp` plays 400
+  games computer against computer and compares the legal moves with a
+  brute-force search over every move order on thousands of positions: 117,242
+  checks, 0 failures.
+- **Backgammon cannot be hidden per player** either; its launcher index is 36.
+
+**Ludo across up to four consoles, over the beacon Chess already uses.** Nearby
+in the Ludo lobby lists the consoles in the room; tap them to invite, add up to
+two computers, and Start once at least one has joined. The console being asked
+sees the invitation in its header and joins from its own Ludo lobby.
+
+- **Nothing new goes on the air.** No new flag, no version bump, and consoles
+  on older 5.x firmware can still see this one. A Ludo turn is the same turn
+  Chess sends -- session, move number, two six-bit numbers and an ack -- read
+  as a seat and a token. The die is never sent: every console works each roll
+  out from the table's seed and refuses any move that does not fit it. Agreed
+  by the maintainer on 2026-09-10 in conversation rather than in an issue; see
+  the invariant in `CLAUDE.md`.
+- **Who sits where and who moves first come from the seed**, not from the
+  invitation's coin toss, so the console that set the table up does not choose.
+- **A console replaces its move only once every other console has it**, which
+  is what makes a bonus roll -- or the host playing a computer straight after
+  itself -- survive a scan window that missed something.
+- **The service can now say which game an invitation is for**
+  (`NearbySeat::forThisGame`), and every lobby now checks it. Before, the Chess
+  and Sea Battle lobbies showed any invitation in the room as "A4F2 invites
+  you" -- a Sea Battle invitation included -- and accepting it left two
+  consoles playing different games at each other. An invitation to another
+  game now reads as an ordinary "Play A4F2" row.
+- **One console ending the game ends it for the table**: every console goes
+  back to its lobby, and the others say who ended it until tapped.
+- **Whose turn it is blinks.** A dot beside that seat in the panel, and the
+  die's frame on the console whose person has to roll; another console's turn
+  reads "Waiting for" and that seat's token. Only the dot and the die are
+  repainted -- the seat list no longer redraws on every turn.
+- **You can hear a move and hear your turn.** A token ticks once for every
+  square it lands on, so a move can be counted by ear, and a two-note chime
+  plays when the die comes round to a person holding this console -- after a
+  computer's move, another console's, or the other player's on the same one.
+  Not on a bonus roll, which is the same turn continuing, and never over the
+  top of a capture's or a finish's own cue. Two new words in the sound
+  vocabulary, `Step` and `YourTurn`, both synthesised like every other.
+- A console that walks out of range stalls the game rather than
+  being dropped: the radio cannot tell gone from slow.
+- The host test now also plays 600 tables of separate consoles and requires
+  every copy of the game to be identical after every roll.
+- Flash 2,462,145 bytes (78.3%, +13,260), RAM 76,868 (23.5%, +208).
+
+**Hardware identifiers are out of this repository, and a check now keeps them
+out.** `tools/board_registry.json` mapped six development boards' MAC
+addresses to the exact firmware environment each one was running. It was
+tracked for three commits and shipped inside two release tarballs before
+anybody noticed.
+
+A MAC is burned into eFuse. It cannot be changed, rotated or regenerated, so
+publishing one names that board for the life of the silicon — and this file
+published each one *beside the firmware that board runs*, which is a list of
+specific devices in somebody's home and what is on them. Deleting the file
+does not undo it: history, clones, forks and the release tarballs all keep
+their copies. Whether to rewrite history is the maintainer's call; what is
+fixed here is the tree, and the possibility of a repeat.
+
+- **A board now identifies itself with an id the firmware owns.**
+  `Board::deviceId()` generates `R28T-9F3A2C71` on first boot from the MAC, the
+  wall clock, 64 bits of `esp_random()` and the time since boot, runs the lot
+  through SHA-256 and keeps four bytes. The MAC makes a collision between two
+  devices impossible; the clock separates successive ids on one board after a
+  reset; the random bits are what make the digest un-guessable. The hash is the
+  point — it is one-way, so the id cannot be turned back into a MAC. The
+  `BoardProfile::idTag` prefix names the *model*, so an id still tells you
+  which firmware a board wants, and a factory reset issues a new one, which is
+  the property a MAC can never have.
+- **The boot banner prints `device=` instead of `mac=`.** That line is the one
+  people paste into public issues, which is how a local identifier stops being
+  local.
+- **The registry is gitignored**, with `board_registry.example.json` shipping
+  placeholders and `ESP32_boardUtil.py --learn` filling in the real one per
+  machine. esptool still reads a MAC off the chip when a board cannot
+  introduce itself — an empty flash, or after a merged-image install wiped
+  NVS — and it stays on that machine.
+- **`tools/check_identifiers.py` runs in CI on every pull request**, failing on
+  MAC addresses in either separator style and on public IP addresses. It was
+  tested against both before being wired in. It cannot recognise an SSID, a
+  hostname or a child's name, so the rule in `CLAUDE.md` covers what a machine
+  cannot.
+
+**Still open, and needing a decision rather than code:** `BleBeacon` composes
+its advertised `deviceId` from the last two bytes of the BT MAC, so those two
+bytes go out over the air. Moving it to `Board::deviceId()` would be strictly
+better, but it changes what the device transmits and what peers key their saved
+names on, so it needs agreement first — like any other change to the
+advertisement.
+
+**A running board can be asked what it is, without being reset.** The boot
+banner prints once, at power-up, so `ESP32_boardUtil.py` used to reset every
+board on the desk to hear it — discarding whatever each was doing, and not even
+reliably: one bench board's USB bridge drops off the bus for a moment as the
+app starts, taking the banner with it, and a 4-inch board reset from its
+button can refuse to boot until its battery is pulled.
+
+- **The firmware answers `identify?` on the serial port** with one line:
+  `[ident] v="1" device="…" board="…" version="…" build="…" built="…"
+  chip="…" panel="…" up="…"`. Every value is quoted, because board names and
+  the build time contain spaces. It is read-only by construction — no
+  arguments, no state change, nothing granted — and carries the banner's facts
+  only: never the MAC, a profile, a score or an SSID. A query does not count as
+  activity, so a tool polling the desk does not keep screens awake.
+- **`ESP32_boardUtil.py` asks first** and falls back to reset-and-listen only
+  for a board that does not answer (older firmware, a diag build, a blank
+  flash). It now prints each board's firmware version and whether the board was
+  *asked* or *reset*. `--no-reset` asks and never resets.
+- **The boot banner moved to `AppRuntimeIdentity.cpp`**, taking
+  `AppRuntime.cpp` from 816 lines to under 700, as its own commit.
+
+**A board can be set up from a cable.** Configuring a bench meant setting
+profiles, theme, brightness, Nearby and Wi-Fi on every board by hand, through
+a resistive touchscreen, after every flash. The serial port that answers
+`identify?` is now a small console, built as the first piece of a shell that
+calls the same services the UI does:
+
+- **One line reader, one command table, one reply grammar.** A command is a
+  row in `AppRuntimeConsole.cpp` (name, usage, help, capability, handler), and
+  `help` is derived from the table. Every command answers with exactly one
+  line: `ok key="value" ...` or `err <code> <message>`. `identify` now answers
+  in that grammar too (`ok v="1" device=...` instead of `[ident] v="1" ...`);
+  `identify?` and `settings?` still work as aliases, and `ESP32_boardUtil.py`
+  accepts both reply forms.
+- **CRUD, where the entity has it.** `get [key]` / `set <key> <value>` cover
+  every setting the Settings and Wi-Fi screens offer — theme, brightness,
+  layout, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby,
+  ntp, ntp_hours, timezone — with those screens' choices; `get <key>` lists
+  what it accepts. Players: `profiles`, `profile-add`, `profile-rename`,
+  `profile-remove`. Games per player: `games <slot>` and
+  `game <slot|all> <game-id> on|off`, so a teacher can switch a game off for
+  every player at once. Wi-Fi: `wifi "<network>" "<password>"`, `wifi clear`.
+- **Device reads are open; changes, and reading player names, need the admin
+  PIN.** The gate is keyed on each row's capability, so a new command cannot
+  forget it. Each change goes through the same code the screens use, with the
+  same refusals, and the screen showing the old value repaints. The admin
+  profile and the player currently in use cannot be removed; two players
+  cannot share a name. The password is never echoed, and the line buffer is
+  wiped after every command. Three wrong PINs lock the console for 30
+  seconds; the unlock lapses two minutes after the last command.
+- Serial only: a console over Wi-Fi or Bluetooth would be a new outbound flow.
+- `tools/configure_boards.py` applies one config file to every board that
+  answers — `tools/bench_config.json`, gitignored, from the committed
+  `bench_config.example.json` — addressing players by name, since slots shift.
+  It is safe to re-run.
+- Deliberately absent: factory reset, reading or clearing scores, changing the
+  admin PIN or which profile is admin, peer labels.
+- Known limit, not fixed here: per-player visibility holds 32 games and the
+  catalogue has 35, so Chess, Sea Battle and Cursive cannot be hidden — on the
+  device as well. The console refuses with `err limit` rather than answering
+  ok for a change that did not happen.
+- Fixed on the way: `Board::setBrightness()` lit the backlight even while the
+  panel slept. The slider cannot reach that state; a cable can. `Board` also
+  gains `char*` forms of `setWifiCredentials()` and `setProfileName()` and a
+  `copyProfileName()`, so the console handles names without allocating.
+
+**Nearby scanning no longer floods the serial log.** NimBLE-Arduino takes its
+log level from the Arduino core's when it is not given one, and the core runs
+at INFO, so every advertiser a Nearby scan heard printed
+`I NimBLEScan: New advertiser: <MAC>`. Measured on an E32R40T with Nearby on:
+3,604 bytes a second of serial output, 73.5 of those lines a second, and 99.9%
+of everything the board printed — burying the `[boot]` and `[wdt]` lines, and
+putting other people's Bluetooth addresses into logs that get pasted into
+issues. `CONFIG_NIMBLE_CPP_LOG_LEVEL=2` keeps NimBLE's warnings and errors;
+the same board now prints 2 bytes a second. It was not the cause of slow
+frames: the loop ran at 48.9 frames a second before and 49.6 after, and the
+~150 ms worst frame is unchanged, so that is a separate question.
+
+**The two 2.8-inch boards have sound.** The E32R28T-1 and the inverted-panel
+ESP32-2432S028 both have a JST 1.25 speaker connector fed from GPIO26 through
+an onboard amplifier, and both were silent by construction since 5.5.1. Two
+things kept them that way. Their touch clock is GPIO25, the other built-in DAC
+pad, and 5.5.0 lost touch there -- so `beginAudio()` now powers the unused DAC
+channel down and hands its pad back to the GPIO matrix once the driver is up,
+logs the pad's state either side (`[audio] GPIO25 released: ...`), and
+`Board::begin()` re-applies the touch pins after it. And on the E32R28T-1, IO4
+was declared as the green LED when it is the FM8002E amplifier's enable,
+active low, so turning the "LED" off every boot held the amplifier in
+shutdown. IO4 is now the amplifier enable and the LED uses the vendor's pins,
+red IO22, green IO16, blue IO17. `BoardConfig.h` allows a touch pin on the DAC
+pad the speaker does not use, and still refuses everything else there.
+
+**The battery shows its percentage and nothing else.** No board here has a
+charge-status line, so "charging" was inferred from how the cell voltage
+moved, and a lightning bolt drew that guess as a fact. The inference, the bolt,
+`getChargingState()`, `getPowerSource()` and System Info's Source and Charging
+rows are gone. The low-battery warning stays -- at 15%, escalating at 5% -- and
+is now the percentage alone, so on the charger it clears once the reading
+climbs back over the threshold rather than the moment a cable is sensed.
+
+**The screen saver keeps still.** "Braino!" and the copyright sit centred on
+whichever way the panel is held, instead of bobbing; "Braino!" takes a dim
+shade of the rally colour and changes with each hit, which is an overdraw
+rather than an erase. The battery was erased and redrawn every frame and so
+visibly flickered; it now repaints only when its number changes or the ball
+crosses it. The net skips the stretches behind both.
+
+**`tools/identify_boards.py` is now `tools/ESP32_boardUtil.py`.** It stopped
+being only an identifier when it learned to flash: `--flash` builds each
+connected board's environment once, all at the same time, then uploads to
+every port in parallel under one hold of the board lock. The old name
+described half of what it does. `configure_boards.py` imports it under the new
+name; entries for earlier releases below keep the name it had then.
+`--flash --board E32R40T` flashes only that board, which is what testing a
+change should use: flashing the whole bench to test a 4-inch change rebuilt
+four environments from scratch.
+
+**The 4-inch launcher shows nine apps a page in portrait.** A 3x3 grid of
+96x112 tiles instead of 2x2, so the catalogue is five pages rather than eleven.
+Landscape keeps its 2x3, and every smaller panel is unchanged: the grid is
+chosen from the panel's size by `LauncherLayout::grid()`, which the tile
+rects, the page size and the tile colours all read. Tile colours step by row as
+well as column on a three-wide grid, since `slot % 3` would have painted each
+column one colour. At 88px a subtitle no longer fits five of the apps -- Math's
+"addition & subtraction" is the widest -- and font 1 is already the smallest
+font the firmware carries, so there a subtitle that does not fit goes onto two
+lines; every title on the page moves up one line to match, so the grid stays
+even.
+
+**A low battery no longer flashes the whole screen.** The battery and update
+notices asked for a full repaint to show their banner and another to take it
+away, and the battery one repeated for as long as the cell stayed low. They
+now repaint only the header, as the Nearby banner already did.
+
+**The screen saver's paddles stop flickering.** Both were blanked and redrawn
+on every frame, including the one standing still for half of each rally, and
+the wordmark's full-width erase band cut through both as it bobbed. The band
+now stops short of the paddles, and a paddle repaints only when it moves,
+changes colour or the ball passes through it -- erasing only the rows it has
+left, so it does not blink on its way past.
+
+**CI and releases build the console, not the bench probes.** `platformio.ini`
+declares twenty-one environments and seven of them are Braino!; the other
+fourteen are hardware probes — `bringup`, `batdiag`, `audiodiag`, `wifidiag`,
+`s3diag`, `diag4`, `diag32p` and their per-board copies. Every workflow was
+building all of them anyway: eighteen on a push to `main` or `dev`, eighteen
+again on the Pages deploy minutes later, and all twenty-one on a tag, where
+fourteen probe images were attached as downloads nobody had a use for.
+
+Each environment now says which it is, once, with `custom_env_kind`, and
+`tools/envs.py` is the only place a workflow, checker or packer reads it. A
+probe is built when its own source or `platformio.ini` moves and not otherwise,
+and it is still one command away when a board needs triaging: `pio run -e
+batdiag -t upload`.
+
+**The build stamp is a generated header, not two `-D` flags — and a commit no
+longer rebuilds the world.** `tools/build_stamp.py` appended
+`GUME_BUILD_BRANCH`/`GUME_BUILD_COMMIT` to the global `CPPDEFINES`, which
+reaches the Arduino core and NimBLE as well as our own sources. Measured:
+
+| | before | after |
+|---|---|---|
+| `pio run -e app`, nothing changed | 66 s, 1 object | **45 s, 0 objects** |
+| `pio run -e app`, different commit | 333 s, 336 objects | **63 s, 4 objects** |
+
+336 objects to change a string that one translation unit reads — and a commit
+hash changes on every commit, so that was the standing cost of committing. The
+old comment defended it as "that is when the tree needed rebuilding anyway";
+89 of those 336 objects are ours, and usually one of them is what moved. It
+also meant CI could never cache build output, because every CI run is a new
+commit.
+
+**The build time moved into that header too, and had to.** It came from the
+compiler's `__DATE__`/`__TIME__` with the script deleting `BuildStamp.cpp.o`
+to keep it fresh. That stops working the moment an object cache exists: SCons
+restores the object instead of recompiling it — a legitimate hit, the source
+has not changed — and the reported build time freezes at whenever the first
+build happened. It was caught doing exactly that. A stale build time is worse
+than none, because it is believed.
+
+**The diagnostic defines are source-scoped.** `-D CYD_BRINGUP_ONLY` and its
+siblings are read only under `src/`, so they are now `build_src_flags` rather
+than global flags that also reached NimBLE and the core.
+
+**`[platformio] build_cache_dir` caches objects per environment — and only per
+environment.** Measured on this branch, each case starting from an empty build
+directory with the cache already warm:
+
+| | compiled | from cache | time |
+|---|---|---|---|
+| `app`, after `app` had been built | 1 | 351 | **49 s** |
+| `bringup` (same board), after `app` | 343 | 0 | 338 s |
+| `app_esp32_2432s028r`, after three other boards | 340 | 0 | 367 s |
+
+So a fresh checkout of an environment that has been built before — which is
+exactly what a CI job with a restored cache is — rebuilds in under a minute.
+Two environments never share, not even two for the same board: each builds
+into its own directory, and the output path is part of the cache key. An
+earlier draft of this change measured `bringup` reusing `app`'s objects; that
+did not reproduce, and limiting the board macros to TFT_eSPI to let boards
+share was tried and reverted for the same reason — it saved nothing.
+
+All three workflows now cache `.pio/build_cache` between runs, one cache per
+environment, which was pointless before the stamp changed and is the point
+now.
+
+Flash is 52 bytes smaller and RAM 24 bytes smaller: `builtAt()` returns a
+generated literal instead of assembling one into an 18-byte static buffer with
+`snprintf`.
+
+**Three hand-kept lists of environments went away, and they had already
+drifted.** `ci.yml` and `pages.yml` each named eighteen and neither named
+`audiodiag`, `diag32p` or `audiodiag_e32r32p`, which had been in
+`platformio.ini` for months — exactly the "an environment nobody builds is one
+that is already broken and has not been told yet" failure `pages.yml` warns
+about in its own comment. A list written into a workflow can be checked for
+typos and cannot be checked for completeness. `check_boards.py` now fails a
+workflow that runs `pio run` without asking `envs.py`.
+
 ## 5.9.1 — 2026-09-08
 
 **A hotfix. 5.9.0 was withdrawn: it broke the display on two of the seven
