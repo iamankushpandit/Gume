@@ -64,6 +64,13 @@ sees the invitation in its header and joins from its own Ludo lobby.
   die's frame on the console whose person has to roll; another console's turn
   reads "Waiting for" and that seat's token. Only the dot and the die are
   repainted -- the seat list no longer redraws on every turn.
+- **You can hear a move and hear your turn.** A token ticks once for every
+  square it lands on, so a move can be counted by ear, and a two-note chime
+  plays when the die comes round to a person holding this console -- after a
+  computer's move, another console's, or the other player's on the same one.
+  Not on a bonus roll, which is the same turn continuing, and never over the
+  top of a capture's or a finish's own cue. Two new words in the sound
+  vocabulary, `Step` and `YourTurn`, both synthesised like every other.
 - A console that walks out of range stalls the game rather than
   being dropped: the radio cannot tell gone from slow.
 - The host test now also plays 600 tables of separate consoles and requires

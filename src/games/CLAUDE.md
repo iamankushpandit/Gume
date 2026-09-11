@@ -32,7 +32,8 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
   from the fixed vocabulary in `hal/Sound.h` -- `Coin` for a point scored,
   `Whoosh` for something sliding, `LevelUp` for a round cleared, `Victory` and
   `GameOver` for the end of one, `HighScore` for a personal best, `Countdown`
-  for a timer running out. Pick the cue that matches what actually happened,
+  for a timer running out, `Step` for a piece walking one square, `YourTurn`
+  when play comes round to the person holding the console. Pick the cue that matches what actually happened,
   not the one that sounds nicest: the whole value of the vocabulary is that
   `Coin` means the same thing in every game. There is no way for a game to ask
   for a frequency, deliberately -- if none of the words fits, add one to

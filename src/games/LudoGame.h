@@ -271,6 +271,11 @@ private:
     /* A seat whose token follows the message, or NO_SEAT. See setWaiting(). */
     uint8_t messageSeat_ = Ludo::NO_SEAT;
     uint32_t confirmUntilMs_ = 0;
+    /* When a person here gets the die, YourTurn plays at this time -- held
+     * back until the last move's own cue, which ends at cueEndsMs_, is over.
+     * 0 when none is due; a roll cancels it. */
+    uint32_t turnCueAtMs_ = 0;
+    uint32_t cueEndsMs_ = 0;
     /* Said in the lobby after a table ended -- "A4F2 ended the game" -- until
      * the next tap, so a child whose game vanished is told why. */
     char lobbyNote_[32] = {0};

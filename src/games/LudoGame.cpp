@@ -31,6 +31,13 @@ constexpr uint32_t CPU_MOVE_MS = 650;
 constexpr uint32_t AUTO_MOVE_MS = 450;
 /* How long "No move" or "Three 6s!" stays up before the turn moves on. */
 constexpr uint32_t NOTICE_MS = 1200;
+/* The YourTurn cue comes a beat after the hand-over, and never over the top
+ * of the cue the move itself made: the synthesiser plays one script at a time,
+ * so a turn cue played at once would cut a capture's Coin in half. These are
+ * how long those cues run (BoardAudio.cpp), rounded up. */
+constexpr uint32_t TURN_CUE_GAP_MS = 150;
+constexpr uint32_t MOVE_CUE_MS = 300;     // Coin, LevelUp
+constexpr uint32_t FINISH_CUE_MS = 750;   // Victory, GameOver
 /* End game asks twice, the way Chess does: the button relabels itself and a
  * second press inside this window confirms. */
 constexpr uint32_t CONFIRM_MS = 3000;
@@ -157,6 +164,7 @@ void LudoGame::startGame(AppContext& host) {
 
 void LudoGame::enterTurn(uint32_t now, bool bonus) {
     autoToken_ = Ludo::NO_TOKEN;
+    turnCueAtMs_ = 0;
     /* The seat list is NOT repainted for a new turn -- the turn dot moves
      * instead. It repaints when a place is decided (finishMove) and here. */
     actionStale_ = true;
@@ -210,6 +218,12 @@ void LudoGame::enterTurn(uint32_t now, bool bonus) {
         setWaiting(seat);
     } else {
         setMessage(bonus ? "Roll again!" : "Tap to roll");
+        /* A person here has the die. Not on a bonus roll: the turn did not
+         * come round, it never left, and "Roll again!" already says so. */
+        if (!bonus) {
+            const uint32_t at = now + TURN_CUE_GAP_MS;
+            turnCueAtMs_ = at > cueEndsMs_ ? at : cueEndsMs_;
+        }
     }
     markDirty();
 }
@@ -218,6 +232,7 @@ void LudoGame::doRoll(AppContext& host, uint32_t now) {
     const uint8_t seat = state_.turn;
     const Ludo::RollResult result = Ludo::roll(state_, seed_);
     face_ = state_.pending;
+    turnCueAtMs_ = 0;   // rolled before the cue came: it has nothing to say
     host.playSound(Sound::Tap);
     switch (result) {
         case Ludo::RollResult::Choose:
@@ -286,7 +301,12 @@ void LudoGame::startMove(AppContext& host, uint8_t token, uint32_t now) {
     timerMs_ = now;
     autoToken_ = Ludo::NO_TOKEN;
     setMessage("");
-    host.playSound(anim_.from == Ludo::YARD ? Sound::Pop : Sound::Whoosh);
+    /* Leaving the yard pops onto the board. A walk says nothing here: every
+     * square of it plays a Step as the token lands (stepMove), starting with
+     * the first hop on the next frame. */
+    if (anim_.from == Ludo::YARD) {
+        host.playSound(Sound::Pop);
+    }
     /* The rules have already applied the move, so save now: a Lock pressed
      * mid-hop must not bring the token back where it started. */
     saveGame(host);
@@ -297,9 +317,16 @@ void LudoGame::stepMove(AppContext& host, uint32_t now) {
     if (now < timerMs_) {
         return;
     }
-    animAt_ = animAt_ == Ludo::YARD ? 0 : static_cast<uint8_t>(animAt_ + 1);
+    const bool fromYard = animAt_ == Ludo::YARD;
+    animAt_ = fromYard ? 0 : static_cast<uint8_t>(animAt_ + 1);
     shown_[anim_.seat][anim_.token] = animAt_;
     markDirty();
+    /* One Step per square landed on, so a player can count a move by ear.
+     * The hop out of the yard had its Pop already. Played before finishMove()
+     * on the last square so that a capture's or a home's cue replaces it. */
+    if (!fromYard) {
+        host.playSound(Sound::Step);
+    }
     if (animAt_ >= anim_.to) {
         finishMove(host, now);
         return;
@@ -317,6 +344,7 @@ void LudoGame::finishMove(AppContext& host, uint32_t now) {
     /* One cue per move, the one that says the most. */
     if (anim_.seatFinished) {
         seatsStale_ = true;   // a place to write beside the name
+        cueEndsMs_ = now + FINISH_CUE_MS;
         /* Whether somebody holding THIS console is playing, and whether it
          * was them: a console across the room finishing is news, not a win. */
         bool anyPlayer = false;
@@ -339,8 +367,10 @@ void LudoGame::finishMove(AppContext& host, uint32_t now) {
                       static_cast<uint8_t>(((c >> 5) & 0x3F) << 2),
                       static_cast<uint8_t>((c & 0x1F) << 3), 300);
         host.playSound(Sound::Coin);
+        cueEndsMs_ = now + MOVE_CUE_MS;
     } else if (anim_.reachedHome) {
         host.playSound(Sound::LevelUp);
+        cueEndsMs_ = now + MOVE_CUE_MS;
     }
 
     saveGame(host);
@@ -457,6 +487,10 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
         case Phase::Roll:
             if (remote) {
                 break;   // pollTable() rolls for it when its turn arrives
+            }
+            if (!computer && turnCueAtMs_ != 0 && now >= turnCueAtMs_) {
+                turnCueAtMs_ = 0;
+                host.playSound(Sound::YourTurn);
             }
             if (computer) {
                 if (now >= timerMs_ && (!net_ || canPublish(host))) {

@@ -766,6 +766,23 @@ constexpr Segment CUE_POP[] = {
     slide(300, 1300, 45, 76),
 };
 
+/* One square of a counter's walk -- Ludo plays one per hop, and a hop is
+ * 110ms, so this has to be over well inside that or a walk becomes one long
+ * buzz. Sine and quiet, because a six is six of them in a row. */
+constexpr Segment CUE_STEP[] = {
+    tone(988, 35, 58),      // B5
+};
+
+/* The same note twice, a doorbell: it asks for attention without saying
+ * anything was right or wrong, which is why it neither rises like Correct nor
+ * falls like Wrong. Heard after the other seats have been playing, so it is
+ * allowed to be louder than a Tap. */
+constexpr Segment CUE_YOUR_TURN[] = {
+    tone(784, 70, 80),      // G5
+    hush(45),
+    tone(784, 120, 80),
+};
+
 /* The four pads. Sine rather than square: they are the only cue that plays
  * repeatedly at a steady pulse, and a square wave becomes wearing after two
  * dozen of them. 260ms fits inside Cinnamon's 600ms lit period with room, so
@@ -1190,6 +1207,8 @@ void Board::playSound(Sound cue) {
         case Sound::Countdown: armCue(CUE_COUNTDOWN); break;
         case Sound::Whoosh:    armCue(CUE_WHOOSH); break;
         case Sound::Pop:       armCue(CUE_POP); break;
+        case Sound::Step:      armCue(CUE_STEP); break;
+        case Sound::YourTurn:  armCue(CUE_YOUR_TURN); break;
         case Sound::Pad1:      armCue(CUE_PAD_1); break;
         case Sound::Pad2:      armCue(CUE_PAD_2); break;
         case Sound::Pad3:      armCue(CUE_PAD_3); break;
