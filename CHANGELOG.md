@@ -25,7 +25,7 @@ describe each by what you can see on it:
 |---|---|---|---|
 | 4-inch | resistive | one USB-C | E32R40T |
 | 3.2-inch | resistive | one USB-C | E32R32P |
-| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 |
 | 2.8-inch | resistive | USB-C and micro-USB | ESP32-2432S028, inverted panel |
 

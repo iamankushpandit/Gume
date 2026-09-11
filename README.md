@@ -124,16 +124,18 @@ screen rather than an error.
 Five boards are supported, and each has been flashed and run on hardware. Tell
 them apart by screen size, touch type and USB ports:
 
-| Screen | Touch | USB | Board | Pick in the installer |
-|---|---|---|---|---|
-| 4-inch | resistive | one USB-C | E32R40T | [E32R40T](#e32r40t-4-inch-st7796) |
-| 3.2-inch | resistive | one USB-C | E32R32P | [E32R32P](#e32r32p-32-inch-st7789p3) |
-| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B | [FNK0104B](#freenove-fnk0104b-esp32-s3) |
-| 2.8-inch | resistive | one USB-C | E32R28T-1 | [E32R28T-1](BOARD_E32R28T-1.md) |
-| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) |
+| Screen | Touch | USB | Board | Pick in the installer | Vendor page |
+|---|---|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T | [E32R40T](#e32r40t-4-inch-st7796) | [LCDWIKI 4.0inch ESP32-32E](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display) |
+| 3.2-inch | resistive | one USB-C | E32R32P | [E32R32P](#e32r32p-32-inch-st7789p3) | [LCDWIKI 3.2inch ESP32-32E](https://www.lcdwiki.com/3.2inch_ESP32-32E_Display) |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
+| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
 
 The two 2.8-inch resistive boards look alike; the second USB socket is the
-difference. If your board is not in this table, it is not supported -- a
+difference. The capacitive board is the same design under two brands: the
+LCDWIKI ES3C28P's published pins match the Freenove FNK0104B profile pin for
+pin -- display, touch, audio and battery -- so the one image runs both. If your board is not in this table, it is not supported -- a
 different image is likely to give a blank or wrongly coloured screen.
 
 ### Freenove FNK0104B (ESP32-S3)

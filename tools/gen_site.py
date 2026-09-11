@@ -170,7 +170,7 @@ BOARD_DETAILS = {
         "buy": "https://www.lcdwiki.com/4.0inch_ESP32-32E_Display",
     },
     "fnk0104b": {
-        "label": "2.8-inch, capacitive touch, one USB-C port -- Freenove FNK0104B, ESP32-S3 (ILI9341 + FT6336U)",
+        "label": "2.8-inch, capacitive touch, one USB-C port -- Freenove FNK0104B / LCDWIKI ES3C28P, ESP32-S3 (ILI9341 + FT6336U)",
         "chip": "ESP32-S3",
         "buy": "https://store.freenove.com/products/fnk0104",
     },
