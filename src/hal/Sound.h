@@ -42,6 +42,8 @@ enum class Sound : uint8_t {
     Countdown,  // one tick of a timer running out
     Whoosh,     // something slid or moved
     Pop,        // something appeared
+    Step,       // a piece moved one square along a track
+    YourTurn,   // play has come round to the person holding the console
 
     /* Four pitched pads, for a colour-sequence round -- Cinnamon is the one
      * that needs them. They are a vocabulary entry rather than a game picking

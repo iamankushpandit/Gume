@@ -515,6 +515,13 @@ whose entries appear and disappear is the disappearing-thing trap in list form:
 rows that vanish need erasing, or the list needs a full repaint whenever its
 *length* changes.
 
+Done that way, via `RowList::drawChanged()`: a change in the rows' kinds,
+heights, count or scroll offset refills the list rect, and otherwise only rows
+whose content hash moved are repainted. The first conversion still wiped the
+list on every peer-table change, and that counter moves on every advertisement
+heard -- several refills a second, for identical text, with a few consoles in
+the room.
+
 ---
 
 ## Suggested order

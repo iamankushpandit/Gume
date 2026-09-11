@@ -172,5 +172,10 @@ void publishEnd(uint8_t session, uint8_t ply, uint8_t ack);
 void stopTurns();
 /** The named peer's latest move in `session`. */
 bool turnFrom(const char* deviceId, uint8_t session, NearbyTurn& out);
+/* Our own advertised tag, or "" while sessions are not allowed. Already on the
+ * air every second as part of the device name, so this adds nothing a peer
+ * could not already see; a game needs it only to order the seats of a table
+ * the same way on every console. */
+const char* selfId();
 
 }   // namespace NearbyPlay

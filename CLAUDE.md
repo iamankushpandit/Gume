@@ -268,7 +268,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 35 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 37 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -556,9 +556,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,448,885 / 3,145,728 bytes,
-**77.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 76,660 / 327,680 (23.4%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,489,533 / 3,145,728 bytes,
+**79.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 78,196 / 327,680 (23.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -738,7 +738,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 31 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it is 22px at `72` and 36px at `100` on the charger -- and in that widest state the row has about 4px spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
@@ -791,6 +791,36 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `from == to`**, which is never a legal move and so cannot be confused with
   one; it adds no bytes to a payload that has none to spare, and it is tested
   before the whose-turn check because a player gives up while they are waiting.
+- **Ludo seats up to four consoles on the same turn, and the wire did not
+  change.** Agreed by the maintainer in conversation on 2026-09-10, explicitly
+  without an issue -- a departure from the rule above, recorded here so it is
+  not mistaken for precedent. It needed no new flag and no version bump: a
+  console reads every other console's turn by tag (`nearbyTurnFrom()`), the
+  host invites them one at a time, and `Ludo::Net` (in `LudoRules.h`) spells
+  Ludo's meaning into the same `from`/`to`/`ack` six-and-seven-bit fields --
+  a seat and a token, or a presence, or the host's start word. **The die never
+  goes on the air**: every console derives each roll from the table's seed and
+  `Ludo::Net::accept()` refuses any move that does not fit it. Two things
+  differ from two-player play and must stay stated: **who moves first comes
+  from the seed**, not from `nearbyInvite()`'s coin toss, because a toss
+  between two cannot seat four -- the deal is a shuffle nobody chooses; and
+  **a console replaces its turn only once every other console has acked it**
+  (`LudoGame::canPublish()`), which is what makes a bonus roll or the host
+  playing a computer seat safe on a medium that drops things. The service
+  gained two calls for it, neither of which transmits anything:
+  `NearbySeat::forThisGame` (an invitation names its game; a lobby must not
+  accept another game's) and `nearbySelfId()` (so every console orders the
+  table alike). Still a BROADCAST: everyone in range hears every move.
+- **Backgammon's dice do not go on the air either, and that is what made it
+  fit.** An earlier plan ruled nearby Backgammon out because the turn has no
+  field for dice. It does not need one: as in Ludo, both consoles derive every
+  roll from `Bg::tableSeed(session, both tags)`, and a move is one checker --
+  `from` a point or BAR (24), `to` a point or OFF (25) -- which is the
+  two-player turn exactly as Chess sends it. Every move received is played only
+  if `Bg::findMove()` finds it legal with the dice the receiver computed, the
+  forced-move rules included. A turn goes on the air on Done, one checker per
+  ply, each once the other console has acked the last; a turn with no legal
+  move sends nothing, because both consoles compute that it has none.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- children put the
   device down constantly and a game that evaporated is a game they stop
@@ -1037,7 +1067,17 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels
-                          (the tab bodies), SettingsPin (the PIN pad)
+                          (the tab bodies), SettingsPin (the PIN pad).
+                          Ludo is six .cpp against one header -- LudoGame
+                          (flow, input), LudoBoard (the board), LudoPanel
+                          (the side panel), LudoLobby (both lobbies),
+                          LudoTable (play across consoles) and LudoSave --
+                          over LudoRules (the rules, the computer player and
+                          the table protocol, pure C++ with no Arduino).
+                          Backgammon likewise: BackgammonGame (flow, input),
+                          BackgammonDraw, BackgammonNet (the nearby game),
+                          BackgammonSave, over BackgammonRules and
+                          BackgammonAi (pure, host-tested)
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
@@ -1259,7 +1299,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     cannot be removed; the *active* player cannot be removed either (from a
     cable that would pull a profile out from under a running game); two
     players cannot share a name. Games at launcher index 32+ cannot be hidden
-    yet -- visibility is a 32-bit mask and the catalogue is 35 -- and the
+    yet -- visibility is a 32-bit mask and the catalogue is 37 -- and the
     console says so rather than answering ok.
   - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
     under the closed privacy list.

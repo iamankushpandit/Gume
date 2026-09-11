@@ -32,7 +32,8 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
   from the fixed vocabulary in `hal/Sound.h` -- `Coin` for a point scored,
   `Whoosh` for something sliding, `LevelUp` for a round cleared, `Victory` and
   `GameOver` for the end of one, `HighScore` for a personal best, `Countdown`
-  for a timer running out. Pick the cue that matches what actually happened,
+  for a timer running out, `Step` for a piece walking one square, `YourTurn`
+  when play comes round to the person holding the console. Pick the cue that matches what actually happened,
   not the one that sounds nicest: the whole value of the vocabulary is that
   `Coin` means the same thing in every game. There is no way for a game to ask
   for a frequency, deliberately -- if none of the words fits, add one to
@@ -107,6 +108,21 @@ the console doing the asking must not also claim first move. **"I am stopping"**
 is a reserved turn encoding the service owns, delivered as `NearbyTurn::ended`;
 never invent a second one.
 
+**An invitation names its game.** A lobby accepts one only when
+`NearbySeat::forThisGame` is set -- otherwise a Sea Battle invitation answered
+from the Chess lobby is two consoles playing different games at each other.
+Every lobby checks it: Ludo's table lobby directly, and Chess and Sea Battle by
+folding it into `inviting` as the seat list is copied, so an invitation to
+another game reads as an ordinary "Play A4F2" row. A new two-player lobby
+should do the same at the same place.
+
+**More than two seats is the same service.** Ludo reads every other console's
+turn by tag, invites them one at a time (only one invitation is on the air at
+once), and orders the table with `nearbySelfId()`. Who moves first there comes
+from the table's seed rather than the coin toss -- a toss between two cannot
+seat four -- and a console replaces its turn only once every other console has
+acknowledged it. See the Ludo section below and `LudoRules.h`'s `Net`.
+
 Who can use it:
 
 - **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,
@@ -121,6 +137,109 @@ Who can use it:
   answer Guest gives to scores.
 - **Naming a peer stays admin-only.** It is a device-wide label, not a personal
   one, and it is what every screen then calls that console.
+
+## Ludo
+
+Split on purpose: `LudoRules` (rules, the computer player and the table
+protocol), `LudoGame.cpp` (flow and input), `LudoBoard.cpp` (the board),
+`LudoPanel.cpp` (the side panel), `LudoLobby.cpp` (the seat picker, drawn and
+answered, and the table lobby), `LudoTable.cpp` (play across consoles) and `LudoSave.cpp`. The
+header comment in `LudoRules.h` states the rules as played; read it before
+changing one, because several are decisions rather than the only reading of the
+board game.
+
+- **`LudoRules` is pure C++ and must stay that way.** No Arduino, no drawing,
+  no `millis()`, no `random()`. Every function is a function of a flat `State`
+  and a seed. That is what will let a second console compute the same game from
+  the same inputs, and what lets the rules be tested off the device:
+  `test/host/ludo_rules_test.cpp` builds against the real `LudoRules.cpp` with
+  any host compiler (the command is at its top) and plays 3,000 seeded games
+  checking invariants after every move. Run it after touching a rule. CI does
+  not, yet.
+- **The dice are a function, not a generator.** Roll *k* of a game is
+  `Ludo::die(seed, k)`. Nothing may draw a die any other way, and the computer
+  player's tie-breaks come from a separately salted `mix()` of the same seed so
+  that asking it for a move can never change what the die says next.
+- **Legality has one definition: `Ludo::target()`.** `move()`, the highlights,
+  the computer player and `tokenAt()` all ask it. Never test a move any other
+  way, and never apply one without going through `move()`, which refuses an
+  illegal one and changes nothing.
+- **The phase is derived, never saved.** `enterTurn()` works out whether a
+  seat must roll, is holding a roll, or is looking at a roll it cannot use,
+  from the rules state alone. A restored game therefore cannot disagree with
+  its own position -- and cannot grant a free reroll for putting the device
+  down, because the roll it was holding is part of the state.
+- **The screen draws `shown_`, not the state.** A move is applied to the rules
+  at once and saved at once; the hopping token is `shown_` catching up a square
+  at a time. Keep those two apart, or a Lock pressed mid-hop loses the move.
+- **Repaint is per place.** 225 grid cells, 16 yard spots and the centre each
+  have a dirty bit, and each is drawn by an idempotent function that paints its
+  whole box. A move repaints two or three places. `markFullDirty()` is for
+  entering the screen and starting a game, nothing else.
+- **Computer seats are a seat kind, not a mode.** Any mix of Player and
+  Computer, at least two seats and at least one Player. The computer's roll and
+  its move are each delayed (`CPU_ROLL_MS`, `CPU_MOVE_MS`) so a child can see
+  what it did; without them a computer's whole turn is one frame.
+- **Across consoles, every seat has one decider.** `ownsSeat()` is true for
+  the person holding this console and, on the host, for the computer seats;
+  every other seat is `remoteSeat()` and its turns come only off the air, in
+  ply order, through `Ludo::Net::accept()` -- which checks them against the die
+  this console computed, so nothing is applied that the rules did not allow.
+  A seat this console owns publishes its ply the moment the roll is resolved
+  (`publishPly()` from `doRoll()` or `startMove()`), and may only roll once
+  `canPublish()` says everyone has the previous one. The test plays 600 tables
+  of separate state copies and requires them identical after every roll.
+- **One console stopping ends the table.** A seat nobody plays stops everyone,
+  so End game sends the service's ending and every console at the table --
+  the one that ended it included -- goes straight back to its lobby, where
+  the others read "A4F2 ended the game" until they tap. The ender's word stays
+  on the air until its screen closes or it starts another game, so a console
+  that has not heard it yet still will. A console that simply walks away
+  stalls the game instead -- the radio cannot tell away from slow -- and
+  anyone can then End it.
+- **Whose turn it is blinks; nothing else does.** A dot beside that seat's row
+  in the panel, and -- on the console whose person must roll -- the die's
+  frame. Both change colour on one 400ms clock (`blinkPhase()`), never size,
+  and each repaints only itself: the dot is its own column in the row, and
+  the seat list is not repainted for a new turn at all, only when a place is
+  decided. A remote seat's turn reads "Waiting for" and that seat's token.
+
+## Backgammon
+
+Split like Ludo: `BackgammonRules` (the rules) and `BackgammonAi.cpp` (the
+computer, declared in the same header), both pure and host-tested by
+`test/host/backgammon_rules_test.cpp`; `BackgammonGame.cpp` (flow and input),
+`BackgammonDraw.cpp`, `BackgammonNet.cpp` (the lobby and the nearby game) and
+`BackgammonSave.cpp`. `BackgammonRules.h` states the rules as played.
+
+- **Legality has one definition: `Bg::legalMoves()`.** A move is legal only if
+  the rest of the dice can still reach the most that can be used, and with two
+  different dice of which only one can be played, it must be the higher if
+  that one can be. The highlights, the computer, `findMove()` and every move
+  from another console go through it. The test compares it with a brute-force
+  search over every move order on thousands of positions from real games.
+- **Doubles are searched in a canonical order** (each source no further from
+  home than the last). It reaches every final position the full search does,
+  which the same brute-force comparison proves, and cuts the worst case from
+  tens of thousands of nodes to a few thousand.
+- **The dice are a function of the seed**, as in Ludo. Locally the seed comes
+  from `Entropy`; across consoles from `Bg::tableSeed()`. Roll is still a tap:
+  it reveals a number that was fixed, which is all a physical die does too.
+- **Done is part of the turn.** It makes Undo usable for the last move, it is
+  when the device is passed, and in a nearby game it is when the turn goes on
+  the air -- a move taken back before Done was never transmitted.
+- **The computer's moves are checked before they are played.** Its search has
+  a node ceiling so no position can hold the frame; the game re-validates each
+  planned move with `findMove()` and falls back to the first legal one, so a
+  cut-short search plays a weaker move, never an illegal one.
+- **Repaint is per place**: 24 points, the bar and the tray, each an
+  idempotent draw of its whole box, plus four panel parts each redrawn only
+  when what it shows changed. A move repaints two or three places.
+- **Nearby play is the lobby's third way to play**, beside Two players and
+  Play the computer: consoles in the room are listed, an invitation to
+  Backgammon reads "A4F2 invites you", and one to another game does not. Colour
+  comes from the invitation's coin toss, who moves first from the opening roll.
+  Either side ending the game sends both back to the lobby.
 
 ## Tracing games
 

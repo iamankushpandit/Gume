@@ -327,24 +327,27 @@ void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
 
+    /* The peer generation bumps on every advertisement heard, not only when
+     * something about a peer changed, so with a few consoles in the room it
+     * moves several times a second. Each bump used to rebuild the rows --
+     * which looks up this profile's score for every peer -- and wipe and
+     * refill the whole list to show the same words. Now a bump is acted on at
+     * most every PEER_REFRESH_MS, and the repaint goes through
+     * RowList::drawChanged(), which touches only rows whose text moved.
+     *
+     * That also lets the one-second tick run whatever is on screen. It used to
+     * be withheld with no peers, on the grounds that the rows were fixed text,
+     * but "Listening" is not: it would sit on "Radio starting" until a peer
+     * turned up. An unchanged list now costs a rebuild and no pixels. */
     const uint32_t now = millis();
-    const bool peersChanged = NearbyPlay::peerGeneration() != lastPeerGeneration_;
-    if (peersChanged || now - lastRefreshMs_ >= REFRESH_MS) {
-        lastPeerGeneration_ = NearbyPlay::peerGeneration();
+    const uint32_t generation = NearbyPlay::peerGeneration();
+    const uint32_t sinceRefresh = now - lastRefreshMs_;
+    if ((generation != lastPeerGeneration_ && sinceRefresh >= PEER_REFRESH_MS) ||
+        sinceRefresh >= REFRESH_MS) {
+        lastPeerGeneration_ = generation;
         lastRefreshMs_ = now;
         rowsStale_ = true;
-        /* Repaint on the clock only when there is something on screen that the
-         * clock can change -- which means a peer, whose score and state are
-         * re-read on the tick. With no peers every row rebuildRows() produces
-         * is fixed text: the beacon is off, sharing is off, or nobody is here.
-         * Those are the three states this screen spends almost all its life in,
-         * and the default one is the first, so the old unconditional tick
-         * wiped and redrew the whole content panel once a second, forever, for
-         * text that cannot change. The rebuild still runs; only the repaint is
-         * withheld. */
-        if (peersChanged || NearbyPlay::peerCount() > 0) {
-            markDirty();
-        }
+        markDirty();
     }
 
     /* Retire the "Poked" label once it has had its moment. Done here rather
@@ -386,7 +389,10 @@ void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
             board.beepOk();
             scrollOffset_ = 0;
             rowsStale_ = true;
-            markFullDirty();
+            /* Not a full repaint: the toggle redraws itself when its state
+             * differs from what it drew, and the list's rows change shape, so
+             * drawChanged() refills the list. The top bar never changed. */
+            markDirty();
             return;
         }
 
@@ -481,9 +487,14 @@ void NearbyGame::renderDynamic(GameHost& host) {
         rebuildRows(host);
     }
     rows_.clampScroll(scrollOffset_, cr.h);
-    /* RowList::draw() opens by filling the whole content rect, so it erases
-     * itself -- a peer leaving and the list getting shorter needs nothing from
-     * us. That also makes it the expensive part of this screen, which is why
-     * update() is careful about when it asks for a repaint at all. */
-    rows_.draw(tft, cr, scrollOffset_);
+    /* After a full render the screen under the list was just cleared, so the
+     * list must draw whole. Otherwise only what changed: a new distance word
+     * or score repaints that row, a peer arriving or leaving changes the
+     * layout and refills the list rect (never the top bar), and a refresh
+     * that changed nothing draws nothing. */
+    if (needsFullRender()) {
+        rows_.draw(tft, cr, scrollOffset_);
+    } else {
+        rows_.drawChanged(tft, cr, scrollOffset_);
+    }
 }

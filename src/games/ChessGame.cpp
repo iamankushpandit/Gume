@@ -861,7 +861,14 @@ void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
         const uint8_t n = host.nearbySeatCount();
         for (uint8_t i = 0; i < n && count < 6; ++i) {
             NearbySeat seat;
-            if (host.nearbySeatAt(i, seat)) fresh[count++] = seat;
+            if (host.nearbySeatAt(i, seat)) {
+                /* An invitation to some other game is not one to accept here:
+                 * answering a Sea Battle invitation from this lobby leaves two
+                 * consoles playing different games at each other. The row
+                 * reads "Play A4F2" instead. */
+                seat.inviting = seat.inviting && seat.forThisGame;
+                fresh[count++] = seat;
+            }
         }
 
         /* Compare the rows, not just how many there are. A peer that starts

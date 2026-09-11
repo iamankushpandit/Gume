@@ -110,6 +110,7 @@ public:
                        uint8_t ack) override;
     void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) override;
     void nearbyStop() override;
+    const char* nearbySelfId() override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;
     void openSettings() override;

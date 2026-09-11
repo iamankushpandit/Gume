@@ -533,6 +533,27 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
                            static_cast<int16_t>(cy - 13), 3, amber());
             break;
         }
+        case LauncherIcon::Ludo:
+            /* The board's cross, home in the middle in the one accent, and
+             * two tokens on their way round. Rule 5: Math's plus is ink drawn
+             * ON a plate; this cross IS the silhouette, arms to the edge of
+             * the box, so the two do not read as the same sign. */
+            tft.fillRect(cx - 7, cy - 18, 14, 36, snow());
+            tft.fillRect(cx - 18, cy - 7, 36, 14, snow());
+            tft.fillRect(cx - 5, cy - 5, 10, 10, amber());
+            tft.fillCircle(cx - 12, cy, 3, ink());
+            tft.fillCircle(cx, cy + 12, 3, ink());
+            break;
+        case LauncherIcon::Backgammon:
+            /* Two points, one hanging from the top edge and one standing on
+             * the bottom, and a checker in the one accent. Rule 5: Chess is a
+             * checkerboard corner and Ludo a cross; nothing else on the grid
+             * is two long opposing triangles. */
+            tft.fillTriangle(cx - 16, cy - 18, cx - 2, cy - 18, cx - 9, cy + 10, snow());
+            tft.fillTriangle(cx + 2, cy + 18, cx + 16, cy + 18, cx + 9, cy - 10, snow());
+            tft.fillCircle(cx + 9, cy + 11, 5, amber());
+            tft.drawCircle(cx + 9, cy + 11, 5, ink());
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

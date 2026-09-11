@@ -133,6 +133,47 @@ Four tests, all required:
    reachable by playing the game. At worst — and only by guessing both the
    session and the exact ply — it can play a legal move.
 
+#### Tables of more than two
+
+Ludo seats up to four consoles, and it uses this same turn with **no change to
+the layout above**. Nothing new is transmitted by any one console; more
+consoles read each other's.
+
+- **Invitations go one at a time.** Only one invitation is on the air at once,
+  so the host rotates through the consoles it asked, each for the usual six
+  seconds, until each answers with a presence (ply 0, `from` and `to` zero).
+- **The host's start is ply 0 with `from` 32–61.** It packs how many consoles,
+  how many computer seats, the computers' level, and a six-bit check
+  over the sorted tags of everyone at the table. A console joins the game only
+  when what it can hear matches both the count and the check.
+- **A move is `from` = 8 + seat, `to` = the token moved (0–3) or 4 for a roll
+  that could not be used.** The die is never sent: every console derives each
+  roll from the table's seed, which comes from the session and the sorted tags,
+  and refuses any move that does not fit the roll it computed -- the same
+  "legal in the receiver's own position" test, applied to the dice as well.
+- **`ack` is the last ply this console has applied, and 127 before the start.**
+  A console replaces its own turn only once every other console's ack has
+  reached it, so a console that missed a move can always still find it on the
+  air.
+- **Who sits where, and who moves first, comes from the seed**, not from the
+  invitation's move-first bit: a coin toss between two cannot seat four.
+- **Computer seats are played by the host** and published in the host's own
+  turn, with the computer's seat number, like any other move.
+
+None of the Ludo encodings can produce `from` = `to` = 63, so the service's
+reserved ending means the same at a table as it does between two.
+
+#### Backgammon
+
+Two consoles, the ordinary two-player turn. A move is one checker: `from` is a
+point 0–23 or the bar (24), `to` a point or off the board (25). The dice are
+never sent -- both consoles derive every roll from the session and their two
+tags -- and a received move is played only if it is legal with the dice the
+receiver computed, the rule that as many dice as possible must be used
+included. A turn goes on the air when the player presses Done, one checker per
+ply, each once the other console has acknowledged the last. Nothing here can be
+`from` = `to` = 63.
+
 None of the above carries a name. Consoles can be given local labels, and those
 labels are what a player sees on screen, but they are resolved on the receiving
 device from its own NVS and **never transmitted**. `BleBeacon` does not read

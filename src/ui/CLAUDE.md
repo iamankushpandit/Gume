@@ -77,6 +77,8 @@ It holds **fixed `char` buffers, not `String`**, and that is the whole point. It
 
 Callers keep their own scroll offset and pass it in, so one list can serve several tabs.
 
+`draw()` wipes the rect and paints every row; `drawChanged()` repaints only the rows whose content changed since the last paint. It keeps a 32-bit hash per row (192 bytes) plus the layout, rect and offset they were drawn at, and falls back to a full paint when any of those differ. Changed text rows are overdrawn, not cleared -- the glyphs carry their background and only the tail of an old, longer string is erased -- so a value changing does not blink its row. **After the screen under the list has been cleared, call `draw()`**: the hashes describe pixels that are gone. Nearby is the caller; it rebuilds from live beacon data, where nearly every rebuild is identical to the last.
+
 `Rect` is defined here — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
 
 ## Country and state artwork

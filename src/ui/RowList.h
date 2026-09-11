@@ -84,6 +84,21 @@ public:
      * which smears text into whatever chrome sits above. */
     void draw(Ui::Renderer& tft, const Rect& r, int16_t offset);
 
+    /* Draw only the rows that changed since the last draw() or drawChanged().
+     *
+     * draw() wipes the whole rect, which is right after the screen was cleared
+     * and wrong for a list rebuilt from live data: Nearby rebuilt on every
+     * beacon it heard, so the panel blanked and refilled several times a second
+     * to show the same words. This keeps a hash of what each row last drew. If
+     * the layout is unchanged -- same rows, same kinds and heights, same rect,
+     * same scroll offset -- only rows whose hash moved are repainted, each over
+     * its own strip; otherwise it falls back to draw(). Nothing changed draws
+     * nothing.
+     *
+     * A caller whose screen was cleared underneath the list must call draw(),
+     * not this: the hashes describe pixels that are no longer there. */
+    void drawChanged(Ui::Renderer& tft, const Rect& r, int16_t offset);
+
     /** Where the Action chip was last drawn; w == 0 when it is off screen. */
     const Rect& actionRect() const { return actionRect_; }
 
@@ -96,6 +111,8 @@ public:
 
 private:
     Row* next();
+    void paint(Ui::Renderer& tft, const Rect& r, int16_t offset, bool full);
+    uint32_t layoutHash() const;
     void drawScrollBar(Ui::Renderer& tft, const Rect& r, int16_t totalH, int16_t offset) const;
 
     /* Hit rects for the action chips drawn in the last frame. Fixed size and a
@@ -114,4 +131,13 @@ private:
     Rect actionRect_{};
     ActionHit actionHits_[MAX_ACTIONS];
     uint8_t actionHitCount_ = 0;
+
+    /* What the panel shows, as of the last paint: one content hash per row,
+     * plus the layout, rect and offset they were drawn at. Fixed size, like
+     * the rows -- 192 bytes to stop repainting text that did not change. */
+    uint32_t drawnHash_[MAX_ROWS] = {};
+    uint32_t drawnLayout_ = 0;
+    Rect drawnRect_{};
+    int16_t drawnOffset_ = 0;
+    bool drawnValid_ = false;
 };

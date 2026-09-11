@@ -10,6 +10,109 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Nearby stops repainting its list for every beacon it hears.** The peer
+table's change counter moves on every advertisement received, not only when
+something about a peer changed, so with a few consoles in the room the list was
+wiped and refilled several times a second to show the same words -- and each
+refill looked up this player's score for every peer. `RowList::drawChanged()`
+now remembers a hash of what each row drew and repaints only rows whose text
+moved, overdrawing text rather than clearing it first; the list rect is wiped
+only when rows arrive, leave or scroll, and a refresh that changed nothing
+draws nothing. A heard advertisement rebuilds the list at most four times a
+second, and pressing the Sharing switch no longer repaints the top bar. The
+one-second refresh now runs with nobody in range too, so "Listening" no longer
+sits on "Radio starting" until a peer turns up.
+
+**Ludo, for two to four -- and any of them can be the computer.** The classic
+race round the cross-shaped board, on one console. Each of the four seats is a
+Player, a Computer or Empty; at least two seats and at least one person. The
+computer plays at **Easy** (a random legal move, except that it always brings a
+token out when it can) or **Normal** (capture, get home, come out, reach
+safety, escape a threat, advance the leader -- one step of lookahead, no
+search). The rules as played are stated in `LudoRules.h`; the ones that are
+choices rather than the only reading are that the third six forfeits only that
+roll, a capture earns a roll but reaching home does not, and blocks do not form
+on safe squares, so no start square can be walled off.
+
+- **The dice are a function of the game's seed, not a stream.** Roll *k* is
+  `die(seed, k)`, so a move only has to name a token and anything that knows
+  the seed can check it. That is what a later, connected version needs, and it
+  costs nothing now: the rules are pure C++ with no Arduino in them.
+- **A 13px cell is too small to aim at**, so the tokens that can move light up
+  and a tap picks the nearest one; a move that is the only one plays itself.
+- **Every colour has its own token shape** -- circle, square, diamond,
+  triangle -- so the game does not depend on telling red from green.
+- **Remembered, like Chess**: saved after every roll and every move, including
+  a roll not yet used, so putting the device down is not a free reroll. End
+  game asks twice.
+- **Ludo cannot be hidden per player**, like Chess, Sea Battle and Cursive: its
+  launcher index is past the 32-bit visibility mask.
+
+**Backgammon, for two -- one console, the computer, or a console nearby.** The
+full race: roll, tap a checker and the points it can reach light up, Undo until
+Done. Every forced-move rule is enforced -- as many dice as possible, the higher
+die when only one of two can be played -- and a game ends as a single, a gammon
+or a backgammon. The pip count shows how far each side has to go. No doubling
+cube, and no score: a win is not a number.
+
+- **The computer** plays every complete legal sequence through a position score
+  -- pip lead, made points (home points and runs of them more), opponents on
+  the bar, blots weighted by how many checkers can reach them -- and shows its
+  moves one at a time so a child can follow them. One level.
+- **Nearby play is the lobby's third way to play**, and it needed no change to
+  what is transmitted. An earlier plan ruled it out because the turn has no
+  field for dice; it does not need one. As in Ludo, both consoles derive every
+  roll from the session and their two tags, a move is the checker's two points
+  in the same turn Chess sends, and each move received is played only if it is
+  legal with the dice the receiver computed.
+- **Pure rules, host-tested.** `test/host/backgammon_rules_test.cpp` plays 400
+  games computer against computer and compares the legal moves with a
+  brute-force search over every move order on thousands of positions: 117,242
+  checks, 0 failures.
+- **Backgammon cannot be hidden per player** either; its launcher index is 36.
+
+**Ludo across up to four consoles, over the beacon Chess already uses.** Nearby
+in the Ludo lobby lists the consoles in the room; tap them to invite, add up to
+two computers, and Start once at least one has joined. The console being asked
+sees the invitation in its header and joins from its own Ludo lobby.
+
+- **Nothing new goes on the air.** No new flag, no version bump, and consoles
+  on older 5.x firmware can still see this one. A Ludo turn is the same turn
+  Chess sends -- session, move number, two six-bit numbers and an ack -- read
+  as a seat and a token. The die is never sent: every console works each roll
+  out from the table's seed and refuses any move that does not fit it. Agreed
+  by the maintainer on 2026-09-10 in conversation rather than in an issue; see
+  the invariant in `CLAUDE.md`.
+- **Who sits where and who moves first come from the seed**, not from the
+  invitation's coin toss, so the console that set the table up does not choose.
+- **A console replaces its move only once every other console has it**, which
+  is what makes a bonus roll -- or the host playing a computer straight after
+  itself -- survive a scan window that missed something.
+- **The service can now say which game an invitation is for**
+  (`NearbySeat::forThisGame`), and every lobby now checks it. Before, the Chess
+  and Sea Battle lobbies showed any invitation in the room as "A4F2 invites
+  you" -- a Sea Battle invitation included -- and accepting it left two
+  consoles playing different games at each other. An invitation to another
+  game now reads as an ordinary "Play A4F2" row.
+- **One console ending the game ends it for the table**: every console goes
+  back to its lobby, and the others say who ended it until tapped.
+- **Whose turn it is blinks.** A dot beside that seat in the panel, and the
+  die's frame on the console whose person has to roll; another console's turn
+  reads "Waiting for" and that seat's token. Only the dot and the die are
+  repainted -- the seat list no longer redraws on every turn.
+- **You can hear a move and hear your turn.** A token ticks once for every
+  square it lands on, so a move can be counted by ear, and a two-note chime
+  plays when the die comes round to a person holding this console -- after a
+  computer's move, another console's, or the other player's on the same one.
+  Not on a bonus roll, which is the same turn continuing, and never over the
+  top of a capture's or a finish's own cue. Two new words in the sound
+  vocabulary, `Step` and `YourTurn`, both synthesised like every other.
+- A console that walks out of range stalls the game rather than
+  being dropped: the radio cannot tell gone from slow.
+- The host test now also plays 600 tables of separate consoles and requires
+  every copy of the game to be identical after every roll.
+- Flash 2,462,145 bytes (78.3%, +13,260), RAM 76,868 (23.5%, +208).
+
 **Hardware identifiers are out of this repository, and a check now keeps them
 out.** `tools/board_registry.json` mapped six development boards' MAC
 addresses to the exact firmware environment each one was running. It was

@@ -372,6 +372,14 @@ footer {
         there is no path from a score back to a player. Listening is passive, so
         a console that is only watching transmits nothing extra. Turned off, the
         two fields are absent from the payload rather than sent as zeroes.</li>
+      <li><b>Games between consoles</b> &mdash; Chess, Sea Battle and Backgammon for
+        two, Ludo for up to four &mdash; ride the same beacon. While one is running,
+        each console advertises its latest move: a session number, a move number
+        and two small numbers saying what was played. No name, no profile and no
+        score travels with a move, and dice are never sent at all: every console
+        works each roll out for itself. It is a broadcast &mdash; anyone
+        in range can hear the moves &mdash; and every move received is checked
+        against the receiver's own board before it is played.</li>
       <li><b>Poke</b> lets one console nudge another from the Nearby list. It
         rides the same beacon and adds no new kind of data: for a few seconds it
         carries the device id being poked &mdash; the same four hex digits that
