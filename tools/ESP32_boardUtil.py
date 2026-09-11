@@ -231,6 +231,111 @@ def read_chip(py, esptool, port):
     return (chip.group(1).strip() if chip else None, alive)
 
 
+# What the ROM prints when it cannot boot the app it was just given, over and
+# over, every ~350 ms. See recover_rom_loop().
+ROM_LOOP_RE = re.compile(r"invalid header|flash read err|RTCWDT_RTC_RESET")
+# How long a freshly flashed board gets to boot before it is asked anything.
+BOOT_WAIT_S = 5
+RECOVERY_ATTEMPTS = 3
+
+
+def listen(py, port, seconds=2.5):
+    """Whatever a board prints on its own, without resetting it."""
+    script = (
+        "import serial,sys,time\n"
+        "s=serial.Serial()\n"
+        "s.port=%r; s.baudrate=115200; s.timeout=0.2\n"
+        "s.dtr=False; s.rts=False\n"
+        "s.open()\n"
+        "d=b''; t=time.time()\n"
+        "while time.time()-t < %f: d += s.read(512)\n"
+        "s.close(); sys.stdout.write(d.decode('utf-8','replace'))\n"
+    ) % (port, seconds)
+    out = subprocess.run([py, "-c", script], capture_output=True, text=True)
+    return out.stdout or ""
+
+
+def recover_rom_loop(py, esptool, port):
+    """Bring a board out of the ROM boot loop without anyone pulling a battery.
+
+    Seen repeatedly on the E32R40T straight after an upload: the reset at the
+    end of the flash lands it in `invalid header` / `flash read err` with the
+    panel dark, over and over, although the image in flash is intact -- read
+    back byte for byte while it looped. What reliably brings it back is a
+    reset that comes FROM download mode rather than from a running chip: one
+    esptool command that enters the bootloader and stays there, then a second
+    that starts from that state and hard-resets. Measured on the bench:
+
+      - the pair works; the second step alone, retried after it once failed,
+        never does -- so a failed attempt repeats the whole pair;
+      - it writes nothing and erases nothing: flash_id and read_mac only read.
+
+    esptool prints the chip's MAC on every connect. That output is captured
+    and dropped unread, like read_chip()'s: a MAC names a board for the life
+    of the silicon and must not reach a log.
+
+    True once the board answers `identify?` again.
+    """
+    if not esptool:
+        return False
+    for _attempt in range(RECOVERY_ATTEMPTS):
+        subprocess.run([py, esptool, "--port", port, "--after", "no_reset",
+                        "flash_id"], capture_output=True, text=True)
+        subprocess.run([py, esptool, "--port", port, "--before", "no_reset",
+                        "--after", "hard_reset", "read_mac"],
+                       capture_output=True, text=True)
+        time.sleep(BOOT_WAIT_S)
+        if query_board(py, port, 3.0):
+            return True
+    return False
+
+
+def head_commit():
+    out = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"],
+                         cwd=ROOT, capture_output=True, text=True)
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def check_boot(py, esptool, flashed):
+    """Ask every board just flashed whether it is running the new build.
+
+    An upload that esptool verified says the bytes are in flash; it does not
+    say the board booted them. So each one is asked, unreset, after
+    BOOT_WAIT_S. A silent board is listened to: if the ROM is looping, it is
+    recovered (recover_rom_loop) rather than left for somebody to find dark.
+    Returns the ports that are still stuck -- those count as failures. A board
+    that is silent for any other reason is reported and not failed: one
+    2.8-inch board's USB is known to drop off the bus as its app starts.
+    """
+    commit = head_commit()
+    stuck = []
+    print("\n=== checking each board booted it")
+    time.sleep(BOOT_WAIT_S)
+    for r in flashed:
+        port, how = r["port"], ""
+        reply = query_board(py, port, 3.0) or query_board(py, port, 3.0)
+        if not reply and ROM_LOOP_RE.search(listen(py, port)):
+            print("  ... %-6s is in the ROM boot loop -- recovering it" % port)
+            if recover_rom_loop(py, esptool, port):
+                reply = query_board(py, port, 3.0)
+                how = "  (recovered from the ROM boot loop)"
+            else:
+                stuck.append(port)
+                print("  ERR %-6s still looping after %d recoveries -- pull its "
+                      "battery and press reset" % (port, RECOVERY_ATTEMPTS))
+                continue
+        if not reply:
+            print("  ??  %-6s did not answer (asleep, or its USB dropped as the "
+                  "app started)" % port)
+            continue
+        build = reply.get("build", "?")
+        print("  %s %-6s %-22s %s%s" % ("ok " if commit in build else "!! ",
+                                        port, r["board"], build, how))
+        if commit and commit not in build:
+            print("       expected a build of %s" % commit)
+    return stuck
+
+
 def lock_path():
     """The board lock, in the shared git common dir so every worktree sees it.
 
@@ -247,7 +352,7 @@ def lock_path():
     return os.path.join(common, "gume-board.lock")
 
 
-def flash_all(results, boards=None):
+def flash_all(py, esptool, results, boards=None):
     """Flash every identified board with its own environment -- in parallel.
 
     Refuses outright if anything is UNKNOWN. Flashing a board with the wrong
@@ -274,6 +379,8 @@ def flash_all(results, boards=None):
     2. UPLOAD to every port at once, one process per port, with `-t nobuild`
        so nothing is rebuilt. Each board is its own USB device on its own
        port, so this is safe; one board failing does not stop the others.
+    3. CHECK each board booted the new build, and bring any that the upload's
+       reset left in the ROM boot loop back out of it -- see check_boot().
 
     The lock is still global. Parallel flashing is for ONE agent's boards --
     two agents flashing the bench at the same time is exactly what the lock
@@ -317,6 +424,9 @@ def flash_all(results, boards=None):
 
     failed = []
     try:
+        # A fresh worktree has no .pio/ until its first build, and the logs
+        # below go there before any build has run.
+        os.makedirs(os.path.join(ROOT, ".pio"), exist_ok=True)
         envs = sorted({r["env"] for r in targets})
         built = set()
         print("\n=== building %d environment(s) at once: %s"
@@ -367,6 +477,11 @@ def flash_all(results, boards=None):
                     failed.append(r["port"])
                     print("       see %s" % os.path.relpath(log.name, ROOT))
             print("=== uploads finished in %ds" % (time.time() - t0))
+            # Still under the lock: recovery resets a board, which is exactly
+            # the kind of thing another agent must not be doing at the time.
+            flashed = [r for r in uploads if r["port"] not in failed]
+            if flashed:
+                failed += check_boot(py, esptool, flashed)
     finally:
         # Released on every path, including a failed flash and a Ctrl-C. A
         # lock left behind blocks every later agent, and stale locks here are
@@ -547,7 +662,7 @@ def main():
         print("\nRecorded %d new board(s) in tools/board_registry.json." % learned)
 
     if args.flash:
-        return flash_all(results, args.board)
+        return flash_all(py, esptool, results, args.board)
     if args.board:
         print("--board only narrows --flash; nothing was flashed.")
 

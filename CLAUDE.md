@@ -1317,17 +1317,24 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     changing the admin PIN or which profile is admin, peer labels, the update
     check and the NTP server. Each is a decision for the maintainer, not a
     convenience.
-- **An EN reset can strand an E32R40T.** Seen on the bench three times in one
-  day: after the reset button, an RTS reset from a serial tool, or a USB power
-  surge, the ROM loops `flash read err, 988` / `RTCWDT_RTC_RESET` every ~350ms
-  with the panel dark, and only pulling the battery recovers it. **It is not
-  the GPIO12 strap**, which was the first guess (GPIO12 is also the shared
-  MISO): the ROM prints `boot:0x17`, whose MTDI bit is clear, so 3.3V flash was
-  selected. Everything seen fits the flash chip itself being left in a state
-  an EN reset does not clear -- EN resets the ESP32, not the flash -- after
-  the app has been running; a board fresh from esptool boots. Cause not yet
-  found. A dark 4-inch board is worth a passive serial capture before it is
-  worth a reflash, and it cannot be flashed while looping.
+- **An EN reset can strand an E32R40T, and the flash tool now recovers it.**
+  After the reset button, an RTS reset from a serial tool, a USB power surge
+  -- and, most often, the hard reset at the end of an upload -- the ROM loops
+  `flash read err, 988` or `invalid header: 0x20000368` / `RTCWDT_RTC_RESET`
+  every ~350ms with the panel dark. **It is not the GPIO12 strap**, which was
+  the first guess (GPIO12 is also the shared MISO): the ROM prints
+  `boot:0x17`, whose MTDI bit is clear, so 3.3V flash was selected. **Nor is
+  the image damaged**: read back while looping, the bootloader at 0x1000 was
+  byte for byte correct, and the failing read differed from it by three bits
+  at the same address -- a marginal read at the moment of some resets. Cause
+  not yet found. What recovers it without a battery pull is a reset that comes
+  *from download mode*: `esptool --after no_reset flash_id`, then `esptool
+  --before no_reset --after hard_reset read_mac`, repeating the pair (never
+  the second step alone) if it fails. `ESP32_boardUtil.py --flash` asks every
+  board it flashed for its build afterwards and runs that recovery on any
+  whose serial shows the loop (`check_boot()`), so a flash no longer leaves a
+  dark 4-inch board behind. By hand: capture the serial passively before
+  reflashing; it cannot be flashed while looping.
 - **There is no `id=` field in the banner, and putting one back needs more
   care than it looks.** 5.9.0 printed the controller's ID register and broke the
   display on two of the seven boards: `tft.readcommand8()` writes an

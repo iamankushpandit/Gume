@@ -96,8 +96,11 @@ Current firmware answers `identify` (or `identify?`) on the serial port with one
 older firmware, a diag build, a blank flash -- gets reset so its boot banner can
 be read. Resetting is not free: it discards whatever the board was doing, one
 2.8-inch board's USB drops off the bus as its app starts (so the banner is
-lost), and an E32R40T has been seen stuck in a `flash read err` boot loop
-after a reset until its battery was pulled.
+lost), and an E32R40T is regularly left in a `flash read err` / `invalid
+header` ROM boot loop by a reset -- including the one at the end of an upload.
+`--flash` checks every board it flashed afterwards and brings a looping one
+back by itself (a reset from download mode, no battery pull); a board it could
+not recover is reported as FAILED.
 
 If you write your own serial script, open the port with DTR and RTS already
 low (`s = serial.Serial(); s.dtr = False; s.rts = False; s.port = ...;
