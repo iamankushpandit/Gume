@@ -10,6 +10,18 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Only boards that have run on hardware are supported: five, down from
+seven.** The ESP32-2432S028R (micro-USB, ILI9341) and the ESP32-2432S028Rv3
+(ST7789) profiles were written from published pin maps on 2026-08-26, while
+the dual-USB CYD was being brought up. That board turned out to be neither and
+got its own profile, `esp32-2432s028-inv`, and the two guesses stayed behind:
+built by CI, offered by the web installer as supported, and never once run on
+a board. Their profiles, board sections, product and bench environments, and
+installer entries are gone. What is left is exactly what was flashed and
+checked for this release: the E32R28T-1, the dual-USB ESP32-2432S028 with the
+inverted panel, the E32R32P, the E32R40T and the Freenove FNK0104B. A board
+comes back when someone who owns one runs it.
+
 **`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
 changed.** Ports were identified before the builds and uploaded to after them,
 up to twenty minutes later, and COM numbers move in that time -- a replug, or a

@@ -128,7 +128,7 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      # Only the environments the installer actually offers -- the seven
+      # Only the environments the installer actually offers -- the five
       # `product` ones, derived by tools/envs.py from platformio.ini rather
       # than listed here.
       #

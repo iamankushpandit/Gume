@@ -134,7 +134,7 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
 
-      # The seven product environments, derived by tools/envs.py rather than
+      # The five product environments, derived by tools/envs.py rather than
       # listed here. It used to be every [env:*] in platformio.ini, which meant
       # a release carried fourteen diagnostic images -- a bringup, a batdiag and
       # an audiodiag per board, plus four boardless probes -- as downloads.

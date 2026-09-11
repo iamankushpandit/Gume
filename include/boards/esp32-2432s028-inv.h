@@ -15,15 +15,18 @@
 
 /* ESP32-2432S028, dual-USB, INVERTING PANEL. 2.8-inch, 240x320.
  *
- * A THIRD CYD VARIANT, and the reason this file exists rather than being folded
- * into one of the other two. The 2.8-inch "cheap yellow display" ships with at
+ * The one CYD variant this firmware supports, and the reason it has its own
+ * file rather than a generic CYD profile. The 2.8-inch "cheap yellow display" ships with at
  * least three different combinations of panel and backlight behind the same
  * silkscreen, and they are not distinguishable by looking at the board:
  *
- *   esp32-2432s028r.h        micro-USB, ILI9341, backlight IO21, no inversion
- *   esp32-2432s028.h         dual-USB, ST7789, backlight IO27  (UNVERIFIED)
- *   this file                dual-USB, ILI9341 sequence + runtime inversion,
- *                            backlight IO21                    (MEASURED)
+ *   micro-USB, ILI9341, backlight IO21, no inversion  (ESP32-2432S028R)
+ *   dual-USB, ST7789, backlight IO27                   (the Rv3)
+ *   this file: dual-USB, ILI9341 sequence + runtime inversion,
+ *              backlight IO21                          (MEASURED)
+ *
+ * Only this one is supported. Profiles for the other two existed until
+ * 5.10.0 and were removed unrun: nobody here owns either board.
  *
  * HOW THIS ONE WAS ESTABLISHED. Every combination was flashed onto one board
  * and the screen looked at:

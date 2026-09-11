@@ -170,7 +170,7 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   from signed int16 to unsigned offset-binary: `(sample * vol/100) + 32768`.
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
   75 on CYD boards (bare DAC, unamplifed 1-inch driver distorts above 75%).
-- Neither defined — no audio (e.g. esp32-2432s028 ST7789 variant).
+- Neither defined — no audio. No supported board is in that state today.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
 `BoardProfile`. A board that gains a louder amplifier sets its own ceiling;

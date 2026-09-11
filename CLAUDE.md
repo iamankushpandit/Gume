@@ -280,7 +280,7 @@ pio device monitor       # serial, 115200 baud
 
 ### An environment is either the product or a bench probe, and it says which
 
-`platformio.ini` declares twenty-one environments; seven of them are Braino!.
+`platformio.ini` declares fifteen environments; five of them are Braino!.
 Each one states which it is, once, beside itself:
 
 ```ini
@@ -300,7 +300,7 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds the seven product environments** on a push to `main` or `dev`,
+- **CI builds the five product environments** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is three
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
@@ -333,7 +333,7 @@ What follows from the classification:
   unclassified environment cannot be a default in either direction without the
   wrong answer being silent.
 
-Fourteen diagnostic environments exist for hardware triage. Build one by name
+Ten diagnostic environments exist for hardware triage. Build one by name
 when you need it:
 - `pio run -e bringup` â€” full tree with `-D CYD_BRINGUP_ONLY`; `main.cpp` compiles a display/touch/SD check instead of the app.
 - `pio run -e wifidiag` â€” builds `src/wifi_diag.cpp` **alone** (`build_src_filter = +<wifi_diag.cpp>`), so no TFT/touch/game code can interfere with the radio test.
@@ -1128,7 +1128,7 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds the seven product environments --
+`.github/workflows/release.yml` then builds the five product environments --
 `tools/envs.py --product`, never a list in the YAML -- packs them with
 `tools/pack_release.py`, and publishes a GitHub release with all four parts
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
@@ -1356,9 +1356,9 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
 - `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
-  variant, E32R32P, E32R40T and ESP32-2432S028R
+  variant, E32R32P and E32R40T
   reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
-  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on all of them but the -R; the I2S
+  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on all of them; the I2S
   peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
@@ -1370,8 +1370,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   `beginAudio()` powers that channel down and returns the pad to the GPIO
   matrix, logging `[audio] GPIO25 released: ...`, and `Board::begin()`
   re-applies the touch pins after it; `BoardConfig.h` allows a touch pin on
-  the non-speaker DAC pad and nothing else. It stays **off** on the
-  ESP32-2432S028R, which nobody has run.
+  the non-speaker DAC pad and nothing else.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions

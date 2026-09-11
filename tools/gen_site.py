@@ -101,20 +101,6 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon.",
     },
     {
-        "env": "app_esp32_2432s028r",
-        "label": "Braino! (the games) -- ESP32-2432S028R (ILI9341, original/classic)",
-        "name": "Braino!",
-        "note": "The full console for the classic 2.4 inch CYD (micro-USB, ILI9341): {count} games, profiles, scores, settings, "
-                "Wi-Fi clock and the BLE beacon.",
-    },
-    {
-        "env": "app_esp32_2432s028_st7789",
-        "label": "Braino! (the games) -- ESP32-2432S028Rv3 (ST7789, dual-USB)",
-        "name": "Braino!",
-        "note": "The full console for newer 2.4 inch CYD variants (USB-C/dual-USB, ST7789): {count} games, profiles, scores, settings, "
-                "Wi-Fi clock and the BLE beacon.",
-    },
-    {
         "env": "app_esp32_2432s028_inv",
         "label": "Braino! (the games) -- ESP32-2432S028 dual-USB, inverted panel",
         "name": "Braino!",
@@ -167,16 +153,6 @@ BOARD_DETAILS = {
         "chip": "ESP32",
         "buy": "https://www.amazon.com/dp/B0D92C9MMH"
                "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1",
-    },
-    "esp32_2432s028r": {
-        "label": "ESP32-2432S028R -- 2.4 inch original/classic CYD (ILI9341 + XPT2046 resistive touch, micro-USB)",
-        "chip": "ESP32",
-        "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
-    },
-    "esp32_2432s028_st7789": {
-        "label": "ESP32-2432S028Rv3 -- 2.4 inch newer CYD variant (ST7789 + XPT2046 resistive touch, USB-C/dual-USB)",
-        "chip": "ESP32",
-        "buy": "https://www.aliexpress.com/w/wholesale-esp32-2432s028.html",
     },
     "esp32_2432s028_inv": {
         "label": "ESP32-2432S028 -- 2.8 inch dual-USB CYD whose colours come out inverted (ILI9341 + XPT2046 resistive touch)",

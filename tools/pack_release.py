@@ -159,7 +159,7 @@ ENV_BLURBS = {
 def env_role(env, board):
     """The environment's role, with any board suffix stripped.
 
-    `app_esp32_2432s028r` on board `esp32_2432s028r` is the `app` role. The
+    `app_esp32_2432s028_inv` on board `esp32_2432s028_inv` is the `app` role. The
     board id is matched exactly rather than splitting on the first underscore,
     so a role whose own name contains one cannot be truncated silently.
     """
