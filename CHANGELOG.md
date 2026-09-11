@@ -10,6 +10,18 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
+changed.** Ports were identified before the builds and uploaded to after them,
+up to twenty minutes later, and COM numbers move in that time -- a replug, or a
+USB power surge renumbering everything. A 4-inch E32R40T came back on the port
+an E32R28T-1 had been identified on and received the 2.8-inch image: a dark
+panel with a working speaker. Every port is now asked again immediately before
+its upload and skipped unless it gives the same device id. And a board whose
+device id was issued by one model's firmware (`R40T-...`) while it reports
+another model (`board=E32R28T-1`) is refused as probably carrying the wrong
+image, rather than being flashed with that wrong image again; the tags are
+read from the board profiles through `platformio.ini`, not listed.
+
 **`ESP32_boardUtil.py --flash` checks that every board booted, and brings a
 stuck 4-inch board back by itself.** The reset at the end of an upload
 regularly left the E32R40T in a ROM boot loop -- `invalid header` or `flash
