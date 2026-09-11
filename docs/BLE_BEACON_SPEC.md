@@ -163,6 +163,17 @@ consoles read each other's.
 None of the Ludo encodings can produce `from` = `to` = 63, so the service's
 reserved ending means the same at a table as it does between two.
 
+#### Backgammon
+
+Two consoles, the ordinary two-player turn. A move is one checker: `from` is a
+point 0–23 or the bar (24), `to` a point or off the board (25). The dice are
+never sent -- both consoles derive every roll from the session and their two
+tags -- and a received move is played only if it is legal with the dice the
+receiver computed, the rule that as many dice as possible must be used
+included. A turn goes on the air when the player presses Done, one checker per
+ply, each once the other console has acknowledged the last. Nothing here can be
+`from` = `to` = 63.
+
 None of the above carries a name. Consoles can be given local labels, and those
 labels are what a player sees on screen, but they are resolved on the receiving
 device from its own NVS and **never transmitted**. `BleBeacon` does not read

@@ -217,6 +217,8 @@ SCREEN_CAPTIONS = {
     "ludo": "Ludo: race home, against friends or the computer",
     "ludo-lobby": "Ludo: pick who sits in each seat",
     "ludo-table": "Ludo: invite up to three consoles nearby",
+    "backgammon": "Backgammon: race your checkers home and off",
+    "backgammon-lobby": "Backgammon: one console, the computer, or nearby",
     "cursive": "Cursive: trace joined-up letters and words",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
@@ -304,6 +306,7 @@ PLAYABLE_STILLS = {
     "seabattle": ("seabattle",),
     "cursive": ("cursive",),
     "ludo": ("ludo", "ludo-lobby", "ludo-table"),
+    "backgammon": ("backgammon", "backgammon-lobby"),
 }
 
 SYSTEM_SHOWCASE = (

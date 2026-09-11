@@ -684,6 +684,124 @@ def ludo_table():
     return im
 
 
+# Backgammon. Restated from src/games/BackgammonDraw.cpp -- the board origin,
+# the point width, the bar and tray, the checker size and pitch, the panel.
+BG_BX, BG_BY, BG_COL, BG_BAR_W = 4, 34, 17, 14
+BG_BAR_X = BG_BX + 6 * BG_COL
+BG_RIGHT_X = BG_BAR_X + BG_BAR_W
+BG_BOARD_R = BG_RIGHT_X + 6 * BG_COL
+BG_TRAY_X, BG_TRAY_W = BG_BOARD_R + 2, 18
+BG_BOARD_H, BG_PT_H, BG_TRI_H, BG_R, BG_PITCH = 202, 96, 88, 7, 15
+BG_PANEL_X = BG_TRAY_X + BG_TRAY_W + 4
+BG_PANEL_W = W - BG_PANEL_X - 4
+BG_FELT, BG_WOOD, BG_TRAY = (28, 96, 62), (96, 62, 38), (70, 45, 28)
+BG_TRI = [(222, 190, 140), (160, 70, 52)]
+BG_WHITE, BG_WHITE_EDGE = (246, 242, 232), (120, 110, 95)
+BG_BLACK, BG_BLACK_EDGE = (44, 44, 54), (190, 190, 205)
+BG_HI, BG_INK = (120, 230, 255), (26, 34, 48)
+
+
+def _bg_point_rect(i):
+    if i < 6:
+        x = BG_RIGHT_X + (5 - i) * BG_COL
+    elif i < 12:
+        x = BG_BX + (11 - i) * BG_COL
+    elif i < 18:
+        x = BG_BX + (i - 12) * BG_COL
+    else:
+        x = BG_RIGHT_X + (i - 18) * BG_COL
+    y = BG_BY if i >= 12 else BG_BY + BG_BOARD_H - BG_PT_H
+    return x, y
+
+
+def _bg_checker(d, cx, cy, white):
+    fill, edge = (BG_WHITE, BG_WHITE_EDGE) if white else (BG_BLACK, BG_BLACK_EDGE)
+    d.ellipse([cx - BG_R, cy - BG_R, cx + BG_R, cy + BG_R], fill=fill, outline=edge)
+    d.ellipse([cx - BG_R + 3, cy - BG_R + 3, cx + BG_R - 3, cy + BG_R - 3], outline=edge)
+
+
+def backgammon():
+    """Backgammon against the computer: a 5-3 rolled, the checker on White's
+    13-point picked up, and the two points it can reach marked.
+
+    The position is a plausible middle game with fifteen checkers a side; the
+    pip counts in the panel are computed from it, not typed.
+    """
+    im, d = blank(); topbar(d, "Backgammon")
+    pt = [0] * 24
+    for i, n in ((5, 4), (7, 3), (12, 4), (15, 1), (23, 2), (3, 1)):
+        pt[i] = n
+    for i, n in ((0, 2), (11, 4), (16, 3), (18, 4), (20, 2)):
+        pt[i] = -n
+    selected, targets = 12, {7, 9}
+    d.rectangle([BG_BX - 2, BG_BY - 2, BG_BOARD_R + 1, BG_BY + BG_BOARD_H + 1], fill=BG_WOOD)
+    for i in range(24):
+        x, y = _bg_point_rect(i)
+        top = i >= 12
+        cx = x + BG_COL // 2
+        d.rectangle([x, y, x + BG_COL - 1, y + BG_PT_H - 1], fill=BG_FELT)
+        if top:
+            d.polygon([(x, y), (x + BG_COL - 1, y), (cx, y + BG_TRI_H)], fill=BG_TRI[i & 1])
+        else:
+            base = y + BG_PT_H - 1
+            d.polygon([(x, base), (x + BG_COL - 1, base), (cx, base - BG_TRI_H)], fill=BG_TRI[i & 1])
+        n = abs(pt[i])
+
+        def slot(s, top=top, y=y):
+            return y + BG_R + 1 + s * BG_PITCH if top else y + BG_PT_H - 2 - BG_R - s * BG_PITCH
+        for s in range(min(n, 5)):
+            _bg_checker(d, cx, slot(s), pt[i] > 0)
+        if i == selected:
+            cy = slot(min(n, 5) - 1)
+            d.ellipse([cx - BG_R, cy - BG_R, cx + BG_R, cy + BG_R], outline=BG_HI, width=2)
+        if i in targets:
+            cy = slot(min(n, 4))
+            d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=BG_HI)
+            d.rectangle([x, y, x + BG_COL - 1, y + BG_PT_H - 1], outline=BG_HI)
+    d.rectangle([BG_BAR_X, BG_BY, BG_RIGHT_X - 1, BG_BY + BG_BOARD_H - 1], fill=BG_WOOD)
+    d.rectangle([BG_TRAY_X, BG_BY, BG_TRAY_X + BG_TRAY_W - 1, BG_BY + BG_BOARD_H - 1], fill=BG_TRAY)
+
+    px, pw = BG_PANEL_X, BG_PANEL_W
+    d.ellipse([px, 38, px + 12, 50], fill=BG_WHITE, outline=BG_WHITE_EDGE)
+    d.text((px + 16, 37), "You", font=F2, fill=TEXT)
+    for k, face in enumerate((5, 3)):
+        x0 = px + 2 + k * 36
+        d.rounded_rectangle([x0, 56, x0 + 27, 83], 5, fill=(252, 252, 250), outline=BG_INK)
+        cx, cy = x0 + 14, 70
+        spots = {5: [(-8, -8), (8, 8), (8, -8), (-8, 8), (0, 0)], 3: [(-8, -8), (0, 0), (8, 8)]}[face]
+        for ox, oy in spots:
+            d.ellipse([cx + ox - 3, cy + oy - 3, cx + ox + 3, cy + oy + 3], fill=BG_INK)
+
+    def pips(white):
+        total = 0
+        for i, v in enumerate(pt):
+            if white and v > 0:
+                total += v * (i + 1)
+            if not white and v < 0:
+                total += -v * (24 - i)
+        return total
+    d.text((px + 2, 98), "W%d B%d" % (pips(True), pips(False)), font=F1, fill=MUTED)
+    d.text((px, 110), "Pick a", font=F2, fill=TEXT)
+    d.text((px, 128), "point", font=F2, fill=TEXT)
+    button(d, (px, 150, pw, 26), "Roll", fill=SURFACE, tc=MUTED)
+    button(d, (px, 180, pw, 24), "Undo", fill=SURFACE, tc=MUTED)
+    button(d, (px, 207, pw, 26), "End")
+    return im
+
+
+def backgammon_lobby():
+    """Backgammon: three ways to play -- one console, the computer, or a
+    console nearby. One nearby console is offering a game."""
+    im, d = blank(); topbar(d, "Backgammon")
+    rows = [("Two players", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+    for r, (label, fill, ink) in enumerate(rows):
+        button(d, (10, 38 + r * 34, 300, 30), label, fill=fill, tc=ink)
+    note = "Moves travel by Bluetooth. Anyone near hears them."
+    d.text(((W - d.textlength(note, font=F1)) / 2, H - 14), note, font=F1, fill=MUTED)
+    return im
+
+
 def cursive():
     """Cursive: the word 'dog' part traced, with the target behind it.
 
@@ -2714,6 +2832,8 @@ EXTRA_SCREENS = [
     ("ludo", ludo, "Ludo: a choice to make, the die beside the board"),
     ("ludo-lobby", ludo_lobby, "Ludo: who sits in each seat"),
     ("ludo-table", ludo_table, "Ludo: inviting consoles in the room"),
+    ("backgammon", backgammon, "Backgammon: a checker picked up, where it can go"),
+    ("backgammon-lobby", backgammon_lobby, "Backgammon: one console, the computer, or nearby"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 

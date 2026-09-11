@@ -40,6 +40,7 @@ enum class LauncherIcon : uint8_t {
     SeaBattle,
     Cursive,
     Ludo,
+    Backgammon,
     Profiles,
     Scores,
     Settings,

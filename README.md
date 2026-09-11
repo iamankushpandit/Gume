@@ -4,15 +4,15 @@
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
 [![Version](https://img.shields.io/badge/version-5.10.0--SNAPSHOT-9a6700)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-36-2d7d9a)](#the-games)
+[![Games](https://img.shields.io/badge/games-37-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-78.6%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-79.1%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 36-game educational console for young players, running on an **ESP32-32E
+A 37-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -29,9 +29,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 36 |
-| Flash | 2,471,285 / 3,145,728 bytes (**78.6%**) |
-| RAM | 77,172 / 327,680 bytes (**23.6%**) |
+| Games | 37 |
+| Flash | 2,488,541 / 3,145,728 bytes (**79.1%**) |
+| RAM | 77,764 / 327,680 bytes (**23.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -338,6 +338,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
 | **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-eight easy words covering every letter. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, and an arrow appears at each point where the direction changes. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
 | **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |
+| **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk | 7+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -516,6 +517,10 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/ludo-table.png" width="300" alt="Ludo: inviting consoles in the room">
+</p>
+<p align="center">
+  <img src="docs/screens/backgammon.png" width="300" alt="Backgammon: a checker picked up, where it can go">
+  <img src="docs/screens/backgammon-lobby.png" width="300" alt="Backgammon: one console, the computer, or nearby">
 </p>
 
 ### Logic, memory and attention
@@ -1022,10 +1027,11 @@ is not derived from anything a player entered. Advertising is **non-connectable*
 there is no GATT server, so there is nothing to connect to.
 
 **Consoles can play each other over it.** When players start a game from the
-Chess, Sea Battle or Ludo lobby, each console advertises its latest turn: a
+Chess, Sea Battle, Ludo or Backgammon lobby, each console advertises its latest turn: a
 session number, a move number, two small numbers saying what was played, and
 how far it has caught up with everyone else. In Chess the two numbers are
-squares; in Ludo they are a seat and a token, and the die is never sent at all
+squares; in Ludo they are a seat and a token, in Backgammon the point a checker
+left and the point it reached, and the dice are never sent at all
 -- every console at the table works each roll out for itself and checks every
 move against it. Nothing about the format is specific to one game, which is why
 it talks about turns rather than pieces. That is all — no name, no profile and no
@@ -1210,8 +1216,8 @@ then `lock`. Every change goes through the same code the screens use, with the
 same refusals: the admin profile and the player currently in use cannot be
 removed, and Nearby needs the beacon. The password is never echoed, and three
 wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
-game off for every player at once. Chess, Sea Battle, Cursive and Ludo cannot
-be hidden yet (a known limit of per-player visibility).
+game off for every player at once. Chess, Sea Battle, Cursive, Ludo and
+Backgammon cannot be hidden yet (a known limit of per-player visibility).
 
 `python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
 which port. To set up several boards at once, copy

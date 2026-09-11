@@ -35,6 +35,29 @@ on safe squares, so no start square can be walled off.
 - **Ludo cannot be hidden per player**, like Chess, Sea Battle and Cursive: its
   launcher index is past the 32-bit visibility mask.
 
+**Backgammon, for two -- one console, the computer, or a console nearby.** The
+full race: roll, tap a checker and the points it can reach light up, Undo until
+Done. Every forced-move rule is enforced -- as many dice as possible, the higher
+die when only one of two can be played -- and a game ends as a single, a gammon
+or a backgammon. The pip count shows how far each side has to go. No doubling
+cube, and no score: a win is not a number.
+
+- **The computer** plays every complete legal sequence through a position score
+  -- pip lead, made points (home points and runs of them more), opponents on
+  the bar, blots weighted by how many checkers can reach them -- and shows its
+  moves one at a time so a child can follow them. One level.
+- **Nearby play is the lobby's third way to play**, and it needed no change to
+  what is transmitted. An earlier plan ruled it out because the turn has no
+  field for dice; it does not need one. As in Ludo, both consoles derive every
+  roll from the session and their two tags, a move is the checker's two points
+  in the same turn Chess sends, and each move received is played only if it is
+  legal with the dice the receiver computed.
+- **Pure rules, host-tested.** `test/host/backgammon_rules_test.cpp` plays 400
+  games computer against computer and compares the legal moves with a
+  brute-force search over every move order on thousands of positions: 117,242
+  checks, 0 failures.
+- **Backgammon cannot be hidden per player** either; its launcher index is 36.
+
 **Ludo across up to four consoles, over the beacon Chess already uses.** Nearby
 in the Ludo lobby lists the consoles in the room; tap them to invite, add up to
 two computers, and Start once at least one has joined. The console being asked

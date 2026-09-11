@@ -204,6 +204,43 @@ board game.
   the seat list is not repainted for a new turn at all, only when a place is
   decided. A remote seat's turn reads "Waiting for" and that seat's token.
 
+## Backgammon
+
+Split like Ludo: `BackgammonRules` (the rules) and `BackgammonAi.cpp` (the
+computer, declared in the same header), both pure and host-tested by
+`test/host/backgammon_rules_test.cpp`; `BackgammonGame.cpp` (flow and input),
+`BackgammonDraw.cpp`, `BackgammonNet.cpp` (the lobby and the nearby game) and
+`BackgammonSave.cpp`. `BackgammonRules.h` states the rules as played.
+
+- **Legality has one definition: `Bg::legalMoves()`.** A move is legal only if
+  the rest of the dice can still reach the most that can be used, and with two
+  different dice of which only one can be played, it must be the higher if
+  that one can be. The highlights, the computer, `findMove()` and every move
+  from another console go through it. The test compares it with a brute-force
+  search over every move order on thousands of positions from real games.
+- **Doubles are searched in a canonical order** (each source no further from
+  home than the last). It reaches every final position the full search does,
+  which the same brute-force comparison proves, and cuts the worst case from
+  tens of thousands of nodes to a few thousand.
+- **The dice are a function of the seed**, as in Ludo. Locally the seed comes
+  from `Entropy`; across consoles from `Bg::tableSeed()`. Roll is still a tap:
+  it reveals a number that was fixed, which is all a physical die does too.
+- **Done is part of the turn.** It makes Undo usable for the last move, it is
+  when the device is passed, and in a nearby game it is when the turn goes on
+  the air -- a move taken back before Done was never transmitted.
+- **The computer's moves are checked before they are played.** Its search has
+  a node ceiling so no position can hold the frame; the game re-validates each
+  planned move with `findMove()` and falls back to the first legal one, so a
+  cut-short search plays a weaker move, never an illegal one.
+- **Repaint is per place**: 24 points, the bar and the tray, each an
+  idempotent draw of its whole box, plus four panel parts each redrawn only
+  when what it shows changed. A move repaints two or three places.
+- **Nearby play is the lobby's third way to play**, beside Two players and
+  Play the computer: consoles in the room are listed, an invitation to
+  Backgammon reads "A4F2 invites you", and one to another game does not. Colour
+  comes from the invitation's coin toss, who moves first from the opening roll.
+  Either side ending the game sends both back to the lobby.
+
 ## Tracing games
 
 `LetterTracer` is the finger-tracing engine: waypoint resampling, hit testing,

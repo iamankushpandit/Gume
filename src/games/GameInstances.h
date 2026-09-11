@@ -26,6 +26,7 @@
 #include "games/SeaBattleGame.h"
 #include "games/CursiveGame.h"
 #include "games/LudoGame.h"
+#include "games/BackgammonGame.h"
 #include "games/PercentCircleGame.h"
 #include "games/ProfileGame.h"
 #include "games/ScoresGame.h"
@@ -83,6 +84,7 @@ struct GameInstances {
     SeaBattleGame seaBattle;
     CursiveGame cursive;
     LudoGame ludo;
+    BackgammonGame backgammon;
     ProfileGame profile;
     ScoresGame scores;
     AboutGame about;
