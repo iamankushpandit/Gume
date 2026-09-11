@@ -320,8 +320,8 @@ def board_tags():
     Derived, not listed: each [board_*] section of platformio.ini names its
     BOARD_NAME -- what the banner reports -- and its GUME_BOARD_HEADER, and
     that profile opens with its display name and then its tag. The display
-    name is not used, because for two CYD boards it is not the BOARD_NAME
-    ("ESP32-2432S028R (ILI9341)" against "ESP32-2432S028R").
+    name is not used, because nothing makes it equal the BOARD_NAME -- two
+    CYD profiles, since removed, had names that differed from theirs.
     """
     tags = {}
     try:

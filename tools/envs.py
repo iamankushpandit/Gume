@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Which PlatformIO environments are the product, and which are bench tools.
 
-`platformio.ini` declares twenty-one environments and only seven of them are
-Braino!. The other fourteen are hardware probes -- bringup, batdiag, audiodiag,
+`platformio.ini` declares fifteen environments and only five of them are
+Braino!. The other ten are hardware probes -- bringup, batdiag, audiodiag,
 wifidiag, s3diag, diag4, diag32p and their per-board copies -- and they exist to
 be flashed at a board on a desk when something is wrong with it. Nobody
 downloads one from the installer, and nobody wants one in a release.
@@ -182,7 +182,7 @@ def for_changes(paths, ini=None, with_product=False):
 
     `with_product` unions in every product environment regardless of the diff.
     That is what a push to main or dev asks for: those are the branches the
-    installer and the release are cut from, so all seven boards are proven
+    installer and the release are cut from, so every product board is proven
     there whatever the diff looked like. The diagnostic half is still selected
     by the change, which is the whole saving.
     """

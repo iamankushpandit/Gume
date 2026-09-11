@@ -10,6 +10,41 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Only boards that have run on hardware are supported: five, down from
+seven.** The ESP32-2432S028R (micro-USB, ILI9341) and the ESP32-2432S028Rv3
+(ST7789) profiles were written from published pin maps on 2026-08-26, while
+the dual-USB CYD was being brought up. That board turned out to be neither and
+got its own profile, `esp32-2432s028-inv`, and the two guesses stayed behind:
+built by CI, offered by the web installer as supported, and never once run on
+a board. Their profiles, board sections, product and bench environments, and
+installer entries are gone. What is left is exactly what was flashed and
+checked for this release, and the README and the installer's picker now
+describe each by what you can see on it:
+
+| Screen | Touch | USB | Board |
+|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T |
+| 3.2-inch | resistive | one USB-C | E32R32P |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 |
+| 2.8-inch | resistive | USB-C and micro-USB | ESP32-2432S028, inverted panel |
+
+A board comes back when someone who owns one runs it.
+
+**The dual-USB ESP32-2432S028 has no battery badge, because it has no
+battery hardware.** Its battery and RGB LED pins had been copied from the
+E32R28T-1. Measured on the board with a pack and USB connected, GPIO34 read a
+steady 0.21 V where a battery behind the assumed 2:1 divider would read about
+2 V -- on a CYD that pin is the light sensor -- so the gauge had been showing
+a light level as a charge. Its profile now declares no battery sense, and a
+board without it shows no battery badge anywhere -- top bar, launcher, lock
+screen, screen saver -- no low-battery warning, and one "None - use USB
+power" row in System Info instead of four readings of nothing. The header
+layouts, which already pack themselves off the badge's measured width,
+close the gap on their own. Run this board from USB power; the README
+suggests a power bank for portable use. The LED now follows the published
+CYD order, red IO4, green IO16, blue IO17.
+
 **`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
 changed.** Ports were identified before the builds and uploaded to after them,
 up to twenty minutes later, and COM numbers move in that time -- a replug, or a

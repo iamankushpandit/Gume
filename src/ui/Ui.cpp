@@ -570,12 +570,21 @@ int16_t batteryShellWidth(Ui::Renderer& tft, const char* text) {
 }  // namespace
 
 int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
+    /* A board with no battery hardware has no badge at all -- not an empty
+     * shell, which would read as a flat battery. Width 0 lets every header
+     * that packs itself off this function reclaim the space. */
+    if (!BOARD.hasBatterySense()) {
+        return 0;
+    }
     char text[8];
     batteryText(text, sizeof(text), percent);
     return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
 }
 
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg) {
+    if (!BOARD.hasBatterySense()) {
+        return;   // no battery hardware, no badge -- see batteryBadgeWidth()
+    }
     char text[8];
     batteryText(text, sizeof(text), percent);
 

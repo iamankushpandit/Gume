@@ -79,7 +79,7 @@ PARTS = (
 
 # pack_release.py names every asset braino-<version>-<board>-<env>-<part>.bin,
 # and none of those four fields contains a hyphen -- board and env ids use
-# underscores (esp32_2432s028_st7789), and the version is plain semver. So the
+# underscores (esp32_2432s028_inv), and the version is plain semver. So the
 # split is unambiguous. `-merged.bin` is not matched on purpose: it is the
 # convenience image for a terminal flash at 0x0, and esp-web-tools wants the
 # four parts at their own offsets.

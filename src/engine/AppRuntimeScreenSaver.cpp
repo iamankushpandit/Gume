@@ -261,7 +261,10 @@ void BrainoApp::renderScreenSaver() {
     const int16_t batCx = midX;
     const int16_t batCy = 14;
     const int8_t batPct = board_.getBatteryPercent();
-    const int16_t batW = static_cast<int16_t>(Ui::batteryBadgeWidth(tft, batPct) + 6);
+    /* Zero on a board with no battery hardware: no badge, so no box, and the
+     * net below runs straight through where it would have been. */
+    const int16_t badgeW = Ui::batteryBadgeWidth(tft, batPct);
+    const int16_t batW = badgeW > 0 ? static_cast<int16_t>(badgeW + 6) : 0;
     const int16_t batY = static_cast<int16_t>(batCy - 8);
     constexpr int16_t BAT_H = 16;
     const bool batChanged = batPct != ssav_batPctDrawn_;

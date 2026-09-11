@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,507,597 / 3,145,728 bytes (**79.7%**) |
+| Flash | 2,507,625 / 3,145,728 bytes (**79.7%**) |
 | RAM | 79,708 / 327,680 bytes (**24.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -42,22 +42,22 @@ written down too, as [open issues](https://github.com/iamankushpandit/Gume/issue
 
 ## Help wanted
 
-**Board ports.** Braino is developed and tested against the E32R28T-1. Two
-ESP32-2432S028 CYD variants ship as ports built from published pin maps and
-have not been verified on real hardware; the Freenove FNK0104B *has* been
-verified on hardware but ships with three peripherals switched off (see
+**Board ports.** Braino is developed and tested against the E32R28T-1, and
+every supported board has been run on hardware (see
+[Which board do you have?](#which-board-do-you-have)). The Freenove FNK0104B
+ships with three peripherals switched off (see
 [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3)); the 4-inch **E32R40T**
 has had its panel, backlight and touch confirmed on hardware but ships with four
 peripherals not yet characterised (see [E32R40T](#e32r40t-4-inch-st7796));
 the 3.2-inch **E32R32P** has had its display, touch, battery sense and
 radios confirmed on hardware, with the RGB LED order and the battery
 divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3)); and one
-dual-USB CYD variant whose colours come out inverted *has* been verified on
+dual-USB CYD variant whose colours come out inverted has been verified on
 hardware (see
-[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel))
-— if you own any of those, telling us whether it works is the single
-most useful thing you can send. The CYD family has many variants whose
-differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
+[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel)). A board
+that is not in that list becomes supported when someone who owns one runs
+it -- that report is the single most useful thing you can send. The CYD
+family has many variants whose differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
 files and nowhere else: a profile header in `include/boards/` and a
 `[board_*]` section in `platformio.ini`. No file under `src/` names a GPIO,
@@ -118,6 +118,30 @@ The picker offers one image per board, and you have to choose the one that
 matches yours: two boards sold under the same name can carry different display
 controllers, and the wrong image gives inverted colours, dead touch or a blank
 screen rather than an error.
+
+### Which board do you have?
+
+Five boards are supported, and each has been flashed and run on hardware. Tell
+them apart by screen size, touch type and USB ports:
+
+| Screen | Touch | USB | Board | Pick in the installer | Vendor page |
+|---|---|---|---|---|---|
+| 4-inch | resistive | one USB-C | E32R40T | [E32R40T](#e32r40t-4-inch-st7796) | [LCDWIKI 4.0inch ESP32-32E](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display) |
+| 3.2-inch | resistive | one USB-C | E32R32P | [E32R32P](#e32r32p-32-inch-st7789p3) | [LCDWIKI 3.2inch ESP32-32E](https://www.lcdwiki.com/3.2inch_ESP32-32E_Display) |
+| 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
+| 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
+| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+
+The two 2.8-inch resistive boards look alike; the second USB socket is the
+difference -- and so is power. The dual-USB board has **no battery hardware**
+the firmware can use: no battery sense line, so no battery badge and no
+low-battery warning. Run it from USB: a wall adapter, a computer, or a USB
+power bank for a portable console (for example
+[this 5,000 mAh bank](https://www.walmart.com/ip/5K-PWR-BNK/14769668232) -- a suggestion,
+not something we have tested with this board). The capacitive board is the same design under two brands: the
+LCDWIKI ES3C28P's published pins match the Freenove FNK0104B profile pin for
+pin -- display, touch, audio and battery -- so the one image runs both. If your board is not in this table, it is not supported -- a
+different image is likely to give a blank or wrongly coloured screen.
 
 ### Freenove FNK0104B (ESP32-S3)
 
@@ -196,15 +220,13 @@ wirings, ADC candidates, and a Wi-Fi/BLE coexistence test.
 **If your 2.8-inch CYD draws everything perfectly but every colour is wrong,
 this is your build.** Flash `app_esp32_2432s028_inv`.
 
-The 2.8-inch "cheap yellow display" ships with at least three different
+The 2.8-inch "cheap yellow display" ships with several different
 combinations of panel and backlight behind the same silkscreen, and you cannot
-tell them apart by looking:
-
-| Profile | USB | Panel | Backlight | Verified? |
-|---|---|---|---|---|
-| `esp32-2432s028r.h` | micro-USB | ILI9341 | GPIO21 | from a published pin map |
-| `esp32-2432s028.h` | dual-USB | ST7789 | GPIO27 | from a published pin map |
-| `esp32-2432s028-inv.h` | dual-USB | ILI9341 + runtime inversion | GPIO21 | **on hardware** |
+tell them apart by looking. This firmware supports exactly one of them, the
+dual-USB board with an ILI9341 panel wanting runtime inversion and its
+backlight on GPIO21 (`esp32-2432s028-inv.h`), because that is the one that has
+been run on hardware. Other CYD variants -- the micro-USB ESP32-2432S028R, the
+ST7789 Rv3 -- are not supported.
 
 The symptom that identifies this one is specific and easy to misread: the board
 comes up with the backlight on, touch working, the layout correct and a
@@ -226,8 +248,16 @@ Two things are worth knowing if you are porting another variant:
   `invertDisplay()` and which works under any driver.
 
 Confirmed on hardware: panel, colour inversion, backlight, touch, rotation,
-flash size. Inherited from the E32R28T-1 and not exercised: SD card, RGB LED
-order, battery divider. **Sound** comes from GPIO26 into the onboard SC8002B
+flash size, and **no battery sense**: with a pack and USB connected, GPIO34
+read a steady 0.21 V where a battery behind a 2:1 divider would read about
+2 V. On a CYD that pin is the light sensor. So this board shows **no battery
+badge, no low-battery warning and no battery rows in System Info**, and it
+should be run from USB power -- a wall adapter, a computer, or a power bank
+(for example [this 5,000 mAh one](https://www.walmart.com/ip/5K-PWR-BNK/14769668232), a
+suggestion we have not tested with this board). Until 5.10.0 the battery and
+the RGB LED were copied from the E32R28T-1, and the gauge read a light level
+as a charge. The RGB LED now follows the published CYD pin map (red IO4,
+green IO16, blue IO17). Inherited and not exercised: the SD card. **Sound** comes from GPIO26 into the onboard SC8002B
 amplifier and the JST 1.25 speaker connector. Its touch clock is GPIO25, the
 other DAC pad -- the conflict that made 5.5.1 switch sound off on the 2.8-inch
 boards -- so the firmware hands GPIO25 back to touch once audio is up.
@@ -278,10 +308,10 @@ at this board's pins.
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
 [this Amazon board](https://www.amazon.com/dp/B0D92C9MMH?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1).
-The two **ESP32-2432S028** entries (classic ILI9341 and Rv3 ST7789) are ports
-built from published pin maps and have **not been verified on hardware**; they
-are offered so somebody who owns one can try them and report back. Other ESP32
-boards may accept a binary, but their display and touch pins will not match.
+Every board offered has been flashed and run on hardware: the E32R28T-1, the
+dual-USB ESP32-2432S028 with the inverted panel, the E32R32P, the E32R40T and
+the Freenove FNK0104B. Other ESP32 boards may accept a binary, but their
+display and touch pins will not match.
 
 That page is generated by `tools/gen_site.py` and published by
 `.github/workflows/pages.yml`, which builds every PlatformIO environment `platformio.ini` declares on
@@ -1156,7 +1186,7 @@ console — `bringup`, `batdiag`, `audiodiag`, `wifidiag`, `s3diag`, `diag4`,
 with `custom_env_kind`, and `tools/envs.py` is what every workflow asks:
 
 ```bash
-python tools/envs.py --product        # the seven that are Braino!
+python tools/envs.py --product        # the five that are Braino!
 python tools/envs.py --diagnostic     # the fourteen bench probes
 ```
 

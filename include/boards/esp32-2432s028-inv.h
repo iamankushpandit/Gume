@@ -15,15 +15,18 @@
 
 /* ESP32-2432S028, dual-USB, INVERTING PANEL. 2.8-inch, 240x320.
  *
- * A THIRD CYD VARIANT, and the reason this file exists rather than being folded
- * into one of the other two. The 2.8-inch "cheap yellow display" ships with at
+ * The one CYD variant this firmware supports, and the reason it has its own
+ * file rather than a generic CYD profile. The 2.8-inch "cheap yellow display" ships with at
  * least three different combinations of panel and backlight behind the same
  * silkscreen, and they are not distinguishable by looking at the board:
  *
- *   esp32-2432s028r.h        micro-USB, ILI9341, backlight IO21, no inversion
- *   esp32-2432s028.h         dual-USB, ST7789, backlight IO27  (UNVERIFIED)
- *   this file                dual-USB, ILI9341 sequence + runtime inversion,
- *                            backlight IO21                    (MEASURED)
+ *   micro-USB, ILI9341, backlight IO21, no inversion  (ESP32-2432S028R)
+ *   dual-USB, ST7789, backlight IO27                   (the Rv3)
+ *   this file: dual-USB, ILI9341 sequence + runtime inversion,
+ *              backlight IO21                          (MEASURED)
+ *
+ * Only this one is supported. Profiles for the other two existed until
+ * 5.10.0 and were removed unrun: nobody here owns either board.
  *
  * HOW THIS ONE WAS ESTABLISHED. Every combination was flashed onto one board
  * and the screen looked at:
@@ -47,12 +50,18 @@
  *
  *   measured   panel, colour inversion, backlight IO21, touch, rotation,
  *              4MB flash and no PSRAM (from the chip, see the [boot] lines)
- *   inherited  SD, RGB LED and battery pins, taken from the E32R28T-1 which
- *              this board matches pin-for-pin everywhere that WAS checked
+ *   published  RGB LED red IO4 / green IO16 / blue IO17, and GPIO34 as the
+ *              light sensor (LDR) -- Random Nerd Tutorials' CYD guide, which
+ *              is the reference for this family (docs/boards/)
+ *   inherited  SD pins, taken from the E32R28T-1
  *
- * The RGB order is the one to distrust: the E32R28T-1's own vendor table has
- * red and green crossed, and that was only found by driving each channel and
- * looking. A wrong-coloured status LED here is expected, not surprising.
+ * Until 5.10.0 the LED and battery were inherited from the E32R28T-1 too,
+ * and both were wrong for a CYD: the LED had red and green crossed, and
+ * GPIO34 was read as a battery through a 2:1 divider when on this board it
+ * is a photoresistor -- so the gauge showed a light level as a charge. This
+ * board has no battery sense line, and the gauge now says so by showing no
+ * digits. Neither the LED order nor the absence of a battery line has been
+ * checked on the board here yet; both follow the published pin map.
  *
  * The display's own SPI pins are not here -- TFT_eSPI reads them from the `-D`
  * flags in platformio.ini, and BoardConfig.h cross-checks the two.
@@ -108,10 +117,10 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
-    /* Inherited, and see the note above about distrusting the order. */
+    /* The CYD's published order -- see the note above. Common anode. */
     RgbLedProfile{
-        /* r           */ 16,
-        /* g           */ 4,
+        /* r           */ 4,
+        /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
     },
@@ -132,13 +141,13 @@ inline constexpr BoardProfile BOARD = {
         /* maxVolume           */ 75,
     },
 
-    /* Inherited: IO34 through a 2:1 divider. sensorMaxVolts is an ADC fault
-     * ceiling and NOT a pack-present test -- hal/BoardPower.cpp records why no
-     * threshold can tell a missing pack from a present one on this family. */
+    /* No battery sense. GPIO34 on a CYD is the light sensor, not a battery
+     * divider; reading it as one showed a light level as a charge. PIN_NONE
+     * makes the gauge show no digits, which is the honest answer. */
     BatteryProfile{
-        /* adcPin        */ 34,
-        /* dividerRatio  */ 2.0f,
-        /* sensorMaxVolts*/ 4.50f,
+        /* adcPin        */ PIN_NONE,
+        /* dividerRatio  */ 0.0f,
+        /* sensorMaxVolts*/ 0.0f,
     },
 
     /* 4 MB part, huge_app.csv: 3 MB for the app. Read back from the chip at

@@ -26,7 +26,7 @@ on:
 #   plan    every repository check, then decides which environments to build
 #           and installs their toolchains once, into one shared cache.
 #   build   one job PER ENVIRONMENT, on its own runner, all at once. A push to
-#           dev builds seven boards; one after another on one runner that was
+#           dev builds every product board; one after another on one runner that was
 #           14-15 minutes, in parallel it is roughly the slowest single board.
 #   verify  the required status check. It waits for the builds and fails if
 #           any failed -- see the note on it below.
@@ -156,8 +156,8 @@ jobs:
       # had existed for months. A list of environments maintained in YAML is a
       # list that is wrong and cannot say so.
       #
-      # The rule the tool applies: the seven `product` environments are Braino!
-      # and are what CI is protecting. The fourteen `diagnostic` ones are bench
+      # The rule the tool applies: the five `product` environments are Braino!
+      # and are what CI is protecting. The ten `diagnostic` ones are bench
       # probes -- they are built when their own source or platformio.ini moves,
       # and not otherwise. A push to main or dev builds every product
       # environment regardless, because that is the branch the installer and

@@ -6,7 +6,7 @@ The only place that talks to hardware. Ordinary games should not reach this dire
 
 **Nothing in here may name a GPIO number, a panel size or a divider ratio.** Every hardware fact comes from `BOARD`, the one `BoardProfile` constant selected at compile time by `GUME_BOARD_HEADER` and defined in `include/boards/<id>.h`. That is what lets a second board be a header rather than a patch, and it is the rule that stops this directory becoming board-specific again.
 
-A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()`, `hasBacklightControl()`. Degrade quietly rather than fail -- a board with no battery connector blanks the gauge's digits, which is the honest answer, and needs no code change here at all. Adding a field to the contract means filling it in for every existing board in the same commit; `tools/check_boards.py` is what notices when that did not happen. `docs/PORTING.md` has the rest.
+A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()`, `hasBacklightControl()`. Degrade quietly rather than fail -- a board with no battery sense (`adcPin = PIN_NONE`, the dual-USB CYD) shows no battery badge anywhere, raises no low-battery warning and starts no sampling task -- `Ui::batteryBadgeWidth()` returns 0 and `drawBatteryBadge()` draws nothing, so every header reclaims the space -- and needs no code change here at all. Adding a field to the contract means filling it in for every existing board in the same commit; `tools/check_boards.py` is what notices when that did not happen. `docs/PORTING.md` has the rest.
 
 ## Board.* + BoardAccess.h + BoardStorage.cpp + BoardStorageMaintenance.cpp
 
@@ -170,7 +170,7 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   from signed int16 to unsigned offset-binary: `(sample * vol/100) + 32768`.
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
   75 on CYD boards (bare DAC, unamplifed 1-inch driver distorts above 75%).
-- Neither defined — no audio (e.g. esp32-2432s028 ST7789 variant).
+- Neither defined — no audio. No supported board is in that state today.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
 `BoardProfile`. A board that gains a louder amplifier sets its own ceiling;
