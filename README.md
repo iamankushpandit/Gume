@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,507,597 / 3,145,728 bytes (**79.7%**) |
+| Flash | 2,507,625 / 3,145,728 bytes (**79.7%**) |
 | RAM | 79,708 / 327,680 bytes (**24.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -130,10 +130,15 @@ them apart by screen size, touch type and USB ports:
 | 3.2-inch | resistive | one USB-C | E32R32P | [E32R32P](#e32r32p-32-inch-st7789p3) | [LCDWIKI 3.2inch ESP32-32E](https://www.lcdwiki.com/3.2inch_ESP32-32E_Display) |
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
-| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
 
 The two 2.8-inch resistive boards look alike; the second USB socket is the
-difference. The capacitive board is the same design under two brands: the
+difference -- and so is power. The dual-USB board has **no battery hardware**
+the firmware can use: no battery sense line, so no battery badge and no
+low-battery warning. Run it from USB: a wall adapter, a computer, or a USB
+power bank for a portable console (for example
+[this 5,000 mAh bank](https://www.walmart.com/ip/5K-PWR-BNK/14769668232) -- a suggestion,
+not something we have tested with this board). The capacitive board is the same design under two brands: the
 LCDWIKI ES3C28P's published pins match the Freenove FNK0104B profile pin for
 pin -- display, touch, audio and battery -- so the one image runs both. If your board is not in this table, it is not supported -- a
 different image is likely to give a blank or wrongly coloured screen.
@@ -243,8 +248,16 @@ Two things are worth knowing if you are porting another variant:
   `invertDisplay()` and which works under any driver.
 
 Confirmed on hardware: panel, colour inversion, backlight, touch, rotation,
-flash size. Inherited from the E32R28T-1 and not exercised: SD card, RGB LED
-order, battery divider. **Sound** comes from GPIO26 into the onboard SC8002B
+flash size, and **no battery sense**: with a pack and USB connected, GPIO34
+read a steady 0.21 V where a battery behind a 2:1 divider would read about
+2 V. On a CYD that pin is the light sensor. So this board shows **no battery
+badge, no low-battery warning and no battery rows in System Info**, and it
+should be run from USB power -- a wall adapter, a computer, or a power bank
+(for example [this 5,000 mAh one](https://www.walmart.com/ip/5K-PWR-BNK/14769668232), a
+suggestion we have not tested with this board). Until 5.10.0 the battery and
+the RGB LED were copied from the E32R28T-1, and the gauge read a light level
+as a charge. The RGB LED now follows the published CYD pin map (red IO4,
+green IO16, blue IO17). Inherited and not exercised: the SD card. **Sound** comes from GPIO26 into the onboard SC8002B
 amplifier and the JST 1.25 speaker connector. Its touch clock is GPIO25, the
 other DAC pad -- the conflict that made 5.5.1 switch sound off on the 2.8-inch
 boards -- so the firmware hands GPIO25 back to touch once audio is up.

@@ -155,7 +155,7 @@ BOARD_DETAILS = {
                "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1",
     },
     "esp32_2432s028_inv": {
-        "label": "2.8-inch, resistive touch, USB-C plus micro-USB -- ESP32-2432S028 CYD, inverted panel (ILI9341 + XPT2046)",
+        "label": "2.8-inch, resistive touch, USB-C plus micro-USB, no battery (USB power) -- ESP32-2432S028 CYD, inverted panel (ILI9341 + XPT2046)",
         "chip": "ESP32",
         "buy": "https://www.espboards.dev/esp32/cyd-esp32-2432s028/",
     },

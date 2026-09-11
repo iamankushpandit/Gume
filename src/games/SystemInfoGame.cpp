@@ -281,17 +281,23 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("Uptime", uptimeText(millis() / 1000UL));
 
     rows_.addSection("Power");
-    /* A negative percentage means the ADC read outside a plausible range, not
-     * that the pack is missing: this board cannot tell whether one is fitted
-     * (see BoardPower.cpp), so it must not claim to. */
-    rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
-           (pct >= 0 ? " (" + String(pct) + "%)" : " (sensor fault)"));
-    rows_.addRow("Charge level", pct < 0 ? String("Sensor out of range")
-                                : board.isBatteryCritical() ? String("Critical - charge now")
-                                : board.isBatteryLow() ? String("Low - charge soon")
-                                : String("OK"));
-    rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
-    rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
+    /* No battery hardware (the dual-USB CYD): say so, rather than a zero
+     * volts that reads as a flat pack or a sensor fault. */
+    if (!BOARD.hasBatterySense()) {
+        rows_.addRow("Battery", "None - use USB power");
+    } else {
+        /* A negative percentage means the ADC read outside a plausible range, not
+         * that the pack is missing: this board cannot tell whether one is fitted
+         * (see BoardPower.cpp), so it must not claim to. */
+        rows_.addRow("Battery", String(battery.batteryVoltage, 2) + " V" +
+               (pct >= 0 ? " (" + String(pct) + "%)" : " (sensor fault)"));
+        rows_.addRow("Charge level", pct < 0 ? String("Sensor out of range")
+                                    : board.isBatteryCritical() ? String("Critical - charge now")
+                                    : board.isBatteryLow() ? String("Low - charge soon")
+                                    : String("OK"));
+        rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
+        rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
+    }
 
     rows_.addSection("Flash");
     rows_.addRow("Chip size", formatBytes(ESP.getFlashChipSize()));

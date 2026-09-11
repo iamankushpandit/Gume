@@ -50,12 +50,18 @@
  *
  *   measured   panel, colour inversion, backlight IO21, touch, rotation,
  *              4MB flash and no PSRAM (from the chip, see the [boot] lines)
- *   inherited  SD, RGB LED and battery pins, taken from the E32R28T-1 which
- *              this board matches pin-for-pin everywhere that WAS checked
+ *   published  RGB LED red IO4 / green IO16 / blue IO17, and GPIO34 as the
+ *              light sensor (LDR) -- Random Nerd Tutorials' CYD guide, which
+ *              is the reference for this family (docs/boards/)
+ *   inherited  SD pins, taken from the E32R28T-1
  *
- * The RGB order is the one to distrust: the E32R28T-1's own vendor table has
- * red and green crossed, and that was only found by driving each channel and
- * looking. A wrong-coloured status LED here is expected, not surprising.
+ * Until 5.10.0 the LED and battery were inherited from the E32R28T-1 too,
+ * and both were wrong for a CYD: the LED had red and green crossed, and
+ * GPIO34 was read as a battery through a 2:1 divider when on this board it
+ * is a photoresistor -- so the gauge showed a light level as a charge. This
+ * board has no battery sense line, and the gauge now says so by showing no
+ * digits. Neither the LED order nor the absence of a battery line has been
+ * checked on the board here yet; both follow the published pin map.
  *
  * The display's own SPI pins are not here -- TFT_eSPI reads them from the `-D`
  * flags in platformio.ini, and BoardConfig.h cross-checks the two.
@@ -111,10 +117,10 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
-    /* Inherited, and see the note above about distrusting the order. */
+    /* The CYD's published order -- see the note above. Common anode. */
     RgbLedProfile{
-        /* r           */ 16,
-        /* g           */ 4,
+        /* r           */ 4,
+        /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
     },
@@ -135,13 +141,13 @@ inline constexpr BoardProfile BOARD = {
         /* maxVolume           */ 75,
     },
 
-    /* Inherited: IO34 through a 2:1 divider. sensorMaxVolts is an ADC fault
-     * ceiling and NOT a pack-present test -- hal/BoardPower.cpp records why no
-     * threshold can tell a missing pack from a present one on this family. */
+    /* No battery sense. GPIO34 on a CYD is the light sensor, not a battery
+     * divider; reading it as one showed a light level as a charge. PIN_NONE
+     * makes the gauge show no digits, which is the honest answer. */
     BatteryProfile{
-        /* adcPin        */ 34,
-        /* dividerRatio  */ 2.0f,
-        /* sensorMaxVolts*/ 4.50f,
+        /* adcPin        */ PIN_NONE,
+        /* dividerRatio  */ 0.0f,
+        /* sensorMaxVolts*/ 0.0f,
     },
 
     /* 4 MB part, huge_app.csv: 3 MB for the app. Read back from the chip at

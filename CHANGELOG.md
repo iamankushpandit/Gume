@@ -31,6 +31,20 @@ describe each by what you can see on it:
 
 A board comes back when someone who owns one runs it.
 
+**The dual-USB ESP32-2432S028 has no battery badge, because it has no
+battery hardware.** Its battery and RGB LED pins had been copied from the
+E32R28T-1. Measured on the board with a pack and USB connected, GPIO34 read a
+steady 0.21 V where a battery behind the assumed 2:1 divider would read about
+2 V -- on a CYD that pin is the light sensor -- so the gauge had been showing
+a light level as a charge. Its profile now declares no battery sense, and a
+board without it shows no battery badge anywhere -- top bar, launcher, lock
+screen, screen saver -- no low-battery warning, and one "None - use USB
+power" row in System Info instead of four readings of nothing. The header
+layouts, which already pack themselves off the badge's measured width,
+close the gap on their own. Run this board from USB power; the README
+suggests a power bank for portable use. The LED now follows the published
+CYD order, red IO4, green IO16, blue IO17.
+
 **`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
 changed.** Ports were identified before the builds and uploaded to after them,
 up to twenty minutes later, and COM numbers move in that time -- a replug, or a
