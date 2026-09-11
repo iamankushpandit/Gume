@@ -426,6 +426,8 @@ void LudoGame::renderStatic(AppContext& host) {
     drawnTurn_ = 0xFF;
     drawnMessage_[0] = 1;   // matches no message, so the first pass draws it
     drawnMessage_[1] = 0;
+    drawnMessageSeat_ = 0xFE;
+    drawnDotSeat_ = Ludo::NO_SEAT;   // drawSeats() below paints no dot
     seatsStale_ = true;
     actionStale_ = true;
 }
@@ -462,21 +464,41 @@ void LudoGame::renderDynamic(AppContext& host) {
     }
 
     const uint8_t turn = phase_ == Phase::Over ? 0xFE : state_.turn;
-    if (face_ != drawnFace_ || turn != drawnTurn_) {
-        drawDie(tft);
+    const bool blink = blinkPhase();
+    /* The die's frame flashes by changing colour, never size, so nothing
+     * around it ever needs erasing. */
+    const bool frameOn = !dieFlashing() || blink;
+    if (face_ != drawnFace_ || turn != drawnTurn_ || frameOn != drawnFrameOn_) {
+        drawDie(tft, frameOn);
         drawnFace_ = face_;
+        drawnFrameOn_ = frameOn;
     }
     if (turn != drawnTurn_) {
         drawTurn(tft);
         drawnTurn_ = turn;
     }
-    if (strcmp(message_, drawnMessage_) != 0) {
+    if (strcmp(message_, drawnMessage_) != 0 || messageSeat_ != drawnMessageSeat_) {
         drawMessage(tft);
         snprintf(drawnMessage_, sizeof(drawnMessage_), "%s", message_);
+        drawnMessageSeat_ = messageSeat_;
     }
     if (seatsStale_) {
         drawSeats(tft);
         seatsStale_ = false;
+        drawnDotSeat_ = Ludo::NO_SEAT;   // the list was repainted without it
+    }
+    /* The turn dot: its own few pixels, moved when the turn moves and blinked
+     * by colour in between. The seat list itself is not repainted for it. */
+    const uint8_t dotSeat = phase_ == Phase::Over ? Ludo::NO_SEAT : state_.turn;
+    if (dotSeat != drawnDotSeat_ || (dotSeat != Ludo::NO_SEAT && blink != drawnDotOn_)) {
+        if (drawnDotSeat_ != Ludo::NO_SEAT && drawnDotSeat_ != dotSeat) {
+            drawTurnDot(tft, drawnDotSeat_, false);
+        }
+        if (dotSeat != Ludo::NO_SEAT) {
+            drawTurnDot(tft, dotSeat, blink);
+        }
+        drawnDotSeat_ = dotSeat;
+        drawnDotOn_ = blink;
     }
     const bool sure = phase_ != Phase::Over && millis() < confirmUntilMs_;
     if (actionStale_ || sure != confirmShown_) {

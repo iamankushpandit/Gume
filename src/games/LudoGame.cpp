@@ -34,6 +34,10 @@ constexpr uint32_t NOTICE_MS = 1200;
 /* End game asks twice, the way Chess does: the button relabels itself and a
  * second press inside this window confirms. */
 constexpr uint32_t CONFIRM_MS = 3000;
+/* Half a period of the turn dot's and the die's blink: 1.25 flashes a
+ * second, far below the 3Hz where flashing becomes a photosensitivity
+ * concern. */
+constexpr uint32_t BLINK_MS = 400;
 
 }   // namespace
 
@@ -95,6 +99,23 @@ uint32_t LudoGame::pace(uint32_t ms) const {
 
 void LudoGame::setMessage(const char* text) {
     snprintf(message_, sizeof(message_), "%s", text);
+    messageSeat_ = Ludo::NO_SEAT;
+}
+
+void LudoGame::setWaiting(uint8_t seat) {
+    snprintf(message_, sizeof(message_), "%s", "Waiting for");
+    messageSeat_ = seat;
+}
+
+bool LudoGame::blinkPhase() {
+    /* Slow enough to read as a signal rather than a flicker, and well clear
+     * of the rates that matter for photosensitivity. */
+    return (millis() / BLINK_MS) & 1U;
+}
+
+bool LudoGame::dieFlashing() const {
+    return mode_ == Mode::Play && phase_ == Phase::Roll && !state_.over &&
+           ownsSeat(state_.turn) && !isComputer(state_.turn);
 }
 
 void LudoGame::startGame(AppContext& host) {
@@ -136,10 +157,13 @@ void LudoGame::startGame(AppContext& host) {
 
 void LudoGame::enterTurn(uint32_t now, bool bonus) {
     autoToken_ = Ludo::NO_TOKEN;
-    seatsStale_ = true;
+    /* The seat list is NOT repainted for a new turn -- the turn dot moves
+     * instead. It repaints when a place is decided (finishMove) and here. */
     actionStale_ = true;
     if (state_.over) {
         phase_ = Phase::Over;
+        seatsStale_ = true;
+        messageSeat_ = Ludo::NO_SEAT;
         for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
             if (Ludo::playing(state_, s) && state_.place[s] == 1) {
                 snprintf(message_, sizeof(message_), "%s wins!", seatName(s));
@@ -183,7 +207,7 @@ void LudoGame::enterTurn(uint32_t now, bool bonus) {
     if (isComputer(seat)) {
         setMessage("Thinking...");
     } else if (remoteSeat(seat)) {
-        setMessage("Waiting...");
+        setWaiting(seat);
     } else {
         setMessage(bonus ? "Roll again!" : "Tap to roll");
     }
@@ -292,6 +316,7 @@ void LudoGame::finishMove(AppContext& host, uint32_t now) {
 
     /* One cue per move, the one that says the most. */
     if (anim_.seatFinished) {
+        seatsStale_ = true;   // a place to write beside the name
         /* Whether somebody holding THIS console is playing, and whether it
          * was them: a console across the room finishing is news, not a win. */
         bool anyPlayer = false;
@@ -373,23 +398,18 @@ void LudoGame::pressAction(AppContext& host, uint32_t now) {
         return;
     }
     if (now < confirmUntilMs_) {
-        /* The second press of End game. Alone, back to the lobby. At a table,
-         * tell the others first -- through the service's own ending, which
-         * stays on the air like a move so it cannot be the message that goes
-         * missing -- and stay on the finished board until New game. */
+        /* The second press of End game: back to the lobby. At a table, tell
+         * the others first, through the service's own ending, and every
+         * console at it leaves to its lobby too (see pollTable()). The ending
+         * stays on the air after we leave -- nothing here clears it until the
+         * screen closes or another game starts -- so a console that has not
+         * heard it yet still will. */
         confirmUntilMs_ = 0;
         confirmShown_ = false;
         if (net_) {
             host.nearbyEnd(session_, Ludo::Net::nextPly(applied_), applied_);
             ended_ = true;
-            phase_ = Phase::Over;
-            setMessage("You stopped");
-            seatsStale_ = true;
-            actionStale_ = true;
-            host.playSound(Sound::Select);
-            saveGame(host);
-            markDirty();
-            return;
+            leaveTable(host);
         }
         mode_ = Mode::Lobby;
         lobbyStale_ = true;
@@ -413,8 +433,21 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
         pressAction(host, now);
         return;
     }
+    if (phase_ != Phase::Over) {
+        /* The turn dot and the die flash on one clock. A change of phase is
+         * the only thing that needs a render; the render itself decides what
+         * few pixels that is. */
+        const bool blink = blinkPhase();
+        if (blink != lastBlink_) {
+            lastBlink_ = blink;
+            markDirty();
+        }
+    }
     if (net_) {
         pollTable(host, now);   // may take another console's roll
+        if (mode_ != Mode::Play) {
+            return;             // or may have ended the game for everyone
+        }
     }
 
     const uint8_t seat = state_.turn;
@@ -433,8 +466,9 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
                        (dieRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP) ||
                         boardRect().contains(touch.x, touch.y))) {
                 if (net_ && !canPublish(host)) {
-                    /* Somebody has not caught up with our last move yet. */
-                    setMessage("Waiting...");
+                    /* Somebody has not caught up with our last move yet --
+                     * no one seat to name, so not "Waiting for". */
+                    setMessage("One moment...");
                     markDirty();
                 } else {
                     doRoll(host, now);
@@ -495,6 +529,12 @@ void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
     }
     if (!touch.justPressed) {
         return;
+    }
+    if (lobbyNote_[0] != 0) {
+        /* "A4F2 ended the game" has been seen; any tap retires it. */
+        lobbyNote_[0] = 0;
+        lobbyStale_ = true;
+        markDirty();
     }
     for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
         if (seatChipRect(s).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {

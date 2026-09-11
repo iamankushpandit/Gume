@@ -454,16 +454,22 @@ void LudoGame::pollTable(AppContext& host, uint32_t now) {
         if (host.nearbyTurnFrom(chairs_[c].id, session_, t) && t.ended) {
             /* Somebody stopped. The service owns what that looks like on the
              * air; this only reads the flag. One console leaving ends the game
-             * for the table, because a seat nobody plays stops everyone. */
-            ended_ = true;
-            phase_ = Phase::Over;
-            snprintf(message_, sizeof(message_), "%s stopped",
+             * for the table, because a seat nobody plays stops everyone -- so
+             * every console goes back to its lobby, and the lobby says who
+             * ended it rather than leaving a child to wonder where the game
+             * went. Our own turn comes off the air: this console is in no game
+             * now, and the ending we heard is carried by the one that sent it. */
+            snprintf(lobbyNote_, sizeof(lobbyNote_), "%s ended the game",
                      chairs_[c].name[0] != 0 ? chairs_[c].name : chairs_[c].id);
-            seatsStale_ = true;
-            actionStale_ = true;
+            host.nearbyStop();
+            ended_ = true;
+            leaveTable(host);
+            mode_ = Mode::Lobby;
+            confirmUntilMs_ = 0;
+            lobbyStale_ = true;
             host.playSound(Sound::GameOver);
             saveGame(host);
-            markDirty();
+            markFullDirty();
             return;
         }
     }

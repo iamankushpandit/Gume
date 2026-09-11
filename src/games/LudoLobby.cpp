@@ -99,6 +99,11 @@ void LudoGame::drawLevel(Ui::Renderer& tft) const {
 
 void LudoGame::drawLobbyHint(Ui::Renderer& tft) const {
     tft.fillRect(HINT_RECT.x, HINT_RECT.y, HINT_RECT.w, HINT_RECT.h, Ui::bg());
+    if (lobbyNote_[0] != 0) {
+        /* Why the game just vanished. Outranks everything until tapped. */
+        Ui::drawLabel(tft, HINT_RECT, lobbyNote_, Ui::warning(), 2, Align::Center);
+        return;
+    }
     if (inviteWaiting_) {
         /* The header banner announced it and has gone; this is where it is
          * still answerable from. */

@@ -58,8 +58,13 @@ sees the invitation in its header and joins from its own Ludo lobby.
   you" -- a Sea Battle invitation included -- and accepting it left two
   consoles playing different games at each other. An invitation to another
   game now reads as an ordinary "Play A4F2" row.
-- **One console ending the game ends it for the table**, and the others show
-  who stopped. A console that walks out of range stalls the game rather than
+- **One console ending the game ends it for the table**: every console goes
+  back to its lobby, and the others say who ended it until tapped.
+- **Whose turn it is blinks.** A dot beside that seat in the panel, and the
+  die's frame on the console whose person has to roll; another console's turn
+  reads "Waiting for" and that seat's token. Only the dot and the die are
+  repainted -- the seat list no longer redraws on every turn.
+- A console that walks out of range stalls the game rather than
   being dropped: the radio cannot tell gone from slow.
 - The host test now also plays 600 tables of separate consoles and requires
   every copy of the game to be identical after every roll.

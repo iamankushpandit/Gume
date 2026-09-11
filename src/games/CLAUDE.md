@@ -189,9 +189,19 @@ board game.
   `canPublish()` says everyone has the previous one. The test plays 600 tables
   of separate state copies and requires them identical after every roll.
 - **One console stopping ends the table.** A seat nobody plays stops everyone,
-  so End game sends the service's ending and every other console shows who
-  stopped. A console that simply walks away stalls the game instead -- the
-  radio cannot tell away from slow -- and anyone can then End it.
+  so End game sends the service's ending and every console at the table --
+  the one that ended it included -- goes straight back to its lobby, where
+  the others read "A4F2 ended the game" until they tap. The ender's word stays
+  on the air until its screen closes or it starts another game, so a console
+  that has not heard it yet still will. A console that simply walks away
+  stalls the game instead -- the radio cannot tell away from slow -- and
+  anyone can then End it.
+- **Whose turn it is blinks; nothing else does.** A dot beside that seat's row
+  in the panel, and -- on the console whose person must roll -- the die's
+  frame. Both change colour on one 400ms clock (`blinkPhase()`), never size,
+  and each repaints only itself: the dot is its own column in the row, and
+  the seat list is not repainted for a new turn at all, only when a place is
+  decided. A remote seat's turn reads "Waiting for" and that seat's token.
 
 ## Tracing games
 

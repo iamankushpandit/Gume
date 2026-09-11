@@ -63,11 +63,13 @@ void LudoGame::drawTurn(Ui::Renderer& tft) const {
     tft.drawString(line, TURN_RECT.x + 17, TURN_RECT.y + 1, 2);
 }
 
-void LudoGame::drawDie(Ui::Renderer& tft) const {
+void LudoGame::drawDie(Ui::Renderer& tft, bool frameOn) const {
     const Rect r = DIE_RECT;
     /* The frame is the colour of whoever the die belongs to right now, so a
      * glance at it answers "whose go is it?" without reading anything. */
-    const uint16_t frame = phase_ == Phase::Over ? Ui::outline() : seatColour(state_.turn);
+    const uint16_t frame = phase_ == Phase::Over ? Ui::outline()
+                           : frameOn            ? seatColour(state_.turn)
+                                                : Ui::bg();
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, frame);
     tft.fillRoundRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8, 6, dieFace());
     if (face_ < 1 || face_ > 6) {
@@ -98,8 +100,49 @@ void LudoGame::drawDie(Ui::Renderer& tft) const {
 
 void LudoGame::drawMessage(Ui::Renderer& tft) const {
     tft.fillRect(MESSAGE_RECT.x, MESSAGE_RECT.y, MESSAGE_RECT.w, MESSAGE_RECT.h, Ui::bg());
-    if (message_[0] != 0) {
+    if (message_[0] == 0) {
+        return;
+    }
+    if (messageSeat_ >= Ludo::SEATS) {
         Ui::drawLabel(tft, MESSAGE_RECT, message_, Ui::text(), 2, Align::Center);
+        return;
+    }
+    /* The words, a gap, then the seat's token -- centred as one line. */
+    constexpr int16_t GAP = 4;
+    const int16_t textW = tft.textWidth(message_, 2);
+    const int16_t tokenW = 2 * TOKEN_R + 1;
+    const int16_t x0 = static_cast<int16_t>(MESSAGE_RECT.x + (MESSAGE_RECT.w - textW - GAP - tokenW) / 2);
+    tft.setTextColor(Ui::text(), Ui::bg());
+    tft.drawString(message_, x0, MESSAGE_RECT.y + 1, 2);
+    drawToken(tft, static_cast<int16_t>(x0 + textW + GAP + TOKEN_R),
+              static_cast<int16_t>(MESSAGE_RECT.y + MESSAGE_RECT.h / 2), messageSeat_, TOKEN_R, 1);
+}
+
+/* Each seat's row: the turn dot, the token, the name, and a place or "CPU" on
+ * the right. The dot sits in its own column so it can be cleared without
+ * touching anything else in the row. */
+namespace {
+constexpr int16_t DOT_DX = 4;
+constexpr int16_t DOT_R = 3;
+constexpr int16_t ROW_TOKEN_DX = 14;
+constexpr int16_t ROW_NAME_DX = 23;
+}   // namespace
+
+void LudoGame::drawTurnDot(Ui::Renderer& tft, uint8_t seat, bool on) const {
+    /* Clearing the dot must never nick the token beside it. */
+    static_assert(DOT_DX + DOT_R < ROW_TOKEN_DX - TOKEN_R, "the turn dot overlaps the token");
+    static_assert(ROW_TOKEN_DX + TOKEN_R < ROW_NAME_DX, "the token overlaps the name");
+    int16_t y = SEATS_RECT.y;
+    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
+        if (!Ludo::playing(state_, s)) {
+            continue;
+        }
+        if (s == seat) {
+            tft.fillCircle(SEATS_RECT.x + DOT_DX, y + SEAT_ROW_H / 2, DOT_R,
+                           on ? Ui::text() : Ui::bg());
+            return;
+        }
+        y = static_cast<int16_t>(y + SEAT_ROW_H);
     }
 }
 
@@ -110,10 +153,10 @@ void LudoGame::drawSeats(Ui::Renderer& tft) const {
         if (!Ludo::playing(state_, s)) {
             continue;
         }
-        drawToken(tft, SEATS_RECT.x + 7, y + SEAT_ROW_H / 2, s, TOKEN_R, 1);
+        drawToken(tft, SEATS_RECT.x + ROW_TOKEN_DX, y + SEAT_ROW_H / 2, s, TOKEN_R, 1);
         tft.setTextColor(Ui::text(), Ui::bg());
         const char* label = seatLabel(s);
-        tft.drawString(label != nullptr ? label : seatName(s), SEATS_RECT.x + 17, y + 1, 2);
+        tft.drawString(label != nullptr ? label : seatName(s), SEATS_RECT.x + ROW_NAME_DX, y + 1, 2);
         const char* right = state_.place[s] != 0 ? placeName(state_.place[s])
                             : (label == nullptr && isComputer(s)) ? "CPU" : "";
         if (right[0] != 0) {

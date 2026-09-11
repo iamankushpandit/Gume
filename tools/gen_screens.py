@@ -617,8 +617,11 @@ def ludo():
 
     y = 132
     for s, right in ((0, ""), (1, "CPU"), (2, "CPU")):
-        _ludo_token(d, px + 7, y + 8, s, 5)
-        d.text((px + 17, y + 1), LUDO_NAMES[s], font=F2, fill=TEXT)
+        if s == 0:
+            # The turn dot, lit: it blinks beside whoever's turn it is.
+            d.ellipse([px + 1, y + 5, px + 7, y + 11], fill=TEXT)
+        _ludo_token(d, px + 14, y + 8, s, 5)
+        d.text((px + 23, y + 1), LUDO_NAMES[s], font=F2, fill=TEXT)
         if right:
             d.text((px + pw - 2 - d.textlength(right, font=F2), y + 1), right, font=F2, fill=MUTED)
         y += 17

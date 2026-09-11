@@ -113,6 +113,16 @@ private:
      * computers doing it at a pace chosen for somebody watching to learn. */
     uint32_t pace(uint32_t ms) const;
     void setMessage(const char* text);
+    /* "Waiting for" and the waiting seat's own token, drawn after the words:
+     * the colour answers "for whom?" faster than a name would, and at a table
+     * the name could be ten characters the panel has no room for. */
+    void setWaiting(uint8_t seat);
+    /* One clock for everything that blinks, so the dot and the die flash
+     * together rather than drifting apart. */
+    static bool blinkPhase();
+    /* The die's frame flashes on the console whose person has to roll -- the
+     * one screen where "it is your go" is the whole message. */
+    bool dieFlashing() const;
     void saveGame(AppContext& host) const;
     bool restoreGame(AppContext& host);
 
@@ -204,7 +214,13 @@ private:
     void drawYardSpot(Ui::Renderer& tft, uint8_t seat, uint8_t token) const;
     static void drawToken(Ui::Renderer& tft, int16_t cx, int16_t cy, uint8_t seat,
                           int16_t radius, uint8_t count);
-    void drawDie(Ui::Renderer& tft) const;
+    /* `frameOn` false paints the frame in the ground colour: the flash. The
+     * die is 44px, so it is repainted whole -- same pixels in the same colours
+     * everywhere but the frame, which is what makes that invisible. */
+    void drawDie(Ui::Renderer& tft, bool frameOn) const;
+    /* The dot beside `seat`'s row in the seat list, lit or cleared. Its own
+     * few pixels and nothing else: it blinks, so it must be cheap. */
+    void drawTurnDot(Ui::Renderer& tft, uint8_t seat, bool on) const;
     void drawTurn(Ui::Renderer& tft) const;
     void drawMessage(Ui::Renderer& tft) const;
     void drawSeats(Ui::Renderer& tft) const;
@@ -252,7 +268,13 @@ private:
     /* The face on the die: the roll just made, 0 for a blank die. */
     uint8_t face_ = 0;
     char message_[20] = {0};
+    /* A seat whose token follows the message, or NO_SEAT. See setWaiting(). */
+    uint8_t messageSeat_ = Ludo::NO_SEAT;
     uint32_t confirmUntilMs_ = 0;
+    /* Said in the lobby after a table ended -- "A4F2 ended the game" -- until
+     * the next tap, so a child whose game vanished is told why. */
+    char lobbyNote_[32] = {0};
+    bool lastBlink_ = false;
 
     // ---- a table of consoles ------------------------------------------------
     /* One console at the table. The label is the owner's own name for that
@@ -316,6 +338,10 @@ private:
     uint8_t drawnFace_ = 0xFF;
     uint8_t drawnTurn_ = 0xFF;
     char drawnMessage_[20] = {0};
+    uint8_t drawnMessageSeat_ = 0xFE;
+    uint8_t drawnDotSeat_ = Ludo::NO_SEAT;
+    bool drawnDotOn_ = false;
+    bool drawnFrameOn_ = true;
     bool seatsStale_ = true;
     bool actionStale_ = true;
     bool confirmShown_ = false;
