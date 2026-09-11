@@ -154,11 +154,19 @@ void Board::begin() {
     applyBrightness();
     loadTouchCalibration();
     beginAudio();
-#if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE
+#if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
     /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
      * beginAudio() hands it back, and this puts it back into the state the
      * touch driver expects. Cheap, idempotent, and the difference between a
-     * board with sound and a board with sound and touch -- see BoardConfig.h. */
+     * board with sound and a board with sound and touch -- see BoardConfig.h.
+     *
+     * NOT on a board where touch shares the display's bus (TOUCH_CS defined:
+     * the E32R40T and E32R32P). There the touch pins ARE the panel's MOSI,
+     * MISO and SCLK, and this runs after tft_.init(): pinMode() on them
+     * re-routes the pads from the SPI peripheral to plain GPIO, and every
+     * draw after that goes nowhere. The 4-inch came up with a dark panel and a
+     * perfectly healthy serial log. The first call, before tft_.init(), is
+     * harmless on those boards because init() takes the pads back. */
     configureResistiveTouchPins();
 #endif
     mountSd();
