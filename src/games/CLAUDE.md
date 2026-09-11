@@ -51,7 +51,8 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
   the state it is offering to change.
 
   Which boards those are has changed: the Freenove has a codec, and the
-  E32R32P and E32R40T drive the ESP32's built-in DAC. Every app is offered on
+  E32R28T-1, the inverted-panel CYD, the E32R32P and the E32R40T drive the
+  ESP32's built-in DAC. Every app is offered on
   every board regardless -- `playSound()` compiles to nothing where there is no
   audio path, so an app needs no guard of its own, and one that leans on sound
   should carry the same information visually. Piano draws the note name on the

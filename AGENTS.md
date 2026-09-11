@@ -399,7 +399,7 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
    - Each subsystem has a simple test: fill colors, show coordinates, read voltage, scan networks
    - Display full-screen color test + rotation check + brightness slider
    - Touch: show crosshairs, tap them, verify coordinates match screen, check pressure threshold
-   - Battery: show voltage, percentage, charging state; physically plug/unplug USB and verify state changes within 2s
+   - Battery: show voltage and percentage against a meter (there is no charging state -- the CYD boards have no charge-status line)
    - BLE: turn beacon on/off, use phone scanner to verify name and payload format
    - Wi-Fi: connect to network, fetch NTP time, verify clock advances
    - RGB LED: show all colours, verify no crossed polarity or missing channels
@@ -408,7 +408,7 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
 2. **All tests must pass before merging the variant into main:**
    - [ ] Display renders all colors correctly at native resolution
    - [ ] Touch calibration works; coordinates accurate to ±10 pixels
-   - [ ] Battery readings within 0.1V of meter; charging/discharging detected within 2s of USB plug/unplug
+   - [ ] Battery readings within 0.1V of meter; percentage tracks a real discharge
    - [ ] BLE beacon visible on phone with correct device name and manufacturer data payload
    - [ ] Wi-Fi connects and fetches time; clock is correct
    - [ ] RGB LED shows correct colours (no crossed channels)

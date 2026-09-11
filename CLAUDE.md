@@ -344,9 +344,10 @@ when you need it:
   get in the way of watching an ADC for an hour. BOOT cycles pages; CSV
   (`ms,raw,adc_mv,cell_mv,pct,state`) streams to serial for capturing a full
   discharge. It reads the divider ratio and the ADC fault ceiling from the same
-  board profile the product does. Its charge-inference constants are still
-  copied from `BoardPower.cpp` deliberately, so what it shows is what the
-  product will do — **if you change one of those, change both.**
+  board profile the product does. It still carries its own charge-inference
+  constants, which the product no longer has -- 5.10.0 removed the charging
+  display -- so they are a bench aid for watching a charge, not a mirror of
+  the firmware.
 - `pio run -e s3diag` -- builds `src/s3_diag.cpp` **alone**, a bring-up probe
   for the Freenove FNK0104B. It skips the touch calibration wizard on purpose:
   `env:bringup` runs that on a board with no stored calibration, which on a
@@ -556,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,489,533 / 3,145,728 bytes,
-**79.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 78,196 / 327,680 (23.9%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,507,597 / 3,145,728 bytes,
+**79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 79,708 / 327,680 (24.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -741,7 +742,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
-- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it is 22px at `72` and 36px at `100` on the charger -- and in that widest state the row has about 4px spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
@@ -1340,25 +1341,30 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   only ever answered `00:00:00` or `FF:FF:FF`; not one returned a real ID, so
   it could not do the job it cost a panel to attempt. The remaining three lines
   turn "which board is this?" into a paste rather than an afternoon.
-- **The RGB LED's red and green lines are crossed on this unit** relative to the usual standard pinout â€” `rgb.r = 16`, `rgb.g = 4`, `rgb.b = 17` in the E32R28T-1 profile. This is already corrected there and verified on hardware; do not "fix" it again. Common anode, so drive is inverted â€” which the profile states rather than the driver assuming.
+- **The E32R28T-1's RGB LED is red IO22, green IO16, blue IO17**, from the vendor's pin table, and **IO4 is its amplifier enable, active low** -- not an LED. It was once declared `rgb.r = 16`, `rgb.g = 4` on the belief that red and green were crossed; the observations behind that (orange came out green, purple came out cyan) are exactly what IO16 being green produces, and driving IO4 as an LED held the speaker's amplifier in shutdown. Common anode, so drive is inverted -- which the profile states rather than the driver assuming.
 - Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
   (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
   display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
   is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
   3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` on the E32R28T-1, E32R32P, E32R40T and ESP32-2432S028R
+- `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
+  variant, E32R32P, E32R40T and ESP32-2432S028R
   reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
-  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on those boards; the I2S
+  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on all of them but the -R; the I2S
   peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
   1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
   `BoardProfile.audio` is 85 for the codec board and 75 for the bare-DAC CYD
   boards (unamplifed driver distorts above 75%). See `src/hal/CLAUDE.md`.
-  `GUME_HAS_AUDIO_DAC` is **off** on the E32R28T-1 and the ESP32-2432S028R --
-  see 5.5.1 -- and on for the E32R40T and the E32R32P, whose touch clocks are
-  GPIO14 rather than the DAC's GPIO25.
+  Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
+  whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
+  `beginAudio()` powers that channel down and returns the pad to the GPIO
+  matrix, logging `[audio] GPIO25 released: ...`, and `Board::begin()`
+  re-applies the touch pins after it; `BoardConfig.h` allows a touch pin on
+  the non-speaker DAC pad and nothing else. It stays **off** on the
+  ESP32-2432S028R, which nobody has run.
 - Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
 
 ## Conventions

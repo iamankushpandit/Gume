@@ -56,8 +56,8 @@ int16_t topBarTitleLeft(int16_t screenW) {
 Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
     if (mode == Board::LayoutMode::Vertical) {
         /* Portrait badge row (centred on y=60), left of the gear. The badges
-         * before it end near x=155 in the widest state ("100" while charging,
-         * plus the beacon rune), and the gear starts at screenW-32. */
+         * before it end near x=155 in the widest state ("100" plus the beacon
+         * rune), and the gear starts at screenW-32. */
         return Rect{static_cast<int16_t>(screenW - 64), 51, 18, 18};
     }
     /* Landscape: the left-hand end of the badge row, inside the hairline.

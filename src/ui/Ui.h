@@ -58,39 +58,24 @@ void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint1
  * slash when not. Centred on (cx, cy), about 16px across. */
 void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
-/* What the badge should say about where the power is coming from. Kept as a
- * Ui-level type rather than Board::ChargingState so this header stays free of
- * the HAL; powerHint() below is the one place the two meet. */
-enum class PowerHint : uint8_t {
-    OnBattery,   // running down: the fill colour is the whole story
-    Charging,    // cable in and climbing: bolt over the fill
-    Charged      // cable in, topped off: bolt over a full fill
-};
-
-/** Read the board's current source and charge verdict as a PowerHint. */
-PowerHint powerHint(Board& board);
-
-/* Battery state beside Wi-Fi: a battery shell holding the percentage as
- * numerals, a bordered two-pixel level gauge along its inside bottom, and a
- * lightning bolt inside the shell while the charger is attached. This is the iOS /
- * Android status-bar pattern: eleven pixels of fill is not a number anybody
- * can read, so the badge says both -- the digits for the parent, the colour
- * for the player.
+/* Battery beside Wi-Fi: a battery shell holding the percentage as numerals,
+ * over a bordered two-pixel level gauge along its inside bottom. That is all
+ * it says. There is no charging bolt and no charging state: the board has no
+ * charge-status line, the verdict was inferred from the cell voltage, and a
+ * guess shown as a fact is worse than a plain percentage.
  *
  * At or below Board::BATTERY_LOW_PERCENT the *shell and the digits* go red.
  * The outline changing colour is what makes "charge me" visible across the
  * room, and it only works while it is rare, so every other level leaves the
- * shell neutral and lets the gauge carry green/amber. That emphasis is
- * dropped the moment the charger is attached, because by then the user has
- * already done the thing it was asking for.
+ * shell neutral and lets the gauge carry green/amber.
  *
- * THE BADGE IS VARIABLE WIDTH -- 22px for a two-digit charge, 35px for "100"
- * while plugged in. Lay out from batteryBadgeWidth() instead of assuming a
- * size; `cx` is the centre of the whole badge, terminal nub included. */
-void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, PowerHint power, uint16_t bg);
+ * THE BADGE IS VARIABLE WIDTH -- it grows with the digits, widest at "100".
+ * Lay out from batteryBadgeWidth() instead of assuming a size; `cx` is the
+ * centre of the whole badge, terminal nub included. */
+void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg);
 
-/** Width the badge will occupy in this state. Lay headers out from the right. */
-int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent, PowerHint power);
+/** Width the badge will occupy at this percentage. Lay headers out from the right. */
+int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent);
 
 /* BLE beacon indicator: the Bluetooth rune, drawn only while the radio is
  * actually advertising. There is no "off" variant on purpose -- an icon that is

@@ -89,35 +89,6 @@ public:
         Count = 9,
     };
 
-    /* TODO(HARDWARE-VALIDATION): the divider ratio and no-battery behaviour
-     * still need a meter on a real board. The ADC conversion itself is no
-     * longer guesswork -- see Board.cpp. */
-    enum class PowerState {
-        BATTERY,
-        EXTERNAL_POWER,
-        UNKNOWN
-    };
-
-    /* This board brings no charge-status line out to a GPIO: the TP4056-style
-     * charger's CHRG pin is not wired to the ESP32, so the only thing the
-     * firmware can see is the cell voltage on the profile's battery ADC pin.
-     * Charging is therefore *inferred* from how that voltage moves, in BoardPower.cpp.
-     *
-     * UNKNOWN is the honest answer for the first few seconds after boot, and
-     * whenever the ADC reads outside a plausible range. It is NOT a no-battery
-     * signal: this board cannot detect whether a pack is fitted at all, since
-     * the charger holds its output at float voltage either way. See the
-     * measurements at the top of BoardPower.cpp. FULL means "on the charger
-     * and topped
-     * off" -- it is only ever reached from CHARGING, because a resting full
-     * cell and a finished charge look identical from one sample. */
-    enum class ChargingState {
-        UNKNOWN,
-        CHARGING,
-        FULL,
-        DISCHARGING
-    };
-
     enum class LayoutMode : uint8_t {
         Horizontal = 0,
         Vertical = 1,
@@ -135,14 +106,17 @@ public:
 
     TFT_eSPI& display();
 
-    PowerState getPowerSource();
+    /* The battery is a percentage and nothing more. There is no charging
+     * state: the board brings no charge-status line out to a GPIO, so any
+     * "charging" answer was inferred from the cell voltage, and showing that
+     * guess as a fact was removed in 5.10.0. The TODO that stands: the divider
+     * ratio still wants a meter on a real board. */
     BatteryTelemetry readBatteryTelemetry();
     float getBatteryVoltage();
     int8_t getBatteryPercent();
-    ChargingState getChargingState();
-    /* True while the pack is genuinely running down and needs the charger.
-     * Both are false whenever the charger is attached, so plugging in silences
-     * the warning without waiting for the percentage to climb. */
+    /* The percentage at or below the thresholds below. On the charger the
+     * reading climbs past them within a minute or so, which is what clears
+     * the warning. */
     bool isBatteryLow();
     bool isBatteryCritical();
 
@@ -735,9 +709,9 @@ private:
     /** Build "p<N>_gv<I>" without allocating. */
     static void visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex);
 
-    /* One battery sample shared by every accessor. getPowerSource() and
-     * getBatteryPercent() are both called while drawing a single top bar, and
-     * each used to run its own blocking 10ms conversion.
+    /* One battery sample shared by every accessor. Two battery getters were
+     * once called while drawing a single top bar, and each ran its own
+     * blocking 10ms conversion.
      *
      * The sampling then became a 2s cache, which was cheap on average but paid
      * for by whichever frame happened to find it expired -- almost always a
@@ -745,12 +719,11 @@ private:
      * accessors do nothing but copy the snapshot below. See sampleBattery(). */
     static constexpr uint32_t BATTERY_SAMPLE_MS = 2000;
 
-    /* What the readers see: one sample, its charge verdict and its percentage,
-     * swapped together so a caller cannot mix a voltage from one sample with a
-     * verdict from the next. Written only by the battery task. */
+    /* What the readers see: one sample and its percentage, swapped together
+     * so a caller cannot mix a voltage from one sample with a percentage from
+     * the next. Written only by the battery task. */
     struct BatteryPublic {
         BatteryTelemetry sample{};
-        ChargingState state = ChargingState::UNKNOWN;
         int8_t pct = -1;
     };
     BatteryPublic batteryPublished_{};
@@ -762,23 +735,11 @@ private:
     BatteryPublic batterySnapshot();
     static void batteryTask(void* arg);
 
-    /* Charge inference state, advanced once per *fresh* battery sample (so at
-     * BATTERY_SAMPLE_MS, not per frame). chargeSmoothV_ is a low-pass of the
-     * cell voltage that the slow trend is measured on; chargeRefV_ is where
-     * that average stood when the current trend window opened. */
-    void updateChargeState(float volts, uint32_t nowMs);
-    ChargingState chargeState_ = ChargingState::UNKNOWN;
-    float chargeLastV_ = 0.0f;
-    float chargeSmoothV_ = 0.0f;
-    float chargeRefV_ = 0.0f;
-    uint32_t chargeRefMs_ = 0;
-    bool chargeTracking_ = false;
-
     /* Gauge smoothing: separate low-pass filter for the battery percentage
-     * display, with a much longer time constant than charge inference. This
-     * ignores load transients (SPI bursts, backlight steps, Wi-Fi activity)
-     * while still responding to real discharge over minutes. Updated once per
-     * fresh battery sample same as charge inference, in readBatteryTelemetry(). */
+     * display, with a long time constant. This ignores load transients (SPI
+     * bursts, backlight steps, Wi-Fi activity) while still responding to real
+     * discharge over minutes. Updated once per fresh battery sample, on the
+     * battery task. */
     void updateGaugeFilter(float volts);
     float gaugeFilteredV_ = 0.0f;
     bool gaugeFilterReady_ = false;

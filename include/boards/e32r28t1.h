@@ -16,26 +16,24 @@
  * same reasoning as the codec macro above: the DAC path would link the driver
  * into every board if it were not guarded. GUME_HAS_AUDIO_CODEC stays 0. */
 #define GUME_HAS_AUDIO_CODEC 0
-/* NO DAC AUDIO ON THIS BOARD: ITS TOUCH CLOCK IS A DAC PAD.
+/* DAC AUDIO, ON A BOARD WHOSE TOUCH CLOCK IS THE OTHER DAC PAD.
  *
  * The XPT2046's bit-banged SPI clock is GPIO25, and GPIO25 is ESP32 DAC
- * channel 1. Bringing up I2S in I2S_MODE_DAC_BUILT_IN takes the DAC pads over
- * from the GPIO matrix, so Board::begin() -- which configures touch first and
- * calls beginAudio() forty lines later -- ended up handing the touch clock to
- * the audio peripheral. The panel drew perfectly and nothing responded to a
- * finger.
+ * channel 1; the speaker is on GPIO26, channel 2. Installing I2S in
+ * I2S_MODE_DAC_BUILT_IN claims channel 1's pad as well, and narrowing to
+ * channel 2 afterwards does not give it back -- so 5.5.0 shipped a console
+ * that drew perfectly and could not be touched, and 5.5.1 switched audio off.
  *
- * That shipped in 5.5.0 and is why 5.5.1 exists. Do not re-enable this without
- * moving the touch clock, which is a hardware fact and cannot be moved.
+ * beginAudio() now hands the unused pad back explicitly once the driver is up,
+ * and Board::begin() re-applies the touch pin setup after it; the boot log
+ * prints the pad's state before and after so the release is visible. See
+ * BoardConfig.h, which allows a touch pin on the non-speaker pad for exactly
+ * this reason and still refuses everything else there.
  *
- * Nothing is lost by it: the speaker on this board never worked anyway, because
- * IO4 is declared here as the RGB green channel while the vendor pin table
- * calls it the amplifier enable -- so the amp sat in shutdown. Sound on this
- * board needs that resolved AND a touch clock that is not a DAC pad.
- *
- * BoardConfig.h now refuses this combination at compile time rather than
- * leaving it to whoever flashes it. */
-#define GUME_HAS_AUDIO_DAC   0
+ * The speaker was silent for a second reason too: IO4 was declared as the RGB
+ * green channel, but it is the FM8002E amplifier's enable, active low, so
+ * turning the "LED" off every boot held the amplifier in shutdown. */
+#define GUME_HAS_AUDIO_DAC   1
 
 /* HOSYOND / LCDWIKI E32R28T-1 (ESP32-32E) -- the 2.8-inch board Braino! ships
  * on. ILI9341 320x240 TFT, XPT2046 resistive touch on its own bit-banged bus,
@@ -103,29 +101,27 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
-    /* RGB LED, common anode (drive LOW to light a channel).
+    /* RGB LED, common anode (drive LOW to light a channel). From the vendor's
+     * table: red IO22, green IO16, blue IO17.
      *
-     * The red and green lines are crossed relative to the usual standard pinout on this
-     * unit (E32R28T-1): driving GPIO4 lit GREEN, not red. Verified on hardware -- an orange
-     * (R255 G110) mix came out green, and purple (R200 B255) came out cyan/blue,
-     * which is exactly what swapping R and G produces. */
+     * This used to read r=16, g=4, on the strength of "an orange mix came out
+     * green and purple came out cyan". Those two observations are exactly what
+     * IO16 being GREEN produces -- they were evidence for the vendor's table,
+     * read as evidence of crossed wires. And IO4 is not an LED at all: it is
+     * the amplifier enable, below. Red on IO22 was never driven before. */
     RgbLedProfile{
-        /* r           */ 16,
-        /* g           */ 4,
+        /* r           */ 22,
+        /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
     },
 
-    /* GPIO26 is ESP32 DAC channel 2. The I2S peripheral drives it directly
-     * (I2S_DAC_BUILT_IN) at 16 kHz; no codec or amplifier enable is wired.
-     * Volume is pure software gain -- there is no register.
+    /* GPIO26 is ESP32 DAC channel 2, driven through I2S_DAC_BUILT_IN into an
+     * onboard FM8002E amplifier whose enable is IO4, active low -- confirmed by
+     * the owner and the vendor's pin table. Volume is pure software gain.
      *
-     * maxVolume is 75 rather than 100. The DAC feeds a 1-inch driver with no
-     * amplifier behind it, and above roughly 75% the output distorts audibly
-     * without getting meaningfully louder -- the headroom buys nothing. This
-     * was established by ear on a 2.8-inch CYD board; if a louder amplifier
-     * is ever wired behind GPIO26 on a future variant, raise the ceiling in
-     * that board's profile. */
+     * maxVolume 75 is the ceiling the 2.8-inch CYD boards were given by ear;
+     * re-check it on this board now that the amplifier is actually on. */
     AudioProfile{
         /* speakerPin          */ 26,
         /* codecI2cAddress     */ 0,
@@ -134,8 +130,8 @@ inline constexpr BoardProfile BOARD = {
         /* i2sWordSelect       */ PIN_NONE,
         /* i2sDataOut          */ PIN_NONE,
         /* i2sDataIn           */ PIN_NONE,
-        /* ampEnablePin        */ PIN_NONE,
-        /* ampEnableActiveLow  */ false,
+        /* ampEnablePin        */ 4,
+        /* ampEnableActiveLow  */ true,
         /* maxVolume           */ 75,
     },
 

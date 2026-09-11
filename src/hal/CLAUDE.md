@@ -163,7 +163,7 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   `Wire` + `driver/i2s.h`. Volume via register 0x32 (logarithmic — see
   `applyCodecVolume()`). `maxVolume` = 85 on this board.
 - `GUME_HAS_AUDIO_DAC 1` — ESP32 built-in DAC via `I2S_DAC_BUILT_IN` (CYD
-  boards: E32R28T-1, E32R40T, ESP32-2432S028R). Requires `driver/i2s.h`
+  boards: E32R28T-1, the inverted-panel ESP32-2432S028, E32R32P, E32R40T). Requires `driver/i2s.h`
   only; no Wire. Volume is linear amplitude scaling applied at sample time in
   `tickAudio()` — do **not** copy the dB conversion from `applyCodecVolume()`,
   which is correct only for a logarithmic register. Samples must be converted
@@ -217,7 +217,7 @@ reach the speaker? Is output level audible? Where does distortion begin?
 
 LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
-The red and green GPIOs are physically crossed on this unit versus the standard pinout. The E32R28T-1 profile already accounts for it (`rgb.r = 16`, `rgb.g = 4`) and it was verified on hardware — leave it alone.
+The E32R28T-1's LED is red IO22, green IO16, blue IO17, per the vendor's table; IO4 is the amplifier enable, active low. It used to be declared `rgb.r = 16`, `rgb.g = 4` as "crossed" -- the evidence for that was IO16 being green, and driving IO4 as an LED held the amplifier in shutdown.
 
 ### Wi-Fi and time
 
@@ -247,7 +247,7 @@ Time/date formatting and sync-state helpers over the ESP32 RTC.
 
 `BOARD.battery.adcPin` is GPIO34 on this board = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
 
-**Sampling runs on its own task and never on a render path.** `sampleBattery()` is called every `BATTERY_SAMPLE_MS` (2s) by a priority-1 task pinned to core 0 — the same shape as Watchdog's monitor, and away from the Arduino loop task on core 1. It takes the eight ADC reads, advances both filters, applies the display deadband, and publishes `batteryPublished_` under a `portMUX`. Every accessor — `readBatteryTelemetry()`, `getBatteryVoltage()`, `getPowerSource()`, `getBatteryPercent()`, `getChargingState()`, `isBatteryLow()` — does nothing but copy that snapshot. **Keep it that way**, and take the whole snapshot in one call rather than reading two accessors: a percentage from one sample beside a charge verdict from the next can say "battery low" about a pack that same sample knows is charging.
+**Sampling runs on its own task and never on a render path.** `sampleBattery()` is called every `BATTERY_SAMPLE_MS` (2s) by a priority-1 task pinned to core 0 — the same shape as Watchdog's monitor, and away from the Arduino loop task on core 1. It takes the eight ADC reads, advances both filters, applies the display deadband, and publishes `batteryPublished_` under a `portMUX`. Every accessor — `readBatteryTelemetry()`, `getBatteryVoltage()`, `getBatteryPercent()`, `isBatteryLow()`, `isBatteryCritical()` — does nothing but copy that snapshot. **Keep it that way.**
 
 This has been wrong twice, in the same direction both times. First each accessor ran its own 10-sample conversion with a `delay(1)` between samples, and `Ui::drawTopBar()` calls two of them: every top bar cost ~20ms of blocking delay, and the System Info board tab ~30ms per repaint. Then it became a 2s cache, which fixed the average and not the frame — the first caller after the cache expired still paid for the conversion, and that caller was almost always a top bar being drawn. A cache makes the cost rare; it does not move it off the render path. Only the task does.
 
@@ -267,17 +267,21 @@ Every crossing invalidates the header, which is why this mattered enough to fix 
 
 Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k).
 
-## Charge detection
+## No charge detection
 
-The board exposes no charge-status line — the charger's CHRG pin is not wired to the ESP32 — so `getChargingState()` **infers** the answer from the cell voltage alone. `updateChargeState()` runs once per sample on the battery task (so at `BATTERY_SAMPLE_MS`, and never on a render path however often one asks) and reads three signals: a step of `CHARGE_STEP_V` between consecutive samples, which is what makes the icon respond to a cable within ~2s; a voltage held above `V_CHARGER_HELD` (4.21V), which no resting cell reaches; and the trend of a low-passed average over `CHARGE_WINDOW_MS` (45s) for everything in between.
+There is no charging state, and there should not be one again without a
+charge-status line to read. The charger's CHRG pin is not wired to the ESP32,
+so until 5.10.0 `getChargingState()` *inferred* charging from how the cell
+voltage moved -- a step between samples, a voltage held above what a resting
+cell reaches, a 45-second trend. It drove a lightning bolt in the battery badge
+and silenced the low-battery warning, and it was a guess presented as a fact.
+The badge now shows the percentage and nothing else.
 
-Two things are deliberate and worth not undoing. **A flat window keeps the previous verdict** rather than resetting to unknown — mid-discharge a LiPo plateau spans 20mV across 40% of the capacity, so "no movement" is not evidence of anything. And **`FULL` is only reachable from `CHARGING`**, because a rested full pack and a finished charge are indistinguishable from one sample; claiming "charged" for a battery nobody watched charge is a lie the user would act on.
-
-`getPowerSource()` returns `EXTERNAL_POWER` when the charge verdict says the cable is in, and that is the *only* way it can be reached. The voltage sits in the same range whether the cable is in, out, or there is no pack at all, so the verdict is the only thing that distinguishes them. The old "no pack at all (above `V_NO_BATTERY`)" branch was dead code and has been removed.
-
-Three fixes proven on hardware and now in both `BoardPower.cpp` and `battery_diag.cpp` — **change one, change both**: `V_CHARGER_HELD` is 4.21V (4.24V sat above the 4.238V maximum the board actually produces, so it never fired); the negative-step test runs **before** the held-high level, so a cell that is falling while still above the trip is never called charging; and the flat-window fallback is guarded by `chargeSmoothV_ < CHARGE_FULL_V`, because it claimed to mean "flat and low" while never testing for low — a board booted on USB reported `DISCHARGING` after 45s.
-
-`isBatteryLow()` / `isBatteryCritical()` (≤15% / ≤5%) are both false while charging, so plugging in silences the warning at once instead of waiting for the reading to climb.
+`isBatteryLow()` / `isBatteryCritical()` are the percentage at or below 15% /
+5%, full stop. On the charger the reading climbs back over the threshold within
+a minute or so, which is what clears the warning. `env:batdiag` still has its
+own copy of the old inference as a bench aid for watching a charge; it no
+longer mirrors anything in the product.
 
 ### The built-in DAC backend, and four ways it produces perfect silence
 
@@ -303,8 +307,15 @@ makes this path expensive to debug and worth writing down.
 3. **Do not call `i2s_set_pin(port, NULL)`.** It is the routing call most
    examples use, and it enables *both* DAC channels -- GPIO25 as well. On this
    board family GPIO25 is the resistive touch SPI clock, so it trades silence
-   for broken touch. `i2s_set_dac_mode()` alone is correct for one channel, and
-   the IDF header says so.
+   for broken touch. `i2s_set_dac_mode()` for one channel is necessary but,
+   per 5.5.0, was not sufficient on the boards whose touch clock is GPIO25:
+   that release shipped with only this call and still lost touch. So
+   `beginAudio()` also powers the unused channel down and `rtc_gpio_deinit()`s
+   its pad, and logs `[audio] GPIO25 released: rtc_mux a->b, dac_out c->d` --
+   and `Board::begin()` re-applies the touch pins afterwards. On the first
+   E32R28T-1 boot the log read `0->0` both ways: the pad was not claimed at that
+   moment, so whether 5.5.0 lost it later, on first playback, is the question
+   the owner's finger answers.
 4. **The amplifier outlives generation.** `playing` goes false when the last
    sample is GENERATED, and the DMA still holds up to 96ms of it. Dropping the
    amp there eats the tail, and on the short cues that is the whole cue.
