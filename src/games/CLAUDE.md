@@ -141,8 +141,8 @@ Who can use it:
 
 Split on purpose: `LudoRules` (rules, the computer player and the table
 protocol), `LudoGame.cpp` (flow and input), `LudoBoard.cpp` (the board),
-`LudoPanel.cpp` (the side panel), `LudoLobby.cpp` (the seat picker and the
-table lobby), `LudoTable.cpp` (play across consoles) and `LudoSave.cpp`. The
+`LudoPanel.cpp` (the side panel), `LudoLobby.cpp` (the seat picker, drawn and
+answered, and the table lobby), `LudoTable.cpp` (play across consoles) and `LudoSave.cpp`. The
 header comment in `LudoRules.h` states the rules as played; read it before
 changing one, because several are decisions rather than the only reading of the
 board game.

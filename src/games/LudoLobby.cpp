@@ -1,6 +1,7 @@
 #include "LudoGame.h"
 
-/* The lobby: who sits in each seat, and how hard the computer plays.
+/* The lobby: who sits in each seat, and how hard the computer plays -- drawn
+ * here, and answered here too (updateLobby(), at the end).
  *
  * Four chips, one per colour, each cycling Empty -> Player -> Computer on a
  * tap; the level toggle; a hint that says why Start is greyed when it is; and
@@ -215,4 +216,64 @@ void LudoGame::renderTable(AppContext& host) {
                    Ui::surface(), Ui::outline(), Ui::text());
     Ui::drawButton(tft, BACK_RECT, "Back", Ui::panel(), Ui::outline(), Ui::text());
     Ui::drawPagerButton(tft, TABLE_START_RECT, "Start", hostCanStart(host));
+}
+
+void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    /* An invitation to Ludo is announced in the header by the service; the
+     * lobby says where to answer it. Re-read on the peer cadence, not every
+     * frame. */
+    const uint32_t now = millis();
+    if (now - peersAtMs_ >= 1000) {
+        peersAtMs_ = now;
+        NearbySeat seat;
+        const bool waiting = host.nearbyInviteForUs(seat) && seat.forThisGame;
+        if (waiting != inviteWaiting_) {
+            inviteWaiting_ = waiting;
+            lobbyStale_ = true;
+            markDirty();
+        }
+    }
+    if (!touch.justPressed) {
+        return;
+    }
+    if (lobbyNote_[0] != 0) {
+        /* "A4F2 ended the game" has been seen; any tap retires it. */
+        lobbyNote_[0] = 0;
+        lobbyStale_ = true;
+        markDirty();
+    }
+    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
+        if (seatChipRect(s).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            /* Empty -> Player -> Computer -> Empty: one tap per step, and the
+             * chip says what it is now rather than what a tap will do. */
+            kind_[s] = static_cast<SeatKind>((static_cast<uint8_t>(kind_[s]) + 1) % 3);
+            lobbyStale_ = true;
+            host.playSound(Sound::Tap);
+            saveGame(host);
+            markDirty();
+            return;
+        }
+    }
+    for (uint8_t lv = 0; lv < 2; ++lv) {
+        if (levelRect(lv).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            level_ = static_cast<Ludo::Level>(lv);
+            lobbyStale_ = true;
+            host.playSound(Sound::Tap);
+            saveGame(host);
+            markDirty();
+            return;
+        }
+    }
+    if (nearbyRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        host.playSound(Sound::Select);
+        openTable(host);
+        return;
+    }
+    if (startRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (canStart()) {
+            startGame(host);
+        } else {
+            host.beepError();
+        }
+    }
 }
