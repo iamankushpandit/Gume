@@ -10,6 +10,19 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Nearby stops repainting its list for every beacon it hears.** The peer
+table's change counter moves on every advertisement received, not only when
+something about a peer changed, so with a few consoles in the room the list was
+wiped and refilled several times a second to show the same words -- and each
+refill looked up this player's score for every peer. `RowList::drawChanged()`
+now remembers a hash of what each row drew and repaints only rows whose text
+moved, overdrawing text rather than clearing it first; the list rect is wiped
+only when rows arrive, leave or scroll, and a refresh that changed nothing
+draws nothing. A heard advertisement rebuilds the list at most four times a
+second, and pressing the Sharing switch no longer repaints the top bar. The
+one-second refresh now runs with nobody in range too, so "Listening" no longer
+sits on "Radio starting" until a peer turns up.
+
 **Ludo, for two to four -- and any of them can be the computer.** The classic
 race round the cross-shaped board, on one console. Each of the four seats is a
 Player, a Computer or Empty; at least two seats and at least one person. The

@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,488,541 / 3,145,728 bytes (**79.1%**) |
-| RAM | 77,764 / 327,680 bytes (**23.7%**) |
+| Flash | 2,489,533 / 3,145,728 bytes (**79.1%**) |
+| RAM | 78,196 / 327,680 bytes (**23.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside

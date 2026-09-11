@@ -28,15 +28,17 @@ public:
     const char* title() const override;
     void begin(GameHost& host) override;
     void update(GameHost& host, const TouchPoint& touch) override;
-    /* Two-phase. The list wipes and redraws its own content rect, so the win
-     * here is not repainting it at all when nothing on it can have changed.
-     * See docs/RENDER_AUDIT.md. */
+    /* Two-phase. The list repaints only the rows whose text changed
+     * (RowList::drawChanged), and wipes its own rect only when rows arrive,
+     * leave or scroll. See docs/RENDER_AUDIT.md. */
     void renderStatic(GameHost& host) override;
     void renderDynamic(GameHost& host) override;
     void end(GameHost& host) override;
 
 private:
     static constexpr uint32_t REFRESH_MS = 1000;
+    /* The soonest a heard advertisement rebuilds the list -- see update(). */
+    static constexpr uint32_t PEER_REFRESH_MS = 250;
 
     /* Two phases rather than two screens: naming a peer borrows the whole
      * panel for a keyboard and hands it straight back. A separate app would
@@ -59,8 +61,8 @@ private:
     Rect contentRect(int16_t screenW, int16_t screenH) const;
 
     /* Refill rows_ from the peer table. Reads NVS for each peer's local
-     * record, so it runs when the table changed or on the one-second tick --
-     * never per frame, and never while a scroll drag is in flight. */
+     * record, so it runs at most every PEER_REFRESH_MS when the table changed,
+     * or on the one-second tick -- never per frame. */
     void rebuildRows(GameHost& host);
 
     /* Device ids of the peers a Poke chip was built for, indexed by the chip's
