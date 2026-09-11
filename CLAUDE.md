@@ -557,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,507,597 / 3,145,728 bytes,
-**79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 79,708 / 327,680 (24.3%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,513,729 / 3,145,728 bytes,
+**79.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 80,860 / 327,680 (24.7%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1064,7 +1064,8 @@ src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPl
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           LetterTracer (the finger-tracing engine Trace and
-                          Cursive share), CursiveGlyphData (generated) +
+                          Cursive share: logic, Draw, Arrows, Words and a
+                          Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsGame (tabs + routing), SettingsPanels

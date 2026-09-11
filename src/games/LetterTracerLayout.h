@@ -33,7 +33,14 @@ constexpr int16_t COL_L_X = 4;
 constexpr int16_t COL_R_X = 264;
 constexpr int16_t SET_Y = 52;
 constexpr int16_t SET_STEP = 26;
-constexpr Rect PREV_BTN{COL_L_X, 142, COL_W, BTN_H};
+/* Four tabs, since Trace gained Words: 52, 78, 104 and 130. Prev sits a clear
+ * gap below the last of them in EVERY tracing game, including Cursive with its
+ * three -- a control that moves depending on which game you opened is a
+ * control you have to look for. */
+constexpr int16_t PREV_Y = 168;
+constexpr Rect PREV_BTN{COL_L_X, PREV_Y, COL_W, BTN_H};
+static_assert(SET_Y + 3 * SET_STEP + BTN_H < PREV_Y,
+              "the fourth tab would run into Prev");
 constexpr Rect RETRY_BTN{COL_R_X, 52, COL_W, BTN_H};
 constexpr Rect NEXT_BTN{COL_R_X, 78, COL_W, BTN_H};
 
@@ -50,8 +57,8 @@ constexpr int16_t DRAW_X = 60;
 constexpr int16_t DRAW_Y = 52;
 constexpr int16_t DRAW_W = 200;
 /* 156 and not 162: a glyph's coordinates run to COORD_MAX exactly, so its
- * lowest point lands on DRAW_Y + DRAW_H, and the numbered badge drawn on it
- * is a 7px circle. At 162 that circle touched the progress bar. */
+ * lowest point lands on DRAW_Y + DRAW_H, and the start ring drawn on it is a
+ * 6px circle. At 162 the 7px badge it replaced touched the progress bar. */
 constexpr int16_t DRAW_H = 156;
 constexpr int16_t HIT_RADIUS = 16;
 constexpr uint32_t PULSE_PERIOD_MS = 500;
@@ -71,29 +78,47 @@ constexpr int16_t BAR_Y = 220;
 constexpr int16_t DOT_R = 2;
 constexpr int16_t NEXT_R = 3;
 
-/* HOW SHARP A TURN HAS TO BE TO EARN AN ARROW.
+/* THE DIRECTION ARROWS, AND WHY THEY ARE BESIDE THE LINE AND NOT ON IT.
  *
- * A waypoint on a gentle curve turns by roughly step/radius radians -- at 10px
- * spacing, a 50px radius bends 11 degrees per dot and wants no arrow, while
- * the 15px radius at the bottom of a cursive undercurve bends nearly 40. So
- * the threshold separates "keep going round" from "now go the other way",
- * which is exactly the distinction a child needs pointing out.
+ * They used to sit on the path itself, one at a time, just past whichever turn
+ * came next, and jump forward as the finger reached it. User testing with
+ * five-year-olds said plainly that this confused them: an arrow on the line
+ * covers the dots it is pointing along, and one that moves is one more thing
+ * on the screen changing while they concentrate.
  *
- * Too low and a curve sprouts an arrow every few dots; too high and the sharp
- * turn inside a cursive 'k' gets nothing. */
-constexpr float CORNER_COS = 0.70f;      // ~46 degrees
-/* And a turn cannot be marked within this many dots of the last one.
- *
- * Without it a tight curve fires on three or four consecutive waypoints,
- * because each of them individually bends past the threshold. Measured on the
- * real tables: cursive 'o' produced seven arrows in eighteen dots and print
- * 'S' four in twenty-two, which marks "you are on a curve" rather than "now
- * turn". With a three-dot gap the same letters get two and two, and print 'A'
- * gets exactly the three that matter -- the start, the apex, and the
- * crossbar. */
-constexpr uint8_t CORNER_GAP = 3;
-constexpr int16_t ARROW_LEN = 11;        // tip, measured from the waypoint
-constexpr int16_t ARROW_HALF = 4;        // half the base width
+ * So they are drawn the way every handwriting workbook draws them: a short
+ * numbered arrow BESIDE each stroke, outside the letter, all of them visible
+ * from the start and none of them moving. See LetterTracerArrows.cpp for how
+ * "beside" and "outside" are decided. */
+constexpr int16_t ARROW_LEN = 16;        // tail to tip
+constexpr int16_t ARROW_HEAD = 5;        // length of the head
+constexpr int16_t ARROW_HALF = 4;        // half the head's width
+/* How far the arrow stands off the stroke. The nearest reads most clearly as
+ * belonging to its stroke; the others are for when it hits something. The
+ * widest exists for a short stroke with something poking past it -- the
+ * crossbar of a printed t, whose stem stands 9px above it in a word. */
+constexpr int16_t ARROW_OFFSETS[] = {9, 12, 15};
+/* The stroke number sits this far beyond the arrow's tail, outwards. */
+constexpr int16_t ARROW_LABEL_BACK = 3;
+constexpr int16_t ARROW_LABEL_OUT = 7;
+/* Nothing an arrow draws may come closer than this to any stroke. */
+constexpr int16_t ARROW_CLEAR = 5;
+/* The ring on the first dot of the stroke being traced -- "start here". */
+constexpr int16_t START_RING_R = 6;
+/* Where arrows may go: the canvas, less a margin so a head does not poke into
+ * the caption above or the progress bar below. */
+constexpr int16_t ARROW_MIN_X = DRAW_X - 2;
+constexpr int16_t ARROW_MAX_X = DRAW_X + DRAW_W + 2;
+constexpr int16_t ARROW_MIN_Y = DRAW_Y + 3;
+constexpr int16_t ARROW_MAX_Y = BAR_Y - 7;
+/* A turn earns an arrow of its own only when it is a REVERSAL -- more than
+ * about 100 degrees, like the top of an A or each point of an M. A right
+ * angle, like the corner of an L, is left to the dots: they show the way round
+ * it on their own, and every extra arrow is one more thing for a child to
+ * read. Measured on the authored vertices, never the resampled dots, because
+ * the resampler can land either side of an apex and split one sharp turn into
+ * two gentle ones. */
+constexpr float TURN_COS = -0.2f;
 
 inline Rect setTabRect(uint8_t i) {
     return Rect{COL_L_X, static_cast<int16_t>(SET_Y + i * SET_STEP), COL_W, BTN_H};

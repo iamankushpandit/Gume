@@ -3,80 +3,67 @@
 
 #include <math.h>
 
-/* Everything LetterTracer paints. The tracing logic -- resampling, hit
- * testing, turn finding -- is in LetterTracer.cpp; this file only reads the
- * state that logic leaves behind. Split out when the engine passed 700
- * lines, per CLAUDE.md's modularity rule. */
+/* Everything LetterTracer paints. The tracing logic -- resampling and hit
+ * testing -- is in LetterTracer.cpp, where the arrows go is decided in
+ * LetterTracerArrows.cpp, and printed words are spelled in
+ * LetterTracerWords.cpp; this file only reads the state those leave behind.
+ * Split out when the engine passed 700 lines, per CLAUDE.md's modularity
+ * rule. */
 
 using namespace LetterTracerLayout;
 
-/* A small arrow just past the waypoint, pointing where the stroke goes next.
+/* The direction arrows, all of them, where planArrows() put them.
  *
- * Past it rather than on it, so it does not bury the dot the finger is aiming
- * for -- the dot says WHERE and the arrow says WHICH WAY, and they are easier
- * to read as two things than as one. */
-/* The box an arrow occupies. Derived from the same two points the arrow is
- * drawn from, plus a pixel of daylight, so it cannot be too small however the
- * arrow's proportions change -- CLAUDE.md's rule about clear rectangles being
- * derived and never typed in. */
-Rect LetterTracer::arrowRect(uint8_t index) const {
-    if (index == NO_CORNER || index + 1 >= MAX_POINTS) return Rect{0, 0, 0, 0};
-    const int16_t reach = static_cast<int16_t>(NEXT_R + ARROW_LEN + ARROW_HALF + 2);
-    return Rect{static_cast<int16_t>(pts_[index].x - reach),
-                static_cast<int16_t>(pts_[index].y - reach),
-                static_cast<int16_t>(reach * 2),
-                static_cast<int16_t>(reach * 2)};
-}
-
-/* Move the arrow, in place, WITHOUT a full repaint.
+ * The stroke being traced has its arrows in the highlight colour and every
+ * other stroke's are muted, so a child sees the whole plan for the letter --
+ * numbered, the way a workbook shows it -- with the part that is theirs to do
+ * now picked out. Nothing here moves: a stroke finishing only recolours.
  *
- * The first version marked the whole screen dirty whenever the arrow moved, on
- * the reasoning that a moving arrow changes the picture's shape and corners are
- * rare. Corners are not rare: a three-letter joined word has about eleven, so
- * that was eleven screen clears while tracing one word, and it was reported
- * from the device as the screen flashing. It was my misjudgement, not a
- * surprise -- a full repaint wipes 200x156 pixels plus the chrome to move
- * fifteen.
- *
- * So: erase the old arrow's own box, then repaint the guide over it. Both
- * drawGhost() and drawAllDots() are IDEMPOTENT -- they paint exactly what is
- * already there in exactly the same colours -- so running them whole is
- * visually a no-op everywhere except inside the box that was just cleared, and
- * costs no clear of its own. That is what makes this flicker-free without
- * having to work out which ghost segments and which dots the arrow overlapped.
- */
-void LetterTracer::moveArrow(Ui::Renderer& tft) {
-    if (arrowDrawnAt_ == arrowAt_) return;
-    if (arrowDrawnAt_ != NO_CORNER) {
-        const Rect r = arrowRect(arrowDrawnAt_);
-        if (r.w > 0) {
-            tft.fillRect(r.x, r.y, r.w, r.h, Ui::bg());
-            drawGhost(tft);
-            drawAllDots(tft);
+ * IDEMPOTENT, like drawGhost() and drawAllDots(): it paints each arrow's
+ * exact pixels in the colour it should be, so calling it again is how an arrow
+ * changes colour without anything being erased first. */
+void LetterTracer::drawArrows(Ui::Renderer& tft) {
+    tft.setTextDatum(MC_DATUM);
+    for (uint8_t i = 0; i < arrowCount_; ++i) {
+        const Arrow& a = arrows_[i];
+        const uint16_t col = (!complete_ && a.stroke == activeStroke_)
+            ? Ui::warning() : Ui::muted();
+        const float dx = static_cast<float>(a.tipX - a.tailX);
+        const float dy = static_cast<float>(a.tipY - a.tailY);
+        const float len = sqrtf(dx * dx + dy * dy);
+        if (len < 0.5f) continue;
+        const float ux = dx / len;
+        const float uy = dy / len;
+        const int16_t hx = static_cast<int16_t>(lroundf(a.tipX - ux * ARROW_HEAD));
+        const int16_t hy = static_cast<int16_t>(lroundf(a.tipY - uy * ARROW_HEAD));
+        /* A two-pixel shaft: a one-pixel line vanishes on a resistive panel
+         * viewed at arm's length, which is how a five-year-old holds it. */
+        tft.drawLine(a.tailX, a.tailY, hx, hy, col);
+        tft.drawLine(a.tailX + 1, a.tailY, hx + 1, hy, col);
+        tft.drawLine(a.tailX, a.tailY + 1, hx, hy + 1, col);
+        const int16_t lx = static_cast<int16_t>(lroundf(hx - uy * ARROW_HALF));
+        const int16_t ly = static_cast<int16_t>(lroundf(hy + ux * ARROW_HALF));
+        const int16_t rx = static_cast<int16_t>(lroundf(hx + uy * ARROW_HALF));
+        const int16_t ry = static_cast<int16_t>(lroundf(hy - ux * ARROW_HALF));
+        tft.fillTriangle(a.tipX, a.tipY, lx, ly, rx, ry, col);
+        if (a.numbered) {
+            char num[2] = {static_cast<char>('1' + a.stroke), 0};
+            tft.setTextColor(col, Ui::bg());
+            tft.drawString(num, a.labelX, a.labelY, 1);
         }
     }
-    drawArrow(tft, arrowAt_);
-    arrowDrawnAt_ = arrowAt_;
 }
 
-void LetterTracer::drawArrow(Ui::Renderer& tft, uint8_t index) {
-    if (index == NO_CORNER || index + 1 >= MAX_POINTS) return;
-    const float dx = static_cast<float>(pts_[index + 1].x - pts_[index].x);
-    const float dy = static_cast<float>(pts_[index + 1].y - pts_[index].y);
-    const float len = sqrtf(dx * dx + dy * dy);
-    if (len < 0.5f) return;
-    const float ux = dx / len;
-    const float uy = dy / len;
-
-    const float bx = static_cast<float>(pts_[index].x) + ux * NEXT_R;
-    const float by = static_cast<float>(pts_[index].y) + uy * NEXT_R;
-    const int16_t tipX = static_cast<int16_t>(bx + ux * ARROW_LEN);
-    const int16_t tipY = static_cast<int16_t>(by + uy * ARROW_LEN);
-    const int16_t leftX = static_cast<int16_t>(bx - uy * ARROW_HALF);
-    const int16_t leftY = static_cast<int16_t>(by + ux * ARROW_HALF);
-    const int16_t rightX = static_cast<int16_t>(bx + uy * ARROW_HALF);
-    const int16_t rightY = static_cast<int16_t>(by - ux * ARROW_HALF);
-    tft.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, Ui::warning());
+/* "Start here": a ring on the first dot of the stroke being traced.
+ *
+ * A ring rather than the filled, numbered badge that used to sit there. The
+ * number moved to the arrow beside the stroke, where the workbook puts it, and
+ * a filled disc covered the very dot the child is meant to put a finger on. */
+void LetterTracer::drawStartRing(Ui::Renderer& tft) {
+    if (complete_ || activeStroke_ >= strokeCount_) return;
+    const Pt& p = pts_[strokeStart_[activeStroke_]];
+    tft.drawCircle(p.x, p.y, START_RING_R, Ui::warning());
+    tft.drawCircle(p.x, p.y, START_RING_R - 1, Ui::warning());
 }
 
 void LetterTracer::drawModeTabs(Ui::Renderer& tft) {
@@ -127,7 +114,7 @@ void LetterTracer::drawCaption(Ui::Renderer& tft) {
  * the target to be accurate. */
 void LetterTracer::drawGhost(Ui::Renderer& tft) {
     if (glyphs_ == nullptr) return;
-    const Glyph& g = glyphs_[glyphIndex_];
+    const Glyph& g = glyph();
     for (uint8_t st = 0; st < g.strokeCount && st < MAX_STROKES; ++st) {
         const Stroke& s = g.strokes[st];
         for (uint8_t i = 0; i + 1 < s.count; ++i) {
@@ -144,7 +131,8 @@ void LetterTracer::drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to
                  Ui::success());
 }
 
-/* Every dot of every stroke. Only on a full repaint -- see render(). */
+/* Every dot of every stroke. On a full repaint, and when a stroke finishes --
+ * see render(). Idempotent, which is what makes the second use safe. */
 void LetterTracer::drawAllDots(Ui::Renderer& tft) {
     for (uint8_t st = 0; st < strokeCount_; ++st) {
         const uint8_t start = strokeStart_[st];
@@ -169,20 +157,6 @@ void LetterTracer::drawAllDots(Ui::Renderer& tft) {
                 tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::muted());
             }
         }
-    }
-
-    /* Which stroke this is, on its first dot. A cursive word is one stroke and
-     * a printed letter is up to four, and the number is how a child knows
-     * there is more to come after this one. */
-    if (activeStroke_ < strokeCount_) {
-        const uint8_t start = strokeStart_[activeStroke_];
-        tft.fillCircle(pts_[start].x, pts_[start].y, 7, Ui::warning());
-        tft.setTextColor(Ui::panel(), Ui::warning());
-        tft.setTextDatum(MC_DATUM);
-        char badge[2];
-        badge[0] = static_cast<char>('1' + activeStroke_);
-        badge[1] = 0;
-        tft.drawString(badge, pts_[start].x, pts_[start].y, 1);
     }
 }
 
@@ -234,7 +208,7 @@ void LetterTracer::drawCompleteStatus(Ui::Renderer& tft) {
 /* WHY THIS IS NOT ONE FULL REPAINT PER FRAME.
  *
  * It used to be: every dirty frame wiped the whole canvas and redrew the
- * ghost, every dot and the badge. Claiming one dot changed about forty pixels
+ * ghost, every dot and the stroke badge. Claiming one dot changed about forty pixels
  * and cost a 200x162 wipe plus a hundred and fifty circles, and the pulse made
  * that happen twice a second whether or not anybody was tracing. On a panel
  * where a full-screen repaint is 30ms of visible blanking that is both a waste
@@ -246,9 +220,15 @@ void LetterTracer::drawCompleteStatus(Ui::Renderer& tft) {
  * pulse changes colour instead of size. So a partial frame overdraws the few
  * dots that moved and the progress bar, and touches nothing else.
  *
- * A full repaint is kept for the cases where the picture genuinely changes
- * shape: a new glyph, a new alphabet, a stroke finishing (the badge moves to
- * the next stroke's first dot), and completion. Those are events, not frames.
+ * A full repaint is kept for the cases where the picture genuinely changes:
+ * a new glyph, a new alphabet, and completion. Those are events, not frames.
+ *
+ * A stroke finishing is NOT one of them any more, though it used to be. It
+ * moves the start ring and recolours two strokes' arrows, and a printed word
+ * has up to eight strokes -- eight screen clears to trace "kit" would be the
+ * flashing the rendering rule in CLAUDE.md describes. So the old ring is
+ * painted out in the background colour and the ghost and dots are painted
+ * back over it, both idempotent, then the arrows recolour in place.
  */
 void LetterTracer::render(AppContext& host, const char* title, bool fullRender) {
     Ui::Renderer& tft = host.display();
@@ -262,14 +242,28 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         tft.fillRect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H, Ui::bg());
         drawGhost(tft);
         drawAllDots(tft);
-        drawArrow(tft, arrowAt_);
+        drawArrows(tft);
+        drawStartRing(tft);
         drawProgress(tft);
         if (complete_) drawCompleteStatus(tft);
         paintedStroke_ = activeStroke_;
         paintedPoint_ = nextPoint_;
-        arrowDrawnAt_ = arrowAt_;
         tft.setTextDatum(TL_DATUM);
         return;
+    }
+
+    if (paintedStroke_ != activeStroke_) {
+        if (paintedStroke_ < strokeCount_) {
+            const Pt& old = pts_[strokeStart_[paintedStroke_]];
+            tft.drawCircle(old.x, old.y, START_RING_R, Ui::bg());
+            tft.drawCircle(old.x, old.y, START_RING_R - 1, Ui::bg());
+        }
+        drawGhost(tft);
+        drawAllDots(tft);
+        drawArrows(tft);
+        drawStartRing(tft);
+        paintedStroke_ = activeStroke_;
+        paintedPoint_ = nextPoint_;
     }
 
     if (activeStroke_ < strokeCount_) {
@@ -294,7 +288,6 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         paintedPoint_ = nextPoint_;
     }
 
-    moveArrow(tft);
     drawProgress(tft);
     tft.setTextDatum(TL_DATUM);
 }

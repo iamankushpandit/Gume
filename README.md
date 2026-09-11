@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-79.7%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-79.9%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,507,597 / 3,145,728 bytes (**79.7%**) |
-| RAM | 79,708 / 327,680 bytes (**24.3%**) |
+| Flash | 2,513,729 / 3,145,728 bytes (**79.9%**) |
+| RAM | 80,860 / 327,680 bytes (**24.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -338,7 +338,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a child can make something rather than be tested on it, and the note names are on the keys so the naming comes for free | 3+ |
 | **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
-| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-eight easy words covering every letter. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, and an arrow appears at each point where the direction changes. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
+| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-nine short words a five-year-old knows, covering every letter but q. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, drawn a third larger than the first version because young players found it too small to follow. A numbered arrow beside each stroke shows where it starts and which way it goes, the way a handwriting workbook marks it. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
 | **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |
 | **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk | 7+ |
 
@@ -359,7 +359,7 @@ uses **adaptive difficulty** — see below.
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning | 3–7 |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning | 3–8 |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up | 4+ |
-| **Trace** | Trace uppercase, lowercase, and digits following numbered waypoints | Letter formation and stroke order, with Again and Next controls so a player can repeat any character | 3–6 |
+| **Trace** | Trace uppercase, lowercase, digits and fifty-four short printed words following dots. A numbered arrow beside each stroke, outside the letter, shows where it starts and which way it goes, with an extra arrow at a sharp turn like the top of an A. Words are spelled out of the same lowercase letters, so a child writes 'cat' with the strokes they practised on c, a and t | Letter formation and stroke order, with Again and Next controls so a player can repeat any character, then putting letters together into words | 3–6 |
 | **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older student, not a preschooler | 15+ |
 | **Dice** | Pick one, two or three dice and throw them | A physical randomiser to play board games with when the real dice are lost. Keeps no score, because a best total would be luck | 3+ |
 | **Coin Flip** | Spin a coin, best of one, three or five | Settling an argument fairly, and seeing that best-of-five is not the same as one toss. Keeps no score, for the same reason | 4+ |
@@ -511,7 +511,7 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/chess.png" width="300" alt="Chess: legal moves ringed, captures beside the board">
   <img src="docs/screens/seabattle.png" width="300" alt="Sea Battle: hunting the fleet, your sea beside it">
-  <img src="docs/screens/cursive.png" width="300" alt="Cursive: tracing the word cat">
+  <img src="docs/screens/cursive.png" width="300" alt="Cursive: tracing the word dog">
 </p>
 <p align="center">
   <img src="docs/screens/ludo.png" width="300" alt="Ludo: tokens racing round the board, the die beside it">
@@ -546,6 +546,7 @@ One screen per game, in launcher order.
   <img src="docs/screens/tictactoe.png" width="300" alt="Tic-Tac-Toe">
   <img src="docs/screens/trace.png" width="300" alt="Trace: uppercase and digits">
   <img src="docs/screens/trace-lower.png" width="300" alt="Trace: lowercase letters">
+  <img src="docs/screens/trace-words.png" width="300" alt="Trace: printed words">
   <img src="docs/screens/grewords.png" width="300" alt="GRE Words: pick the meaning">
   <img src="docs/screens/grewords-study.png" width="300" alt="GRE Words: study card">
   <img src="docs/screens/dice.png" width="300" alt="Dice: three dice thrown">
@@ -1274,6 +1275,9 @@ src/
     MazeData.cpp        maze layouts kept out of the redraw logic
     StateData.cpp       50 US states: code, name, capital, tier
     TraceGlyphData.cpp  letter/number stroke guides
+    LetterTracer.cpp    finger-tracing engine shared by Trace and Cursive
+    LetterTracerArrows.cpp  where the numbered direction arrows go
+    LetterTracerWords.cpp   printed words spelled out of the alphabet
   hal/
     Board.cpp           board bring-up, profiles, layout/idle settings
     BoardAccess.h       narrow display/touch/storage/power/network/feedback facades

@@ -67,10 +67,25 @@ uint8_t LetterTracer::setStartIndex() const {
 }
 
 void LetterTracer::begin() {
-    setIndex_ = 0;
+    selectSet(0);
+}
+
+/* Switch alphabet. A spelled set works out its one word scale here, once,
+ * rather than per word -- see fitSpelledSet(). */
+void LetterTracer::selectSet(uint8_t i) {
+    setIndex_ = i < setCount_ ? i : 0;
+    if (spelled()) fitSpelledSet();
     glyphIndex_ = setStartIndex();
     loadGlyph();
-    markFullDirty();
+}
+
+bool LetterTracer::spelled() const {
+    return sets_ != nullptr && setCount_ > 0 && glyphs_ != nullptr &&
+           set().alphabet != NO_ALPHABET && set().names != nullptr;
+}
+
+const LetterTracer::Glyph& LetterTracer::glyph() const {
+    return spelled() ? spelled_ : glyphs_[glyphIndex_];
 }
 
 /* What the child is being asked to write, as a string.
@@ -89,7 +104,7 @@ const char* LetterTracer::caption(char* buf, size_t len) const {
         }
     }
     if (glyphs_ == nullptr || len < 2) return "";
-    buf[0] = glyphs_[glyphIndex_].label;
+    buf[0] = glyph().label;
     buf[1] = 0;
     return buf;
 }
@@ -122,12 +137,19 @@ void LetterTracer::loadGlyph() {
     nextPoint_ = 0;
     lastPulseChange_ = millis();
     pulseState_ = false;
+    /* A spelled word is laid out straight into canvas pixels, so it is drawn
+     * with the identity mapping; everything else goes through the letterbox
+     * its table was authored for. */
+    if (spelled()) {
+        spellWord();
+        boxScale_ = 1.0f;
+        boxX_ = DRAW_X;
+        boxY_ = DRAW_Y;
+    } else {
+        fitBox();
+    }
     resampleWaypoints();
-    arrowAt_ = nextCorner();
-    /* A new glyph repaints everything anyway, so the arrow on the panel is
-     * whatever that paint draws -- but say so, or the first partial frame
-     * would try to erase an arrow belonging to the previous letter. */
-    arrowDrawnAt_ = NO_CORNER;
+    planArrows();
     markFullDirty();
 }
 
@@ -154,7 +176,7 @@ void LetterTracer::resampleWaypoints() {
         strokeCount_ = 0;
         return;
     }
-    const Glyph& g = glyphs_[glyphIndex_];
+    const Glyph& g = glyph();
     uint8_t totalPts = 0;
 
     for (uint8_t s = 0; s < g.strokeCount && s < MAX_STROKES; ++s) {
@@ -208,55 +230,6 @@ void LetterTracer::resampleWaypoints() {
         strokeLen_[s] = static_cast<uint8_t>(totalPts - strokeStart_[s]);
     }
     strokeCount_ = g.strokeCount > MAX_STROKES ? MAX_STROKES : g.strokeCount;
-    findCorners();
-}
-
-/* Which waypoints are turns.
- *
- * The first point of every stroke counts, always: at the start there is no
- * previous direction to have changed from, and "which way do I set off?" is
- * the question a child actually has at that moment -- especially in cursive,
- * where a letter can begin by going up, down or sideways.
- *
- * After that it is the angle between arriving and leaving. The last point of a
- * stroke is never a corner: there is nowhere further to go. */
-void LetterTracer::findCorners() {
-    for (bool& c : corner_) c = false;
-
-    for (uint8_t s = 0; s < strokeCount_; ++s) {
-        const uint8_t start = strokeStart_[s];
-        const uint8_t len = strokeLen_[s];
-        if (len == 0) continue;
-        corner_[start] = true;
-        uint8_t lastMarked = 0;
-
-        for (uint8_t i = 1; i + 1 < len && start + i + 1 < MAX_POINTS; ++i) {
-            if (i - lastMarked < CORNER_GAP) continue;
-            const uint8_t p = static_cast<uint8_t>(start + i);
-            const float ax = static_cast<float>(pts_[p].x - pts_[p - 1].x);
-            const float ay = static_cast<float>(pts_[p].y - pts_[p - 1].y);
-            const float bx = static_cast<float>(pts_[p + 1].x - pts_[p].x);
-            const float by = static_cast<float>(pts_[p + 1].y - pts_[p].y);
-            const float la = sqrtf(ax * ax + ay * ay);
-            const float lb = sqrtf(bx * bx + by * by);
-            if (la < 0.5f || lb < 0.5f) continue;
-            /* cos of the turn: 1 is straight on, 0 is a right angle. */
-            if ((ax * bx + ay * by) / (la * lb) < CORNER_COS) {
-                corner_[p] = true;
-                lastMarked = i;
-            }
-        }
-    }
-}
-
-uint8_t LetterTracer::nextCorner() const {
-    if (activeStroke_ >= strokeCount_) return NO_CORNER;
-    const uint8_t start = strokeStart_[activeStroke_];
-    const uint8_t len = strokeLen_[activeStroke_];
-    for (uint8_t i = nextPoint_; i + 1 < len && start + i < MAX_POINTS; ++i) {
-        if (corner_[start + i]) return static_cast<uint8_t>(start + i);
-    }
-    return NO_CORNER;
 }
 
 int16_t LetterTracer::scaleX(int16_t nx) const {
@@ -282,9 +255,7 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
             if (!setTabRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                 continue;
             }
-            setIndex_ = i;
-            glyphIndex_ = setStartIndex();
-            loadGlyph();
+            selectSet(i);
             return;
         }
         if (RETRY_BTN.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -324,23 +295,17 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
             if (d2 < (int32_t)HIT_RADIUS * HIT_RADIUS) {
                 ++nextPoint_;
                 markDirty();
-                /* The arrow moving is a change of shape, not an addition, so
-                 * it earns a full repaint -- the old one has to go. Corners
-                 * are a handful per glyph, so this is rare. */
-                /* The arrow moving is NOT a full repaint. See moveArrow():
-                 * a word has about eleven turns and clearing the screen at
-                 * each one is the flashing this replaced. */
-                arrowAt_ = nextCorner();
 
                 if (nextPoint_ >= strokeLen_[activeStroke_]) {
                     host.beepOk();
                     ++activeStroke_;
                     nextPoint_ = 0;
-                    /* A finished stroke changes the picture's shape rather
-                     * than adding to it -- the numbered badge moves to the
-                     * next stroke's first dot -- so this is one of the events
-                     * that earns a full repaint. See render(). */
-                    markFullDirty();
+                    /* NOT a full repaint, though the picture does change:
+                     * the start ring moves to the next stroke and two sets
+                     * of arrows swap colour. A printed word is up to eight
+                     * strokes, and clearing the screen between each is the
+                     * flashing CLAUDE.md's rendering rule is about. render()
+                     * moves the ring in place instead. */
 
                     if (activeStroke_ >= strokeCount_) {
                         complete_ = true;

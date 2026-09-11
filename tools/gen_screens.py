@@ -796,106 +796,6 @@ def backgammon_lobby():
     return im
 
 
-def cursive():
-    """Cursive: the word 'dog' part traced, with the target behind it.
-
-    A word rather than a letter, because Trace already contributes two
-    letter-tracing stills and joining up is what this game adds. The dots come
-    from the real table in src/games/CursiveGlyphData.cpp, so the picture
-    cannot drift from the letterforms the device draws.
-
-    Geometry matches LetterTracer: 52px control columns, a caption row above,
-    canvas at 60,52 sized 200x162, and the word set's 12px dot spacing.
-    """
-    import math as _m
-    import re as _re
-    im, d = blank(); topbar(d, "Cursive")
-    for label, y, col in [["ABC", 52, PANEL], ["abc", 78, PANEL],
-                          ["Words", 104, WARN]]:
-        d.rounded_rectangle([4, y, 56, y + 22], 4, fill=col, outline=OUTLINE)
-        d.text((30 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
-               fill=PANEL if col == WARN else TEXT)
-    for label, y in [["Again", 52], ["Next", 78]]:
-        d.rounded_rectangle([264, y, 316, y + 22], 4, fill=PANEL, outline=OUTLINE)
-        d.text((290 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
-               fill=TEXT)
-    d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
-    d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
-
-    word = "dog"
-    d.text((160 - d.textlength(word, font=F2) / 2, 33), word, font=F2, fill=TEXT)
-
-    src = (ROOT / "src" / "games" / "CursiveGlyphData.cpp").read_text(encoding="utf-8")
-
-    hdr = (ROOT / "src" / "games" / "CursiveGlyphData.h").read_text(encoding="utf-8")
-    cw = int(_re.search(r"CURSIVE_COORD_W = (\d+)", hdr).group(1))
-    ch = int(_re.search(r"CURSIVE_COORD_H = (\d+)", hdr).group(1))
-    m2p = _box_map(cw, ch)
-
-    def stroke(tag):
-        m = _re.search(r"static const int16_t %s\[\] = \{([^}]*)\}" % tag, src)
-        if m is None:
-            raise LookupError(tag)
-        n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        return [m2p(n[i], n[i + 1]) for i in range(0, len(n), 2)]
-
-    def resample(pts, step):
-        out, carry = [pts[0]], 0.0
-        for a, b in zip(pts, pts[1:]):
-            seg = _m.dist(a, b)
-            if seg <= 0:
-                continue
-            pos = step - carry
-            while pos <= seg:
-                t = pos / seg
-                out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
-                pos += step
-            carry = seg - (pos - step)
-        return out
-
-    paths = []
-    while True:
-        try:
-            paths.append(stroke("W_DOG_s%d" % len(paths)))
-        except LookupError:
-            break
-    assert paths, "W_DOG strokes not found in CursiveGlyphData.cpp"
-
-    # The finished shape, faintly: the thing the child is matching.
-    for pts in paths:
-        d.line(pts, fill=OUTLINE, width=1)
-
-    way = resample(paths[0], 12)
-    inked = int(len(way) * 0.45)
-    for i in range(1, inked):
-        d.line([way[i - 1], way[i]], fill=SUCCESS, width=3)
-    for i, (x, y) in enumerate(way):
-        if i < inked:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
-        elif i == inked:
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
-        else:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    ahead = [c for c in _corners(way) if c >= inked]
-    if ahead:
-        _arrow(d, way, ahead[0])
-    hx, hy = way[0]
-    d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
-    d.text((hx - 3, hy - 4), "1", font=F1, fill=PANEL)
-
-    for pts in paths[1:]:
-        for x, y in resample(pts, 12):
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-
-    total = sum(len(resample(pp, 12)) for pp in paths)
-    barW, barX, barY = 120, (W - 120) // 2, 220
-    d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
-                        outline=OUTLINE)
-    fill = int(barW * inked / max(1, total))
-    d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
-    return im
-
-
 def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
@@ -975,12 +875,22 @@ def statemaps():
 # --- the tracing games ------------------------------------------------------
 #
 # Trace and Cursive share LetterTracer, so they share one mock-up chrome and
-# one way of reading glyph data. Both stills draw the REAL letterform from the
+# one way of reading glyph data. Every still draws the REAL letterform from the
 # real table -- these were hand-placed points once and drifted the moment the
 # layout changed, which is the whole argument for deriving them.
+#
+# The arrows and the printed words are RESTATED here, not approximated: the
+# placement below is LetterTracerArrows.cpp's, candidate for candidate, and the
+# spelling is LetterTracerWords.cpp's. If either changes, change this too, or
+# the pictures will show arrows the device does not draw.
+
+TRACER_DRAW = (60, 52, 200, 156)       # LetterTracerLayout DRAW_X/Y/W/H
+TRACER_BAR_Y = 220
+TRACER_PREV_Y = 168
+
 
 def _tracer_chrome(d, title, tabs, active):
-    """The side columns and caption row. Keep in step with LetterTracer.cpp."""
+    """The side columns and caption row. Keep in step with LetterTracerLayout.h."""
     for i, label in enumerate(tabs):
         y = 52 + i * 26
         on = i == active
@@ -992,9 +902,15 @@ def _tracer_chrome(d, title, tabs, active):
         d.rounded_rectangle([264, y, 316, y + 22], 4, fill=PANEL, outline=OUTLINE)
         d.text((290 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
                fill=TEXT)
-    d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
-    d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
+    py = TRACER_PREV_Y
+    d.rounded_rectangle([4, py, 56, py + 22], 4, fill=PANEL, outline=OUTLINE)
+    d.text((30 - d.textlength("Prev", font=F1) / 2, py + 7), "Prev", font=F1, fill=TEXT)
     d.text((160 - d.textlength(title, font=F2) / 2, 33), title, font=F2, fill=TEXT)
+
+
+def _box_scale(coord_w, coord_h):
+    dx, dy, dw, dh = TRACER_DRAW
+    return min(dw / coord_w, dh / coord_h)
 
 
 def _box_map(coord_w, coord_h):
@@ -1004,27 +920,82 @@ def _box_map(coord_w, coord_h):
     invisible on this sheet and obvious on the panel -- which is exactly what
     happened when x scaled by DRAW_W/200 and y by DRAW_H/200.
     """
-    dx, dy, dw, dh = 60, 52, 200, 156
-    k = min(dw / coord_w, dh / coord_h)
-    ox = dx + (dw - coord_w * k) / 2
-    oy = dy + (dh - coord_h * k) / 2
+    dx, dy, dw, dh = TRACER_DRAW
+    k = _box_scale(coord_w, coord_h)
+    ox = dx + int((dw - int(coord_w * k)) / 2)
+    oy = dy + int((dh - int(coord_h * k)) / 2)
     return lambda x, y: (ox + x * k, oy + y * k)
+
+
+def _glyph_table(source):
+    """Every glyph in a table, as (label, [stroke, ...]) in raw table units.
+
+    Strokes in the order the glyph LISTS them, which is not always s0, s1:
+    print 'a' is its bowl (a_s1) before its stem (a_s0).
+    """
+    import re as _re
+    src = (ROOT / "src" / "games" / source).read_text(encoding="utf-8")
+    arrays = {m.group(1): [int(v) for v in m.group(2).replace(" ", "").split(",") if v]
+              for m in _re.finditer(r"static const int16_t (\w+)\[\] = \{([^}]*)\}", src)}
+    lists = {}
+    for m in _re.finditer(r"static const \w+::Stroke (\w+)_strokes\[\] = \{(.*?)\};", src):
+        refs = _re.findall(r"\{(\w+),\s*(\d+)\}", m.group(2))
+        lists[m.group(1)] = [[(arrays[r][i], arrays[r][i + 1])
+                              for i in range(0, len(arrays[r]), 2)] for r, _ in refs]
+    return [(label, tag, lists[tag]) for label, tag in
+            _re.findall(r"\{'(.)', (\w+)_strokes, \d+\}", src)]
 
 
 def _glyph_strokes(source, tag, coord_w=200, coord_h=200):
     """Strokes of one glyph from a data table, in canvas pixels."""
-    import re as _re
-    src = (ROOT / "src" / "games" / source).read_text(encoding="utf-8")
     m2p = _box_map(coord_w, coord_h)
-    out = []
-    while True:
-        m = _re.search(r"static const int16_t %s_s%d\[\] = \{([^}]*)\}"
-                       % (tag, len(out)), src)
-        if m is None:
-            break
-        n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        out.append([m2p(n[i], n[i + 1]) for i in range(0, len(n), 2)])
-    assert out, "%s not found in %s" % (tag, source)
+    for _, t, strokes in _glyph_table(source):
+        if t == tag:
+            return [[m2p(x, y) for x, y in s] for s in strokes]
+    raise AssertionError("%s not found in %s" % (tag, source))
+
+
+def _trace_words():
+    """TraceGame.cpp's printed word list, read from the source."""
+    import re as _re
+    src = (ROOT / "src" / "games" / "TraceGame.cpp").read_text(encoding="utf-8")
+    block = _re.search(r"TRACE_WORDS\[\] = \{(.*?)\};", src, _re.S).group(1)
+    return _re.findall(r'"([a-z]+)"', block)
+
+
+def _spell(word):
+    """A printed word laid out as LetterTracerWords.cpp lays it out.
+
+    Returns strokes in canvas pixels. The scale is the one the WHOLE set is
+    drawn at, from its widest word, capped at a lone letter's scale.
+    """
+    MIN_W, GAP, MARGIN = 36, 26, 10
+    dx, dy, dw, dh = TRACER_DRAW
+    lower = {label: strokes for label, _, strokes in _glyph_table("TraceGlyphData.cpp")[26:52]}
+
+    def extent(strokes):
+        xs = [x for s in strokes for x, _ in s]
+        ys = [y for s in strokes for _, y in s]
+        return min(xs), max(xs), min(ys), max(ys)
+
+    def width(w):
+        return sum(max(MIN_W, extent(lower[c])[1] - extent(lower[c])[0]) for c in w) \
+            + GAP * (len(w) - 1)
+
+    top = min(extent(s)[2] for s in lower.values())
+    bottom = max(extent(s)[3] for s in lower.values())
+    widest = max(width(w) for w in _trace_words())
+    scale = min(_box_scale(200, 200), (dw - 2 * MARGIN) / widest, dh / (bottom - top))
+    word_top = int((dh - (bottom - top) * scale) / 2 - top * scale)
+    left = (dw - width(word) * scale) / 2
+    out, pen = [], 0
+    for c in word:
+        x0, x1, _, _ = extent(lower[c])
+        pad = (max(MIN_W, x1 - x0) - (x1 - x0)) // 2
+        for s in lower[c]:
+            out.append([(dx + int(left + (pen + pad + x - x0) * scale + 0.5),
+                         dy + int(word_top + y * scale + 0.5)) for x, y in s])
+        pen += max(MIN_W, x1 - x0) + GAP
     return out
 
 
@@ -1041,91 +1012,228 @@ def _resample(pts, step):
             out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
             pos += step
         carry = seg - (pos - step)
+    if _m.dist(out[-1], pts[-1]) > 0.5:
+        out.append(pts[-1])
     return out
 
 
-def _corners(way, cos_t=0.70, gap=3):
-    """Which waypoints LetterTracer would mark as turns. Same rule, restated."""
+def _plan_arrows(paths, ways, turns):
+    """Where LetterTracerArrows.cpp puts every arrow for one glyph.
+
+    `paths` are the raw strokes in pixels, `ways` the resampled dots the
+    clearance is measured against. Same constants, same candidate order, same
+    preference: outside, least slide, nearer stand-off, first clear wins.
+    """
     import math as _m
-    out, last = [], 0
-    for i in range(len(way)):
-        hit = (i == 0)
-        if 0 < i < len(way) - 1:
-            if i - last < gap:
+    LEN, HEAD, HALF = 16, 5, 4
+    OFFS, BACK, OUT = (9, 12, 15), 3, 7
+    CLEAR, RING, LABEL_R, REACH = 5, 6, 4, 10.0
+    SLIDES = (0, 6, 12, 18, 24, 30)
+    dx, dy, dw, dh = TRACER_DRAW
+    bx0, bx1, by0, by1 = dx - 2, dx + dw + 2, dy + 3, TRACER_BAR_Y - 7
+
+    def seg2(p, a, b):
+        abx, aby = b[0] - a[0], b[1] - a[1]
+        l2 = abx * abx + aby * aby
+        t = 0 if l2 == 0 else max(0, min(1, ((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / l2))
+        ex, ey = p[0] - a[0] - abx * t, p[1] - a[1] - aby * t
+        return ex * ex + ey * ey
+
+    segs = [(w[i], w[i + 1] if i + 1 < len(w) else w[i]) for w in ways for i in range(len(w))]
+    rings = [w[0] for w in ways]
+    allp = [p for w in ways for p in w]
+    cx = (min(p[0] for p in allp) + max(p[0] for p in allp)) / 2
+    cy = (min(p[1] for p in allp) + max(p[1] for p in allp)) / 2
+    placed = []
+
+    def point_at(s, dist):
+        walked = 0.0
+        for a, b in zip(s, s[1:]):
+            L = _m.dist(a, b)
+            if L > 0 and walked + L >= dist:
+                t = (dist - walked) / L
+                return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t), True
+            walked += L
+        return s[-1], False
+
+    def measure(c):
+        tail, tip, ux, uy, nx, ny, label = c
+        shaft = [(tail[0] + ux * t, tail[1] + uy * t) for t in range(0, LEN, 3)]
+        hx, hy = tip[0] - ux * HEAD, tip[1] - uy * HEAD
+        shaft += [tip, (hx + nx * HALF, hy + ny * HALF), (hx - nx * HALF, hy - ny * HALF)]
+        pts = [(q, 0) for q in shaft] + ([(label, LABEL_R)] if label else [])
+        if any(not (bx0 <= q[0] <= bx1 and by0 <= q[1] <= by1) for q in shaft):
+            return -1e9
+        if label and not (bx0 <= label[0] - 3 and label[0] + 3 <= bx1 and
+                          by0 <= label[1] - 4 and label[1] + 4 <= by1):
+            return -1e9
+        worst = 1e9
+        for q, pad in pts:
+            for r in rings:
+                worst = min(worst, _m.dist(q, r) - RING - 1 - pad)
+            for o in placed:
+                worst = min(worst, _m.sqrt(seg2(q, o["tail"], o["tip"])) - HALF - 2 - pad)
+                if o["label"]:
+                    worst = min(worst, _m.dist(q, o["label"]) - LABEL_R - 2 - pad)
+            worst = min(worst, _m.sqrt(min(seg2(q, a, b) for a, b in segs)) - pad)
+        return worst
+
+    def place(si, arc, numbered):
+        s = paths[si]
+        cands = []
+        for slide in SLIDES:
+            p, _ = point_at(s, arc + slide)
+            q, reached = point_at(s, arc + slide + REACH)
+            if slide and not reached:
+                break
+            L = _m.dist(p, q)
+            if L < 0.5:
                 continue
-            ax, ay = way[i][0] - way[i - 1][0], way[i][1] - way[i - 1][1]
-            bx, by = way[i + 1][0] - way[i][0], way[i + 1][1] - way[i][1]
-            la, lb = _m.hypot(ax, ay), _m.hypot(bx, by)
-            hit = la >= 0.5 and lb >= 0.5 and (ax * bx + ay * by) / (la * lb) < cos_t
-        if hit:
-            out.append(i)
-            last = i
-    return out
+            ux, uy = (q[0] - p[0]) / L, (q[1] - p[1]) / L
+            for off in OFFS:
+                for side in (1, -1):
+                    nx, ny = -uy * side, ux * side
+                    tail = (p[0] + ux * 2 + nx * off, p[1] + uy * 2 + ny * off)
+                    tip = (tail[0] + ux * LEN, tail[1] + uy * LEN)
+                    label = ((tail[0] - ux * BACK + nx * OUT, tail[1] - uy * BACK + ny * OUT)
+                             if numbered else None)
+                    mid = ((tail[0] + tip[0]) / 2, (tail[1] + tip[1]) / 2)
+                    outside = _m.dist(mid, (cx, cy)) > _m.dist(p, (cx, cy))
+                    cands.append((outside, (tail, tip, ux, uy, nx, ny, label)))
+        chosen = None
+        for want in (True, False):
+            for outside, c in cands:
+                if outside == want and measure(c) >= CLEAR:
+                    chosen = c
+                    break
+            if chosen:
+                break
+        if chosen is None and cands:
+            score, c = max((measure(c), c) for _, c in cands)
+            chosen = c if score >= 2 else None
+        if chosen:
+            placed.append(dict(stroke=si, tail=chosen[0], tip=chosen[1],
+                               label=chosen[6], numbered=numbered))
+
+    for si, s in enumerate(paths):
+        total = sum(_m.dist(a, b) for a, b in zip(s, s[1:]))
+        if len(s) < 2 or total < 12:
+            continue
+        place(si, 0.0, True)
+        if not turns:
+            continue
+        arc = 0.0
+        for i in range(1, len(s) - 1):
+            a = (s[i][0] - s[i - 1][0], s[i][1] - s[i - 1][1])
+            b = (s[i + 1][0] - s[i][0], s[i + 1][1] - s[i][1])
+            la, lb = _m.hypot(*a), _m.hypot(*b)
+            arc += la
+            if la < 0.5 or lb < 0.5:
+                continue
+            if (a[0] * b[0] + a[1] * b[1]) / (la * lb) < -0.2:
+                place(si, arc, False)
+    return placed
 
 
-def _arrow(d, way, index):
-    """The direction arrow, just past a turn, pointing where the stroke goes."""
+def _draw_arrows(d, arrows, active):
+    """LetterTracer::drawArrows(): the active stroke's arrows lit, others muted."""
     import math as _m
-    if index + 1 >= len(way):
-        return
-    ax, ay = way[index]
-    bx, by = way[index + 1]
-    dx, dy = bx - ax, by - ay
-    n = _m.hypot(dx, dy)
-    if n < 0.5:
-        return
-    ux, uy = dx / n, dy / n
-    bx0, by0 = ax + ux * 3, ay + uy * 3
-    d.polygon([(bx0 + ux * 11, by0 + uy * 11),
-               (bx0 - uy * 4, by0 + ux * 4),
-               (bx0 + uy * 4, by0 - ux * 4)], fill=WARN)
+    for a in arrows:
+        col = WARN if a["stroke"] == active else MUTED
+        (tx, ty), (px, py) = a["tail"], a["tip"]
+        L = _m.dist((tx, ty), (px, py))
+        ux, uy = (px - tx) / L, (py - ty) / L
+        hx, hy = px - ux * 5, py - uy * 5
+        d.line([(tx, ty), (hx, hy)], fill=col, width=2)
+        d.polygon([(px, py), (hx - uy * 4, hy + ux * 4), (hx + uy * 4, hy - ux * 4)],
+                  fill=col)
+        if a["numbered"]:
+            n = str(a["stroke"] + 1)
+            lx, ly = a["label"]
+            d.text((lx - d.textlength(n, font=F1) / 2, ly - 5), n, font=F1, fill=col)
 
 
-def _tracer_canvas(d, paths, spacing, fraction, badge="1"):
-    """The ghost, the traced part, the pulsing next dot and the rest."""
+def _tracer_canvas(d, paths, spacing, fraction, turns, active=0):
+    """The ghost, the traced part, the dots, the arrows and the start ring.
+
+    Strokes before `active` are finished, `fraction` of the active one is
+    traced, and the rest are waiting.
+    """
+    ways = [_resample(pts, spacing) for pts in paths]
     for pts in paths:
         d.line(pts, fill=OUTLINE, width=1)
-    way = _resample(paths[0], spacing)
-    inked = max(1, int(len(way) * fraction))
-    for i in range(1, inked):
-        d.line([way[i - 1], way[i]], fill=SUCCESS, width=3)
-    for i, (x, y) in enumerate(way):
-        if i < inked:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
-        elif i == inked:
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
-        else:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    # The arrow at the next turn at or after the finger -- one at a time.
-    ahead = [c for c in _corners(way) if c >= inked]
-    if ahead:
-        _arrow(d, way, ahead[0])
-    hx, hy = way[0]
-    d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
-    d.text((hx - 3, hy - 4), badge, font=F1, fill=PANEL)
-    for pts in paths[1:]:
-        for x, y in _resample(pts, spacing):
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    total = sum(len(_resample(pp, spacing)) for pp in paths)
-    barW, barX, barY = 120, (W - 120) // 2, 220
+    arrows = _plan_arrows(paths, ways, turns)
+    inked_total = 0
+    for si, way in enumerate(ways):
+        inked = len(way) if si < active else (
+            max(1, int(len(way) * fraction)) if si == active else 0)
+        inked_total += inked
+        for i in range(1, inked):
+            d.line([way[i - 1], way[i]], fill=SUCCESS, width=2)
+        for i, (x, y) in enumerate(way):
+            if i < inked:
+                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
+            elif si == active and i == inked:
+                d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
+            else:
+                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
+    _draw_arrows(d, arrows, active)
+    hx, hy = ways[active][0]
+    d.ellipse([hx - 6, hy - 6, hx + 6, hy + 6], outline=WARN, width=2)
+    total = sum(len(w) for w in ways)
+    barW, barX, barY = 120, (W - 120) // 2, TRACER_BAR_Y
     d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
                         outline=OUTLINE)
-    fill = int(barW * inked / max(1, total))
-    d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
+    fill = int(barW * inked_total / max(1, total))
+    if fill > 0:
+        d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
+
+
+TRACE_TABS = ["ABC", "abc", "123", "Words"]
 
 
 def trace():
     im, d = blank(); topbar(d, "Trace")
-    _tracer_chrome(d, "A", ["ABC", "abc", "123"], 0)
-    # Traced short of the apex on purpose, so the turn arrow is in shot.
-    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20, 0.30)
+    _tracer_chrome(d, "A", TRACE_TABS, 0)
+    # A third of the way up the first stroke: the numbered arrows beside each
+    # stroke and the turn arrow at the apex are all in shot.
+    k = _box_scale(200, 200)
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20 * k, 0.30, True)
     return im
 
 
 def trace_lower():
     im, d = blank(); topbar(d, "Trace")
-    _tracer_chrome(d, "g", ["ABC", "abc", "123"], 1)
-    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "g"), 20, 0.8)
+    _tracer_chrome(d, "g", TRACE_TABS, 1)
+    k = _box_scale(200, 200)
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "g"), 20 * k, 0.8, True)
+    return im
+
+
+def trace_words():
+    """Trace's Words tab: 'cat' spelled out of the abc letters, c done."""
+    im, d = blank(); topbar(d, "Trace")
+    _tracer_chrome(d, "cat", TRACE_TABS, 3)
+    _tracer_canvas(d, _spell("cat"), 14, 0.5, False, active=1)
+    return im
+
+
+def cursive():
+    """Cursive: the word 'dog' part traced, with the target behind it.
+
+    A word rather than a letter, because Trace already contributes letter
+    stills and joining up is what this game adds. The strokes come from the
+    real table in src/games/CursiveGlyphData.cpp, so the picture cannot drift
+    from the letterforms the device draws.
+    """
+    import re as _re
+    im, d = blank(); topbar(d, "Cursive")
+    _tracer_chrome(d, "dog", ["ABC", "abc", "Words"], 2)
+    hdr = (ROOT / "src" / "games" / "CursiveGlyphData.h").read_text(encoding="utf-8")
+    cw = int(_re.search(r"CURSIVE_COORD_W = (\d+)", hdr).group(1))
+    ch = int(_re.search(r"CURSIVE_COORD_H = (\d+)", hdr).group(1))
+    _tracer_canvas(d, _glyph_strokes("CursiveGlyphData.cpp", "W_DOG", cw, ch),
+                   14, 0.45, False)
     return im
 
 
@@ -1646,6 +1754,7 @@ SCREENS = [
     ("statemaps", statemaps, "State Maps: name the outline"),
     ("trace", trace, "Trace: uppercase and digits"),
     ("trace-lower", trace_lower, "Trace: lowercase letters"),
+    ("trace-words", trace_words, "Trace: printed words"),
     ("fingers-count", fingers_count, "Finger Counting: count them"),
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("cinnamon", cinnamon, "Cinnamon Says"),

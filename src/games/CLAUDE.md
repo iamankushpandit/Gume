@@ -248,6 +248,14 @@ computer, declared in the same header), both pure and host-tested by
 the pulsing next-dot, the side columns of controls, the progress bar. Trace
 (print) and Cursive are shells over it -- a glyph table, a list of alphabets,
 and a name. Add a third tracing game the same way; do not copy the engine.
+It is four files: `LetterTracer.cpp` (logic), `LetterTracerDraw.cpp`
+(painting), `LetterTracerArrows.cpp` (where the arrows go) and
+`LetterTracerWords.cpp` (printed words), sharing `LetterTracerLayout.h`.
+
+**The players are as young as five, and user testing has overruled the
+engine twice.** Arrows on the path confused them and cursive words were too
+small to follow. Before making the guide cleverer, ask whether a five-year-old
+who has never held a pencil to joined writing would read it.
 
 - **The controls are in side columns and must stay there.** A child tracing the
   top of a letter runs a finger off the top edge, and buttons above or below the
@@ -267,17 +275,37 @@ and a name. Add a third tracing game the same way; do not copy the engine.
   x by canvas-width/200 and y by canvas-height/200 are only equal when the
   canvas is square. If you author a new table, give it the canvas's shape when
   width matters (words) and a square when it does not (single letters).
-- **Direction arrows come from the geometry, not from the data.** A waypoint is
-  a turn when the angle between arriving and leaving exceeds `CORNER_COS`, and
-  no turn is marked within `CORNER_GAP` dots of the last -- without that gap a
-  tight curve marks every dot. The arrow moving is a change of shape, so it
-  takes a full repaint; corners are a handful per glyph, so that is rare.
+- **Direction arrows sit BESIDE the stroke, outside the letter, and never
+  move.** Every stroke gets a numbered arrow beside its start; a set with
+  `turnArrows` also gets one at each sharp reversal (`TURN_COS`, measured on
+  the authored vertices, never the resampled dots). `planArrows()` places them
+  once per glyph by measuring candidates against the strokes: outside the
+  letter first, then sliding along the stroke, standing further off, and only
+  then inside. They replaced a single arrow on the path that jumped from turn
+  to turn, which five-year-olds in testing could not tell apart from the dots.
+  Cursive and all word sets have `turnArrows` off: loops everywhere make an
+  arrow at each one noise.
+- **A stroke finishing is a partial repaint.** The start ring is painted out
+  in the background colour, the ghost and dots (both idempotent) are painted
+  back over it, and the arrows recolour in place. A printed word is up to eight
+  strokes, and a screen clear between each was exactly the flashing the root
+  rendering rule forbids. `tools/gen_screens.py` restates the placement
+  candidate for candidate; change both or the stills lie.
+- **A `Set` may be spelled rather than stored** (`alphabet` names the table
+  index of 'a'). Trace's Words tab is strings only: each word is laid out from
+  the lowercase letters in `LetterTracerWords.cpp`, all at one scale set by the
+  widest word. A wide word shrinks every other word, which is why the list has
+  no `quiz`, `mud` or `web`. Cursive cannot do this -- joining is the skill --
+  so its words are generated.
 - **Cursive's letterforms are generated** by `tools/gen_cursive_glyphs.py` from
   a GPLv3 dotted teaching font. Both `CursiveGlyphData.h` and `.cpp` are
   generated, including the counts, which are `constexpr` because the game's
   `Set` table is. Edit the script, never the output, and **look at
   `docs/cursive-sheet.png`** afterwards: a malformed cursive `q` reads as a
   perfectly good 9 until a child copies it, and nothing else will tell you.
+  Its word list is `KID_WORDS`, two and three letters, under
+  `WORD_WIDTH_CAP` -- the cap is what sets how big every word is drawn, and a
+  listed word over it fails the script rather than quietly vanishing.
 
 ## Shared data
 

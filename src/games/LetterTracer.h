@@ -66,7 +66,31 @@ public:
          * because a child who wants the word they had a moment ago has to be
          * able to get back to it. */
         bool randomStart;
+        /* Whether a sharp reversal inside a stroke -- the top of an A, the
+         * points of an M -- gets an arrow of its own, as well as the numbered
+         * arrow every stroke gets at its start.
+         *
+         * On for printed letters, where a stroke really does change direction
+         * abruptly and the dots alone do not say which way the finger goes
+         * next. Off for cursive and for words: a joined word is one long
+         * stroke full of loops, and arrows at every loop were exactly what
+         * five-year-olds in testing found confusing. */
+        bool turnArrows;
+        /* Build each entry from its name, letter by letter, instead of
+         * reading it from the glyph table.
+         *
+         * NO_ALPHABET for a set whose glyphs are in the table. Otherwise the
+         * index in the table of the glyph for 'a'; every entry's name is then
+         * spelled out of that alphabet at load time. That is how Trace has
+         * printed words without a single extra byte of letterform in flash --
+         * a printed word is just its letters side by side, each with its own
+         * strokes, which is exactly what print is. Cursive cannot do this,
+         * because joining the letters is the whole skill, so its words are
+         * generated. `first` is unused for such a set. */
+        uint8_t alphabet;
     };
+
+    static constexpr uint8_t NO_ALPHABET = 0xFF;
 
     /* Longest resampled run, across all of a glyph's strokes.
      *
@@ -77,12 +101,22 @@ public:
      * is 512 bytes of static RAM, which on this device is nothing; see
      * CLAUDE.md's memory rule on trading RAM for certainty. */
     static constexpr uint8_t MAX_POINTS = 128;
-    /* Six, for a word: three letters plus the marks on an i, j or t. A single
-     * letter never needs more than three. */
-    static constexpr uint8_t MAX_STROKES = 6;
+    /* Eight. A single letter never needs more than three, and a cursive word
+     * is one stroke plus the marks on its i, j or t -- but a PRINTED word is
+     * every stroke of every letter, and 'kit' is already six. */
+    static constexpr uint8_t MAX_STROKES = 8;
     static constexpr uint8_t DEFAULT_SPACING = 20;
-    /** Three tabs is what the left column holds; see the layout note in .cpp. */
-    static constexpr uint8_t MAX_SETS = 3;
+    /** Four tabs is what the left column holds; see LetterTracerLayout.h. */
+    static constexpr uint8_t MAX_SETS = 4;
+    /* One numbered arrow per stroke, plus one per sharp reversal in a set
+     * that asks for those. Print 'M' is the most: one stroke, three turns. */
+    static constexpr uint8_t MAX_ARROWS = 12;
+    /* Raw points in a word spelled out of an alphabet, x and y counted
+     * separately: 96 points. The printed lowercase letters are sparse
+     * polylines -- the longest, 'g' and 's', are fourteen and twelve points --
+     * so a three-letter word is under fifty. A word that would not fit loses
+     * its last strokes, visibly; keep word lists to short words. */
+    static constexpr uint16_t MAX_WORD_COORDS = 192;
 
     /* Point the tracer at a table. Called once, from the shell's constructor
      * or begin(); the pointers must outlive the tracer, which they do because
@@ -119,8 +153,35 @@ private:
         int16_t x, y;
     };
 
+    /* One direction arrow, placed once per glyph and never moved. Canvas
+     * pixels throughout, so drawing it is arithmetic-free. */
+    struct Arrow {
+        int16_t tailX, tailY;
+        int16_t tipX, tipY;
+        /* Where the stroke number goes; unused when `numbered` is false. */
+        int16_t labelX, labelY;
+        uint8_t stroke;
+        /* True for the arrow at a stroke's start, which carries its number;
+         * false for one at a turn part-way along. */
+        bool numbered;
+    };
+
+    /** The set currently selected. */
+    const Set& set() const { return sets_[setIndex_]; }
+    /** Switch to set `i` and open it at its starting entry. */
+    void selectSet(uint8_t i);
+    /** True when the current set spells its entries out of an alphabet. */
+    bool spelled() const;
+    /** The glyph being traced: from the table, or spelled into RAM. */
+    const Glyph& glyph() const;
     /** Recompute the uniform scale and the letterbox offsets. */
     void fitBox();
+    /* Lay the current word out of its letters, into spelled_. See
+     * LetterTracerWords.cpp. */
+    void spellWord();
+    /* The one scale every word of a spelled set is drawn at: the widest word
+     * decides it, once, when the set is chosen. */
+    void fitSpelledSet();
     void loadGlyph();
     void resampleWaypoints();
     int16_t scaleX(int16_t nx) const;
@@ -130,18 +191,18 @@ private:
     void drawCaption(Ui::Renderer& tft);
     /** The finished shape, faintly, as the thing to aim at. */
     void drawGhost(Ui::Renderer& tft);
-    /* Work out which waypoints are turns rather than continuations. Called
-     * once per glyph, from resampleWaypoints(). */
-    void findCorners();
-    /* The next waypoint at or after the finger that is a turn, or NO_CORNER.
-     * One arrow at a time, always the one that matters next. */
-    uint8_t nextCorner() const;
-    /** A small arrow at `index`, pointing the way the stroke goes next. */
-    void drawArrow(Ui::Renderer& tft, uint8_t index);
-    /** The pixels one arrow covers, padded. Where the erase happens. */
-    Rect arrowRect(uint8_t index) const;
-    /** Move the arrow without repainting the screen. See render(). */
-    void moveArrow(Ui::Renderer& tft);
+    /* Decide where every arrow for this glyph goes. Called once per glyph,
+     * from loadGlyph(); see LetterTracerArrows.cpp. */
+    void planArrows();
+    /* Place one arrow for the stroke `s`, starting `arc` pixels along it.
+     * (cx, cy) is the middle of the glyph, which "outside" leads away from. */
+    void placeArrow(uint8_t s, float arc, bool numbered, float cx, float cy);
+    /* Distance from (x, y) to the nearest stroke, as the dots draw it. Stops
+     * early, with some distance under `floor`, once the answer is "too near";
+     * a floor of zero or less always measures fully. */
+    float clearance(float x, float y, float floor) const;
+    void drawArrows(Ui::Renderer& tft);
+    void drawStartRing(Ui::Renderer& tft);
     void drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to);
     void drawAllDots(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
@@ -169,13 +230,26 @@ private:
     uint8_t setCount_ = 0;
     uint8_t setIndex_ = 0;
 
-    static constexpr uint8_t NO_CORNER = 0xFF;
+    /* A word spelled out of an alphabet, laid out in canvas pixels relative
+     * to the canvas's corner. Fixed arrays, filled in place: the tracer never
+     * allocates, and a word is rebuilt on every Next, which is exactly the
+     * churn CLAUDE.md's memory rule is about. */
+    int16_t spelledPts_[MAX_WORD_COORDS] = {};
+    Stroke spelledStrokes_[MAX_STROKES] = {};
+    Glyph spelled_ = {0, spelledStrokes_, 0};
+    /* The scale for every word in the spelled set, and how far down the
+     * canvas the letters' top guide sits. Set by fitSpelledSet(). */
+    float wordScale_ = 1.0f;
+    int16_t wordTop_ = 0;
 
     Pt pts_[MAX_POINTS] = {};
-    /* Which waypoints are turns. A byte each rather than a bitfield: 128
-     * bytes of static RAM against the arithmetic and the off-by-one risk of
-     * packing it, on a device with 250KB spare. */
-    bool corner_[MAX_POINTS] = {};
+    /* Each stroke's waypoints' bounding box, as min x, max x, min y, max y.
+     * Lets the arrow planner skip a stroke nowhere near a candidate instead
+     * of measuring every segment of it -- a printed word is eight strokes and
+     * any one candidate is near one or two. */
+    int16_t strokeBox_[MAX_STROKES][4] = {};
+    Arrow arrows_[MAX_ARROWS] = {};
+    uint8_t arrowCount_ = 0;
     uint8_t strokeStart_[MAX_STROKES] = {};
     uint8_t strokeLen_[MAX_STROKES] = {};
     uint8_t strokeCount_ = 0;
@@ -192,13 +266,6 @@ private:
     bool dirty_ = true;
     bool fullDirty_ = true;
     bool justCompleted_ = false;
-    /* Where the arrow currently is. When it moves the picture changes shape,
-     * so that earns a full repaint -- see render(). Corners are a handful per
-     * glyph, so this is a handful of full repaints per letter. */
-    uint8_t arrowAt_ = NO_CORNER;
-    /* Which arrow is actually on the panel. When this differs from arrowAt_
-     * the arrow has to move, and moveArrow() does it in place. */
-    uint8_t arrowDrawnAt_ = NO_CORNER;
     /* What the panel already shows, so a partial frame can draw only what has
      * appeared since. See the note above render() in the .cpp. */
     uint8_t paintedStroke_ = 0;

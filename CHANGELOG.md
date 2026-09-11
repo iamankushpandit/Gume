@@ -10,6 +10,38 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Trace and Cursive mark each stroke the way a handwriting workbook does.**
+The direction arrow used to sit on the path itself, one at a time, and jump to
+the next turn as the finger reached it. User testing with five-year-olds said
+plainly that it confused them: it covered the dots it was pointing along, and
+it was one more thing moving while they concentrated. Now every stroke has a
+short numbered arrow *beside* it, outside the letter, showing where it starts
+and which way it goes -- all of them visible from the start, the current
+stroke's lit and the rest muted, and none of them moving. Printed letters also
+get an arrow at a sharp reversal such as the top of an A or the points of an
+M; cursive gets none, because a joined letter is loops all the way through. A
+ring on the first dot of the current stroke replaces the numbered badge that
+covered it. Where each arrow goes is measured, not assumed: outside the letter
+if that is clear of every stroke, otherwise a little further along, further
+off, or inside. Finishing a stroke no longer clears the screen -- the ring
+moves and two strokes' arrows recolour in place.
+
+**Trace has a Words tab.** Fifty-four short printed words -- cat, dog, sun,
+the, you -- covering every letter but q, spelled out at runtime from the same
+lowercase letters, so a child writes "cat" with exactly the strokes they
+practised on c, a and t, and the words cost nothing in flash but their
+spelling. Prev moves down to make room for the fourth tab, in Cursive too, so
+it sits in the same place in both games.
+
+**Cursive's words are shorter and a third larger.** Players found the old
+words too small to follow, and they were: every word shares one scale and the
+widest of the old list -- mostly four- and five-letter sight words -- left an
+x-height of about 25 pixels. The new list is forty-nine two- and
+three-letter words a five-year-old knows, and they are drawn at about 35.
+Nothing with a q fits, so q is practised on the abc tab. The generator also
+stopped measuring its group width from the leftmost point of any word to the
+rightmost of any other, which had been shrinking every word by a further 7%.
+
 **`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
 changed.** Ports were identified before the builds and uploaded to after them,
 up to twenty minutes later, and COM numbers move in that time -- a replug, or a

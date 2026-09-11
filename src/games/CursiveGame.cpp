@@ -27,23 +27,32 @@ constexpr AppMetadata CURSIVE_METADATA = {
     true,
 };
 
-/* Two alphabets, no digits: there is no such thing as a cursive 7. The third
- * tab slot is simply left empty -- LetterTracer keeps Prev where it is rather
- * than sliding it up, because a control that moves depending on which game you
- * opened is a control you have to look for. */
-/* Three modes, and the third is the point of cursive.
+/* Two alphabets and words, no digits: there is no such thing as a cursive 7.
+ * The fourth tab slot, which Trace uses, is simply left empty -- LetterTracer
+ * keeps Prev where it is rather than sliding it up, because a control that
+ * moves depending on which game you opened is a control you have to look for.
+ *
+ * Three modes, and the third is the point of cursive.
  *
  * Letters teach the shapes; words are where joining up actually happens, and a
  * child who can draw a lone 'c' still has to learn that 'cat' is one movement
- * across the page. Ten short words, all lowercase, all three letters.
+ * across the page. Short words only, two and three letters: see WORD_WIDTH_CAP
+ * in tools/gen_cursive_glyphs.py for why that is what makes them big enough.
  *
- * The word set traces at a tighter dot spacing. A word is a third of the
- * height of a single letter on the same canvas, so the default 20px would put
- * about two dots on each letter and the guide would stop guiding. */
+ * The word set traces at a tighter dot spacing than a single letter, which
+ * still fills more of the canvas than a whole word does.
+ *
+ * NO TURN ARROWS, ANYWHERE IN CURSIVE. Each stroke gets one numbered arrow
+ * beside its start and nothing more. The arrows that used to appear at every
+ * bend were the first thing players in testing -- five-year-olds, most of
+ * whom had never seen joined writing -- said confused them: a cursive letter
+ * is loops all the way through, and an arrow at each one is noise. The dots
+ * already say where to go next. */
 constexpr LetterTracer::Set CURSIVE_SETS[] = {
-    {"ABC", 0, 26, 0, nullptr, false},
-    {"abc", 26, 26, 0, nullptr, false},
-    {"Words", CURSIVE_WORD_FIRST, CURSIVE_WORD_COUNT, 10, CURSIVE_WORDS, true},
+    {"ABC", 0, 26, 0, nullptr, false, false, LetterTracer::NO_ALPHABET},
+    {"abc", 26, 26, 0, nullptr, false, false, LetterTracer::NO_ALPHABET},
+    {"Words", CURSIVE_WORD_FIRST, CURSIVE_WORD_COUNT, 14, CURSIVE_WORDS, true, false,
+     LetterTracer::NO_ALPHABET},
 };
 
 }   // namespace

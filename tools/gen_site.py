@@ -266,6 +266,7 @@ SCREEN_CAPTIONS = {
     "timezone": "Time zone picker",
     "trace": "Trace: uppercase and digits",
     "trace-lower": "Trace: lowercase",
+    "trace-words": "Trace: printed words",
     "whack": "Whack",
 }
 
@@ -293,7 +294,7 @@ PLAYABLE_STILLS = {
     "numberline": ("numberline",),
     "flags": ("flags-country", "flags-capital"),
     "states": ("states",),
-    "trace": ("trace", "trace-lower"),
+    "trace": ("trace", "trace-lower", "trace-words"),
     "stateflags": ("stateflags",),
     "statemaps": ("statemaps",),
     "percent": ("percent",),
