@@ -138,3 +138,17 @@ confidence and the file should not hide which one it has.
 If the registry and a live banner disagree, the tool prints `!! registry says X,
 board says Y` rather than silently preferring either. Investigate; don't paper
 over it.
+
+The device id carries a second opinion: its prefix (`R40T-...`) is the tag of
+the firmware that first issued it, and it survives a reflash. When that tag
+disagrees with `board=`, the tool marks the port `!! ... probably the wrong
+image` and refuses to flash it -- that is how a 4-inch board running the
+2.8-inch image shows up. Look at the panel, then flash the right environment
+by hand.
+
+**Ports move while a flash is running.** A whole-bench build can take twenty
+minutes, and a replug or a USB power surge renumbers the COM ports in that
+time. That is how a 4-inch board once received the 2.8-inch image. `--flash`
+now asks every port again immediately before its upload and skips any that
+does not give the device id it gave at the start; if you flash by hand, do the
+same.

@@ -290,6 +290,62 @@ def recover_rom_loop(py, esptool, port):
     return False
 
 
+def reconfirm(py, r):
+    """Is the board identified at this port still the one at this port?
+
+    Ports are identified before the builds and uploaded to after them, and a
+    build after a new commit can take twenty minutes. In that window the COM
+    numbers can move -- a board replugged, or Windows dropping every port on a
+    USB power surge and handing the numbers out again in a new order. That is
+    how a 4-inch E32R40T received the 2.8-inch image: it had come back on the
+    port an E32R28T-1 had been identified on, the upload went to the number,
+    and the result was a dark panel with a working speaker.
+
+    So each port is asked again, immediately before its upload, and must give
+    the same device id it gave at the start. None if it did; otherwise why
+    not, and the port is skipped.
+    """
+    reply = query_board(py, r["port"], 2.0) or query_board(py, r["port"], 2.0)
+    if not reply:
+        return "did not answer just before its upload, so it cannot be confirmed"
+    if r.get("device") and reply.get("device") != r["device"]:
+        return ("is now device %s, not the %s identified at the start -- the "
+                "ports moved" % (reply.get("device"), r["device"]))
+    return None
+
+
+def board_tags():
+    """BOARD_NAME -> the idTag its firmware stamps on device ids (`R28T`).
+
+    Derived, not listed: each [board_*] section of platformio.ini names its
+    BOARD_NAME -- what the banner reports -- and its GUME_BOARD_HEADER, and
+    that profile opens with its display name and then its tag. The display
+    name is not used, because for two CYD boards it is not the BOARD_NAME
+    ("ESP32-2432S028R (ILI9341)" against "ESP32-2432S028R").
+    """
+    tags = {}
+    try:
+        with open(os.path.join(ROOT, "platformio.ini"), encoding="utf-8") as f:
+            ini = f.read()
+    except OSError:
+        return tags
+    for body in re.findall(r"^\[board_\w+\](.*?)(?=^\[|\Z)", ini, re.M | re.S):
+        name = re.search(r'BOARD_NAME=\\"([^\\"]+)\\"', body)
+        header = re.search(r'GUME_BOARD_HEADER=\\"([^\\"]+)\\"', body)
+        if not (name and header):
+            continue
+        try:
+            with open(os.path.join(ROOT, "include", header.group(1)),
+                      encoding="utf-8", errors="replace") as f:
+                m = re.search(r'BoardProfile\s+BOARD\s*=\s*\{\s*"[^"]*",\s*"([^"]+)"',
+                              f.read())
+        except OSError:
+            continue
+        if m:
+            tags[name.group(1)] = m.group(1)
+    return tags
+
+
 def head_commit():
     out = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"],
                          cwd=ROOT, capture_output=True, text=True)
@@ -379,6 +435,9 @@ def flash_all(py, esptool, results, boards=None):
     2. UPLOAD to every port at once, one process per port, with `-t nobuild`
        so nothing is rebuilt. Each board is its own USB device on its own
        port, so this is safe; one board failing does not stop the others.
+       Each port is asked again just before its upload and skipped unless it
+       gives the device id it gave at the start (reconfirm()): the builds
+       can take twenty minutes, and COM numbers move in that time.
     3. CHECK each board booted the new build, and bring any that the upload's
        reset left in the ROM boot loop back out of it -- see check_boot().
 
@@ -386,9 +445,10 @@ def flash_all(py, esptool, results, boards=None):
     two agents flashing the bench at the same time is exactly what the lock
     exists to stop, and nothing here changes that.
     """
-    unknown = [r for r in results if r["status"] in ("unknown", "silent")]
+    unknown = [r for r in results if r["status"] in ("unknown", "silent", "mismatch")]
     if unknown and not boards:
-        print("Refusing to flash: %d port(s) unidentified (%s)."
+        print("Refusing to flash: %d port(s) unidentified or not matching "
+              "their device id (%s)."
               % (len(unknown), ", ".join(r["port"] for r in unknown)))
         return 1
     if unknown:
@@ -459,6 +519,11 @@ def flash_all(py, esptool, results, boards=None):
             t0 = time.time()
             procs = []
             for r in uploads:
+                moved = reconfirm(py, r)
+                if moved:
+                    failed.append(r["port"])
+                    print("  ERR %-6s %s -- not flashing it" % (r["port"], moved))
+                    continue
                 log = open(os.path.join(ROOT, ".pio", "upload-%s.log" % r["port"]),
                            "w", encoding="utf-8", errors="replace")
                 p = subprocess.Popen(
@@ -479,7 +544,8 @@ def flash_all(py, esptool, results, boards=None):
             print("=== uploads finished in %ds" % (time.time() - t0))
             # Still under the lock: recovery resets a board, which is exactly
             # the kind of thing another agent must not be doing at the time.
-            flashed = [r for r in uploads if r["port"] not in failed]
+            flashed = [r for r in uploads
+                       if r["port"] not in failed and any(q is r for q, _p, _l in procs)]
             if flashed:
                 failed += check_boot(py, esptool, flashed)
     finally:
@@ -558,6 +624,7 @@ def main():
     args = ap.parse_args()
 
     py, esptool, reg = pio_python(), esptool_py(), load_registry()
+    tags = board_tags()
     skip = reg.get("skip_ports", {})
     results, learned = [], 0
 
@@ -600,6 +667,23 @@ def main():
                 row["conflict"] = ("registry says %s, board says %s"
                                    % (known["board"], banner))
             results.append(row)
+        elif banner and device_id and tags.get(banner) and \
+                device_id.rsplit("-", 1)[0] != tags[banner]:
+            # The id was issued by one model's firmware and the board is
+            # running another's. The banner describes the firmware, not the
+            # panel, so this is a board that was probably flashed with the
+            # wrong image -- exactly the case where trusting the banner would
+            # flash the wrong image again. Neither half proves the hardware,
+            # so neither is picked: the port is refused until someone who can
+            # see the board flashes the right build by hand.
+            results.append({"port": device, "status": "mismatch",
+                            "device": device_id, "chip": chip, "board": banner,
+                            "version": version, "via": via,
+                            "why": "device id %s was issued by %s firmware, but it "
+                                   "is running %s -- probably the wrong image; "
+                                   "check the panel and flash it by hand"
+                                   % (device_id, device_id.rsplit("-", 1)[0],
+                                      banner)})
         elif banner:
             env = env_for_board_name(reg, banner)
             row = {"port": device, "status": "new", "device": device_id,
@@ -655,6 +739,8 @@ def main():
                   % (p, r["chip"] or "?", r.get("why", "did not identify")))
             print("  %s  Not guessing. Flash a candidate build, read the "
                   "banner, then --learn." % (" " * width))
+        elif s == "mismatch":
+            print("  %s  %-20s !! %s" % (p, r["board"], r["why"]))
         else:
             print("  %s  -- %s" % (p, r["why"]))
 
@@ -666,7 +752,7 @@ def main():
     if args.board:
         print("--board only narrows --flash; nothing was flashed.")
 
-    unknown = sum(1 for r in results if r["status"] in ("unknown", "silent"))
+    unknown = sum(1 for r in results if r["status"] in ("unknown", "silent", "mismatch"))
     return 1 if unknown else 0
 
 
