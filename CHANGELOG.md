@@ -10,6 +10,18 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**`ESP32_boardUtil.py --flash` checks that every board booted, and brings a
+stuck 4-inch board back by itself.** The reset at the end of an upload
+regularly left the E32R40T in a ROM boot loop -- `invalid header` or `flash
+read err`, panel dark -- with an intact image in flash. After the uploads, still
+holding the board lock, the tool now asks each board it flashed which build it
+is running, without resetting it. One that is silent and whose serial shows the
+loop gets a reset from download mode (esptool `flash_id` staying in the
+bootloader, then `read_mac` with a hard reset), up to three times, which is
+what had been bringing it back by hand; it writes nothing, and the MAC esptool
+prints is discarded unread. A board still looping is reported as FAILED; one
+running a build other than the commit just built is flagged.
+
 **Nearby stops repainting its list for every beacon it hears.** The peer
 table's change counter moves on every advertisement received, not only when
 something about a peer changed, so with a few consoles in the room the list was
