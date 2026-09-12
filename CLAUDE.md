@@ -571,9 +571,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,557,837 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,557,977 / 3,145,728 bytes,
 **81.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 86,812 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
+at 86,820 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -700,7 +700,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
-| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudio.cpp` | The console's sound vocabulary, and the synthesiser that generates every one of them a sample at a time |
+| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudioCues.cpp` / `BoardAudio.cpp` / `BoardAudioBackend.cpp` | The console's sound vocabulary, the synthesiser that generates every one of them a sample at a time, and the codec/I2S/DAC hardware under it |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
@@ -900,6 +900,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
+  (the cue tables themselves live in `BoardAudioCues.cpp`)
   from a script of oscillator, noise and formant segments. No WAV, no PCM
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
@@ -1173,7 +1174,9 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           BleBeaconPayload (the one description of what goes
                           on air, and decode(), its exact inverse),
                           BleScanner, BoardAccess facades,
-                          per-concern HAL units, BoardAudio (the synthesiser),
+                          per-concern HAL units, BoardAudio (the synthesiser) +
+                          BoardAudioBackend (codec, I2S, amp) + BoardAudioCues
+                          (every cue and the spoken phrase),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage

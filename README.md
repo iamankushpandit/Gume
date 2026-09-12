@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 38 |
-| Flash | 2,557,837 / 3,145,728 bytes (**81.3%**) |
-| RAM | 86,812 / 327,680 bytes (**26.5%**) |
+| Flash | 2,557,977 / 3,145,728 bytes (**81.3%**) |
+| RAM | 86,820 / 327,680 bytes (**26.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1373,7 +1373,9 @@ src/
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
-    BoardAudio.cpp      the whole sound engine: cues and the spoken phrase
+    BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
+    BoardAudioBackend.cpp  the hardware under it: codec, I2S, amp, DAC idle
+    BoardAudioCues.cpp  the vocabulary: every cue, and the spoken phrase
     Sound.h             the console's sound vocabulary, as an enum
     BoardStorage.cpp    schema migration + app-scoped NVS keys
     BoardStorageMaintenance.cpp  profile moves + NVS telemetry
