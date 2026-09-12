@@ -113,6 +113,7 @@ public:
     const char* nearbySelfId() override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;
+    uint32_t nearbyPeerSilentMs(const char* deviceId) override;
     void openSettings() override;
     void openWifi() override;
     void openProfiles() override;

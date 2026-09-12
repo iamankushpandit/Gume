@@ -39,6 +39,9 @@ struct NearbySeat {
      * travels with the invitation so there is nothing to negotiate. Every
      * two-player game needs this and none of them should be inventing it. */
     bool weMoveFirst = false;
+    /* Milliseconds since this console was last heard. A lobby can grey a row
+     * that is on its way out of range; mid-game, use nearbyPeerSilentMs(). */
+    uint32_t silentMs = 0;
 };
 
 /* The opponent's latest move, as heard on the air. `ack` is the highest ply of
@@ -124,6 +127,13 @@ public:
     /** The named peer's latest move in `session`, if it has one on the air. */
     virtual bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                                 NearbyTurn& out) = 0;
+    /* Milliseconds since the named console was last heard, or
+     * NearbyPlay::PEER_SILENT_UNKNOWN once it has been out of earshot long
+     * enough to be forgotten. A game mid-session should pause past
+     * NearbyPlay::PEER_QUIET_MS and say so -- a flat battery cannot send
+     * anything, so this silence is the only notice anyone gets. Cheap enough
+     * to ask every frame. */
+    virtual uint32_t nearbyPeerSilentMs(const char* deviceId) = 0;
     /* This console's own tag, as its peers see it -- the four hex digits it
      * already advertises about itself -- or "" while sessions are not allowed.
      * A game with more than two seats needs it to put every console, itself

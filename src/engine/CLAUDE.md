@@ -55,6 +55,21 @@ anything: `NearbySeat::forThisGame` compares the game an invitation names
 here, and `selfId()` returns this console's own advertised tag so every console
 at a table can order it alike.
 
+**A peer that stops talking is the service's business too.** `peerSilentMs()`
+answers "how long since we heard this console", and `NearbySeat::silentMs`
+carries the same number to a lobby. It is `Known::lastSeenMs`, copied off the
+scanner's sighting in `recordSession()` -- nothing goes on the air for it. It
+exists because the second way a two-player game ends never arrives as a
+message: a flat battery or a child walking off cannot send `nearbyEnd()`, and
+before this every nearby game sat on "their turn" forever, saying nothing.
+`PEER_QUIET_MS` (6s, several missed scan windows rather than one) is the shared
+threshold past which a game pauses and says so; `PEER_SILENT_UNKNOWN` is
+returned once the scanner has dropped the peer at `SIGHTING_TTL_MS`, which is
+where "a short pause" becomes "a choice". Read it every frame -- it is a walk
+over at most eight entries. Never lower the threshold below a few scan
+intervals: the scanner listens 300ms in 900, so silence of a second or two is
+ordinary.
+
 Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the header notifications. `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
 
 - **Off by default, and gated on the beacon.** `tick()` re-derives `board.nearbyEnabled() && BleBeacon::enabled()` every frame rather than relying on an ordering contract with Settings, so the feature follows the radio in both directions. Both reads are from RAM.
