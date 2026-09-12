@@ -448,8 +448,31 @@ void WifiGame::renderDynamic(GameHost& host) {
                           Ui::outline());
 
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(hasCreds ? ssid : String("No saved network"), baseX(14), baseY(48), 2);
-        Ui::drawWifiBadge(tft, baseX(296), baseY(54), Ui::bg());
+        const String ssidText = hasCreds ? ssid : String("No saved network");
+        tft.drawString(ssidText, baseX(14), baseY(48), 2);
+        /* Measured off the text it belongs to, exactly like the sync badge on
+         * the TIME row below -- the same fault, fixed the same way. Pinned at
+         * baseX(296) it sat alone against the right-hand edge with the whole
+         * width of the row empty between it and the SSID, which reads as an
+         * icon adrift rather than as this network's signal; it was reported
+         * off the panel as "hanging in air", and it is plainly visible in
+         * docs/screens/network-time.png, which is the check that should have
+         * caught it. Portrait made it worse without causing it: baseX and
+         * baseY stretch each axis independently, so the anchor moved a further
+         * quarter left and a third down while the glyph stayed a fixed 15px.
+         *
+         * The badge is a fixed-size glyph, so it centres on the text's own
+         * centre line rather than on a stretched y -- font 2 is 16px tall,
+         * drawn here from a TL datum. Clamped at the right so a long SSID
+         * cannot push it off the panel; the not-connected slash reaches
+         * cx +/- 7. */
+        const int16_t ssidMidY = static_cast<int16_t>(baseY(48) + 8);
+        const int16_t wifiBadgeLimit = static_cast<int16_t>(panelW_ - 8 - 7);
+        const int16_t wifiBadgeCx =
+            static_cast<int16_t>(baseX(14) + tft.textWidth(ssidText, 2) + 14);
+        Ui::drawWifiBadge(tft,
+                          wifiBadgeCx < wifiBadgeLimit ? wifiBadgeCx : wifiBadgeLimit,
+                          ssidMidY, Ui::bg());
 
         Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
         Ui::drawButton(tft, baseRect(166, 64, 140, 30), hasCreds ? "Forget" : "---",

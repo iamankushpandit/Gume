@@ -10,6 +10,15 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**The Wi-Fi badge no longer floats away from the network it describes.** On
+the Wi-Fi screen it was pinned at the right-hand edge of the design while the
+SSID was left-aligned, so it sat alone with the width of the row empty between
+them -- it was reported off the panel as an icon hanging in air, and portrait
+made it worse, because that screen stretches a 320x240 design onto the panel
+one axis at a time while the glyph stays a fixed 15px. It is now placed off
+the measured width of the SSID and clamped at the right, which is what the
+sync badge on the row below already did.
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its
