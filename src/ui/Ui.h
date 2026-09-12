@@ -88,13 +88,32 @@ int16_t logoWidth(Logo which = Logo::Badge);
 int16_t logoHeight(Logo which = Logo::Badge);
 int16_t logoCentre(Logo which = Logo::Badge);
 
+/* ONE HEIGHT FOR EVERY STATUS GLYPH IN A HEADER ROW. The sync dot, the Wi-Fi
+ * fan and the Bluetooth rune are all drawn inside a box this tall, centred on
+ * the `cy` they are given. They were 13, 13 and 17 once, chosen separately,
+ * and a row of icons that do not share a height reads as a mistake however
+ * good each one is on its own.
+ *
+ * The battery badge is the deliberate exception: it is a shell containing a
+ * number rather than a glyph, and it needs two more pixels for the digits to
+ * be legible. Everything else in that row matches this. */
+constexpr int16_t BADGE_H = 13;
+
+/* And ONE SIZE FOR EVERY TAPPABLE GLYPH IN THE BAR -- the padlock, the
+ * speaker and the gear. The gear was 26x24 beside an 18px padlock, so the two
+ * controls sitting four pixels apart were different sizes for no reason a
+ * user could see; shrinking it also paid for eight of the pixels the speaker
+ * costs. TOUCH_HIT_SLOP widens all three targets equally, so a smaller glyph
+ * is not a smaller thing to hit. */
+constexpr int16_t CONTROL_H = 18;
+
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
  * warning dot when it is still the free-running build-time estimate. Drawn at
- * (cx, cy) as a centre point; about 12px across. */
+ * (cx, cy) as a centre point; BADGE_H across. */
 void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg);
 
 /* Wi-Fi state beside the clock: signal arcs when associated, greyed with a red
- * slash when not. Centred on (cx, cy), about 16px across. */
+ * slash when not. Centred on (cx, cy), BADGE_H tall. */
 void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
 /* Battery beside Wi-Fi: a battery shell holding the percentage as numerals,
@@ -122,6 +141,17 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent);
  * shade, and that is the one question this icon exists to answer at a glance.
  * Centred on (cx, cy), 10x16. */
 void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
+
+/* Sound, as a CONTROL rather than an indicator: one tap mutes or unmutes the
+ * console from wherever the player is, which before this meant leaving the
+ * game, opening Settings, finding the Sound tab and being the admin.
+ *
+ * It always shows the state it is in -- waves when sound is on, a slash when
+ * it is muted -- because a toggle that looks the same either way makes the
+ * question "is it muted?" answerable only by making a noise, which is the one
+ * thing you cannot do in the room where somebody muted it. Drawn to
+ * CONTROL_H, ink from `bg` like every other glyph up there. */
+void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour);
 
 /* Transient notification strip, painted over the top of whatever header is
  * already there. Nearby play raises these when another console arrives or

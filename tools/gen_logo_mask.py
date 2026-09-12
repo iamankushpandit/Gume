@@ -87,9 +87,21 @@ MARKS = [
 # It is TM and not (R): (R) means a registered mark, and claiming registration
 # that does not exist is a misrepresentation in most places that have a
 # register. TM claims common-law rights and needs no filing.
-TM_HEIGHT = 0.30        # of the wordmark's own ink height
-TM_GAP = 0.06           # of that height again, between the name and the sign
-TM_MIN_PX = 5           # below this it is a smudge; it does not shrink further
+#
+# It is small and light, and on the marks too small to carry one it is ABSENT
+# rather than shrunk. The first attempt set it bold at 30% of the name's height
+# with a 5px floor, and it was reported off the device as horrible: at that
+# weight the two letters merge into a blob, and at the floor a "TM" is four
+# pixels of ink that reads as dirt on the panel rather than as a sign. A trade
+# mark claim is made by the prominent use of the mark; it does not have to be
+# repeated on every instance, and one rendered illegibly claims nothing while
+# making the artwork look broken.
+TM_HEIGHT = 0.22        # of the wordmark's own ink height
+TM_GAP = 0.08           # of that height again, between the name and the sign
+TM_MIN_PX = 6           # below this it is a smudge -- the sign is OMITTED
+# Regular weight, not bold. The name is heavy already; a bold sign beside it
+# competes with the letter it hangs off.
+TM_FONTS = ("consola.ttf", "arial.ttf", "seguisb.ttf")
 
 # Supersampling for the fill. 4x4 is enough that the thin strokes inside the
 # brain -- about two pixels wide at this size -- come out even rather than
@@ -290,13 +302,18 @@ def stamp_tm(mask, word_top_row):
     ink_right = cols[-1]
     word_h = ink_bottom - ink_top + 1
 
-    size = max(TM_MIN_PX, int(round(word_h * TM_HEIGHT)))
+    size = int(round(word_h * TM_HEIGHT))
+    if size < TM_MIN_PX:
+        # Too small to be read as a sign. Leave it off rather than stamping
+        # something that reads as a fault in the artwork; the big marks carry
+        # the claim.
+        return mask
     gap = max(1, int(round(word_h * TM_GAP)))
-    # Rendered through PIL rather than hand-plotted: at five pixels a drawn T
+    # Rendered through PIL rather than hand-plotted: at this size a drawn T
     # and M are the same thing a font gives, and the font stays legible as the
     # mark grows.
     font = None
-    for name in ("consolab.ttf", "consola.ttf", "arialbd.ttf"):
+    for name in TM_FONTS:
         try:
             font = ImageFont.truetype(name, size * 2)
             break

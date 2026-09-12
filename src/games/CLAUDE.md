@@ -320,6 +320,49 @@ who has never held a pencil to joined writing would read it.
   `WORD_WIDTH_CAP` -- the cap is what sets how big every word is drawn, and a
   listed word over it fails the script rather than quietly vanishing.
 
+## Cinnamon
+
+The reference for partial redraw, and -- since 5.10.0 -- no longer the one
+screen that ignores the owner's theme. It used to call `Ui::setTheme(Light)` at
+the top of each render half and restore the palette at the bottom, which is why
+entering it from a dark launcher flashed white.
+
+**Do not reintroduce that.** The theme is global state in `Ui`, and the two
+halves are two calls: on a partial repaint `renderStatic()` does not run at
+all, so a force in one and a restore in the other leaves the whole firmware
+drawing in this screen's palette. What made the forcing look necessary was two
+hard-coded colours inside `drawPad()` -- a black ring and a grey outline, both
+invisible on a dark ground -- and those are `Ui::text()` and `Ui::outline()`
+now. The four pad hues stay fixed on purpose: they are the game, the way a
+traffic light is not themeable, and they are fills rather than text, so nothing
+has to be read off them.
+
+## Settings repaints one control, not the tab
+
+`SettingsGame` keeps a `dirtyRect_`. A handler calls `markControl(rect)` with
+**the same Rect the control was drawn from**, and `renderDynamic()` clips the
+repaint to it with `setViewport`, then re-runs the tab renderer whole. The
+renderers are idempotent, so everything outside the box is drawn and discarded
+by the clip -- which is what lets a control be repainted without any renderer
+knowing it is being repainted alone.
+
+An empty rect means the whole body, and that is right for a tab change, a
+rotation, the first paint, and for the few changes that genuinely alter the
+tab: muting greys every other control on the Sound tab, and the Power tab's
+rows restate themselves in the footnote below. Those use plain `markDirty()`
+rather than `markFullDirty()`, because the top bar and the tab strip above the
+body did not change and repainting them costs a battery read.
+
+Two things to know before adding a control:
+
+- **Never type in a rectangle.** Derive it from the control's own helper, or
+  the clear box and the drawing will drift apart -- the failure the root
+  `CLAUDE.md` describes at length.
+- **A change that alters something OTHER than the control you touched has to
+  say so.** Disarming the factory-reset confirmation changes the reset row's
+  label from a tap somewhere else entirely; the old whole-body clear covered
+  that by accident and a clipped repaint does not.
+
 ## Shared data
 
 - `CountryData.{h,cpp}`: 195 countries: ISO2, capital, continent, difficulty tier.

@@ -158,7 +158,32 @@ def lock_icon(d, r, color=None, bg=None):
                  cx + max(1, key_r // 2) - 1, key_cy + body_h // 3], fill=bg)
 
 
-def topbar(d, title, synced=True, bars=3):
+CONTROL_H = 18   # Ui::CONTROL_H -- padlock, speaker and gear all this size
+
+
+def speaker_icon(d, r, muted, colour):
+    """Mirrors Ui::drawSpeakerIcon: body, cone, then waves or a slash."""
+    x, y, w, h = r
+    cx, cy = x + w // 2, y + h // 2
+    body_w, body_h = h * 3 // 16, h * 6 // 16
+    cone_w, cone_h = h * 4 // 16, h * 12 // 16
+    left = cx - h * 6 // 16
+    d.rectangle([left, cy - body_h // 2, left + body_w - 1, cy + body_h // 2 - 1],
+                fill=colour)
+    cone_x = left + body_w
+    d.polygon([(cone_x, cy - body_h // 2), (cone_x, cy + body_h // 2),
+               (cone_x + cone_w, cy + cone_h // 2), (cone_x + cone_w, cy - cone_h // 2)],
+              fill=colour)
+    if muted:
+        d.line([(x + 1, y + 1), (x + w - 3, y + h - 1)], fill=colour, width=2)
+        return
+    wave_x = cone_x + cone_w + 1
+    for band in range(2):
+        rad = 2 + band * 3
+        d.arc([wave_x - rad, cy - rad, wave_x + rad, cy + rad], -60, 60, fill=colour)
+
+
+def topbar(d, title, synced=True, bars=3, muted=False):
     d.rectangle([0, 0, W - 1, 29], fill=BAR)
     d.line([(0, 0), (W, 0)], fill=shade(BAR, 145))
     d.line([(0, 29), (W, 29)], fill=shade(BAR, 60))
@@ -166,19 +191,32 @@ def topbar(d, title, synced=True, bars=3):
     # title starts at 62 instead of 48. See LauncherLayout.
     d.rounded_rectangle([2, 5, 30, 24], 3, outline=BAR_TEXT)
     d.text((5, 9), "home", font=F1, fill=BAR_TEXT)
-    lock_icon(d, (40, 6, 18, 18), BAR_TEXT, BAR)
-    d.text((62, 8), title, font=F2, fill=BAR_TEXT)
+    lock_icon(d, (40, 6, CONTROL_H, CONTROL_H), BAR_TEXT, BAR)
+    # Mute, right of the padlock; the title starts after it now.
+    speaker_icon(d, (64, 6, CONTROL_H, CONTROL_H), muted, BAR_TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
-    batt_right = W - 40
+    batt_right = W - 8 - CONTROL_H - 6
     wifi_cx = batt_right - batt_w - 6 - 8
     sync_cx = wifi_cx - 8 - 6 - 6
     clock_right = sync_cx - 12
+    # TRUNCATE THE TITLE, as Ui::drawTopBar does. The mock used to draw it
+    # whole and let it run straight through the clock, so a bar that does not
+    # fit on the panel looked fine here -- exactly the kind of lie a mock-up
+    # is not allowed to tell.
+    title_left = 86
+    title_max = max(32, int(clock_right - d.textlength(t, font=F2)) - title_left - 4)
+    fitted = title
+    while len(fitted) > 2 and d.textlength(fitted, font=F2) > title_max:
+        fitted = fitted[:-1]
+    d.text((title_left, 8), fitted, font=F2, fill=BAR_TEXT)
     d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=BAR_TEXT)
     sync_badge(d, sync_cx, 15, synced)
     wifi_badge(d, wifi_cx, 15, bars)
     battery_badge(d, batt_right - batt_w // 2, 15, 72)
-    d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
+    # The gear is CONTROL_H now, like the padlock and the speaker beside it.
+    d.ellipse([W - 8 - CONTROL_H, (30 - CONTROL_H) // 2,
+               W - 8, (30 - CONTROL_H) // 2 + CONTROL_H], outline=BAR_TEXT)
 
 
 BATT_H, BATT_PAD, BATT_TERM_W = 15, 3, 2
@@ -226,13 +264,21 @@ def battery_badge(d, cx, cy, pct=72):
         d.text((penx, cy - 6), text, font=F1, fill=out)
 
 
-def ble_badge(d, cx, cy):
-    """Mirrors Ui::drawBleBadge -- one polyline through six points, 10x16."""
-    x0, y0 = cx - 5, cy - 8
-    px = [0, 10, 5, 5, 10, 0]
-    py = [4, 11, 16, 0, 5, 12]
+BADGE_H = 13    # Ui::BADGE_H -- one height for every status glyph in a header
+
+
+def ble_badge(d, cx, cy, bg=None):
+    """Mirrors Ui::drawBleBadge -- one polyline through six points, 9x14.
+
+    Takes the ink of what it sits on, like the rest of the header. It was
+    Bluetooth's own blue, which no palette chose.
+    """
+    x0, y0 = cx - 4, cy - BADGE_H // 2
+    px = [0, 8, 4, 4, 8, 0]
+    py = [3, 9, 13, 0, 4, 10]
+    ink = on_fill(bg if bg is not None else BG)
     for off in (0, 1):
-        d.line([(x0 + px[i] + off, y0 + py[i]) for i in range(6)], fill=BLUE)
+        d.line([(x0 + px[i] + off, y0 + py[i]) for i in range(6)], fill=ink)
 
 
 def art(sym):
@@ -1345,15 +1391,20 @@ def fingers_show():
 
 
 def cinnamon():
-    im = Image.new("RGB", (W, H), (245, 245, 248)); d = ImageDraw.Draw(im)
-    d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
-    d.text((48, 8), "Cinnamon Says", font=F2, fill=TEXT)
-    d.rounded_rectangle([6, 5, 38, 24], 3, outline=MUTED)
-    d.text((11, 9), "home", font=F1, fill=MUTED)
-    d.text((10, 34), "Score 4", font=F2, fill=(30, 30, 36))
-    d.text((W - 10 - d.textlength("Best 9", font=F2), 34), "Best 9", font=F2, fill=(30, 30, 36))
+    """Cinnamon Says -- and it honours the theme now.
+
+    It used to force Ui::Theme::Light for the whole of each render half, so
+    this mock hard-coded a white ground and a black ring to match. Both are
+    palette colours again: the ring is Ui::text(), the unlit outline is
+    Ui::outline(), and the four pad hues stay fixed because they are the
+    game rather than decoration.
+    """
+    im, d = blank()
+    topbar(d, "Cinnamon Says")
+    d.text((10, 34), "Score 4", font=F2, fill=TEXT)
+    d.text((W - 10 - d.textlength("Best 9", font=F2), 34), "Best 9", font=F2, fill=TEXT)
     st = "Watch"
-    d.text((W / 2 - d.textlength(st, font=F2) / 2, 52), st, font=F2, fill=(30, 30, 36))
+    d.text((W / 2 - d.textlength(st, font=F2) / 2, 52), st, font=F2, fill=TEXT)
     lit = [False, True, False, False]
     cols_lit = [(248, 0, 0), (0, 130, 255), (0, 230, 60), (255, 240, 0)]
     cols_dim = [(96, 0, 0), (0, 0, 70), (0, 70, 0), (128, 110, 0)]
@@ -1363,7 +1414,9 @@ def cinnamon():
         d.rounded_rectangle([x, y, x + 112, y + 54], 8,
                             fill=cols_lit[i] if lit[i] else cols_dim[i])
         if lit[i]:
-            d.rounded_rectangle([x - 3, y - 3, x + 115, y + 57], 11, outline=(0, 0, 0), width=2)
+            d.rounded_rectangle([x - 3, y - 3, x + 115, y + 57], 11, outline=TEXT, width=2)
+        else:
+            d.rounded_rectangle([x, y, x + 112, y + 54], 8, outline=OUTLINE)
     return im
 
 
@@ -1444,11 +1497,13 @@ def launcher_wide():
     sync_cx = wifi_cx - 8 - 6 - 6
     sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
     battery_badge(d, batt_right - batt_w // 2, 34)
-    d.line([(W - 138, 8), (W - 138, 40)], fill=OUTLINE)
-    d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
+    # Third move: lW-116 -> lW-138 for Lock -> lW-160 for mute.
+    d.line([(W - 160, 8), (W - 160, 40)], fill=OUTLINE)
+    d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)   # gearRect(), unchanged
     # Lock at the left-hand end of the badge row, inside the hairline, at badge
     # size. See LauncherLayout::lockRect().
-    lock_icon(d, (W - 136, 25, 18, 18))
+    lock_icon(d, (W - 158, 25, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (W - 136, 25, CONTROL_H, CONTROL_H), False, TEXT)
     tiles = front_page_tiles(6)
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub) in enumerate(tiles):
@@ -1487,7 +1542,8 @@ def launcher_tall_dense():
     sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
     battery_badge(d, bx + 40 + batt_w // 2, 60)
     d.ellipse([w - 32, 48, w - 8, 72], outline=TEXT)
-    lock_icon(d, (w - 64, 51, 18, 18))
+    lock_icon(d, (w - 64, 51, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (w - 96, 32, CONTROL_H, CONTROL_H), False, TEXT)
 
     gap, header_h, footer_h, cols, rows_n = 8, 78, 32, 3, 3
     tile_w = (w - gap * (cols + 1)) // cols
@@ -1536,7 +1592,9 @@ def launcher_tall():
     battery_badge(d, batt_left + batt_w // 2, 60)
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
-    lock_icon(d, (176, 51, 18, 18))
+    lock_icon(d, (176, 51, CONTROL_H, CONTROL_H))
+    # Profile-name row: at 240px the badge row is full by x=155.
+    speaker_icon(d, (240 - 96, 32, CONTROL_H, CONTROL_H), False, TEXT)
     _fills = (BLUE, GREEN, RED, BLUE)
     tiles = [(t, sub, _fills[i % 4])
              for i, (t, sub) in enumerate(front_page_tiles(4))]
@@ -1617,10 +1675,10 @@ def settings_device():
     pad, span = 11, r[2] - 22
     fill = int((80 - 25) / 75 * span)
     d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + span, cy + 4], 4, fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=BLUE)
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=ACCENT)
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
-    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
     return im
 
 
@@ -1722,12 +1780,15 @@ def settings_sound():
     fill = int(70 / 85 * span)          # value / AUDIO_VOLUME_MAX
     d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + span, cy + 4], 4,
                         fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=BLUE)
+    # ACCENT, not a chosen blue -- Ui::drawSlider and SettingsPanels both take
+    # the theme's colour. The mock showed blue on all nine, which is how the
+    # slider's own hard-coded blue survived the pass that fixed the buttons.
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=ACCENT)
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
-    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
-    button(d, (8, 148, 144, 30), "Test sound", BLUE, WHITE)
-    button(d, (164, 148, 144, 30), "Say hello", BLUE, WHITE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
+    button(d, (8, 148, 144, 30), "Test sound", ACCENT, on_fill(ACCENT))
+    button(d, (164, 148, 144, 30), "Say hello", ACCENT, on_fill(ACCENT))
     d.text((8, 190), "Volume is capped for young ears.", font=F1, fill=MUTED)
     d.text((8, 206), "Every sound is made by the device, not a file.",
            font=F1, fill=MUTED)
@@ -1843,7 +1904,7 @@ def network_time():
     d.line([(52, 41), (306, 41)], fill=OUTLINE)
     d.text((14, 44), "DextersLab", font=F2, fill=TEXT)
     wifi_badge(d, 296, 54, 3)
-    button(d, (14, 64, 140, 30), "Scan Wi-Fi", BLUE, WHITE)
+    button(d, (14, 64, 140, 30), "Scan Wi-Fi", ACCENT, on_fill(ACCENT))
     button(d, (166, 64, 140, 30), "Forget")
     d.text((14, 102), "TIME", font=F1, fill=MUTED)
     d.line([(48, 109), (306, 109)], fill=OUTLINE)
@@ -1866,7 +1927,7 @@ def timezone_picker():
     for i, z in enumerate(zones):
         y = 46 + i * 28
         sel = (z == "US Central")
-        d.rounded_rectangle([8, y, 311, y + 25], 4, fill=BLUE if sel else SURFACE, outline=OUTLINE)
+        d.rounded_rectangle([8, y, 311, y + 25], 4, fill=ACCENT if sel else SURFACE, outline=OUTLINE)
         d.text((18, y + 6), z, font=F2, fill=WHITE if sel else TEXT)
     button(d, (8, 208, 90, 26), "Prev")
     button(d, (106, 208, 108, 26), "Cancel")
@@ -2844,7 +2905,7 @@ def scores_mine():
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
-    button(d, (104, 208, 112, 26), "Switch player", BLUE, WHITE, F2)
+    button(d, (104, 208, 112, 26), "Switch player", ACCENT, on_fill(ACCENT), F2)
     button(d, (224, 208, 88, 26), "Next")
     return im
 
@@ -2883,7 +2944,7 @@ def scores_device():
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
-    button(d, (104, 208, 112, 26), "Switch player", BLUE, WHITE, F2)
+    button(d, (104, 208, 112, 26), "Switch player", ACCENT, on_fill(ACCENT), F2)
     button(d, (224, 208, 88, 26), "Next")
     return im
 
@@ -2905,7 +2966,7 @@ def profiles_pick():
         y = 60 + i * 25
         slot_w = W - 22 - 62
         # Profile slot
-        d.rounded_rectangle([8, y, 8 + slot_w, y + 23], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
+        d.rounded_rectangle([8, y, 8 + slot_w, y + 23], 4, fill=PANEL if prof != "Alice" else ACCENT, outline=OUTLINE)
         d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 23 / 2 - 6),
                prof, font=F2, fill=WHITE if prof == "Alice" else TEXT)
         # Edit button for non-Guest
@@ -3019,7 +3080,7 @@ def dice():
     for i, label in enumerate("123"):
         on = label == "3"
         button(d, (86 + i * 52, 46, 44, 26), label,
-               BLUE if on else PANEL, WHITE if on else TEXT)
+               ACCENT if on else PANEL, on_fill(ACCENT) if on else TEXT)
 
     faces = (5, 2, 6)
     span = 3 * 68 + 2 * 14
@@ -3049,7 +3110,7 @@ def coinflip():
     for i, label in enumerate("135"):
         on = label == "5"
         button(d, (86 + i * 52, 46, 44, 26), label,
-               BLUE if on else PANEL, WHITE if on else TEXT)
+               ACCENT if on else PANEL, on_fill(ACCENT) if on else TEXT)
 
     # The settled coin: full width, so it carries a readable face.
     d.ellipse([126, 82, 194, 150], fill=COIN_FACE, outline=COIN_EDGE)
@@ -3261,7 +3322,13 @@ THEME_SHEET_SCREENS = (
     "launcher-tall",        # PORTRAIT: a different header and a 2x2 grid
     "launcher-tall-dense",  # PORTRAIT on a big panel: the 3x3 grid
     "about-intro",          # a card of body text, the mark
+    # EVERY Settings tab, not just the first. They are four different layouts
+    # -- toggles, a slider, a PIN pad -- and only Device was ever looked at.
     "settings-device",      # controls on a card
+    "settings-power",       # rows that go inert, so two ink weights at once
+    "settings-sound",       # a slider and its track
+    "settings-admin",       # destructive actions, the error colour
+    "settings-pin",         # a keypad and its dots
     "systeminfo-memory",    # dense rows, meters, muted labels
     "scores",               # a list with values
     "math",                 # a game: big text and answer buttons

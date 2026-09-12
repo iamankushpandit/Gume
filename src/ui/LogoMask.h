@@ -15,28 +15,28 @@
  * mark now. Ui::drawLogo() picks between them. */
 namespace LogoMask {
 
-constexpr int16_t BADGE_WIDTH = 113;
+constexpr int16_t BADGE_WIDTH = 109;
 constexpr int16_t BADGE_CENTRE = 46;
 constexpr int16_t BADGE_HEIGHT = 118;
-constexpr int16_t BADGE_BYTES_PER_ROW = 15;
+constexpr int16_t BADGE_BYTES_PER_ROW = 14;
 extern const uint8_t BADGE_BITS[BADGE_HEIGHT][BADGE_BYTES_PER_ROW];
 
-constexpr int16_t BADGE_MID_WIDTH = 63;
+constexpr int16_t BADGE_MID_WIDTH = 50;
 constexpr int16_t BADGE_MID_CENTRE = 24;
 constexpr int16_t BADGE_MID_HEIGHT = 64;
-constexpr int16_t BADGE_MID_BYTES_PER_ROW = 8;
+constexpr int16_t BADGE_MID_BYTES_PER_ROW = 7;
 extern const uint8_t BADGE_MID_BITS[BADGE_MID_HEIGHT][BADGE_MID_BYTES_PER_ROW];
 
-constexpr int16_t WORD_WIDTH = 107;
+constexpr int16_t WORD_WIDTH = 103;
 constexpr int16_t WORD_CENTRE = 43;
 constexpr int16_t WORD_HEIGHT = 26;
-constexpr int16_t WORD_BYTES_PER_ROW = 14;
+constexpr int16_t WORD_BYTES_PER_ROW = 13;
 extern const uint8_t WORD_BITS[WORD_HEIGHT][WORD_BYTES_PER_ROW];
 
-constexpr int16_t WORD_SMALL_WIDTH = 66;
-constexpr int16_t WORD_SMALL_CENTRE = 26;
+constexpr int16_t WORD_SMALL_WIDTH = 53;
+constexpr int16_t WORD_SMALL_CENTRE = 15;
 constexpr int16_t WORD_SMALL_HEIGHT = 16;
-constexpr int16_t WORD_SMALL_BYTES_PER_ROW = 9;
+constexpr int16_t WORD_SMALL_BYTES_PER_ROW = 7;
 extern const uint8_t WORD_SMALL_BITS[WORD_SMALL_HEIGHT][WORD_SMALL_BYTES_PER_ROW];
 
 constexpr int16_t ICON_WIDTH = 24;

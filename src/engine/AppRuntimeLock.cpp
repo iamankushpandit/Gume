@@ -157,6 +157,43 @@ Rect BrainoApp::activeLockRect() {
     return LauncherLayout::topBarLockRect(static_cast<int16_t>(renderer_.width()));
 }
 
+Rect BrainoApp::activeSpeakerRect() {
+    if (activeGame_ == &launcher_) {
+        return LauncherLayout::speakerRect(board_.layoutMode(), renderer_.width());
+    }
+    return LauncherLayout::topBarSpeakerRect(static_cast<int16_t>(renderer_.width()));
+}
+
+/* MUTE IS NOT ADMIN-ONLY, and that is deliberate.
+ *
+ * Every other route to this setting is: Settings is readable by everyone and
+ * writable only by the admin. But the reason sound is a device setting rather
+ * than a per-profile one is already written down -- "the speaker belongs to
+ * whoever is in the room" -- and the room is exactly who needs this. A parent
+ * on a phone call, a child on a bus, a sibling asleep: none of them has the
+ * PIN to hand, and the alternative to a tap is taking the console away.
+ *
+ * It is also the safest thing on the device to give away. It changes nothing
+ * a player could not change by turning the volume down to nothing, it is
+ * instantly and obviously reversible by the same tap, and its state is on
+ * screen. Do not gate it later without saying what threat that answers. */
+void BrainoApp::toggleMute() {
+    const bool on = !board_.soundEnabled();
+    board_.setSoundEnabled(on);
+    /* Unmuting says so out loud -- the same reasoning as the Settings switch:
+     * a silence control whose only feedback is its own glyph leaves you
+     * pressing it twice to find out which way round it is. Muting is silent,
+     * obviously, and the RGB pulse is not gated so it still answers. */
+    if (on) {
+        board_.playSound(Sound::Select);
+    } else {
+        board_.pulseRgb(120, 120, 130, 220);
+    }
+    /* The glyph changed and nothing else did: an eighth of the panel, not all
+     * of it. This is the invalidation rule's whole point. */
+    requestChromeRender();
+}
+
 /* The deliberate way in. Everything else here is reached by a timeout; this is
  * reached by a child, a parent or a bag being packed. */
 void BrainoApp::lockAndSleepNow() {

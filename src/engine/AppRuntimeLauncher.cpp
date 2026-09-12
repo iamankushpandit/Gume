@@ -280,13 +280,14 @@ void LauncherGame::drawHeader(GameHost& host) {
                              14, Ui::surface());
         }
         /* Packed to the pixel, and now measured rather than assumed. The row
-         * runs from the hairline at lW-138 to the gear at lW-30, and carries
-         * the Lock badge at its left-hand end. In the widest state -- "100",
+         * runs from the hairline at lW-160 to the gear at lW-30, and carries
+         * the Lock badge and the mute control at its left-hand end. In the widest state -- "100",
          * narrower now there is no charging bolt -- the three status badges plus their gaps come
          * to 81px, the padlock and its gap take another 25, and what is left
          * is a few pixels. Anything else that wants to live on this row has to
          * earn it. The hairline has moved out twice, lW-110 to lW-116 to lW-138,
-         * and profileRect()'s right limit moved with it both times. */
+         * lW-110 to lW-116 to lW-138 to lW-160, and profileRect()'s right
+         * limit moved with it every time. */
         const int8_t battPct = board.getBatteryPercent();
         const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
         const int16_t battRight = static_cast<int16_t>(lW - 36);
@@ -296,7 +297,7 @@ void LauncherGame::drawHeader(GameHost& host) {
         Ui::drawWifiBadge(tft, wifiCx, 34, Ui::surface());
         Ui::drawBatteryBadge(tft, static_cast<int16_t>(battRight - battW / 2), 34,
                              battPct, Ui::surface());
-        tft.drawFastVLine(static_cast<int16_t>(lW - 138), 8, 32, Ui::outline());
+        tft.drawFastVLine(static_cast<int16_t>(lW - 160), 8, 32, Ui::outline());
     }
     Ui::drawGearIcon(tft, gearBtn, Ui::text());
     /* The launcher draws no top bar, so it carries its own Lock button. The
@@ -304,6 +305,12 @@ void LauncherGame::drawHeader(GameHost& host) {
      * why nothing here hit-tests it. */
     Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(),
                      Ui::surface());
+    /* Same story as Lock: drawn here, consumed by the runtime. Absent on a
+     * board with no speaker, where it would be a control for nothing. */
+    if (Board::hasSound()) {
+        Ui::drawSpeakerIcon(tft, LauncherLayout::speakerRect(mode, lW),
+                            !board.soundEnabled(), Ui::text());
+    }
 }
 
 bool LauncherGame::renderChrome(GameHost& host) {

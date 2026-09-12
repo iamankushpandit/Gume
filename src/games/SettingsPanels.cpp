@@ -191,8 +191,11 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
     Ui::drawButton(tft, bleRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
-    Ui::drawButton(tft, wifiRect(), "Network", admin ? Ui::accent() : Ui::shade(Ui::panel(), 80),
-                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+    /* The ink of the fill, not white. A light accent -- High Contrast's cyan,
+     * Pocket's lime -- wants black text, and white on it is barely there. */
+    const uint16_t wifiFill = admin ? Ui::accent() : Ui::shade(Ui::panel(), 80);
+    Ui::drawButton(tft, wifiRect(), "Network", wifiFill,
+                   Ui::outline(), admin ? Ui::onFill(wifiFill) : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Sync: %uh", static_cast<unsigned>(board.ntpResyncHours()));
     Ui::drawButton(tft, ntpSyncRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
@@ -204,10 +207,12 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     const bool nearbyTextEnabled = admin && beaconOn;
     Ui::drawButton(tft, nearbyRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), nearbyTextEnabled ? Ui::text() : Ui::muted(), false, 2);
+    const uint16_t resetFill = admin
+        ? (confirmReset_ ? Ui::error() : Ui::shade(Ui::error(), 70))
+        : Ui::shade(Ui::panel(), 80);
     Ui::drawButton(tft, resetRect(),
-                   confirmReset_ ? "Tap to ERASE" : "Reset device",
-                   admin ? (confirmReset_ ? Ui::error() : Ui::shade(Ui::error(), 70)) : Ui::shade(Ui::panel(), 80),
-                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+                   confirmReset_ ? "Tap to ERASE" : "Reset device", resetFill,
+                   Ui::outline(), admin ? Ui::onFill(resetFill) : Ui::muted(), false, 2);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
@@ -367,12 +372,12 @@ void SettingsGame::renderSoundTab(GameHost& host) {
     Ui::drawSlider(tft, volumeRect(), present ? board.volume() : 0, 0,
                    Board::AUDIO_VOLUME_MAX);
 
-    Ui::drawButton(tft, testCueRect(), "Test sound",
-                   live ? Ui::accent() : Ui::shade(Ui::panel(), 80),
-                   Ui::outline(), live ? TFT_WHITE : Ui::muted(), false, 2);
-    Ui::drawButton(tft, testVoiceRect(), "Say hello",
-                   live ? Ui::accent() : Ui::shade(Ui::panel(), 80),
-                   Ui::outline(), live ? TFT_WHITE : Ui::muted(), false, 2);
+    const uint16_t testFill = live ? Ui::accent() : Ui::shade(Ui::panel(), 80);
+    const uint16_t testInk = live ? Ui::onFill(testFill) : Ui::muted();
+    Ui::drawButton(tft, testCueRect(), "Test sound", testFill,
+                   Ui::outline(), testInk, false, 2);
+    Ui::drawButton(tft, testVoiceRect(), "Say hello", testFill,
+                   Ui::outline(), testInk, false, 2);
 
     /* Two lines, and both are measured to fit 320px at font 1 -- the longest
      * of them is the not-admin one. Keep any replacement under about 52

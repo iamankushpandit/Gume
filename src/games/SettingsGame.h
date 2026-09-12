@@ -139,4 +139,29 @@ private:
 
     PinTask pinTask_ = PinTask::None;
     uint16_t pendingPin_ = 0;   // first entry of a new PIN, awaiting confirmation
+
+    /* WHICH CONTROL CHANGED, so the repaint can be that control rather than
+     * the whole app.
+     *
+     * Every tap here used to clear everything below the tab strip and repaint
+     * the tab whole -- about 187 rows over SPI -- so dragging the volume
+     * slider blanked and redrew the mute row, both test buttons and two lines
+     * of prose, forty times a second. It was reported off the device as the
+     * Settings app flashing, and it was every tab, not just Sound.
+     *
+     * `w == 0` means the whole body, which is what a tab change, a rotation
+     * and the first paint all want. Anything else is clipped to this rect:
+     * renderDynamic() sets a viewport, clears inside it and re-runs the tab
+     * renderer WHOLE. The renderers are idempotent -- they paint the same
+     * pixels in the same colours given the same state -- so everything
+     * outside the rect is drawn and discarded by the clip, and only the box
+     * that actually changed reaches the panel. That is why a control can be
+     * repainted without any renderer knowing it is being repainted alone. */
+    Rect dirtyRect_{0, 0, 0, 0};
+
+    /* Repaint just this control's box. Pass the same Rect the control was
+     * drawn from -- never a typed-in rectangle -- so the two cannot drift.
+     * A second change before the first has been painted widens the box to
+     * cover both rather than losing one. */
+    void markControl(const Rect& r);
 };

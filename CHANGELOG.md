@@ -10,6 +10,68 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Mute is one tap from wherever you are.** A speaker on the header, beside the
+padlock, on every screen and on the launcher: it shows a slash when the console
+is muted and waves when it is not, so "is it muted?" is answered by looking
+rather than by making a noise. It is deliberately **not** behind the admin PIN.
+The reason sound is a device setting rather than a per-profile one was always
+that the speaker belongs to whoever is in the room, and the room -- a parent on
+a call, a sibling asleep, a bus -- is exactly who needs it; the alternative to a
+tap was taking the console away. It is also the safest thing here to hand over:
+instantly reversible by the same tap, with its state on the screen. The pixels
+came out of the screen title, which is now shorter in a game.
+
+**One size for a status glyph, one size for a control.** `Ui::BADGE_H` is 13 and
+the sync dot, the Wi-Fi fan and the Bluetooth rune all measure against it -- the
+rune was 17 among 13s, chosen on its own. `Ui::CONTROL_H` is 18 and the padlock,
+the speaker and the gear all measure against it -- the gear was 26x24 beside an
+18px padlock, and shrinking it paid for most of what the speaker cost. The
+battery badge stays 15, and is the documented exception: it is a shell holding
+digits rather than a glyph.
+
+**The Bluetooth rune is no longer painted Bluetooth blue.** It takes the ink of
+what it sits on, like every other glyph in that row. The blue was a brand
+colour rather than a meaning -- the rune already says Bluetooth -- and no
+palette chose it, so it read as a foreign object on eight of the nine.
+
+**Settings repaints the control you touched, not the whole app.** Every tap used
+to clear everything below the tab strip and repaint the tab whole, so nudging
+the volume blanked and redrew the mute row, both test buttons and two lines of
+prose -- reported off the device as the app flashing. A change now records the
+rect of the control that moved and the repaint is clipped to it. The tab
+renderers did not have to change: they are idempotent, so the one that runs is
+simply drawn and discarded outside the box.
+
+**The sliders were the last hard-coded blue.** `Ui::drawSlider` painted its
+track and handle `rgb(36,132,204)` -- the same web blue the primary buttons had
+already been cured of -- so brightness and volume were the one blue thing on
+eight palettes, inches from a button that matched the theme. Both take `accent`
+now, and the labels on a themed fill take `Ui::onFill()` rather than white.
+
+**Cinnamon honours the theme.** It forced Light for the duration of every render
+and put the palette back afterwards -- a decision from when there were two
+themes and the pad colours had been chosen against white. It was the one screen
+that ignored the owner's choice, and it announced itself by flashing white on
+the way in from a dark launcher. What made it look necessary was two hard-coded
+colours inside the pad drawing, a black ring and a grey outline; those are
+`Ui::text()` and `Ui::outline()` and the forcing is gone. The four pad hues stay
+fixed, because they are the game rather than decoration.
+
+**The trade mark is smaller, lighter, and absent where it cannot be read.** It
+was bold at 30% of the name's height with a five-pixel floor, and at that floor
+the two letters are four pixels of ink that read as dirt on the panel. It is
+regular weight at 22% now, and below six pixels it is left off entirely: the big
+badge and the launcher wordmark carry it, the lock screen's mid badge and
+About's small wordmark do not. A claim is made by the prominent use of a mark,
+not by repeating it illegibly.
+
+**Every Settings tab is in the theme sheets, and the mock-ups stopped lying.**
+Only the Device tab was ever pictured, so the slider's blue survived a pass that
+fixed everything around it. The sheets now carry all four tabs and the PIN pad,
+and the top-bar mock truncates its title exactly as the panel does -- it used to
+draw the title straight through the clock, which is how a bar that does not fit
+looked fine in review.
+
 **The Wi-Fi password is stored once, not twice.** The ESP-IDF Wi-Fi stack keeps
 its own plain-text copy of whatever it is handed, in its own NVS namespace --
 so the password was written to flash twice, and `Forget` cleared only one of

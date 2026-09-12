@@ -99,7 +99,33 @@ Shapes and icons: `drawTriangleShape()`, `drawStarShape()`, `drawGearIcon()`, `d
 
 Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI), `drawBatteryBadge()` (the percentage as numerals **inside** the shell, iOS/Android status-bar style, over a bordered two-pixel level gauge along the inside bottom; red shell *and* digits at or below `Board::BATTERY_LOW_PERCENT`, since 11 pixels of fill is not a signal a player reads across a room and a number is. There is no charging bolt and no charging state -- the board has no charge-status line, and 5.10.0 stopped showing a guess. **It is variable width** -- it grows with its digits, widest at `100` -- so callers lay out from `Ui::batteryBadgeWidth()` and never assume a size; `cx` is the centre of the whole badge, terminal nub included), `drawBleBadge()` (the Bluetooth rune).
 
+**Two sizes, and everything in a header is one of them.** `Ui::BADGE_H` (13)
+is a status glyph -- the sync dot, the Wi-Fi fan, the Bluetooth rune.
+`Ui::CONTROL_H` (18) is something you can tap -- the padlock, the mute speaker,
+the gear. Each was chosen per icon before this, so the rune was 17 among 13s
+and the gear was 26x24 four pixels from an 18px padlock: a row of icons that do
+not share a height reads as a mistake however good each one is alone. The
+battery badge is the one exception at 15, because it is a shell holding digits
+rather than a glyph, and it says so where it is defined.
+
+`drawSpeakerIcon()` is a **control, not an indicator**, and it always shows the
+state it is in -- waves for on, a slash for muted. A toggle that looks the same
+either way makes "is it muted?" answerable only by making a noise, which is the
+one thing you cannot do in the room where somebody just muted it. The tap is
+consumed by the runtime above the active screen, like Home, the gear and Lock,
+and it is **not** behind the admin PIN -- see `BrainoApp::toggleMute()` for why.
+
 `drawBleBadge()` has **no "off" variant on purpose.** An icon that is always present but sometimes greyed turns "is it transmitting?" into a question of shade, and that is the one question the badge exists to answer at a glance — so callers draw it only while `BleBeacon::active()`. It is 10x16 centred on the given point; the launcher header has almost no slack in landscape, so position anything near it off measured text widths rather than fixed offsets.
+
+**The top bar is now Home, Lock, MUTE, the title and the status cluster, and
+the title paid for the speaker.** Its left edge is derived from
+`topBarSpeakerRect()` rather than from the padlock, and it moved from x=62 to
+x=86; eight of those pixels came back when the gear shrank to `CONTROL_H`, and
+the status cluster is derived from `topBarSettingsRect()` so it followed the
+gear rather than staying on an old constant. What is left is about ten
+characters at font 2 on a 320px panel, so a long screen title -- "Cinnamon
+Says", "Finger Counting" -- is cut, without an ellipsis. **Anything else that
+wants space up here has to say what it is taking it from.**
 
 `drawTopBar()` carries Home, Lock, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's 18px came out of the title (Home narrowed to 32px, the title moved from x=48 to x=62). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
 

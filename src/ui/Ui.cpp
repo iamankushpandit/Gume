@@ -541,8 +541,11 @@ void drawTopBar(Board& board, const String& title) {
      * hold. The 18px it occupies come out of the title, which is why the
      * title's start and its budget below both moved. */
     drawLockIcon(tft, LauncherLayout::topBarLockRect(w), COLOR_BAR_TEXT, COLOR_BAR);
-    // The top bar stays dark in both themes, so this gear is always white.
-    drawGearIcon(tft, Rect{static_cast<int16_t>(w - 34), 3, 26, 24}, COLOR_BAR_TEXT);
+    /* Mute, beside the padlock. The two together are what a parent reaches
+     * for without wanting to leave the game -- quiet, or put it down. */
+    drawSpeakerIcon(tft, LauncherLayout::topBarSpeakerRect(w),
+                    !board.soundEnabled(), COLOR_BAR_TEXT);
+    drawGearIcon(tft, LauncherLayout::topBarSettingsRect(w), COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     /* The right-hand cluster is laid out from the gear leftwards off MEASURED
@@ -551,7 +554,11 @@ void drawTopBar(Board& board, const String& title) {
      * offset, which is exactly what a variable-width badge invalidates. */
     const int8_t battPct = board.getBatteryPercent();
     const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
-    const int16_t battRight = static_cast<int16_t>(w - 40);   // gear starts at w-34
+    /* Derived from the gear rather than stated, so the two cannot drift: the
+     * gear shrank to Ui::CONTROL_H and moved right, and every one of those
+     * pixels is worth having on a bar this full. */
+    const int16_t battRight =
+        static_cast<int16_t>(LauncherLayout::topBarSettingsRect(w).x - 6);
     const int16_t battCx = static_cast<int16_t>(battRight - battW / 2);
     const int16_t wifiCx = static_cast<int16_t>(battRight - battW - 6 - 8);
     const int16_t syncCx = static_cast<int16_t>(wifiCx - 8 - 6 - 6);
@@ -606,8 +613,8 @@ void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint1
     const uint16_t col = synced ? COLOR_SUCCESS : COLOR_WARNING;
     // Light theme uses dark fills, so the glyph flips to white to stay legible.
     const uint16_t glyph = (s_theme == Theme::Light) ? TFT_WHITE : TFT_BLACK;
-    tft.fillCircle(cx, cy, 6, col);
-    tft.drawCircle(cx, cy, 6, bg);
+    tft.fillCircle(cx, cy, BADGE_H / 2, col);
+    tft.drawCircle(cx, cy, BADGE_H / 2, bg);
     if (synced) {
         // tick
         tft.drawLine(cx - 3, cy,     cx - 1, cy + 2, glyph);
@@ -695,17 +702,23 @@ String fitted(Ui::Renderer& tft, const String& text, int16_t maxW, uint8_t font)
 }
 
 void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
-    (void)bg;
     /* The Bluetooth rune is one continuous stroke through six points on a
-     * 10x16 box -- (0,4) (10,11) (5,16) (5,0) (10,5) (0,12). Drawing it as a
+     * 9x14 box -- (0,3) (8,9) (4,13) (4,0) (8,4) (0,10). Drawing it as a
      * polyline rather than two triangles keeps the crossing stems aligned at
-     * any size. Stroked twice, offset by a pixel, so it reads at 16px. */
-    const int16_t x0 = static_cast<int16_t>(cx - 5);
-    const int16_t y0 = static_cast<int16_t>(cy - 8);
-    const int16_t px[6] = {0, 10, 5, 5, 10, 0};
-    const int16_t py[6] = {4, 11, 16, 0, 5, 12};
-    // Bluetooth blue: already the app's accent, and legible on both themes.
-    const uint16_t col = rgb(36, 132, 204);
+     * any size. Stroked twice, offset by a pixel, so it reads at this size.
+     *
+     * THE BOX IS BADGE_H TALL, like the sync dot and the Wi-Fi fan beside it.
+     * It was a 10x16 rune among 13px badges, which is what made the header
+     * look like three icons and one sticker. */
+    const int16_t x0 = static_cast<int16_t>(cx - 4);
+    const int16_t y0 = static_cast<int16_t>(cy - BADGE_H / 2);
+    const int16_t px[6] = {0, 8, 4, 4, 8, 0};
+    const int16_t py[6] = {3, 9, 13, 0, 4, 10};
+    /* The ink of whatever it sits on, like every other glyph in the header.
+     * It was Bluetooth's own blue, which is a brand colour rather than a
+     * meaning: the rune already says Bluetooth, and no theme chose that blue,
+     * so it read as a foreign object on eight of the nine. */
+    const uint16_t col = onFill(bg);
 
     for (int8_t pass = 0; pass < 2; ++pass) {
         for (uint8_t i = 0; i + 1 < 6; ++i) {
@@ -776,6 +789,61 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
     char text[8];
     batteryText(text, sizeof(text), percent);
     return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
+}
+
+void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour) {
+    /* A speaker in an r.h box: a small square body, a cone opening right, and
+     * either two arcs of sound or a slash through the lot. Proportions come
+     * off the rect so the same glyph serves the bar and anywhere else it is
+     * wanted -- the padlock does the same, for the same reason. */
+    const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
+    const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
+    const int16_t unit = static_cast<int16_t>(r.h);
+    const int16_t bodyW = static_cast<int16_t>(unit * 3 / 16);
+    const int16_t bodyH = static_cast<int16_t>(unit * 6 / 16);
+    const int16_t coneW = static_cast<int16_t>(unit * 4 / 16);
+    const int16_t coneH = static_cast<int16_t>(unit * 12 / 16);
+    const int16_t left = static_cast<int16_t>(cx - unit * 6 / 16);
+
+    tft.fillRect(left, static_cast<int16_t>(cy - bodyH / 2), bodyW, bodyH, colour);
+    const int16_t coneX = static_cast<int16_t>(left + bodyW);
+    tft.fillTriangle(coneX, static_cast<int16_t>(cy - bodyH / 2),
+                     coneX, static_cast<int16_t>(cy + bodyH / 2),
+                     static_cast<int16_t>(coneX + coneW),
+                     static_cast<int16_t>(cy - coneH / 2), colour);
+    tft.fillTriangle(coneX, static_cast<int16_t>(cy + bodyH / 2),
+                     static_cast<int16_t>(coneX + coneW),
+                     static_cast<int16_t>(cy - coneH / 2),
+                     static_cast<int16_t>(coneX + coneW),
+                     static_cast<int16_t>(cy + coneH / 2), colour);
+
+    const int16_t waveX = static_cast<int16_t>(coneX + coneW + 1);
+    if (muted) {
+        /* A slash, corner to corner across the whole glyph. Not a small cross
+         * beside it: at this size anything subtler is a smudge, and "muted"
+         * has to survive being glanced at by a parent from across a room. */
+        for (int8_t i = 0; i < 2; ++i) {
+            tft.drawLine(static_cast<int16_t>(r.x + 1 + i), static_cast<int16_t>(r.y + 1),
+                         static_cast<int16_t>(r.x + r.w - 3 + i),
+                         static_cast<int16_t>(r.y + r.h - 1), colour);
+        }
+        return;
+    }
+    /* Two arcs, drawn as circle segments clipped to the right-hand side --
+     * there is no arc primitive, and at this size the right half of a circle
+     * plotted by hand is four pixels each. */
+    for (int8_t band = 0; band < 2; ++band) {
+        const int16_t rad = static_cast<int16_t>(2 + band * 3);
+        for (int16_t dy = static_cast<int16_t>(-rad); dy <= rad; ++dy) {
+            const int32_t dx2 = static_cast<int32_t>(rad) * rad - static_cast<int32_t>(dy) * dy;
+            if (dx2 < 0) continue;
+            int16_t dx = 0;
+            while ((dx + 1) * (dx + 1) <= dx2) ++dx;
+            if (dx <= 0) continue;
+            tft.drawPixel(static_cast<int16_t>(waveX + dx - 1),
+                          static_cast<int16_t>(cy + dy), colour);
+        }
+    }
 }
 
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg) {
@@ -857,7 +925,11 @@ void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct,
     if (pct < minPct) pct = minPct;
     if (pct > maxPct) pct = maxPct;
 
-    const uint16_t accent = rgb(36, 132, 204);
+    /* The theme's accent, not a chosen blue. It was rgb(36,132,204) -- the
+     * same web blue the primary buttons carried -- so the brightness and
+     * volume sliders were the one blue thing on eight of the nine palettes,
+     * sitting a few pixels from a button that had already been fixed. */
+    const uint16_t accent = COLOR_ACCENT;
     const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
     const int16_t trackH = 8;
     const int16_t pad = 11;                       // keeps the handle inside r
