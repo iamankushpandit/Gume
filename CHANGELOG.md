@@ -10,6 +10,49 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**The Wi-Fi badge no longer floats away from the network it describes.** On
+the Wi-Fi screen it was pinned at the right-hand edge of the design while the
+SSID was left-aligned, so it sat alone with the width of the row empty between
+them -- it was reported off the panel as an icon hanging in air, and portrait
+made it worse, because that screen stretches a 320x240 design onto the panel
+one axis at a time while the glyph stays a fixed 15px. It is now placed off
+the measured width of the SSID and clamped at the right, which is what the
+sync badge on the row below already did.
+
+**The system apps have portrait mock-ups.** `docs/screens/` had exactly one
+portrait image out of 73 -- the launcher -- while CLAUDE.md requires every
+system app to work in both orientations, so for Wi-Fi, Settings, Scores,
+About, System Info and Profiles the portrait half of that rule could not be
+checked without flashing a board. `tools/gen_screens.py` now renders all six,
+each restating its own screen's layout arithmetic at 240x320 rather than
+re-imagining it, so a number that does not survive a narrow panel shows up as
+a broken picture instead of a plausible one. Two already do: the Scores best
+and worst columns are drawn at a hard-coded x=244 and x=306, both off a 240px
+panel, and the top bar's title floor lets the title run under the clock.
+Neither is fixed here; the mock-ups are what make them visible.
+
+**Both of those are now fixed.** Scores draws its value columns off the row's
+own right edge rather than at a typed-in x, and offers the second column only
+when the row can hold two numbers beside a game name -- a truncated score is
+not a smaller score, it is a wrong one, so a 240px panel shows bests alone
+rather than two half-numbers. The Device tab had the same fault at x = 236 and
+x = 312 and is fixed with it. The top bar no longer floors the title width at
+32px: on a narrow panel that floor was wider than the gap before the clock, so
+the floor won and the two were drawn on the same pixels. Where there is not
+room for both, the clock gives way -- it is repeated on the launcher header
+and in Wi-Fi, while the title is the only thing that says which screen you are
+on -- and its sync badge goes with it, since a tick with nothing to qualify
+says nothing. Landscape is untouched: at 320px the gap is never that small.
+
+**The system apps are no longer called games.** `WifiGame`, `SettingsGame`,
+`ProfileGame`, `ScoresGame`, `AboutGame`, `SystemInfoGame`, `NearbyGame` and
+`LauncherGame` are `WifiApp`, `SettingsApp` and so on, files included. They
+are `Game` subclasses because that is the screen lifecycle every screen here
+shares, and they always will be -- but Wi-Fi is not a game, and a reader has
+no way to tell which of the names in `GameInstances` are things a child plays
+and which are the console's own screens. The playable catalogue keeps `Game`,
+so the distinction now shows in the names. No behaviour changes.
+
 **Go.** The thirty-eighth game: 9x9 everywhere, 19x19 on the 4-inch console
 only (`GoGame::BIG_BOARD_AVAILABLE`, from the panel's physical width -- a
 point on 19x19 is ten logical pixels from its neighbours and only a big

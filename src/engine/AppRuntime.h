@@ -4,7 +4,7 @@
 #include "engine/AppRegistry.h"
 #include "engine/ContentLoader.h"
 #include "engine/Game.h"
-#include "engine/LauncherGame.h"
+#include "engine/LauncherApp.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
 #include "ui/ScaledRenderer.h"
@@ -261,7 +261,7 @@ private:
     Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/1};
     ContentLoader content_;
     GameInstances games_;
-    LauncherGame launcher_;
+    LauncherApp launcher_;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
     /* True only while a playable game is the thing on screen.

@@ -1,4 +1,4 @@
-#include "SettingsGame.h"
+#include "SettingsApp.h"
 
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
@@ -6,7 +6,7 @@
 /* The tab bodies -- Device, Power and Sound -- and the geometry of their rows.
  *
  * Every row here is a Rect accessor plus a renderer that draws into it, and
- * the touch handler in SettingsGame.cpp reads the same accessor. That is the
+ * the touch handler in SettingsApp.cpp reads the same accessor. That is the
  * whole reason the geometry lives beside the drawing rather than in the
  * handler: a control the player can see and cannot press is the failure this
  * arrangement exists to make impossible.
@@ -45,19 +45,19 @@ constexpr int16_t SETTINGS_MIN_PITCH = 34;
 constexpr int16_t SETTINGS_MAX_ROW_H = 44;
 }  // namespace
 
-int16_t SettingsGame::gridRowPitch() const {
+int16_t SettingsApp::gridRowPitch() const {
     const int16_t avail = static_cast<int16_t>(
         panelH_ - SETTINGS_BOTTOM_RESERVE - SETTINGS_MARGIN - SETTINGS_TOP);
     const int16_t pitch = static_cast<int16_t>(avail / 4);
     return pitch < SETTINGS_MIN_PITCH ? SETTINGS_MIN_PITCH : pitch;
 }
 
-int16_t SettingsGame::gridRowHeight() const {
+int16_t SettingsApp::gridRowHeight() const {
     const int16_t h = static_cast<int16_t>(gridRowPitch() - 4);
     return h > SETTINGS_MAX_ROW_H ? SETTINGS_MAX_ROW_H : h;
 }
 
-Rect SettingsGame::gridCell(uint8_t row, uint8_t col) const {
+Rect SettingsApp::gridCell(uint8_t row, uint8_t col) const {
     const int16_t colW = static_cast<int16_t>(
         (panelW_ - SETTINGS_MARGIN - SETTINGS_GAP - SETTINGS_GAP) / 2);
     const int16_t x = col == 0
@@ -67,25 +67,25 @@ Rect SettingsGame::gridCell(uint8_t row, uint8_t col) const {
                 colW, gridRowHeight()};
 }
 
-Rect SettingsGame::gridWide(uint8_t row) const {
+Rect SettingsApp::gridWide(uint8_t row) const {
     return Rect{SETTINGS_MARGIN,
                 static_cast<int16_t>(SETTINGS_TOP + row * gridRowPitch()),
                 static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
                 gridRowHeight()};
 }
 
-Rect SettingsGame::themeRect()   const { return gridCell(0, 0); }
-Rect SettingsGame::layoutRect()  const { return gridCell(0, 1); }
-Rect SettingsGame::lightRect()   const { return gridCell(1, 0); }
-Rect SettingsGame::bleRect()     const { return gridCell(1, 1); }
-Rect SettingsGame::wifiRect()    const { return gridCell(2, 0); }
-Rect SettingsGame::ntpSyncRect() const { return gridCell(2, 1); }
-Rect SettingsGame::nearbyRect()  const { return gridCell(3, 0); }
-Rect SettingsGame::resetRect()   const { return gridCell(3, 1); }
+Rect SettingsApp::themeRect()   const { return gridCell(0, 0); }
+Rect SettingsApp::layoutRect()  const { return gridCell(0, 1); }
+Rect SettingsApp::lightRect()   const { return gridCell(1, 0); }
+Rect SettingsApp::bleRect()     const { return gridCell(1, 1); }
+Rect SettingsApp::wifiRect()    const { return gridCell(2, 0); }
+Rect SettingsApp::ntpSyncRect() const { return gridCell(2, 1); }
+Rect SettingsApp::nearbyRect()  const { return gridCell(3, 0); }
+Rect SettingsApp::resetRect()   const { return gridCell(3, 1); }
 
 /* The brightness bar is pinned to the bottom rather than following the grid:
  * it is the only continuous control here and it reads as a footer. */
-Rect SettingsGame::brightRect() const {
+Rect SettingsApp::brightRect() const {
     return Rect{SETTINGS_MARGIN,
                 static_cast<int16_t>(panelH_ - SETTINGS_BOTTOM_RESERVE),
                 static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2), 32};
@@ -102,7 +102,7 @@ Rect SettingsGame::brightRect() const {
  * buttons 148-178, and two lines of explanation at 190 and 206 -- which leaves
  * 34px of margin at the bottom. There is room for one more row here and not
  * two. */
-Rect SettingsGame::muteRect()      const { return gridWide(0); }
+Rect SettingsApp::muteRect()      const { return gridWide(0); }
 /* Takes the grid's position but keeps its designed height.
  *
  * A button gets easier to hit as it grows; a slider does not -- what matters
@@ -111,41 +111,41 @@ Rect SettingsGame::muteRect()      const { return gridWide(0); }
  * the track inside the rect, so the track sank while the "Volume" caption
  * stayed pinned above the rect's top edge and was left floating in the gap.
  * The brightness bar has always been a fixed 32 for the same reason. */
-Rect SettingsGame::volumeRect()    const {
+Rect SettingsApp::volumeRect()    const {
     const Rect r = gridWide(1);
     return Rect{r.x, r.y, r.w, 32};
 }
-Rect SettingsGame::testCueRect()   const { return gridCell(2, 0); }
-Rect SettingsGame::testVoiceRect() const { return gridCell(2, 1); }
+Rect SettingsApp::testCueRect()   const { return gridCell(2, 0); }
+Rect SettingsApp::testVoiceRect() const { return gridCell(2, 1); }
 
 /* Power tab: four full-width rows, so the labels have room to say what the
  * setting actually does rather than abbreviating to fit half a screen.
  *
  * Wake lock sits with them because it is the last thing in the idle sequence:
  * saver, sleep, then what it takes to get back. */
-Rect SettingsGame::idleActionRect() const { return gridWide(0); }
-Rect SettingsGame::idleAfterRect()  const { return gridWide(1); }
-Rect SettingsGame::sleepAfterRect() const { return gridWide(2); }
-Rect SettingsGame::wakeLockRect()   const { return gridWide(3); }
+Rect SettingsApp::idleActionRect() const { return gridWide(0); }
+Rect SettingsApp::idleAfterRect()  const { return gridWide(1); }
+Rect SettingsApp::sleepAfterRect() const { return gridWide(2); }
+Rect SettingsApp::wakeLockRect()   const { return gridWide(3); }
 
-bool SettingsGame::sleepRowActive(Board& board) const {
+bool SettingsApp::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
 }
 
-void SettingsGame::cycleScreenSaver(Board& board) {
+void SettingsApp::cycleScreenSaver(Board& board) {
     const uint16_t current = board.screenSaverSeconds();
     const uint16_t next = current < 60 ? 60 : (current < 120 ? 120 : (current < 300 ? 300 : 30));
     board.setScreenSaverSeconds(next);
 }
 
-void SettingsGame::cycleSleepSeconds(Board& board) {
+void SettingsApp::cycleSleepSeconds(Board& board) {
     const uint16_t current = board.sleepSeconds();
     const uint16_t next = current < 30 ? 30 : (current < 60 ? 60 : (current < 120 ? 120 :
                           (current < 300 ? 300 : 15)));
     board.setSleepSeconds(next);
 }
 
-void SettingsGame::cycleIdleAction(Board& board) {
+void SettingsApp::cycleIdleAction(Board& board) {
     switch (board.idleAction()) {
         case Board::IdleAction::SaverThenSleep:
             board.setIdleAction(Board::IdleAction::SleepOnly); break;
@@ -156,7 +156,7 @@ void SettingsGame::cycleIdleAction(Board& board) {
     }
 }
 
-void SettingsGame::cycleNtpResyncHours(Board& board) {
+void SettingsApp::cycleNtpResyncHours(Board& board) {
     const uint8_t current = board.ntpResyncHours();
     const uint8_t next = current >= Board::NTP_RESYNC_MAX_HOURS
         ? Board::NTP_RESYNC_MIN_HOURS
@@ -164,7 +164,7 @@ void SettingsGame::cycleNtpResyncHours(Board& board) {
     board.setNtpResyncHours(next);
 }
 
-void SettingsGame::renderDeviceTab(GameHost& host) {
+void SettingsApp::renderDeviceTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const bool admin = isAdmin(board);
@@ -221,7 +221,7 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     }
 }
 
-void SettingsGame::renderPowerTab(GameHost& host) {
+void SettingsApp::renderPowerTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const bool admin = isAdmin(board);
@@ -316,7 +316,7 @@ void SettingsGame::renderPowerTab(GameHost& host) {
  * slider's travel ends at AUDIO_VOLUME_MAX. Relabelling that ceiling as 100%
  * would make the control read better and lie -- see the note on drawSlider's
  * maxPct in Ui.h. */
-void SettingsGame::renderSoundTab(GameHost& host) {
+void SettingsApp::renderSoundTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const bool admin = isAdmin(board);

@@ -255,7 +255,7 @@ public:
      *
      * The default is the standard top bar, which is what every screen that has
      * one draws, always with title(). A screen carrying its own header --
-     * LauncherGame, ProfileGame -- overrides this. Returning false means "I
+     * LauncherApp, ProfileApp -- overrides this. Returning false means "I
      * cannot repaint my chrome in isolation"; the runtime falls back to a full
      * repaint, so a screen that is unsure should say so rather than guess. */
     virtual bool renderChrome(GameHost& host) {

@@ -258,7 +258,7 @@ public:
      * serial console, which compares and prints names from a fixed buffer. */
     void copyProfileName(uint8_t index, char* out, size_t cap);
     /* The char* form is the real one, as with addPlayer(); the String
-     * overload is kept for ProfileGame's draft name. */
+     * overload is kept for ProfileApp's draft name. */
     void setProfileName(uint8_t index, const char* name);
     void setProfileName(uint8_t index, const String& name) {
         setProfileName(index, name.c_str());
@@ -272,7 +272,7 @@ public:
      * buffer, so a caller with a literal -- boot's default Admin profile --
      * allocates nothing, and the empty-name fallback no longer builds
      * `String("Player ") + n` to throw it away. The String overload is kept
-     * for ProfileGame, whose draft name genuinely is a String. */
+     * for ProfileApp, whose draft name genuinely is a String. */
     uint8_t addPlayer(const char* name);
     uint8_t addPlayer(const String& name) { return addPlayer(name.c_str()); }
     /** Delete a player, shifting later names and persisted profile data down. */
@@ -399,7 +399,7 @@ public:
     String wifiPassword();
     /* The char* form is the real one, as with addPlayer(): the serial console
      * has the values in a stack buffer and should not build Strings to hand
-     * them over. The String overload is kept for WifiGame. */
+     * them over. The String overload is kept for WifiApp. */
     void setWifiCredentials(const char* ssid, const char* password);
     void setWifiCredentials(const String& ssid, const String& password) {
         setWifiCredentials(ssid.c_str(), password.c_str());

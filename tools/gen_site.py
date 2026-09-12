@@ -177,6 +177,12 @@ BOARD_DETAILS = {
 }
 
 SCREEN_CAPTIONS = {
+    "about-tall": "About: the intro page, Tall layout",
+    "profiles-tall": "Profiles: who is playing, Tall layout",
+    "scores-tall": "Scores: this player, Tall layout",
+    "settings-tall": "Settings: device, Tall layout",
+    "systeminfo-tall": "System Info: board, Tall layout",
+    "wifi-tall": "Network & Time, Tall layout",
     "about-radios": "About: what the radios do",
     "about-build": "About: which build is on the device",
     "about-updates": "About: whether a newer firmware exists, and where to get it",
@@ -299,34 +305,34 @@ SYSTEM_SHOWCASE = (
         "id": "profiles",
         "subtitle": "Boot-time player choice, five players, Guest mode that deliberately saves nothing, "
                     "a PIN-guarded admin profile, and per-player game visibility only the admin can set.",
-        "stills": ("profiles", "profiles-pin", "profiles-games", "profiles-rename"),
+        "stills": ("profiles", "profiles-tall", "profiles-pin", "profiles-games", "profiles-rename"),
     },
     {
         "id": "settings",
         "subtitle": "Device controls, brightness, screen saver and sleep policy -- "
                     "readable by anyone, changeable only by the admin.",
-        "stills": ("settings-device", "settings-power", "settings-sound",
+        "stills": ("settings-device", "settings-tall", "settings-power", "settings-sound",
                    "settings-admin", "settings-pin"),
     },
     {
         "id": "wifi",
         "subtitle": "Optional Wi-Fi for NTP time only, with a timezone picker for daylight-saving rules.",
-        "stills": ("network-time", "timezone"),
+        "stills": ("network-time", "wifi-tall", "timezone"),
     },
     {
         "id": "scores",
         "subtitle": "Per-player best and worst scores, plus device-wide records and record holders.",
-        "stills": ("scores-mine", "scores-device"),
+        "stills": ("scores-mine", "scores-tall", "scores-device"),
     },
     {
         "id": "systeminfo",
         "subtitle": "Live board, memory, network, BLE, NVS and watchdog diagnostics for hardware triage.",
-        "stills": ("systeminfo-memory", "systeminfo-ble"),
+        "stills": ("systeminfo-memory", "systeminfo-tall", "systeminfo-ble"),
     },
     {
         "id": "about",
         "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
-        "stills": ("about-radios", "about-build", "about-updates"),
+        "stills": ("about-tall", "about-radios", "about-build", "about-updates"),
     },
     {
         "id": "nearby",

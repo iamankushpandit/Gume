@@ -54,7 +54,7 @@ any more is a worse lie than a missing one.
 
 ## The About app is user-facing documentation — keep it true
 
-`AboutGame` is the only documentation most owners will ever read, and the only
+`AboutApp` is the only documentation most owners will ever read, and the only
 one they read *while holding the device*. It is part of the deliverable, not a
 credits screen. **Update it in the same commit as the change it describes.**
 
@@ -251,7 +251,7 @@ Rules, in the order they bite:
 3. **Don't rebuild content on every frame.** Rebuild when the data changed and
    keep a `stale` flag. Scrolling changes an offset, not the content.
 4. **A `String` member on a screen is a smell.** A few exist for genuinely
-   user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) — that is
+   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) — that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
    through `BrainoApp::leaveActiveGame()`, which compares free heap

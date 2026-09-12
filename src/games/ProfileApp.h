@@ -3,7 +3,7 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-class ProfileGame : public Game {
+class ProfileApp : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;
@@ -56,7 +56,7 @@ private:
     void deletePinDigit();
     /* Split by "does a digit change it?": the keys, heading and Back are
      * chrome and painted once by renderStatic(); the four dots are the only
-     * thing a keypress touches. See the note in ProfileGame.cpp. */
+     * thing a keypress touches. See the note in ProfileApp.cpp. */
     void renderPinPadChrome(GameHost& host);
     void renderPinDots(GameHost& host);
     void updateRename(GameHost& host, const TouchPoint& touch);

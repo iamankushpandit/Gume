@@ -340,6 +340,12 @@ void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
     tft.fillCircle(cx, cy, 1, color);
 }
 
+/* The narrowest title worth drawing: about four characters at font 2. Below
+ * this the title is not shortened any further -- the clock is dropped and the
+ * title takes its room instead. 240px portrait panels land under it; 320px
+ * landscape ones are well clear, so nothing about the wide layout changes. */
+constexpr int16_t TOP_BAR_MIN_TITLE_W = 44;
+
 void drawTopBar(Board& board, const String& title) {
     TftRenderer tft(board.display());
     const int16_t w = static_cast<int16_t>(tft.width());
@@ -372,17 +378,38 @@ void drawTopBar(Board& board, const String& title) {
     const int16_t statusLeft =
         static_cast<int16_t>(clockRight - tft.textWidth(Clock::timeText(), 2));
     const int16_t titleLeft = LauncherLayout::topBarTitleLeft(w);
-    const int16_t titleMax =
-        static_cast<int16_t>(max<int16_t>(32, statusLeft - titleLeft - 4));
+
+    /* The title is truncated to the gap before the clock, and that gap is the
+     * whole of its budget. It used to be floored at 32px -- but on a 240px
+     * portrait panel the real gap is about 14px, so the floor won and the
+     * title was drawn straight underneath the clock, two strings of text on
+     * the same pixels. A floor wider than the space available is not a
+     * minimum size, it is an overlap.
+     *
+     * So when the gap is too small to say anything, the CLOCK gives way
+     * instead of the title. That is the right one to drop: the title is the
+     * only thing on this bar that says which screen you are looking at, while
+     * the time is also on the launcher header and on the Wi-Fi screen, and is
+     * never more than one tap away. Both are better than two unreadable
+     * things on top of each other. */
+    const int16_t titleGap = static_cast<int16_t>(statusLeft - titleLeft - 4);
+    const bool showClock = titleGap >= TOP_BAR_MIN_TITLE_W;
+    const int16_t titleMax = showClock
+        ? titleGap
+        : static_cast<int16_t>(clockRight - titleLeft - 4);
     while (fitted.length() > 2 && tft.textWidth(fitted, 2) > titleMax) {
         fitted.remove(fitted.length() - 1);
     }
     tft.drawString(fitted, titleLeft, TOP_BAR_HEIGHT / 2, 2);
     tft.setTextDatum(MR_DATUM);
     /* Right side: clock and its sync badge kept together (the badge describes
-     * the clock), then the wifi badge, then the gear. */
-    tft.drawString(Clock::timeText(), clockRight, TOP_BAR_HEIGHT / 2, 2);
-    Ui::drawSyncBadge(tft, syncCx, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
+     * the clock), then the wifi badge, then the gear. The sync badge goes with
+     * the clock when the clock goes -- a tick or an exclamation mark with
+     * nothing to qualify says nothing. */
+    if (showClock) {
+        tft.drawString(Clock::timeText(), clockRight, TOP_BAR_HEIGHT / 2, 2);
+        Ui::drawSyncBadge(tft, syncCx, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
+    }
     Ui::drawWifiBadge(tft, wifiCx, TOP_BAR_HEIGHT / 2, COLOR_BAR);
     Ui::drawBatteryBadge(tft, battCx, TOP_BAR_HEIGHT / 2, battPct, COLOR_BAR);
     tft.setTextDatum(TL_DATUM);

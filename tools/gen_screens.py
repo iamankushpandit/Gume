@@ -146,27 +146,44 @@ def lock_icon(d, r, color=TEXT, bg=SURFACE):
                  cx + max(1, key_r // 2) - 1, key_cy + body_h // 3], fill=bg)
 
 
-def topbar(d, title, synced=True, bars=3):
-    d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
-    d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
-    d.line([(0, 29), (W, 29)], fill=shade(SURFACE, 60))
+def topbar(d, title, synced=True, bars=3, w=W):
+    """Ui::drawTopBar reads tft.width() at render time, so this takes a width
+    rather than assuming the landscape canvas -- that is what lets the portrait
+    mock-ups below carry the same bar the device draws."""
+    d.rectangle([0, 0, w - 1, 29], fill=SURFACE)
+    d.line([(0, 0), (w, 0)], fill=shade(SURFACE, 145))
+    d.line([(0, 29), (w, 29)], fill=shade(SURFACE, 60))
     # Home narrowed from 42px to 32px to make room for Lock beside it, and the
     # title starts at 62 instead of 48. See LauncherLayout.
     d.rounded_rectangle([2, 5, 30, 24], 3, outline=MUTED)
     d.text((5, 9), "home", font=F1, fill=MUTED)
     lock_icon(d, (40, 6, 18, 18))
-    d.text((62, 8), title, font=F2, fill=TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
-    batt_right = W - 40
+    batt_right = w - 40
     wifi_cx = batt_right - batt_w - 6 - 8
     sync_cx = wifi_cx - 8 - 6 - 6
     clock_right = sync_cx - 12
-    d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
-    sync_badge(d, sync_cx, 15, synced)
+    # Ui::drawTopBar's own rule, restated: the title is truncated to the gap
+    # between where it starts and where the clock begins -- but with a 32px
+    # floor, so on a narrow panel it stops shrinking and runs under the clock
+    # instead. At 240px wide that floor bites: the gap is about 14px and the
+    # title is drawn 32px, so a portrait top bar really does overlap. Mirrored
+    # rather than tidied, because tidying it here would hide it.
+    status_left = clock_right - d.textlength(t, font=F2)
+    title_gap = status_left - 62 - 4
+    show_clock = title_gap >= 44                      # Ui::TOP_BAR_MIN_TITLE_W
+    title_max = title_gap if show_clock else clock_right - 62 - 4
+    s = title
+    while len(s) > 2 and d.textlength(s, font=F2) > title_max:
+        s = s[:-1]
+    d.text((62, 8), s, font=F2, fill=TEXT)
+    if show_clock:
+        d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
+        sync_badge(d, sync_cx, 15, synced)
     wifi_badge(d, wifi_cx, 15, bars)
     battery_badge(d, batt_right - batt_w // 2, 15, 72)
-    d.ellipse([W - 34, 4, W - 12, 26], outline=TEXT)
+    d.ellipse([w - 34, 4, w - 12, 26], outline=TEXT)
 
 
 BATT_H, BATT_PAD, BATT_TERM_W = 15, 3, 2
@@ -1322,7 +1339,7 @@ SETTINGS_TABS = ("Device", "Power", "Sound", "Admin")
 
 
 def settings_tabs(d, active_index):
-    """Four tabs, each SCREEN_WIDTH/4 wide -- mirrors SettingsGame::tabRect(),
+    """Four tabs, each SCREEN_WIDTH/4 wide -- mirrors SettingsApp::tabRect(),
     which divides the live width rather than assuming fixed halves, and gives
     the last tab the rounding so the strip reaches the right edge."""
     each = 320 // len(SETTINGS_TABS)
@@ -1552,7 +1569,7 @@ def profiles_games():
     This lived in a Settings tab once and the mock-up went on depicting that
     long after Settings stopped having one -- Settings holds Device, Power and
     Admin. Visibility is per player, so it belongs with the player. Geometry
-    follows ProfileGame::gameCheckRect() and gamesBackRect()."""
+    follows ProfileApp::gameCheckRect() and gamesBackRect()."""
     im, d = blank()
     lab = "Ada"
     d.text((W / 2 - d.textlength(lab, font=F4) / 2, 8), lab, font=F4, fill=TEXT)
@@ -2203,7 +2220,7 @@ def numberline():
 
 
 def _si_tabs(d, active):
-    """Mirrors SystemInfoGame: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
+    """Mirrors SystemInfoApp: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
     labels = ["Board", "Memory", "Network", "BLE", "App"]
     y, tw = 32, W // 5
     d.rectangle([0, y, W - 1, y + 27], fill=PANEL)
@@ -2318,7 +2335,7 @@ def systeminfo_memory():
 def nearby():
     """Nearby: the anonymous peer list.
 
-    Geometry from NearbyGame: a full-width toggle at y=TOP_BAR_HEIGHT+6 with
+    Geometry from NearbyApp: a full-width toggle at y=TOP_BAR_HEIGHT+6 with
     30px height, then the RowList below it."""
     im, d = blank(); topbar(d, "Nearby")
     button(d, (8, 36, 304, 30), "Sharing: On", SUCCESS, (12, 20, 14))
@@ -2613,12 +2630,12 @@ def profiles_pick():
     d.rectangle([0, 0, W, 30], fill=SURFACE)
     d.text((10, 15 - 9), PRODUCT, font=F4, fill=TEXT)
     d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-    # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
+    # "Who is playing?" and guest hint. Baselines come from ProfileApp::render:
     # promptY = 32 in landscape, and the hint sits 18px below it.
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
     d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
-    # Six rows (five players + Guest) from ProfileGame's rowsTop/rowsPitch.
+    # Six rows (five players + Guest) from ProfileApp's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
         y = 60 + i * 25
@@ -2680,7 +2697,7 @@ def _keypad(d, screen_w=None, screen_h=None, reserve=KP_FOOTER_BUTTON):
 def profiles_rename():
     """Name entry, reached from Add Player or from Edit -> Rename.
 
-    Geometry follows ProfileGame: the centred title at y=8, the field at
+    Geometry follows ProfileApp: the centred title at y=8, the field at
     ((W - fieldW) / 2, 28, fieldW, 30) with fieldW = min(240, W - 40), the
     QWERTY pad from Ui::Keypad (anchored to the bottom above FOOTER_BUTTON),
     and the Cancel button from renameCancelRect()."""
@@ -2704,7 +2721,7 @@ def nearby_name():
     """Naming a nearby device, reached from the Name chip in the Nearby list.
 
     Admin-only, and local: the label never reaches the radio. Geometry follows
-    NearbyGame::renderName -- heading at y=8, the field at ((W - fieldW) / 2,
+    NearbyApp::renderName -- heading at y=8, the field at ((W - fieldW) / 2,
     28, fieldW, 30), Ui::Keypad below it and Cancel from nameCancelRect()."""
     im, d = blank()
     lab = "Name for A4F2"
@@ -2901,6 +2918,315 @@ def elements_quiz():
     return im
 
 
+# ------------------------------------------------- portrait system screens
+#
+# CLAUDE.md requires every system app to work in BOTH orientations, and until
+# now this generator rendered exactly one portrait screen -- launcher-tall --
+# out of 73. Six of the seven system apps had no portrait mock-up at all, so
+# "check the mock-ups in portrait" was not a thing anyone could do, and a
+# portrait fault could only be found by flashing a board and looking at it.
+#
+# Each function below restates its screen's OWN layout arithmetic at 240x320,
+# from the same constants the firmware uses, rather than re-imagining the
+# screen at a new size. That is the whole value: where the firmware's numbers
+# do not survive a 240px-wide panel, the mock-up shows it going wrong instead
+# of quietly drawing something that looks fine.
+#
+# Two different layout strategies are being mirrored, and the difference is
+# the point:
+#
+#   - Settings, About, Scores, System Info and Profiles read tft.width() /
+#     tft.height() at render time and lay out against them. PW/PH below are
+#     simply fed into their formulas.
+#   - Wi-Fi does not. It maps a fixed 320x240 design onto the panel with
+#     baseX()/baseY(), scaling each axis independently while text and badges
+#     stay their authored pixel size -- so pw()/ph() here reproduce that
+#     transform exactly, stretch and all.
+
+PW, PH = 240, 320
+
+
+def blank_tall():
+    return blank(PW, PH)
+
+
+def pw(x):
+    """WifiApp::baseX -- the design's 320 mapped onto the panel's width."""
+    return int(x * PW / 320)
+
+
+def ph(y):
+    """WifiApp::baseY -- the design's 240 mapped onto the panel's height.
+    Independent of pw() on purpose; that independence is the thing that pulls
+    a fixed-size glyph away from the row it belongs to."""
+    return int(y * PH / 240)
+
+
+def prect(x, y, w, h):
+    """WifiApp::baseRect."""
+    return (pw(x), ph(y), pw(w), ph(h))
+
+
+def wifi_tall():
+    """Wi-Fi (Network & Time) in portrait -- WifiApp::renderIdle through
+    baseX/baseY at 240x320.
+
+    The Wi-Fi badge is placed off the MEASURED width of the SSID, which is the
+    fix that goes with this commit. It used to be pinned at baseX(296), which
+    left it adrift against the right-hand edge with the whole row empty
+    between it and the network it describes -- visible in the landscape
+    network-time.png too, and reported off the panel as a speaker icon
+    hanging in air."""
+    im, d = blank_tall()
+    topbar(d, "Wi-Fi", w=PW)
+    d.text((pw(14), ph(36)), "WI-FI", font=F1, fill=MUTED)
+    d.line([(pw(52), ph(41)), (pw(306), ph(41))], fill=OUTLINE)
+    ssid = "DextersLab"
+    d.text((pw(14), ph(48)), ssid, font=F2, fill=TEXT)
+    # Measured, clamped at the right so a long SSID cannot push it off-panel.
+    badge_cx = min(int(pw(14) + d.textlength(ssid, font=F2) + 14), PW - 8 - 7)
+    wifi_badge(d, badge_cx, ph(48) + 8, 3)
+    button(d, prect(14, 64, 140, 30), "Scan Wi-Fi", BLUE, WHITE)
+    button(d, prect(166, 64, 140, 30), "Forget")
+    d.text((pw(14), ph(102)), "TIME", font=F1, fill=MUTED)
+    d.line([(pw(48), ph(109)), (pw(306), ph(109))], fill=OUTLINE)
+    # The date drops off this row on a 240px panel: TFT_eSPI stops drawing at
+    # the viewport edge, mid-word and unmarked. Shown here as the device shows
+    # it rather than wrapped, because wrapping is not what the firmware does.
+    stamp = "Tue Aug 11 2026  12:41 AM"
+    d.text((pw(14), ph(114)), stamp, font=F2, fill=TEXT)
+    sync_badge(d, int(pw(14) + d.textlength(stamp, font=F2) + 12), ph(122), True)
+    button(d, prect(14, 132, 140, 30), "Auto time: On", GREEN, WHITE)
+    button(d, prect(166, 132, 140, 30), "US Central")
+    button(d, prect(14, 172, 140, 30), "Sync now", GREEN, WHITE)
+    button(d, prect(166, 172, 140, 30), "Back")
+    hint = "Tap the zone to change it"
+    d.text((PW / 2 - d.textlength(hint, font=F1) / 2, ph(210)), hint, font=F1, fill=MUTED)
+    return im
+
+
+def settings_tall():
+    """Settings (Device tab) in portrait. Mirrors SettingsApp's shared grid:
+    pitch = (panelH - 36 - 8 - 58) / 4 floored at 34, row height capped at 44,
+    columns (panelW - 8 - 12 - 12) / 2. At 240x320 that is a 54px pitch and
+    104px columns, so the controls spread down the taller panel rather than
+    staying in a landscape-sized block at the top."""
+    im, d = blank_tall()
+    topbar(d, "Settings", w=PW)
+    each = PW // len(SETTINGS_TABS)
+    for i, lab in enumerate(SETTINGS_TABS):
+        x = i * each
+        bw = (PW - x) if i == len(SETTINGS_TABS) - 1 else each
+        active = (i == 0)
+        top, h = (30, 22) if active else (34, 18)
+        d.rounded_rectangle([x, top, x + bw - 1, top + h], 4,
+                            fill=SURFACE if active else PANEL, outline=OUTLINE)
+        # Four tabs across 240px give each 60px, so the labels are fitted the
+        # way Ui::drawTab fits them instead of overrunning their neighbours.
+        s = lab
+        while s and d.textlength(s, font=F2) > bw - 8:
+            s = s[:-1]
+        d.text((x + bw / 2 - d.textlength(s, font=F2) / 2, top + h / 2 - 6), s,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(0, 52), (PW - 1, 52)], fill=OUTLINE)
+
+    pitch = max(34, (PH - 36 - 8 - 58) // 4)
+    row_h = min(44, pitch - 4)
+    col_w = (PW - 8 - 12 - 12) // 2
+    cols = (8, 8 + col_w + 12)
+    grid = [("Theme: Dark", PANEL, TEXT), ("Menu: Tall", PANEL, TEXT),
+            ("Light: On", PANEL, TEXT), ("Beacon: On", PANEL, TEXT),
+            ("Network", BLUE, WHITE), ("Sync: 6h", PANEL, TEXT),
+            ("Nearby: On", PANEL, TEXT), ("Reset device", (120, 58, 58), WHITE)]
+    for i, (label, fill, tc) in enumerate(grid):
+        x = cols[i % 2]
+        y = 58 + (i // 2) * pitch
+        button(d, (x, y, col_w, row_h), label, fill, tc)
+
+    # brightRect(): the bar is pinned SETTINGS_BOTTOM_RESERVE off the bottom.
+    br = (8, PH - 36, PW - 16, 32)
+    d.text((8, br[1] - 12), "Brightness", font=F1, fill=MUTED)
+    d.text((PW - 8 - d.textlength("80%", font=F1), br[1] - 12), "80%", font=F1, fill=MUTED)
+    cy = br[1] + br[3] // 2
+    pad, span = 11, br[2] - 22
+    fill_w = int((80 - 25) / 75 * span)
+    d.rounded_rectangle([br[0] + pad, cy - 4, br[0] + pad + span, cy + 4], 4,
+                        fill=PANEL, outline=OUTLINE)
+    d.rounded_rectangle([br[0] + pad, cy - 4, br[0] + pad + fill_w, cy + 4], 4, fill=BLUE)
+    hx = br[0] + pad + fill_w
+    d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
+    return im
+
+
+def scores_tall():
+    """Scores (Mine tab) in portrait -- ScoresApp::rowRect's own arithmetic:
+    rows fill from 56 to screenH - 32, pitch floored at 30, width screenW - 16.
+
+    The value columns come off the row's own right edge (ScoresApp::
+    scoreColumns), and the second one is dropped when the row cannot hold two
+    numbers beside a game name -- which is the case at 240px, so this shows one
+    column of bests and no worsts. They were a hard-coded x = 244 and x = 306
+    until the commit that added this image, both off the edge of a 240px panel,
+    which left every score cut in half or missing entirely."""
+    im, d = blank_tall()
+    topbar(d, "Scores", w=PW)
+    for lab, r, active in (("Mine", (8, 34, 64, 18), True),
+                           ("Device", (80, 34, 80, 18), False)):
+        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 4,
+                            fill=SURFACE if active else PANEL, outline=OUTLINE)
+        d.text((r[0] + r[2] / 2 - d.textlength(lab, font=F2) / 2, r[1] + 3), lab,
+               font=F2, fill=TEXT if active else MUTED)
+    d.line([(8, 52), (160, 52)], fill=OUTLINE)
+    d.text((8, 58), "Ava", font=F2, fill=TEXT)
+
+    pitch = max(30, ((PH - 32) - 56 - 4) // 5)
+    rows = [("Memory Match", "18 moves"), ("Math", "24 pts"), ("Multiplication", "31 pts"),
+            ("Whack A Mole", "27 pts"), ("Microku", "1:42")]
+    # ScoresApp::scoreColumns, restated: columns come off the row's own right
+    # edge, and the second is dropped when the row cannot hold two numbers and
+    # a name. At 240px it is dropped, so "worst" is not drawn at all here.
+    row_w = PW - 16
+    second_right = 8 + row_w - 6
+    show_second = (row_w - 68 * 2 - 14) >= 96
+    first_right = second_right - 68 if show_second else second_right
+    label_max = first_right - 68 - 16 - 6
+    d.text((first_right - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
+    if show_second:
+        d.text((second_right - d.textlength("worst", font=F1), 64), "worst",
+               font=F1, fill=MUTED)
+    for i, (name, value) in enumerate(rows):
+        y = 56 + i * pitch
+        h = pitch - 2
+        d.rounded_rectangle([8, y, PW - 9, y + h], 4, fill=SURFACE, outline=OUTLINE)
+        label = name
+        while label and d.textlength(label, font=F2) > label_max:
+            label = label[:-1]
+        if label != name and len(label) > 1:
+            label = label[:-1] + "."
+        d.text((16, y + h / 2 - 7), label, font=F2, fill=TEXT)
+        d.text((first_right - d.textlength(value, font=F2), y + h / 2 - 7), value,
+               font=F2, fill=SUCCESS)
+    footer_y = PH - 32
+    button(d, (8, footer_y, int(PW * 0.275), 26), "Prev")
+    sw = int(PW * 0.35)
+    button(d, ((PW - sw) // 2, footer_y, sw, 26), "Switch")
+    button(d, (PW - 8 - int(PW * 0.275), footer_y, int(PW * 0.275), 26), "Next")
+    return im
+
+
+def about_tall():
+    """About (intro page) in portrait -- AboutApp::panelRect, which is
+    PANEL_TOP=38 down to FOOTER_H=44 off the bottom, with every line fitted to
+    width - 28. The page's line baselines are fixed (48..190), so on a 320px-
+    tall panel the text keeps its landscape spacing and the panel simply has
+    more empty room beneath it."""
+    im, d = blank_tall()
+    topbar(d, "About", w=PW)
+    panel = (10, 38, PW - 20, PH - 38 - 44)
+    d.rounded_rectangle([panel[0], panel[1], panel[0] + panel[2], panel[1] + panel[3]],
+                        6, fill=SURFACE, outline=OUTLINE)
+
+    def line(y, text, f=F2, fill=TEXT):
+        s = text
+        while s and d.textlength(s, font=f) > PW - 28:
+            s = s[:-1]
+        if s != text and len(s) > 1:
+            s = s[:-1] + "."
+        d.text((14, y), s, font=f, fill=fill)
+
+    line(48, PRODUCT)
+    line(70, "(C) GoodTime Micro Company", F1, MUTED)
+    line(84, "Educational games for the E32R28T-1.", F1, MUTED)
+    line(98, "Copyright 2026.", F1, MUTED)
+    line(116, "Version 5.11.0-SNAPSHOT")
+    line(140, "37 games built in")
+    line(162, "195 flags and 50 US states,", F1, MUTED)
+    line(176, "all stored on the device.", F1, MUTED)
+    line(190, "Up to 5 players, plus a Guest.", F1, MUTED)
+    button(d, (12, PH - 34, 92, 28), "Prev", SURFACE, MUTED)
+    button(d, (PW - 104, PH - 34, 92, 28), "Next")
+    d.text((PW / 2 - d.textlength("1/9", font=F2) / 2, PH - 28), "1/9", font=F2, fill=MUTED)
+    return im
+
+
+def systeminfo_tall():
+    """System Info (Board tab) in portrait. SystemInfoApp::tabRect divides the
+    live width by TAB_COUNT=5, so on 240px each tab is 48px -- the labels are
+    fitted here because that is what the strip has room for, and the content
+    below starts at TOP_BAR_HEIGHT + 2 + TAB_STRIP_H."""
+    im, d = blank_tall()
+    topbar(d, "System Info", w=PW)
+    labels = ["Board", "Memory", "Network", "BLE", "App"]
+    strip_y, strip_h = 32, 28
+    each = PW // len(labels)
+    for i, lab in enumerate(labels):
+        x = i * each
+        bw = (PW - x) if i == len(labels) - 1 else each
+        active = (i == 0)
+        d.rounded_rectangle([x, strip_y, x + bw - 1, strip_y + strip_h - 1], 4,
+                            fill=SURFACE if active else PANEL, outline=OUTLINE)
+        s = lab
+        while s and d.textlength(s, font=F1) > bw - 6:
+            s = s[:-1]
+        d.text((x + bw / 2 - d.textlength(s, font=F1) / 2, strip_y + strip_h / 2 - 5), s,
+               font=F1, fill=TEXT if active else MUTED)
+    top = strip_y + strip_h
+    d.line([(0, top), (PW - 1, top)], fill=OUTLINE)
+    rows = [("Board", "E32R28T-1"), ("Panel", "ILI9341 320x240"), ("Touch", "XPT2046"),
+            ("Device", "R28T-9F3A2C71"), ("Speaker", "GPIO26 (DAC2)"),
+            ("RGB LED", "22 / 16 / 17"), ("Battery", "GPIO34, 2.0:1"),
+            ("SD slot", "not wired"), ("Flash", "4 MB")]
+    for i, (k, v) in enumerate(rows):
+        y = top + 8 + i * 22
+        d.text((10, y), k, font=F2, fill=MUTED)
+        # Values right-aligned to the panel edge, which is how RowList lays a
+        # value column out -- against the live width, not a landscape constant.
+        d.text((PW - 10 - d.textlength(v, font=F2), y), v, font=F2, fill=TEXT)
+    return im
+
+
+def profiles_tall():
+    """Profiles (the picker) in portrait. This screen already branches on
+    screenH > screenW -- rowsTop 62, pitch 38, row height 33, menu column 54 --
+    so the portrait mock-up is the tall branch of its own geometry, with six
+    rows (five players and the Guest) between the prompt and the buttons."""
+    im, d = blank_tall()
+    d.rectangle([0, 0, PW - 1, 29], fill=SURFACE)
+    d.text((10, 6), PRODUCT, font=F4, fill=TEXT)
+    d.text((PW - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
+           font=F1, fill=MUTED)
+    prompt = "Who is playing?"
+    d.text((PW / 2 - d.textlength(prompt, font=F2) / 2, 32), prompt, font=F2, fill=TEXT)
+
+    menu_w, top, pitch, row_h = 54, 62, 38, 33
+    people = [("Ava", True), ("Ben", False), ("Cora", False),
+              ("Dev", False), ("Admin", False), ("Guest", False)]
+    for i, (name, active) in enumerate(people):
+        y = top + i * pitch
+        d.rounded_rectangle([8, y, 8 + (PW - 22 - menu_w) - 1, y + row_h], 4,
+                            fill=BLUE if active else SURFACE, outline=OUTLINE)
+        d.text((18, y + row_h / 2 - 7), name, font=F2, fill=WHITE if active else TEXT)
+        d.rounded_rectangle([PW - 8 - menu_w, y, PW - 9, y + row_h], 4,
+                            fill=PANEL, outline=OUTLINE)
+        d.text((PW - 8 - menu_w + menu_w / 2 - d.textlength("Edit", font=F1) / 2,
+                y + row_h / 2 - 5), "Edit", font=F1, fill=MUTED)
+    bw = (PW - 24) // 2
+    button(d, (8, PH - 30, bw, 26), "Add")
+    button(d, (16 + bw, PH - 30, bw, 26), "Done", GREEN, WHITE)
+    return im
+
+
+PORTRAIT_SCREENS = [
+    ("wifi-tall", wifi_tall, "Network & Time, Tall layout"),
+    ("settings-tall", settings_tall, "Settings: device, Tall layout"),
+    ("scores-tall", scores_tall, "Scores: this player, Tall layout"),
+    ("about-tall", about_tall, "About: the intro page, Tall layout"),
+    ("systeminfo-tall", systeminfo_tall, "System Info: board, Tall layout"),
+    ("profiles-tall", profiles_tall, "Profiles: who is playing, Tall layout"),
+]
+
+
 EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
@@ -2953,6 +3279,7 @@ EXTRA_SCREENS = [
     ("go-lobby", go_lobby, "Go: rules and level chips, one console, the computer, or nearby"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
+SCREENS.extend(PORTRAIT_SCREENS)
 
 
 def main() -> None:
