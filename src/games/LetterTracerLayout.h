@@ -105,6 +105,14 @@ constexpr int16_t ARROW_LABEL_OUT = 7;
 constexpr int16_t ARROW_CLEAR = 5;
 /* The ring on the first dot of the stroke being traced -- "start here". */
 constexpr int16_t START_RING_R = 6;
+/* How far the moving guide arrow stands off the dot it belongs to. Closer
+ * than the numbered arrows, because it has to read as belonging to that dot
+ * rather than to the letter. */
+constexpr int16_t GUIDE_OFFSET = 8;
+/* And it is not drawn at all if it cannot keep this much daylight from the
+ * strokes. Lower than ARROW_CLEAR: the guide is worth a tighter fit, since
+ * it is the answer to "which way now". */
+constexpr float GUIDE_CLEAR = 3.0f;
 /* Where arrows may go: the canvas, less a margin so a head does not poke into
  * the caption above or the progress bar below. */
 constexpr int16_t ARROW_MIN_X = DRAW_X - 2;

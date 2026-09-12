@@ -12,26 +12,36 @@
 
 using namespace LetterTracerLayout;
 
-/* The direction arrows, all of them, where planArrows() put them.
+/* The numbered arrows, all of them, where planArrows() put them.
  *
- * The stroke being traced has its arrows in the highlight colour and every
- * other stroke's are muted, so a child sees the whole plan for the letter --
- * numbered, the way a workbook shows it -- with the part that is theirs to do
- * now picked out. Nothing here moves: a stroke finishing only recolours.
+ * They are the PLAN for the letter -- which stroke starts where and sets off
+ * which way -- so a child can see the whole of it before starting, numbered,
+ * the way a workbook shows it. They never move and they are all muted; what is
+ * happening now is said by the two things in the highlight colour, the start
+ * ring and the guide arrow that follows the finger.
  *
- * IDEMPOTENT, like drawGhost() and drawAllDots(): it paints each arrow's
- * exact pixels in the colour it should be, so calling it again is how an arrow
- * changes colour without anything being erased first. */
+ * IDEMPOTENT, like drawGhost() and drawAllDots(): it paints each arrow's exact
+ * pixels, so it can be re-run to repair whatever an erase took. */
 void LetterTracer::drawArrows(Ui::Renderer& tft) {
     tft.setTextDatum(MC_DATUM);
     for (uint8_t i = 0; i < arrowCount_; ++i) {
-        const Arrow& a = arrows_[i];
-        const uint16_t col = (!complete_ && a.stroke == activeStroke_)
-            ? Ui::warning() : Ui::muted();
-        const float dx = static_cast<float>(a.tipX - a.tailX);
-        const float dy = static_cast<float>(a.tipY - a.tailY);
-        const float len = sqrtf(dx * dx + dy * dy);
-        if (len < 0.5f) continue;
+        /* All of them muted, including the stroke being traced. They are the
+         * plan for the letter; what is happening NOW is the guide arrow and
+         * the ring, and those are the two things in the highlight colour. When
+         * every arrow competed for that colour a child had no way to tell the
+         * one that mattered from the four that did not. */
+        drawArrow(tft, arrows_[i], Ui::muted());
+    }
+}
+
+/* One arrow: a two-pixel shaft, a filled head, and -- for a stroke's own
+ * arrow -- its number beside the tail. */
+void LetterTracer::drawArrow(Ui::Renderer& tft, const Arrow& a, uint16_t col) {
+    const float dx = static_cast<float>(a.tipX - a.tailX);
+    const float dy = static_cast<float>(a.tipY - a.tailY);
+    const float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.5f) return;
+    {
         const float ux = dx / len;
         const float uy = dy / len;
         const int16_t hx = static_cast<int16_t>(lroundf(a.tipX - ux * ARROW_HEAD));
@@ -48,9 +58,57 @@ void LetterTracer::drawArrows(Ui::Renderer& tft) {
         tft.fillTriangle(a.tipX, a.tipY, lx, ly, rx, ry, col);
         if (a.numbered) {
             char num[2] = {static_cast<char>('1' + a.stroke), 0};
+            tft.setTextDatum(MC_DATUM);
             tft.setTextColor(col, Ui::bg());
             tft.drawString(num, a.labelX, a.labelY, 1);
         }
+    }
+}
+
+/* The box an arrow covers, derived from the arrow itself plus the head's
+ * half-width and a pixel of daylight -- never a typed-in rectangle, which is
+ * the mistake CLAUDE.md's rendering rule is most emphatic about. */
+Rect LetterTracer::arrowBox(const Arrow& a) const {
+    const int16_t pad = ARROW_HALF + 2;
+    const int16_t x0 = (a.tailX < a.tipX ? a.tailX : a.tipX) - pad;
+    const int16_t y0 = (a.tailY < a.tipY ? a.tailY : a.tipY) - pad;
+    const int16_t x1 = (a.tailX > a.tipX ? a.tailX : a.tipX) + pad;
+    const int16_t y1 = (a.tailY > a.tipY ? a.tailY : a.tipY) + pad;
+    return Rect{x0, y0, static_cast<int16_t>(x1 - x0), static_cast<int16_t>(y1 - y0)};
+}
+
+/* Move the guide arrow WITHOUT clearing the screen.
+ *
+ * It moves every time a dot is claimed -- a couple of times a second while a
+ * child is tracing -- so a full repaint here would be the screen flashing
+ * continuously, which is the failure the rendering rule in CLAUDE.md was
+ * written about. Instead its old box is painted out and the letter repainted
+ * inside that box: drawGhost() and drawAllDots() paint exactly what is already
+ * there, so running them clipped to the box restores what the erase took and
+ * touches nothing else. */
+void LetterTracer::moveGuide(Ui::Renderer& tft) {
+    const bool same = guideOnPanel_ && guideShown_ &&
+                      guideDrawn_.tailX == guide_.tailX &&
+                      guideDrawn_.tailY == guide_.tailY &&
+                      guideDrawn_.tipX == guide_.tipX &&
+                      guideDrawn_.tipY == guide_.tipY;
+    if (same) return;
+
+    if (guideOnPanel_) {
+        const Rect r = arrowBox(guideDrawn_);
+        tft.setViewport(r.x, r.y, r.w, r.h, false);
+        tft.fillRect(r.x, r.y, r.w, r.h, Ui::bg());
+        drawGhost(tft);
+        drawAllDots(tft);
+        drawArrows(tft);
+        drawStartRing(tft);
+        tft.resetViewport();
+        guideOnPanel_ = false;
+    }
+    if (guideShown_) {
+        drawArrow(tft, guide_, Ui::warning());
+        guideDrawn_ = guide_;
+        guideOnPanel_ = true;
     }
 }
 
@@ -146,15 +204,16 @@ void LetterTracer::drawAllDots(Ui::Renderer& tft) {
             drawTracedSegment(tft, static_cast<uint8_t>(start + i),
                               static_cast<uint8_t>(start + i + 1));
         }
+        const int16_t dotR = dotRadius();
         for (uint8_t i = 0; i < len && start + i < MAX_POINTS; ++i) {
             const uint8_t idx = static_cast<uint8_t>(start + i);
             if (i < inked) {
-                tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::success());
+                tft.fillCircle(pts_[idx].x, pts_[idx].y, dotR, Ui::success());
             } else if (active && i == inked) {
                 tft.fillCircle(pts_[idx].x, pts_[idx].y, NEXT_R,
                                pulseState_ ? Ui::text() : Ui::warning());
             } else {
-                tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::muted());
+                tft.fillCircle(pts_[idx].x, pts_[idx].y, dotR, Ui::muted());
             }
         }
     }
@@ -244,6 +303,8 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         drawAllDots(tft);
         drawArrows(tft);
         drawStartRing(tft);
+        guideOnPanel_ = false;
+        moveGuide(tft);
         drawProgress(tft);
         if (complete_) drawCompleteStatus(tft);
         paintedStroke_ = activeStroke_;
@@ -276,7 +337,7 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
             if (i > 0) {
                 drawTracedSegment(tft, static_cast<uint8_t>(idx - 1), idx);
             }
-            tft.fillCircle(pts_[idx].x, pts_[idx].y, DOT_R, Ui::success());
+            tft.fillCircle(pts_[idx].x, pts_[idx].y, dotRadius(), Ui::success());
         }
         /* The next dot, in whichever half of the pulse we are in. Same radius
          * every time, so this is an overdraw and never an erase. */
@@ -288,6 +349,7 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         paintedPoint_ = nextPoint_;
     }
 
+    moveGuide(tft);
     drawProgress(tft);
     tft.setTextDatum(TL_DATUM);
 }

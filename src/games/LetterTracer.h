@@ -88,6 +88,15 @@ public:
          * because joining the letters is the whole skill, so its words are
          * generated. `first` is unused for such a set. */
         uint8_t alphabet;
+        /* How fat the dots are, in pixels of radius. Zero means the default.
+         *
+         * Cursive asks for 1. Its letterforms are loops, and inside a tight
+         * one -- the eye of an 'l', the crossing of a 'k' -- two runs of dots
+         * pass within a few pixels of each other, so at the printed letters'
+         * radius they merge into a blob and the shape a child is copying is
+         * lost. The dot a child is actually aiming at keeps its own size
+         * whatever this is; see NEXT_R. */
+        uint8_t dotRadius;
     };
 
     static constexpr uint8_t NO_ALPHABET = 0xFF;
@@ -153,8 +162,9 @@ private:
         int16_t x, y;
     };
 
-    /* One direction arrow, placed once per glyph and never moved. Canvas
-     * pixels throughout, so drawing it is arithmetic-free. */
+    /* One direction arrow. Canvas pixels throughout, so drawing it is
+     * arithmetic-free. The numbered ones are placed once per glyph and never
+     * move; the guide is rebuilt as the finger advances. */
     struct Arrow {
         int16_t tailX, tailY;
         int16_t tipX, tipY;
@@ -203,6 +213,18 @@ private:
     float clearance(float x, float y, float floor) const;
     void drawArrows(Ui::Renderer& tft);
     void drawStartRing(Ui::Renderer& tft);
+    /** One arrow, drawn wherever it currently is. */
+    void drawArrow(Ui::Renderer& tft, const Arrow& a, uint16_t colour);
+    /* Work out where the guide arrow goes for the dot the finger is aiming
+     * at. Called whenever that changes; see LetterTracerArrows.cpp. */
+    void updateGuide();
+    /** The pixels one arrow covers, padded. Where an erase has to reach. */
+    Rect arrowBox(const Arrow& a) const;
+    /* Repaint the guide, and the letter under where it was, without clearing
+     * the screen. */
+    void moveGuide(Ui::Renderer& tft);
+    /** Dot radius for the current set, and for the dot being aimed at. */
+    int16_t dotRadius() const;
     void drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to);
     void drawAllDots(Ui::Renderer& tft);
     void drawProgress(Ui::Renderer& tft);
@@ -250,6 +272,22 @@ private:
     int16_t strokeBox_[MAX_STROKES][4] = {};
     Arrow arrows_[MAX_ARROWS] = {};
     uint8_t arrowCount_ = 0;
+    /* THE ONE ARROW THAT MOVES, and why there is one at all.
+     *
+     * The numbered arrows say how the letter is built; they are a plan, and a
+     * plan that moved would be unreadable. But a child part way along a
+     * cursive stroke is not asking "how does this letter go", they are asking
+     * "which way now" -- and an arrow that answered that only at the start was
+     * reported from the device as an arrow that does not move. So one arrow
+     * follows the dot being aimed at, beside the line rather than on it, for
+     * the same reason the numbered ones are beside it: on the line it covers
+     * the dots it is pointing along. */
+    Arrow guide_ = {};
+    bool guideShown_ = false;
+    /* What the panel actually has, so a partial frame can erase exactly the
+     * pixels it drew last time. */
+    Arrow guideDrawn_ = {};
+    bool guideOnPanel_ = false;
     uint8_t strokeStart_[MAX_STROKES] = {};
     uint8_t strokeLen_[MAX_STROKES] = {};
     uint8_t strokeCount_ = 0;

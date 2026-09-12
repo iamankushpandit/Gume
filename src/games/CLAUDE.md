@@ -275,7 +275,20 @@ who has never held a pencil to joined writing would read it.
   x by canvas-width/200 and y by canvas-height/200 are only equal when the
   canvas is square. If you author a new table, give it the canvas's shape when
   width matters (words) and a square when it does not (single letters).
-- **Direction arrows sit BESIDE the stroke, outside the letter, and never
+- **TWO KINDS OF ARROW, and the difference is what each answers.** The
+  numbered ones are the PLAN -- which stroke starts where and sets off which
+  way -- so they are placed once, never move, and are all muted. The GUIDE is
+  one arrow that follows the dot being aimed at, in the highlight colour, and
+  answers "which way now": players said an arrow that only appeared at the
+  start was an arrow that does not move. `updateGuide()` picks the clearer
+  side of the line and draws nothing when neither side is clear, and
+  `moveGuide()` repaints it inside its own box -- it moves a couple of times a
+  second, so a full repaint there would be a permanent flash.
+- **A `Set` carries its dot radius**, because Cursive's loops pass within a few
+  pixels of themselves and print's do not: 1 for cursive, 2 for print. The dot
+  being aimed at keeps `NEXT_R` either way, so "where next" stays the biggest
+  thing on the canvas.
+- **Numbered arrows sit BESIDE the stroke, outside the letter, and never
   move.** Every stroke gets a numbered arrow beside its start; a set with
   `turnArrows` also gets one at each sharp reversal (`TURN_COS`, measured on
   the authored vertices, never the resampled dots). `planArrows()` places them

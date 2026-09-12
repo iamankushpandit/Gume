@@ -61,10 +61,10 @@ constexpr uint8_t TRACE_LOWER_FIRST = 26;
  * the wrong direction. Words do not -- a word is up to eight strokes, and the
  * numbered arrows are already a lot to read. */
 constexpr LetterTracer::Set TRACE_SETS[] = {
-    {"ABC", 0, 26, 0, nullptr, false, true, LetterTracer::NO_ALPHABET},
-    {"abc", 26, 26, 0, nullptr, false, true, LetterTracer::NO_ALPHABET},
-    {"123", 52, 10, 0, nullptr, false, true, LetterTracer::NO_ALPHABET},
-    {"Words", 0, TRACE_WORD_COUNT, 14, TRACE_WORDS, true, false, TRACE_LOWER_FIRST},
+    {"ABC", 0, 26, 0, nullptr, false, true, LetterTracer::NO_ALPHABET, 0},
+    {"abc", 26, 26, 0, nullptr, false, true, LetterTracer::NO_ALPHABET, 0},
+    {"123", 52, 10, 0, nullptr, false, true, LetterTracer::NO_ALPHABET, 0},
+    {"Words", 0, TRACE_WORD_COUNT, 14, TRACE_WORDS, true, false, TRACE_LOWER_FIRST, 0},
 };
 
 }   // namespace

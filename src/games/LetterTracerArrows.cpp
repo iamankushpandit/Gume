@@ -139,6 +139,73 @@ float LetterTracer::clearance(float x, float y, float floor) const {
     return sqrtf(best);
 }
 
+/* WHERE THE MOVING GUIDE GOES.
+ *
+ * Beside the dot the finger is aiming at, pointing the way the stroke goes
+ * next. Deliberately simpler than placeArrow(): it is recomputed every time a
+ * dot is claimed, so it tries the two sides of the line and takes the clearer,
+ * rather than searching slides and stand-offs. It also gives up rather than
+ * draw over the letter, because an arrow that hides the dots is the thing this
+ * whole design is fixing.
+ *
+ * The guide points from the target dot along the stroke, not from the finger:
+ * the finger's own position is not sampled between dots, and the question a
+ * child has at that moment is where the line goes AFTER the dot they are
+ * reaching for. */
+void LetterTracer::updateGuide() {
+    guideShown_ = false;
+    if (complete_ || activeStroke_ >= strokeCount_) return;
+    const uint8_t start = strokeStart_[activeStroke_];
+    const uint8_t len = strokeLen_[activeStroke_];
+    if (nextPoint_ + 1 >= len) return;      // the last dot has nowhere to point
+    const uint8_t at = static_cast<uint8_t>(start + nextPoint_);
+
+    const float px = pts_[at].x;
+    const float py = pts_[at].y;
+    const float dx = static_cast<float>(pts_[at + 1].x - pts_[at].x);
+    const float dy = static_cast<float>(pts_[at + 1].y - pts_[at].y);
+    const float len2 = sqrtf(dx * dx + dy * dy);
+    if (len2 < 0.5f) return;
+    const float ux = dx / len2;
+    const float uy = dy / len2;
+
+    float bestClear = -1.0e9f;
+    for (int8_t side = 1; side >= -1; side -= 2) {
+        const float nx = -uy * side;
+        const float ny = ux * side;
+        const float tailX = px + nx * GUIDE_OFFSET;
+        const float tailY = py + ny * GUIDE_OFFSET;
+        const float tipX = tailX + ux * ARROW_LEN;
+        const float tipY = tailY + uy * ARROW_LEN;
+        float worst = 1.0e9f;
+        bool inside = true;
+        for (int16_t t = 0; t <= ARROW_LEN; t += 4) {
+            const float x = tailX + ux * t;
+            const float y = tailY + uy * t;
+            if (!inBounds(x, y)) {
+                inside = false;
+                break;
+            }
+            const float c = clearance(x, y, 0.0f);
+            if (c < worst) worst = c;
+        }
+        if (!inside || worst <= bestClear) continue;
+        bestClear = worst;
+        guide_.tailX = static_cast<int16_t>(lroundf(tailX));
+        guide_.tailY = static_cast<int16_t>(lroundf(tailY));
+        guide_.tipX = static_cast<int16_t>(lroundf(tipX));
+        guide_.tipY = static_cast<int16_t>(lroundf(tipY));
+        guide_.labelX = 0;
+        guide_.labelY = 0;
+        guide_.stroke = activeStroke_;
+        guide_.numbered = false;
+        guideShown_ = true;
+    }
+    /* Nowhere clear beside the line: better nothing than an arrow over the
+     * dots. The dots themselves still say where to go. */
+    if (bestClear < GUIDE_CLEAR) guideShown_ = false;
+}
+
 void LetterTracer::planArrows() {
     arrowCount_ = 0;
     if (glyphs_ == nullptr) return;

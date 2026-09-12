@@ -118,6 +118,13 @@ int16_t LetterTracer::waypointSpacing() const {
     return s != 0 ? s : DEFAULT_SPACING;
 }
 
+/* The plain dots' radius: the set's, or the default. */
+int16_t LetterTracer::dotRadius() const {
+    if (sets_ == nullptr || setCount_ == 0) return DOT_R;
+    const uint8_t r = set().dotRadius;
+    return r != 0 ? static_cast<int16_t>(r) : DOT_R;
+}
+
 uint8_t LetterTracer::setFirstIndex() const {
     if (sets_ == nullptr || setCount_ == 0) return 0;
     return sets_[setIndex_].first;
@@ -150,6 +157,8 @@ void LetterTracer::loadGlyph() {
     }
     resampleWaypoints();
     planArrows();
+    updateGuide();
+    guideOnPanel_ = false;   // whatever is on the panel belongs to the old glyph
     markFullDirty();
 }
 
@@ -295,6 +304,9 @@ void LetterTracer::update(AppContext& host, const TouchPoint& touch) {
             if (d2 < (int32_t)HIT_RADIUS * HIT_RADIUS) {
                 ++nextPoint_;
                 markDirty();
+                /* The guide moves with the finger. Not a full repaint: it is
+                 * erased and redrawn in its own box -- see moveGuide(). */
+                updateGuide();
 
                 if (nextPoint_ >= strokeLen_[activeStroke_]) {
                     host.beepOk();
