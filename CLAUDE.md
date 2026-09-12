@@ -4,10 +4,24 @@ These rules apply to everyone changing this repository, human or agent. `CONTRIB
 
 ## Two standing rules â€” do these without being asked
 
-**No AI attribution in commits.** Never add `Co-Authored-By: Claude`,
-`Co-Authored-By:` naming any AI, "Generated withâ€¦" footers, or any trailer that
-credits a model or tool. This applies to commits, amends, squashes and PR
-bodies. The history here records a human author.
+**No AI attribution in commits -- and no AI in the names either.** Never add
+`Co-Authored-By: Claude`, `Co-Authored-By:` naming any AI, "Generated with..."
+footers, or any trailer that credits a model or tool. This applies to commits,
+amends, squashes and PR bodies. The history here records a human author.
+
+The same goes for **the word itself**. No `claude`, and no other model or vendor
+name, anywhere a contribution leaves a trace: branch names, commit subjects and
+bodies, PR titles and descriptions, file names, identifiers, comments and TODOs.
+A branch called `claude/fix-the-thing` records who typed rather than what
+changed, and unlike a session it is permanent -- it is in the merge commit, the
+pull request, and every clone, long after anyone remembers which tool was open
+that day. Name a branch for its work instead: `feat/<game-id>`, `fix/<area>`,
+`docs/<topic>`. If you find yourself on a branch that breaks this, rename it
+before you open the pull request (`git branch -m <new-name>`).
+
+The `CLAUDE.md` files are the one exception, because that filename is how an
+agent finds this rulebook at all. The rule is about what a *change* carries, not
+about what the rulebook is called.
 
 **Docs are part of the change, not a follow-up.** If a change alters behaviour,
 architecture, dependencies, screens, settings, the game list or the build, then
@@ -35,7 +49,7 @@ any more is a worse lie than a missing one.
 
 ## The About app is user-facing documentation â€” keep it true
 
-`AboutGame` is the only documentation most owners will ever read, and the only
+`AboutApp` is the only documentation most owners will ever read, and the only
 one they read *while holding the device*. It is part of the deliverable, not a
 credits screen. **Update it in the same commit as the change it describes.**
 
@@ -250,7 +264,7 @@ Rules, in the order they bite:
 3. **Don't rebuild content on every frame.** Rebuild when the data changed and
    keep a `stale` flag. Scrolling changes an offset, not the content.
 4. **A `String` member on a screen is a smell.** A few exist for genuinely
-   user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) â€” that is
+   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) â€” that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
    through `BrainoApp::leaveActiveGame()`, which compares free heap
@@ -268,7 +282,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 37 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 38 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -557,9 +571,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,507,569 / 3,145,728 bytes,
-**79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 79,708 / 327,680 (24.3%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,563,333 / 3,145,728 bytes,
+**81.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 87,492 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -583,7 +597,7 @@ This keeps diffs reviewable, conflicts locatable, and prevents any single file f
 
 `setup()`/`loop()` in `src/main.cpp` delegate to a `BrainoApp` singleton defined in `src/engine/AppRuntime.*`, which owns every screen as a `static` instance and implements `GameHost`.
 
-Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED), **Asleep** (backlight off, panel in low-power state) and **Locked** (the hold-to-unlock guard between either of those and the screen underneath). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherGame` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
+Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED), **Asleep** (backlight off, panel in low-power state) and **Locked** (the hold-to-unlock guard between either of those and the screen underneath). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherApp` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
 
 The idle path is driven by `Board::idleAction()`: `SaverThenSleep` runs the
 saver and then blanks after `sleepSeconds()`, `SleepOnly` blanks straight away
@@ -629,7 +643,16 @@ orientation that were up before. Three things about it are load-bearing:
   landscape is the tight case and every gap is stated in the comment there.
   The battery badge is variable width, so it is placed off
   `Ui::batteryBadgeWidth()` rather than a constant -- same rule as the
-  launcher header.
+  launcher header. **It belongs top right, level with the middle of the
+  mark**, and it spent a release in the bottom corner instead on the
+  reasoning that a status badge should not compete with the brand. The
+  measurement disagrees: the footer is drawn centred across the full width
+  and `lockFooterText()` deliberately picks the widest wording that measures
+  whole, so a badge at the right-hand end of that row is in the footer's
+  way. Up beside the mark there is nothing to hit -- the badge is 50px wide
+  and centred, and 240px portrait is the tight case and still clears it by
+  about 39px. It is centred on the mark's own height rather than a typed-in
+  y, so it cannot drift if the logo size changes.
 - **`Locked` is excluded from the idle-timeout block** alongside `ScreenSaver`
   and `Asleep`; it runs its own `LOCK_TIMEOUT_MS` and hands back to sleep (or
   to the saver under `SaverOnly`). Leaving it in that block re-arms the saver
@@ -677,7 +700,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
-| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudio.cpp` | The console's sound vocabulary, and the synthesiser that generates every one of them a sample at a time |
+| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudioCues.cpp` / `BoardAudio.cpp` / `BoardAudioBackend.cpp` | The console's sound vocabulary, the synthesiser that generates every one of them a sample at a time, and the codec/I2S/DAC hardware under it |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
@@ -711,7 +734,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   bench is one decision, not twenty; `lock` ends it and the tool always sends
   it.
 - **Per-player game visibility and profile removal are admin-only; renaming is
-  not.** `ProfileGame` gates on `board.isAdminProfile(board.activeProfile())`
+  not.** `ProfileApp` gates on `board.isAdminProfile(board.activeProfile())`
   — the *actor*, not the profile being edited. Those two are different
   questions and conflating them is exactly how Remove ended up available to
   every player. The Games list stays readable by anyone on purpose: a player who
@@ -719,7 +742,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   that is short for unexplained reasons.
 - **Settings is readable by everyone and writable only by the admin.** There is
   no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
-  early return in `SettingsGame::update()`, sitting *below* tab switching so a
+  early return in `SettingsApp::update()`, sitting *below* tab switching so a
   non-admin can still page through and read. The greyed-out controls are a
   drawing decision and enforce nothing on their own: for a while every greyed
   row was still live and a player could toggle the lot. If you add a control,
@@ -739,10 +762,10 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 38 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
-- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead -- with one measured exception: the **mute control does not fit that row in portrait**. At 240px the badges reach about x=155 and the padlock starts at `lW-64`, which leaves roughly 20px for an 18px glyph plus its gaps, so it goes on the profile-name row above, whose right-hand half is empty because the name is capped at 112px. It sits **in the padlock's column** (`speakerRect()` takes `lockRect().x`) rather than mid-row: at `lW-96` it was beside nothing and above nothing, and it read off both portrait panels as an icon floating in an empty row. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
@@ -812,6 +835,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `NearbySeat::forThisGame` (an invitation names its game; a lobby must not
   accept another game's) and `nearbySelfId()` (so every console orders the
   table alike). Still a BROADCAST: everyone in range hears every move.
+  **A console that goes quiet pauses the whole table**, and once it is Gone
+  the host may play on without it: `Ludo::Net::takeoverFrom(seat)` is a
+  numbered ply in the `from` values 16..19 that nothing else uses, saying
+  that seat is the host's computer seat from here on. Only the host's word
+  counts, a guest whose own seat is taken goes to its lobby told why, and it
+  is a new meaning for existing bits rather than a payload change -- which
+  is the whole of why it needed no fresh agreement about the air.
 - **Backgammon's dice do not go on the air either, and that is what made it
   fit.** An earlier plan ruled nearby Backgammon out because the turn has no
   field for dice. It does not need one: as in Ludo, both consoles derive every
@@ -822,6 +852,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   forced-move rules included. A turn goes on the air on Done, one checker per
   ply, each once the other console has acked the last; a turn with no legal
   move sends nothing, because both consoles compute that it has none.
+- **A console that goes quiet pauses the game, and the service says when.**
+  The second way a two-player game ends never arrives as a message -- a flat
+  battery cannot send `nearbyEnd()` -- so `NearbyPlay::peerSilentMs()` reports
+  the silence off the scanner's own `lastSeenMs`, and `NearbyWatch`
+  (`src/games/`) turns it into Present / Quiet (`PEER_QUIET_MS`, 6s) / Gone
+  (the scanner's 45s TTL) and one card: waiting for whom, for how long, Keep
+  waiting or End game. Every nearby game hooks it at the same two places;
+  none may decide "too long" for itself. Nothing transmits for it: it is
+  derived from the absence of the beacon that is already there, which is why
+  it needed no agreement about what goes on the air. See
+  `src/games/CLAUDE.md`.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- children put the
   device down constantly and a game that evaporated is a game they stop
@@ -839,7 +880,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   defect, not a bug. They are **global, not profile-scoped**: `saveBlob()` is
   transparently profile-prefixed and Guest silently drops writes, so a guest
   naming a peer would watch it work and lose it. Setting one is **admin-only**,
-  enforced in `NearbyGame::update()` rather than by withholding the chip --
+  enforced in `NearbyApp::update()` rather than by withholding the chip --
   a chip is a drawing decision and enforces nothing, which is how every
   greyed-out Settings row stayed live once already.
 - **A poke rides the beacon and displaces the score; it is not a fourth
@@ -856,9 +897,21 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   target reacts -- and the docs must keep saying so rather than implying a
   private channel. The one identifier it carries is the target's own advertised
   id, so it adds an event to the radio, not a new kind of data.
+- **A find is a poke that asks to be heard, and it spends a reserved flag bit
+  rather than a byte or a version.** `FLAG_FIND` (bit 4) makes the target ring
+  `Sound::Bell` on a cadence, blink its LED and wake its panel, for
+  `ALERT_MS`. It adds nothing to a payload that has nothing to add to. **It
+  does not bump `PAYLOAD_VERSION`, and must not**: `decode()` rejects the whole
+  manufacturer block on a version mismatch, so a bump makes consoles either
+  side of it invisible to each other in Nearby -- worse than the problem. That
+  is safe here only because no length and no existing field changed meaning, so
+  an older reader sees a poke and blips. **A future flag that moves a field
+  does have to bump the version.** It is still a broadcast: everyone in range
+  hears who is looking for whom, only the target rings.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
+  (the cue tables themselves live in `BoardAudioCues.cpp`)
   from a script of oscillator, noise and formant segments. No WAV, no PCM
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
@@ -875,6 +928,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the whole of the feedback on a codec-less board anyway. `soundEnabled()` and
   `volume()` are RAM-mirrored write-through settings because the first is on
   the path of every cue in every game.
+
+  **Exactly one thing may change the switch itself, and it puts it back.** A
+  find alert (see above) unmutes a muted console so that it can answer, and
+  `NearbyPlay::dismissAlert()` restores it -- which is why every way an alert
+  can end, a touch and the BOOT key and its own timeout, funnels through that
+  one function. Note what this is *not*: nothing reaches past
+  `Board::playSound()`, so the invariant still holds literally -- a muted
+  console is silent, and this console is briefly not muted. It is the same
+  shape as `lockOnWake_`: a one-time override of a device setting, cleared in
+  the one place that already decides the episode is over. If you need a second
+  such override, be sure it can say the same two things.
 - **A screen makes a noise through `playSound(Sound::...)` and nothing else.**
   `Board::beep(freq, ms)` is private on purpose. A shared vocabulary is the
   point -- `Coin` means the same thing in Whack-a-Mole as in Memory, and a game
@@ -900,6 +964,41 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   watchdog: **work whose deadline is not the frame's does not belong on the
   frame.**
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
+
+## A theme is not done until every screen has been seen in it
+
+**Adding or changing a theme means running these two, in this order, and
+looking at what the second one writes:**
+
+```bash
+python tools/check_contrast.py          # every pairing, against the WCAG floors
+python tools/gen_screens.py --themes    # docs/theme-sheets/<theme>.png
+```
+
+The check is arithmetic and catches what arithmetic can: text that cannot be
+read on what it sits on. It cannot catch a glyph drawn in a colour the palette
+never chose, and that is what nine themes shipped with -- a Home button painted
+`TFT_WHITE` on Classic's white bar, so the button was simply not there; launcher
+tile labels fixed white over a fill the theme picks, unreadable on three of
+them; a battery badge in one of two greys chosen for Dark, invisible on
+Pocket's green; primary buttons in a hard-coded web blue on all nine. Every one
+of those looked perfect in the Dark mock-ups, which were the only mock-ups
+there were.
+
+The sheets render a representative set of screens -- launcher, About, Settings,
+System Info, Scores, a game, a tracing canvas, the lock screen -- in each
+palette. Read them for three things:
+
+1. **Is every glyph still there?** A control that vanishes into its background
+   is the failure this exists to catch, and it is invisible in a diff.
+2. **Does anything look like it belongs to another theme?** A colour that does
+   not move when the palette does is a constant that should be a role.
+   `barText`, the tile fills, `radius` and `accent` were each found that way.
+3. **Is the ink on a coloured fill readable?** Text over a themed fill takes
+   `Ui::onFill()` / `Ui::onFillSoft()`, never a chosen black or white.
+
+A palette that passes the checker and fails the sheets is normal. The checker
+is a floor; the sheets are the design.
 
 ## Adding a game or an app â€” the whole checklist
 
@@ -1056,18 +1155,20 @@ src/BuildStamp.cpp        which build this is; recompiled every build
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
-src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
-                          AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
+src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPlay,
+                          AppRuntime, AppRuntimeLock, AppRuntimeNotify (the
+                          header banner), AppRuntimeIdentity,
                           AppRuntimeConsole (+Settings, +Profiles),
                           ConsoleText,
                           ScoreCatalog, Progress,
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           LetterTracer (the finger-tracing engine Trace and
-                          Cursive share), CursiveGlyphData (generated) +
+                          Cursive share: logic, Draw, Arrows, Words and a
+                          Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
-                          SettingsGame (tabs + routing), SettingsPanels
+                          SettingsApp (tabs + routing), SettingsPanels
                           (the tab bodies), SettingsPin (the PIN pad).
                           Ludo is six .cpp against one header -- LudoGame
                           (flow, input), LudoBoard (the board), LudoPanel
@@ -1078,21 +1179,45 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Backgammon likewise: BackgammonGame (flow, input),
                           BackgammonDraw, BackgammonNet (the nearby game),
                           BackgammonSave, over BackgammonRules and
-                          BackgammonAi (pure, host-tested)
-src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
-                          per-concern HAL units, BoardAudio (the synthesiser),
+                          BackgammonAi (pure, host-tested).
+                          Chess is six .cpp against two headers -- ChessGame
+                          (flow, input), ChessDraw, ChessNet (the lobby and the
+                          nearby game), ChessSave, over ChessRules (the rules)
+                          and ChessAi (both computer levels), which are pure
+                          C++ with no Arduino and are host-tested; Sea Battle is four: SeaBattleGame
+                          (flow, input, the fleet), SeaBattleDraw,
+                          SeaBattleNet, SeaBattleSave.
+                          NearbyWatch is the pause every nearby game shares
+                          when the other console goes quiet.
+                          GoRules (the rules, scoring and the wire encoding)
+                          and GoAi (both computer levels and the dead-stone
+                          estimate) are pure and host-tested, like
+                          Backgammon's.
+src/hal/                  Board bring-up, BleBeacon (the radio) +
+                          BleBeaconPayload (the one description of what goes
+                          on air, and decode(), its exact inverse),
+                          BleScanner, BoardAccess facades,
+                          per-concern HAL units, BoardAudio (the synthesiser) +
+                          BoardAudioBackend (codec, I2S, amp) + BoardAudioCues
+                          (every cue and the spoken phrase),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
-                          LauncherLayout
+                          LauncherLayout, LogoMask (generated -- the product
+                          mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_logo_mask.py (the product mark, from
+                          tools/braino-badge.svg -- writes a preview that MUST
+                          be looked at),
                           gen_cursive_glyphs.py (cursive letterforms, from a
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),
                           check_boards.py, check_catalog.py,
+                          check_contrast.py (every theme's colours against
+                          the WCAG floors),
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
                           above), build_stamp.py,
@@ -1115,7 +1240,9 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
                           every firmware image attached
-docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/
+docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
+                          boards/ (one page per supported board; the pin
+                          tables and diagrams in it are generated)
 cases/                    printable enclosures, one folder per BOARD_NAME;
                           optional -- a board is supported without one
 ```
@@ -1300,7 +1427,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     cannot be removed; the *active* player cannot be removed either (from a
     cable that would pull a profile out from under a running game); two
     players cannot share a name. Games at launcher index 32+ cannot be hidden
-    yet -- visibility is a 32-bit mask and the catalogue is 37 -- and the
+    yet -- visibility is a 32-bit mask and the catalogue is 38 -- and the
     console says so rather than answering ok.
   - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
     under the closed privacy list.

@@ -72,92 +72,64 @@ LIFT_GAP = 80         # font units; within-stroke steps are 36
 # apart once scaled and the tracer resamples at its own spacing anyway, so
 # keeping every one of them would be flash spent on invisible detail.
 MIN_STEP = 4
+# Words keep fewer. Drawn a third larger than they were, the font's dots land
+# about 4.9px apart, so a 4px step kept every one of them and the word table
+# grew from 13KB of flash to 20KB. Measured on the 49 words:
+#
+#     4px   20.2KB   every dot
+#     5px   14.4KB   most dots; loops still round
+#     6px   10.4KB   every other dot; the tightest loops, about a 10px radius,
+#                    go visibly faceted -- chords stray ~1.3px off the curve
+#
+# 5 is the step that keeps the shape a child is copying and still gives back
+# most of the growth.
+WORD_MIN_STEP = 5
 
-# THE WORD LIST, AND WHERE IT CAME FROM.
+# THE WORD LIST, AND WHY IT IS SHORT WORDS ONLY.
 #
-# SHEET_WORDS is every word from the practice sheets the maintainer supplied:
-# 166 of them across 24 pages, one page per letter, which are the ordinary
-# Dolch sight words every handwriting workbook uses. The sheets themselves are
-# copyright AussieChildcareNetwork.com and nothing has been taken from them but
-# the choice of words -- the letterforms here are generated from a GPLv3 font
-# and no part of their artwork is reproduced or shipped.
+# The first list was every word on the practice sheets the maintainer supplied
+# -- 166 Dolch sight words, most of them four to eight letters -- filtered to
+# those under 1900 font units wide. It shipped, and user testing sank it:
+# players are as young as five, most have never written joined-up before, and
+# they said plainly that the words were too small to follow. They were right.
+# Every word shares one scale and the canvas is 200 pixels wide, so the widest
+# word sets the size of all of them, and at 1900 units that left an x-height of
+# about 25 pixels -- well under the 43 of the same letters on the abc tab.
 #
-# The full list is kept here even though most of it is filtered out below, so
-# that what was considered is visible and the two filters can be re-run against
-# it if either number ever changes.
-SHEET_WORDS = [
-    'and', 'all', 'away', 'ate', 'again', 'always', 'apple',
-    'be', 'black', 'brown', 'but', 'been', 'better', 'big',
-    'call', 'cold', 'cut', 'carry', 'clean', 'could', 'can',
-    'do', 'draw', 'done', 'drink', 'dog', 'donkey', 'down',
-    'egg', 'enter', 'even', 'ear', 'eleven', 'elephant', 'eat',
-    'four', 'fly', 'from', 'fast', 'first', 'full', 'find',
-    'good', 'give', 'goes', 'green', 'got', 'grow', 'go',
-    'have', 'he', 'her', 'hour', 'hot', 'hold', 'help',
-    'idea', 'item', 'ice', 'itch', 'insect', 'invite', 'it',
-    'joy', 'joke', 'jeans', 'judge', 'jacket', 'jupiter', 'jump',
-    'key', 'knee', 'kiss', 'king', 'kitchen', 'kangaroo', 'know',
-    'like', 'live', 'laugh', 'light', 'long', 'leaf', 'look',
-    'may', 'made', 'many', 'much', 'myself', 'monkey', 'make',
-    'never', 'nine', 'numb', 'nose', 'north', 'normal', 'not',
-    'old', 'open', 'over', 'only', 'own', 'orange', 'one',
-    'please', 'put', 'pull', 'pick', 'pencil', 'parent', 'play',
-    'queue', 'quit', 'quiz', 'quest', 'quilt', 'quarter',
-    'ride', 'read', 'right', 'rocket', 'round', 'rabbit', 'red',
-    'said', 'some', 'stop', 'sing', 'sleep', 'seven', 'see',
-    'they', 'think', 'tell', 'these', 'today', 'together', 'two',
-    'ugly', 'upon', 'unless', 'urge', 'unicorn', 'umbrella', 'use',
-    'view', 'vent', 'vegetable', 'violin', 'vacuum', 'very',
-    'want', 'was', 'well', 'white', 'warm', 'water', 'we',
-    'xerox', 'yes', 'yawn', 'yellow', 'zip', 'zero', 'zebra',
+# So the list is now chosen for the child rather than taken from the sheets:
+# two- and three-letter words a five-year-old reads or is about to, covering
+# the alphabet as far as the font allows. See WORD_WIDTH_CAP for the one letter
+# it does not.
+KID_WORDS = [
+    'at', 'all', 'bee', 'bed', 'cat', 'can', 'car', 'dog', 'dad', 'egg',
+    'ear', 'fox', 'fly', 'go', 'hot', 'ice', 'it', 'is', 'jet', 'joy',
+    'kit', 'leg', 'log', 'me', 'no', 'net', 'nut', 'on', 'ox', 'one',
+    'pet', 'pot', 'rat', 'red', 'see', 'sit', 'sea', 'ten', 'the', 'toy',
+    'top', 'up', 'use', 'vet', 'we', 'wet', 'yes', 'you', 'zoo',
 ]
 
-# Not from the sheets, and paired with the letter each is there to cover.
-# Their only x word is 'xerox', which is too wide, and a handwriting set that
-# skips a letter is a handwriting set with a hole in it. 'six' does not START
-# with x, which is exactly why the letter has to be stated rather than taken
-# from the spelling -- keyed on its first letter it would have been filed under
-# s, where there were already two words, and quietly dropped.
-EXTRA_WORDS = [('x', 'six')]
-
-# FILTER ONE: WIDTH, AND IT IS ARITHMETIC RATHER THAN TASTE.
+# THE WIDTH CAP, AND IT IS ARITHMETIC RATHER THAN TASTE.
 #
 # Every word shares one scale, so the widest word decides how big all of them
-# are, and the canvas is 200 pixels wide. Measured in this font:
+# are. Measured in this font, in font units, with the x-height it gives:
 #
-#     dog        3 letters   1129 units   43 px x-height
-#     been       4 letters   1713 units   28 px
-#     apple      5 letters   2334 units   21 px
-#     always     6 letters   3040 units   16 px
-#     kangaroo   8 letters   3840 units   13 px
+#     cap 1900   (the old list, 'been', 'apple')   25 px
+#     cap 1400   (this list, widest 'kit')         35 px
+#     cap 1104   (the abc tab's own scale)         44 px
 #
-# The tracer's touch radius is 16 pixels, so below about a 25-pixel x-height
-# the waypoints sit closer together than a finger can distinguish and the
-# mechanic stops working. 1900 units is therefore a floor on usability, and it
-# keeps 84 of the 166 -- every initial letter except x.
+# 1400 is where the kid words live. Going tighter buys a few pixels and loses
+# every word with a b, h, k or r in the middle, which is most of the ones a
+# five-year-old knows. It costs one letter outright: no word with a cursive q
+# is narrower than 'quiz' at 1765, because q always brings its u, so q is
+# practised on the abc tab and not here.
 #
-# The rest are all five letters or more. Supporting them wants a canvas that
-# scrolls horizontally under the finger so that word length stops mattering,
-# which is a feature rather than a constant.
-WORD_WIDTH_CAP = 1900
-
-# FILTER TWO: HOW MANY, AND THIS ONE IS A BUDGET.
-#
-# A word costs about 230 bytes of flash -- roughly 53 waypoints at four bytes,
-# plus its stroke and glyph entries. All 84 that fit come to about 19KB on a
-# partition already three quarters full, and no child is going to work through
-# 84 words: past the first couple per letter the extra ones buy variety rather
-# than learning.
-#
-# Two per letter is the balance. It covers the whole alphabet, gives a child a
-# different word next time without the set feeling like a list, and costs about
-# 11KB instead of 19KB. Raise it if the flash budget ever loosens; the words
-# are all still up there in SHEET_WORDS.
-WORDS_PER_LETTER = 2
+# A listed word over the cap is an error, not a quiet omission: a word the
+# maintainer asked for that silently never appears is a bug nobody sees.
+WORD_WIDTH_CAP = 1400
 
 SHUFFLE_SEED = 20260908
 
-MAX_STROKES = 6       # LetterTracer::MAX_STROKES
+MAX_STROKES = 8       # LetterTracer::MAX_STROKES
 
 # A stroke this short is a mark rather than a letter -- the dot on an i, the
 # crossbar of a t. See order_strokes().
@@ -273,7 +245,7 @@ def word_strokes(gs, cmap, word):
     return ([body] if len(body) >= 2 else []) + marks
 
 
-def normalise(items):
+def normalise(items, min_step=MIN_STEP):
     """Fit a group of glyphs into the 0..200 box on one shared scale.
 
     Shared, because 'a' and 'A' switching size when you change tabs looks like
@@ -285,7 +257,13 @@ def normalise(items):
     ys = [y for _, strokes in items for s in strokes for _, y in s]
     if not xs:
         return []
-    wide = max(x for _, strokes in items for s in strokes for x, _ in s) - min(xs)
+    # The WIDEST SINGLE GLYPH, each measured against its own left edge. This
+    # was the group's rightmost x minus its leftmost, which is only the same
+    # thing when every glyph starts at zero -- and a 'j' or a 'y' reaches left
+    # of its origin, so one descender loop made the box look wider than any
+    # word in it and shrank the whole set by 7%.
+    wide = max(max(x for s in strokes for x, _ in s) -
+               min(x for s in strokes for x, _ in s) for _, strokes in items)
     high = max(ys) - min(ys)
     spanX = COORD_W - 2 * MARGIN
     spanY = COORD_H - 2 * MARGIN
@@ -312,7 +290,7 @@ def normalise(items):
             for x, y in s:
                 p = (int(round(ox + (x - left) * scale)),
                      int(round(oy + (top - y) * scale)))
-                if last is None or math.dist(p, last) >= MIN_STEP:
+                if last is None or math.dist(p, last) >= min_step:
                     pts.append(p)
                     last = p
             # The end of a stroke is where the pen stops; never decimate it away.
@@ -399,7 +377,7 @@ def emit_header(letters, words):
     CursiveGame builds its Set table from these and that table is constexpr, so
     an `extern const uint8_t` in another translation unit will not do -- the
     compiler cannot see the value. Generated rather than typed for the usual
-    reason: adding a word to SHEET_WORDS should not require anybody to remember to
+    reason: adding a word to KID_WORDS should not require anybody to remember to
     change a number in a header.
     """
     return '\n'.join([
@@ -498,48 +476,28 @@ def main():
     # word list has to stay narrow: see WORD_WIDTH_CAP.
     letters = normalise(upper) + normalise(lower)
 
-    # Width first, then the SHORTEST of what survives, up to WORDS_PER_LETTER.
-    #
-    # Shortest rather than the sheets' own order, which is arbitrary: 'd' lists
-    # do, draw, done, drink, dog, and taking the first two that fit gave 'do'
-    # and 'done' while dropping 'dog'. A three-letter word a child already
-    # reads beats a four-letter one they do not, and it is cheaper in flash
-    # too, so the two things this filter cares about agree.
-    chosen, per, dropped = [], {}, []
-    # The extras first and unconditionally: they exist to fill a hole, so a
-    # per-letter cap must not be able to close it again.
-    candidates = [(L, w, 0) for L, w in EXTRA_WORDS]
-    measured = []
-    for w in SHEET_WORDS:
+    chosen, too_wide = [], []
+    for w in KID_WORDS:
         strokes = word_strokes(gs, cmap, w)
         xs = [x for st in strokes for x, _ in st]
         width = max(xs) - min(xs) if xs else 0
         if width > WORD_WIDTH_CAP:
-            dropped.append((w, width))
-            continue
-        measured.append((w[0], w, width))
-    measured.sort(key=lambda t: (t[0], len(t[1]), t[2]))
-    candidates += measured
-
-    for letter, w, _ in candidates:
-        if per.get(letter, 0) >= WORDS_PER_LETTER:
-            continue
-        per[letter] = per.get(letter, 0) + 1
-        chosen.append((w, word_strokes(gs, cmap, w)))
-
-    thin = sorted(k for k, v in per.items() if v < WORDS_PER_LETTER)
-    missing = sorted(set('abcdefghijklmnopqrstuvwxyz') - set(per))
-    print('         %d words from %d on the sheets; %d too wide'
-          % (len(chosen), len(SHEET_WORDS), len(dropped)))
-    if thin:
-        print('         only one word for: %s' % ' '.join(thin))
-    if missing:
-        sys.stderr.write('no word at all for: %s\n' % ' '.join(missing))
+            too_wide.append((w, width))
+        chosen.append((w, strokes))
+    if too_wide:
+        for w, width in too_wide:
+            sys.stderr.write("'%s' is %d font units wide; WORD_WIDTH_CAP is %d\n"
+                             % (w, width, WORD_WIDTH_CAP))
+        sys.stderr.write('nothing written.\n')
         return 1
+    missing = sorted(set('abcdefghijklmnopqrstuvwxyz') -
+                     set(c for w in KID_WORDS for c in w))
+    print('         %d words; no word contains: %s'
+          % (len(chosen), ' '.join(missing) or 'nothing'))
 
     order = list(chosen)
     random.Random(SHUFFLE_SEED).shuffle(order)
-    words = normalise(order)
+    words = normalise(order, WORD_MIN_STEP)
 
     bad = 0
     for label, strokes in letters + words:

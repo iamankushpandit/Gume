@@ -75,7 +75,7 @@ renegotiating with 28 call sites.
 | HAL | `Display`, `Touch`, `Storage`, `Power`, `Net`, `Led`, `BoardProfile` | `Board` (1,484 lines) split by concern |
 | Kernel | `Runtime`, `AppRegistry`, `Lifecycle`, `Budget`, `Watchdog` | `BrainoApp` in `main.cpp` |
 | SDK | `App`, `AppContext`, `AppManifest`, `Canvas`, `Input`, `Store`, `Scores`, `Progress`, `Rng` | `Game`, `GameHost`, `Ui`, parts of `Board` |
-| Shell | the seven system screens, as privileged first-party apps | `SettingsGame`, `ProfileGame`, … |
+| Shell | the seven system screens, as privileged first-party apps | `SettingsApp`, `ProfileApp`, … |
 | Apps | one library per app | `src/games/*` |
 
 ### Naming

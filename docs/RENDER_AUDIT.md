@@ -57,7 +57,7 @@ usually is one.
 
 | Screen | State | Notes |
 |---|---|---|
-| LauncherGame | **converted, verified** | Reference for the pattern. Paging on the 4-inch. |
+| LauncherApp | **converted, verified** | Reference for the pattern. Paging on the 4-inch. |
 | MemoryGame | **converted, verified** | Below. Checked on hardware (2.8-inch). |
 | WhackAMoleGame | **converted, verified** | Below. Worst offender found. Checked on hardware (2.8-inch). |
 | MathGame | **converted** | Group A reference. Question panel static, buttons tracked. |
@@ -86,7 +86,7 @@ usually is one.
 
 ---
 
-## LauncherGame — converted, reference
+## LauncherApp — converted, reference
 
 **Static:** background, header (wordmark, profile name, clock, status badges,
 gear, lock). Paging never touches it.
@@ -437,7 +437,7 @@ only, nothing ever needs erasing — and should be near the top of the list.
 
 ## Group D — no change needed (6)
 
-`AboutGame`, `ScoresGame`, `GreWordsGame`, `StatesGame`, `StateFlagGame`,
+`AboutApp`, `ScoresApp`, `GreWordsGame`, `StatesGame`, `StateFlagGame`,
 `StateMapGame`.
 
 **Every one of these has zero `markDirty()` calls.** They only ever
@@ -453,14 +453,14 @@ removed, but that is a mechanical rename, not a redraw change.
 
 ## Group E — system screens (5)
 
-### SettingsGame
+### SettingsApp
 
 Toggling one row repaints the whole tab. Rows are cheap and this is not
 latency-critical, so convert it, but late. The tab strip and baseline are
 static, the rows are dynamic. Its invalidation is already more considered than
 most — 10 `markDirty` against 10 `markFullDirty`.
 
-### SystemInfoGame — the careful one
+### SystemInfoApp — the careful one
 
 It sets a viewport for scrolling and must reset it. Two different changes are
 conflated today: **scrolling**, where every row moves and a full repaint is
@@ -469,7 +469,7 @@ changes. The second is what should become dynamic. Do not split the viewport
 across the two halves — set and reset it inside whichever function draws the
 scrolling region, or an early return leaks the clip onto the next screen.
 
-### ProfileGame
+### ProfileApp
 
 Its own header, plus a PIN-entry phase that owns the whole panel — which is why
 it already returns `false` from `renderChrome()`. Phase changes are layout
@@ -500,7 +500,7 @@ third PIN task is added, check that it does too.**
 
 Still only recorded, not done: a single visibility row in the Games list.
 
-### WifiGame — leave until last
+### WifiApp — leave until last
 
 229 lines of render, 30 `markDirty()` sites, five timers, and a ~4.3 second
 blocking scan inside `update()` with no `Watchdog::Pause`. **That blocking scan
@@ -508,7 +508,7 @@ is a separate, already-diagnosed bug and should be fixed before anyone touches
 this screen's rendering.** Recorded as not yet analysed rather than analysed
 badly.
 
-### NearbyGame
+### NearbyApp
 
 Small, two timers, and a peer list that changes as beacons come and go. A list
 whose entries appear and disappear is the disappearing-thing trap in list form:
@@ -593,7 +593,7 @@ avoid burn-in.
 
 It also carries a warning worth repeating here, because it applies to every
 screen in this audit: **it resets the viewport on entry**, because it owns the
-panel and must not inherit a clip from whatever drew before it. `SystemInfoGame`
+panel and must not inherit a clip from whatever drew before it. `SystemInfoApp`
 is the screen that can leave one behind.
 
 **No work needed.** Migrating `lockFullPaint_` to the base class's

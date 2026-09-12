@@ -76,8 +76,24 @@ void fillSeat(Board& board, const Known& k, NearbySeat& out) {
                       activeGameIndex_ != BleBeacon::GAME_NONE;
     out.session = static_cast<uint8_t>(k.inviteSession & SESSION_MASK);
     out.weMoveFirst = (k.inviteSession & SIDE_BIT) != 0;
+    out.silentMs = millis() - k.lastSeenMs;
 }
 }   // namespace
+
+uint32_t peerSilentMs(const char* deviceId) {
+    if (!sessionsAllowed() || deviceId == nullptr) {
+        return PEER_SILENT_UNKNOWN;
+    }
+    for (uint8_t i = 0; i < knownCount_; ++i) {
+        const Known& k = known_[i];
+        if (strncmp(k.deviceId, deviceId, sizeof(k.deviceId)) == 0) {
+            return millis() - k.lastSeenMs;
+        }
+    }
+    /* Not in the table: BleScan dropped it at SIGHTING_TTL_MS and reconcile()
+     * forgot it, or it was never here. Either way we know nothing current. */
+    return PEER_SILENT_UNKNOWN;
+}
 
 bool seatAt(Board& board, uint8_t index, NearbySeat& out) {
     if (!sessionsAllowed() || index >= knownCount_) {

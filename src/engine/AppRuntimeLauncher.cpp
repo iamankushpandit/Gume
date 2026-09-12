@@ -106,17 +106,17 @@ void BrainoApp::launch(const AppDefinition& app) {
     activeGame_->clearDirty();
 }
 
-const char* LauncherGame::title() const {
+const char* LauncherApp::title() const {
     return "Launcher";
 }
 
-void LauncherGame::begin(GameHost& host) {
+void LauncherApp::begin(GameHost& host) {
     host.content().scan();
     clampPage(host);
     markFullDirty();
 }
 
-void LauncherGame::clampPage(GameHost& host) {
+void LauncherApp::clampPage(GameHost& host) {
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t pages = max<uint8_t>(1, (host.launcherEntryCount() + pageSize - 1) / pageSize);
     if (page_ >= pages) {
@@ -124,7 +124,7 @@ void LauncherGame::clampPage(GameHost& host) {
     }
 }
 
-void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
+void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -184,7 +184,7 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
  *
  * It paints its own background and takes nothing from the caller, so it is
  * correct over a live screen as well as over a freshly cleared one. */
-void LauncherGame::drawHeader(GameHost& host) {
+void LauncherApp::drawHeader(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t lW = static_cast<int16_t>(tft.width());
@@ -214,7 +214,16 @@ void LauncherGame::drawHeader(GameHost& host) {
          * changing BRAINO_PRODUCT_NAME. Nothing else uses y=4..30 in portrait;
          * the gear sits at y=48..72. */
         tft.setTextDatum(ML_DATUM);
-        tft.drawString(BRAINO_PRODUCT_NAME, 10, 17, 4);
+        /* THE MARK, WITH ITS TRADE MARK SIGN -- not the name in font 4.
+         *
+         * The wordmark variant is cut to a font-4 heading's height, so the row
+         * keeps its geometry, but it is 107px wide against the text's ~84.
+         * At 240 that leaves about 7px of air before the copyright, which is
+         * right-aligned and about 108px wide. That is the whole budget for
+         * this row: re-measure it before putting anything else on it. */
+        Ui::drawLogo(tft,
+                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
+                     16, Ui::text(), Ui::Logo::Word);
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.setTextDatum(MR_DATUM);
         tft.drawString(BRAINO_COPYRIGHT_SHORT, static_cast<int16_t>(lW - 8), 17, 1);
@@ -246,7 +255,11 @@ void LauncherGame::drawHeader(GameHost& host) {
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
 
     } else {
-        tft.drawString(BRAINO_PRODUCT_NAME, 10, 16, 4);
+        /* The same mark in landscape, where the copyright sits on its own row
+         * underneath and there is no width to fight over. */
+        Ui::drawLogo(tft,
+                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
+                     16, Ui::text(), Ui::Logo::Word);
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.drawString(BRAINO_COPYRIGHT_SHORT, 10, 38, 1);
         tft.setTextDatum(ML_DATUM);
@@ -267,13 +280,14 @@ void LauncherGame::drawHeader(GameHost& host) {
                              14, Ui::surface());
         }
         /* Packed to the pixel, and now measured rather than assumed. The row
-         * runs from the hairline at lW-138 to the gear at lW-30, and carries
-         * the Lock badge at its left-hand end. In the widest state -- "100",
+         * runs from the hairline at lW-160 to the gear at lW-30, and carries
+         * the Lock badge and the mute control at its left-hand end. In the widest state -- "100",
          * narrower now there is no charging bolt -- the three status badges plus their gaps come
          * to 81px, the padlock and its gap take another 25, and what is left
          * is a few pixels. Anything else that wants to live on this row has to
          * earn it. The hairline has moved out twice, lW-110 to lW-116 to lW-138,
-         * and profileRect()'s right limit moved with it both times. */
+         * lW-110 to lW-116 to lW-138 to lW-160, and profileRect()'s right
+         * limit moved with it every time. */
         const int8_t battPct = board.getBatteryPercent();
         const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
         const int16_t battRight = static_cast<int16_t>(lW - 36);
@@ -283,7 +297,7 @@ void LauncherGame::drawHeader(GameHost& host) {
         Ui::drawWifiBadge(tft, wifiCx, 34, Ui::surface());
         Ui::drawBatteryBadge(tft, static_cast<int16_t>(battRight - battW / 2), 34,
                              battPct, Ui::surface());
-        tft.drawFastVLine(static_cast<int16_t>(lW - 138), 8, 32, Ui::outline());
+        tft.drawFastVLine(static_cast<int16_t>(lW - 160), 8, 32, Ui::outline());
     }
     Ui::drawGearIcon(tft, gearBtn, Ui::text());
     /* The launcher draws no top bar, so it carries its own Lock button. The
@@ -291,15 +305,21 @@ void LauncherGame::drawHeader(GameHost& host) {
      * why nothing here hit-tests it. */
     Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(),
                      Ui::surface());
+    /* Same story as Lock: drawn here, consumed by the runtime. Absent on a
+     * board with no speaker, where it would be a control for nothing. */
+    if (Board::hasSound()) {
+        Ui::drawSpeakerIcon(tft, LauncherLayout::speakerRect(mode, lW),
+                            !board.soundEnabled(), Ui::text());
+    }
 }
 
-bool LauncherGame::renderChrome(GameHost& host) {
+bool LauncherApp::renderChrome(GameHost& host) {
     drawHeader(host);
     return true;
 }
 
 /* Background and header. Only on a full repaint -- paging does not touch it. */
-void LauncherGame::renderStatic(GameHost& host) {
+void LauncherApp::renderStatic(GameHost& host) {
     static_assert(MAX_TILES >= LauncherLayout::MAX_PAGE_SIZE,
                   "slotHasButton_ cannot cover every tile on a page");
     Ui::clear(host.display());
@@ -317,7 +337,7 @@ void LauncherGame::renderStatic(GameHost& host) {
  * label is drawn with the tile colour as its text background -- so a tile
  * erases the tile that was there. The two things that do NOT self-erase are
  * handled explicitly below: a slot with no entry on it, and the pager. */
-void LauncherGame::renderDynamic(GameHost& host) {
+void LauncherApp::renderDynamic(GameHost& host) {
     clampPage(host);
 
     Board& board = host.board();
@@ -501,12 +521,16 @@ void LauncherGame::renderDynamic(GameHost& host) {
             const int16_t subY = static_cast<int16_t>(r.y + r.h * 0.906f);
             const int16_t titleY = static_cast<int16_t>(
                 r.y + r.h * 0.708f - (wrapSubtitles ? subPitch : 0));
-            tft.setTextColor(TFT_WHITE, fill);
+            /* THE INK FOLLOWS THE FILL, which the theme chose. A fixed
+             * white here is how Classic drew white labels on light grey tiles
+             * at 1.3:1 and Pocket on pale green at 2.6:1 -- unreadable, and
+             * unreadable only on the themes nobody screenshots. */
+            tft.setTextColor(Ui::onFill(fill), fill);
             tft.setTextDatum(MC_DATUM);
             tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
             tft.drawString(label, cxT, titleY, 2);
-            tft.setTextColor(Ui::rgb(235, 245, 255), fill);
+            tft.setTextColor(Ui::onFillSoft(fill), fill);
             char second[sizeof(label)];
             if (!wrapSubtitles) {
                 copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
@@ -551,12 +575,16 @@ void LauncherGame::renderDynamic(GameHost& host) {
             const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.34f);
             const int16_t textW = static_cast<int16_t>(r.w - (r.x + r.w * 0.34f - r.x) - 8);
 
-            tft.setTextColor(TFT_WHITE, fill);
+            /* THE INK FOLLOWS THE FILL, which the theme chose. A fixed
+             * white here is how Classic drew white labels on light grey tiles
+             * at 1.3:1 and Pocket on pale green at 2.6:1 -- unreadable, and
+             * unreadable only on the themes nobody screenshots. */
+            tft.setTextColor(Ui::onFill(fill), fill);
             tft.setTextDatum(ML_DATUM);
             tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
             tft.drawString(label, textX, static_cast<int16_t>(midY - subH / 2 - 2), 2);
-            tft.setTextColor(Ui::rgb(235, 245, 255), fill);
+            tft.setTextColor(Ui::onFillSoft(fill), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
             tft.drawString(label, textX, static_cast<int16_t>(midY + titleH / 2 + 2), 1);
             tft.setTextSize(1);

@@ -14,11 +14,24 @@ This project keeps its guidance in **`CLAUDE.md`** files. They apply to everyone
 
 ## Two standing rules — you should never have to be told these
 
-**1. No AI attribution in commits, ever.** Do not add `Co-Authored-By: Claude`,
-`Co-Authored-By: <any AI>`, "Generated with…" footers, or any other trailer or
-sign-off naming an AI tool or model. The repository's history records the
-author, and that is a human. Check your commit message before you run
-`git commit` — this applies to amends, squashes and PR bodies too.
+**1. No AI attribution in commits, ever -- and no AI in the names either.** Do
+not add `Co-Authored-By: Claude`, `Co-Authored-By: <any AI>`, "Generated
+with..." footers, or any other trailer or sign-off naming an AI tool or model.
+The repository's history records the author, and that is a human. Check your
+commit message before you run `git commit` -- this applies to amends, squashes
+and PR bodies too.
+
+The same goes for the word itself. No `claude`, and no other model or vendor
+name, anywhere your contribution leaves a trace: branch names, commit subjects
+and bodies, PR titles and descriptions, file names, identifiers, comments and
+TODOs. A branch called `claude/fix-the-thing` says who typed rather than what
+changed, and it is permanent in a way the session is not -- it lands in the
+merge commit, the pull request and every clone. Name a branch for its work:
+`feat/<game-id>`, `fix/<area>`, `docs/<topic>`. Already on one that breaks this?
+Rename it before opening the PR (`git branch -m <new-name>`).
+
+The `CLAUDE.md` files are the one exception, because that filename is how you
+found these instructions. The rule is about what a *change* carries.
 
 **2. Keep the docs in sync as part of the change, not as a follow-up.** If your
 change alters behaviour, structure, dependencies, screens, settings, the game
@@ -54,7 +67,7 @@ any more is a worse lie than a missing one.
 
 ## The About app is user-facing documentation — keep it true
 
-`AboutGame` is the only documentation most owners will ever read, and the only
+`AboutApp` is the only documentation most owners will ever read, and the only
 one they read *while holding the device*. It is part of the deliverable, not a
 credits screen. **Update it in the same commit as the change it describes.**
 
@@ -251,7 +264,7 @@ Rules, in the order they bite:
 3. **Don't rebuild content on every frame.** Rebuild when the data changed and
    keep a `stale` flag. Scrolling changes an offset, not the content.
 4. **A `String` member on a screen is a smell.** A few exist for genuinely
-   user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) — that is
+   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) — that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
    through `BrainoApp::leaveActiveGame()`, which compares free heap

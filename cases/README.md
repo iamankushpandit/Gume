@@ -21,12 +21,20 @@ cases/
 
 | Board | Case | Notes |
 |---|---|---|
-| [E32R28T-1](E32R28T-1/) | Two-part screwed shell | Printed and assembled; a stopgap. The designed enclosure is [#13](https://github.com/iamankushpandit/Gume/issues/13), queued behind [#8](https://github.com/iamankushpandit/Gume/issues/8) |
+| [E32R28T-1](E32R28T-1/) | Complete shell: front tray, back plate with a 20 mm speaker grille, four printed clips | Printed and fitted. No metal hardware — it replaced a screwed shell that wanted $5.36 of M3 per unit. Fits the other 2.8-inch boards too |
+| [ESP32-2432S028R](ESP32-2432S028R/) | — | The 2.8-inch boards share an outline: print [E32R28T-1](E32R28T-1/) |
+| [ESP32-2432S028-inv](ESP32-2432S028-inv/) | — | Same |
+| [ESP32-2432S028Rv3](ESP32-2432S028Rv3/) | — | Same |
 | [E32R32P](E32R32P/) | Front shell with printed fasteners, back plate with an 8 Ω speaker grille | Printed and fitted; print settings not recorded yet |
 | [E32R40T](E32R40T/) | Front shell, back plate and four printed fasteners on one plate | Printed and fitted; print settings not recorded yet |
 
 ## Adding a case for your board
 
+0. If a board already has a case that fits it -- the 2.8-inch boards share
+   one -- give it a folder holding a README that points at that one, rather
+   than a second copy of the mesh. A builder still gets a folder named for the
+   board in their hand, which is the point of the naming, and there is only
+   ever one file to fix.
 1. Create `cases/<BOARD_NAME>/`, using the same string the firmware reports —
    the `-D BOARD_NAME=\"…\"` value in `platformio.ini`. The About app shows it
    on the device, so a builder can match a folder to the thing in their hand.

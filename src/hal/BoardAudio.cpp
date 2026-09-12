@@ -1,4 +1,4 @@
-#include "Board.h"
+#include "BoardAudioInternal.h"
 
 #if GUME_HAS_AUDIO_CODEC
 #include <Wire.h>
@@ -100,91 +100,7 @@
  */
 
 #if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
-namespace {
-
-/* The sample rate the synthesiser generates at AND the rate the I2S peripheral
- * is configured with. One constant, deliberately: they cannot be allowed to
- * disagree, because nothing sounds wrong in a way that names the cause -- a
- * mismatch just makes every cue the wrong length and the wrong pitch.
- *
- * The two backends do not get the same number, and this is measured rather
- * than chosen. On the ESP32's built-in DAC (I2S_MODE_DAC_BUILT_IN) the clock
- * divider does not reach low sample rates: everything below 22050 Hz comes out
- * at some faster rate entirely, and the driver reports success either way.
- * Measured on an E32R32P with env:audiodiag_e32r32p, by timing how long a
- * blocking i2s_write() of a known number of frames takes to drain:
- *
- *     configured   actual     ratio
- *          8000     44260     5.53x
- *         11025     25316     2.30x
- *         12000     31128     2.59x
- *         16000     88642     5.54x   <- what this firmware used to ask for
- *         22050     22053     1.00x
- *         24000     24006     1.00x
- *         32000     32000     1.00x
- *         44100     44077     1.00x
- *         48000     48048     1.00x
- *
- * At or above 22050 the rate is exact; below it the error is large and not
- * even monotonic, which is the signature of a divider wrapping rather than
- * saturating. So the console was generating cues for 16000 samples a second
- * and the hardware was consuming them at nearly 89000: every sound played in
- * about a fifth of its intended length, an octave and a half sharp. That is
- * not heard as "too fast", it is heard as a click, or as a speaker that is
- * cutting out -- which is exactly how it was reported on the 3.2-inch and
- * 4-inch boards.
- *
- * i2s_get_clk() is no help here and is worth knowing about: it returned the
- * requested value in all nine cases above, including the wrong ones. It
- * reports what the driver was asked for, not what the peripheral is doing.
- *
- * 24000 is the choice rather than 22050 or 32000 because it is exact, it keeps
- * the DMA holding 1536 frames = 64ms (still three frame budgets of slack), and
- * it costs 1.5x the generation work of 16000 rather than 2x.
- *
- * The codec board is untouched at 16000. Its rate is not derived from this
- * divider -- the ES8311 is clocked from MCLK at 384x off the APLL, which is
- * exact at 16000 and known good on hardware. There is no reason to disturb the
- * one audio path that was never broken, and a shared constant here would have
- * done exactly that.
- *
- * If the platform is ever bumped to IDF 5.x the built-in DAC driver is
- * rewritten wholesale and this measurement must be repeated, not assumed. */
-#if GUME_HAS_AUDIO_DAC
-constexpr int AUDIO_RATE = 24000;
-#else
-constexpr int AUDIO_RATE = 16000;
-#endif
-
-/* The longest script the firmware can arm. The spoken boot phrase is the one
- * that sets this, at twenty-four segments; every cue is six or fewer. A fixed
- * array that is usually three quarters empty is the right trade on a device
- * with no compacting heap -- see CLAUDE.md's memory rule. */
-constexpr int MAX_SEGMENTS = 36;
-
-enum class Wave : uint8_t {
-    Silence,
-    Tone,       // sine, optionally swept from a to b
-    Square,     // brighter, for the chiptune-ish cues
-    Noise,      // band-passed white noise: a = centre Hz, b = bandwidth Hz
-    Voiced,     // formant resonators driven by a monotone impulse train
-    Unvoiced,   // the same resonators driven by noise -- fricatives and stops
-};
-
-/* One step of a sound. What `a`, `b` and `c` mean depends on the wave, which
- * is the only way to keep a segment at ten bytes; a union with named members
- * would read better and would double the size of the const tables it exists
- * for. The shorthands further down are what the cue tables actually use, so
- * no caller sees the positional form. */
-struct Segment {
-    uint16_t a;
-    uint16_t b;
-    uint16_t c;
-    uint16_t ms;
-    uint8_t  amp;    // 0-100, beneath the codec's own volume setting
-    Wave     wave;
-};
-
+namespace audio {
 /* ---------------------------------------------------------------- engine */
 
 Segment script[MAX_SEGMENTS];
@@ -193,6 +109,8 @@ uint8_t scriptAt = 0;
 int32_t segTotal = 0;        // samples in the segment being played
 int32_t segLeft = 0;         // samples of it still to generate
 bool playing = false;
+/* The script is spent and the last segment is fading out. See nextSample(). */
+bool releasing = false;
 
 bool codecUp = false;
 bool dacUp = false;
@@ -241,6 +159,19 @@ constexpr float FORMANT_BANDWIDTH = 60.0f;
  * Slewing one gain fixes both, and means no segment needs its own envelope
  * or its own ramp length. */
 constexpr float GAIN_SLEW = 1.0f / (0.004f * AUDIO_RATE);
+
+/* THE END OF A SOUND IS FADED TOO, AND FOR THE SAME REASON.
+ *
+ * The slew above only ever ran towards a segment's level: when a script ran
+ * out, the next sample was simply zero, wherever the waveform happened to be.
+ * A sine stopped at its crest is a step of the whole amplitude, which is a
+ * click -- and it was recorded on the device as one at the end of every piano
+ * note, about 300ms after the one at its start. So a finished script keeps its
+ * last segment's waveform running while the gain slews to zero, and only
+ * stops once it is below this. Six time constants of the 4ms slew, ~25ms,
+ * and at OUTPUT_SCALE the residue is under a quarter of one step of the 8-bit
+ * DAC: inaudible by construction rather than by ear. */
+constexpr float RELEASE_FLOOR = 0.002f;
 
 /* Noise through a resonator is far quieter than an impulse train through the
  * same one, because its energy is spread rather than concentrated at the
@@ -316,18 +247,25 @@ void startSegment() {
 /* Generates one sample and advances the script. Returns false once the whole
  * script is spent, at which point the caller stops asking. */
 bool nextSample(int16_t& out) {
-    while (segLeft <= 0) {
+    while (segLeft <= 0 && !releasing) {
         if (scriptAt + 1 >= scriptLength) {
-            playing = false;
-            out = 0;
-            return false;
+            releasing = true;
+            gainTarget = 0.0f;
+            break;
         }
         ++scriptAt;
         startSegment();
     }
+    if (releasing && gain < RELEASE_FLOOR) {
+        playing = false;
+        releasing = false;
+        gain = 0.0f;
+        out = 0;
+        return false;
+    }
 
     const Segment& s = script[scriptAt];
-    --segLeft;
+    if (!releasing) --segLeft;   // a release holds the segment's last pitch
 
     float value = 0.0f;
     switch (s.wave) {
@@ -399,72 +337,14 @@ TaskHandle_t audioTask = nullptr;
 /* The DAC backend scales amplitude in software, so the generator needs the
  * volume without a Board& to read it from. Mirrored rather than read through
  * Preferences for the usual reason: this is on the path of every sample. */
-uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
-
-/* Generation runs AHEAD of playback, and that is the whole point of the DMA:
- * tickAudio() fills it as fast as it will take samples, so `playing` goes
- * false when the last sample has been GENERATED, not when it has been HEARD.
- * At 6 x 256 frames there is up to 96ms (codec) or 64ms (DAC) still queued at
- * that moment.
- *
- * Dropping the amplifier there cuts the tail off every cue, and on the short
- * ones -- which is most of the vocabulary -- it cuts off the whole thing: the
- * sound is sitting in the DMA when the amp stops being able to reproduce it.
- * So the amp is held for the DMA depth plus margin after generation ends. */
-constexpr uint32_t AMP_TAIL_MS = 150;
-
-void setAmp(bool on) {
-    if (BOARD.audio.ampEnablePin == PIN_NONE || ampOn == on) return;
-    ampOn = on;
-    const bool low = BOARD.audio.ampEnableActiveLow ? on : !on;
-    digitalWrite(BOARD.audio.ampEnablePin, low ? LOW : HIGH);
-}
-
-#if GUME_HAS_AUDIO_CODEC
-void esWrite(uint8_t reg, uint8_t value) {
-    Wire.beginTransmission(static_cast<uint8_t>(BOARD.audio.codecI2cAddress));
-    Wire.write(reg);
-    Wire.write(value);
-    Wire.endTransmission();
-}
-
-/* Register 0x32 is the DAC volume, and it is linear in DECIBELS: half a
- * decibel per step, with 0xBF as unity gain and 0x00 as silence.
- *
- * THIS IS WHY THE CONSOLE WAS ALMOST INAUDIBLE, and the mistake is worth
- * spelling out because it reads as obviously correct. Scaling the percentage
- * straight onto the byte -- (percent * 256 / 100) - 1, which is what both this
- * and src/s3_diag.cpp did -- treats a logarithmic register as a linear one.
- * The default 60% landed on 0x98, which is **-19.5 dB**: a tenth of the
- * amplitude the number implies, and far too quiet to hear across a room. The
- * error is worst exactly where people leave a volume control, in the middle.
- * At the other end it fails the other way: 100% mapped to 0xFF, **+32 dB**,
- * which would have clipped every sound into a square wave.
- *
- * So the percentage is treated as a fraction of AMPLITUDE and converted:
- * 100% is unity, 50% is -6 dB, 10% is -20 dB. That is what a volume control is
- * normally taken to mean, and it is monotonic and safe across the whole range.
- *
- * The result is clamped at unity. Above 0 dB this register is digital gain on
- * a signal that already peaks near full scale, so the only thing louder buys
- * is clipping. If the console is still too quiet at 100%, the fix is the
- * synthesiser's own OUTPUT_SCALE below, or the amplifier -- not here. */
-constexpr int ES8311_UNITY_REG = 0xBF;      // 0 dB
-constexpr float ES8311_STEPS_PER_DB = 2.0f; // 0.5 dB per step
-
-void applyCodecVolume(uint8_t percent) {
-    if (percent == 0) {
-        esWrite(0x32, 0x00);
-        return;
-    }
-    if (percent > 100) percent = 100;
-    const float dB = 20.0f * log10f(percent / 100.0f);
-    int reg = static_cast<int>(lroundf(ES8311_UNITY_REG + dB * ES8311_STEPS_PER_DB));
-    if (reg < 1) reg = 1;
-    if (reg > ES8311_UNITY_REG) reg = ES8311_UNITY_REG;
-    esWrite(0x32, static_cast<uint8_t>(reg));
-}
-#endif  /* GUME_HAS_AUDIO_CODEC */
+/* [[maybe_unused]] rather than a tighter guard, deliberately. Its reads and
+ * writes sit in a mix of GUME_HAS_AUDIO_CODEC and GUME_HAS_AUDIO_DAC blocks
+ * while the definition covers either, so on the codec-only Freenove it came
+ * out defined and unreferenced. Reshaping those guards to match is a change
+ * to which board scales volume where, on evidence I cannot read confidently
+ * from the preprocessor alone -- and this is one byte. The attribute says
+ * exactly what is true: used in some configurations, not all. */
+[[maybe_unused]] uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
 
 /* Samples that were generated but that the DMA would not take this frame.
  *
@@ -532,6 +412,7 @@ void arm(const Segment* segments, uint8_t count) {
     pendingLength = 0;
     pendingAt = 0;
     playing = true;
+    releasing = false;
     startSegment();
     ampIdleSinceMs = 0;   // producing again: the tail timer restarts from here
     setAmp(true);
@@ -579,6 +460,7 @@ size_t generateBlock(uint8_t* dst, int frames) {
         slots[n * 2] = dac;
         slots[n * 2 + 1] = dac;   // mono on both DAC channels
     }
+    if (n > 0) dacIdleLeft = DMA_BUF_COUNT * DMA_BUF_LEN;   // re-park when done
     return static_cast<size_t>(n) * 2 * sizeof(uint16_t);
 #endif
 }
@@ -590,15 +472,6 @@ size_t generateBlock(uint8_t* dst, int frames) {
  * 96ms (codec) or 64ms (DAC) still queued at that moment. Dropping the
  * amplifier there cuts the tail off every cue, and off the short ones, which
  * is most of the vocabulary, it cuts off the whole thing. */
-void tickAmpTail() {
-    if (ampIdleSinceMs == 0) {
-        ampIdleSinceMs = millis();
-    } else if (millis() - ampIdleSinceMs >= AMP_TAIL_MS) {
-        setAmp(false);
-    }
-}
-
-constexpr int BLOCK_FRAMES = 128;
 
 void audioTaskFn(void*) {
     /* Task-owned, so the blocking write below reads a buffer nothing else can
@@ -610,6 +483,11 @@ void audioTaskFn(void*) {
         bytes = generateBlock(out, BLOCK_FRAMES);
         if (bytes == 0) tickAmpTail();
         xSemaphoreGive(audioLock);
+
+#if GUME_HAS_AUDIO_DAC
+        /* Once per sound, as it ends: park the DAC at mid-scale. */
+        if (bytes == 0 && dacIdleLeft > 0) fillDacIdle(pdMS_TO_TICKS(500));
+#endif
 
         if (bytes == 0) {
             /* Nothing to make. Sleep until something is armed -- with a short
@@ -647,626 +525,12 @@ void startAudioTask() {
     }
 }
 
-/* Shorthands, so the cue tables below read as music rather than as struct
- * initialisers. Durations are milliseconds, amplitudes are percentages. */
-constexpr Segment hush(uint16_t ms) {
-    return Segment{0, 0, 0, ms, 0, Wave::Silence};
-}
-constexpr Segment tone(uint16_t hz, uint16_t ms, uint8_t amp) {
-    return Segment{hz, hz, 0, ms, amp, Wave::Tone};
-}
-constexpr Segment sweep(uint16_t from, uint16_t to, uint16_t ms, uint8_t amp) {
-    return Segment{from, to, 0, ms, amp, Wave::Tone};
-}
-constexpr Segment blip(uint16_t hz, uint16_t ms, uint8_t amp) {
-    return Segment{hz, hz, 0, ms, amp, Wave::Square};
-}
-constexpr Segment slide(uint16_t from, uint16_t to, uint16_t ms, uint8_t amp) {
-    return Segment{from, to, 0, ms, amp, Wave::Square};
-}
-constexpr Segment air(uint16_t centreHz, uint16_t bandwidthHz, uint16_t ms, uint8_t amp) {
-    return Segment{centreHz, bandwidthHz, 0, ms, amp, Wave::Noise};
-}
-constexpr Segment vox(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t ms, uint8_t amp) {
-    return Segment{f1, f2, f3, ms, amp, Wave::Voiced};
-}
-constexpr Segment hiss(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t ms, uint8_t amp) {
-    return Segment{f1, f2, f3, ms, amp, Wave::Unvoiced};
-}
-
-/* ------------------------------------------------------------------ cues
- *
- * Pitches are named where they are notes, because the cues that are runs have
- * to agree with each other: Coin, LevelUp, Victory and HighScore are all
- * built from the same C major set, so two of them landing close together
- * sounds like one instrument rather than like a fault.
- *
- * Three rules shape them, and they are the ones to hold to when adding more:
- *
- *   - A cue a player hears hundreds of times in a session (Tap, Coin) is
- *     SHORT and quiet. Past about 120ms it stops being feedback and starts
- *     being something the game is waiting for.
- *   - Cues that mean opposite things differ in DIRECTION, not only in pitch.
- *     Rising is good, falling is not. A player who is not listening carefully
- *     -- which is every player -- hears the contour before the notes.
- *   - The amplitudes are RELATIVE, and the top of the range is meant to be
- *     used. The first set of these topped out at 55 and the console was
- *     inaudible across a room -- partly because of the volume-curve bug in
- *     applyCodecVolume(), but partly because leaving 45% of the range unused
- *     on a 1-inch driver is just quietness. What matters is the spacing: Tap
- *     at 55 against Victory at 92 is what makes one feel incidental and the
- *     other final. Raising them all together changes nothing about that.
- */
-
-constexpr Segment CUE_TAP[] = {
-    blip(1400, 30, 55),
-};
-
-constexpr Segment CUE_SELECT[] = {
-    slide(900, 1500, 50, 62),
-};
-
-constexpr Segment CUE_CORRECT[] = {
-    tone(880, 95, 88),
-    tone(1320, 120, 88),
-};
-
-constexpr Segment CUE_WRONG[] = {
-    tone(160, 130, 100),
-    hush(40),
-    tone(160, 150, 100),
-};
-
-constexpr Segment CUE_REVEAL[] = {
-    sweep(500, 1100, 75, 72),
-};
-
-constexpr Segment CUE_COIN[] = {
-    blip(1568, 50, 72),     // G6
-    blip(2093, 95, 72),     // C7
-};
-
-constexpr Segment CUE_LEVEL_UP[] = {
-    blip(784, 75, 80),      // G5
-    blip(988, 75, 80),      // B5
-    blip(1175, 140, 80),    // D6
-};
-
-constexpr Segment CUE_VICTORY[] = {
-    blip(523, 95, 85),      // C5
-    blip(659, 95, 85),      // E5
-    blip(784, 95, 85),      // G5
-    blip(1047, 250, 92),    // C6
-};
-
-/* The only cue that falls the whole way, and the longest -- losing is the one
- * moment in a game that is allowed to take a beat. */
-constexpr Segment CUE_GAME_OVER[] = {
-    tone(392, 150, 92),     // G4
-    tone(330, 150, 92),     // E4
-    sweep(311, 110, 400, 96),
-};
-
-constexpr Segment CUE_HIGH_SCORE[] = {
-    blip(1047, 65, 80),     // C6
-    blip(1319, 65, 80),     // E6
-    blip(1568, 65, 80),     // G6
-    blip(2093, 75, 88),     // C7
-    hush(40),
-    blip(2093, 170, 88),
-};
-
-constexpr Segment CUE_COUNTDOWN[] = {
-    tone(1000, 45, 68),
-};
-
-/* Three noise bands in sequence, sliding down: the cheapest thing that reads
- * as movement. One band on its own does not -- it just sounds like static. */
-constexpr Segment CUE_WHOOSH[] = {
-    air(2600, 1200, 32, 60),
-    air(1700, 1000, 32, 68),
-    air(950, 800, 42, 55),
-};
-
-constexpr Segment CUE_POP[] = {
-    slide(300, 1300, 45, 76),
-};
-
-/* One square of a counter's walk -- Ludo plays one per hop, and a hop is
- * 110ms, so this has to be over well inside that or a walk becomes one long
- * buzz. Sine and quiet, because a six is six of them in a row. */
-constexpr Segment CUE_STEP[] = {
-    tone(988, 35, 58),      // B5
-};
-
-/* The same note twice, a doorbell: it asks for attention without saying
- * anything was right or wrong, which is why it neither rises like Correct nor
- * falls like Wrong. Heard after the other seats have been playing, so it is
- * allowed to be louder than a Tap. */
-constexpr Segment CUE_YOUR_TURN[] = {
-    tone(784, 70, 80),      // G5
-    hush(45),
-    tone(784, 120, 80),
-};
-
-/* The four pads. Sine rather than square: they are the only cue that plays
- * repeatedly at a steady pulse, and a square wave becomes wearing after two
- * dozen of them. 260ms fits inside Cinnamon's 600ms lit period with room, so
- * the note has stopped before the pad goes dark rather than being cut off by
- * the next one. */
-/* One chromatic octave, equal temperament with A4 = 440. Indexed by
- * (cue - Sound::NoteC4), which is why Sound.h insists that run stays
- * contiguous.
- *
- * A table and a range test rather than thirteen more switch cases: every note
- * is the same one-segment script with a different number in it, and spelling
- * that out thirteen times would bury the cues that actually differ from each
- * other.
- *
- * Sine, like the pads and for the same reason -- a piano is played fast and
- * repeatedly, and a square wave becomes wearing within a minute. 320ms is long
- * enough to ring after the finger lifts and short enough that a quick run does
- * not turn into one continuous note; the synthesiser is monophonic, so a new
- * key replaces the one before it rather than sounding with it. */
-constexpr uint16_t NOTE_HZ[SOUND_NOTE_COUNT] = {
-    262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, 523,
-};
-constexpr uint16_t NOTE_MS = SOUND_NOTE_MS;   // one statement of the fact
-constexpr uint8_t NOTE_AMP = 85;
-
-constexpr Segment CUE_PAD_1[] = {tone(392, 260, 85)};    // G4
-constexpr Segment CUE_PAD_2[] = {tone(523, 260, 85)};    // C5
-constexpr Segment CUE_PAD_3[] = {tone(659, 260, 85)};    // E5
-constexpr Segment CUE_PAD_4[] = {tone(784, 260, 85)};    // G5
-
-/* -------------------------------------------------------------- the voice
- *
- * "Let's play Braino!", as twenty-one segments of formant synthesis.
- *
- * There is no text-to-speech here and no dictionary. The phrase is spelled
- * out as the phonemes it is made of, and each phoneme is the first three
- * formant frequencies of a vocal tract shaped to say it. Drive three
- * resonators tuned to those frequencies with a buzz and a vowel comes out;
- * drive the same three with noise and a consonant does. That is the whole
- * technique, and it is roughly forty years old -- it is what made a 1980s
- * home computer talk, which is exactly why this sounds like one. The ask was
- * for a robotic voice, and the honest way to get one is to build the thing
- * that is genuinely robotic rather than to compress a recording of a person.
- *
- *   L  EH T S     P L  EY     B R  EY N  OW
- *
- * Three things about the transcription are load-bearing:
- *
- *   - A DIPHTHONG IS TWO SEGMENTS. The "EY" in "play" is not one sound: the
- *     tongue moves from EH towards IY while it is being said and F2 climbs
- *     around 500Hz doing it. Written as a single steady segment it comes out
- *     as "pleh". Both EYs below are split, and so is the closing OW.
- *   - A STOP IS A SILENCE AND THEN A BURST. T, P and B are not sounds; they
- *     are the moment a closed mouth opens. The silence is not padding and
- *     cannot be trimmed -- without it the burst has nothing to contrast
- *     against and the word simply begins with a click.
- *   - THE FRICATIVE IS THE LONG ONE. The S is 120ms, longer than any vowel
- *     here. Fricatives carry little energy at these amplitudes, so an S of
- *     "correct" length is inaudible on a small driver and the phrase lands
- *     as "let play".
- *
- * FOUR THINGS ARE SET BY EAR ON HARDWARE, and all four moved after the first
- * listen on a real device, where the phrase came out too fast and too quiet to
- * make out:
- *
- *   - IT IS SLOW. 2.4 seconds for four syllables, roughly twice a person's
- *     conversational rate. Synthetic speech with no pitch movement carries
- *     none of the prosody a listener leans on, so the only cue left for where
- *     one sound ends and the next begins is duration. Speeding this up is the
- *     first thing that makes it unintelligible again.
- *   - THE STRESSED VOWELS ARE THE LONG ONES. "LET'S", "PLAY", "BRAY" get
- *     150-190ms; the unstressed N and the final OW taper off. Equal durations
- *     read as a robot spelling out letters rather than saying words.
- *   - THE DIPHTHONGS ARE THREE STEPS, NOT TWO. F2 climbs about 550 Hz across
- *     an "EY" and the ear tracks that sweep; in two steps the jump is audible
- *     as a click at the join and the vowel reads as two vowels.
- *   - THE AMPLITUDES ARE NEAR THE TOP. Speech is much quieter than a tone at
- *     the same nominal amplitude, because the excitation is impulses and most
- *     of a vowel is the decay between them -- which is also why
- *     FORMANT_BANDWIDTH matters here. See the note on it above.
- *
- * The remaining knob is VOICE_PITCH_HZ: lower is more menacing, higher is more
- * toy. Nothing else in the file needs to change. */
-constexpr Segment PHRASE_LETS_PLAY_BRAINO[] = {
-    vox(360, 1050, 2600, 110, 92),     // L
-    vox(560, 1750, 2500, 190, 100),    // EH  -- the stressed vowel of "Let's"
-    hush(45),                          // T   -- the closure
-    hiss(3000, 4200, 5200, 28, 95),    // T   -- the burst
-    hiss(4800, 6200, 7000, 200, 100),  // S
-    hush(110),                         //     -- between words
-
-    hush(45),                          // P   -- the closure
-    hiss(800, 1600, 2400, 22, 85),     // P   -- the burst
-    vox(360, 1050, 2600, 100, 92),     // L
-    vox(600, 1700, 2450, 150, 100),    // EY  -- open, where the stress sits
-    vox(450, 1980, 2650, 110, 96),     // EY  -- mid-glide
-    vox(330, 2250, 2900, 100, 88),     // EY  -- closed
-    hush(120),                         //     -- between words
-
-    hush(35),                          // B   -- the closure
-    vox(250, 900, 2200, 50, 90),       // B   -- the burst, and it is voiced
-    vox(350, 1050, 1500, 110, 96),     // R   -- a low F3 is the whole of an R
-    vox(600, 1700, 2450, 150, 100),    // EY
-    vox(450, 1980, 2650, 110, 96),     // EY  -- mid-glide
-    vox(330, 2250, 2900, 100, 88),     // EY  -- closed
-    vox(250, 1400, 2600, 130, 78),     // N   -- nasal, so quieter
-    vox(500, 950, 2400, 150, 100),     // OW
-    vox(430, 820, 2400, 130, 92),      // OW  -- rounding
-    vox(370, 730, 2400, 120, 78),      // OW  -- and closing
-    hush(60),
-};
-
-template <size_t N>
-void armCue(const Segment (&segments)[N]) {
-    arm(segments, static_cast<uint8_t>(N));
-}
-
-}  // namespace
+}  // namespace audio
 #endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
 
-void Board::beginAudio() {
-#if GUME_HAS_AUDIO_CODEC
-    if (BOARD.audio.ampEnablePin != PIN_NONE) {
-        pinMode(BOARD.audio.ampEnablePin, OUTPUT);
-        /* Start with the amplifier OFF. It is switched on only while
-         * something is playing, so an idle console is not holding a class-D
-         * amplifier awake on battery. */
-        ampOn = true;
-        setAmp(false);
-    }
-
-    /* The codec shares the touch I2C bus, which Board::begin() has already
-     * brought up -- do not call Wire.begin() again here. */
-    uint8_t v = 0;
-    esWrite(0x00, 0x1F);           /* reset                                */
-    esWrite(0x00, 0x00);
-    esWrite(0x00, 0x80);           /* power on                             */
-    esWrite(0x01, 0x3F);           /* all clocks, MCLK from the MCLK pin   */
-
-    /* Dividers for 6.144MHz MCLK at 16kHz, from the ES8311 coefficient
-     * table: pre_div 3, pre_multi 1, adc/dac_div 1, lrck 0x00FF, bclk_div 4,
-     * osr 0x10. Hardcoded because this firmware plays at exactly one rate. */
-    Wire.beginTransmission(static_cast<uint8_t>(BOARD.audio.codecI2cAddress));
-    Wire.write(0x02);
-    Wire.endTransmission(false);
-    if (Wire.requestFrom(static_cast<int>(BOARD.audio.codecI2cAddress), 1) == 1) {
-        v = Wire.read();
-    }
-    esWrite(0x02, static_cast<uint8_t>((v & 0x07) | (2 << 5) | (1 << 3)));
-    esWrite(0x03, 0x10);
-    esWrite(0x04, 0x10);
-    esWrite(0x05, 0x00);
-    esWrite(0x06, 0x03);
-    esWrite(0x07, 0x00);
-    esWrite(0x08, 0xFF);
-
-    esWrite(0x09, 3 << 2);         /* 16-bit in                            */
-    esWrite(0x0A, 3 << 2);         /* 16-bit out                           */
-    esWrite(0x0D, 0x01);           /* power up analogue                    */
-    esWrite(0x0E, 0x02);
-    esWrite(0x12, 0x00);           /* power up DAC                         */
-    esWrite(0x13, 0x10);           /* enable output drive                  */
-    esWrite(0x37, 0x08);           /* bypass DAC equaliser                 */
-
-    /* The owner's stored level, not the compiled-in default: a console that
-     * came back at 60% after every reboot would make the setting pointless.
-     * Preferences is already open by this point -- Board::begin() calls
-     * prefs_.begin() several lines above beginAudio(). */
-    const uint8_t level = volume();
-    applyCodecVolume(level);
-
-    i2s_config_t cfg = {};
-    cfg.mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX);
-    cfg.sample_rate = AUDIO_RATE;
-    cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
-    cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
-    cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
-    cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-    cfg.dma_buf_count = 6;
-    cfg.dma_buf_len = 256;
-    cfg.tx_desc_auto_clear = true;
-    cfg.mclk_multiple = I2S_MCLK_MULTIPLE_384;
-    cfg.use_apll = true;           /* 160MHz will not divide to 6.144MHz   */
-
-    if (i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr) != ESP_OK) {
-        cfg.use_apll = false;
-        if (i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr) != ESP_OK) {
-            Serial.println("[audio] I2S install failed; console will be silent");
-            return;
-        }
-        Serial.println("[audio] APLL unavailable; MCLK may be off-frequency");
-    }
-
-    i2s_pin_config_t pins = {};
-    pins.mck_io_num = BOARD.audio.i2sMclk;
-    pins.bck_io_num = BOARD.audio.i2sBclk;
-    pins.ws_io_num = BOARD.audio.i2sWordSelect;
-    pins.data_out_num = BOARD.audio.i2sDataOut;
-    pins.data_in_num = I2S_PIN_NO_CHANGE;
-    if (i2s_set_pin(I2S_NUM_0, &pins) != ESP_OK) {
-        Serial.println("[audio] I2S pins rejected; console will be silent");
-        return;
-    }
-
-    i2s_zero_dma_buffer(I2S_NUM_0);
-    codecUp = true;
-    Serial.printf("[audio] codec 0x%02X up at %d Hz, volume %u%%%s\n",
-                  BOARD.audio.codecI2cAddress, AUDIO_RATE, level,
-                  soundEnabled() ? "" : " (muted)");
-
-#elif GUME_HAS_AUDIO_DAC
-    /* The amplifier first, and the same way the codec board does it: brought
-     * up OFF, switched on only while something is playing. On this board that
-     * is not a power optimisation so much as the difference between working
-     * and silent -- see e32r40t.h, where IO4 was inherited as an LED channel
-     * and was therefore being driven to its shutdown level on every boot. */
-    if (BOARD.audio.ampEnablePin != PIN_NONE) {
-        pinMode(BOARD.audio.ampEnablePin, OUTPUT);
-        ampOn = true;
-        setAmp(false);
-    }
-
-    /* CYD-family boards drive the speaker straight from an ESP32 built-in DAC.
-     * There is no external codec and no amplifier enable; the I2S peripheral
-     * drives the DAC via I2S_DAC_BUILT_IN mode with no pin configuration of
-     * its own -- which is exactly why the channel has to be chosen correctly,
-     * because nothing here can be told a pin number.
-     *
-     * WHICH CHANNEL IS NOT A FREE CHOICE, AND THE NAMES ARE A TRAP.
-     * From the IDF's own hal/i2s_types.h:
-     *
-     *   I2S_DAC_CHANNEL_RIGHT_EN = 1   maps to DAC channel 1 on GPIO25
-     *   I2S_DAC_CHANNEL_LEFT_EN  = 2   maps to DAC channel 2 on GPIO26
-     *
-     * So "RIGHT" is GPIO25 and "LEFT" is GPIO26 -- the opposite of what the
-     * numbering suggests, since DAC *channel 2* is the *left* enum. Picking
-     * RIGHT for a speaker on GPIO26 puts the audio on the wrong pin and leaves
-     * the speaker silent, which is indistinguishable from a wiring fault on a
-     * board whose speaker path has never been measured. Deriving it from the
-     * profile is what stops that being a matter of memory.
-     *
-     * NOTE: I2S_DAC_BUILT_IN and i2s_set_dac_mode() are IDF 4.4 (Arduino core
-     * 2.0.17) APIs. They were removed in IDF 5.x. If the toolchain version is
-     * ever bumped, this path will need rewriting with the new driver API. */
-    constexpr int8_t DAC1_GPIO = 25;   // ESP32 DAC channel 1
-    constexpr int8_t DAC2_GPIO = 26;   // ESP32 DAC channel 2
-    static_assert(BOARD.audio.speakerPin == DAC1_GPIO ||
-                  BOARD.audio.speakerPin == DAC2_GPIO,
-                  "GUME_HAS_AUDIO_DAC needs a speakerPin on GPIO25 or GPIO26 -- "
-                  "those are the only two ESP32 pins the built-in DAC reaches. "
-                  "A speaker on any other pin needs a different backend, not a "
-                  "different constant here.");
-    const i2s_dac_mode_t dacChannel = (BOARD.audio.speakerPin == DAC2_GPIO)
-                                          ? I2S_DAC_CHANNEL_LEFT_EN
-                                          : I2S_DAC_CHANNEL_RIGHT_EN;
-    i2s_config_t cfg = {};
-    cfg.mode = static_cast<i2s_mode_t>(
-        I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN);
-    cfg.sample_rate = AUDIO_RATE;
-    cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
-    cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
-    /* MSB, not PCM_SHORT -- and this was the last thing standing between a
-     * correctly configured DAC and complete silence.
-     *
-     * In I2S_MODE_DAC_BUILT_IN the I2S framer is what latches each sample into
-     * the DAC. PCM short-frame sync does not present the word the way the DAC
-     * expects, so the driver installs, i2s_write() reports every byte
-     * accepted, the logs look perfect and nothing is audible. Confirmed on
-     * hardware with env:audiodiag: the same tone was silent under PCM_SHORT
-     * and audible under MSB, with nothing else changed.
-     *
-     * The codec path above uses STAND_I2S, which is right for the ES8311 and
-     * is a different question -- do not unify them. */
-    cfg.communication_format = I2S_COMM_FORMAT_STAND_MSB;
-    cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-    cfg.dma_buf_count = 6;
-    cfg.dma_buf_len = 256;
-    cfg.tx_desc_auto_clear = true;
-    cfg.use_apll = false;          /* built-in DAC does not need APLL       */
-
-    if (i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr) != ESP_OK) {
-        Serial.println("[audio] I2S DAC install failed; console will be silent");
-        return;
-    }
-
-    /* Route I2S output to the DAC channel this board's speaker actually hangs
-     * off -- see the mapping above. */
-    if (i2s_set_dac_mode(dacChannel) != ESP_OK) {
-        Serial.println("[audio] I2S DAC mode failed; console will be silent");
-        i2s_driver_uninstall(I2S_NUM_0);
-        return;
-    }
-
-    /* HAND THE OTHER DAC PAD BACK.
-     *
-     * Installing I2S in I2S_MODE_DAC_BUILT_IN claims BOTH DAC pads, and the
-     * i2s_set_dac_mode() call above only chooses which one carries samples --
-     * it does not release the other. 5.5.0 is the proof: the two 2.8-inch
-     * boards, whose resistive touch clock is GPIO25, drew perfectly and could
-     * not be touched, and 5.5.1 answered by switching their audio off.
-     *
-     * So the unused channel is powered down and its pad returned to the GPIO
-     * matrix here, explicitly, and Board::begin() re-applies the touch pin
-     * setup after this function returns. The pad's state is logged either
-     * side, because this is the line to read when a board comes up with sound
-     * and no touch: "rtc_mux 1->0" means the pad was claimed and is now back.
-     * The MUX_SEL and XPD_DAC bits sit at the same positions in both pad
-     * registers, which the static_assert keeps honest. */
-    {
-        static_assert(RTC_IO_PDAC1_MUX_SEL == RTC_IO_PDAC2_MUX_SEL &&
-                      RTC_IO_PDAC1_XPD_DAC == RTC_IO_PDAC2_XPD_DAC,
-                      "DAC pad register layouts differ; read each by name");
-        const bool speakerOnDac2 = BOARD.audio.speakerPin == DAC2_GPIO;
-        const int8_t otherPad = speakerOnDac2 ? DAC1_GPIO : DAC2_GPIO;
-        const uint32_t padReg = speakerOnDac2 ? RTC_IO_PAD_DAC1_REG : RTC_IO_PAD_DAC2_REG;
-        const bool rtcBefore = GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_MUX_SEL) != 0;
-        const bool outBefore = GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_XPD_DAC) != 0;
-        dac_output_disable(speakerOnDac2 ? DAC_CHANNEL_1 : DAC_CHANNEL_2);
-        rtc_gpio_deinit(static_cast<gpio_num_t>(otherPad));
-        Serial.printf("[audio] GPIO%d released: rtc_mux %d->%d, dac_out %d->%d\n",
-                      static_cast<int>(otherPad), rtcBefore ? 1 : 0,
-                      GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_MUX_SEL) != 0 ? 1 : 0,
-                      outBefore ? 1 : 0,
-                      GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_XPD_DAC) != 0 ? 1 : 0);
-    }
-
-    /* Write mid-scale (0x8000) to silence the DAC output without snapping it
-     * to zero (which would DC-bias the speaker through the ground reference)
-     * or to full scale (which would pop). Mid-scale is the natural "nothing
-     * playing" level for an unsigned 8-bit DAC driven by offset-binary 16-bit
-     * words. The DMA will hold this value until the first real sample arrives,
-     * rather than leaving the DAC in the undefined state from boot. */
-    {
-        const uint16_t silence = 0x8000;
-        uint16_t buf[32];
-        for (int i = 0; i < 32; ++i) buf[i] = silence;
-        size_t written = 0;
-        i2s_write(I2S_NUM_0, buf, sizeof(buf), &written, 0);
-    }
-
-    dacUp = true;
-    /* The pin comes from the profile rather than the format string: this line
-     * is the first thing anybody reads when the speaker is silent, and a log
-     * that names a pin the firmware did not actually drive sends them to a
-     * meter instead of to the mapping above. */
-    Serial.printf("[audio] DAC up at %d Hz (GPIO%d, DAC ch%d), volume %u%%%s\n",
-                  AUDIO_RATE, static_cast<int>(BOARD.audio.speakerPin),
-                  BOARD.audio.speakerPin == DAC2_GPIO ? 2 : 1,
-                  volume(), soundEnabled() ? "" : " (muted)");
-#endif
-
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
-    /* Last, and only if a backend actually installed: a generator with nothing
-     * to drive would sit awake polling a driver that is not there. */
-    if (codecUp || dacUp) startAudioTask();
-#endif
-}
-
-void Board::tickAudio() {
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
-    if (!codecUp && !dacUp) return;
-
-    /* The generator task does this work now, and does it during a long frame
-     * as well as a short one -- which is the whole reason it exists. See the
-     * note at the top of this file.
-     *
-     * This path remains as the fallback for a device where the task could not
-     * be created at all (no mutex, or no memory for a 4KB stack). A console
-     * that boots into a low-memory corner should still make its noises, just
-     * with the old dependence on frames arriving promptly. It shares
-     * generateBlock() with the task, so the one genuinely error-prone part --
-     * the DAC's offset-binary word format -- has a single definition. */
-    if (audioTask != nullptr) return;
-
-    /* Zero wait, never blocking: this is the loop, and the frame budget is
-     * 20ms. If the lock is busy the samples can wait for the next frame. */
-    if (audioLock != nullptr && xSemaphoreTake(audioLock, 0) != pdTRUE) return;
-
-    for (;;) {
-        if (pendingAt >= pendingLength) {
-            /* i2s_write() with a zero timeout reports how much it accepted
-             * only after the fact, so a full DMA leaves the tail of a
-             * generated block in hand. Throwing it away is audible as a
-             * stutter on anything long enough to fill the DMA -- precisely the
-             * spoken phrase -- and the synthesiser cannot be run backwards to
-             * regenerate it, so it is held and written first next time. */
-            const size_t bytes = generateBlock(pending, BLOCK_FRAMES);
-            if (bytes == 0) break;
-            pendingLength = bytes;
-            pendingAt = 0;
-        }
-        size_t written = 0;
-        if (i2s_write(I2S_NUM_0, pending + pendingAt, pendingLength - pendingAt,
-                      &written, 0) != ESP_OK) {
-            break;
-        }
-        pendingAt += written;
-        if (pendingAt < pendingLength) break;   /* DMA full; finish next frame */
-    }
-
-    if (!playing && pendingAt >= pendingLength) tickAmpTail();
-    if (audioLock != nullptr) xSemaphoreGive(audioLock);
-#endif
-}
-
-void Board::beep(uint16_t frequency, uint16_t ms) {
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
-    if (!soundEnabled()) return;
-    const Segment one[] = {tone(frequency, ms, 90)};
-    armCue(one);
-#else
-    (void)frequency;
-    (void)ms;
-#endif
-}
-
-/* The whole vocabulary, in one place. A switch rather than a table indexed by
- * the enum because the arrays have different lengths and a table of
- * {pointer, count} pairs is the same size with one more thing to get wrong;
- * the compiler folds this into a jump table either way. There is no default
- * case on purpose -- adding a Sound without a cue is then a build warning
- * rather than a screen that silently makes no noise. */
-void Board::playSound(Sound cue) {
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
-    /* The mute gate is here, at the one door every sound goes through --
-     * including the boot phrase and both beeps. A switch labelled Mute that
-     * left something still audible would be exactly the kind of half-truth
-     * the About-page rules are written against. The RGB pulse is deliberately
-     * NOT gated: beepOk() and beepError() pulse before they call this, so
-     * muting takes the sound and leaves the light. */
-    if (!soundEnabled()) return;
-
-    /* The piano's octave, handled as a range before the switch. Still behind
-     * the mute gate above -- there is one door, and notes come through it like
-     * everything else. */
-    if (cue >= Sound::NoteC4 && cue <= Sound::NoteC5) {
-        const uint8_t i = static_cast<uint8_t>(
-            static_cast<uint8_t>(cue) - static_cast<uint8_t>(Sound::NoteC4));
-        const Segment note[] = {tone(NOTE_HZ[i], NOTE_MS, NOTE_AMP)};
-        armCue(note);
-        return;
-    }
-
-    switch (cue) {
-        case Sound::Tap:       armCue(CUE_TAP); break;
-        case Sound::Select:    armCue(CUE_SELECT); break;
-        case Sound::Correct:   armCue(CUE_CORRECT); break;
-        case Sound::Wrong:     armCue(CUE_WRONG); break;
-        case Sound::Reveal:    armCue(CUE_REVEAL); break;
-        case Sound::Coin:      armCue(CUE_COIN); break;
-        case Sound::LevelUp:   armCue(CUE_LEVEL_UP); break;
-        case Sound::Victory:   armCue(CUE_VICTORY); break;
-        case Sound::GameOver:  armCue(CUE_GAME_OVER); break;
-        case Sound::HighScore: armCue(CUE_HIGH_SCORE); break;
-        case Sound::Countdown: armCue(CUE_COUNTDOWN); break;
-        case Sound::Whoosh:    armCue(CUE_WHOOSH); break;
-        case Sound::Pop:       armCue(CUE_POP); break;
-        case Sound::Step:      armCue(CUE_STEP); break;
-        case Sound::YourTurn:  armCue(CUE_YOUR_TURN); break;
-        case Sound::Pad1:      armCue(CUE_PAD_1); break;
-        case Sound::Pad2:      armCue(CUE_PAD_2); break;
-        case Sound::Pad3:      armCue(CUE_PAD_3); break;
-        case Sound::Pad4:      armCue(CUE_PAD_4); break;
-        case Sound::Boot:      armCue(PHRASE_LETS_PLAY_BRAINO); break;
-        /* Handled by the range test above, before this switch. Listed so the
-         * compiler still checks the enum is covered -- an unlisted case here
-         * would be a warning we would rather have than not. */
-        case Sound::NoteC4:  case Sound::NoteCs4: case Sound::NoteD4:
-        case Sound::NoteDs4: case Sound::NoteE4:  case Sound::NoteF4:
-        case Sound::NoteFs4: case Sound::NoteG4:  case Sound::NoteGs4:
-        case Sound::NoteA4:  case Sound::NoteAs4: case Sound::NoteB4:
-        case Sound::NoteC5:
-            break;
-    }
-#else
-    (void)cue;
-#endif
-}
+/* The Board:: members below are the public face of all this; they reach the
+ * synthesiser by name, as they did when it was one file. */
+using namespace audio;
 
 /* ------------------------------------------------------- sound settings
  *
@@ -1297,15 +561,19 @@ void Board::setSoundEnabled(bool on) {
     /* Muting stops what is already sounding rather than letting it finish.
      * The boot phrase is a second and a half long and Mute is exactly the
      * control somebody reaches for while it is playing; "it will stop shortly"
-     * is not what that press means. The amplifier drops once the generator
-     * notices, which is within AMP_TAIL_MS.
+     * is not what that press means. It fades over the ~25ms release rather
+     * than stopping dead, which would be the very click the release exists to
+     * remove; the amplifier drops AMP_TAIL_MS after that.
      *
      * Under the lock: the generator task may be part way through a block, and
      * clearing the script from under it is exactly the race the lock exists
      * for. */
     if (!on) {
         if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
-        playing = false;
+        if (playing) {
+            releasing = true;
+            gainTarget = 0.0f;
+        }
         pendingLength = 0;
         pendingAt = 0;
         if (audioLock != nullptr) xSemaphoreGive(audioLock);
@@ -1313,53 +581,3 @@ void Board::setSoundEnabled(bool on) {
 #endif
 }
 
-uint8_t Board::volume() {
-    if (!volumeCached_) {
-        uint8_t stored = prefs_.getUChar("sndVol", AUDIO_VOLUME_DEFAULT);
-        /* Clamp on the way out as well as on the way in: the ceiling is a
-         * product decision that could be lowered in a later build, and a value
-         * stored under the old one must not survive it. */
-        if (stored > AUDIO_VOLUME_MAX) stored = AUDIO_VOLUME_MAX;
-        cachedVolume_ = stored;
-        volumeCached_ = true;
-#if GUME_HAS_AUDIO_DAC
-        outputVolume = stored;
-#endif
-    }
-    return cachedVolume_;
-}
-
-void Board::setVolume(uint8_t percent) {
-    if (percent > AUDIO_VOLUME_MAX) percent = AUDIO_VOLUME_MAX;
-    cachedVolume_ = percent;
-    volumeCached_ = true;
-    prefs_.putUChar("sndVol", percent);
-#if GUME_HAS_AUDIO_CODEC
-    if (codecUp) applyCodecVolume(percent);
-#elif GUME_HAS_AUDIO_DAC
-    /* DAC backend: volume is a linear multiplier applied while generating, so
-     * there is no register to write -- only this mirror, which is what the
-     * generator reads. It is a plain byte written by the loop and read by the
-     * audio task; a torn read is not possible and the worst a race can do is
-     * leave one block of samples at the previous level. */
-    outputVolume = percent;
-#endif
-}
-
-/* The two beeps are the ones bring-up settled on in src/s3_diag.cpp: a rising
- * two-tone for yes, a low double buzz for no. They differ in pitch, length AND
- * shape, so they stay distinguishable to a player who is not listening
- * carefully -- which is every player.
- *
- * They keep their own names rather than becoming playSound(Sound::Correct) at
- * the call site: they are called from a few hundred places, they pulse the
- * RGB LED as well, and on a board with no codec that pulse is all they are. */
-void Board::beepOk() {
-    pulseRgb(0, 255, 40, 450);
-    playSound(Sound::Correct);
-}
-
-void Board::beepError() {
-    pulseRgb(255, 0, 0, 450);
-    playSound(Sound::Wrong);
-}

@@ -100,8 +100,8 @@ NETWORK_FILES = {
     "src/hal/BleScanner.h",
     "src/engine/NearbyPlay.h",
     "src/engine/NearbyPlay.cpp",
-    "src/games/AboutGame.cpp",
-    "src/games/WifiGame.cpp",
+    "src/games/AboutApp.cpp",
+    "src/games/WifiApp.cpp",
 }
 
 # Patterns that are ALLOWED in network code with context
@@ -253,7 +253,7 @@ PUBLIC_DOCS = (
     "CONTRIBUTING.md",
     "NOTICE.md",
     "SECURITY.md",
-    "src/games/AboutGame.cpp",
+    "src/games/AboutApp.cpp",
 )
 
 # Absolute claims of network silence. Each is contradicted by the three

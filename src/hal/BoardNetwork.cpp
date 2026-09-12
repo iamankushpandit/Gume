@@ -310,6 +310,20 @@ void Board::beginTimeSync() {
         return;
     }
 
+    /* ONE COPY OF THE PASSWORD, NOT TWO.
+     *
+     * esp_wifi keeps its own copy of whatever WiFi.begin() is handed, in its
+     * own NVS namespace, in plain text -- so by default the network password
+     * is written to flash twice, and the second copy is one this firmware
+     * neither wrote nor can clear. `Forget` clears ours and leaves that one
+     * sitting there.
+     *
+     * Nothing here needs it: the firmware always connects by reading the
+     * credentials out of its own storage, never by asking the stack what it
+     * remembers. So persistence is off, and there is exactly one copy of the
+     * password on the device -- the one this code owns, clears and can
+     * account for. It is still plain text; see Board::setWifiCredentials(). */
+    WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     const String ssid = wifiSsid();
     const String pass = wifiPassword();

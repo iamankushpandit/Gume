@@ -1,19 +1,27 @@
 #pragma once
 
+#include "ChessRules.h"
+
 #include "engine/Game.h"
+#include "games/NearbyWatch.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
 
 const AppMetadata& chessAppMetadata();
 
-/* Chess for two players sharing the device.
+/* Chess: two players over one console, two consoles over the air, or one
+ * player against the device.
  *
- * There is no computer opponent, and that is a design decision rather than a
- * missing feature. A search deep enough to be worth playing would have to run
- * across frames or on its own task, and the whole of chess without it is just
- * rules: move generation, check, and the three ways a game ends. Two children
- * over one console is also the thing this device is actually good at.
+ * This used to say there was no computer opponent, and that it was a decision
+ * rather than an omission, because a search worth playing "would have to run
+ * across frames or on its own task". That turned out to be the answer rather
+ * than the objection -- Go had already shipped exactly it -- so the engine is
+ * in ChessRules.h / ChessAi.cpp and the search is stepped a few milliseconds
+ * per frame. What was true in that paragraph and is still true is the reason
+ * the engine is deliberately weak: two children over one console is the thing
+ * this device is actually good at, and a computer that always wins is a worse
+ * product than one a child beats half the time.
  *
  * Tap a piece and every square it may legally move to is marked. That is the
  * requested behaviour and it is not a convenience: at 26px a square on a
@@ -55,46 +63,27 @@ public:
      * broadcasting a game it is no longer in. */
     void end(AppContext& host) override;
 
-    /* Piece codes. Sign carries colour, magnitude carries kind, so an empty
-     * square is 0 and `-p` is the same piece in the other colour. That makes
-     * "is this mine" a sign test and "what is it" an abs(), which is most of
-     * what move generation asks. */
-    enum : int8_t {
-        EMPTY = 0,
-        PAWN = 1,
-        KNIGHT = 2,
-        BISHOP = 3,
-        ROOK = 4,
-        QUEEN = 5,
-        KING = 6,
-    };
+    /* Piece codes, aliased from ChessRules.h so ChessGame::PAWN still reads
+     * the way the sprite table and the renderer have always spelled it. The
+     * values live with the rules now, because the engine needs them and the
+     * engine may not include a screen. */
+    static constexpr int8_t EMPTY = Ch::EMPTY;
+    static constexpr int8_t PAWN = Ch::PAWN;
+    static constexpr int8_t KNIGHT = Ch::KNIGHT;
+    static constexpr int8_t BISHOP = Ch::BISHOP;
+    static constexpr int8_t ROOK = Ch::ROOK;
+    static constexpr int8_t QUEEN = Ch::QUEEN;
+    static constexpr int8_t KING = Ch::KING;
 
 private:
-    static constexpr uint8_t NO_SQ = 0xFF;
-    /** Longest legal move list from one square: a queen on an open board. */
-    static constexpr uint8_t MAX_MOVES = 28;
+    static constexpr uint8_t NO_SQ = Ch::NO_SQ;
+    static constexpr uint8_t MAX_MOVES = Ch::MAX_MOVES;
     /* Most pieces a side can lose: sixteen, less the king, which is never
      * captured -- the rules end the game one move before that could happen. */
     static constexpr uint8_t MAX_TAKEN = 15;
 
-    /* One position. Small enough to copy for the legality filter, which is why
-     * make/unmake is a struct assignment here rather than an undo stack. */
-    struct Position {
-        int8_t sq[64];        // +white, -black, 0 empty
-        bool whiteToMove;
-        /* Castling rights, in the order KQkq. Cleared when the king or the
-         * rook in question moves or is captured -- rights are lost forever,
-         * not just while something sits in the way. */
-        bool castle[4];
-        /* The square a pawn may capture onto en passant, or NO_SQ. Set only
-         * for the one move immediately after a double push, which is why it is
-         * part of the position rather than a flag on the pawn. */
-        uint8_t epSquare;
-        /* Plies since the last capture or pawn move. The fifty-move rule is
-         * a hundred of these. Part of the position because it is reset by the
-         * move that is being made, not by anything the screen knows. */
-        uint8_t halfmove;
-    };
+    /* The position, and the rules that move it, live in ChessRules.h. */
+    using Position = Ch::Position;
 
     /* How the game stands, including all the ways it can be over.
      *
@@ -122,51 +111,49 @@ private:
 
     /* How this game is being played.
      *
-     *   Lobby    choosing between passing the device and playing a peer
+     *   Lobby    choosing between passing the device, the computer and a peer
      *   Local    two players, one console -- the original, and the default
+     *   Computer one player against this console. See ChessRules.h.
      *   Waiting  we invited somebody and are waiting for them to answer
      *   Remote   a live game against a peer
      *
-     * Lost is not a state. A peer that walks out of range simply stops being
-     * heard, and the game sits waiting with the board intact -- there is
-     * nothing to disconnect, and the position is still correct if they come
-     * back. Saying "opponent lost" would be inventing an event the radio
-     * cannot actually observe. */
-    enum class Mode : uint8_t { Lobby, Local, Waiting, Remote };
+     * Lost is not a mode, but it is a state the screen shows. A peer that
+     * walks out of range simply stops being heard, and the board stays intact
+     * -- the position is still correct if they come back, and the moves are
+     * advertised state, so a returning console re-hears the current one and
+     * play resumes with nothing re-sent. What the radio CAN observe is the
+     * silence, and NearbyWatch turns it into a pause with a card: waiting for
+     * whom, for how long, keep waiting or end. Before that the game sat on
+     * "is thinking" for ever after a flat battery, saying nothing. */
+    enum class Mode : uint8_t { Lobby, Local, Computer, Waiting, Remote };
 
-    // ---- rules ----------------------------------------------------------
-    static bool isWhite(int8_t piece) { return piece > 0; }
-    static int8_t kind(int8_t piece) { return piece < 0 ? -piece : piece; }
-    static bool onBoard(int8_t file, int8_t rank) {
-        return file >= 0 && file < 8 && rank >= 0 && rank < 8;
+    /* ---- rules -------------------------------------------------------
+     *
+     * Defined in ChessRules.h, in namespace Ch, with no Arduino anywhere near
+     * them so that the engine and the host test can have them. These are thin
+     * forwarders rather than a using-declaration on each, because ChessSave
+     * and the rest call them unqualified from inside member functions and
+     * should not have to care where they went. */
+    static bool isWhite(int8_t piece) { return Ch::isWhite(piece); }
+    static int8_t kind(int8_t piece) { return Ch::kind(piece); }
+    static bool onBoard(int8_t file, int8_t rank) { return Ch::onBoard(file, rank); }
+    static uint8_t pseudoMoves(const Position& p, uint8_t from, uint8_t* out) {
+        return Ch::pseudoMoves(p, from, out);
     }
-    /* Every move `from` can make without regard to leaving the king exposed. */
-    static uint8_t pseudoMoves(const Position& p, uint8_t from, uint8_t* out);
-    /** True when `bySideIsWhite` attacks `square` in `p`. */
-    static bool attacked(const Position& p, uint8_t square, bool bySideIsWhite);
-    static uint8_t kingSquare(const Position& p, bool white);
-    /* Apply a move, including castling, en passant and auto-promotion, and
-     * return the piece it captured (EMPTY if none).
-     *
-     * The return value exists for the captured-piece display and is ignored by
-     * the legality filter, which makes moves on a throwaway copy. Reporting it
-     * from here rather than having the caller read the destination square
-     * first is what keeps en passant correct: that is the one move in chess
-     * where the captured piece is not standing on the square being moved to,
-     * and a caller doing its own bookkeeping would have to know that. */
-    static int8_t applyMove(Position& p, uint8_t from, uint8_t to);
-    /* Legal moves: pseudo-legal, minus any that leave the mover in check. */
-    static uint8_t legalMoves(const Position& p, uint8_t from, uint8_t* out);
-    static bool hasAnyLegalMove(const Position& p);
-    /* A dead position: neither side could mate even with the other's help.
-     *
-     * The four standard cases and no more -- king alone against king, king and
-     * one knight, king and one bishop, and two lone bishops on same-coloured
-     * squares. Anything with a pawn, rook or queen still on the board can be
-     * mated with, so it is not dead however hopeless it looks. Deliberately
-     * NOT "can the side to move force a win", which is a search and would need
-     * a chess engine this game does not have. */
-    static bool deadPosition(const Position& p);
+    static bool attacked(const Position& p, uint8_t square, bool bySideIsWhite) {
+        return Ch::attacked(p, square, bySideIsWhite);
+    }
+    static uint8_t kingSquare(const Position& p, bool white) {
+        return Ch::kingSquare(p, white);
+    }
+    static int8_t applyMove(Position& p, uint8_t from, uint8_t to) {
+        return Ch::applyMove(p, from, to);
+    }
+    static uint8_t legalMoves(const Position& p, uint8_t from, uint8_t* out) {
+        return Ch::legalMoves(p, from, out);
+    }
+    static bool hasAnyLegalMove(const Position& p) { return Ch::hasAnyLegalMove(p); }
+    static bool deadPosition(const Position& p) { return Ch::deadPosition(p); }
 
     // ---- layout, all measured from the live panel ------------------------
     /* True when the panel is wider than it is tall, which is the only thing
@@ -246,10 +233,71 @@ private:
      * waiting for, and legal in our position. All four are required; the last
      * is what stops a hostile or confused advertiser corrupting the board. */
     void pollOpponent(AppContext& host);
+    /* The other console going quiet: pause, the card, and its two buttons.
+     * True when the press was on (or through) the card and must not reach
+     * the board. In ChessNet.cpp, beside the poll it belongs with. */
+    bool updatePause(AppContext& host, const TouchPoint& touch);
+    /* The card over the board while paused, or nothing. Called at the end of
+     * both render paths, so a full repaint underneath cannot lose it. */
+    void drawPause(AppContext& host);
+    NearbyWatch watch_;
+    bool pausePainted_ = false;
+    uint16_t pauseSecondsDrawn_ = 0;
     void startLocal();
     void startRemote(const NearbySeat& seat, uint8_t session, bool weAreWhite);
     /** True when it is this console's turn in a remote game. */
     bool ourTurn() const;
+
+    /* ---- the computer -------------------------------------------------
+     *
+     * Chess said for a long time that it had no computer opponent and that
+     * this was a decision rather than an omission, on the grounds that a
+     * search worth playing would have to run across frames or on a task. The
+     * first half of that turned out to be the answer rather than the
+     * objection -- Go does exactly it -- so the paragraph is gone and this is
+     * here. See ChessRules.h for the engine.
+     *
+     * Everything the computer needs is held between moves, because the search
+     * outlives the frame that started it. */
+    void updateComputer(AppContext& host, uint32_t now);
+    /** Arm the computer's move: start the clock, and the search if there is one. */
+    void beginThinking();
+    /** Start a game against this console, resolving Random into a colour. */
+    void startComputer();
+
+    /* Lobby geometry. MAX_LOBBY_ROWS is a ceiling on the loop rather than a
+     * claim about the panel -- lobbyRowCount() measures what actually fits. */
+    static constexpr uint8_t MAX_LOBBY_ROWS = 8;
+    Rect lobbyChipRect(AppContext& host, uint8_t index) const;
+    uint8_t lobbyRowCount(AppContext& host) const;
+    /** True while it is the person's move -- always, unless a computer owes one. */
+    bool humanTurn() const;
+    /* One move, applied the one way. Used by the person, the network and the
+     * computer alike; before this the sequence was written out twice and the
+     * third caller is what made that untenable. */
+    void playMove(AppContext& host, uint8_t from, uint8_t to, bool publish);
+
+    Ch::Level level_ = Ch::Level::Easy;
+    /* Which side the person has in a Computer game. Resolved at the start of
+     * the game, never re-rolled -- a restored game must not change colours
+     * under the player. */
+    bool humanIsWhite_ = true;
+    /* What the lobby is set to ask for: White, Black, or a coin toss. Distinct
+     * from humanIsWhite_ for exactly that reason. */
+    enum class Side : uint8_t { White, Black, Random };
+    Side sideChoice_ = Side::White;
+    /* The medium search, carried across frames. ~1.3KB, a fixed member like
+     * everything else here -- see CLAUDE.md's memory rule. */
+    Ch::Search search_;
+    /* Easy's own randomness. Seeded from the clock at the start of a game so
+     * two games are not identical, and carried rather than re-seeded per move
+     * so a move is not correlated with the millisecond it was made in. */
+    Ch::Rng rng_;
+    bool thinking_ = false;
+    /* Not before this. A computer that answers instantly reads as a machine
+     * having already known; a beat of delay reads as thought, and it is also
+     * where the search actually happens. */
+    uint32_t thinkUntilMs_ = 0;
     /* Nothing more can be played. One definition, because there are now five
      * ways to reach it and three places that ask. */
     bool gameOver() const {
@@ -332,9 +380,20 @@ private:
         uint8_t theirPly;
         uint8_t ourFrom;
         uint8_t ourTo;
+        /* The computer's settings. Adding these grows the struct, so
+         * loadBlob() refuses the old blob on length and games in progress at
+         * the upgrade are retired rather than misread -- which is what the
+         * fixed layout is for. The version goes up as well, for the case where
+         * a future field happens to leave the size unchanged.
+         *
+         * humanIsWhite is the RESOLVED colour, never the request: a restored
+         * game must not re-roll Random and hand the player the other side. */
+        uint8_t level;
+        uint8_t sideChoice;
+        uint8_t humanIsWhite;
         uint8_t takenCount[2];
         int8_t taken[2][MAX_TAKEN];
     };
     static constexpr uint16_t SAVE_MAGIC = 0xC4E5;
-    static constexpr uint8_t SAVE_VERSION = 3;
+    static constexpr uint8_t SAVE_VERSION = 4;
 };

@@ -430,6 +430,8 @@ void LudoGame::renderStatic(AppContext& host) {
     drawnDotSeat_ = Ludo::NO_SEAT;   // drawSeats() below paints no dot
     seatsStale_ = true;
     actionStale_ = true;
+    pausePainted_ = false;   // the board was just repainted under it
+    drawPause(tft);
 }
 
 void LudoGame::renderDynamic(AppContext& host) {
@@ -452,6 +454,7 @@ void LudoGame::renderDynamic(AppContext& host) {
     hi_ = highlights();
     diffPlaces();
     if (anyDirty_) {
+        pausePainted_ = false;   // a place under the card
         for (uint8_t p = 0; p < PLACE_COUNT; ++p) {
             if (dirty_[p >> 3] & (1U << (p & 7))) {
                 drawPlace(tft, p);
@@ -506,4 +509,5 @@ void LudoGame::renderDynamic(AppContext& host) {
         confirmShown_ = sure;
         actionStale_ = false;
     }
+    drawPause(tft);
 }

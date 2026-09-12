@@ -20,7 +20,7 @@ using namespace ConsoleText;
  * reports; Guest is not a slot and cannot be renamed, removed or edited.
  *
  * The same refusals the Profiles screen makes, plus two of its own:
- *   - the admin profile cannot be removed (ProfileGame never offers it);
+ *   - the admin profile cannot be removed (ProfileApp never offers it);
  *   - the ACTIVE player cannot be removed. From the screen that cannot come
  *     up -- you are looking at the list, not playing -- but from a cable it
  *     would pull a profile out from under a running game. Switch first.

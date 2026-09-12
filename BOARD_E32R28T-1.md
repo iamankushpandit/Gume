@@ -531,7 +531,7 @@ Before porting to a new board, create a hardware test app that exercises:
 4. Verify backlight PWM (brightness slider)
 5. Verify sleep/wake (backlight off/on)
 
-**Test code:** Adapt from `src/games/SystemInfoGame.cpp` or create `bringup` environment variant.
+**Test code:** Adapt from `src/games/SystemInfoApp.cpp` or create `bringup` environment variant.
 
 ### Touch Test
 1. Show crosshairs at calibration points

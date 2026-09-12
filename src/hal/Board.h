@@ -258,7 +258,7 @@ public:
      * serial console, which compares and prints names from a fixed buffer. */
     void copyProfileName(uint8_t index, char* out, size_t cap);
     /* The char* form is the real one, as with addPlayer(); the String
-     * overload is kept for ProfileGame's draft name. */
+     * overload is kept for ProfileApp's draft name. */
     void setProfileName(uint8_t index, const char* name);
     void setProfileName(uint8_t index, const String& name) {
         setProfileName(index, name.c_str());
@@ -272,7 +272,7 @@ public:
      * buffer, so a caller with a literal -- boot's default Admin profile --
      * allocates nothing, and the empty-name fallback no longer builds
      * `String("Player ") + n` to throw it away. The String overload is kept
-     * for ProfileGame, whose draft name genuinely is a String. */
+     * for ProfileApp, whose draft name genuinely is a String. */
     uint8_t addPlayer(const char* name);
     uint8_t addPlayer(const String& name) { return addPlayer(name.c_str()); }
     /** Delete a player, shifting later names and persisted profile data down. */
@@ -399,7 +399,7 @@ public:
     String wifiPassword();
     /* The char* form is the real one, as with addPlayer(): the serial console
      * has the values in a stack buffer and should not build Strings to hand
-     * them over. The String overload is kept for WifiGame. */
+     * them over. The String overload is kept for WifiApp. */
     void setWifiCredentials(const char* ssid, const char* password);
     void setWifiCredentials(const String& ssid, const String& password) {
         setWifiCredentials(ssid.c_str(), password.c_str());
@@ -514,6 +514,17 @@ public:
      * settings. The policy lives in engine/NearbyPlay.h; this is the switch. */
     bool nearbyEnabled();
     void setNearbyEnabled(bool on);
+
+    /* Whether a find from a nearby console makes this one RING.
+     *
+     * Off leaves the banner and the LED and takes only the noise -- and with
+     * it the unmute, which is the part worth knowing about: an alert flips the
+     * mute switch so a silenced console can still be found, and puts it back
+     * when the alert ends. An owner who does not want that has this switch.
+     * Global, like every other device setting; the speaker belongs to whoever
+     * is in the room. */
+    bool findAlertEnabled();
+    void setFindAlertEnabled(bool on);
 
     /* Local labels for the devices Nearby can see -- "RAVI" against the tag
      * A4F2, so a poke says who rather than what.
@@ -654,6 +665,8 @@ private:
     uint8_t cachedNtpResyncHours_ = NTP_RESYNC_DEFAULT_HOURS;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
+    bool findAlertCached_ = false;
+    bool cachedFindAlert_ = true;
 
     /* Fixed slots, no allocation, written as one blob. 8 x 16 bytes is 128
      * bytes of NVS and matches BleScan::MAX_SIGHTINGS -- there is no point

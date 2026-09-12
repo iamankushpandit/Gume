@@ -319,7 +319,27 @@ makes this path expensive to debug and worth writing down.
 4. **The amplifier outlives generation.** `playing` goes false when the last
    sample is GENERATED, and the DMA still holds up to 96ms of it. Dropping the
    amp there eats the tail, and on the short cues that is the whole cue.
-   `AMP_TAIL_MS` (150ms) holds it, reset by `arm()`. Both backends do this.
+   `AMP_TAIL_MS` holds it, reset by `arm()`. Both backends do this. It is
+   2000ms, not the DMA depth: switching the 8002's enable is a pop of its own,
+   and at 150ms it fired around every piano note.
+
+And one fault that is not silence but a click on both edges of every sound,
+which is what "beeps all over the device" turned out to be:
+
+5. **Idle is mid-scale, and `tx_desc_auto_clear` does not know that.** With
+   auto-clear on, the driver fills an idle DMA with zero words -- silence for
+   the codec, **0 V** for this DAC, whose silence is `0x8000`. So the speaker
+   line dropped to ground as every sound ended and jumped back as the next
+   began; recorded on the device as a click ~300ms apart around each piano
+   note. Auto-clear is **off** on the DAC backend, and `fillDacIdle()` writes
+   mid-scale into every DMA buffer once a sound ends (and at boot), so what an
+   idle DMA replays is silence. Turn auto-clear back on here and the clicks
+   return; forget the fill and the DMA replays the last sound's tail forever.
+
+Separately, and on both backends, **a sound fades out as well as in**: a
+spent script keeps its last waveform running while the gain slews to zero
+(`RELEASE_FLOOR`, ~25ms), because stopping a sine at its crest is a step of
+the full amplitude. Mute uses the same fade rather than cutting.
 
 **The sample rate is not the same on both backends, and this is measured.** The
 built-in DAC's clock divider cannot reach low rates: below 22050 Hz it wraps

@@ -26,6 +26,11 @@ uint8_t knownCount_ = 0;
 
 using namespace detail;
 
+/* Defined further down, beside dismissAlert(), because the two are one
+ * contract: the mute switch this flips is the one that restores. Declared here
+ * because evaluatePoke(), below in the anonymous namespace, calls it. */
+void beginAlert(Board& board);
+
 namespace {
 
 /* The owner's own label for a console, falling back to the tag it advertises.
@@ -51,6 +56,17 @@ char banner_[BANNER_MAX] = {0};
 bool bannerActive_ = false;
 uint32_t bannerAtMs_ = 0;
 uint32_t bannerGeneration_ = 0;
+
+/* The find alert. `alertWasMuted_` is the whole of the mute contract: the
+ * switch is genuinely flipped when an alert starts, and put back by
+ * dismissAlert(), which is the one place an alert can end. Nothing reaches
+ * past Board::playSound()'s mute gate -- a muted console really is silent, and
+ * this console is briefly not muted. */
+bool alertActive_ = false;
+bool alertWasMuted_ = false;
+uint32_t alertUntilMs_ = 0;
+uint32_t alertNextRingMs_ = 0;
+uint32_t alertGeneration_ = 0;
 
 const AppDefinition* playableAt(uint8_t index) {
     if (index >= playableAppCount()) {
@@ -145,6 +161,9 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
 /* Copy the session traffic across verbatim. No interpretation: this module
  * does not know a chess move from a backgammon one, and should not. */
 void recordSession(Known& entry, const BleScan::Sighting& seen) {
+    /* Unconditional and first: a peer that is still here but has nothing new
+     * to say is still here, and that is the fact a paused game is waiting on. */
+    entry.lastSeenMs = seen.lastSeenMs;
     entry.inviting = seen.inviting;
     if (seen.inviting) {
         strncpy(entry.inviteTarget, seen.inviteTarget, sizeof(entry.inviteTarget) - 1);
@@ -216,6 +235,19 @@ void evaluatePoke(Board& board, Known& entry, const BleScan::Sighting& seen) {
     entry.lastPokeNonce = seen.pokeNonce;
 
     char text[BANNER_MAX];
+    if (seen.findMe) {
+        /* A find is somebody who cannot see the console asking it to say where
+         * it is, so it does not settle for a blip in a header nobody is
+         * looking at. The banner is still raised, because whoever picks it up
+         * deserves to know what just happened. */
+        snprintf(text, sizeof(text), "%s is looking for you",
+                 displayName(board, seen.deviceId));
+        pushEvent(text);
+        if (board.findAlertEnabled()) {
+            beginAlert(board);
+        }
+        return;
+    }
     snprintf(text, sizeof(text), "%s poked you!", displayName(board, seen.deviceId));
     pushEvent(text);
     board.playSound(Sound::Pop);
@@ -417,6 +449,57 @@ bool pokeInFlight() {
     return BleBeacon::poking();
 }
 
+bool find(Board& board, const char* deviceId) {
+    if (!enabled_ || !BleBeacon::active()) {
+        return false;
+    }
+    if (!BleBeacon::poke(deviceId, true)) {
+        return false;
+    }
+    board.playSound(Sound::Tap);
+    return true;
+}
+
+bool alertActive() { return alertActive_; }
+uint32_t alertGeneration() { return alertGeneration_; }
+
+/* Begin, or extend, the alert this console answers a find with.
+ *
+ * Unmuting is the part to be careful about. It is not a hole in the mute rule:
+ * the setting itself changes, through the same setter the Sound screen uses,
+ * and dismissAlert() puts it back. A console that has been deliberately
+ * silenced can still be found, which is the entire point of the feature -- and
+ * the owner's three protections are elsewhere and all still hold: Nearby is
+ * off by default, turning it on is admin-gated, and Alert: Quiet suppresses
+ * this whole path. */
+void beginAlert(Board& board) {
+    const uint32_t now = millis();
+    if (!alertActive_) {
+        alertWasMuted_ = !board.soundEnabled();
+        if (alertWasMuted_) {
+            board.setSoundEnabled(true);
+        }
+        alertActive_ = true;
+        alertNextRingMs_ = now;    // ring on this frame, not in 1.5s
+        ++alertGeneration_;
+    }
+    /* A second find restarts the clock rather than queueing: somebody is still
+     * looking. */
+    alertUntilMs_ = now + ALERT_MS;
+}
+
+void dismissAlert(Board& board) {
+    if (!alertActive_) {
+        return;
+    }
+    alertActive_ = false;
+    if (alertWasMuted_) {
+        board.setSoundEnabled(false);
+        alertWasMuted_ = false;
+    }
+    ++alertGeneration_;
+}
+
 void tick(Board& board) {
     /* One gate, re-evaluated every frame, rather than an ordering contract
      * between Settings and the radio. The beacon can go down underneath us --
@@ -448,6 +531,25 @@ void tick(Board& board) {
     }
 
     const uint32_t now = millis();
+
+    /* The alert rings on its own clock, and it rings while the panel is
+     * asleep: tick() runs every frame in every view, which is what lets a
+     * console that has been put down and forgotten still answer. */
+    if (alertActive_) {
+        if (static_cast<int32_t>(now - alertUntilMs_) >= 0) {
+            dismissAlert(board);
+        } else if (static_cast<int32_t>(now - alertNextRingMs_) >= 0) {
+            alertNextRingMs_ = now + ALERT_CADENCE_MS;
+            board.playSound(Sound::Bell);
+            /* Through pulseRgb() rather than setRgbColor(), so it honours the
+             * owner's Light setting and tickRgb() clears it between rings.
+             * On a muted console with the light off there is still the banner
+             * and the lit panel; on one with no speaker at all, this is the
+             * whole of the answer. */
+            board.pulseRgb(255, 190, 0, 400);
+        }
+    }
+
     if (bannerActive_ && now - bannerAtMs_ >= BANNER_MS) {
         bannerActive_ = false;
         banner_[0] = '\0';

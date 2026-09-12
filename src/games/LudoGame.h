@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "games/LudoRules.h"
+#include "games/NearbyWatch.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -102,7 +103,10 @@ private:
      * for the next local game. */
     bool isComputer(uint8_t seat) const {
         if (net_) {
-            return owner_[seat] != Ludo::NO_SEAT && owner_[seat] >= chairCount_;
+            const uint8_t p = owner_[seat];
+            /* A dropped chair's seat is a computer seat from the moment the
+             * host announced it (droppedChairs_), played by the host. */
+            return p != Ludo::NO_SEAT && (p >= chairCount_ || chairDropped(p));
         }
         return kind_[seat] == SeatKind::Computer;
     }
@@ -145,6 +149,26 @@ private:
     void startNetGame(AppContext& host, const Ludo::Net::Start& st);
     /** Every frame of a game across consoles: our word, endings, others' turns. */
     void pollTable(AppContext& host, uint32_t now);
+    /* A console at the table going quiet: the whole table pauses, the card
+     * names the seat, and on the host it offers to play on without it. True
+     * when the press was on (or through) the card. */
+    bool updatePause(AppContext& host, const TouchPoint& touch, uint32_t now);
+    /** The card over the board while paused, or nothing. End of both renders. */
+    void drawPause(Ui::Renderer& tft);
+    /* The host playing on without chair `chair`: its seat becomes a computer
+     * seat the host plays, announced to the table as a takeover ply once the
+     * remaining consoles have acked the last one (pollTable). */
+    void dropChair(AppContext& host, uint8_t chair);
+    bool chairDropped(uint8_t chair) const {
+        return (droppedChairs_ & (1U << chair)) != 0;
+    }
+    /** Chairs not to wait for: dropped, and one whose takeover is pending. */
+    uint8_t chairsNotWaitedFor() const {
+        return static_cast<uint8_t>(droppedChairs_ |
+                                    (pendingDrop_ < Ludo::Net::MAX_HUMANS ? (1U << pendingDrop_) : 0));
+    }
+    /** End a table from this side: the service's ending, then the lobby. */
+    void endTableByUs(AppContext& host);
     /* May we replace the ply we are advertising? Only once every other
      * console has applied it -- otherwise a console that missed it could never
      * catch up, because nothing would be carrying it any more. In plain turn
@@ -313,6 +337,17 @@ private:
     /* Somebody ended the game. Our own word stays on the air saying so, and
      * nothing may overwrite it with a move. */
     bool ended_ = false;
+    /* Chairs the host has played on without, bit per chair index: their
+     * seats are computer seats now. Saved with the game. pendingDrop_ is a
+     * chair the host has chosen to drop but not yet announced -- the
+     * takeover ply waits for the others to ack the last one -- or
+     * MAX_HUMANS for none. */
+    uint8_t droppedChairs_ = 0;
+    uint8_t pendingDrop_ = Ludo::Net::MAX_HUMANS;
+    /* Everyone else at the table, watched for silence. See NearbyWatch.h. */
+    NearbyWatch watch_;
+    bool pausePainted_ = false;
+    uint16_t pauseSecondsDrawn_ = 0;
 
     // The table lobby.
     static constexpr uint8_t MAX_PEERS = 6;
@@ -379,9 +414,11 @@ private:
         uint8_t owner[Ludo::SEATS];
         char hostId[5];
         Chair chairs[Ludo::Net::MAX_HUMANS];
+        uint8_t dropped;   // droppedChairs_
     };
     static constexpr uint16_t SAVE_MAGIC = 0x1D05;
-    /* 2 added the table fields. A version-1 blob is a different length, so
-     * loadBlob() refuses it and the lobby comes back with its defaults. */
-    static constexpr uint8_t SAVE_VERSION = 2;
+    /* 2 added the table fields; 3 the dropped chairs. An older blob is a
+     * different length, so loadBlob() refuses it and the lobby comes back
+     * with its defaults. */
+    static constexpr uint8_t SAVE_VERSION = 3;
 };

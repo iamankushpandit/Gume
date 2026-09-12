@@ -157,6 +157,43 @@ Rect BrainoApp::activeLockRect() {
     return LauncherLayout::topBarLockRect(static_cast<int16_t>(renderer_.width()));
 }
 
+Rect BrainoApp::activeSpeakerRect() {
+    if (activeGame_ == &launcher_) {
+        return LauncherLayout::speakerRect(board_.layoutMode(), renderer_.width());
+    }
+    return LauncherLayout::topBarSpeakerRect(static_cast<int16_t>(renderer_.width()));
+}
+
+/* MUTE IS NOT ADMIN-ONLY, and that is deliberate.
+ *
+ * Every other route to this setting is: Settings is readable by everyone and
+ * writable only by the admin. But the reason sound is a device setting rather
+ * than a per-profile one is already written down -- "the speaker belongs to
+ * whoever is in the room" -- and the room is exactly who needs this. A parent
+ * on a phone call, a child on a bus, a sibling asleep: none of them has the
+ * PIN to hand, and the alternative to a tap is taking the console away.
+ *
+ * It is also the safest thing on the device to give away. It changes nothing
+ * a player could not change by turning the volume down to nothing, it is
+ * instantly and obviously reversible by the same tap, and its state is on
+ * screen. Do not gate it later without saying what threat that answers. */
+void BrainoApp::toggleMute() {
+    const bool on = !board_.soundEnabled();
+    board_.setSoundEnabled(on);
+    /* Unmuting says so out loud -- the same reasoning as the Settings switch:
+     * a silence control whose only feedback is its own glyph leaves you
+     * pressing it twice to find out which way round it is. Muting is silent,
+     * obviously, and the RGB pulse is not gated so it still answers. */
+    if (on) {
+        board_.playSound(Sound::Select);
+    } else {
+        board_.pulseRgb(120, 120, 130, 220);
+    }
+    /* The glyph changed and nothing else did: an eighth of the panel, not all
+     * of it. This is the invalidation rule's whole point. */
+    requestChromeRender();
+}
+
 /* The deliberate way in. Everything else here is reached by a timeout; this is
  * reached by a child, a parent or a bag being packed. */
 void BrainoApp::lockAndSleepNow() {
@@ -291,53 +328,82 @@ void BrainoApp::renderLock() {
         lockFullPaint_ = false;
         Ui::clear(tft);
 
-        /* The same padlock the Lock button shows, drawn large. It was a
-         * ring-and-body built inline here; there are three of them now -- top
-         * bar, launcher header and this screen -- so the glyph lives in Ui and
-         * takes its proportions from the rect it is given. */
-        /* Two rows, not one. The launcher and Profiles both put the
-         * copyright on the wordmark's row, but they do not also carry the
-         * battery: the badge is variable width -- widest at 100 -- and on the 240px portrait panel a wordmark, a 114px
-         * copyright and a badge at its widest do not fit on one line with
-         * anything left for gaps. Giving the copyright its own row costs 10px
-         * of height, which this screen has, and removes the collision that
-         * would otherwise appear only at full battery.
+        /* THE BRAND, CENTRED, AND NO PADLOCK GLYPH ABOVE IT.
          *
-         * Both rows are drawn off measured widths rather than constants, the
-         * same rule the launcher header follows. */
-        tft.setTextDatum(ML_DATUM);
-        tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(BRAINO_PRODUCT_NAME, HEADER_PAD, HEADER_ROW1_CY, 2);
+         * This screen used to open with a left-aligned wordmark, a copyright
+         * under it, a hairline, and then a 30px padlock on its own line -- four
+         * stacked things before the word "Locked", none of them the brand.
+         *
+         * The mark is centred now, at two thirds of the badge's full size:
+         * this is what a device shows while it sits on a table, and it should
+         * say what it is. THE PADLOCK STAYS -- it is the glyph that says what
+         * state the thing is in, and a heading alone does not carry that
+         * across a room -- but it moves onto the "Locked" line beside the
+         * word, which is where it reads as a label rather than as a fourth
+         * stacked object. Everything below still hangs off lockButtonRect(). */
+        const int16_t badgeH = Ui::logoHeight(Ui::Logo::BadgeMid);
+        Ui::drawLogo(tft, static_cast<int16_t>(W / 2),
+                     static_cast<int16_t>(HEADER_PAD + badgeH / 2),
+                     Ui::text(), Ui::Logo::BadgeMid);
 
+        /* NO COPYRIGHT LINE ON THIS SCREEN, and that is a measurement rather
+         * than a preference. The stack is badge, then the Locked row, then the
+         * hint, the button, the bar and the footer, and on a 240px panel it
+         * comes to exactly 240: a line between the badge and Locked put the
+         * copyright's descenders through the padlock. The mark carries its
+         * trade mark sign, and the launcher, Profiles and About all still
+         * carry the copyright in full. */
+
+        /* THE BATTERY IS TOP RIGHT, level with the middle of the mark.
+         *
+         * It spent one release in the bottom corner beside the footer, on the
+         * reasoning that a status badge should not compete with the brand.
+         * Asked for back up here, and the measurement agrees: the footer is
+         * drawn CENTRED ACROSS THE FULL WIDTH (textMaxW below), and
+         * lockFooterText() deliberately picks the widest wording that
+         * measures whole -- so a badge parked at the right-hand end of that
+         * same row is in the footer's way, on a narrow panel especially.
+         * Up here there is nothing to collide with: the mark is 50px wide
+         * and centred, which leaves the right-hand corner empty on every
+         * panel this builds for (240px portrait is the tight case and still
+         * clears it by about 39px).
+         *
+         * Centred on the mark rather than at a typed-in y, so it cannot
+         * drift if the logo size changes. Draws nothing at all when there is
+         * no reading -- see Ui::batteryBadgeWidth(). */
         const int8_t battPct = board_.getBatteryPercent();
         const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
-        Ui::drawBatteryBadge(tft,
-                             static_cast<int16_t>(W - HEADER_PAD - battW / 2),
-                             HEADER_ROW1_CY, battPct, Ui::bg());
+        if (battW > 0) {
+            Ui::drawBatteryBadge(tft,
+                                 static_cast<int16_t>(W - HEADER_PAD - battW / 2),
+                                 static_cast<int16_t>(HEADER_PAD + badgeH / 2), battPct,
+                                 Ui::bg());
+        }
 
+        /* The padlock and the word as ONE centred group, measured rather than
+         * placed: the glyph sits to the left of the text and the pair is
+         * centred together, so neither drifts when the font or the panel
+         * changes. */
+        constexpr int16_t GLYPH = 24;
+        constexpr int16_t GLYPH_GAP = 8;
+        const int16_t lockedW = static_cast<int16_t>(tft.textWidth("Locked", 4));
+        const int16_t groupW = static_cast<int16_t>(GLYPH + GLYPH_GAP + lockedW);
+        const int16_t groupX = static_cast<int16_t>(W / 2 - groupW / 2);
+        const int16_t lockedY = static_cast<int16_t>(btn.y - 44);
+        Ui::drawLockIcon(tft, Rect{groupX, lockedY, GLYPH, GLYPH},
+                         Ui::muted(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        tft.setTextColor(Ui::muted(), Ui::bg());
-        tft.drawString(BRAINO_COPYRIGHT, HEADER_PAD, HEADER_ROW2_Y, 1);
-
-        tft.drawFastHLine(HEADER_PAD, HEADER_H,
-                          static_cast<int16_t>(W - HEADER_PAD * 2),
-                          Ui::shade(Ui::bg(), 150));
-
-        constexpr int16_t ICON = 30;
-        Ui::drawLockIcon(tft, Rect{static_cast<int16_t>(W / 2 - ICON / 2),
-                                   static_cast<int16_t>(btn.y - 82),
-                                   ICON, ICON}, Ui::muted(), Ui::bg());
-
-        tft.setTextDatum(TC_DATUM);
         tft.setTextColor(Ui::text(), Ui::bg());
-        drawCenteredFitted(tft, "Locked", W / 2,
-                           static_cast<int16_t>(btn.y - 44), textMaxW, 4);
+        tft.drawString("Locked",
+                       static_cast<int16_t>(groupX + GLYPH + GLYPH_GAP),
+                       lockedY, 4);
+        tft.setTextDatum(TC_DATUM);
         tft.setTextColor(Ui::muted(), Ui::bg());
         drawCenteredFitted(tft, "Press and hold the button", W / 2,
                            static_cast<int16_t>(btn.y - 16), textMaxW, 1);
 
-        Ui::drawButton(tft, btn, "Hold to unlock", Ui::rgb(36, 132, 204),
-                       Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, btn, "Hold to unlock", Ui::accent(), Ui::outline(),
+                       Ui::onFill(Ui::accent()), false, 2);
 
         tft.drawRoundRect(bar.x, bar.y, bar.w, bar.h, 4, Ui::outline());
         tft.setTextColor(Ui::muted(), Ui::bg());

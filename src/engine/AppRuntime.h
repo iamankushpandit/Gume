@@ -4,7 +4,7 @@
 #include "engine/AppRegistry.h"
 #include "engine/ContentLoader.h"
 #include "engine/Game.h"
-#include "engine/LauncherGame.h"
+#include "engine/LauncherApp.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
 #include "ui/ScaledRenderer.h"
@@ -92,6 +92,7 @@ public:
     void beepOk() override;
     void beepError() override;
     void playSound(Sound cue) override;
+    bool batteryLow() override;
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) override;
     void drawTopBar(const char* title) override;
     void goHome() override;
@@ -113,6 +114,7 @@ public:
     const char* nearbySelfId() override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;
+    uint32_t nearbyPeerSilentMs(const char* deviceId) override;
     void openSettings() override;
     void openWifi() override;
     void openProfiles() override;
@@ -179,6 +181,11 @@ private:
     void enterLock();
     /** Where the Lock button is on whatever screen is up right now. */
     Rect activeLockRect();
+    /** Where the mute control is on whatever screen is up right now. */
+    Rect activeSpeakerRect();
+    /* Mute or unmute from the header, without Settings and without the admin
+     * PIN. See the comment on the definition for why that gate is absent. */
+    void toggleMute();
     void updateLock(const TouchPoint& touch, uint32_t nowMs);
     void renderLock();
     void resumeUnderlyingScreen();
@@ -259,7 +266,7 @@ private:
     Ui::ScaledRenderer scaledRenderer_{renderer_, /*textScale=*/1};
     ContentLoader content_;
     GameInstances games_;
-    LauncherGame launcher_;
+    LauncherApp launcher_;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
     /* True only while a playable game is the thing on screen.

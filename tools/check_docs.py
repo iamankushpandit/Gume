@@ -180,13 +180,20 @@ def check_about_is_derived(problems):
     It fell six games behind once by keeping its own list. The rule is in
     CLAUDE.md; this catches the specific regression of hardcoding again.
     """
-    about = read("src", "games", "AboutGame.cpp")
+    about = read("src", "games", "AboutApp.cpp")
     for symbol in ("playableAppAt", "playableAppCount", "BRAINO_VERSION",
-                   "BRAINO_PRODUCT_NAME", "BRAINO_COPYRIGHT",
+                   "BRAINO_COPYRIGHT",
                    "BOARD_NAME", "BleBeacon::active"):
         if symbol not in about:
-            fail(problems, "AboutGame.cpp no longer reads %s -- About is "
+            fail(problems, "AboutApp.cpp no longer reads %s -- About is "
                            "supposed to derive facts, not restate them" % symbol)
+
+    # The product's NAME is derived either way: as the macro, or by drawing the
+    # generated mark, which is the artwork the name is actually set in. What
+    # this forbids is About spelling "Braino!" into a string of its own.
+    if "BRAINO_PRODUCT_NAME" not in about and "Ui::Logo::" not in about:
+        fail(problems, "AboutGame.cpp shows the product name neither from "
+                       "BRAINO_PRODUCT_NAME nor as the generated mark")
 
 
 def check_credits_match_artwork(problems):
@@ -209,7 +216,7 @@ def check_credits_match_artwork(problems):
                 sources.append(read("src", folder, name))
     uses_country_outlines = any(re.search(r"mnf_map\s*\(", text) for text in sources)
 
-    for doc in ("README.md", os.path.join("src", "games", "AboutGame.cpp")):
+    for doc in ("README.md", os.path.join("src", "games", "AboutApp.cpp")):
         text = read(doc)
         credits_mapsicon = re.search(r"mapsicon", text, re.I) is not None
         if credits_mapsicon and not uses_country_outlines:

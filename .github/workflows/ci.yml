@@ -102,6 +102,14 @@ jobs:
           python -m py_compile tools/check_privacy.py
           python -m py_compile tools/check_identifiers.py
           python -m py_compile tools/gen_site.py
+          python -m py_compile tools/gen_board_docs.py
+
+      # Pillow for gen_board_docs.py --check, which opens any board photo in
+      # docs/boards/img/ to refuse one still carrying EXIF (a GPS position, a
+      # phone serial, a name). Seconds to install; not gated on firmware
+      # changes, because a photo arrives in a docs-only pull request.
+      - name: Install Pillow
+        run: pip install pillow
 
       - name: Run repository checks
         run: |
@@ -110,6 +118,8 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
           python tools/check_privacy.py
+          # Board pages are generated from the profiles; a stale one fails here.
+          python tools/gen_board_docs.py --check
           # A hardware identifier cannot be un-published: a MAC is burned into
           # eFuse, so it names that board for its whole life. board_registry.json
           # mapped six of them to the firmware each was running and reached two

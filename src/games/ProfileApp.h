@@ -1,0 +1,74 @@
+#pragma once
+
+#include "engine/Game.h"
+#include "ui/Ui.h"
+
+class ProfileApp : public Game {
+public:
+    const char* title() const override;
+    void begin(GameHost& host) override;
+    void update(GameHost& host, const TouchPoint& touch) override;
+    /* Two-phase, but deliberately NOT a partial-repaint screen -- see the
+     * note above renderStatic() in the .cpp, and its entry in
+     * docs/RENDER_AUDIT.md. */
+    void renderStatic(GameHost& host) override;
+    void renderDynamic(GameHost& host) override;
+
+    /* This screen draws no top bar -- it carries its own wordmark header, and
+     * nothing on it tracks the clock or the battery, so the badge ticks that
+     * make renderChrome() worth having have nothing to update here. The one
+     * chrome event that can reach it is a notification landing on the header,
+     * which is rare enough that a full repaint is the honest answer. Returning
+     * false asks the runtime for exactly that, and keeps the base class from
+     * painting a top bar this screen does not own. */
+    bool renderChrome(GameHost& host) override;
+
+private:
+    enum class Phase : uint8_t { Pick, Menu, Rename, Games, PinEntry };
+
+    /* What a successful PIN entry should do. Both routes into the admin
+     * profile are gated: switching to it, and opening its Edit menu (which
+     * leads to rename and to the per-profile game list). */
+    enum class PinPurpose : uint8_t { Switch, OpenMenu };
+
+    Rect headerRect(int16_t screenW, int16_t screenH) const;
+    Rect slotRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect menuRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
+    Rect pinDeleteRect(int16_t screenW, int16_t screenH) const;
+    Rect pinConfirmRect(int16_t screenW, int16_t screenH) const;
+    Rect pinCancelRect(int16_t screenW, int16_t screenH) const;
+    Rect renameCancelRect(int16_t screenW, int16_t screenH) const;
+    Rect addRect(int16_t screenW, int16_t screenH) const;
+    Rect doneRect(int16_t screenW, int16_t screenH) const;
+    Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
+    Rect menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const;
+    Rect gameCheckRect(uint8_t row, int16_t screenW) const;
+    Rect gamesBackRect(int16_t screenW) const;
+    Rect gamesPrevRect(int16_t screenH) const;
+    Rect gamesNextRect(int16_t screenW, int16_t screenH) const;
+    uint8_t visibleGameRows(int16_t screenH) const;
+    uint8_t rowCount(Board& board) const;
+    uint8_t profileForRow(Board& board, uint8_t row) const;
+
+    void beginPinEntry(uint8_t profile, PinPurpose purpose);
+    void appendPinDigit(uint8_t digit);
+    void deletePinDigit();
+    /* Split by "does a digit change it?": the keys, heading and Back are
+     * chrome and painted once by renderStatic(); the four dots are the only
+     * thing a keypress touches. See the note in ProfileApp.cpp. */
+    void renderPinPadChrome(GameHost& host);
+    void renderPinDots(GameHost& host);
+    void updateRename(GameHost& host, const TouchPoint& touch);
+    void renderRename(GameHost& host);
+
+    Phase phase_ = Phase::Pick;
+    uint8_t editing_ = 0;
+    uint8_t menuFor_ = 0;
+    uint8_t gameScroll_ = 0;
+    uint16_t adminPinAttempt_ = 0;
+    uint8_t adminPinDigitCount_ = 0;
+    uint8_t profileToSwitchTo_ = 0;
+    PinPurpose pinPurpose_ = PinPurpose::Switch;
+    String draft_;
+};

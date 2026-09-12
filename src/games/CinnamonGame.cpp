@@ -203,30 +203,46 @@ void CinnamonGame::drawPad(Ui::Renderer& tft, uint8_t index, bool lit) const {
     tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 8, Ui::surface());
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, padColor(index, lit));
     if (lit) {
-        // Bold dark ring so the active pad is obvious without needing the rest
-        // of the screen to change.
+        /* A bold ring so the active pad is obvious without the rest of the
+         * screen changing. Ui::text() is the ink of the ground it is drawn
+         * on, so it is black on a light theme and white on a dark one; it
+         * was TFT_BLACK, which was invisible on every dark palette and only
+         * ever looked right because this screen forced itself light. */
+        const uint16_t ring = Ui::text();
         tft.drawRoundRect(static_cast<int16_t>(r.x - 3), static_cast<int16_t>(r.y - 3),
-                          static_cast<int16_t>(r.w + 6), static_cast<int16_t>(r.h + 6), 11, TFT_BLACK);
+                          static_cast<int16_t>(r.w + 6), static_cast<int16_t>(r.h + 6), 11, ring);
         tft.drawRoundRect(static_cast<int16_t>(r.x - 4), static_cast<int16_t>(r.y - 4),
-                          static_cast<int16_t>(r.w + 8), static_cast<int16_t>(r.h + 8), 12, TFT_BLACK);
+                          static_cast<int16_t>(r.w + 8), static_cast<int16_t>(r.h + 8), 12, ring);
     } else {
         tft.drawRoundRect(static_cast<int16_t>(r.x - 4), static_cast<int16_t>(r.y - 4),
                           static_cast<int16_t>(r.w + 8), static_cast<int16_t>(r.h + 8), 12, Ui::bg());
         tft.drawRoundRect(static_cast<int16_t>(r.x - 3), static_cast<int16_t>(r.y - 3),
                           static_cast<int16_t>(r.w + 6), static_cast<int16_t>(r.h + 6), 11, Ui::bg());
-        tft.drawRoundRect(r.x, r.y, r.w, r.h, 8, TFT_DARKGREY);
+        tft.drawRoundRect(r.x, r.y, r.w, r.h, 8, Ui::outline());
     }
 }
 
-/* CINNAMON ALWAYS RENDERS LIGHT, AND EACH HALF HAS TO SAY SO SEPARATELY.
+/* CINNAMON HONOURS THE THEME, like every other screen.
  *
- * The theme is global state in Ui, and the two halves are two calls: on a
- * partial repaint renderStatic() does not run at all, so a save/force in one
- * and a restore in the other would leave the rest of the firmware drawing in
- * Cinnamon's theme. Each brackets its own drawing instead. */
+ * It used to force Ui::Theme::Light for the duration of each render half and
+ * put the palette back afterwards -- a decision taken when there were two
+ * themes and the four pad colours had been picked against white. With nine
+ * palettes it was indefensible: the one screen in the console that ignored
+ * the owner's choice, and it announced itself by flashing white on the way
+ * in from a dark launcher.
+ *
+ * What made it look necessary was two hard-coded colours inside drawPad --
+ * a black ring and a grey outline -- rather than anything about the pads.
+ * Those are Ui::text() and Ui::outline() now and the forcing is gone. The
+ * four hues stay fixed: they are the game, the way a traffic light is not
+ * themeable, and they are pad fills rather than text so nothing has to be
+ * read off them.
+ *
+ * Do not reintroduce the save/force/restore. The theme is global state in
+ * Ui, and on a partial repaint renderStatic() does not run at all -- so a
+ * force in one half and a restore in the other leaves the whole firmware
+ * drawing in this screen's palette. */
 void CinnamonGame::renderStatic(AppContext& host) {
-    const Ui::Theme savedTheme = Ui::currentTheme();
-    Ui::setTheme(Ui::Theme::Light);
     Ui::Renderer& tft = host.display();
 
     Ui::clear(tft);
@@ -247,12 +263,9 @@ void CinnamonGame::renderStatic(AppContext& host) {
     }
     statusDrawn_ = "";
     tft.setTextDatum(TL_DATUM);
-    Ui::setTheme(savedTheme);
 }
 
 void CinnamonGame::renderDynamic(AppContext& host) {
-    const Ui::Theme savedTheme = Ui::currentTheme();
-    Ui::setTheme(Ui::Theme::Light);
     Ui::Renderer& tft = host.display();
 
     /* Only the pads that actually changed state get touched -- and on a full
@@ -287,5 +300,4 @@ void CinnamonGame::renderDynamic(AppContext& host) {
         tft.drawString("Bright pad was next", GAME_CANVAS_WIDTH / 2, 214, 2);
     }
     tft.setTextDatum(TL_DATUM);
-    Ui::setTheme(savedTheme);
 }

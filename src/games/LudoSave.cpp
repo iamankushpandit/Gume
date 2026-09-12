@@ -29,6 +29,10 @@ void LudoGame::saveGame(AppContext& host) const {
     out.ended = ended_ ? 1 : 0;
     memcpy(out.hostId, hostId_, sizeof(out.hostId));
     memcpy(out.chairs, chairs_, sizeof(out.chairs));
+    /* A takeover chosen but not yet said is not saved: if the console is
+     * restarted first, the chair is simply quiet again and can be dropped
+     * again. What IS said is part of the game. */
+    out.dropped = droppedChairs_;
     host.saveBlob("game", &out, sizeof(out));
 }
 
@@ -111,6 +115,10 @@ bool LudoGame::restoreGame(AppContext& host) {
         c.id[4] = 0;
         c.name[sizeof(c.name) - 1] = 0;
     }
+    droppedChairs_ = static_cast<uint8_t>(in.dropped & ((1U << chairCount_) - 1));
+    pendingDrop_ = Ludo::Net::MAX_HUMANS;
+    watch_.reset();
+    pausePainted_ = false;
     for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
         for (uint8_t t = 0; t < Ludo::TOKENS; ++t) {
             shown_[s][t] = state_.pos[s][t];

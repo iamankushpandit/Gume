@@ -2,6 +2,7 @@
 
 #include "engine/Game.h"
 #include "games/BackgammonRules.h"
+#include "games/NearbyWatch.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -91,6 +92,14 @@ private:
     void pollRemote(AppContext& host, uint32_t now);
     /** Leave a nearby game for the lobby, saying why when it was the other side. */
     void leaveRemote(AppContext& host, const char* note);
+    /** End a nearby game from this side: the service's ending, then the lobby. */
+    void endRemoteByUs(AppContext& host);
+    /* The other console going quiet: pause, the card, its two buttons. True
+     * when the press was on (or through) the card and must not reach the
+     * board. */
+    bool updatePause(AppContext& host, const TouchPoint& touch, uint32_t now);
+    /** The card over the board while paused, or nothing. End of both renders. */
+    void drawPause(Ui::Renderer& tft);
 
     // ---- save (BackgammonSave.cpp) --------------------------------------------
     void saveGame(AppContext& host) const;
@@ -100,6 +109,8 @@ private:
     static Rect pointRect(uint8_t index);
     static Rect barRect();
     static Rect trayRect();
+    /** The whole board, for the pause card to centre on. */
+    static Rect boardArea();
     static Rect lobbyRowRect(uint8_t row);
     static Rect rollRect();
     static Rect undoRect();
@@ -175,6 +186,13 @@ private:
     NearbySeat seats_[6] = {};
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
+    /* The other console going quiet. NearbyWatch says when; what Backgammon
+     * does about it is in BackgammonNet.cpp. The message the pause displaced
+     * is kept so the panel says what it said before once they are back. */
+    NearbyWatch watch_;
+    bool pausePainted_ = false;
+    uint16_t pauseSecondsDrawn_ = 0;
+    char pausedMessage_[24] = {0};
 
     // ---- what is on the panel -------------------------------------------------------
     uint32_t dirtyPlaces_ = 0;   // bit per point, then BAR, then OFF

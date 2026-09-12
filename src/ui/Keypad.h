@@ -8,8 +8,8 @@
  * ------------------------------------------------------------------------
  * Why this is its own file
  * ------------------------------------------------------------------------
- * There were two hand-rolled keyboards in this firmware -- ProfileGame's
- * rename phase and WifiGame's password entry -- each with its own copy of the
+ * There were two hand-rolled keyboards in this firmware -- ProfileApp's
+ * rename phase and WifiApp's password entry -- each with its own copy of the
  * grid maths, and a third was about to be written for naming a Nearby peer.
  * Three copies of "where is the key at row 3, column 4 on this panel" is three
  * chances to draw a key somewhere it cannot be pressed, which has already

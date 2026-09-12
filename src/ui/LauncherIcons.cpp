@@ -554,6 +554,24 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.fillCircle(cx + 9, cy + 11, 5, amber());
             tft.drawCircle(cx + 9, cy + 11, 5, ink());
             break;
+        case LauncherIcon::Go:
+            /* A corner of a go board: a three-by-three of grid with one black
+             * stone and one white, the white in the accent. Rule 5: Chess is
+             * a checkerboard, Ludo a cross, Backgammon two triangles; nothing
+             * else on the grid is lines with round stones on them. */
+            for (int8_t i = -1; i <= 1; ++i) {
+                strokeH(tft, static_cast<int16_t>(cx - 17), static_cast<int16_t>(cy + i * 12 - 1),
+                        34, snow());
+                tft.fillRect(static_cast<int16_t>(cx + i * 12 - 1), static_cast<int16_t>(cy - 17),
+                             2, 34, snow());
+            }
+            tft.fillCircle(cx - 12, cy - 12, 6, ink());
+            tft.drawCircle(cx - 12, cy - 12, 6, snow());
+            tft.fillCircle(cx + 12, cy + 12, 6, amber());
+            tft.drawCircle(cx + 12, cy + 12, 6, ink());
+            tft.fillCircle(cx, cy, 6, snow());
+            tft.drawCircle(cx, cy, 6, ink());
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

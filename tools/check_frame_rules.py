@@ -18,8 +18,8 @@ Three rules, none of which the compiler can enforce:
 
 A ratchet, not a wall
 ---------------------
-The tree already contains violations -- AboutGame builds its text with
-`String`, CinnamonGame draws `String("Score ") + score_`, ScoresGame's Mine tab
+The tree already contains violations -- AboutApp builds its text with
+`String`, CinnamonGame draws `String("Score ") + score_`, ScoresApp's Mine tab
 predates the rule. Failing on all of them would mean the check is disabled on
 day one, and CLAUDE.md separately says not to opportunistically refactor files
 you are not otherwise changing.
@@ -54,7 +54,7 @@ COMMENT = re.compile(r"^\s*(?://|\*|/\*)")
 
 # Text inside a string literal is data, not code. Without this the `new`
 # arm of the heap rule fires on ordinary UI copy -- renderPinPad(host, "Enter
-# new PIN") was reported as two raw allocations in SettingsGame.cpp, which is
+# new PIN") was reported as two raw allocations in SettingsApp.cpp, which is
 # not just noise: a rule that cries wolf on a button label is a rule people
 # start editing the baseline to silence. Blanking literals first also stops a
 # "http://..." URL being mistaken for a trailing // comment.

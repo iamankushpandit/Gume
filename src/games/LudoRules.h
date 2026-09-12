@@ -223,6 +223,19 @@ bool decodeStart(uint8_t from, uint8_t to, Start& out);
 
 inline uint8_t moveFrom(uint8_t seat) { return static_cast<uint8_t>(MOVE_BASE + seat); }
 inline bool isMove(uint8_t from) { return from >= MOVE_BASE && from < MOVE_BASE + SEATS; }
+
+/* The host has taken over `seat`: the console that held it went out of range
+ * and the host chose to play on without it, so from this ply the seat is a
+ * computer seat played by the host, and every console reads its turns from
+ * the host's word. A numbered ply like a move, so it is ordered and acked
+ * like one; `to` is unused. 16..19, between the moves and the start word,
+ * so nothing already on the air can be mistaken for it. Only the host may
+ * say it, and a guest that hears its own seat taken leaves the table. */
+constexpr uint8_t TAKEOVER_BASE = 16;
+inline uint8_t takeoverFrom(uint8_t seat) { return static_cast<uint8_t>(TAKEOVER_BASE + seat); }
+inline bool isTakeover(uint8_t from) {
+    return from >= TAKEOVER_BASE && from < TAKEOVER_BASE + SEATS;
+}
 inline uint8_t nextPly(uint8_t ply) { return static_cast<uint8_t>((ply + 1) & PLY_MASK); }
 /* Seven-bit sequence order: is `a` at or after `b`? Plies wrap at 128, and
  * the consoles at a table are never more than a handful apart, so half the

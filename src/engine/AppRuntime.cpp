@@ -12,7 +12,6 @@
 // Home, Lock and the gear all come from LauncherLayout, so a hit target and
 // the glyph Ui paints into it cannot drift apart.
 
-
 /* Hand every screen the same starting state for text.
  *
  * TftRenderer remembers the glyph size it was last given, which is what lets
@@ -119,6 +118,12 @@ void BrainoApp::beepError() {
 
 void BrainoApp::playSound(Sound cue) {
     board_.playSound(cue);
+}
+
+bool BrainoApp::batteryLow() {
+    /* isBatteryLow() reads the snapshot the sampling task publishes -- no
+     * conversion on this path. A board with no battery sense is never low. */
+    return BOARD.hasBatterySense() && board_.isBatteryLow();
 }
 
 void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
@@ -236,6 +241,27 @@ void BrainoApp::loop() {
         requestChromeRender();
     }
 
+    /* A console being looked for lights its panel, and any press stops it.
+     *
+     * The wake goes through the ordinary path, so an owner who keeps the
+     * hold-to-unlock guard on still gets it -- and that is the right screen to
+     * arrive at: the lock screen carries the wordmark and the battery badge,
+     * which is exactly what somebody who has just found a device wants, and it
+     * returns itself to sleep afterwards.
+     *
+     * The press is NOT consumed. It stops the noise and then does whatever it
+     * was going to do; the lock screen already swallows the press that woke
+     * it. Dismissing here rather than inside any one view means every way of
+     * ending an alert -- a touch, the BOOT key, or its own timeout in
+     * NearbyPlay::tick() -- runs the same restore of the mute switch. */
+    if (NearbyPlay::alertActive() &&
+        (rawTouch.justPressed || rawTouch.down || boot.justPressed)) {
+        NearbyPlay::dismissAlert(board_);
+    }
+    if (NearbyPlay::alertActive() && view_ == View::Asleep) {
+        wakeFromSleep();
+    }
+
     /* The BOOT key counts as activity exactly as a touch does. Leaving it out
      * would mean pressing Home and watching the saver arrive a moment later,
      * because as far as the idle timer was concerned nobody had touched the
@@ -320,6 +346,7 @@ void BrainoApp::loop() {
         const Rect settingsButton = LauncherLayout::topBarSettingsRect(renderer_.width());
         const Rect homeButton = LauncherLayout::topBarHomeRect();
         const Rect lockButton = activeLockRect();
+        const Rect speakerButton = activeSpeakerRect();
         /* BOOT is Home. It is consumed here, above the active screen's
          * update(), for the same reason the Home glyph is: a screen that also
          * saw the press would act on it, and the player would find it done on
@@ -350,6 +377,12 @@ void BrainoApp::loop() {
         } else if (touch.justPressed &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
+        /* Mute is consumed up here for the same reason Home, the gear and
+         * Lock are: a tap that also reached the screen would press whatever
+         * sat under the speaker, and the player would find it done. */
+        } else if (touch.justPressed && Board::hasSound() &&
+                   speakerButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            toggleMute();
         } else if (activeAppIsPlayable() && !activeApp_->followsLayout) {
             /* Below the chrome, a fixed-canvas game hit-tests against its own
              * 320x240 space, so the physical press has to be mapped back into
@@ -409,130 +442,6 @@ void BrainoApp::loop() {
     } else {
         delay(1);
     }
-}
-
-/* Painted when it first appears and again whenever the screen underneath has
- * just redrawn over it -- not on every frame. Repainting a 320x30 strip at
- * 50Hz for five seconds would spend milliseconds a frame redrawing text that
- * has not changed, and the frame budget is 20ms for everything. */
-/* The battery warning is driven by the percentage alone -- at or below 15%,
- * escalating at 5%. There is no charge verdict to consult any more, so on the
- * charger it clears once the reading climbs back over the threshold. */
-/* Announce a newer firmware, once a day, to whoever is holding the device.
- *
- * Deliberately not admin-only. The person who can act on this is often not the
- * person playing, and a notice only the admin profile ever sees would be
- * invisible on a console that spends its life logged in as a child -- which is
- * every console. So the wording carries the instruction instead: it names the
- * version and says who to ask, which is something a seven-year-old can act on
- * and an adult can act on directly.
- *
- * The daily gate and the "have we already said this version" test both live in
- * Board, persisted, because both have to survive a power cycle -- see
- * Board::updateNoticeDue(). Nothing here decides when; it only draws.
- *
- * The string is composed once, when the banner is raised, and not rebuilt per
- * frame: the strip repaints from updateBanner_ for as long as it is up. It
- * measures 36 characters at the longest plausible version, inside the 40 the
- * top bar fits at font 2, so it does not scroll -- and should not be made to.
- * Scrolling would mean repainting the chrome strip on every frame for five
- * seconds, which is exactly what Game::renderChrome() exists to avoid. */
-void BrainoApp::tickUpdateNotice(uint32_t nowMs) {
-    if (updateBannerActive_) {
-        if (nowMs - updateBannerShownMs_ >= UPDATE_BANNER_MS) {
-            updateBannerActive_ = false;
-            requestBannerRepaint();
-        }
-        return;
-    }
-    if (!board_.updateNoticeDue()) return;
-
-    snprintf(updateBanner_, sizeof(updateBanner_),
-             "%s available - ask admin to update", board_.latestKnownVersion());
-    updateBannerActive_ = true;
-    updateBannerShownMs_ = nowMs;
-    board_.markUpdateNoticeShown();
-    requestBannerRepaint();
-}
-
-void BrainoApp::tickBatteryWarning(uint32_t nowMs) {
-    if (batteryCheckMs_ != 0 && nowMs - batteryCheckMs_ < BATTERY_CHECK_MS) {
-        return;
-    }
-    batteryCheckMs_ = nowMs;
-
-    const uint8_t level = board_.isBatteryCritical() ? 2
-                        : board_.isBatteryLow()      ? 1
-                                                     : 0;
-
-    if (level != batteryWarnLevel_) {
-        batteryWarnLevel_ = level;
-        /* Crossing a threshold -- in either direction -- restarts the cycle,
-         * so going from low to critical says so at once instead of waiting out
-         * the repeat interval left over from the milder warning. */
-        batteryEverHidden_ = false;
-        if (batteryBanner_ != nullptr) {
-            batteryBanner_ = nullptr;
-            requestBannerRepaint();
-        }
-    }
-
-    if (level == 0) {
-        if (batteryBanner_ != nullptr) {
-            batteryBanner_ = nullptr;
-            requestBannerRepaint();
-        }
-        return;
-    }
-
-    if (batteryBanner_ != nullptr) {
-        if (nowMs - batteryShownMs_ >= BATTERY_BANNER_MS) {
-            batteryBanner_ = nullptr;
-            batteryHiddenMs_ = nowMs;
-            batteryEverHidden_ = true;
-            requestBannerRepaint();
-        }
-        return;
-    }
-
-    if (batteryEverHidden_ && nowMs - batteryHiddenMs_ < BATTERY_REPEAT_MS) {
-        return;
-    }
-    batteryBanner_ = (level == 2) ? "Battery empty - plug in the charger"
-                                  : "Battery low - time to charge";
-    batteryShownMs_ = nowMs;
-    requestBannerRepaint();
-}
-
-/* The strip is painted over the screen's own header, so the header underneath
- * has to redraw before it can genuinely go away again -- the header, not the
- * screen. This used to call requestRender(), so the battery warning wiped the
- * whole panel twice per cycle, once to appear and once to leave, and repeated
- * that for as long as the cell stayed low. Nearby's banner had already moved
- * to the chrome path; this is the same fix for the battery and update notices.
- * A screen that cannot repaint its chrome alone still gets a full repaint,
- * through the fallback in loop(). */
-void BrainoApp::requestBannerRepaint() {
-    bannerNeedsPaint_ = true;
-    requestChromeRender();
-}
-
-void BrainoApp::drawHeaderBanner(bool screenRepainted) {
-    /* Priority order, and it is not arbitrary. A flat battery is about to end
-     * the session whatever else is true; an update is a standing condition that
-     * will still be there in five seconds; a poke is somebody waiting. */
-    const char* text = (batteryBanner_ != nullptr)  ? batteryBanner_
-                     : updateBannerActive_          ? updateBanner_
-                                                    : NearbyPlay::banner();
-    if (text == nullptr) {
-        bannerNeedsPaint_ = false;
-        return;
-    }
-    if (!bannerNeedsPaint_ && !screenRepainted) {
-        return;
-    }
-    bannerNeedsPaint_ = false;
-    Ui::drawNotification(renderer_, text);
 }
 
 void BrainoApp::requestChromeRender() {

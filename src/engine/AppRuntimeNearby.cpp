@@ -44,3 +44,7 @@ bool BrainoApp::nearbyTurnFrom(const char* deviceId, uint8_t session,
 const char* BrainoApp::nearbySelfId() {
     return NearbyPlay::selfId();
 }
+
+uint32_t BrainoApp::nearbyPeerSilentMs(const char* deviceId) {
+    return NearbyPlay::peerSilentMs(deviceId);
+}

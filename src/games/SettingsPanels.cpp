@@ -1,4 +1,4 @@
-#include "SettingsGame.h"
+#include "SettingsApp.h"
 
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
@@ -6,7 +6,7 @@
 /* The tab bodies -- Device, Power and Sound -- and the geometry of their rows.
  *
  * Every row here is a Rect accessor plus a renderer that draws into it, and
- * the touch handler in SettingsGame.cpp reads the same accessor. That is the
+ * the touch handler in SettingsApp.cpp reads the same accessor. That is the
  * whole reason the geometry lives beside the drawing rather than in the
  * handler: a control the player can see and cannot press is the failure this
  * arrangement exists to make impossible.
@@ -43,21 +43,28 @@ constexpr int16_t SETTINGS_TOP = 58;
 constexpr int16_t SETTINGS_BOTTOM_RESERVE = 36;   // the brightness bar
 constexpr int16_t SETTINGS_MIN_PITCH = 34;
 constexpr int16_t SETTINGS_MAX_ROW_H = 44;
+
+/* The Sound tab's own stack -- see the comment above muteRect(). Gaps rather
+ * than a pitch, because this tab's bands are not all the same height. */
+constexpr int16_t SOUND_GAP = 4;
+constexpr int16_t SOUND_CAPTION_H = 12;   // the "Volume" / "70%" line
+constexpr int16_t SOUND_TRACK_H = 32;     // the slider itself
+constexpr int16_t SOUND_FOOT_GAP = 8;
 }  // namespace
 
-int16_t SettingsGame::gridRowPitch() const {
+int16_t SettingsApp::gridRowPitch() const {
     const int16_t avail = static_cast<int16_t>(
         panelH_ - SETTINGS_BOTTOM_RESERVE - SETTINGS_MARGIN - SETTINGS_TOP);
     const int16_t pitch = static_cast<int16_t>(avail / 4);
     return pitch < SETTINGS_MIN_PITCH ? SETTINGS_MIN_PITCH : pitch;
 }
 
-int16_t SettingsGame::gridRowHeight() const {
+int16_t SettingsApp::gridRowHeight() const {
     const int16_t h = static_cast<int16_t>(gridRowPitch() - 4);
     return h > SETTINGS_MAX_ROW_H ? SETTINGS_MAX_ROW_H : h;
 }
 
-Rect SettingsGame::gridCell(uint8_t row, uint8_t col) const {
+Rect SettingsApp::gridCell(uint8_t row, uint8_t col) const {
     const int16_t colW = static_cast<int16_t>(
         (panelW_ - SETTINGS_MARGIN - SETTINGS_GAP - SETTINGS_GAP) / 2);
     const int16_t x = col == 0
@@ -67,85 +74,125 @@ Rect SettingsGame::gridCell(uint8_t row, uint8_t col) const {
                 colW, gridRowHeight()};
 }
 
-Rect SettingsGame::gridWide(uint8_t row) const {
+Rect SettingsApp::gridWide(uint8_t row) const {
     return Rect{SETTINGS_MARGIN,
                 static_cast<int16_t>(SETTINGS_TOP + row * gridRowPitch()),
                 static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
                 gridRowHeight()};
 }
 
-Rect SettingsGame::themeRect()   const { return gridCell(0, 0); }
-Rect SettingsGame::layoutRect()  const { return gridCell(0, 1); }
-Rect SettingsGame::lightRect()   const { return gridCell(1, 0); }
-Rect SettingsGame::bleRect()     const { return gridCell(1, 1); }
-Rect SettingsGame::wifiRect()    const { return gridCell(2, 0); }
-Rect SettingsGame::ntpSyncRect() const { return gridCell(2, 1); }
-Rect SettingsGame::nearbyRect()  const { return gridCell(3, 0); }
-Rect SettingsGame::resetRect()   const { return gridCell(3, 1); }
+Rect SettingsApp::themeRect()   const { return gridCell(0, 0); }
+Rect SettingsApp::layoutRect()  const { return gridCell(0, 1); }
+Rect SettingsApp::lightRect()   const { return gridCell(1, 0); }
+Rect SettingsApp::bleRect()     const { return gridCell(1, 1); }
+Rect SettingsApp::wifiRect()    const { return gridCell(2, 0); }
+Rect SettingsApp::ntpSyncRect() const { return gridCell(2, 1); }
+Rect SettingsApp::nearbyRect()  const { return gridCell(3, 0); }
+Rect SettingsApp::resetRect()   const { return gridCell(3, 1); }
 
 /* The brightness bar is pinned to the bottom rather than following the grid:
  * it is the only continuous control here and it reads as a footer. */
-Rect SettingsGame::brightRect() const {
+Rect SettingsApp::brightRect() const {
     return Rect{SETTINGS_MARGIN,
                 static_cast<int16_t>(panelH_ - SETTINGS_BOTTOM_RESERVE),
                 static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2), 32};
 }
 
-/* Sound tab.
+/* Sound tab: NOT the shared four-row grid, and it cannot be.
  *
- * Mute is a full-width row of its own because it is the control most people
- * come to this tab for and it should not have to be found. Below it the
- * volume slider, then the two test buttons side by side.
+ * Every other tab stacks four plain buttons, which is exactly what
+ * gridRowPitch() is sized for -- 34px on a 240 panel. This tab has those same
+ * four controls PLUS a caption line above the slider and two lines of
+ * footnote, and a 44px slider band does not fit in a 34px row.
  *
- * The vertical stack is measured against 240px: tab baseline at 52, mute row
- * 58-88, the level readout on its own line at 96, the slider 104-136, the test
- * buttons 148-178, and two lines of explanation at 190 and 206 -- which leaves
- * 34px of margin at the bottom. There is room for one more row here and not
- * two. */
-Rect SettingsGame::muteRect()      const { return gridWide(0); }
-/* Takes the grid's position but keeps its designed height.
+ * It did not fit before either, and the panel showed it: the caption is drawn
+ * 12px above the slider, the slider sat at the grid's row 1 (y=92), so the
+ * caption landed at 80 -- eight pixels INSIDE the mute button above it, which
+ * ran from 58 to 88. Every owner saw "Volume" printed across the bottom of the
+ * mute switch. What hid it from review was the mock-up: gen_screens.py had
+ * copied a comment here that still described a pitch of ~45 (rows at 58 / 104
+ * / 148), so the picture drew a layout the firmware had not produced for some
+ * time, and the two were never compared to anything but themselves.
  *
- * A button gets easier to hit as it grows; a slider does not -- what matters
- * is the length of its travel, which is already the full width. Letting it
- * take the grid's row height made the rect 46px tall, and drawSlider centres
- * the track inside the rect, so the track sank while the "Volume" caption
- * stayed pinned above the rect's top edge and was left floating in the gap.
- * The brightness bar has always been a fixed 32 for the same reason. */
-Rect SettingsGame::volumeRect()    const {
-    const Rect r = gridWide(1);
-    return Rect{r.x, r.y, r.w, 32};
+ * So this tab measures its own bands, in the order they are drawn, each from
+ * the one above it. The row height is still borrowed from the grid so the
+ * buttons match the other tabs, and everything scales with the panel: on 240
+ * that is mute 58-88, caption 92-104, track 104-136, tests 140-170, find alert
+ * 174-204, footnotes at 212 and 228, ending 4px clear of the bottom.
+ *
+ * Do not restate those numbers anywhere else. Derive them, as gen_screens.py
+ * now does, or the next reader inherits the same lie. */
+Rect SettingsApp::muteRect() const {
+    return Rect{SETTINGS_MARGIN, SETTINGS_TOP,
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                gridRowHeight()};
 }
-Rect SettingsGame::testCueRect()   const { return gridCell(2, 0); }
-Rect SettingsGame::testVoiceRect() const { return gridCell(2, 1); }
+
+/* The slider TRACK, with its caption in the SOUND_CAPTION_H above it.
+ *
+ * A fixed height rather than the row height: a button gets easier to hit as it
+ * grows, a slider does not -- what matters is the length of its travel, which
+ * is already the full width. Letting it take a 46px row made drawSlider centre
+ * the track low while the caption stayed pinned to the rect's top edge, and
+ * left the two floating apart. */
+Rect SettingsApp::volumeRect() const {
+    const Rect m = muteRect();
+    return Rect{SETTINGS_MARGIN,
+                static_cast<int16_t>(m.y + m.h + SOUND_GAP + SOUND_CAPTION_H),
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                SOUND_TRACK_H};
+}
+
+Rect SettingsApp::testCueRect() const {
+    const Rect v = volumeRect();
+    const int16_t colW = static_cast<int16_t>(
+        (panelW_ - SETTINGS_MARGIN - SETTINGS_GAP - SETTINGS_GAP) / 2);
+    return Rect{SETTINGS_MARGIN,
+                static_cast<int16_t>(v.y + v.h + SOUND_GAP), colW,
+                gridRowHeight()};
+}
+
+Rect SettingsApp::testVoiceRect() const {
+    const Rect a = testCueRect();
+    return Rect{static_cast<int16_t>(SETTINGS_MARGIN + a.w + SETTINGS_GAP),
+                a.y, a.w, a.h};
+}
+
+Rect SettingsApp::findAlertRect() const {
+    const Rect t = testCueRect();
+    return Rect{SETTINGS_MARGIN, static_cast<int16_t>(t.y + t.h + SOUND_GAP),
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                gridRowHeight()};
+}
 
 /* Power tab: four full-width rows, so the labels have room to say what the
  * setting actually does rather than abbreviating to fit half a screen.
  *
  * Wake lock sits with them because it is the last thing in the idle sequence:
  * saver, sleep, then what it takes to get back. */
-Rect SettingsGame::idleActionRect() const { return gridWide(0); }
-Rect SettingsGame::idleAfterRect()  const { return gridWide(1); }
-Rect SettingsGame::sleepAfterRect() const { return gridWide(2); }
-Rect SettingsGame::wakeLockRect()   const { return gridWide(3); }
+Rect SettingsApp::idleActionRect() const { return gridWide(0); }
+Rect SettingsApp::idleAfterRect()  const { return gridWide(1); }
+Rect SettingsApp::sleepAfterRect() const { return gridWide(2); }
+Rect SettingsApp::wakeLockRect()   const { return gridWide(3); }
 
-bool SettingsGame::sleepRowActive(Board& board) const {
+bool SettingsApp::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
 }
 
-void SettingsGame::cycleScreenSaver(Board& board) {
+void SettingsApp::cycleScreenSaver(Board& board) {
     const uint16_t current = board.screenSaverSeconds();
     const uint16_t next = current < 60 ? 60 : (current < 120 ? 120 : (current < 300 ? 300 : 30));
     board.setScreenSaverSeconds(next);
 }
 
-void SettingsGame::cycleSleepSeconds(Board& board) {
+void SettingsApp::cycleSleepSeconds(Board& board) {
     const uint16_t current = board.sleepSeconds();
     const uint16_t next = current < 30 ? 30 : (current < 60 ? 60 : (current < 120 ? 120 :
                           (current < 300 ? 300 : 15)));
     board.setSleepSeconds(next);
 }
 
-void SettingsGame::cycleIdleAction(Board& board) {
+void SettingsApp::cycleIdleAction(Board& board) {
     switch (board.idleAction()) {
         case Board::IdleAction::SaverThenSleep:
             board.setIdleAction(Board::IdleAction::SleepOnly); break;
@@ -156,7 +203,7 @@ void SettingsGame::cycleIdleAction(Board& board) {
     }
 }
 
-void SettingsGame::cycleNtpResyncHours(Board& board) {
+void SettingsApp::cycleNtpResyncHours(Board& board) {
     const uint8_t current = board.ntpResyncHours();
     const uint8_t next = current >= Board::NTP_RESYNC_MAX_HOURS
         ? Board::NTP_RESYNC_MIN_HOURS
@@ -164,7 +211,7 @@ void SettingsGame::cycleNtpResyncHours(Board& board) {
     board.setNtpResyncHours(next);
 }
 
-void SettingsGame::renderDeviceTab(GameHost& host) {
+void SettingsApp::renderDeviceTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const bool admin = isAdmin(board);
@@ -176,8 +223,13 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
              Ui::themeName(static_cast<Ui::Theme>(board.themeMode())));
     Ui::drawButton(tft, themeRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
+    /* LANDSCAPE and PORTRAIT on screen, Horizontal and Vertical in the code.
+     * The enum keeps its names -- they are what Board, the console command and
+     * every layout test say -- but the two words an owner knows for a screen
+     * turned on its side are the photographer's, not the geometry teacher's. */
     snprintf(label, sizeof(label), "Menu: %s",
-             board.layoutMode() == Board::LayoutMode::Horizontal ? "Horizontal" : "Vertical");
+             board.layoutMode() == Board::LayoutMode::Horizontal ? "Landscape"
+                                                                 : "Portrait");
     Ui::drawButton(tft, layoutRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");
@@ -186,8 +238,11 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     snprintf(label, sizeof(label), "Beacon: %s", board.bleBeaconEnabled() ? "On" : "Off");
     Ui::drawButton(tft, bleRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
-    Ui::drawButton(tft, wifiRect(), "Network", admin ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
-                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+    /* The ink of the fill, not white. A light accent -- High Contrast's cyan,
+     * Pocket's lime -- wants black text, and white on it is barely there. */
+    const uint16_t wifiFill = admin ? Ui::accent() : Ui::shade(Ui::panel(), 80);
+    Ui::drawButton(tft, wifiRect(), "Network", wifiFill,
+                   Ui::outline(), admin ? Ui::onFill(wifiFill) : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Sync: %uh", static_cast<unsigned>(board.ntpResyncHours()));
     Ui::drawButton(tft, ntpSyncRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
@@ -199,10 +254,12 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     const bool nearbyTextEnabled = admin && beaconOn;
     Ui::drawButton(tft, nearbyRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), nearbyTextEnabled ? Ui::text() : Ui::muted(), false, 2);
+    const uint16_t resetFill = admin
+        ? (confirmReset_ ? Ui::error() : Ui::shade(Ui::error(), 70))
+        : Ui::shade(Ui::panel(), 80);
     Ui::drawButton(tft, resetRect(),
-                   confirmReset_ ? "Tap to ERASE" : "Reset device",
-                   admin ? (confirmReset_ ? Ui::rgb(220, 40, 40) : Ui::rgb(120, 58, 58)) : Ui::rgb(80, 80, 80),
-                   Ui::outline(), admin ? TFT_WHITE : Ui::muted(), false, 2);
+                   confirmReset_ ? "Tap to ERASE" : "Reset device", resetFill,
+                   Ui::outline(), admin ? Ui::onFill(resetFill) : Ui::muted(), false, 2);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
@@ -221,7 +278,7 @@ void SettingsGame::renderDeviceTab(GameHost& host) {
     }
 }
 
-void SettingsGame::renderPowerTab(GameHost& host) {
+void SettingsApp::renderPowerTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const bool admin = isAdmin(board);
@@ -316,7 +373,7 @@ void SettingsGame::renderPowerTab(GameHost& host) {
  * slider's travel ends at AUDIO_VOLUME_MAX. Relabelling that ceiling as 100%
  * would make the control read better and lie -- see the note on drawSlider's
  * maxPct in Ui.h. */
-void SettingsGame::renderSoundTab(GameHost& host) {
+void SettingsApp::renderSoundTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const bool admin = isAdmin(board);
@@ -339,12 +396,12 @@ void SettingsGame::renderSoundTab(GameHost& host) {
     /* The footnotes sit under the test buttons, so they move with them. They
      * were at a fixed 190/206, which was under the buttons at 240 tall and
      * straight through them on a taller panel. */
-    const int16_t soundFootY =
-        static_cast<int16_t>(testCueRect().y + testCueRect().h + 12);
+    const int16_t soundFootY = static_cast<int16_t>(
+        findAlertRect().y + findAlertRect().h + SOUND_FOOT_GAP);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString("Volume", 8, static_cast<int16_t>(volumeRect().y - 12), 1);
+    tft.drawString("Volume", 8, static_cast<int16_t>(volumeRect().y - SOUND_CAPTION_H), 1);
     tft.setTextDatum(TR_DATUM);
     if (!present) {
         snprintf(label, sizeof(label), "--");
@@ -356,18 +413,32 @@ void SettingsGame::renderSoundTab(GameHost& host) {
     } else {
         snprintf(label, sizeof(label), "%u%%", board.volume());
     }
-    tft.drawString(label, panelW_ - 8, static_cast<int16_t>(volumeRect().y - 12), 1);
+    tft.drawString(label, panelW_ - 8, static_cast<int16_t>(volumeRect().y - SOUND_CAPTION_H), 1);
     tft.setTextDatum(TL_DATUM);
 
     Ui::drawSlider(tft, volumeRect(), present ? board.volume() : 0, 0,
                    Board::AUDIO_VOLUME_MAX);
 
-    Ui::drawButton(tft, testCueRect(), "Test sound",
-                   live ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
-                   Ui::outline(), live ? TFT_WHITE : Ui::muted(), false, 2);
-    Ui::drawButton(tft, testVoiceRect(), "Say hello",
-                   live ? Ui::rgb(36, 132, 204) : Ui::rgb(80, 80, 80),
-                   Ui::outline(), live ? TFT_WHITE : Ui::muted(), false, 2);
+    const uint16_t testFill = live ? Ui::accent() : Ui::shade(Ui::panel(), 80);
+    const uint16_t testInk = live ? Ui::onFill(testFill) : Ui::muted();
+    Ui::drawButton(tft, testCueRect(), "Test sound", testFill,
+                   Ui::outline(), testInk, false, 2);
+    Ui::drawButton(tft, testVoiceRect(), "Say hello", testFill,
+                   Ui::outline(), testInk, false, 2);
+
+    /* Whether a find from another console rings this one. It is on the Sound
+     * tab rather than beside Nearby because what it governs is noise, and
+     * because it is the switch an owner reaches for at bedtime.
+     *
+     * Live even while muted, deliberately -- unlike everything above it. Being
+     * muted is exactly the state in which this setting decides something: an
+     * alert unmutes the console to ring and mutes it again afterwards, and
+     * this is the switch that says whether it may. */
+    snprintf(label, sizeof(label), "Find alert: %s",
+             board.findAlertEnabled() ? "Ring" : "Quiet");
+    Ui::drawButton(tft, findAlertRect(), label,
+                   (admin && present) ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   (admin && present) ? Ui::text() : Ui::muted(), false, 2);
 
     /* Two lines, and both are measured to fit 320px at font 1 -- the longest
      * of them is the not-admin one. Keep any replacement under about 52

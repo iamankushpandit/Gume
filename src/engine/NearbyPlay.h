@@ -44,6 +44,14 @@ constexpr uint8_t MAX_EVENTS = 6;
 /** Longest notification text, sized to the top bar at font 2. */
 constexpr uint8_t BANNER_MAX = 40;
 
+/* THE FIND ALERT -- how long a lost console makes itself known for, and how
+ * often. Long enough to walk through a house and follow the sound; bounded,
+ * because the one thing worse than a console you cannot find is one that will
+ * not stop. A fresh find (a new nonce) restarts the window rather than
+ * queueing behind it. */
+constexpr uint32_t ALERT_MS = 20000;
+constexpr uint32_t ALERT_CADENCE_MS = 1500;
+
 /* One peer, resolved against this device's catalog and records. Everything
  * here is derived at read time -- nothing is stored between calls. */
 struct PeerView {
@@ -101,6 +109,22 @@ bool poke(Board& board, const char* deviceId);
 /** True while our own poke is still being transmitted. */
 bool pokeInFlight();
 
+/* Ask one peer to make itself heard: the same poke, with FLAG_FIND set, so the
+ * far end rings and lights up instead of blipping once. Same gate as poke(),
+ * and nothing extra goes on air. */
+bool find(Board& board, const char* deviceId);
+
+/* A find aimed at THIS console is being answered right now: ringing, blinking,
+ * and asking the runtime to wake the panel. Generation changes on start and on
+ * stop, so the runtime can watch it the way it watches the banner. */
+bool alertActive();
+uint32_t alertGeneration();
+
+/* Stop an alert, whatever ended it -- a touch, the BOOT key, or its own
+ * timeout. The single exit, which is why the mute switch is restored here and
+ * nowhere else. */
+void dismissAlert(Board& board);
+
 /* Once per frame from the runtime. Expires sightings, raises notifications for
  * anything that changed and ages out the banner. Does nothing measurable when
  * the feature is off. */
@@ -141,6 +165,39 @@ uint32_t peerGeneration();
  * on the way OUT of this module, towards the screen, and there is no path by
  * which it can travel the other way. BleBeacon does not read peer labels and
  * must never be given a reason to. */
+
+/* ---- is the other console still there? ------------------------------
+ *
+ * A two-player game can be ended in one of two ways, and only one of them
+ * arrives as a message. `nearbyEnd()` is somebody pressing End game; the other
+ * is a battery going flat, a child walking into the next room, or a console
+ * being sat on. None of those can send anything, so the ONLY evidence is that
+ * the beacon stopped -- which means every game has to measure silence itself,
+ * and until this existed none of them did: they sat on "their turn" forever,
+ * saying nothing.
+ *
+ * The scanner listens 300ms in every 900ms and a peer advertises about once a
+ * second, so missing a window or two is ordinary and must not read as a
+ * disconnection. PEER_QUIET_MS is several missed windows, not a blip.
+ *
+ * Nothing here goes on the air. It is derived entirely from the ABSENCE of the
+ * beacon that is already there, which is why it needed no payload change, no
+ * new outbound flow and no version bump. */
+
+/* Heard less recently than this: treat the peer as quiet and pause the game.
+ * Shared so that five games cannot disagree about what "gone quiet" means. */
+constexpr uint32_t PEER_QUIET_MS = 6000;
+
+/* Returned when the peer is not in the table at all -- either we never heard
+ * it, or BleScan::SIGHTING_TTL_MS has passed and it was dropped. A game should
+ * read this as "at least that long, and we no longer know anything", which is
+ * the point at which waiting stops being a short pause and becomes a choice. */
+constexpr uint32_t PEER_SILENT_UNKNOWN = UINT32_MAX;
+
+/* How long since the named peer was last heard, in milliseconds. Cheap: a walk
+ * over at most MAX_SIGHTINGS entries, no NVS and no radio, so it is safe every
+ * frame. */
+uint32_t peerSilentMs(const char* deviceId);
 
 /** Peers currently visible, strongest signal first. */
 uint8_t seatCount();
