@@ -32,6 +32,11 @@ private:
     uint32_t connectStart_ = 0;
     uint32_t scanStart_ = 0;
     bool scanPending_ = false;    // draw "Scanning..." first, then block
+    /* Whether the key grid is on the panel. Typing repaints the password
+     * field and nothing else -- see renderDynamic() -- so the forty-odd keys
+     * are drawn when the keyboard appears and when its LAYER changes, not on
+     * every keystroke. */
+    bool keyboardPainted_ = false;
     /* The SSID is captured as a string the moment the row is tapped. Looking it
      * up again at JOIN time via WiFi.SSID(index) depends on the driver's scan
      * table still being allocated, and if it is not the lookup silently yields
@@ -50,6 +55,8 @@ private:
     void checkScan();
     void runScan();
     void startConnect(GameHost& host);
+    /** Reconnect to the network already in NVS, if there is one. */
+    void rejoinSaved(GameHost& host);
     void checkConnect(GameHost& host);
 
     /* This screen was drawn against 320x240 and says so in every rect. Rather

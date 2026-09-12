@@ -10,6 +10,21 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Joining a network no longer costs you the one you had.** The Wi-Fi screen
+saved the SSID and password *before* trying them, so mistyping a password on
+another network destroyed the working credentials -- and there was no way to
+find out what they had been. Nothing is written now until the association
+succeeds. Every way out of the scan also left the radio associated with
+nothing, because scanning cycles the interface off and on: the console stayed
+off the air until it was rebooted, which looks exactly like having lost the
+network. It rejoins the saved one on the way back out, and after a failed
+attempt.
+
+**The password keyboard stopped flashing.** Every keystroke repainted the whole
+screen -- forty-five buttons redrawn to change one character in the field above
+them. The field repaints; the keys are drawn when the keyboard appears and when
+you switch to caps or symbols.
+
 **Every theme's colours are measured now, and nine of them were failing.**
 The palettes were chosen by eye, which is how a pairing like grey-on-grey
 survives: each colour looks right alone and the combination is never checked.
