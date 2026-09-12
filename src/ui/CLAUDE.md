@@ -12,8 +12,37 @@ the screen saver paints it in a shade of the rally colour that moves with
 every paddle hit, which an anti-aliased image could not do without knowing
 the background. `drawLogo()` paints only the ink, as horizontal runs, so
 redrawing it in a new colour is an overdraw of the same shape and needs no
-erase. It is 72x90 and 810 bytes; ask `logoWidth()`/`logoHeight()` rather
-than assuming either.
+erase. Ask `logoWidth()`/`logoHeight()` for the variant you are drawing rather
+than assuming a size.
+
+Three marks are generated, not one: `BADGE` (the whole artwork, 90px, the
+screen saver) and `WORD` / `WORD_SMALL` (the wordmark alone, at the heights the
+product name used to be drawn as text in a font-4 header and a font-2 row).
+`Ui::Logo` picks between them. **The product name is not drawn as text anywhere
+but the launcher** -- the lock screen, Profiles and About all draw the mark --
+and the launcher is the exception only because its header is laid out to the
+pixel around a measured string.
+
+## Contrast is checked, not judged
+
+`tools/check_contrast.py` measures every pairing the palette can produce
+against the WCAG floors: 4.5:1 for body text, 3:1 for large text and for
+graphics that must be seen but not read, 1.6:1 for a hairline. Run it after
+touching `PALETTES`. It found sixty-five failures the first time, on colours
+that had all been chosen by looking at them.
+
+Two things it knows that are not in the table:
+
+- **A card on a ground may be subtle**, because both are drawn with an outline
+  round them. The rule is that the *edge* is findable: either the fills differ
+  or the outline differs from both.
+- **Text on a themed fill takes its ink from that fill** -- `Ui::onFill()` and
+  `Ui::onFillSoft()`, restated in the checker so the launcher tiles are
+  measured the way they are drawn. If either goes back to being a constant,
+  the check keeps passing while the panel stops being readable.
+
+The check is a floor, not a design: passing it does not make a palette good, it
+only means nothing in it is unreadable. Judge the look on glass.
 
 `Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so that all nine themes work.
 

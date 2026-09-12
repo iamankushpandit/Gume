@@ -258,7 +258,9 @@ void LetterTracer::drawCompleteStatus(Ui::Renderer& tft) {
     const int16_t y = static_cast<int16_t>(DRAW_Y + DRAW_H - h - 2);
     tft.fillRoundRect(x, y, w, h, 6, Ui::success());
     tft.drawRoundRect(x, y, w, h, 6, Ui::outline());
-    tft.setTextColor(TFT_BLACK, Ui::success());
+    /* Black is right on a bright green and wrong on Pocket's dark one, so the
+     * ink comes from the fill rather than from an assumption about it. */
+    tft.setTextColor(Ui::onFill(Ui::success()), Ui::success());
     tft.setTextDatum(MC_DATUM);
     tft.drawString("Great job", static_cast<int16_t>(x + w / 2),
                    static_cast<int16_t>(y + h / 2), 2);

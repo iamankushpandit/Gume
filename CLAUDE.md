@@ -557,8 +557,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,515,993 / 3,145,728 bytes,
-**80.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,519,281 / 3,145,728 bytes,
+**80.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 81,436 / 327,680 (24.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
@@ -1098,6 +1098,8 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),
                           check_boards.py, check_catalog.py,
+                          check_contrast.py (every theme's colours against
+                          the WCAG floors),
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
                           above), build_stamp.py,

@@ -501,12 +501,16 @@ void LauncherGame::renderDynamic(GameHost& host) {
             const int16_t subY = static_cast<int16_t>(r.y + r.h * 0.906f);
             const int16_t titleY = static_cast<int16_t>(
                 r.y + r.h * 0.708f - (wrapSubtitles ? subPitch : 0));
-            tft.setTextColor(TFT_WHITE, fill);
+            /* THE INK FOLLOWS THE FILL, which the theme chose. A fixed
+             * white here is how Classic drew white labels on light grey tiles
+             * at 1.3:1 and Pocket on pale green at 2.6:1 -- unreadable, and
+             * unreadable only on the themes nobody screenshots. */
+            tft.setTextColor(Ui::onFill(fill), fill);
             tft.setTextDatum(MC_DATUM);
             tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
             tft.drawString(label, cxT, titleY, 2);
-            tft.setTextColor(Ui::rgb(235, 245, 255), fill);
+            tft.setTextColor(Ui::onFillSoft(fill), fill);
             char second[sizeof(label)];
             if (!wrapSubtitles) {
                 copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
@@ -551,12 +555,16 @@ void LauncherGame::renderDynamic(GameHost& host) {
             const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.34f);
             const int16_t textW = static_cast<int16_t>(r.w - (r.x + r.w * 0.34f - r.x) - 8);
 
-            tft.setTextColor(TFT_WHITE, fill);
+            /* THE INK FOLLOWS THE FILL, which the theme chose. A fixed
+             * white here is how Classic drew white labels on light grey tiles
+             * at 1.3:1 and Pocket on pale green at 2.6:1 -- unreadable, and
+             * unreadable only on the themes nobody screenshots. */
+            tft.setTextColor(Ui::onFill(fill), fill);
             tft.setTextDatum(ML_DATUM);
             tft.setTextSize(textScale);
             copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
             tft.drawString(label, textX, static_cast<int16_t>(midY - subH / 2 - 2), 2);
-            tft.setTextColor(Ui::rgb(235, 245, 255), fill);
+            tft.setTextColor(Ui::onFillSoft(fill), fill);
             copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
             tft.drawString(label, textX, static_cast<int16_t>(midY + titleH / 2 + 2), 1);
             tft.setTextSize(1);

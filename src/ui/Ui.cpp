@@ -44,7 +44,17 @@ constexpr uint16_t COLOR_SHADOW   = 0x0000;
  *            makes a wrong answer ambiguous, which matters more than taste.
  *
  * Do not judge these in tools/gen_screens.py. PIL renders every palette
- * cleanly and cannot show you the overlay diffusing a marginal pairing. */
+ * cleanly and cannot show you the overlay diffusing a marginal pairing.
+ *
+ * AND DO NOT JUDGE THEM BY EYE ALONE EITHER. `tools/check_contrast.py`
+ * measures every pairing this table can produce, against the WCAG floors, and
+ * it found sixty-five failures the first time it was run on colours that had
+ * all been chosen by looking at them: greyed text at 1.2:1 on Silver's
+ * desktop, Classic's green tick at 1.1:1 on its grey one, and a Pocket warning
+ * colour that was the background colour exactly. Run it after touching a row.
+ *
+ * The check is a floor and not a design: passing it does not make a palette
+ * good, it only means nothing in it is unreadable. */
 struct Palette {
     uint16_t bg, bar, barText, surface, panel, text, muted, outline;
     uint16_t success, error, warning;
@@ -62,17 +72,17 @@ constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
     {0x0843, 0x10A6, 0xFFFF, 0x18E8, 0x212B, 0xF7BE, 0xA534, 0x52AA,
      DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
     // Light -- the original. Dark bar, because the bar text was white.
-    {0xFFFF, 0x10A6, 0xFFFF, 0xEF7D, 0xDEFB, 0x2124, 0x8410, 0xC618,
+    {0xFFFF, 0x10A6, 0xFFFF, 0xEF7D, 0xDEFB, 0x2124, 0x630C, 0xA514,
      LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
     // Midnight -- deep indigo; saturated tiles sit better on navy than black.
-    {0x10A3, 0x1906, 0xFFFF, 0x1926, 0x2988, 0xE77E, 0x8CB6, 0x3A2C,
+    {0x10A3, 0x1906, 0xFFFF, 0x1926, 0x3230, 0xE77E, 0xB5DB, 0x3A2C,
      DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
     // Dusk -- warm charcoal, amber type, almost no blue anywhere.
-    {0x18C2, 0x2103, 0xF719, 0x2923, 0x3984, 0xF719, 0xB4CF, 0x5A67,
+    {0x18C2, 0x2103, 0xF719, 0x2923, 0x41A4, 0xF719, 0xB4CF, 0x5A67,
      DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
     /* Paper -- cream and brown. Now that bar text is a role, the bar can be
      * the warm brown it always wanted instead of the shared dark one. */
-    {0xF77C, 0x3985, 0xF77C, 0xEF3A, 0xDE97, 0x3984, 0x7B4A, 0xC5B3,
+    {0xF77C, 0x3985, 0xF77C, 0xEF3A, 0xDE56, 0x3984, 0x6246, 0xC5B3,
      LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
     // High Contrast -- accessibility. MUTED is nearly white on purpose.
     {0x0000, 0x0000, 0xFFFF, 0x0000, 0x2104, 0xFFFF, 0xE71C, 0xFFFF,
@@ -81,14 +91,14 @@ constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
      * black type, and a white bar with black glyphs, which is the whole reason
      * barText had to stop being a constant. Square. The drop shadow
      * drawButton already paints is period-correct by accident. */
-    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x6B4D, 0x0000,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING,
+    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x41E8, 0x0000,
+     0x0240, 0x7861, 0x61A0,
      {0xCE59, 0xE71C, 0xA534}, 0},
     /* Silver -- Windows 98. Teal desktop, silver face, navy bar with white
      * type. Square, and the bevel drawButton already draws is exactly the
      * period's raised-button idiom. */
-    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x8410, 0x8410,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING,
+    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x2965, 0x9CB3,
+     0x01A0, 0x5861, 0x4120,
      {0x0010, 0x03EB, 0x8000}, 0},
     /* Pocket -- the original handheld's four greens, and nothing else.
      *
@@ -100,8 +110,8 @@ constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
      * arrives through two other channels. The tiles have to be palette entries
      * for this theme to work at all; three bright RGB rectangles on green is
      * the first thing anyone would see. */
-    {0x9DE1, 0x09C1, 0x9DE1, 0x8D61, 0x8D61, 0x09C1, 0x3306, 0x3306,
-     0x3306, 0x09C1, 0x9DE1,
+    {0x9DE1, 0x09C1, 0x9DE1, 0x8D61, 0x8D61, 0x09C1, 0x21E4, 0x3306,
+     0x2AE5, 0x09C1, 0x4AC0,
      {0x8D61, 0x3306, 0x09C1}, 0},
 };
 
@@ -306,6 +316,67 @@ void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg)
                  max<int16_t>(1, keyR), static_cast<int16_t>(bodyH / 3), bg);
 }
 
+/* Black or white, whichever can be read on `fill`.
+ *
+ * The threshold is the standard one: a relative luminance above 0.179 takes
+ * black ink, below it takes white, which is the point where the two contrast
+ * ratios cross. Channels are linearised first -- comparing raw 5- and 6-bit
+ * values instead gets the mid-tones wrong, and mid-tones are exactly what the
+ * launcher tiles are.
+ *
+ * Not on a per-pixel path: this is called once per label, not once per glyph,
+ * so the arithmetic is affordable and the alternative -- a second palette
+ * entry per tile -- would have to be maintained by hand for every theme. */
+float relLuminance(uint16_t colour) {
+    auto linear = [](float c) {
+        return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
+    };
+    const float r = linear(((colour >> 11) & 0x1F) / 31.0f);
+    const float g = linear(((colour >> 5) & 0x3F) / 63.0f);
+    const float b = linear((colour & 0x1F) / 31.0f);
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
+
+/** The WCAG contrast ratio between two colours: 1.0 is identical, 21 is
+ * black on white. */
+float contrast(uint16_t a, uint16_t b) {
+    const float la = relLuminance(a);
+    const float lb = relLuminance(b);
+    const float hi = la > lb ? la : lb;
+    const float lo = la > lb ? lb : la;
+    return (hi + 0.05f) / (lo + 0.05f);
+}
+
+uint16_t onFill(uint16_t fill) {
+    return relLuminance(fill) > 0.179f ? TFT_BLACK : TFT_WHITE;
+}
+
+/* How far onFillSoft() travels from the fill towards the ink. Checked by
+ * tools/check_contrast.py against every tile of every theme. */
+constexpr int16_t SOFT_MIX = 88;
+
+uint16_t onFillSoft(uint16_t fill) {
+    /* 78% of the way from the fill towards the readable ink: enough to read as
+     * a second line rather than a heading, and still far enough from the fill
+     * to stay above the body-text ratio on every palette -- 78 was not: it
+     * left Silver's subtitle at 3.7:1 on its green tile, which is the same
+     * class of failure as the fixed white it replaced, just smaller. Mixed per
+     * channel in 565, which is exact here because the ink is black or white. */
+    const uint16_t ink = onFill(fill);
+    const int16_t fr = (fill >> 11) & 0x1F, fg = (fill >> 5) & 0x3F, fb = fill & 0x1F;
+    const int16_t ir = (ink >> 11) & 0x1F, ig = (ink >> 5) & 0x3F, ib = ink & 0x1F;
+    const uint16_t r = static_cast<uint16_t>(fr + (ir - fr) * SOFT_MIX / 100);
+    const uint16_t g = static_cast<uint16_t>(fg + (ig - fg) * SOFT_MIX / 100);
+    const uint16_t b = static_cast<uint16_t>(fb + (ib - fb) * SOFT_MIX / 100);
+    const uint16_t soft = static_cast<uint16_t>((r << 11) | (g << 5) | b);
+    /* On a mid-tone fill there is not enough room to soften at all: Silver's
+     * green tile tops out at 5.1:1 against white, so the softened ink lands at
+     * 4.3 and the second line becomes the unreadable thing the first one used
+     * to be. Where that happens the subtitle keeps the full ink and gives up
+     * the tonal step -- it is a nicety, and being read is not. */
+    return contrast(soft, fill) >= 4.5f ? soft : ink;
+}
+
 /* The product mark, blitted from its one-bit mask.
  *
  * RUNS, NOT PIXELS: each row is emitted as horizontal spans, so the mark costs
@@ -316,14 +387,40 @@ void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg)
  *
  * Only the ink is painted. Nothing is erased first, which is what lets a
  * colour change be an overdraw of exactly the same shape. */
-void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour) {
-    const int16_t x0 = static_cast<int16_t>(cx - LogoMask::WIDTH / 2);
-    const int16_t y0 = static_cast<int16_t>(cy - LogoMask::HEIGHT / 2);
-    for (int16_t y = 0; y < LogoMask::HEIGHT; ++y) {
-        const uint8_t* row = LogoMask::BITS[y];
+namespace {
+/* Which table, how wide, how tall, and how many bytes a row takes. One place
+ * that knows the three variants apart; everything below is size-agnostic. */
+struct LogoArt {
+    const uint8_t* bits;
+    int16_t width, height, stride;
+};
+
+LogoArt logoArt(Logo which) {
+    switch (which) {
+        case Logo::Word:
+            return {&LogoMask::WORD_BITS[0][0], LogoMask::WORD_WIDTH,
+                    LogoMask::WORD_HEIGHT, LogoMask::WORD_BYTES_PER_ROW};
+        case Logo::WordSmall:
+            return {&LogoMask::WORD_SMALL_BITS[0][0], LogoMask::WORD_SMALL_WIDTH,
+                    LogoMask::WORD_SMALL_HEIGHT, LogoMask::WORD_SMALL_BYTES_PER_ROW};
+        case Logo::Badge:
+        default:
+            return {&LogoMask::BADGE_BITS[0][0], LogoMask::BADGE_WIDTH,
+                    LogoMask::BADGE_HEIGHT, LogoMask::BADGE_BYTES_PER_ROW};
+    }
+}
+}   // namespace
+
+void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
+              Logo which) {
+    const LogoArt art = logoArt(which);
+    const int16_t x0 = static_cast<int16_t>(cx - art.width / 2);
+    const int16_t y0 = static_cast<int16_t>(cy - art.height / 2);
+    for (int16_t y = 0; y < art.height; ++y) {
+        const uint8_t* row = art.bits + y * art.stride;
         int16_t runStart = -1;
-        for (int16_t x = 0; x <= LogoMask::WIDTH; ++x) {
-            const bool on = x < LogoMask::WIDTH &&
+        for (int16_t x = 0; x <= art.width; ++x) {
+            const bool on = x < art.width &&
                             ((row[x >> 3] >> (7 - (x & 7))) & 1u) != 0;
             if (on && runStart < 0) {
                 runStart = x;
@@ -337,12 +434,12 @@ void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour) {
     }
 }
 
-int16_t logoWidth() {
-    return LogoMask::WIDTH;
+int16_t logoWidth(Logo which) {
+    return logoArt(which).width;
 }
 
-int16_t logoHeight() {
-    return LogoMask::HEIGHT;
+int16_t logoHeight(Logo which) {
+    return logoArt(which).height;
 }
 
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {

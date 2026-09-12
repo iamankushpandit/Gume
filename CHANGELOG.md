@@ -10,6 +10,32 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**Every theme's colours are measured now, and nine of them were failing.**
+The palettes were chosen by eye, which is how a pairing like grey-on-grey
+survives: each colour looks right alone and the combination is never checked.
+`tools/check_contrast.py` measures every pairing the firmware can draw against
+the WCAG floors and found **sixty-five** below them -- greyed text at 1.2:1 on
+Silver's desktop, Classic's green tick at 1.1:1 on its grey one, and a Pocket
+warning colour that *was* the background colour, 1.0:1. All nine themes pass
+now, with the same hues: only lightness moved.
+
+**Text drawn on a themed fill picks its own ink.** The launcher's tile labels
+were a fixed white over a colour the theme chooses, so Classic drew white on
+light grey at 1.3:1 and Pocket white on pale green at 2.6:1 -- unreadable, and
+unreadable only on the themes nobody screenshots. `Ui::onFill()` returns black
+or white by luminance and `Ui::onFillSoft()` the softened version for a
+subtitle, falling back to full ink where the fill is too mid-tone to allow the
+step. The tile labels and the tracer's "Great job" badge use them. On the
+standard tiles that means black labels where there were white ones: 6.7:1
+against 3.1:1.
+
+**The product name is the mark everywhere but the launcher.** The lock screen
+header, the Profiles header and About's first page drew "Braino!" in the UI
+font; they now draw the real letterforms, cut out of the badge artwork and
+rasterised at the size that text was -- 26px for a font-4 heading, 16px for a
+font-2 row. The launcher keeps its text for now: its header is laid out to the
+pixel around a measured string.
+
 **The screen saver shows the product mark.** The brain badge with the wordmark
 under it -- the same artwork the case badge is cut from -- instead of "Braino!"
 in a font. It is carried as a one-bit silhouette generated from the SVG by

@@ -49,18 +49,32 @@ void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
 void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg);
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
-/* THE PRODUCT MARK: the brain with "Braino!" under it, centred on (cx, cy).
+/* THE PRODUCT MARK, centred on (cx, cy) and painted in `colour`.
  *
- * A one-bit silhouette generated from the artwork by tools/gen_logo_mask.py,
- * painted in `colour` and nothing else -- the background is left alone, so a
- * caller that wants the mark in a new colour simply draws it again in the same
- * place. That is what the screen saver does on every paddle hit.
+ * One-bit silhouettes generated from the artwork by tools/gen_logo_mask.py.
+ * Only the ink is painted -- the background is left alone -- so a caller that
+ * wants the mark in a new colour simply draws it again in the same place,
+ * which is what the screen saver does on every paddle hit.
  *
- * Its size is fixed, because the mask is: ask logoWidth()/logoHeight() and lay
- * out around them rather than assuming. */
-void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour);
-int16_t logoWidth();
-int16_t logoHeight();
+ * THE PRODUCT NAME IS NOT DRAWN AS TEXT ANYWHERE BUT THE LAUNCHER. It is the
+ * mark, and a font-4 approximation of it is not; every other screen that used
+ * to spell "Braino!" in the UI font now draws `Logo::Word` or
+ * `Logo::WordSmall`, which are the real letterforms at the size that text was.
+ * The launcher keeps its text because its header is laid out to the pixel
+ * around a measured string, and that is a separate change.
+ *
+ * Sizes are fixed, because the masks are: ask logoWidth()/logoHeight() for the
+ * variant you are drawing and lay out around them rather than assuming. */
+enum class Logo : uint8_t {
+    Badge,       // the whole artwork: brain over wordmark, 90px tall
+    Word,        // the wordmark alone, at the height a font-4 heading was
+    WordSmall,   // the wordmark alone, at the height a font-2 row was
+};
+
+void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
+              Logo which = Logo::Badge);
+int16_t logoWidth(Logo which = Logo::Badge);
+int16_t logoHeight(Logo which = Logo::Badge);
 
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
  * warning dot when it is still the free-running build-time estimate. Drawn at
@@ -223,6 +237,21 @@ constexpr int16_t BUTTON_SHADOW_DY = 3;
 
 /** Text and glyphs drawn on the top bar. A palette role, not a constant. */
 uint16_t barText();
+
+/* THE INK THAT CAN BE READ ON `fill`: black or white, whichever contrasts
+ * more. Use it wherever text or a glyph goes on a colour the THEME chose --
+ * a launcher tile, the success badge -- rather than picking one and hoping.
+ *
+ * The launcher's tile labels were a fixed white over a palette fill, which is
+ * how Classic came to draw white on a light grey tile at 1.3:1 and Pocket
+ * white on pale green at 2.6:1. Neither is readable, and neither was visible
+ * in a mock-up of the Dark theme.
+ *
+ * `onFillSoft` is the same decision, backed off towards the fill, for the
+ * second line of a tile -- the subtitle that used to be a fixed near-white. It
+ * stays the readable side of the fill, so it dims without vanishing. */
+uint16_t onFill(uint16_t fill);
+uint16_t onFillSoft(uint16_t fill);
 /* The three launcher tile fills, cycled by slot. They are palette entries
  * because a theme built from four shades of green cannot survive three bright
  * RGB tiles on its first screen. */

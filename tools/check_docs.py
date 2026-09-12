@@ -182,11 +182,18 @@ def check_about_is_derived(problems):
     """
     about = read("src", "games", "AboutGame.cpp")
     for symbol in ("playableAppAt", "playableAppCount", "BRAINO_VERSION",
-                   "BRAINO_PRODUCT_NAME", "BRAINO_COPYRIGHT",
+                   "BRAINO_COPYRIGHT",
                    "BOARD_NAME", "BleBeacon::active"):
         if symbol not in about:
             fail(problems, "AboutGame.cpp no longer reads %s -- About is "
                            "supposed to derive facts, not restate them" % symbol)
+
+    # The product's NAME is derived either way: as the macro, or by drawing the
+    # generated mark, which is the artwork the name is actually set in. What
+    # this forbids is About spelling "Braino!" into a string of its own.
+    if "BRAINO_PRODUCT_NAME" not in about and "Ui::Logo::" not in about:
+        fail(problems, "AboutGame.cpp shows the product name neither from "
+                       "BRAINO_PRODUCT_NAME nor as the generated mark")
 
 
 def check_credits_match_artwork(problems):
