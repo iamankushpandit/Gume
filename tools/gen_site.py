@@ -201,6 +201,7 @@ BOARD_DETAILS = {
 }
 
 SCREEN_CAPTIONS = {
+    "about-intro": "About: the mark, the version and what is inside",
     "about-radios": "About: what the radios do",
     "about-build": "About: which build is on the device",
     "about-updates": "About: whether a newer firmware exists, and where to get it",
@@ -348,7 +349,7 @@ SYSTEM_SHOWCASE = (
     {
         "id": "about",
         "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
-        "stills": ("about-radios", "about-build", "about-updates"),
+        "stills": ("about-intro", "about-radios", "about-build", "about-updates"),
     },
     {
         "id": "nearby",

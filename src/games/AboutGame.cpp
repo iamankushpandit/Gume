@@ -100,11 +100,17 @@ void AboutGame::update(GameHost& host, const TouchPoint& touch) {
 void AboutGame::renderIntro(Ui::Renderer& tft) {
     /* The mark itself. This page is the one place an owner reads to learn what
      * the console is called, so it shows them the thing on the case rather
-     * than the name set in the UI font. */
+     * than the name set in the UI font.
+     *
+     * THE SMALL WORDMARK, because this line was font 2 and the next line sits
+     * 22px below it. The 26px variant is for a font-4 heading; drawn here it
+     * ran to y=74 and the copyright line at y=70 painted its own background
+     * over the bottom of the letters -- which reads as a logo with its feet
+     * cut off. Match the mark to the row it replaces, not to the page. */
     Ui::drawLogo(tft,
-                 static_cast<int16_t>(14 + Ui::logoWidth(Ui::Logo::Word) / 2),
-                 static_cast<int16_t>(48 + Ui::logoHeight(Ui::Logo::Word) / 2),
-                 Ui::text(), Ui::Logo::Word);
+                 static_cast<int16_t>(14 + Ui::logoWidth(Ui::Logo::WordSmall) / 2),
+                 static_cast<int16_t>(48 + Ui::logoHeight(Ui::Logo::WordSmall) / 2),
+                 Ui::text(), Ui::Logo::WordSmall);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 70, BRAINO_COPYRIGHT, 1);
     drawLine(tft, 84, String("Educational games for the ") + BOARD_NAME + ".", 1);
@@ -113,9 +119,12 @@ void AboutGame::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 116, String("Version ") + BRAINO_VERSION, 2);
     drawLine(tft, 140, String(playableAppCount()) + " games built in", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 162, "195 flags and 50 US states,", 1);
-    drawLine(tft, 176, "all stored on the device.", 1);
-    drawLine(tft, 190, "Up to 5 players, plus a Guest.", 1);
+    /* The last three sit clear of the panel's bottom edge, which is at
+     * y=196 in landscape (PANEL_TOP + h - PANEL_TOP - FOOTER_H). At 190 the
+     * final line overflowed it by two pixels and read as cut off. */
+    drawLine(tft, 156, "195 flags and 50 US states,", 1);
+    drawLine(tft, 170, "all stored on the device.", 1);
+    drawLine(tft, 184, "Up to 5 players, plus a Guest.", 1);
 }
 
 void AboutGame::renderGames(Ui::Renderer& tft, int16_t w) {

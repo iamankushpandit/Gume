@@ -2484,6 +2484,42 @@ def nearby():
     return im
 
 
+def about_intro():
+    """About, page one: the mark, the version, and what is on the device.
+
+    THIS PAGE HAD NO MOCK-UP UNTIL THE MARK WAS DRAWN ON IT WRONG. The three
+    other About pages had one each; this one -- the first page anybody sees --
+    did not, so when the product name became artwork there was nothing to look
+    at, and a wordmark whose bottom rows were painted over by the copyright
+    line beneath it shipped. The lines below are the real y positions from
+    AboutGame::renderIntro(), so the collision would have been visible here.
+    """
+    import re as _re
+    from app_registry_parser import playable_apps
+    version = _re.search(r'BRAINO_VERSION\s+"([^"]+)"',
+                         (ROOT / "include" / "AppVersion.h").read_text(encoding="utf-8")).group(1)
+    board = _re.search(r'BOARD_NAME=\\"([^"\\]+)',
+                       (ROOT / "platformio.ini").read_text(encoding="utf-8")).group(1)
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    _draw_logo(d, 14 + _logo_mask("WORD_SMALL")[0] // 2,
+               48 + _logo_mask("WORD_SMALL")[1] // 2, TEXT, "WORD_SMALL")
+    for y, text, font, colour in (
+            (70, COPYRIGHT_SHORT, F1, MUTED),
+            (84, "Educational games for the %s." % board, F1, MUTED),
+            (98, "Copyright 2026.", F1, MUTED),
+            (116, "Version %s" % version, F2, TEXT),
+            (140, "%d games built in" % len(playable_apps()), F2, TEXT),
+            (156, "195 flags and 50 US states,", F1, MUTED),
+            (170, "all stored on the device.", F1, MUTED),
+            (184, "Up to 5 players, plus a Guest.", F1, MUTED)):
+        d.text((14, y), text, font=font, fill=colour)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "1/10", font=F2, fill=MUTED)
+    return im
+
+
 def about_radios():
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
@@ -3035,6 +3071,7 @@ EXTRA_SCREENS = [
     ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
+    ("about-intro", about_intro, "About: the mark, the version, what is inside"),
     ("about-radios", about_radios, "About: what the radios do"),
     ("about-build", about_build, "About: which build is on the device"),
     ("about-updates", about_updates, "About: whether a newer firmware exists"),
