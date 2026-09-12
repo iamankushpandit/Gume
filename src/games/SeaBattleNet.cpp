@@ -178,3 +178,66 @@ void SeaBattleGame::pollOpponent(AppContext& host) {
     saveGame(host);
 }
 
+
+/* ---- the other console going quiet -----------------------------------------
+ *
+ * NearbyWatch decides what quiet means; this is what Sea Battle does about it.
+ * Only a live remote game is watched -- not the lobby, not an invitation still
+ * unanswered, and not a game that is already won, lost or ended. A fleet still
+ * being placed IS watched: the opponent can go flat while you shuffle. */
+bool SeaBattleGame::updatePause(AppContext& host, const TouchPoint& touch) {
+    if (mode_ != Mode::Remote || gameOver()) {
+        if (watch_.paused()) {
+            watch_.reset();
+            pausePainted_ = false;
+            markFullDirty();
+        }
+        return false;
+    }
+    const NearbyWatch::State before = watch_.state();
+    if (watch_.tick(host, opponent_, millis())) {
+        if (watch_.state() != before) panelStale_ = true;   // the status line names it
+        markDirty();
+    }
+    if (watch_.resumed()) {
+        host.playSound(Sound::Pop);
+        pausePainted_ = false;
+        panelStale_ = true;
+        markFullDirty();
+        return false;
+    }
+    if (!watch_.cardShown()) return false;
+    switch (watch_.press(boardRect(), touch, false)) {
+        case NearbyWatch::Press::Wait:
+            watch_.dismiss();
+            pausePainted_ = false;
+            host.playSound(Sound::Tap);
+            markFullDirty();
+            break;
+        case NearbyWatch::Press::End:
+            declareEnd(host, true);   // the same ending End game sends
+            host.playSound(Sound::GameOver);
+            pausePainted_ = false;
+            break;
+        default:
+            break;
+    }
+    return touch.justPressed;
+}
+
+void SeaBattleGame::drawPause(AppContext& host) {
+    if (mode_ != Mode::Remote || gameOver() || !watch_.cardShown()) {
+        pausePainted_ = false;
+        return;
+    }
+    Ui::Renderer& tft = host.display();
+    const Rect area = boardRect();
+    if (!pausePainted_) {
+        watch_.draw(tft, area, opponentLabel(), nullptr);
+        pausePainted_ = true;
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    } else if (pauseSecondsDrawn_ != watch_.silentSeconds()) {
+        watch_.drawSeconds(tft, area, false);
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    }
+}

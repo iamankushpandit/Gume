@@ -557,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,507,937 / 3,145,728 bytes,
-**79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 79,844 / 327,680 (24.4%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,512,201 / 3,145,728 bytes,
+**79.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 79,908 / 327,680 (24.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -822,6 +822,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   forced-move rules included. A turn goes on the air on Done, one checker per
   ply, each once the other console has acked the last; a turn with no legal
   move sends nothing, because both consoles compute that it has none.
+- **A console that goes quiet pauses the game, and the service says when.**
+  The second way a two-player game ends never arrives as a message -- a flat
+  battery cannot send `nearbyEnd()` -- so `NearbyPlay::peerSilentMs()` reports
+  the silence off the scanner's own `lastSeenMs`, and `NearbyWatch`
+  (`src/games/`) turns it into Present / Quiet (`PEER_QUIET_MS`, 6s) / Gone
+  (the scanner's 45s TTL) and one card: waiting for whom, for how long, Keep
+  waiting or End game. Every nearby game hooks it at the same two places;
+  none may decide "too long" for itself. Nothing transmits for it: it is
+  derived from the absence of the beacon that is already there, which is why
+  it needed no agreement about what goes on the air. See
+  `src/games/CLAUDE.md`.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- children put the
   device down constantly and a game that evaporated is a game they stop
@@ -1085,6 +1096,8 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           ChessInternal.h; Sea Battle is four: SeaBattleGame
                           (flow, input, the fleet), SeaBattleDraw,
                           SeaBattleNet, SeaBattleSave.
+                          NearbyWatch is the pause every nearby game shares
+                          when the other console goes quiet.
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT

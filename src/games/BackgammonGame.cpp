@@ -88,6 +88,8 @@ const char* BackgammonGame::sideName(uint8_t side) const {
 
 void BackgammonGame::newGame(Mode mode) {
     mode_ = mode;
+    watch_.reset();
+    pausePainted_ = false;
     Bg::setup(pos_);
     rolls_ = 0;
     if (mode != Mode::Remote && mode != Mode::Waiting) {
@@ -327,11 +329,8 @@ void BackgammonGame::pressAction(AppContext& host, uint32_t now) {
     if (now < confirmUntilMs_) {
         confirmUntilMs_ = 0;
         if (mode_ == Mode::Remote || mode_ == Mode::Waiting) {
-            /* The service's own ending, which stays on the air after we leave
-             * so the other console still hears it; it goes back to its lobby
-             * too (pollRemote). */
-            host.nearbyEnd(session_, static_cast<uint8_t>((applied_ + 1) & 0x7F), applied_);
-            ended_ = true;
+            endRemoteByUs(host);
+            return;
         }
         mode_ = Mode::Lobby;
         lobbyStale_ = true;
@@ -416,6 +415,12 @@ void BackgammonGame::updateBoard(AppContext& host, const TouchPoint& touch, uint
         pollRemote(host, now);
         if (mode_ == Mode::Lobby) {
             return;   // the other console ended it
+        }
+        /* Are they still there? After the poll, so a move that did arrive is
+         * applied first; before any tap, so a press through the card is
+         * never a move. */
+        if (updatePause(host, touch, now)) {
+            return;
         }
     }
     if (phase_ == Phase::Computer) {

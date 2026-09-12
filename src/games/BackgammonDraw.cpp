@@ -431,6 +431,8 @@ void BackgammonGame::renderStatic(AppContext& host) {
     drawnDice_ = 0xFFFFFFFFU;
     drawnNews_ = 0xFFFFFFFFU;
     drawnButtons_ = 0xFFFF;
+    pausePainted_ = false;   // the board was just repainted under it
+    drawPause(tft);
 }
 
 void BackgammonGame::renderDynamic(AppContext& host) {
@@ -443,6 +445,7 @@ void BackgammonGame::renderDynamic(AppContext& host) {
         return;
     }
     if (dirtyPlaces_ != 0) {
+        pausePainted_ = false;   // a place under the card
         for (uint8_t i = 0; i < Bg::POINTS; ++i) {
             if (dirtyPlaces_ & (1UL << i)) drawPoint(tft, i);
         }
@@ -451,4 +454,10 @@ void BackgammonGame::renderDynamic(AppContext& host) {
         dirtyPlaces_ = 0;
     }
     drawPanel(tft);
+    drawPause(tft);
+}
+
+Rect BackgammonGame::boardArea() {
+    return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),
+                static_cast<int16_t>(BOARD_R - BX + 4), static_cast<int16_t>(BOARD_H + 4)};
 }

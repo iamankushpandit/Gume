@@ -206,6 +206,12 @@ void SeaBattleGame::drawStatus(AppContext& host) const {
         snprintf(top, sizeof(top), "Asking %s", opponentLabel());
         snprintf(bot, sizeof(bot), "waiting...");
         colour = Ui::muted();
+    } else if (mode_ == Mode::Remote && watch_.paused() && !gameOver()) {
+        /* Still here after Keep waiting has taken the card away. */
+        snprintf(top, sizeof(top), "%s", opponentLabel());
+        snprintf(bot, sizeof(bot),
+                 watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+        colour = Ui::warning();
     } else if (won_) {
         snprintf(top, sizeof(top), "You win!");
         snprintf(bot, sizeof(bot), "fleet sunk");
@@ -351,6 +357,8 @@ void SeaBattleGame::renderStatic(AppContext& host) {
     dirtyCount_ = 0;
     fullPaint_ = false;
     panelStale_ = false;
+    pausePainted_ = false;   // the sea was just repainted under it
+    drawPause(host);
 }
 
 void SeaBattleGame::renderDynamic(AppContext& host) {
@@ -362,6 +370,7 @@ void SeaBattleGame::renderDynamic(AppContext& host) {
         renderStatic(host);
         return;
     }
+    if (dirtyCount_ != 0) pausePainted_ = false;   // a cell under the card
     for (uint8_t i = 0; i < dirtyCount_; ++i) drawCell(host, dirty_[i]);
     dirtyCount_ = 0;
     if (panelStale_) {
@@ -371,4 +380,5 @@ void SeaBattleGame::renderDynamic(AppContext& host) {
         drawButtons(host);
         panelStale_ = false;
     }
+    drawPause(host);
 }

@@ -124,6 +124,45 @@ from the table's seed rather than the coin toss -- a toss between two cannot
 seat four -- and a console replaces its turn only once every other console has
 acknowledged it. See the Ludo section below and `LudoRules.h`'s `Net`.
 
+**A peer that stops talking pauses the game, and every game pauses the same
+way.** The second way a two-player game ends never arrives as a message: a
+flat battery, a child walking into the next room, a console sat on. Until
+5.11 every nearby game sat on "is thinking" for ever when that happened. The
+service now measures the silence (`nearbyPeerSilentMs()`, `NearbySeat::silentMs`)
+and `NearbyWatch` (`src/games/NearbyWatch.{h,cpp}`) turns it into three states
+and one card, so the games cannot each decide what "too long" means:
+
+- *Present* -- heard within `NearbyPlay::PEER_QUIET_MS` (6s: several missed
+  scan windows, because missing one is ordinary). Play on.
+- *Quiet* -- the game pauses. It cannot proceed anyway. The card over the
+  board says who it is waiting for and for how long, with **Keep waiting**
+  and **End game**. Keep waiting takes the card away and leaves the game
+  paused with its own status line saying why; the card comes back once if
+  the peer then goes Gone, because that is a new fact.
+- *Gone* -- the scanner has dropped the peer (`SIGHTING_TTL_MS`, 45s). Same
+  card, "out of range". Waiting has no time limit: the game is saved after
+  every move, so waiting costs nothing.
+
+Coming back needs nothing. A turn is state that stays on the air, so a
+console that reappears in the same session re-hears the current move and
+the game resumes where it stopped -- `NearbyWatch::resumed()` is one frame,
+the game repaints whole (the card was over the board) and plays `Pop`. End
+from the card is the same ending End game sends, so a console that does come
+back goes to its lobby rather than to a board nobody is playing.
+
+Every game hooks it the same way: `updatePause()` after the poll and the
+republish (so a move that did arrive is applied before the silence is
+measured) and before any tap (so a press through the card is never a move);
+`drawPause()` at the end of BOTH render paths, with `pausePainted_` cleared
+whenever anything under the card is repainted. Only a live remote game is
+watched -- not the lobby, not an unanswered invitation (which has its own
+"Asking..." and its own End), not a game the rules have finished. A new
+nearby game does the same at the same places; do not invent a fourth state.
+
+Nothing about this transmits. It is derived from the ABSENCE of the beacon
+that is already there, which is why it needed no payload change and no
+agreement about what goes on the air.
+
 Who can use it:
 
 - **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,

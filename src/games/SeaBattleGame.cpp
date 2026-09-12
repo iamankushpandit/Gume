@@ -135,6 +135,8 @@ SeaBattleGame::Shot SeaBattleGame::resolve(Side& target, uint8_t cell) {
 // --------------------------------------------------------------- screen
 
 void SeaBattleGame::newGame() {
+    watch_.reset();
+    pausePainted_ = false;
     for (Side& s : side_) {
         memset(s.shipAt, NO_SHIP, sizeof(s.shipAt));
         memset(s.incoming, 0, sizeof(s.incoming));
@@ -304,6 +306,10 @@ void SeaBattleGame::update(AppContext& host, const TouchPoint& touch) {
         host.nearbyPublish(session_, ourPly_, ourShotCell_, ourReplyCode_,
                            theirPly_);
     }
+
+    /* Are they still there? After the poll and the republish, before any
+     * tap, so a press through the card is never a shot. */
+    if (updatePause(host, touch)) return;
 
     if (confirmUntilMs_ != 0 && millis() > confirmUntilMs_) {
         confirmUntilMs_ = 0;

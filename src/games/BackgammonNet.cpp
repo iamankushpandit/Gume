@@ -226,3 +226,88 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
         startTurn(host, us);   // their turn is complete
     }
 }
+
+void BackgammonGame::endRemoteByUs(AppContext& host) {
+    /* The service's own ending, which stays on the air after we leave so the
+     * other console still hears it; it goes back to its lobby too
+     * (pollRemote). Used by End game and by the pause card alike. */
+    host.nearbyEnd(session_, static_cast<uint8_t>((applied_ + 1) & 0x7F), applied_);
+    ended_ = true;
+    watch_.reset();
+    pausePainted_ = false;
+    mode_ = Mode::Lobby;
+    lobbyStale_ = true;
+    host.playSound(Sound::Select);
+    saveGame(host);
+    markFullDirty();
+}
+
+/* ---- the other console going quiet -----------------------------------------
+ *
+ * NearbyWatch decides what quiet means; this is what Backgammon does about
+ * it. Only a live remote game is watched -- not an invitation still
+ * unanswered, which has its own "Asking..." and its own End, and not a game
+ * that is over. It is watched on OUR turn as much as theirs: a move of ours
+ * cannot be acknowledged by a console that is not there, so the outbox would
+ * simply stall. */
+bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now) {
+    if (mode_ != Mode::Remote || phase_ == Phase::Over) {
+        if (watch_.paused()) {
+            watch_.reset();
+            pausePainted_ = false;
+            markFullDirty();
+        }
+        return false;
+    }
+    const NearbyWatch::State before = watch_.state();
+    if (watch_.tick(host, opponent_, now)) {
+        if (watch_.state() != before) {
+            if (before == NearbyWatch::State::Present) {
+                snprintf(pausedMessage_, sizeof(pausedMessage_), "%s", message_);
+            }
+            char line[24];
+            snprintf(line, sizeof(line), "%.10s %s", sideName(ourWhite_ ? Bg::BLACK : Bg::WHITE),
+                     watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+            setMessage(line);
+        }
+        markDirty();
+    }
+    if (watch_.resumed()) {
+        host.playSound(Sound::Pop);
+        setMessage(pausedMessage_);
+        pausePainted_ = false;
+        markFullDirty();
+        return false;
+    }
+    if (!watch_.cardShown()) return false;
+    switch (watch_.press(boardArea(), touch, false)) {
+        case NearbyWatch::Press::Wait:
+            watch_.dismiss();
+            pausePainted_ = false;
+            host.playSound(Sound::Tap);
+            markFullDirty();
+            break;
+        case NearbyWatch::Press::End:
+            endRemoteByUs(host);
+            break;
+        default:
+            break;
+    }
+    return touch.justPressed;
+}
+
+void BackgammonGame::drawPause(Ui::Renderer& tft) {
+    if (mode_ != Mode::Remote || phase_ == Phase::Over || !watch_.cardShown()) {
+        pausePainted_ = false;
+        return;
+    }
+    const Rect area = boardArea();
+    if (!pausePainted_) {
+        watch_.draw(tft, area, sideName(ourWhite_ ? Bg::BLACK : Bg::WHITE), nullptr);
+        pausePainted_ = true;
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    } else if (pauseSecondsDrawn_ != watch_.silentSeconds()) {
+        watch_.drawSeconds(tft, area, false);
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    }
+}

@@ -283,6 +283,13 @@ void ChessGame::drawStatus(AppContext& host) const {
         snprintf(top, sizeof(top), "Asking %s", opponentLabel());
         snprintf(bot, sizeof(bot), "waiting...");
         colour = Ui::muted();
+    } else if (mode_ == Mode::Remote && watch_.paused() && !gameOver()) {
+        /* Still here after Keep waiting has taken the card away, so a child
+         * looking at a board that will not respond is told why. */
+        snprintf(top, sizeof(top), "%s", opponentLabel());
+        snprintf(bot, sizeof(bot),
+                 watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+        colour = Ui::warning();
     } else {
         switch (status_) {
             case Status::Checkmate:
@@ -447,6 +454,8 @@ void ChessGame::renderStatic(AppContext& host) {
     dirtyCount_ = 0;
     statusStale_ = false;
     panelStale_ = false;
+    pausePainted_ = false;   // the board was just repainted under it
+    drawPause(host);
 }
 
 void ChessGame::renderDynamic(AppContext& host) {
@@ -457,6 +466,7 @@ void ChessGame::renderDynamic(AppContext& host) {
     /* Only the squares that changed. A whole board is 64 fills and up to 32
      * pieces; a move touches a handful, and at 26px a square the difference is
      * the whole frame budget. */
+    if (dirtyCount_ != 0) pausePainted_ = false;   // a square under the card
     for (uint8_t i = 0; i < dirtyCount_; ++i) drawSquare(host, dirtySq_[i]);
     dirtyCount_ = 0;
     /* The panel is repainted whole, unlike the board. It is a fraction of the
@@ -474,4 +484,5 @@ void ChessGame::renderDynamic(AppContext& host) {
         drawStatus(host);
         statusStale_ = false;
     }
+    drawPause(host);
 }

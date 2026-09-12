@@ -201,3 +201,72 @@ void ChessGame::pollOpponent(AppContext& host) {
     markDirty();
 }
 
+
+/* ---- the other console going quiet -----------------------------------------
+ *
+ * NearbyWatch decides what quiet means; this is what Chess does about it.
+ * Only a live remote game is watched: not the lobby, not an invitation still
+ * unanswered (that has its own "Asking..." and its own End), and not a game
+ * the rules have already finished, where nothing is being waited for. */
+bool ChessGame::updatePause(AppContext& host, const TouchPoint& touch) {
+    if (mode_ != Mode::Remote || gameOver()) {
+        if (watch_.paused()) {
+            watch_.reset();
+            pausePainted_ = false;
+            markFullDirty();
+        }
+        return false;
+    }
+    const NearbyWatch::State before = watch_.state();
+    if (watch_.tick(host, opponent_, millis())) {
+        if (watch_.state() != before) statusStale_ = true;   // the status line names it
+        markDirty();
+    }
+    if (watch_.resumed()) {
+        /* They are back. The board under the card is still right; only the
+         * card has to go, and the status line goes back to whose move it is. */
+        host.playSound(Sound::Pop);
+        pausePainted_ = false;
+        statusStale_ = true;
+        markFullDirty();
+        return false;
+    }
+    if (!watch_.cardShown()) return false;
+    switch (watch_.press(boardRect(host), touch, false)) {
+        case NearbyWatch::Press::Wait:
+            watch_.dismiss();
+            pausePainted_ = false;
+            host.playSound(Sound::Tap);
+            markFullDirty();
+            break;
+        case NearbyWatch::Press::End:
+            /* The same ending End game sends, so a console that does come
+             * back hears it and goes to its lobby rather than to a board that
+             * nobody is playing any more. */
+            declareEnd(host, true);
+            host.playSound(Sound::GameOver);
+            pausePainted_ = false;
+            markFullDirty();
+            break;
+        default:
+            break;
+    }
+    return touch.justPressed;
+}
+
+void ChessGame::drawPause(AppContext& host) {
+    if (mode_ != Mode::Remote || gameOver() || !watch_.cardShown()) {
+        pausePainted_ = false;
+        return;
+    }
+    Ui::Renderer& tft = host.display();
+    const Rect area = boardRect(host);
+    if (!pausePainted_) {
+        watch_.draw(tft, area, opponentLabel(), nullptr);
+        pausePainted_ = true;
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    } else if (pauseSecondsDrawn_ != watch_.silentSeconds()) {
+        watch_.drawSeconds(tft, area, false);
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    }
+}

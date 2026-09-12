@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-79.7%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-79.9%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,507,937 / 3,145,728 bytes (**79.7%**) |
-| RAM | 79,844 / 327,680 bytes (**24.4%**) |
+| Flash | 2,512,201 / 3,145,728 bytes (**79.9%**) |
+| RAM | 79,908 / 327,680 bytes (**24.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1061,6 +1061,17 @@ score travels with a move, and the moves occupy the same four bytes the best
 score normally uses, because the advertisement is already full at 31 bytes.
 Ludo seats up to four consoles; that uses the same turn, read by more consoles,
 and adds nothing to what any one of them transmits.
+
+**If the other console goes quiet, the game pauses and says so.** A battery
+going flat or a child walking into the next room cannot send anything, so the
+only sign is that the beacon stopped. After about six seconds without hearing
+the other console every nearby game pauses, names who it is waiting for and
+for how long, and offers Keep waiting or End game; after 45 seconds it says out
+of range. Waiting has no limit -- the game is saved after every move -- and a
+console that comes back into range picks the game up where it stopped, because
+each console's latest move is still on the air. Ending from that card tells the
+other console, if it returns, that the game is over. Nothing new is
+transmitted for any of this: it is worked out from the beacon not being there.
 
 Consoles can be given names, and a name is what you see on screen -- but a name
 is stored on your own device and is never transmitted. The advertisement is

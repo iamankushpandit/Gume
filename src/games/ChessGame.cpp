@@ -46,6 +46,8 @@ const char* ChessGame::title() const {
  * session: a remote game resets to the starting position with the same
  * opponent, and only the lobby changes who is playing whom. */
 void ChessGame::newGame() {
+    watch_.reset();
+    pausePainted_ = false;
     memset(pos_.sq, EMPTY, sizeof(pos_.sq));
     for (int8_t f = 0; f < 8; ++f) {
         pos_.sq[idx(f, 0)] = BACK_RANK[f];
@@ -223,6 +225,11 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
     if (mode_ == Mode::Remote && status_ != Status::Ended) {
         host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
     }
+
+    /* Are they still there? Tested after the poll and the republish, so a
+     * move that did arrive is applied before the silence is measured, and
+     * before any tap, so a press through the card is never a move. */
+    if (updatePause(host, touch)) return;
 
     /* The confirm window closes on its own, so a half-pressed End game does
      * not lie in wait to be completed by an unrelated tap minutes later. */

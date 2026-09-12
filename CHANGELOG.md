@@ -10,6 +10,21 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**A nearby game whose other console goes quiet now pauses and says so.** A
+flat battery or a child walking out of range cannot send anything, and until
+now Chess, Sea Battle and Backgammon sat on "is thinking" for ever when it
+happened. The nearby service now reports how long each peer has been silent
+(`nearbyPeerSilentMs()`, from the scanner's own `lastSeenMs`, which it had
+been recording all along) and a shared `NearbyWatch` turns that into the same
+three states in every game: heard within six seconds, play on; quiet longer
+than that, the game pauses under a card naming who it is waiting for and for
+how long, with *Keep waiting* and *End game*; dropped by the scanner after 45
+seconds, out of range. Waiting has no time limit, and a console that comes
+back resumes where it stopped -- the moves were on the air all along, so
+nothing is re-sent. Nothing new is transmitted for any of this. Chess and Sea
+Battle were split into several files first, along Backgammon's lines, because
+both had passed the size the modularity rule allows.
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its
