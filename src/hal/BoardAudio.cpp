@@ -421,7 +421,14 @@ TaskHandle_t audioTask = nullptr;
 /* The DAC backend scales amplitude in software, so the generator needs the
  * volume without a Board& to read it from. Mirrored rather than read through
  * Preferences for the usual reason: this is on the path of every sample. */
-uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
+/* [[maybe_unused]] rather than a tighter guard, deliberately. Its reads and
+ * writes sit in a mix of GUME_HAS_AUDIO_CODEC and GUME_HAS_AUDIO_DAC blocks
+ * while the definition covers either, so on the codec-only Freenove it came
+ * out defined and unreferenced. Reshaping those guards to match is a change
+ * to which board scales volume where, on evidence I cannot read confidently
+ * from the preprocessor alone -- and this is one byte. The attribute says
+ * exactly what is true: used in some configurations, not all. */
+[[maybe_unused]] uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
 
 /* Generation runs AHEAD of playback, and that is the whole point of the DMA:
  * tickAudio() fills it as fast as it will take samples, so `playing` goes

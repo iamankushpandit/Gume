@@ -258,9 +258,16 @@ void SeaBattleGame::drawStatus(AppContext& host) const {
                 snprintf(bot, sizeof(bot), "fire again");
                 break;
             default:
-                snprintf(top, sizeof(top), mode_ == Mode::Remote ? "Your shot"
-                                                                 : "Player %u");
-                if (mode_ != Mode::Remote) {
+                /* One branch, one call. It used to pick the format string with
+                 * a ternary and pass no argument at all, then overwrite the
+                 * result on the next line for the local case -- so every local
+                 * status draw ran an snprintf whose "%u" had nothing to read,
+                 * which is undefined behaviour that happened to be harmless
+                 * because the answer was thrown away. `-Wformat=` had been
+                 * saying so on every board. */
+                if (mode_ == Mode::Remote) {
+                    snprintf(top, sizeof(top), "Your shot");
+                } else {
                     snprintf(top, sizeof(top), "Player %u",
                              static_cast<unsigned>(turnPlayer_ + 1));
                 }

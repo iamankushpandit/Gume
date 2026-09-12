@@ -20,6 +20,14 @@ constexpr uint8_t CMD_READ_Y = 0x90;
 constexpr uint8_t CMD_READ_Z1 = 0xB0;
 constexpr uint8_t CMD_READ_Z2 = 0xC0;
 
+/* The calibration wizard's two helpers, and they belong to the XPT2046 half.
+ * runTouchCalibration() returns immediately under GUME_TOUCH_CAPACITIVE -- a
+ * controller that reports pixels has nothing to fit -- so on the Freenove
+ * these were defined and never called, which is what -Wunused-function had
+ * been saying on that board alone. Guarded the same way their only caller is,
+ * rather than silenced, so the capacitive build stops carrying the affine
+ * maths it can never run. */
+#if !GUME_TOUCH_CAPACITIVE
 void drawCrosshair(TFT_eSPI& tft, int16_t x, int16_t y, uint16_t color) {
     tft.drawCircle(x, y, 14, color);
     tft.drawCircle(x, y, 7, color);
@@ -55,6 +63,7 @@ bool computeAffine(const int16_t raw[3][2], const int16_t screen[3][2], Board::T
     cal.magic = TOUCH_CAL_MAGIC;
     return true;
 }
+#endif   /* !GUME_TOUCH_CAPACITIVE -- the calibration wizard's helpers */
 }
 
 bool Board::hasTouchCalibration() const {
