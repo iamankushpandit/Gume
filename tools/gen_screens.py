@@ -45,6 +45,12 @@ COPYRIGHT_SHORT = "(C) iamankushpandit"
 
 W, H = 320, 240
 BG, SURFACE, PANEL = (18, 20, 26), (32, 36, 46), (52, 58, 72)
+# The top bar and its ink are palette roles, not the card colour -- Classic's
+# bar is white with black glyphs. apply_theme() rewrites all of these.
+BAR, BAR_TEXT = (16, 20, 48), (255, 255, 255)
+# The fill of a primary action -- Ui::accent(). A role, not the tile blue it
+# used to be typed as in two screens.
+ACCENT = (28, 142, 216)
 TEXT, MUTED, OUTLINE = (232, 236, 242), (140, 148, 162), (86, 94, 110)
 SUCCESS, ERROR, WARN = (52, 254, 128), (247, 61, 82), (255, 230, 110)
 BLUE, GREEN, RED, SHADOW = (36, 132, 204), (45, 154, 96), (222, 83, 83), (10, 11, 15)
@@ -67,7 +73,11 @@ def shade(c, pct):
     return tuple(min(255, v * pct // 100) for v in c)
 
 
-def button(d, r, label, fill=PANEL, tc=TEXT, f=F2):
+def button(d, r, label, fill=None, tc=None, f=F2):
+    # Resolved here rather than in the signature: a default argument is bound
+    # once, at import, so a palette swapped afterwards would never reach it.
+    fill = PANEL if fill is None else fill
+    tc = TEXT if tc is None else tc
     x, y, w, h = r
     d.rounded_rectangle([x + 2, y + 3, x + w + 1, y + h + 2], 6, fill=SHADOW)
     d.rounded_rectangle([x, y, x + w - 1, y + h - 1], 6, fill=fill)
@@ -123,8 +133,10 @@ def wifi_badge(d, cx, cy, bars=3):
             d.point((cx + dx, dot_y + dy), fill=col)
 
 
-def lock_icon(d, r, color=TEXT, bg=SURFACE):
+def lock_icon(d, r, color=None, bg=None):
     """Mirrors Ui::drawLockIcon: a hoop over a body, keyhole punched back out."""
+    color = TEXT if color is None else color
+    bg = SURFACE if bg is None else bg
     x, y, w, h = r
     cx = x + w // 2
     body_w = w - w // 4
@@ -146,44 +158,78 @@ def lock_icon(d, r, color=TEXT, bg=SURFACE):
                  cx + max(1, key_r // 2) - 1, key_cy + body_h // 3], fill=bg)
 
 
-def topbar(d, title, synced=True, bars=3, w=W):
-    """Ui::drawTopBar reads tft.width() at render time, so this takes a width
-    rather than assuming the landscape canvas -- that is what lets the portrait
-    mock-ups below carry the same bar the device draws."""
-    d.rectangle([0, 0, w - 1, 29], fill=SURFACE)
-    d.line([(0, 0), (w, 0)], fill=shade(SURFACE, 145))
-    d.line([(0, 29), (w, 29)], fill=shade(SURFACE, 60))
-    # Home narrowed from 42px to 32px to make room for Lock beside it, and the
-    # title starts at 62 instead of 48. See LauncherLayout.
-    d.rounded_rectangle([2, 5, 30, 24], 3, outline=MUTED)
-    d.text((5, 9), "home", font=F1, fill=MUTED)
-    lock_icon(d, (40, 6, 18, 18))
+CONTROL_H = 18   # Ui::CONTROL_H -- padlock, speaker and gear all this size
+
+
+def speaker_icon(d, r, muted, colour):
+    """Mirrors Ui::drawSpeakerIcon: body, cone, then waves or a slash."""
+    x, y, w, h = r
+    cx, cy = x + w // 2, y + h // 2
+    body_w, body_h = h * 3 // 16, h * 6 // 16
+    cone_w, cone_h = h * 4 // 16, h * 12 // 16
+    left = cx - h * 6 // 16
+    d.rectangle([left, cy - body_h // 2, left + body_w - 1, cy + body_h // 2 - 1],
+                fill=colour)
+    cone_x = left + body_w
+    d.polygon([(cone_x, cy - body_h // 2), (cone_x, cy + body_h // 2),
+               (cone_x + cone_w, cy + cone_h // 2), (cone_x + cone_w, cy - cone_h // 2)],
+              fill=colour)
+    if muted:
+        d.line([(x + 1, y + 1), (x + w - 3, y + h - 1)], fill=colour, width=2)
+        return
+    wave_x = cone_x + cone_w + 1
+    for band in range(2):
+        rad = 2 + band * 3
+        d.arc([wave_x - rad, cy - rad, wave_x + rad, cy + rad], -60, 60, fill=colour)
+
+
+def topbar(d, title, synced=True, bars=3, muted=False, w=W):
+    """Ui::drawTopBar. Takes a width because the firmware reads tft.width() at
+    render time -- that is what lets the portrait mock-ups carry the same bar
+    the device draws."""
+    d.rectangle([0, 0, w - 1, 29], fill=BAR)
+    d.line([(0, 0), (w, 0)], fill=shade(BAR, 145))
+    d.line([(0, 29), (w, 29)], fill=shade(BAR, 60))
+    # Home narrowed from 42px to 32px to make room for Lock beside it.
+    d.rounded_rectangle([2, 5, 30, 24], 3, outline=BAR_TEXT)
+    d.text((5, 9), "home", font=F1, fill=BAR_TEXT)
+    lock_icon(d, (40, 6, CONTROL_H, CONTROL_H), BAR_TEXT, BAR)
+    # Mute, right of the padlock; the title starts after it now.
+    speaker_icon(d, (64, 6, CONTROL_H, CONTROL_H), muted, BAR_TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
-    batt_right = w - 40
+    batt_right = w - 8 - CONTROL_H - 6
     wifi_cx = batt_right - batt_w - 6 - 8
     sync_cx = wifi_cx - 8 - 6 - 6
     clock_right = sync_cx - 12
-    # Ui::drawTopBar's own rule, restated: the title is truncated to the gap
-    # between where it starts and where the clock begins -- but with a 32px
-    # floor, so on a narrow panel it stops shrinking and runs under the clock
-    # instead. At 240px wide that floor bites: the gap is about 14px and the
-    # title is drawn 32px, so a portrait top bar really does overlap. Mirrored
-    # rather than tidied, because tidying it here would hide it.
-    status_left = clock_right - d.textlength(t, font=F2)
-    title_gap = status_left - 62 - 4
+    # TRUNCATE THE TITLE, as Ui::drawTopBar does. The mock used to draw it
+    # whole and let it run straight through the clock, so a bar that does not
+    # fit on the panel looked fine here -- exactly the kind of lie a mock-up
+    # is not allowed to tell.
+    #
+    # And where there is not room for both, the CLOCK gives way rather than
+    # the title -- the firmware's rule, restated. The title floor used to be
+    # 32px, which on a 240px panel is wider than the gap, so the floor won and
+    # the two were drawn on the same pixels. The speaker made that worse: it
+    # moved the title from x=62 to x=86, taking 24px off a budget that had
+    # none to give in portrait.
+    title_left = 86
+    status_left = int(clock_right - d.textlength(t, font=F2))
+    title_gap = status_left - title_left - 4
     show_clock = title_gap >= 44                      # Ui::TOP_BAR_MIN_TITLE_W
-    title_max = title_gap if show_clock else clock_right - 62 - 4
-    s = title
-    while len(s) > 2 and d.textlength(s, font=F2) > title_max:
-        s = s[:-1]
-    d.text((62, 8), s, font=F2, fill=TEXT)
+    title_max = title_gap if show_clock else clock_right - title_left - 4
+    fitted = title
+    while len(fitted) > 2 and d.textlength(fitted, font=F2) > title_max:
+        fitted = fitted[:-1]
+    d.text((title_left, 8), fitted, font=F2, fill=BAR_TEXT)
     if show_clock:
-        d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
+        d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=BAR_TEXT)
         sync_badge(d, sync_cx, 15, synced)
     wifi_badge(d, wifi_cx, 15, bars)
     battery_badge(d, batt_right - batt_w // 2, 15, 72)
-    d.ellipse([w - 34, 4, w - 12, 26], outline=TEXT)
+    # The gear is CONTROL_H now, like the padlock and the speaker beside it.
+    d.ellipse([w - 8 - CONTROL_H, (30 - CONTROL_H) // 2,
+               w - 8, (30 - CONTROL_H) // 2 + CONTROL_H], outline=BAR_TEXT)
 
 
 BATT_H, BATT_PAD, BATT_TERM_W = 15, 3, 2
@@ -231,13 +277,21 @@ def battery_badge(d, cx, cy, pct=72):
         d.text((penx, cy - 6), text, font=F1, fill=out)
 
 
-def ble_badge(d, cx, cy):
-    """Mirrors Ui::drawBleBadge -- one polyline through six points, 10x16."""
-    x0, y0 = cx - 5, cy - 8
-    px = [0, 10, 5, 5, 10, 0]
-    py = [4, 11, 16, 0, 5, 12]
+BADGE_H = 13    # Ui::BADGE_H -- one height for every status glyph in a header
+
+
+def ble_badge(d, cx, cy, bg=None):
+    """Mirrors Ui::drawBleBadge -- one polyline through six points, 9x14.
+
+    Takes the ink of what it sits on, like the rest of the header. It was
+    Bluetooth's own blue, which no palette chose.
+    """
+    x0, y0 = cx - 4, cy - BADGE_H // 2
+    px = [0, 8, 4, 4, 8, 0]
+    py = [3, 9, 13, 0, 4, 10]
+    ink = on_fill(bg if bg is not None else BG)
     for off in (0, 1):
-        d.line([(x0 + px[i] + off, y0 + py[i]) for i in range(6)], fill=BLUE)
+        d.line([(x0 + px[i] + off, y0 + py[i]) for i in range(6)], fill=ink)
 
 
 def art(sym):
@@ -813,106 +867,6 @@ def backgammon_lobby():
     return im
 
 
-def cursive():
-    """Cursive: the word 'dog' part traced, with the target behind it.
-
-    A word rather than a letter, because Trace already contributes two
-    letter-tracing stills and joining up is what this game adds. The dots come
-    from the real table in src/games/CursiveGlyphData.cpp, so the picture
-    cannot drift from the letterforms the device draws.
-
-    Geometry matches LetterTracer: 52px control columns, a caption row above,
-    canvas at 60,52 sized 200x162, and the word set's 12px dot spacing.
-    """
-    import math as _m
-    import re as _re
-    im, d = blank(); topbar(d, "Cursive")
-    for label, y, col in [["ABC", 52, PANEL], ["abc", 78, PANEL],
-                          ["Words", 104, WARN]]:
-        d.rounded_rectangle([4, y, 56, y + 22], 4, fill=col, outline=OUTLINE)
-        d.text((30 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
-               fill=PANEL if col == WARN else TEXT)
-    for label, y in [["Again", 52], ["Next", 78]]:
-        d.rounded_rectangle([264, y, 316, y + 22], 4, fill=PANEL, outline=OUTLINE)
-        d.text((290 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
-               fill=TEXT)
-    d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
-    d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
-
-    word = "dog"
-    d.text((160 - d.textlength(word, font=F2) / 2, 33), word, font=F2, fill=TEXT)
-
-    src = (ROOT / "src" / "games" / "CursiveGlyphData.cpp").read_text(encoding="utf-8")
-
-    hdr = (ROOT / "src" / "games" / "CursiveGlyphData.h").read_text(encoding="utf-8")
-    cw = int(_re.search(r"CURSIVE_COORD_W = (\d+)", hdr).group(1))
-    ch = int(_re.search(r"CURSIVE_COORD_H = (\d+)", hdr).group(1))
-    m2p = _box_map(cw, ch)
-
-    def stroke(tag):
-        m = _re.search(r"static const int16_t %s\[\] = \{([^}]*)\}" % tag, src)
-        if m is None:
-            raise LookupError(tag)
-        n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        return [m2p(n[i], n[i + 1]) for i in range(0, len(n), 2)]
-
-    def resample(pts, step):
-        out, carry = [pts[0]], 0.0
-        for a, b in zip(pts, pts[1:]):
-            seg = _m.dist(a, b)
-            if seg <= 0:
-                continue
-            pos = step - carry
-            while pos <= seg:
-                t = pos / seg
-                out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
-                pos += step
-            carry = seg - (pos - step)
-        return out
-
-    paths = []
-    while True:
-        try:
-            paths.append(stroke("W_DOG_s%d" % len(paths)))
-        except LookupError:
-            break
-    assert paths, "W_DOG strokes not found in CursiveGlyphData.cpp"
-
-    # The finished shape, faintly: the thing the child is matching.
-    for pts in paths:
-        d.line(pts, fill=OUTLINE, width=1)
-
-    way = resample(paths[0], 12)
-    inked = int(len(way) * 0.45)
-    for i in range(1, inked):
-        d.line([way[i - 1], way[i]], fill=SUCCESS, width=3)
-    for i, (x, y) in enumerate(way):
-        if i < inked:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
-        elif i == inked:
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
-        else:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    ahead = [c for c in _corners(way) if c >= inked]
-    if ahead:
-        _arrow(d, way, ahead[0])
-    hx, hy = way[0]
-    d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
-    d.text((hx - 3, hy - 4), "1", font=F1, fill=PANEL)
-
-    for pts in paths[1:]:
-        for x, y in resample(pts, 12):
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-
-    total = sum(len(resample(pp, 12)) for pp in paths)
-    barW, barX, barY = 120, (W - 120) // 2, 220
-    d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
-                        outline=OUTLINE)
-    fill = int(barW * inked / max(1, total))
-    d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
-    return im
-
-
 def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
@@ -992,12 +946,22 @@ def statemaps():
 # --- the tracing games ------------------------------------------------------
 #
 # Trace and Cursive share LetterTracer, so they share one mock-up chrome and
-# one way of reading glyph data. Both stills draw the REAL letterform from the
+# one way of reading glyph data. Every still draws the REAL letterform from the
 # real table -- these were hand-placed points once and drifted the moment the
 # layout changed, which is the whole argument for deriving them.
+#
+# The arrows and the printed words are RESTATED here, not approximated: the
+# placement below is LetterTracerArrows.cpp's, candidate for candidate, and the
+# spelling is LetterTracerWords.cpp's. If either changes, change this too, or
+# the pictures will show arrows the device does not draw.
+
+TRACER_DRAW = (60, 52, 200, 156)       # LetterTracerLayout DRAW_X/Y/W/H
+TRACER_BAR_Y = 220
+TRACER_PREV_Y = 168
+
 
 def _tracer_chrome(d, title, tabs, active):
-    """The side columns and caption row. Keep in step with LetterTracer.cpp."""
+    """The side columns and caption row. Keep in step with LetterTracerLayout.h."""
     for i, label in enumerate(tabs):
         y = 52 + i * 26
         on = i == active
@@ -1009,9 +973,15 @@ def _tracer_chrome(d, title, tabs, active):
         d.rounded_rectangle([264, y, 316, y + 22], 4, fill=PANEL, outline=OUTLINE)
         d.text((290 - d.textlength(label, font=F1) / 2, y + 7), label, font=F1,
                fill=TEXT)
-    d.rounded_rectangle([4, 142, 56, 164], 4, fill=PANEL, outline=OUTLINE)
-    d.text((30 - d.textlength("Prev", font=F1) / 2, 149), "Prev", font=F1, fill=TEXT)
+    py = TRACER_PREV_Y
+    d.rounded_rectangle([4, py, 56, py + 22], 4, fill=PANEL, outline=OUTLINE)
+    d.text((30 - d.textlength("Prev", font=F1) / 2, py + 7), "Prev", font=F1, fill=TEXT)
     d.text((160 - d.textlength(title, font=F2) / 2, 33), title, font=F2, fill=TEXT)
+
+
+def _box_scale(coord_w, coord_h):
+    dx, dy, dw, dh = TRACER_DRAW
+    return min(dw / coord_w, dh / coord_h)
 
 
 def _box_map(coord_w, coord_h):
@@ -1021,27 +991,82 @@ def _box_map(coord_w, coord_h):
     invisible on this sheet and obvious on the panel -- which is exactly what
     happened when x scaled by DRAW_W/200 and y by DRAW_H/200.
     """
-    dx, dy, dw, dh = 60, 52, 200, 156
-    k = min(dw / coord_w, dh / coord_h)
-    ox = dx + (dw - coord_w * k) / 2
-    oy = dy + (dh - coord_h * k) / 2
+    dx, dy, dw, dh = TRACER_DRAW
+    k = _box_scale(coord_w, coord_h)
+    ox = dx + int((dw - int(coord_w * k)) / 2)
+    oy = dy + int((dh - int(coord_h * k)) / 2)
     return lambda x, y: (ox + x * k, oy + y * k)
+
+
+def _glyph_table(source):
+    """Every glyph in a table, as (label, [stroke, ...]) in raw table units.
+
+    Strokes in the order the glyph LISTS them, which is not always s0, s1:
+    print 'a' is its bowl (a_s1) before its stem (a_s0).
+    """
+    import re as _re
+    src = (ROOT / "src" / "games" / source).read_text(encoding="utf-8")
+    arrays = {m.group(1): [int(v) for v in m.group(2).replace(" ", "").split(",") if v]
+              for m in _re.finditer(r"static const int16_t (\w+)\[\] = \{([^}]*)\}", src)}
+    lists = {}
+    for m in _re.finditer(r"static const \w+::Stroke (\w+)_strokes\[\] = \{(.*?)\};", src):
+        refs = _re.findall(r"\{(\w+),\s*(\d+)\}", m.group(2))
+        lists[m.group(1)] = [[(arrays[r][i], arrays[r][i + 1])
+                              for i in range(0, len(arrays[r]), 2)] for r, _ in refs]
+    return [(label, tag, lists[tag]) for label, tag in
+            _re.findall(r"\{'(.)', (\w+)_strokes, \d+\}", src)]
 
 
 def _glyph_strokes(source, tag, coord_w=200, coord_h=200):
     """Strokes of one glyph from a data table, in canvas pixels."""
-    import re as _re
-    src = (ROOT / "src" / "games" / source).read_text(encoding="utf-8")
     m2p = _box_map(coord_w, coord_h)
-    out = []
-    while True:
-        m = _re.search(r"static const int16_t %s_s%d\[\] = \{([^}]*)\}"
-                       % (tag, len(out)), src)
-        if m is None:
-            break
-        n = [int(v) for v in m.group(1).replace(" ", "").split(",") if v]
-        out.append([m2p(n[i], n[i + 1]) for i in range(0, len(n), 2)])
-    assert out, "%s not found in %s" % (tag, source)
+    for _, t, strokes in _glyph_table(source):
+        if t == tag:
+            return [[m2p(x, y) for x, y in s] for s in strokes]
+    raise AssertionError("%s not found in %s" % (tag, source))
+
+
+def _trace_words():
+    """TraceGame.cpp's printed word list, read from the source."""
+    import re as _re
+    src = (ROOT / "src" / "games" / "TraceGame.cpp").read_text(encoding="utf-8")
+    block = _re.search(r"TRACE_WORDS\[\] = \{(.*?)\};", src, _re.S).group(1)
+    return _re.findall(r'"([a-z]+)"', block)
+
+
+def _spell(word):
+    """A printed word laid out as LetterTracerWords.cpp lays it out.
+
+    Returns strokes in canvas pixels. The scale is the one the WHOLE set is
+    drawn at, from its widest word, capped at a lone letter's scale.
+    """
+    MIN_W, GAP, MARGIN = 36, 26, 10
+    dx, dy, dw, dh = TRACER_DRAW
+    lower = {label: strokes for label, _, strokes in _glyph_table("TraceGlyphData.cpp")[26:52]}
+
+    def extent(strokes):
+        xs = [x for s in strokes for x, _ in s]
+        ys = [y for s in strokes for _, y in s]
+        return min(xs), max(xs), min(ys), max(ys)
+
+    def width(w):
+        return sum(max(MIN_W, extent(lower[c])[1] - extent(lower[c])[0]) for c in w) \
+            + GAP * (len(w) - 1)
+
+    top = min(extent(s)[2] for s in lower.values())
+    bottom = max(extent(s)[3] for s in lower.values())
+    widest = max(width(w) for w in _trace_words())
+    scale = min(_box_scale(200, 200), (dw - 2 * MARGIN) / widest, dh / (bottom - top))
+    word_top = int((dh - (bottom - top) * scale) / 2 - top * scale)
+    left = (dw - width(word) * scale) / 2
+    out, pen = [], 0
+    for c in word:
+        x0, x1, _, _ = extent(lower[c])
+        pad = (max(MIN_W, x1 - x0) - (x1 - x0)) // 2
+        for s in lower[c]:
+            out.append([(dx + int(left + (pen + pad + x - x0) * scale + 0.5),
+                         dy + int(word_top + y * scale + 0.5)) for x, y in s])
+        pen += max(MIN_W, x1 - x0) + GAP
     return out
 
 
@@ -1058,91 +1083,279 @@ def _resample(pts, step):
             out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
             pos += step
         carry = seg - (pos - step)
+    if _m.dist(out[-1], pts[-1]) > 0.5:
+        out.append(pts[-1])
     return out
 
 
-def _corners(way, cos_t=0.70, gap=3):
-    """Which waypoints LetterTracer would mark as turns. Same rule, restated."""
+def _plan_arrows(paths, ways, turns):
+    """Where LetterTracerArrows.cpp puts every arrow for one glyph.
+
+    `paths` are the raw strokes in pixels, `ways` the resampled dots the
+    clearance is measured against. Same constants, same candidate order, same
+    preference: outside, least slide, nearer stand-off, first clear wins.
+    """
     import math as _m
-    out, last = [], 0
-    for i in range(len(way)):
-        hit = (i == 0)
-        if 0 < i < len(way) - 1:
-            if i - last < gap:
+    LEN, HEAD, HALF = 16, 5, 4
+    OFFS, BACK, OUT = (9, 12, 15), 3, 7
+    CLEAR, RING, LABEL_R, REACH = 5, 6, 4, 10.0
+    SLIDES = (0, 6, 12, 18, 24, 30)
+    dx, dy, dw, dh = TRACER_DRAW
+    bx0, bx1, by0, by1 = dx - 2, dx + dw + 2, dy + 3, TRACER_BAR_Y - 7
+
+    def seg2(p, a, b):
+        abx, aby = b[0] - a[0], b[1] - a[1]
+        l2 = abx * abx + aby * aby
+        t = 0 if l2 == 0 else max(0, min(1, ((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / l2))
+        ex, ey = p[0] - a[0] - abx * t, p[1] - a[1] - aby * t
+        return ex * ex + ey * ey
+
+    segs = [(w[i], w[i + 1] if i + 1 < len(w) else w[i]) for w in ways for i in range(len(w))]
+    rings = [w[0] for w in ways]
+    allp = [p for w in ways for p in w]
+    cx = (min(p[0] for p in allp) + max(p[0] for p in allp)) / 2
+    cy = (min(p[1] for p in allp) + max(p[1] for p in allp)) / 2
+    placed = []
+
+    def point_at(s, dist):
+        walked = 0.0
+        for a, b in zip(s, s[1:]):
+            L = _m.dist(a, b)
+            if L > 0 and walked + L >= dist:
+                t = (dist - walked) / L
+                return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t), True
+            walked += L
+        return s[-1], False
+
+    def measure(c):
+        tail, tip, ux, uy, nx, ny, label = c
+        shaft = [(tail[0] + ux * t, tail[1] + uy * t) for t in range(0, LEN, 3)]
+        hx, hy = tip[0] - ux * HEAD, tip[1] - uy * HEAD
+        shaft += [tip, (hx + nx * HALF, hy + ny * HALF), (hx - nx * HALF, hy - ny * HALF)]
+        pts = [(q, 0) for q in shaft] + ([(label, LABEL_R)] if label else [])
+        if any(not (bx0 <= q[0] <= bx1 and by0 <= q[1] <= by1) for q in shaft):
+            return -1e9
+        if label and not (bx0 <= label[0] - 3 and label[0] + 3 <= bx1 and
+                          by0 <= label[1] - 4 and label[1] + 4 <= by1):
+            return -1e9
+        worst = 1e9
+        for q, pad in pts:
+            for r in rings:
+                worst = min(worst, _m.dist(q, r) - RING - 1 - pad)
+            for o in placed:
+                worst = min(worst, _m.sqrt(seg2(q, o["tail"], o["tip"])) - HALF - 2 - pad)
+                if o["label"]:
+                    worst = min(worst, _m.dist(q, o["label"]) - LABEL_R - 2 - pad)
+            worst = min(worst, _m.sqrt(min(seg2(q, a, b) for a, b in segs)) - pad)
+        return worst
+
+    def place(si, arc, numbered):
+        s = paths[si]
+        cands = []
+        for slide in SLIDES:
+            p, _ = point_at(s, arc + slide)
+            q, reached = point_at(s, arc + slide + REACH)
+            if slide and not reached:
+                break
+            L = _m.dist(p, q)
+            if L < 0.5:
                 continue
-            ax, ay = way[i][0] - way[i - 1][0], way[i][1] - way[i - 1][1]
-            bx, by = way[i + 1][0] - way[i][0], way[i + 1][1] - way[i][1]
-            la, lb = _m.hypot(ax, ay), _m.hypot(bx, by)
-            hit = la >= 0.5 and lb >= 0.5 and (ax * bx + ay * by) / (la * lb) < cos_t
-        if hit:
-            out.append(i)
-            last = i
-    return out
+            ux, uy = (q[0] - p[0]) / L, (q[1] - p[1]) / L
+            for off in OFFS:
+                for side in (1, -1):
+                    nx, ny = -uy * side, ux * side
+                    tail = (p[0] + ux * 2 + nx * off, p[1] + uy * 2 + ny * off)
+                    tip = (tail[0] + ux * LEN, tail[1] + uy * LEN)
+                    label = ((tail[0] - ux * BACK + nx * OUT, tail[1] - uy * BACK + ny * OUT)
+                             if numbered else None)
+                    mid = ((tail[0] + tip[0]) / 2, (tail[1] + tip[1]) / 2)
+                    outside = _m.dist(mid, (cx, cy)) > _m.dist(p, (cx, cy))
+                    cands.append((outside, (tail, tip, ux, uy, nx, ny, label)))
+        chosen = None
+        for want in (True, False):
+            for outside, c in cands:
+                if outside == want and measure(c) >= CLEAR:
+                    chosen = c
+                    break
+            if chosen:
+                break
+        if chosen is None and cands:
+            score, c = max((measure(c), c) for _, c in cands)
+            chosen = c if score >= 2 else None
+        if chosen:
+            placed.append(dict(stroke=si, tail=chosen[0], tip=chosen[1],
+                               label=chosen[6], numbered=numbered))
+
+    for si, s in enumerate(paths):
+        total = sum(_m.dist(a, b) for a, b in zip(s, s[1:]))
+        if len(s) < 2 or total < 12:
+            continue
+        place(si, 0.0, True)
+        if not turns:
+            continue
+        arc = 0.0
+        for i in range(1, len(s) - 1):
+            a = (s[i][0] - s[i - 1][0], s[i][1] - s[i - 1][1])
+            b = (s[i + 1][0] - s[i][0], s[i + 1][1] - s[i][1])
+            la, lb = _m.hypot(*a), _m.hypot(*b)
+            arc += la
+            if la < 0.5 or lb < 0.5:
+                continue
+            if (a[0] * b[0] + a[1] * b[1]) / (la * lb) < -0.2:
+                place(si, arc, False)
+    return placed
 
 
-def _arrow(d, way, index):
-    """The direction arrow, just past a turn, pointing where the stroke goes."""
+def _draw_arrow(d, a, col):
+    """One arrow: shaft, head, and the stroke number for a numbered one."""
     import math as _m
-    if index + 1 >= len(way):
-        return
-    ax, ay = way[index]
-    bx, by = way[index + 1]
-    dx, dy = bx - ax, by - ay
-    n = _m.hypot(dx, dy)
-    if n < 0.5:
-        return
-    ux, uy = dx / n, dy / n
-    bx0, by0 = ax + ux * 3, ay + uy * 3
-    d.polygon([(bx0 + ux * 11, by0 + uy * 11),
-               (bx0 - uy * 4, by0 + ux * 4),
-               (bx0 + uy * 4, by0 - ux * 4)], fill=WARN)
+    if True:
+        (tx, ty), (px, py) = a["tail"], a["tip"]
+        L = _m.dist((tx, ty), (px, py))
+        ux, uy = (px - tx) / L, (py - ty) / L
+        hx, hy = px - ux * 5, py - uy * 5
+        d.line([(tx, ty), (hx, hy)], fill=col, width=2)
+        d.polygon([(px, py), (hx - uy * 4, hy + ux * 4), (hx + uy * 4, hy - ux * 4)],
+                  fill=col)
+        if a["numbered"]:
+            n = str(a["stroke"] + 1)
+            lx, ly = a["label"]
+            d.text((lx - d.textlength(n, font=F1) / 2, ly - 5), n, font=F1, fill=col)
 
 
-def _tracer_canvas(d, paths, spacing, fraction, badge="1"):
-    """The ghost, the traced part, the pulsing next dot and the rest."""
+def _draw_arrows(d, arrows):
+    """LetterTracer::drawArrows(): the plan for the letter, all of it muted."""
+    for a in arrows:
+        _draw_arrow(d, a, MUTED)
+
+
+def _guide(d, ways, active, inked):
+    """The one arrow that moves: LetterTracer::updateGuide(), restated.
+
+    Beside the dot being aimed at, pointing where the stroke goes next, on
+    whichever side of the line is clearer -- and not drawn at all when neither
+    side is, because an arrow over the dots is what this replaced.
+    """
+    import math as _m
+    OFF, LEN, HEAD, HALF, CLEAR = 8, 16, 5, 4, 3
+    way = ways[active]
+    if inked + 1 >= len(way):
+        return
+    p, q = way[inked], way[inked + 1]
+    L = _m.dist(p, q)
+    if L < 0.5:
+        return
+    ux, uy = (q[0] - p[0]) / L, (q[1] - p[1]) / L
+
+    def seg2(pt, a, b):
+        abx, aby = b[0] - a[0], b[1] - a[1]
+        l2 = abx * abx + aby * aby
+        t = 0 if l2 == 0 else max(0, min(1, ((pt[0] - a[0]) * abx + (pt[1] - a[1]) * aby) / l2))
+        ex, ey = pt[0] - a[0] - abx * t, pt[1] - a[1] - aby * t
+        return ex * ex + ey * ey
+
+    segs = [(w[i], w[i + 1] if i + 1 < len(w) else w[i]) for w in ways for i in range(len(w))]
+    best, chosen = -1e9, None
+    for side in (1, -1):
+        nx, ny = -uy * side, ux * side
+        tail = (p[0] + nx * OFF, p[1] + ny * OFF)
+        tip = (tail[0] + ux * LEN, tail[1] + uy * LEN)
+        worst = 1e9
+        for t in range(0, LEN + 1, 4):
+            pt = (tail[0] + ux * t, tail[1] + uy * t)
+            if not (58 <= pt[0] <= 262 and 55 <= pt[1] <= 213):
+                worst = -1e9
+                break
+            worst = min(worst, _m.sqrt(min(seg2(pt, a, b) for a, b in segs)))
+        if worst > best:
+            best, chosen = worst, dict(tail=tail, tip=tip, numbered=False, stroke=active)
+    if chosen and best >= CLEAR:
+        _draw_arrow(d, chosen, WARN)
+
+
+def _tracer_canvas(d, paths, spacing, fraction, turns, active=0, dot=2):
+    """The ghost, the traced part, the dots, the arrows and the start ring.
+
+    Strokes before `active` are finished, `fraction` of the active one is
+    traced, and the rest are waiting.
+    """
+    ways = [_resample(pts, spacing) for pts in paths]
+    r = dot
     for pts in paths:
         d.line(pts, fill=OUTLINE, width=1)
-    way = _resample(paths[0], spacing)
-    inked = max(1, int(len(way) * fraction))
-    for i in range(1, inked):
-        d.line([way[i - 1], way[i]], fill=SUCCESS, width=3)
-    for i, (x, y) in enumerate(way):
-        if i < inked:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
-        elif i == inked:
-            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
-        else:
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    # The arrow at the next turn at or after the finger -- one at a time.
-    ahead = [c for c in _corners(way) if c >= inked]
-    if ahead:
-        _arrow(d, way, ahead[0])
-    hx, hy = way[0]
-    d.ellipse([hx - 7, hy - 7, hx + 7, hy + 7], fill=WARN)
-    d.text((hx - 3, hy - 4), badge, font=F1, fill=PANEL)
-    for pts in paths[1:]:
-        for x, y in _resample(pts, spacing):
-            d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    total = sum(len(_resample(pp, spacing)) for pp in paths)
-    barW, barX, barY = 120, (W - 120) // 2, 220
+    arrows = _plan_arrows(paths, ways, turns)
+    inked_total = 0
+    for si, way in enumerate(ways):
+        inked = len(way) if si < active else (
+            max(1, int(len(way) * fraction)) if si == active else 0)
+        inked_total += inked
+        for i in range(1, inked):
+            d.line([way[i - 1], way[i]], fill=SUCCESS, width=2)
+        for i, (x, y) in enumerate(way):
+            if i < inked:
+                d.ellipse([x - r, y - r, x + r, y + r], fill=SUCCESS)
+            elif si == active and i == inked:
+                d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
+            else:
+                d.ellipse([x - r, y - r, x + r, y + r], fill=MUTED)
+    _draw_arrows(d, arrows)
+    _guide(d, ways, active, max(1, int(len(ways[active]) * fraction)))
+    hx, hy = ways[active][0]
+    d.ellipse([hx - 6, hy - 6, hx + 6, hy + 6], outline=WARN, width=2)
+    total = sum(len(w) for w in ways)
+    barW, barX, barY = 120, (W - 120) // 2, TRACER_BAR_Y
     d.rounded_rectangle([barX, barY, barX + barW, barY + 10], 4, fill=PANEL,
                         outline=OUTLINE)
-    fill = int(barW * inked / max(1, total))
-    d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
+    fill = int(barW * inked_total / max(1, total))
+    if fill > 0:
+        d.rounded_rectangle([barX, barY, barX + fill, barY + 10], 4, fill=SUCCESS)
+
+
+TRACE_TABS = ["ABC", "abc", "123", "Words"]
 
 
 def trace():
     im, d = blank(); topbar(d, "Trace")
-    _tracer_chrome(d, "A", ["ABC", "abc", "123"], 0)
-    # Traced short of the apex on purpose, so the turn arrow is in shot.
-    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20, 0.30)
+    _tracer_chrome(d, "A", TRACE_TABS, 0)
+    # A third of the way up the first stroke: the numbered arrows beside each
+    # stroke and the turn arrow at the apex are all in shot.
+    k = _box_scale(200, 200)
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "A"), 20 * k, 0.30, True)
     return im
 
 
 def trace_lower():
     im, d = blank(); topbar(d, "Trace")
-    _tracer_chrome(d, "g", ["ABC", "abc", "123"], 1)
-    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "g"), 20, 0.8)
+    _tracer_chrome(d, "g", TRACE_TABS, 1)
+    k = _box_scale(200, 200)
+    _tracer_canvas(d, _glyph_strokes("TraceGlyphData.cpp", "g"), 20 * k, 0.8, True)
+    return im
+
+
+def trace_words():
+    """Trace's Words tab: 'cat' spelled out of the abc letters, c done."""
+    im, d = blank(); topbar(d, "Trace")
+    _tracer_chrome(d, "cat", TRACE_TABS, 3)
+    _tracer_canvas(d, _spell("cat"), 14, 0.5, False, active=1)
+    return im
+
+
+def cursive():
+    """Cursive: the word 'dog' part traced, with the target behind it.
+
+    A word rather than a letter, because Trace already contributes letter
+    stills and joining up is what this game adds. The strokes come from the
+    real table in src/games/CursiveGlyphData.cpp, so the picture cannot drift
+    from the letterforms the device draws.
+    """
+    import re as _re
+    im, d = blank(); topbar(d, "Cursive")
+    _tracer_chrome(d, "dog", ["ABC", "abc", "Words"], 2)
+    hdr = (ROOT / "src" / "games" / "CursiveGlyphData.h").read_text(encoding="utf-8")
+    cw = int(_re.search(r"CURSIVE_COORD_W = (\d+)", hdr).group(1))
+    ch = int(_re.search(r"CURSIVE_COORD_H = (\d+)", hdr).group(1))
+    _tracer_canvas(d, _glyph_strokes("CursiveGlyphData.cpp", "W_DOG", cw, ch),
+                   14, 0.45, False, dot=1)
     return im
 
 
@@ -1191,15 +1404,20 @@ def fingers_show():
 
 
 def cinnamon():
-    im = Image.new("RGB", (W, H), (245, 245, 248)); d = ImageDraw.Draw(im)
-    d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
-    d.text((48, 8), "Cinnamon Says", font=F2, fill=TEXT)
-    d.rounded_rectangle([6, 5, 38, 24], 3, outline=MUTED)
-    d.text((11, 9), "home", font=F1, fill=MUTED)
-    d.text((10, 34), "Score 4", font=F2, fill=(30, 30, 36))
-    d.text((W - 10 - d.textlength("Best 9", font=F2), 34), "Best 9", font=F2, fill=(30, 30, 36))
+    """Cinnamon Says -- and it honours the theme now.
+
+    It used to force Ui::Theme::Light for the whole of each render half, so
+    this mock hard-coded a white ground and a black ring to match. Both are
+    palette colours again: the ring is Ui::text(), the unlit outline is
+    Ui::outline(), and the four pad hues stay fixed because they are the
+    game rather than decoration.
+    """
+    im, d = blank()
+    topbar(d, "Cinnamon Says")
+    d.text((10, 34), "Score 4", font=F2, fill=TEXT)
+    d.text((W - 10 - d.textlength("Best 9", font=F2), 34), "Best 9", font=F2, fill=TEXT)
     st = "Watch"
-    d.text((W / 2 - d.textlength(st, font=F2) / 2, 52), st, font=F2, fill=(30, 30, 36))
+    d.text((W / 2 - d.textlength(st, font=F2) / 2, 52), st, font=F2, fill=TEXT)
     lit = [False, True, False, False]
     cols_lit = [(248, 0, 0), (0, 130, 255), (0, 230, 60), (255, 240, 0)]
     cols_dim = [(96, 0, 0), (0, 0, 70), (0, 70, 0), (128, 110, 0)]
@@ -1209,7 +1427,9 @@ def cinnamon():
         d.rounded_rectangle([x, y, x + 112, y + 54], 8,
                             fill=cols_lit[i] if lit[i] else cols_dim[i])
         if lit[i]:
-            d.rounded_rectangle([x - 3, y - 3, x + 115, y + 57], 11, outline=(0, 0, 0), width=2)
+            d.rounded_rectangle([x - 3, y - 3, x + 115, y + 57], 11, outline=TEXT, width=2)
+        else:
+            d.rounded_rectangle([x, y, x + 112, y + 54], 8, outline=OUTLINE)
     return im
 
 
@@ -1240,11 +1460,43 @@ def front_page_tiles(count):
     return [(a.label, a.subtitle) for a in apps[:count]]
 
 
+def on_fill(fill):
+    """Ui::onFill(): black or white, whichever can be read on this fill.
+
+    Restated here because the launcher tiles are the reason it exists: their
+    labels were a fixed white over a palette colour, which is unreadable on
+    half the themes. A mock-up that kept drawing them white would be showing
+    something the device no longer does.
+    """
+    def lin(c):
+        c /= 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(c) for c in fill[:3])
+    return (0, 0, 0) if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 else (255, 255, 255)
+
+
+def on_fill_soft(fill):
+    """Ui::onFillSoft(): 88% towards that ink, or the ink itself when the fill
+    is too mid-tone to allow the step."""
+    ink = on_fill(fill)
+    soft = tuple(int(f + (i - f) * 88 / 100) for f, i in zip(fill[:3], ink))
+
+    def lum(c):
+        def lin(v):
+            v /= 255.0
+            return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+        r, g, b = (lin(x) for x in c)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    a, b_ = lum(soft), lum(fill[:3])
+    hi, lo = max(a, b_), min(a, b_)
+    return soft if (hi + 0.05) / (lo + 0.05) >= 4.5 else ink
+
+
 def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
-    d.text((10, 5), PRODUCT, font=F4, fill=TEXT)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
     d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # Profile name: plain text on the byline row, no button chrome.
     d.text((124, 34), "Ava", font=F1, fill=TEXT)
@@ -1258,11 +1510,13 @@ def launcher_wide():
     sync_cx = wifi_cx - 8 - 6 - 6
     sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
     battery_badge(d, batt_right - batt_w // 2, 34)
-    d.line([(W - 138, 8), (W - 138, 40)], fill=OUTLINE)
-    d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)
+    # Third move: lW-116 -> lW-138 for Lock -> lW-160 for mute.
+    d.line([(W - 160, 8), (W - 160, 40)], fill=OUTLINE)
+    d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)   # gearRect(), unchanged
     # Lock at the left-hand end of the badge row, inside the hairline, at badge
     # size. See LauncherLayout::lockRect().
-    lock_icon(d, (W - 136, 25, 18, 18))
+    lock_icon(d, (W - 158, 25, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (W - 136, 25, CONTROL_H, CONTROL_H), False, TEXT)
     tiles = front_page_tiles(6)
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub) in enumerate(tiles):
@@ -1272,10 +1526,69 @@ def launcher_wide():
         d.rounded_rectangle([x, y, x + 144, y + 45], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 140, y + 1)], fill=shade(fill, 138))
         d.ellipse([x + 10, y + 8, x + 36, y + 34], fill=(120, 200, 255), outline=WHITE)
-        d.text((x + 46, y + 9), title, font=F2, fill=WHITE)
-        d.text((x + 46, y + 28), sub, font=F1, fill=(235, 245, 255))
+        d.text((x + 46, y + 9), title, font=F2, fill=on_fill(fill))
+        d.text((x + 46, y + 28), sub, font=F1, fill=on_fill_soft(fill))
     button(d, (8, 212, 74, 24), "Prev"); button(d, (W - 82, 212, 74, 24), "Next")
     d.text((W / 2 - 12, 217), page_label(6), font=F2, fill=TEXT)
+    return im
+
+
+def launcher_tall_dense():
+    """The 3x3 portrait grid, which only a panel 320px on its short side gets.
+
+    LauncherLayout::grid() switches to GRID_TALL_DENSE at DENSE_PORTRAIT_MIN_W,
+    so this is the 4-inch board stood on its end -- nine tiles, and the only
+    launcher layout no still had. Tiles come from the layout's own arithmetic
+    (GAP 8, header 78, footer 32), not from hand-placed rectangles.
+    """
+    w, h = 320, 480
+    im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
+    d.rectangle([0, 0, w - 1, 77], fill=SURFACE)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
+    d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
+           font=F1, fill=MUTED)
+    d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
+    d.text((8, 36), "Ava", font=F2, fill=TEXT)
+    d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
+    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
+    batt_w = battery_width(72)
+    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
+    battery_badge(d, bx + 40 + batt_w // 2, 60)
+    d.ellipse([w - 32, 48, w - 8, 72], outline=TEXT)
+    lock_icon(d, (w - 64, 51, CONTROL_H, CONTROL_H))
+    # Directly above the padlock, taking its x. It sat at w-96 for a release,
+    # which is neither beside nor above anything -- an icon floating in an
+    # empty row, reported off both portrait panels. Mirrors
+    # LauncherLayout::speakerRect(), which derives this from lockRect().
+    speaker_icon(d, (w - 64, 32, CONTROL_H, CONTROL_H), False, TEXT)
+
+    gap, header_h, footer_h, cols, rows_n = 8, 78, 32, 3, 3
+    tile_w = (w - gap * (cols + 1)) // cols
+    tile_h = (h - header_h - footer_h - gap * (rows_n + 1)) // rows_n
+    fills = (BLUE, GREEN, RED)
+    for slot, (title, sub) in enumerate(front_page_tiles(9)):
+        col, row = slot % cols, slot // cols
+        x = gap + col * (tile_w + gap)
+        y = header_h + gap + row * (tile_h + gap)
+        # LauncherLayout::tileFillIndex(): on a three-column grid `slot % 3`
+        # paints every column one colour, so it steps by row as well and the
+        # colours run diagonally. The mock had the striped version.
+        fill = fills[(col + row) % 3]
+        d.rounded_rectangle([x + 2, y + 3, x + tile_w + 1, y + tile_h + 2], 6, fill=SHADOW)
+        d.rounded_rectangle([x, y, x + tile_w - 1, y + tile_h - 1], 6, fill=fill)
+        d.line([(x + 4, y + 1), (x + tile_w - 5, y + 1)], fill=shade(fill, 138))
+        r = 13
+        d.ellipse([x + tile_w // 2 - r, y + 14, x + tile_w // 2 + r, y + 14 + 2 * r],
+                  fill=(120, 200, 255), outline=WHITE)
+        for text, fnt, yy, ink in ((title, F2, tile_h - 40, on_fill(fill)),
+                                   (sub, F1, tile_h - 22, on_fill_soft(fill))):
+            t = text
+            while d.textlength(t, font=fnt) > tile_w - 8 and len(t) > 2:
+                t = t[:-1]
+            d.text((x + tile_w / 2 - d.textlength(t, font=fnt) / 2, y + yy), t,
+                   font=fnt, fill=ink)
+    button(d, (8, h - 28, 74, 24), "Prev"); button(d, (w - 82, h - 28, 74, 24), "Next")
+    d.text((w / 2 - 12, h - 23), page_label(9), font=F2, fill=TEXT)
     return im
 
 
@@ -1283,7 +1596,7 @@ def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
     # Title left, copyright right, sharing the top row. See AppRuntimeLauncher.
-    d.text((10, 6), PRODUCT, font=F4, fill=TEXT)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
     d.text((232 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
            font=F1, fill=MUTED)
     d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
@@ -1296,7 +1609,11 @@ def launcher_tall():
     battery_badge(d, batt_left + batt_w // 2, 60)
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
-    lock_icon(d, (176, 51, 18, 18))
+    lock_icon(d, (176, 51, CONTROL_H, CONTROL_H))
+    # Profile-name row, because at 240px the badge row is full by x=155 -- but
+    # in the padlock's column, not floating in the middle of it. Mirrors
+    # LauncherLayout::speakerRect().
+    speaker_icon(d, (176, 32, CONTROL_H, CONTROL_H), False, TEXT)
     _fills = (BLUE, GREEN, RED, BLUE)
     tiles = [(t, sub, _fills[i % 4])
              for i, (t, sub) in enumerate(front_page_tiles(4))]
@@ -1311,7 +1628,7 @@ def launcher_tall():
             while d.textlength(s2, font=f) > 100 and len(s2) > 2:
                 s2 = s2[:-1]
             d.text((x + 54 - d.textlength(s2, font=f) / 2, y + yy), s2, font=f,
-                   fill=WHITE if f is F2 else (235, 245, 255))
+                   fill=on_fill(fill) if f is F2 else on_fill_soft(fill))
     button(d, (8, 292, 74, 24), "Prev"); button(d, (158, 292, 74, 24), "Next")
     d.text((110, 297), page_label(4), font=F2, fill=TEXT)
     return im
@@ -1362,13 +1679,13 @@ def settings_device():
     # Four rows of 30px from y=58, under the tab baseline. Network shares a
     # clock-settings row with the NTP resync cadence.
     button(d, (8, 58, 144, 30), "Theme: Dark")
-    button(d, (164, 58, 144, 30), "Menu: Tall")
+    button(d, (164, 58, 144, 30), "Menu: Landscape")
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
-    button(d, (8, 126, 144, 30), "Network", BLUE, WHITE)
+    button(d, (8, 126, 144, 30), "Network", ACCENT, on_fill(ACCENT))
     button(d, (164, 126, 144, 30), "Sync: 6h")
     button(d, (8, 160, 144, 30), "Nearby: On")
-    button(d, (164, 160, 144, 30), "Reset device", (120, 58, 58), WHITE)
+    button(d, (164, 160, 144, 30), "Reset device", shade(ERROR, 70), on_fill(shade(ERROR, 70)))
     d.text((8, 194), "Brightness", font=F1, fill=MUTED)
     d.text((312 - d.textlength("80%", font=F1), 194), "80%", font=F1, fill=MUTED)
     # slider: track, filled portion, handle -- mirrors Ui::drawSlider
@@ -1377,10 +1694,10 @@ def settings_device():
     pad, span = 11, r[2] - 22
     fill = int((80 - 25) / 75 * span)
     d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + span, cy + 4], 4, fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=BLUE)
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=ACCENT)
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
-    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
     return im
 
 
@@ -1415,22 +1732,33 @@ def wakelock(w=W, h=H):
     bx, by = (W - bw) // 2, (H - bh) // 2 + 37
     text_max = W - 16
 
-    # Header, two rows: wordmark and battery, then the copyright, then a
-    # hairline. Fixed, not drifting like the saver's -- this screen is up for
-    # seconds, not hours. The copyright gets its own row because the badge is
-    # variable width and all three do not fit across 240px. Mirrors the
-    # HEADER_* constants in AppRuntimeLock.cpp.
-    header_h, header_pad, row1_cy, row2_y = 40, 10, 14, 26
-    d.text((header_pad, row1_cy - 8), PRODUCT, font=F2, fill=TEXT)
-    batt_w = battery_width()
-    battery_badge(d, W - header_pad - batt_w // 2, row1_cy)
-    d.text((header_pad, row2_y), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-    d.line([(header_pad, header_h), (W - header_pad, header_h)], fill=OUTLINE)
+    # The mark, centred and at two thirds size, with the copyright under it --
+    # this is what the device shows sitting on a table, so it says what it is.
+    # The padlock is NOT here: it moved onto the "Locked" line below, where it
+    # labels the state instead of being a fourth stacked object. Mirrors
+    # AppRuntimeLock.cpp.
+    header_pad = 10
+    badge_w, badge_h, _, badge_cx = _logo_mask("BADGE_MID")
+    _draw_logo(d, W // 2, header_pad + badge_h // 2, TEXT, "BADGE_MID")
 
-    lock_icon(d, (W // 2 - 15, by - 82, 30, 30), MUTED, BG)
-    centered_fitted(d, "Locked", W / 2, by - 44, text_max, F4, TEXT)
+    # The padlock and the word as one centred group, measured together.
+    glyph, gap = 24, 8
+    locked_w = d.textlength("Locked", font=F4)
+    group_x = W / 2 - (glyph + gap + locked_w) / 2
+    lock_icon(d, (int(group_x), by - 44, glyph, glyph), MUTED, BG)
+    d.text((group_x + glyph + gap, by - 44), "Locked", font=F4, fill=TEXT)
     centered_fitted(d, "Press and hold the button", W / 2, by - 16, text_max, F1, MUTED)
-    button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)
+    button(d, (bx, by, bw, bh), "Hold to unlock", fill=ACCENT,
+           tc=on_fill(ACCENT))
+    # The battery is top right, level with the middle of the mark. It spent a
+    # release in the bottom corner, which put it in the way of the footer --
+    # that sentence is centred across the full width and deliberately picks
+    # the widest wording that fits. Up here the corner is empty, because the
+    # mark is only 50px wide and centred. Centred on the mark rather than at
+    # a typed-in y, as in AppRuntimeLock.cpp. Not drawn at all when there is
+    # no reading, where it used to show an empty shell that reads as an SD card.
+    batt_w = battery_width()
+    battery_badge(d, W - header_pad - batt_w // 2, header_pad + badge_h // 2)
     barx, bary, barh = bx, by + bh + 10, 10
     d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
     d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],
@@ -1475,12 +1803,15 @@ def settings_sound():
     fill = int(70 / 85 * span)          # value / AUDIO_VOLUME_MAX
     d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + span, cy + 4], 4,
                         fill=PANEL, outline=OUTLINE)
-    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=BLUE)
+    # ACCENT, not a chosen blue -- Ui::drawSlider and SettingsPanels both take
+    # the theme's colour. The mock showed blue on all nine, which is how the
+    # slider's own hard-coded blue survived the pass that fixed the buttons.
+    d.rounded_rectangle([r[0] + pad, cy - 4, r[0] + pad + fill, cy + 4], 4, fill=ACCENT)
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
-    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=BLUE)
-    button(d, (8, 148, 144, 30), "Test sound", BLUE, WHITE)
-    button(d, (164, 148, 144, 30), "Say hello", BLUE, WHITE)
+    d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
+    button(d, (8, 148, 144, 30), "Test sound", ACCENT, on_fill(ACCENT))
+    button(d, (164, 148, 144, 30), "Say hello", ACCENT, on_fill(ACCENT))
     d.text((8, 190), "Volume is capped for young ears.", font=F1, fill=MUTED)
     d.text((8, 206), "Every sound is made by the device, not a file.",
            font=F1, fill=MUTED)
@@ -1596,7 +1927,7 @@ def network_time():
     d.line([(52, 41), (306, 41)], fill=OUTLINE)
     d.text((14, 44), "DextersLab", font=F2, fill=TEXT)
     wifi_badge(d, 296, 54, 3)
-    button(d, (14, 64, 140, 30), "Scan Wi-Fi", BLUE, WHITE)
+    button(d, (14, 64, 140, 30), "Scan Wi-Fi", ACCENT, on_fill(ACCENT))
     button(d, (166, 64, 140, 30), "Forget")
     d.text((14, 102), "TIME", font=F1, fill=MUTED)
     d.line([(48, 109), (306, 109)], fill=OUTLINE)
@@ -1619,7 +1950,7 @@ def timezone_picker():
     for i, z in enumerate(zones):
         y = 46 + i * 28
         sel = (z == "US Central")
-        d.rounded_rectangle([8, y, 311, y + 25], 4, fill=BLUE if sel else SURFACE, outline=OUTLINE)
+        d.rounded_rectangle([8, y, 311, y + 25], 4, fill=ACCENT if sel else SURFACE, outline=OUTLINE)
         d.text((18, y + 6), z, font=F2, fill=WHITE if sel else TEXT)
     button(d, (8, 208, 90, 26), "Prev")
     button(d, (106, 208, 108, 26), "Cancel")
@@ -1627,15 +1958,60 @@ def timezone_picker():
     return im
 
 
+def _logo_mask(name="BADGE"):
+    """One generated mark, read out of src/ui/LogoMask.cpp.
+
+    Read rather than re-rasterised from the SVG: the point of a mock-up is to
+    show what the firmware draws, and what the firmware draws is this table.
+    `name` is BADGE, WORD or WORD_SMALL -- the same three Ui::Logo offers.
+    """
+    import re as _re
+    src = (ROOT / "src" / "ui" / "LogoMask.cpp").read_text(encoding="utf-8")
+    hdr = (ROOT / "src" / "ui" / "LogoMask.h").read_text(encoding="utf-8")
+    w = int(_re.search(r"%s_WIDTH = (\d+)" % name, hdr).group(1))
+    h = int(_re.search(r"%s_HEIGHT = (\d+)" % name, hdr).group(1))
+    centre = int(_re.search(r"%s_CENTRE = (\d+)" % name, hdr).group(1))
+    body = _re.search(r"%s_BITS\[[^\]]*\]\[[^\]]*\] = \{(.*?)\n\};" % name,
+                      src, _re.S).group(1)
+    rows = [[int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{2})", line)]
+            for line in _re.findall(r"\{([^{}]*0x[^{}]*)\}", body)]
+    assert len(rows) == h, "%s has %d rows, header says %d" % (name, len(rows), h)
+    return w, h, rows, centre
+
+
+def _draw_logo(d, cx, cy, colour, name="BADGE"):
+    """Ui::drawLogo(): the ink of the mask, as horizontal runs.
+
+    `cx` is the mark's OPTICAL centre, as in the firmware -- the trade mark
+    sign hangs off the right, so centring the bitmap would sit the mark left
+    of where it belongs.
+    """
+    w, h, rows, centre = _logo_mask(name)
+    x0, y0 = cx - centre, cy - h // 2
+    for y, row in enumerate(rows):
+        run = None
+        for x in range(w + 1):
+            on = x < w and (row[x >> 3] >> (7 - (x & 7))) & 1
+            if on and run is None:
+                run = x
+            elif not on and run is not None:
+                d.rectangle([x0 + run, y0 + y, x0 + x - 1, y0 + y], fill=colour)
+                run = None
+    return w, h
+
+
 def screensaver():
-    """Mirrors BrainoApp::renderScreenSaver(): the wordmark still and centred,
-    "Braino!" in a 60% shade of the rally colour, the battery at top centre,
+    """Mirrors BrainoApp::renderScreenSaver(): the product MARK still and
+    centred, in a 60% shade of the rally colour, the battery at top centre,
     and a net that skips the stretches behind both."""
     im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
     rally = (255, 160, 60)
     mid_x, mid_y = W // 2, H // 2
-    text_w = int(max(d.textlength(PRODUCT, font=F4), d.textlength(COPYRIGHT_SHORT, font=F1))) + 8
-    text_y, text_h = mid_y - 26, 48
+    logo_w, logo_h, _, logo_cx = _logo_mask("BADGE")
+    copy_gap = 8
+    block_h = logo_h + copy_gap + 8
+    text_y, text_h = mid_y - block_h // 2, block_h
+    text_w = int(max(logo_w, d.textlength(COPYRIGHT_SHORT, font=F1))) + 8
     bat_y, bat_h = 14 - 8, 16
     for y in range(0, H, 14):
         behind_text = y + 8 > text_y and y < text_y + text_h
@@ -1643,8 +2019,9 @@ def screensaver():
         if not behind_text and not behind_bat:
             d.rectangle([mid_x - 1, y, mid_x, y + 8], fill=(40, 40, 40))
     name = tuple(c * 60 // 100 for c in rally)
-    d.text((mid_x - d.textlength(PRODUCT, font=F4) / 2, mid_y - 22), PRODUCT, font=F4, fill=name)
-    d.text((mid_x - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, mid_y + 9), COPYRIGHT_SHORT, font=F1, fill=(70, 76, 92))
+    _draw_logo(d, mid_x, text_y + logo_h // 2, name)
+    d.text((mid_x - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, text_y + logo_h + copy_gap - 4),
+           COPYRIGHT_SHORT, font=F1, fill=(70, 76, 92))
     battery_badge(d, mid_x, 14, 72)
     d.rounded_rectangle([7, 70, 13, 110], 3, fill=rally)
     d.rounded_rectangle([307, 130, 313, 170], 3, fill=rally)
@@ -1653,9 +2030,118 @@ def screensaver():
     return im
 
 
+# ---- Go --------------------------------------------------------------------
+# Geometry from src/games/GoDraw.cpp: BX, BY, STEP and MARGIN for the 9x9
+# board, and the panel rectangles derived from the board's box.
+GO_BX, GO_BY, GO_STEP, GO_MARGIN = 5, 34, 23, 9
+GO_BOX = 8 * GO_STEP + 2 * GO_MARGIN
+GO_PX = GO_BX + GO_BOX + 4
+GO_PW = W - GO_PX - 4
+GO_WOOD, GO_GRID = (196, 152, 88), (92, 66, 34)
+GO_BLACK, GO_BLACK_EDGE = (38, 38, 48), (96, 96, 112)
+GO_WHITE, GO_WHITE_EDGE = (244, 241, 232), (150, 145, 132)
+GO_HI, GO_MARK = (120, 230, 255), (247, 61, 82)
+
+
+def _go_xy(r, c):
+    return GO_BX + GO_MARGIN + c * GO_STEP, GO_BY + GO_MARGIN + r * GO_STEP
+
+
+def _go_stone(d, x, y, rad, black, faded=False):
+    fill = GO_BLACK if black else GO_WHITE
+    edge = GO_BLACK_EDGE if black else GO_WHITE_EDGE
+    if faded:
+        fill = tuple((a + b) // 2 for a, b in zip(fill, GO_WOOD))
+        edge = tuple((a + b) // 2 for a, b in zip(edge, GO_WOOD))
+    else:
+        d.ellipse([x - rad + 1, y - rad + 2, x + rad + 1, y + rad + 2],
+                  fill=tuple(v * 55 // 100 for v in GO_WOOD))
+    d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=fill, outline=edge)
+    if not faded:
+        hr = max(1, rad // 4)
+        hx, hy = x - rad // 3, y - rad // 3
+        d.ellipse([hx - hr, hy - hr, hx + hr, hy + hr],
+                  fill=shade(fill, 160) if black else (255, 255, 255))
+
+
+def go():
+    """Go, 9x9, against the computer under Area rules: a white stone in atari,
+    Black's ghost on the point that takes it, and the panel saying so.
+
+    The board is drawn as the device draws it -- wood, the grid, the five
+    star points, stones at 46% of a step -- and every rectangle in the panel
+    is the one GoDraw.cpp derives from the board's box."""
+    im, d = blank(); topbar(d, "Go")
+    d.rectangle([GO_BX, GO_BY, GO_BX + GO_BOX - 1, GO_BY + GO_BOX - 1], fill=GO_WOOD)
+    for i in range(9):
+        x0, y = _go_xy(i, 0); x1, _ = _go_xy(i, 8)
+        d.line([(x0, y), (x1, y)], fill=GO_GRID)
+        x, y0 = _go_xy(0, i); _, y1 = _go_xy(8, i)
+        d.line([(x, y0), (x, y1)], fill=GO_GRID)
+    for r, c in ((2, 2), (2, 6), (6, 2), (6, 6), (4, 4)):
+        x, y = _go_xy(r, c)
+        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=GO_GRID)
+    black = [(2, 2), (2, 3), (3, 1), (4, 1), (5, 2), (6, 3), (6, 5), (5, 6), (4, 6),
+             (3, 6), (2, 5), (1, 6)]
+    white = [(3, 2), (4, 2), (4, 3), (5, 3), (5, 4), (3, 4), (2, 6), (1, 4), (6, 6)]
+    rad = GO_STEP * 46 // 100
+    for r, c in black:
+        _go_stone(d, *_go_xy(r, c), rad, True)
+    for r, c in white:
+        _go_stone(d, *_go_xy(r, c), rad, False)
+    x, y = _go_xy(1, 6)   # the last move
+    d.ellipse([x - rad // 2, y - rad // 2, x + rad // 2, y + rad // 2], outline=GO_MARK)
+    x, y = _go_xy(2, 7)   # the ghost
+    mixed = tuple((a + b) // 2 for a, b in zip(GO_BLACK, GO_WOOD))
+    d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=mixed, outline=GO_HI)
+    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        d.line([(x + dx * (rad + 1), y + dy * (rad + 1)), (x + dx * (rad + 4), y + dy * (rad + 4))],
+               fill=GO_HI)
+
+    px, pw = GO_PX, GO_PW
+    d.rounded_rectangle([px, 34, px + pw - 1, 55], 6, fill=SURFACE, outline=OUTLINE)
+    _go_stone(d, px + 12, 45, 8, True)
+    d.text((px + 28, 45), "Your turn", font=F2, fill=TEXT, anchor="lm")
+    d.text((px, 60), "Captured", font=F1, fill=MUTED)
+    _go_stone(d, px + 10, 82, 8, True)
+    d.text((px + 24, 82), "3", font=F4, fill=TEXT, anchor="lm")
+    _go_stone(d, px + 58, 82, 8, False)
+    d.text((px + 72, 82), "1", font=F4, fill=TEXT, anchor="lm")
+    d.rounded_rectangle([px, 96, px + pw - 1, 129], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((px + 6, 101), "Tap again to play", font=F1, fill=MUTED)
+    d.text((px + 6, 112), "H7 takes 1", font=F2, fill=SUCCESS)
+    button(d, (px, 136, pw, 26), "Pass")
+    button(d, (px, 166, pw, 24), "Undo")
+    button(d, (px, 194, pw, 26), "End game")
+    return im
+
+
+def go_lobby():
+    """Go's lobby: the Rules and Level chips, then one console, the computer,
+    and a console in the room offering a game. The Board chip appears only
+    on a panel wide enough for 19x19, which the 2.8-inch is not."""
+    im, d = blank(); topbar(d, "Go")
+    chips = [("Rules", "Capture 1"), ("Level", "Easy")]
+    cw = (W - 16 - 5) // 2
+    for i, (label, value) in enumerate(chips):
+        x = 8 + i * (cw + 5)
+        d.rounded_rectangle([x, 36, x + cw - 1, 61], 6, fill=SURFACE, outline=OUTLINE)
+        d.text((x + 7, 39), label, font=F1, fill=MUTED)
+        d.text((x + 7, 48), value, font=F2, fill=TEXT)
+        d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
+    rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+    for r, (label, fill, ink) in enumerate(rows):
+        button(d, (8, 70 + r * 36, W - 16, 31), label, fill=fill, tc=ink)
+    d.text((W // 2, H - 4), "Moves travel by Bluetooth. Anyone near hears them.",
+           font=F1, fill=MUTED, anchor="ms")
+    return im
+
+
 SCREENS = [
     ("launcher-wide", launcher_wide, "Home screen, Wide layout"),
     ("launcher-tall", launcher_tall, "Home screen, Tall layout"),
+    ("launcher-tall-dense", launcher_tall_dense, "Home screen, Tall layout on a 4-inch panel"),
     ("flags-country", flags_country, "Flags: name the country"),
     ("flags-capital", flags_capital, "Flags: capital-city bonus"),
     ("states", states, "US States: name the capital"),
@@ -1663,6 +2149,7 @@ SCREENS = [
     ("statemaps", statemaps, "State Maps: name the outline"),
     ("trace", trace, "Trace: uppercase and digits"),
     ("trace-lower", trace_lower, "Trace: lowercase letters"),
+    ("trace-words", trace_words, "Trace: printed words"),
     ("fingers-count", fingers_count, "Finger Counting: count them"),
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("cinnamon", cinnamon, "Cinnamon Says"),
@@ -2268,6 +2755,83 @@ def nearby():
     return im
 
 
+def about_intro():
+    """About, page one: the mark, the version, and what is on the device.
+
+    THIS PAGE HAD NO MOCK-UP UNTIL THE MARK WAS DRAWN ON IT WRONG. The three
+    other About pages had one each; this one -- the first page anybody sees --
+    did not, so when the product name became artwork there was nothing to look
+    at, and a wordmark whose bottom rows were painted over by the copyright
+    line beneath it shipped. The lines below are the real y positions from
+    AboutGame::renderIntro(), so the collision would have been visible here.
+    """
+    import re as _re
+    from app_registry_parser import playable_apps
+    version = _re.search(r'BRAINO_VERSION\s+"([^"]+)"',
+                         (ROOT / "include" / "AppVersion.h").read_text(encoding="utf-8")).group(1)
+    board = _re.search(r'BOARD_NAME=\\"([^"\\]+)',
+                       (ROOT / "platformio.ini").read_text(encoding="utf-8")).group(1)
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    _draw_logo(d, 14 + _logo_mask("WORD_SMALL")[3],
+               48 + _logo_mask("WORD_SMALL")[1] // 2, TEXT, "WORD_SMALL")
+    for y, text, font, colour in (
+            (70, COPYRIGHT_SHORT, F1, MUTED),
+            (84, "Educational games for the %s." % board, F1, MUTED),
+            (98, "Copyright 2026.", F1, MUTED),
+            (116, "Version %s" % version, F2, TEXT),
+            (140, "%d games built in" % len(playable_apps()), F2, TEXT),
+            (156, "195 flags and 50 US states,", F1, MUTED),
+            (170, "all stored on the device.", F1, MUTED),
+            (184, "Up to 5 players, plus a Guest.", F1, MUTED)):
+        d.text((14, y), text, font=font, fill=colour)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "1/10", font=F2, fill=MUTED)
+    return im
+
+
+def about_password():
+    """About: where the Wi-Fi password lives, said on the device."""
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "The Wi-Fi password", font=F2, fill=TEXT)
+    for y, text, colour in ((70, "Kept in this device's memory", TEXT),
+                            (84, "as plain text, not encrypted.", TEXT),
+                            (102, "Anyone holding the device with", MUTED),
+                            (116, "a USB cable can read it. Over", MUTED),
+                            (130, "the air, nobody can.", MUTED),
+                            (148, "This is how nearly every ESP32", MUTED),
+                            (162, "device works, open source or", MUTED),
+                            (176, "not. It is not specific to us.", MUTED)):
+        d.text((14, y), text, font=F1, fill=colour)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "8/12", font=F2, fill=MUTED)
+    return im
+
+
+def about_warranty():
+    """About: what the owner is accepting by using it."""
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "Use it knowing this", font=F2, fill=TEXT)
+    for y, text, colour in ((70, "Use a network you would not", TEXT),
+                            (84, "mind sharing: a phone hotspot,", TEXT),
+                            (98, "or a guest network.", TEXT),
+                            (116, "This console is provided as is,", MUTED),
+                            (130, "with no warranty and no", MUTED),
+                            (144, "responsibility accepted for any", MUTED),
+                            (158, "loss or damage. Using it means", MUTED),
+                            (172, "accepting that, and the risk", MUTED),
+                            (186, "described here.", MUTED)):
+        d.text((14, y), text, font=F1, fill=colour)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "9/12", font=F2, fill=MUTED)
+    return im
+
+
 def about_radios():
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
@@ -2472,7 +3036,7 @@ def scores_mine():
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
-    button(d, (104, 208, 112, 26), "Switch player", BLUE, WHITE, F2)
+    button(d, (104, 208, 112, 26), "Switch player", ACCENT, on_fill(ACCENT), F2)
     button(d, (224, 208, 88, 26), "Next")
     return im
 
@@ -2511,7 +3075,7 @@ def scores_device():
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
-    button(d, (104, 208, 112, 26), "Switch player", BLUE, WHITE, F2)
+    button(d, (104, 208, 112, 26), "Switch player", ACCENT, on_fill(ACCENT), F2)
     button(d, (224, 208, 88, 26), "Next")
     return im
 
@@ -2520,7 +3084,7 @@ def profiles_pick():
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     # Header band
     d.rectangle([0, 0, W, 30], fill=SURFACE)
-    d.text((10, 15 - 9), PRODUCT, font=F4, fill=TEXT)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 15, TEXT, "WORD")
     d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # "Who is playing?" and guest hint. Baselines come from ProfileApp::render:
     # promptY = 32 in landscape, and the hint sits 18px below it.
@@ -2533,7 +3097,7 @@ def profiles_pick():
         y = 60 + i * 25
         slot_w = W - 22 - 62
         # Profile slot
-        d.rounded_rectangle([8, y, 8 + slot_w, y + 23], 4, fill=PANEL if prof != "Alice" else BLUE, outline=OUTLINE)
+        d.rounded_rectangle([8, y, 8 + slot_w, y + 23], 4, fill=PANEL if prof != "Alice" else ACCENT, outline=OUTLINE)
         d.text((8 + 4 + (slot_w - 8 - d.textlength(prof, font=F2)) / 2, y + 23 / 2 - 6),
                prof, font=F2, fill=WHITE if prof == "Alice" else TEXT)
         # Edit button for non-Guest
@@ -2647,7 +3211,7 @@ def dice():
     for i, label in enumerate("123"):
         on = label == "3"
         button(d, (86 + i * 52, 46, 44, 26), label,
-               BLUE if on else PANEL, WHITE if on else TEXT)
+               ACCENT if on else PANEL, on_fill(ACCENT) if on else TEXT)
 
     faces = (5, 2, 6)
     span = 3 * 68 + 2 * 14
@@ -2677,7 +3241,7 @@ def coinflip():
     for i, label in enumerate("135"):
         on = label == "5"
         button(d, (86 + i * 52, 46, 44, 26), label,
-               BLUE if on else PANEL, WHITE if on else TEXT)
+               ACCENT if on else PANEL, on_fill(ACCENT) if on else TEXT)
 
     # The settled coin: full width, so it carries a readable face.
     d.ellipse([126, 82, 194, 150], fill=COIN_FACE, outline=COIN_EDGE)
@@ -2734,7 +3298,8 @@ def _e_tabs(d, active):
     d.line([(0, 52), (319, 52)], fill=OUTLINE)
 
 
-def _e_strip(d, text, ink=TEXT):
+def _e_strip(d, text, ink=None):
+    ink = TEXT if ink is None else ink
     d.rounded_rectangle([6, 56, W - 7, 82], 5, fill=SURFACE, outline=OUTLINE)
     font = F2 if d.textlength(text, font=F2) <= W - 24 else F1
     d.text((W / 2 - d.textlength(text, font=font) / 2, 69 - (7 if font is F2 else 5)),
@@ -3128,7 +3693,10 @@ EXTRA_SCREENS = [
     ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
+    ("about-intro", about_intro, "About: the mark, the version, what is inside"),
     ("about-radios", about_radios, "About: what the radios do"),
+    ("about-password", about_password, "About: where the Wi-Fi password lives"),
+    ("about-warranty", about_warranty, "About: no warranty, and the risk accepted"),
     ("about-build", about_build, "About: which build is on the device"),
     ("about-updates", about_updates, "About: whether a newer firmware exists"),
     ("tictactoe", tictactoe, "Tic-Tac-Toe"),
@@ -3167,12 +3735,117 @@ EXTRA_SCREENS = [
     ("ludo-table", ludo_table, "Ludo: inviting consoles in the room"),
     ("backgammon", backgammon, "Backgammon: a checker picked up, where it can go"),
     ("backgammon-lobby", backgammon_lobby, "Backgammon: one console, the computer, or nearby"),
+    ("go", go, "Go: a ghost stone where the finger landed, the panel saying what it takes"),
+    ("go-lobby", go_lobby, "Go: rules and level chips, one console, the computer, or nearby"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 SCREENS.extend(PORTRAIT_SCREENS)
 
 
+# --- every screen, in every theme ------------------------------------------
+#
+# THE STILLS ABOVE ARE ALL DARK, AND EIGHT OTHER THEMES SHIP.
+#
+# Every mock-up in this file is drawn in the Dark palette, because that is what
+# the constants at the top hold -- so the other eight were never looked at, and
+# the faults they had were exactly the ones nobody sees in a screenshot: a Home
+# button drawn white on Classic's white bar, a battery badge in a grey chosen
+# for Dark sitting on Silver's silver and Pocket's green, secondary text at
+# 1.2:1 on a teal desktop. tools/check_contrast.py measures the palette, but a
+# ratio cannot tell you that a glyph is drawn in a colour the palette never
+# chose.
+#
+# So: `python tools/gen_screens.py --themes` re-renders a representative set of
+# screens in each of the nine palettes and writes one contact sheet per theme
+# to docs/theme-sheets/. Look at them. They are the only place a chrome colour
+# that ignores the theme shows up before the device does.
+
+THEME_SHEET_SCREENS = (
+    "launcher-wide",        # tiles, header, the badge row
+    "launcher-tall",        # PORTRAIT: a different header and a 2x2 grid
+    "launcher-tall-dense",  # PORTRAIT on a big panel: the 3x3 grid
+    "about-intro",          # a card of body text, the mark
+    # EVERY Settings tab, not just the first. They are four different layouts
+    # -- toggles, a slider, a PIN pad -- and only Device was ever looked at.
+    "settings-device",      # controls on a card
+    "settings-power",       # rows that go inert, so two ink weights at once
+    "settings-sound",       # a slider and its track
+    "settings-admin",       # destructive actions, the error colour
+    "settings-pin",         # a keypad and its dots
+    "systeminfo-memory",    # dense rows, meters, muted labels
+    "scores",               # a list with values
+    "math",                 # a game: big text and answer buttons
+    "trace",                # a game with its own canvas colours
+    "wakelock",             # chrome on the bare ground
+)
+
+
+def _palette_rgb(value):
+    """RGB565 as the panel expands it, which is what the eye sees."""
+    r, g, b = (value >> 11) & 0x1F, (value >> 5) & 0x3F, value & 0x1F
+    return ((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2))
+
+
+def apply_theme(palette):
+    """Point every colour in this file at one row of Ui.cpp's PALETTES.
+
+    Read from the firmware's own table rather than restated here -- the whole
+    value of the sheet is that it shows what the device will draw.
+    """
+    global BG, SURFACE, PANEL, TEXT, MUTED, OUTLINE, SUCCESS, ERROR, WARN
+    global BAR, BAR_TEXT, BLUE, GREEN, RED, ACCENT
+    BG = _palette_rgb(palette["bg"])
+    SURFACE = _palette_rgb(palette["surface"])
+    PANEL = _palette_rgb(palette["panel"])
+    TEXT = _palette_rgb(palette["text"])
+    MUTED = _palette_rgb(palette["muted"])
+    OUTLINE = _palette_rgb(palette["outline"])
+    SUCCESS = _palette_rgb(palette["success"])
+    ERROR = _palette_rgb(palette["error"])
+    WARN = _palette_rgb(palette["warning"])
+    BAR = _palette_rgb(palette["bar"])
+    BAR_TEXT = _palette_rgb(palette["barText"])
+    BLUE, GREEN, RED = (_palette_rgb(t) for t in palette["tile"])
+    ACCENT = _palette_rgb(palette["accent"])
+
+
+def theme_sheets():
+    """One contact sheet per theme, into docs/theme-sheets/."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    from check_contrast import parse_palettes
+    out = ROOT / "docs" / "theme-sheets"
+    out.mkdir(parents=True, exist_ok=True)
+    by_name = {name: fn for name, fn, _ in SCREENS}
+    for palette in parse_palettes():
+        apply_theme(palette)
+        shots = []
+        for name in THEME_SHEET_SCREENS:
+            if name in by_name:
+                shots.append((name, by_name[name]()))
+        cols = 4
+        cw = max(s.width for _, s in shots) + 10
+        ch = max(s.height for _, s in shots) + 26
+        rows = (len(shots) + cols - 1) // cols
+        sheet = Image.new("RGB", (cols * cw + 10, rows * ch + 30), (26, 26, 30))
+        draw = ImageDraw.Draw(sheet)
+        draw.text((12, 8), "%s  --  %d screens" % (palette["name"], len(shots)),
+                  font=F2, fill=(240, 240, 240))
+        for i, (name, shot) in enumerate(shots):
+            x, y = 10 + (i % cols) * cw, 30 + (i // cols) * ch
+            draw.text((x, y), name, font=F1, fill=(170, 170, 175))
+            sheet.paste(shot, (x, y + 14))
+        path = out / ("%s.png" % palette["name"].lower().replace(" ", "-"))
+        sheet.save(path)
+        print("  %s" % path.name)
+    # No restore: this only ever runs as its own invocation, and leaving the
+    # last theme in the globals cannot reach the ordinary stills.
+    print("wrote %d theme sheets to %s" % (len(parse_palettes()), out))
+
+
 def main() -> None:
+    if "--themes" in sys.argv:
+        theme_sheets()
+        return
     OUT.mkdir(parents=True, exist_ok=True)
     if not HAVE_ART:
         print("NOTE: map-n-flag checkout not found; flag/outline art will be blank")

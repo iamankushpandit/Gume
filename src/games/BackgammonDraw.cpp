@@ -401,11 +401,15 @@ void BackgammonGame::renderLobby(AppContext& host) {
     }
     /* Why a game just vanished, else what nearby play is and who can switch
      * it on -- an adult, since the radio is admin-only; playing is not. */
+    /* A low battery outranks the usual note, below a note about a game that
+     * just ended: a console that dies mid-game cannot tell anyone. */
+    const bool low = lobbyNote_[0] == 0 && seatCount_ > 0 && host.batteryLow();
     const char* note = lobbyNote_[0] != 0 ? lobbyNote_
+                       : low              ? "Battery low: a nearby game may not finish."
                        : seatCount_ > 0   ? "Moves travel by Bluetooth. Anyone near hears them."
                                           : "Nearby play: an adult can switch Beacon and Nearby on.";
     tft.setTextDatum(BC_DATUM);
-    tft.setTextColor(lobbyNote_[0] != 0 ? Ui::warning() : Ui::muted(), Ui::bg());
+    tft.setTextColor(lobbyNote_[0] != 0 || low ? Ui::warning() : Ui::muted(), Ui::bg());
     tft.drawString(note, GAME_CANVAS_WIDTH / 2, GAME_CANVAS_HEIGHT - 4, lobbyNote_[0] != 0 ? 2 : 1);
     tft.setTextDatum(TL_DATUM);
 }
@@ -431,6 +435,8 @@ void BackgammonGame::renderStatic(AppContext& host) {
     drawnDice_ = 0xFFFFFFFFU;
     drawnNews_ = 0xFFFFFFFFU;
     drawnButtons_ = 0xFFFF;
+    pausePainted_ = false;   // the board was just repainted under it
+    drawPause(tft);
 }
 
 void BackgammonGame::renderDynamic(AppContext& host) {
@@ -443,6 +449,7 @@ void BackgammonGame::renderDynamic(AppContext& host) {
         return;
     }
     if (dirtyPlaces_ != 0) {
+        pausePainted_ = false;   // a place under the card
         for (uint8_t i = 0; i < Bg::POINTS; ++i) {
             if (dirtyPlaces_ & (1UL << i)) drawPoint(tft, i);
         }
@@ -451,4 +458,10 @@ void BackgammonGame::renderDynamic(AppContext& host) {
         dirtyPlaces_ = 0;
     }
     drawPanel(tft);
+    drawPause(tft);
+}
+
+Rect BackgammonGame::boardArea() {
+    return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),
+                static_cast<int16_t>(BOARD_R - BX + 4), static_cast<int16_t>(BOARD_H + 4)};
 }

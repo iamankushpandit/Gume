@@ -193,6 +193,8 @@ uint8_t scriptAt = 0;
 int32_t segTotal = 0;        // samples in the segment being played
 int32_t segLeft = 0;         // samples of it still to generate
 bool playing = false;
+/* The script is spent and the last segment is fading out. See nextSample(). */
+bool releasing = false;
 
 bool codecUp = false;
 bool dacUp = false;
@@ -241,6 +243,19 @@ constexpr float FORMANT_BANDWIDTH = 60.0f;
  * Slewing one gain fixes both, and means no segment needs its own envelope
  * or its own ramp length. */
 constexpr float GAIN_SLEW = 1.0f / (0.004f * AUDIO_RATE);
+
+/* THE END OF A SOUND IS FADED TOO, AND FOR THE SAME REASON.
+ *
+ * The slew above only ever ran towards a segment's level: when a script ran
+ * out, the next sample was simply zero, wherever the waveform happened to be.
+ * A sine stopped at its crest is a step of the whole amplitude, which is a
+ * click -- and it was recorded on the device as one at the end of every piano
+ * note, about 300ms after the one at its start. So a finished script keeps its
+ * last segment's waveform running while the gain slews to zero, and only
+ * stops once it is below this. Six time constants of the 4ms slew, ~25ms,
+ * and at OUTPUT_SCALE the residue is under a quarter of one step of the 8-bit
+ * DAC: inaudible by construction rather than by ear. */
+constexpr float RELEASE_FLOOR = 0.002f;
 
 /* Noise through a resonator is far quieter than an impulse train through the
  * same one, because its energy is spread rather than concentrated at the
@@ -316,18 +331,25 @@ void startSegment() {
 /* Generates one sample and advances the script. Returns false once the whole
  * script is spent, at which point the caller stops asking. */
 bool nextSample(int16_t& out) {
-    while (segLeft <= 0) {
+    while (segLeft <= 0 && !releasing) {
         if (scriptAt + 1 >= scriptLength) {
-            playing = false;
-            out = 0;
-            return false;
+            releasing = true;
+            gainTarget = 0.0f;
+            break;
         }
         ++scriptAt;
         startSegment();
     }
+    if (releasing && gain < RELEASE_FLOOR) {
+        playing = false;
+        releasing = false;
+        gain = 0.0f;
+        out = 0;
+        return false;
+    }
 
     const Segment& s = script[scriptAt];
-    --segLeft;
+    if (!releasing) --segLeft;   // a release holds the segment's last pitch
 
     float value = 0.0f;
     switch (s.wave) {
@@ -399,7 +421,14 @@ TaskHandle_t audioTask = nullptr;
 /* The DAC backend scales amplitude in software, so the generator needs the
  * volume without a Board& to read it from. Mirrored rather than read through
  * Preferences for the usual reason: this is on the path of every sample. */
-uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
+/* [[maybe_unused]] rather than a tighter guard, deliberately. Its reads and
+ * writes sit in a mix of GUME_HAS_AUDIO_CODEC and GUME_HAS_AUDIO_DAC blocks
+ * while the definition covers either, so on the codec-only Freenove it came
+ * out defined and unreferenced. Reshaping those guards to match is a change
+ * to which board scales volume where, on evidence I cannot read confidently
+ * from the preprocessor alone -- and this is one byte. The attribute says
+ * exactly what is true: used in some configurations, not all. */
+[[maybe_unused]] uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
 
 /* Generation runs AHEAD of playback, and that is the whole point of the DMA:
  * tickAudio() fills it as fast as it will take samples, so `playing` goes
@@ -411,7 +440,12 @@ uint8_t outputVolume = Board::AUDIO_VOLUME_DEFAULT;
  * ones -- which is most of the vocabulary -- it cuts off the whole thing: the
  * sound is sitting in the DMA when the amp stops being able to reproduce it.
  * So the amp is held for the DMA depth plus margin after generation ends. */
-constexpr uint32_t AMP_TAIL_MS = 150;
+/* And held for a good while longer than that. The amplifier on the CYD boards
+ * is an 8002 behind an enable line, and switching it is itself a pop -- which
+ * at 150ms happened twice for every piano note, because a child plays notes
+ * further apart than that. Two seconds keeps it on through anything that is
+ * being played and still lets an idle console drop it. */
+constexpr uint32_t AMP_TAIL_MS = 2000;
 
 void setAmp(bool on) {
     if (BOARD.audio.ampEnablePin == PIN_NONE || ampOn == on) return;
@@ -478,6 +512,17 @@ uint8_t pending[128 * 2 * sizeof(int16_t)];
 size_t pendingLength = 0;
 size_t pendingAt = 0;
 
+constexpr int BLOCK_FRAMES = 128;
+constexpr int DMA_BUF_COUNT = 6;
+constexpr int DMA_BUF_LEN = 256;
+
+#if GUME_HAS_AUDIO_DAC
+/* Frames of mid-scale still to be written before an idle DAC is parked; zero
+ * once it is. Set by generateBlock() whenever it produces anything, drained
+ * by fillDacIdle(). See there. */
+int dacIdleLeft = 0;
+#endif
+
 /* ------------------------------------------------------------- authoring
  *
  * A cue is a const Segment array; `arm()` copies it in and starts it. Copying
@@ -532,6 +577,7 @@ void arm(const Segment* segments, uint8_t count) {
     pendingLength = 0;
     pendingAt = 0;
     playing = true;
+    releasing = false;
     startSegment();
     ampIdleSinceMs = 0;   // producing again: the tail timer restarts from here
     setAmp(true);
@@ -579,6 +625,7 @@ size_t generateBlock(uint8_t* dst, int frames) {
         slots[n * 2] = dac;
         slots[n * 2 + 1] = dac;   // mono on both DAC channels
     }
+    if (n > 0) dacIdleLeft = DMA_BUF_COUNT * DMA_BUF_LEN;   // re-park when done
     return static_cast<size_t>(n) * 2 * sizeof(uint16_t);
 #endif
 }
@@ -598,7 +645,41 @@ void tickAmpTail() {
     }
 }
 
-constexpr int BLOCK_FRAMES = 128;
+#if GUME_HAS_AUDIO_DAC
+/* SILENCE ON THE BUILT-IN DAC IS MID-SCALE, AND THE DRIVER DID NOT KNOW THAT.
+ *
+ * The DMA was set up with tx_desc_auto_clear, which fills a buffer with ZERO
+ * words whenever there is nothing new to send. For a codec that is silence.
+ * For this DAC a zero word is 0 V, while every sound is centred on mid-scale:
+ * so the speaker line fell from mid-rail to ground at the end of every sound
+ * and jumped back up at the start of the next. That is a click on both edges
+ * of every cue on every DAC board -- the "kit ... kit" recorded around each
+ * piano note, and the beeps that clicked all over the device.
+ *
+ * So on this backend auto-clear is off, which makes an idle DMA replay what is
+ * already in its buffers, and this fills every one of them with mid-scale once
+ * a sound has finished. What an idle DMA then replays is silence at the level
+ * the sound ended on.
+ *
+ * With a wait it blocks until every buffer is parked; with a zero wait it
+ * writes what fits and is called again next frame -- that is the loop-driven
+ * fallback, which must never block. Both drains call it, because a DMA that
+ * is never parked replays the tail of the last sound over and over. The task
+ * calls it outside audioLock, like its own blocking write; the fallback calls
+ * it under the lock with a zero wait, which cannot block. */
+void fillDacIdle(TickType_t wait) {
+    static uint16_t mid[BLOCK_FRAMES * 2];
+    if (mid[0] != 0x8000) {
+        for (uint16_t& w : mid) w = 0x8000;
+    }
+    while (dacIdleLeft > 0) {
+        size_t written = 0;
+        i2s_write(I2S_NUM_0, mid, sizeof(mid), &written, wait);
+        dacIdleLeft -= static_cast<int>(written / (2 * sizeof(uint16_t)));
+        if (written < sizeof(mid)) return;   // DMA full: the next call finishes
+    }
+}
+#endif
 
 void audioTaskFn(void*) {
     /* Task-owned, so the blocking write below reads a buffer nothing else can
@@ -610,6 +691,11 @@ void audioTaskFn(void*) {
         bytes = generateBlock(out, BLOCK_FRAMES);
         if (bytes == 0) tickAmpTail();
         xSemaphoreGive(audioLock);
+
+#if GUME_HAS_AUDIO_DAC
+        /* Once per sound, as it ends: park the DAC at mid-scale. */
+        if (bytes == 0 && dacIdleLeft > 0) fillDacIdle(pdMS_TO_TICKS(500));
+#endif
 
         if (bytes == 0) {
             /* Nothing to make. Sleep until something is armed -- with a short
@@ -967,8 +1053,8 @@ void Board::beginAudio() {
     cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
     cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
     cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-    cfg.dma_buf_count = 6;
-    cfg.dma_buf_len = 256;
+    cfg.dma_buf_count = DMA_BUF_COUNT;
+    cfg.dma_buf_len = DMA_BUF_LEN;
     cfg.tx_desc_auto_clear = true;
     cfg.mclk_multiple = I2S_MCLK_MULTIPLE_384;
     cfg.use_apll = true;           /* 160MHz will not divide to 6.144MHz   */
@@ -1064,9 +1150,11 @@ void Board::beginAudio() {
      * is a different question -- do not unify them. */
     cfg.communication_format = I2S_COMM_FORMAT_STAND_MSB;
     cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-    cfg.dma_buf_count = 6;
-    cfg.dma_buf_len = 256;
-    cfg.tx_desc_auto_clear = true;
+    cfg.dma_buf_count = DMA_BUF_COUNT;
+    cfg.dma_buf_len = DMA_BUF_LEN;
+    /* OFF, unlike the codec: a cleared buffer is 0 V here, not silence. See
+     * fillDacIdle(), which is what an idle DMA replays instead. */
+    cfg.tx_desc_auto_clear = false;
     cfg.use_apll = false;          /* built-in DAC does not need APLL       */
 
     if (i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr) != ESP_OK) {
@@ -1115,19 +1203,13 @@ void Board::beginAudio() {
                       GET_PERI_REG_MASK(padReg, RTC_IO_PDAC1_XPD_DAC) != 0 ? 1 : 0);
     }
 
-    /* Write mid-scale (0x8000) to silence the DAC output without snapping it
-     * to zero (which would DC-bias the speaker through the ground reference)
-     * or to full scale (which would pop). Mid-scale is the natural "nothing
-     * playing" level for an unsigned 8-bit DAC driven by offset-binary 16-bit
-     * words. The DMA will hold this value until the first real sample arrives,
-     * rather than leaving the DAC in the undefined state from boot. */
-    {
-        const uint16_t silence = 0x8000;
-        uint16_t buf[32];
-        for (int i = 0; i < 32; ++i) buf[i] = silence;
-        size_t written = 0;
-        i2s_write(I2S_NUM_0, buf, sizeof(buf), &written, 0);
-    }
+    /* Park the output at mid-scale (0x8000) -- the natural "nothing playing"
+     * level for an unsigned 8-bit DAC driven by offset-binary words -- in
+     * EVERY DMA buffer, not just the first few frames. With auto-clear off the
+     * DMA replays its buffers until the first sound, and any left holding the
+     * driver's zeros would put 0 V on the speaker line in between. */
+    dacIdleLeft = DMA_BUF_COUNT * DMA_BUF_LEN;
+    fillDacIdle(pdMS_TO_TICKS(200));
 
     dacUp = true;
     /* The pin comes from the profile rather than the format string: this line
@@ -1189,7 +1271,12 @@ void Board::tickAudio() {
         if (pendingAt < pendingLength) break;   /* DMA full; finish next frame */
     }
 
-    if (!playing && pendingAt >= pendingLength) tickAmpTail();
+    if (!playing && pendingAt >= pendingLength) {
+        tickAmpTail();
+#if GUME_HAS_AUDIO_DAC
+        if (dacIdleLeft > 0) fillDacIdle(0);
+#endif
+    }
     if (audioLock != nullptr) xSemaphoreGive(audioLock);
 #endif
 }
@@ -1297,15 +1384,19 @@ void Board::setSoundEnabled(bool on) {
     /* Muting stops what is already sounding rather than letting it finish.
      * The boot phrase is a second and a half long and Mute is exactly the
      * control somebody reaches for while it is playing; "it will stop shortly"
-     * is not what that press means. The amplifier drops once the generator
-     * notices, which is within AMP_TAIL_MS.
+     * is not what that press means. It fades over the ~25ms release rather
+     * than stopping dead, which would be the very click the release exists to
+     * remove; the amplifier drops AMP_TAIL_MS after that.
      *
      * Under the lock: the generator task may be part way through a block, and
      * clearing the script from under it is exactly the race the lock exists
      * for. */
     if (!on) {
         if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
-        playing = false;
+        if (playing) {
+            releasing = true;
+            gainTarget = 0.0f;
+        }
         pendingLength = 0;
         pendingAt = 0;
         if (audioLock != nullptr) xSemaphoreGive(audioLock);

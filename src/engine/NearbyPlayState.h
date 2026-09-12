@@ -52,6 +52,14 @@ struct Known {
     bool sawInvite = false;
     uint8_t lastInviteByte = 0;
 
+    /* When the scanner last heard this peer, copied straight off the sighting.
+     *
+     * It is the only thing in this table that says a peer is still THERE, as
+     * opposed to what it last said. A two-player game needs that: a console
+     * whose battery dies stops advertising and says nothing about it, so the
+     * absence is the entire signal. See NearbyPlay::peerSilentMs(). */
+    uint32_t lastSeenMs = 0;
+
     bool hasTurn = false;
     uint8_t turnSession = 0;
     uint8_t turnPly = 0;

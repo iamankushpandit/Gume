@@ -39,6 +39,9 @@ struct NearbySeat {
      * travels with the invitation so there is nothing to negotiate. Every
      * two-player game needs this and none of them should be inventing it. */
     bool weMoveFirst = false;
+    /* Milliseconds since this console was last heard. A lobby can grey a row
+     * that is on its way out of range; mid-game, use nearbyPeerSilentMs(). */
+    uint32_t silentMs = 0;
 };
 
 /* The opponent's latest move, as heard on the air. `ack` is the highest ply of
@@ -75,6 +78,13 @@ public:
      * happened rather than the one that sounds nicest. Silent on a board with
      * no codec, so nothing may depend on it having been heard. */
     virtual void playSound(Sound cue) = 0;
+    /* True at or below the board's own low-battery threshold
+     * (Board::BATTERY_LOW_PERCENT); false on a board with no battery sense.
+     * A nearby lobby says so before a game starts: a console whose battery
+     * dies mid-game cannot tell anyone, so this is the one moment it can be
+     * anticipated rather than discovered. Reads a published snapshot, not the
+     * ADC, so it is safe from a render path. */
+    virtual bool batteryLow() = 0;
     virtual void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) = 0;
     virtual void drawTopBar(const char* title) = 0;
     virtual void goHome() = 0;
@@ -124,6 +134,13 @@ public:
     /** The named peer's latest move in `session`, if it has one on the air. */
     virtual bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                                 NearbyTurn& out) = 0;
+    /* Milliseconds since the named console was last heard, or
+     * NearbyPlay::PEER_SILENT_UNKNOWN once it has been out of earshot long
+     * enough to be forgotten. A game mid-session should pause past
+     * NearbyPlay::PEER_QUIET_MS and say so -- a flat battery cannot send
+     * anything, so this silence is the only notice anyone gets. Cheap enough
+     * to ask every frame. */
+    virtual uint32_t nearbyPeerSilentMs(const char* deviceId) = 0;
     /* This console's own tag, as its peers see it -- the four hex digits it
      * already advertises about itself -- or "" while sessions are not allowed.
      * A game with more than two seats needs it to put every console, itself

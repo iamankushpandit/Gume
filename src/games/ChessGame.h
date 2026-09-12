@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "games/NearbyWatch.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -127,11 +128,14 @@ private:
      *   Waiting  we invited somebody and are waiting for them to answer
      *   Remote   a live game against a peer
      *
-     * Lost is not a state. A peer that walks out of range simply stops being
-     * heard, and the game sits waiting with the board intact -- there is
-     * nothing to disconnect, and the position is still correct if they come
-     * back. Saying "opponent lost" would be inventing an event the radio
-     * cannot actually observe. */
+     * Lost is not a mode, but it is a state the screen shows. A peer that
+     * walks out of range simply stops being heard, and the board stays intact
+     * -- the position is still correct if they come back, and the moves are
+     * advertised state, so a returning console re-hears the current one and
+     * play resumes with nothing re-sent. What the radio CAN observe is the
+     * silence, and NearbyWatch turns it into a pause with a card: waiting for
+     * whom, for how long, keep waiting or end. Before that the game sat on
+     * "is thinking" for ever after a flat battery, saying nothing. */
     enum class Mode : uint8_t { Lobby, Local, Waiting, Remote };
 
     // ---- rules ----------------------------------------------------------
@@ -246,6 +250,16 @@ private:
      * waiting for, and legal in our position. All four are required; the last
      * is what stops a hostile or confused advertiser corrupting the board. */
     void pollOpponent(AppContext& host);
+    /* The other console going quiet: pause, the card, and its two buttons.
+     * True when the press was on (or through) the card and must not reach
+     * the board. In ChessNet.cpp, beside the poll it belongs with. */
+    bool updatePause(AppContext& host, const TouchPoint& touch);
+    /* The card over the board while paused, or nothing. Called at the end of
+     * both render paths, so a full repaint underneath cannot lose it. */
+    void drawPause(AppContext& host);
+    NearbyWatch watch_;
+    bool pausePainted_ = false;
+    uint16_t pauseSecondsDrawn_ = 0;
     void startLocal();
     void startRemote(const NearbySeat& seat, uint8_t session, bool weAreWhite);
     /** True when it is this console's turn in a remote game. */

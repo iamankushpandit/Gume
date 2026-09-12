@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "games/NearbyWatch.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -145,6 +146,15 @@ private:
     // ---- nearby ----------------------------------------------------------
     Rect lobbyRowRect(uint8_t row) const;
     void pollOpponent(AppContext& host);
+    /* The other console going quiet: pause, the card, and its two buttons.
+     * True when the press was on (or through) the card and must not reach
+     * the sea. In SeaBattleNet.cpp, beside the poll it belongs with. */
+    bool updatePause(AppContext& host, const TouchPoint& touch);
+    /** The card over the board while paused, or nothing. End of both renders. */
+    void drawPause(AppContext& host);
+    NearbyWatch watch_;
+    bool pausePainted_ = false;
+    uint16_t pauseSecondsDrawn_ = 0;
     void startLocal();
     void startRemote(const NearbySeat& seat, uint8_t session, bool weFireFirst);
     bool ourTurn() const;

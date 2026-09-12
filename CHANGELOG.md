@@ -53,6 +53,67 @@ no way to tell which of the names in `GameInstances` are things a child plays
 and which are the console's own screens. The playable catalogue keeps `Game`,
 so the distinction now shows in the names. No behaviour changes.
 
+**Two placements the mock-ups and the panel disagreed about.** The mute
+control in the launcher's portrait header sat at `lW-96`, beside nothing and
+above nothing, and read off both the 2.8-inch and the 4-inch as an icon
+floating in an empty row; it now takes the padlock's column, derived from
+`lockRect()` so the pair cannot drift apart. It stays on the profile-name row
+rather than joining the badges, because at 240px that row is full by x=155 and
+the padlock starts at `lW-64` -- about 20px for an 18px glyph. And the lock
+screen's battery badge is back at the top right, level with the middle of the
+mark: in the bottom corner it shared a row with a footer that is centred across
+the full width and deliberately picks the widest wording that fits, so the two
+were laid over each other on a narrow panel.
+
+**Go.** The thirty-eighth game: 9x9 everywhere, 19x19 on the 4-inch console
+only (`GoGame::BIG_BOARD_AVAILABLE`, from the panel's physical width -- a
+point on 19x19 is ten logical pixels from its neighbours and only a big
+panel makes that a target). Five rule sets on one chip -- *Capture 1*, *3*
+and *5*, first to take that many stones, the form taught in schools; *Area*,
+stones plus surrounded points plus 5.5 komi; *Territory*, which ends with a
+marking phase where both players agree which groups cannot live -- and two
+computer levels: Easy is heuristics that never fill an own eye, Medium plays
+random games from the best dozen points, a few per frame so a move takes a
+moment and never a frame, and the same playouts are its opinion of the dead
+stones. A stone is placed in two taps, ghost then confirm, because a
+misplaced stone is for ever and a resistive panel misplaces; on 19x19 the
+panel magnifies the five-by-five around the ghost and has a Place button.
+Repaint is per point. Undo takes back your move and the computer's reply.
+Nearby play rides the existing two-player service with an eleven-bit word
+across its two six-bit fields, so a 19x19 point fits and the service's own
+presence and ending words cannot read as a move (`Go::Net`,
+static_assert'd); the marking phase travels as dead-group toggles and an
+accept from each side. Score is wins against the computer, per profile. The
+rules and the computer are pure C++ with a host test beside Backgammon's.
+
+**A nearby game whose other console goes quiet now pauses and says so.** A
+flat battery or a child walking out of range cannot send anything, and until
+now Chess, Sea Battle and Backgammon sat on "is thinking" for ever when it
+happened. The nearby service now reports how long each peer has been silent
+(`nearbyPeerSilentMs()`, from the scanner's own `lastSeenMs`, which it had
+been recording all along) and a shared `NearbyWatch` turns that into the same
+three states in every game: heard within six seconds, play on; quiet longer
+than that, the game pauses under a card naming who it is waiting for and for
+how long, with *Keep waiting* and *End game*; dropped by the scanner after 45
+seconds, out of range. Waiting has no time limit, and a console that comes
+back resumes where it stopped -- the moves were on the air all along, so
+nothing is re-sent. Nothing new is transmitted for any of this. Chess and Sea
+Battle were split into several files first, along Backgammon's lines, because
+both had passed the size the modularity rule allows.
+
+A Ludo table pauses whole for one quiet console, because a seat that cannot
+acknowledge the last turn stalls everyone anyway. Once that console has been
+gone 45 seconds the host is offered *Play without* it: the seat becomes a
+computer seat the host plays, said to the table as a numbered turn
+(`Ludo::Net::takeoverFrom`, a new meaning for the field the moves already use,
+no payload change), and the console that left is sent to its lobby if it
+returns, told why. Ludo's save format is version 3 for the dropped chairs.
+
+The one silence that can be seen coming is your own, so every nearby lobby's
+footer says "Battery low: a nearby game may not finish" when the board's own
+low-battery threshold is crossed (`AppContext::batteryLow()`, from the
+published snapshot, never the ADC).
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its
@@ -130,6 +191,230 @@ layouts, which already pack themselves off the badge's measured width,
 close the gap on their own. Run this board from USB power; the README
 suggests a power bank for portable use. The LED now follows the published
 CYD order, red IO4, green IO16, blue IO17.
+
+**Mute is one tap from wherever you are.** A speaker on the header, beside the
+padlock, on every screen and on the launcher: it shows a slash when the console
+is muted and waves when it is not, so "is it muted?" is answered by looking
+rather than by making a noise. It is deliberately **not** behind the admin PIN.
+The reason sound is a device setting rather than a per-profile one was always
+that the speaker belongs to whoever is in the room, and the room -- a parent on
+a call, a sibling asleep, a bus -- is exactly who needs it; the alternative to a
+tap was taking the console away. It is also the safest thing here to hand over:
+instantly reversible by the same tap, with its state on the screen. The pixels
+came out of the screen title, which is now shorter in a game.
+
+**One size for a status glyph, one size for a control.** `Ui::BADGE_H` is 13 and
+the sync dot, the Wi-Fi fan and the Bluetooth rune all measure against it -- the
+rune was 17 among 13s, chosen on its own. `Ui::CONTROL_H` is 18 and the padlock,
+the speaker and the gear all measure against it -- the gear was 26x24 beside an
+18px padlock, and shrinking it paid for most of what the speaker cost. The
+battery badge stays 15, and is the documented exception: it is a shell holding
+digits rather than a glyph.
+
+**The Bluetooth rune is no longer painted Bluetooth blue.** It takes the ink of
+what it sits on, like every other glyph in that row. The blue was a brand
+colour rather than a meaning -- the rune already says Bluetooth -- and no
+palette chose it, so it read as a foreign object on eight of the nine.
+
+**Settings repaints the control you touched, not the whole app.** Every tap used
+to clear everything below the tab strip and repaint the tab whole, so nudging
+the volume blanked and redrew the mute row, both test buttons and two lines of
+prose -- reported off the device as the app flashing. A change now records the
+rect of the control that moved and the repaint is clipped to it. The tab
+renderers did not have to change: they are idempotent, so the one that runs is
+simply drawn and discarded outside the box.
+
+**The sliders were the last hard-coded blue.** `Ui::drawSlider` painted its
+track and handle `rgb(36,132,204)` -- the same web blue the primary buttons had
+already been cured of -- so brightness and volume were the one blue thing on
+eight palettes, inches from a button that matched the theme. Both take `accent`
+now, and the labels on a themed fill take `Ui::onFill()` rather than white.
+
+**Cinnamon honours the theme.** It forced Light for the duration of every render
+and put the palette back afterwards -- a decision from when there were two
+themes and the pad colours had been chosen against white. It was the one screen
+that ignored the owner's choice, and it announced itself by flashing white on
+the way in from a dark launcher. What made it look necessary was two hard-coded
+colours inside the pad drawing, a black ring and a grey outline; those are
+`Ui::text()` and `Ui::outline()` and the forcing is gone. The four pad hues stay
+fixed, because they are the game rather than decoration.
+
+**The trade mark is smaller, lighter, and absent where it cannot be read.** It
+was bold at 30% of the name's height with a five-pixel floor, and at that floor
+the two letters are four pixels of ink that read as dirt on the panel. It is
+regular weight at 22% now, and below six pixels it is left off entirely: the big
+badge and the launcher wordmark carry it, the lock screen's mid badge and
+About's small wordmark do not. A claim is made by the prominent use of a mark,
+not by repeating it illegibly.
+
+**Every Settings tab is in the theme sheets, and the mock-ups stopped lying.**
+Only the Device tab was ever pictured, so the slider's blue survived a pass that
+fixed everything around it. The sheets now carry all four tabs and the PIN pad,
+and the top-bar mock truncates its title exactly as the panel does -- it used to
+draw the title straight through the clock, which is how a bar that does not fit
+looked fine in review.
+
+**The Wi-Fi password is stored once, not twice.** The ESP-IDF Wi-Fi stack keeps
+its own plain-text copy of whatever it is handed, in its own NVS namespace --
+so the password was written to flash twice, and `Forget` cleared only one of
+them. Persistence is off now: the firmware always connects from its own stored
+credentials, so the copy it owns is the only one there is. It is still plain
+text, and the README now says so and says what it would take to change it.
+
+**Every screen has now been looked at in every theme, and several were
+broken.** The mock-ups were all Dark, so the other eight were never seen: the
+Home button was painted white and vanished on Classic's white bar, the battery
+badge used one of two greys chosen for Dark and disappeared on Silver's silver
+and Pocket's green, and the primary buttons were a hard-coded web blue on all
+nine. `python tools/gen_screens.py --themes` renders a representative set of
+screens in each palette to `docs/theme-sheets/`, and CLAUDE.md now requires it
+whenever a theme is added or changed. The Home glyph and the battery badge take
+the ink of whatever they sit on; `accent` is a palette role, so a primary
+action is the theme's colour rather than one blue for everybody.
+
+**Secondary text is held to the same contrast as any other text.** It had a
+looser floor on the bare ground, which was reported from the device as grey
+text on Silver's teal being hard to read. It is 4.5:1 everywhere now; on Silver
+that means secondary text is the same black as primary, because nothing lighter
+is readable on that desktop, and size does the separating instead.
+
+**The mark carries a trade mark sign, and it is everywhere the name was.** The
+generator cuts the wordmark out of the badge artwork and stamps a proportional
+TM beside it, so every place that used to set "Braino!" in the UI font -- the
+launcher, Profiles, the lock screen, About -- now draws the real letterforms
+with the sign. About and the lock screen also show the brain itself.
+
+**The lock screen leads with the brand.** The mark is centred at two thirds
+size instead of a small wordmark in the corner, the padlock moved onto the
+"Locked" line where it labels the state, and the battery moved to the bottom
+corner out of the brand's way.
+
+**A battery badge with no reading is not drawn at all.** It used to draw an
+empty shell, which was read off the device as an SD-card icon -- a symbol for
+something this console does not have. No reading means no badge and no width,
+so the headers close the gap. It is not a claim that no pack is fitted: nothing
+here can tell a missing pack from a present one.
+
+**About says where the Wi-Fi password is kept.** Two pages: that it is stored
+in plain text, that anyone holding the device with a cable can read it, that
+this is how nearly every ESP32 device works rather than something particular to
+this one -- and that the console is provided as is, with no warranty and no
+responsibility accepted, which using it accepts.
+
+**Settings says Landscape and Portrait** where it said Horizontal and Vertical.
+The code keeps its own names; those two words are what an owner calls a screen
+turned on its side.
+
+**The launcher's player name no longer touches the byline.** In landscape the
+name started at exactly the x the copyright ends at.
+
+**Joining a network no longer costs you the one you had.** The Wi-Fi screen
+saved the SSID and password *before* trying them, so mistyping a password on
+another network destroyed the working credentials -- and there was no way to
+find out what they had been. Nothing is written now until the association
+succeeds. Every way out of the scan also left the radio associated with
+nothing, because scanning cycles the interface off and on: the console stayed
+off the air until it was rebooted, which looks exactly like having lost the
+network. It rejoins the saved one on the way back out, and after a failed
+attempt.
+
+**The password keyboard stopped flashing.** Every keystroke repainted the whole
+screen -- forty-five buttons redrawn to change one character in the field above
+them. The field repaints; the keys are drawn when the keyboard appears and when
+you switch to caps or symbols.
+
+**Every theme's colours are measured now, and nine of them were failing.**
+The palettes were chosen by eye, which is how a pairing like grey-on-grey
+survives: each colour looks right alone and the combination is never checked.
+`tools/check_contrast.py` measures every pairing the firmware can draw against
+the WCAG floors and found **sixty-five** below them -- greyed text at 1.2:1 on
+Silver's desktop, Classic's green tick at 1.1:1 on its grey one, and a Pocket
+warning colour that *was* the background colour, 1.0:1. All nine themes pass
+now, with the same hues: only lightness moved.
+
+**Text drawn on a themed fill picks its own ink.** The launcher's tile labels
+were a fixed white over a colour the theme chooses, so Classic drew white on
+light grey at 1.3:1 and Pocket white on pale green at 2.6:1 -- unreadable, and
+unreadable only on the themes nobody screenshots. `Ui::onFill()` returns black
+or white by luminance and `Ui::onFillSoft()` the softened version for a
+subtitle, falling back to full ink where the fill is too mid-tone to allow the
+step. The tile labels and the tracer's "Great job" badge use them. On the
+standard tiles that means black labels where there were white ones: 6.7:1
+against 3.1:1.
+
+**The product name is the mark everywhere but the launcher.** The lock screen
+header, the Profiles header and About's first page drew "Braino!" in the UI
+font; they now draw the real letterforms, cut out of the badge artwork and
+rasterised at the size that text was -- 26px for a font-4 heading, 16px for a
+font-2 row. The launcher keeps its text for now: its header is laid out to the
+pixel around a measured string.
+
+**The screen saver shows the product mark.** The brain badge with the wordmark
+under it -- the same artwork the case badge is cut from -- instead of "Braino!"
+in a font. It is carried as a one-bit silhouette generated from the SVG by
+`tools/gen_logo_mask.py`, 810 bytes, painted in whatever colour the caller
+likes: on the saver that is the dim shade of the rally colour it always was, so
+the mark still changes with every paddle hit.
+
+**The tracing guide arrow follows the finger again, beside the line.** Moving
+the arrows off the path and numbering them made the plan for a letter readable,
+and lost the thing an arrow is for while you are part way along a stroke:
+players reported an arrow that shows up at the start and then does not move. So
+there are two kinds now. The numbered ones are the plan -- placed once, never
+moving, all muted. One more, in the highlight colour, follows the dot being
+aimed at and points where the stroke goes next, drawn beside the line rather
+than on it so it never covers the dots. It is not drawn at all where neither
+side of the line is clear.
+
+**Cursive's dots are half the size.** Its letterforms are loops, and inside a
+tight one -- the eye of an `l`, the crossing of a `k` -- two runs of dots pass
+within a few pixels of each other, so at the printed letters' radius they
+merged into a blob and the shape was lost. Cursive draws them at a radius of
+one, print keeps two, and the dot being aimed at is unchanged in both.
+
+**Sounds no longer click on and off.** A recording of Piano on a DAC board
+showed a sharp click as every note started and another about 300ms later as
+it stopped -- and the same happened to every beep on the device. The I2S
+driver was filling an idle DMA with zero words, which is silence for a codec
+but 0 V for the ESP32's built-in DAC, whose silence is mid-scale: the speaker
+line dropped to ground whenever a sound ended and jumped back when the next
+began. The DAC's idle buffers are now filled with mid-scale instead. Every
+sound, on every board, also fades out over about 25ms rather than stopping
+mid-waveform, Mute fades rather than cuts, and the CYD boards' amplifier stays
+on for two seconds after a sound instead of 150ms, so playing notes does not
+switch it on and off between each one.
+
+**Trace and Cursive mark each stroke the way a handwriting workbook does.**
+The direction arrow used to sit on the path itself, one at a time, and jump to
+the next turn as the finger reached it. User testing with five-year-olds said
+plainly that it confused them: it covered the dots it was pointing along, and
+it was one more thing moving while they concentrated. Now every stroke has a
+short numbered arrow *beside* it, outside the letter, showing where it starts
+and which way it goes -- all of them visible from the start, the current
+stroke's lit and the rest muted, and none of them moving. Printed letters also
+get an arrow at a sharp reversal such as the top of an A or the points of an
+M; cursive gets none, because a joined letter is loops all the way through. A
+ring on the first dot of the current stroke replaces the numbered badge that
+covered it. Where each arrow goes is measured, not assumed: outside the letter
+if that is clear of every stroke, otherwise a little further along, further
+off, or inside. Finishing a stroke no longer clears the screen -- the ring
+moves and two strokes' arrows recolour in place.
+
+**Trace has a Words tab.** Fifty-four short printed words -- cat, dog, sun,
+the, you -- covering every letter but q, spelled out at runtime from the same
+lowercase letters, so a child writes "cat" with exactly the strokes they
+practised on c, a and t, and the words cost nothing in flash but their
+spelling. Prev moves down to make room for the fourth tab, in Cursive too, so
+it sits in the same place in both games.
+
+**Cursive's words are shorter and a third larger.** Players found the old
+words too small to follow, and they were: every word shares one scale and the
+widest of the old list -- mostly four- and five-letter sight words -- left an
+x-height of about 25 pixels. The new list is forty-nine two- and
+three-letter words a five-year-old knows, and they are drawn at about 35.
+Nothing with a q fits, so q is practised on the abc tab. The generator also
+stopped measuring its group width from the leftmost point of any word to the
+rightmost of any other, which had been shrinking every word by a further 7%.
 
 **`ESP32_boardUtil.py --flash` no longer uploads to a port whose board has
 changed.** Ports were identified before the builds and uploaded to after them,

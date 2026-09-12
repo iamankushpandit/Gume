@@ -2,6 +2,7 @@
 #include "hal/Clock.h"
 #include "hal/Board.h"
 #include "ui/LauncherLayout.h"
+#include "ui/LogoMask.h"
 #include "ui/TftRenderer.h"
 #include <WiFi.h>
 #include "map_n_flag.h"
@@ -43,10 +44,28 @@ constexpr uint16_t COLOR_SHADOW   = 0x0000;
  *            makes a wrong answer ambiguous, which matters more than taste.
  *
  * Do not judge these in tools/gen_screens.py. PIL renders every palette
- * cleanly and cannot show you the overlay diffusing a marginal pairing. */
+ * cleanly and cannot show you the overlay diffusing a marginal pairing.
+ *
+ * AND DO NOT JUDGE THEM BY EYE ALONE EITHER. `tools/check_contrast.py`
+ * measures every pairing this table can produce, against the WCAG floors, and
+ * it found sixty-five failures the first time it was run on colours that had
+ * all been chosen by looking at them: greyed text at 1.2:1 on Silver's
+ * desktop, Classic's green tick at 1.1:1 on its grey one, and a Pocket warning
+ * colour that was the background colour exactly. Run it after touching a row.
+ *
+ * The check is a floor and not a design: passing it does not make a palette
+ * good, it only means nothing in it is unreadable. */
 struct Palette {
     uint16_t bg, bar, barText, surface, panel, text, muted, outline;
     uint16_t success, error, warning;
+    /* ACCENT: the fill of a primary action -- Settings' Network button, Wi-Fi's
+     * Scan and JOIN. It is a role because it was three copies of
+     * `Ui::rgb(36, 132, 204)` typed into two screens, which is a blue that
+     * belongs to the Dark theme and was drawn on all nine: a flat web blue on
+     * Pocket's four greens, on Paper's cream and on Classic's System 7 grey.
+     * Same lesson as barText and the tile fills -- when a theme cannot be
+     * done, look for the colour that is a constant and should be a role. */
+    uint16_t accent;
     uint16_t tile[3];   // launcher tile fills, cycled by slot
     uint8_t radius;     // button/tile corner radius; 0 is square
 };
@@ -59,35 +78,41 @@ struct Palette {
 constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
     // Dark -- the original.
     {0x0843, 0x10A6, 0xFFFF, 0x18E8, 0x212B, 0xF7BE, 0xA534, 0x52AA,
-     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, 0x1C7B, TILES_RGB, 6},
     // Light -- the original. Dark bar, because the bar text was white.
-    {0xFFFF, 0x10A6, 0xFFFF, 0xEF7D, 0xDEFB, 0x2124, 0x8410, 0xC618,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
+    {0xFFFF, 0x10A6, 0xFFFF, 0xEF7D, 0xDEFB, 0x2124, 0x630C, 0xA514,
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, 0x1C7B, TILES_RGB, 6},
     // Midnight -- deep indigo; saturated tiles sit better on navy than black.
-    {0x10A3, 0x1906, 0xFFFF, 0x1926, 0x2988, 0xE77E, 0x8CB6, 0x3A2C,
-     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+    {0x10A3, 0x1906, 0xFFFF, 0x1926, 0x3230, 0xE77E, 0xB5DB, 0x3A2C,
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, 0x3B1C, TILES_RGB, 6},
     // Dusk -- warm charcoal, amber type, almost no blue anywhere.
-    {0x18C2, 0x2103, 0xF719, 0x2923, 0x3984, 0xF719, 0xB4CF, 0x5A67,
-     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+    {0x18C2, 0x2103, 0xF719, 0x2923, 0x41A4, 0xF719, 0xB4CF, 0x5A67,
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, 0xA2E3, TILES_RGB, 6},
     /* Paper -- cream and brown. Now that bar text is a role, the bar can be
      * the warm brown it always wanted instead of the shared dark one. */
-    {0xF77C, 0x3985, 0xF77C, 0xEF3A, 0xDE97, 0x3984, 0x7B4A, 0xC5B3,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
+    {0xF77C, 0x3985, 0xF77C, 0xEF3A, 0xDE56, 0x3984, 0x6246, 0xC5B3,
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, 0x3985, TILES_RGB, 6},
     // High Contrast -- accessibility. MUTED is nearly white on purpose.
     {0x0000, 0x0000, 0xFFFF, 0x0000, 0x2104, 0xFFFF, 0xE71C, 0xFFFF,
-     0x07E0, 0xF800, 0xFFE0, TILES_RGB, 6},
+     0x07E0, 0xF800, 0xFFE0, 0x07FF, TILES_RGB, 6},
     /* Classic -- System 7. Mid-grey desktop, white paper, black hairlines and
      * black type, and a white bar with black glyphs, which is the whole reason
      * barText had to stop being a constant. Square. The drop shadow
      * drawButton already paints is period-correct by accident. */
-    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x6B4D, 0x0000,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING,
+    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x2124, 0x0000,
+     0x0240, 0x7861, 0x61A0, 0x0010,
      {0xCE59, 0xE71C, 0xA534}, 0},
     /* Silver -- Windows 98. Teal desktop, silver face, navy bar with white
      * type. Square, and the bevel drawButton already draws is exactly the
      * period's raised-button idiom. */
-    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x8410, 0x8410,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING,
+    /* MUTED IS BLACK HERE, the same as text, and that is the theme
+     * answering a question rather than a mistake. Secondary text has to be
+     * readable on the teal desktop as well as on the silver face, and on that
+     * teal nothing lighter than black reaches 4.5:1 -- the grey it used to be
+     * measured 1.2. So this theme separates primary from secondary by size
+     * and position instead of by shade, and keeps both readable. */
+    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x0000, 0x9CB3,
+     0x01A0, 0x5861, 0x4120, 0x0010,
      {0x0010, 0x03EB, 0x8000}, 0},
     /* Pocket -- the original handheld's four greens, and nothing else.
      *
@@ -99,8 +124,8 @@ constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
      * arrives through two other channels. The tiles have to be palette entries
      * for this theme to work at all; three bright RGB rectangles on green is
      * the first thing anyone would see. */
-    {0x9DE1, 0x09C1, 0x9DE1, 0x8D61, 0x8D61, 0x09C1, 0x3306, 0x3306,
-     0x3306, 0x09C1, 0x9DE1,
+    {0x9DE1, 0x09C1, 0x9DE1, 0x8D61, 0x8D61, 0x09C1, 0x21E4, 0x3306,
+     0x2AE5, 0x09C1, 0x4AC0, 0x09C1,
      {0x8D61, 0x3306, 0x09C1}, 0},
 };
 
@@ -121,6 +146,7 @@ uint16_t COLOR_OUTLINE = PALETTES[0].outline;
 uint16_t COLOR_SUCCESS = PALETTES[0].success;
 uint16_t COLOR_ERROR   = PALETTES[0].error;
 uint16_t COLOR_WARNING = PALETTES[0].warning;
+uint16_t COLOR_ACCENT  = PALETTES[0].accent;
 }
 
 /* The two theme enums are cast into each other rather than mapped, so they
@@ -240,6 +266,10 @@ uint16_t warning() {
     return COLOR_WARNING;
 }
 
+uint16_t accent() {
+    return COLOR_ACCENT;
+}
+
 uint16_t shade(uint16_t color, uint8_t percent) {
     uint16_t r = (color >> 11) & 0x1F;
     uint16_t g = (color >> 5) & 0x3F;
@@ -260,15 +290,21 @@ void clear(Ui::Renderer& tft) {
 /* Proportional to the rect since the top-bar slot narrowed to 32px to make
  * room for the lock: the roof, the body and the door were all fixed insets off
  * a 42px slot, and at 32px the door was as wide as the house. */
+/* THE HOUSE TAKES THE BAR'S OWN INK, not white.
+ *
+ * It was TFT_WHITE, which is right on every dark bar and invisible on
+ * Classic's white one -- the Home button was simply not there, on the one
+ * theme built around a white title bar. The doorway is still punched in the
+ * bar's colour, because that is what makes it read as a doorway. */
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r) {
     const int16_t cx = r.x + r.w / 2;
     const int16_t inset = max<int16_t>(3, static_cast<int16_t>(r.w / 6));
     const int16_t roofY = r.y + 6;
     tft.fillTriangle(cx, roofY, static_cast<int16_t>(r.x + inset), r.y + 16,
-                     static_cast<int16_t>(r.x + r.w - inset), r.y + 16, TFT_WHITE);
+                     static_cast<int16_t>(r.x + r.w - inset), r.y + 16, COLOR_BAR_TEXT);
     const int16_t bodyW = max<int16_t>(8, static_cast<int16_t>(r.w - 2 * inset - 6));
     tft.fillRoundRect(static_cast<int16_t>(cx - bodyW / 2), r.y + 15, bodyW,
-                      static_cast<int16_t>(r.h - 20), 2, TFT_WHITE);
+                      static_cast<int16_t>(r.h - 20), 2, COLOR_BAR_TEXT);
     const int16_t doorW = max<int16_t>(4, static_cast<int16_t>(bodyW / 3));
     tft.fillRect(static_cast<int16_t>(cx - doorW / 2),
                  static_cast<int16_t>(r.y + r.h - 12), doorW, 7, COLOR_BAR);
@@ -303,6 +339,159 @@ void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg)
     tft.fillCircle(cx, keyCy, keyR, bg);
     tft.fillRect(static_cast<int16_t>(cx - max<int16_t>(1, keyR / 2)), keyCy,
                  max<int16_t>(1, keyR), static_cast<int16_t>(bodyH / 3), bg);
+}
+
+/* Black or white, whichever can be read on `fill`.
+ *
+ * The threshold is the standard one: a relative luminance above 0.179 takes
+ * black ink, below it takes white, which is the point where the two contrast
+ * ratios cross. Channels are linearised first -- comparing raw 5- and 6-bit
+ * values instead gets the mid-tones wrong, and mid-tones are exactly what the
+ * launcher tiles are.
+ *
+ * Not on a per-pixel path: this is called once per label, not once per glyph,
+ * so the arithmetic is affordable and the alternative -- a second palette
+ * entry per tile -- would have to be maintained by hand for every theme. */
+float relLuminance(uint16_t colour) {
+    auto linear = [](float c) {
+        return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
+    };
+    const float r = linear(((colour >> 11) & 0x1F) / 31.0f);
+    const float g = linear(((colour >> 5) & 0x3F) / 63.0f);
+    const float b = linear((colour & 0x1F) / 31.0f);
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
+
+/** The WCAG contrast ratio between two colours: 1.0 is identical, 21 is
+ * black on white. */
+float contrast(uint16_t a, uint16_t b) {
+    const float la = relLuminance(a);
+    const float lb = relLuminance(b);
+    const float hi = la > lb ? la : lb;
+    const float lo = la > lb ? lb : la;
+    return (hi + 0.05f) / (lo + 0.05f);
+}
+
+uint16_t onFill(uint16_t fill) {
+    return relLuminance(fill) > 0.179f ? TFT_BLACK : TFT_WHITE;
+}
+
+/* How far onFillSoft() travels from the fill towards the ink. Checked by
+ * tools/check_contrast.py against every tile of every theme. */
+constexpr int16_t SOFT_MIX = 88;
+
+uint16_t onFillSoft(uint16_t fill) {
+    /* 78% of the way from the fill towards the readable ink: enough to read as
+     * a second line rather than a heading, and still far enough from the fill
+     * to stay above the body-text ratio on every palette -- 78 was not: it
+     * left Silver's subtitle at 3.7:1 on its green tile, which is the same
+     * class of failure as the fixed white it replaced, just smaller. Mixed per
+     * channel in 565, which is exact here because the ink is black or white. */
+    const uint16_t ink = onFill(fill);
+    const int16_t fr = (fill >> 11) & 0x1F, fg = (fill >> 5) & 0x3F, fb = fill & 0x1F;
+    const int16_t ir = (ink >> 11) & 0x1F, ig = (ink >> 5) & 0x3F, ib = ink & 0x1F;
+    const uint16_t r = static_cast<uint16_t>(fr + (ir - fr) * SOFT_MIX / 100);
+    const uint16_t g = static_cast<uint16_t>(fg + (ig - fg) * SOFT_MIX / 100);
+    const uint16_t b = static_cast<uint16_t>(fb + (ib - fb) * SOFT_MIX / 100);
+    const uint16_t soft = static_cast<uint16_t>((r << 11) | (g << 5) | b);
+    /* On a mid-tone fill there is not enough room to soften at all: Silver's
+     * green tile tops out at 5.1:1 against white, so the softened ink lands at
+     * 4.3 and the second line becomes the unreadable thing the first one used
+     * to be. Where that happens the subtitle keeps the full ink and gives up
+     * the tonal step -- it is a nicety, and being read is not. */
+    return contrast(soft, fill) >= 4.5f ? soft : ink;
+}
+
+/* The product mark, blitted from its one-bit mask.
+ *
+ * RUNS, NOT PIXELS: each row is emitted as horizontal spans, so the mark costs
+ * a few hundred line calls rather than 6,480 pixel calls. The screen saver
+ * repaints it whenever the rally colour changes, which is every paddle hit, so
+ * this sits on a path that runs while nobody is watching a frame budget but
+ * the panel is: a pixel-at-a-time blit is visible as the mark wiping in.
+ *
+ * Only the ink is painted. Nothing is erased first, which is what lets a
+ * colour change be an overdraw of exactly the same shape. */
+namespace {
+/* Which table, how wide, how tall, and how many bytes a row takes. One place
+ * that knows the three variants apart; everything below is size-agnostic. */
+struct LogoArt {
+    const uint8_t* bits;
+    int16_t width, height, stride;
+    /* Where the mark LOOKS centred, which is not width/2: the trade mark sign
+     * hangs off the right, so centring the bitmap put the brain and the name
+     * visibly left of centre on the lock screen and the saver. Generated
+     * alongside the bits. */
+    int16_t centre;
+};
+
+LogoArt logoArt(Logo which) {
+    switch (which) {
+        case Logo::Word:
+            return {&LogoMask::WORD_BITS[0][0], LogoMask::WORD_WIDTH,
+                    LogoMask::WORD_HEIGHT, LogoMask::WORD_BYTES_PER_ROW,
+                    LogoMask::WORD_CENTRE};
+        case Logo::WordSmall:
+            return {&LogoMask::WORD_SMALL_BITS[0][0], LogoMask::WORD_SMALL_WIDTH,
+                    LogoMask::WORD_SMALL_HEIGHT, LogoMask::WORD_SMALL_BYTES_PER_ROW,
+                    LogoMask::WORD_SMALL_CENTRE};
+        case Logo::BadgeMid:
+            return {&LogoMask::BADGE_MID_BITS[0][0], LogoMask::BADGE_MID_WIDTH,
+                    LogoMask::BADGE_MID_HEIGHT, LogoMask::BADGE_MID_BYTES_PER_ROW,
+                    LogoMask::BADGE_MID_CENTRE};
+        case Logo::Icon:
+            return {&LogoMask::ICON_BITS[0][0], LogoMask::ICON_WIDTH,
+                    LogoMask::ICON_HEIGHT, LogoMask::ICON_BYTES_PER_ROW,
+                    LogoMask::ICON_CENTRE};
+        case Logo::IconBig:
+            return {&LogoMask::ICON_BIG_BITS[0][0], LogoMask::ICON_BIG_WIDTH,
+                    LogoMask::ICON_BIG_HEIGHT, LogoMask::ICON_BIG_BYTES_PER_ROW,
+                    LogoMask::ICON_BIG_CENTRE};
+        case Logo::Badge:
+        default:
+            return {&LogoMask::BADGE_BITS[0][0], LogoMask::BADGE_WIDTH,
+                    LogoMask::BADGE_HEIGHT, LogoMask::BADGE_BYTES_PER_ROW,
+                    LogoMask::BADGE_CENTRE};
+    }
+}
+}   // namespace
+
+void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
+              Logo which) {
+    const LogoArt art = logoArt(which);
+    /* cx is where the mark should LOOK centred, so the bitmap hangs off its
+     * optical centre rather than its own middle. A caller placing the mark
+     * against a left edge passes x + logoCentre(). */
+    const int16_t x0 = static_cast<int16_t>(cx - art.centre);
+    const int16_t y0 = static_cast<int16_t>(cy - art.height / 2);
+    for (int16_t y = 0; y < art.height; ++y) {
+        const uint8_t* row = art.bits + y * art.stride;
+        int16_t runStart = -1;
+        for (int16_t x = 0; x <= art.width; ++x) {
+            const bool on = x < art.width &&
+                            ((row[x >> 3] >> (7 - (x & 7))) & 1u) != 0;
+            if (on && runStart < 0) {
+                runStart = x;
+            } else if (!on && runStart >= 0) {
+                tft.drawFastHLine(static_cast<int16_t>(x0 + runStart),
+                                  static_cast<int16_t>(y0 + y),
+                                  static_cast<int16_t>(x - runStart), colour);
+                runStart = -1;
+            }
+        }
+    }
+}
+
+int16_t logoWidth(Logo which) {
+    return logoArt(which).width;
+}
+
+int16_t logoHeight(Logo which) {
+    return logoArt(which).height;
+}
+
+int16_t logoCentre(Logo which) {
+    return logoArt(which).centre;
 }
 
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
@@ -358,8 +547,11 @@ void drawTopBar(Board& board, const String& title) {
      * hold. The 18px it occupies come out of the title, which is why the
      * title's start and its budget below both moved. */
     drawLockIcon(tft, LauncherLayout::topBarLockRect(w), COLOR_BAR_TEXT, COLOR_BAR);
-    // The top bar stays dark in both themes, so this gear is always white.
-    drawGearIcon(tft, Rect{static_cast<int16_t>(w - 34), 3, 26, 24}, COLOR_BAR_TEXT);
+    /* Mute, beside the padlock. The two together are what a parent reaches
+     * for without wanting to leave the game -- quiet, or put it down. */
+    drawSpeakerIcon(tft, LauncherLayout::topBarSpeakerRect(w),
+                    !board.soundEnabled(), COLOR_BAR_TEXT);
+    drawGearIcon(tft, LauncherLayout::topBarSettingsRect(w), COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     /* The right-hand cluster is laid out from the gear leftwards off MEASURED
@@ -368,7 +560,11 @@ void drawTopBar(Board& board, const String& title) {
      * offset, which is exactly what a variable-width badge invalidates. */
     const int8_t battPct = board.getBatteryPercent();
     const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
-    const int16_t battRight = static_cast<int16_t>(w - 40);   // gear starts at w-34
+    /* Derived from the gear rather than stated, so the two cannot drift: the
+     * gear shrank to Ui::CONTROL_H and moved right, and every one of those
+     * pixels is worth having on a bar this full. */
+    const int16_t battRight =
+        static_cast<int16_t>(LauncherLayout::topBarSettingsRect(w).x - 6);
     const int16_t battCx = static_cast<int16_t>(battRight - battW / 2);
     const int16_t wifiCx = static_cast<int16_t>(battRight - battW - 6 - 8);
     const int16_t syncCx = static_cast<int16_t>(wifiCx - 8 - 6 - 6);
@@ -444,8 +640,8 @@ void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint1
     const uint16_t col = synced ? COLOR_SUCCESS : COLOR_WARNING;
     // Light theme uses dark fills, so the glyph flips to white to stay legible.
     const uint16_t glyph = (s_theme == Theme::Light) ? TFT_WHITE : TFT_BLACK;
-    tft.fillCircle(cx, cy, 6, col);
-    tft.drawCircle(cx, cy, 6, bg);
+    tft.fillCircle(cx, cy, BADGE_H / 2, col);
+    tft.drawCircle(cx, cy, BADGE_H / 2, bg);
     if (synced) {
         // tick
         tft.drawLine(cx - 3, cy,     cx - 1, cy + 2, glyph);
@@ -533,17 +729,23 @@ String fitted(Ui::Renderer& tft, const String& text, int16_t maxW, uint8_t font)
 }
 
 void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
-    (void)bg;
     /* The Bluetooth rune is one continuous stroke through six points on a
-     * 10x16 box -- (0,4) (10,11) (5,16) (5,0) (10,5) (0,12). Drawing it as a
+     * 9x14 box -- (0,3) (8,9) (4,13) (4,0) (8,4) (0,10). Drawing it as a
      * polyline rather than two triangles keeps the crossing stems aligned at
-     * any size. Stroked twice, offset by a pixel, so it reads at 16px. */
-    const int16_t x0 = static_cast<int16_t>(cx - 5);
-    const int16_t y0 = static_cast<int16_t>(cy - 8);
-    const int16_t px[6] = {0, 10, 5, 5, 10, 0};
-    const int16_t py[6] = {4, 11, 16, 0, 5, 12};
-    // Bluetooth blue: already the app's accent, and legible on both themes.
-    const uint16_t col = rgb(36, 132, 204);
+     * any size. Stroked twice, offset by a pixel, so it reads at this size.
+     *
+     * THE BOX IS BADGE_H TALL, like the sync dot and the Wi-Fi fan beside it.
+     * It was a 10x16 rune among 13px badges, which is what made the header
+     * look like three icons and one sticker. */
+    const int16_t x0 = static_cast<int16_t>(cx - 4);
+    const int16_t y0 = static_cast<int16_t>(cy - BADGE_H / 2);
+    const int16_t px[6] = {0, 8, 4, 4, 8, 0};
+    const int16_t py[6] = {3, 9, 13, 0, 4, 10};
+    /* The ink of whatever it sits on, like every other glyph in the header.
+     * It was Bluetooth's own blue, which is a brand colour rather than a
+     * meaning: the rune already says Bluetooth, and no theme chose that blue,
+     * so it read as a foreign object on eight of the nine. */
+    const uint16_t col = onFill(bg);
 
     for (int8_t pass = 0; pass < 2; ++pass) {
         for (uint8_t i = 0; i + 1 < 6; ++i) {
@@ -597,10 +799,22 @@ int16_t batteryShellWidth(Ui::Renderer& tft, const char* text) {
 }  // namespace
 
 int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
-    /* A board with no battery hardware has no badge at all -- not an empty
-     * shell, which would read as a flat battery. Width 0 lets every header
-     * that packs itself off this function reclaim the space. */
-    if (!BOARD.hasBatterySense()) {
+    /* NO BADGE AT ALL, in either of the two ways there is nothing to show,
+     * and they are different questions: this board has no sense line, or it
+     * has one and the reading is unusable. Width 0 lets every header that
+     * packs itself off this function reclaim the space -- they all measure
+     * rather than assume.
+     *
+     * An empty shell is the wrong answer to both. It reads as a flat battery,
+     * and an empty rounded box with a nub on one end was read off the device
+     * as an SD-card icon: a symbol for a thing this console does not have,
+     * where a battery should be.
+     *
+     * Neither is a claim that no pack is fitted. Nothing here can tell a
+     * missing pack from a present one -- the charger holds the sense line at
+     * float voltage either way, which is measured and written down in
+     * src/hal/CLAUDE.md. */
+    if (!BOARD.hasBatterySense() || percent < 0) {
         return 0;
     }
     char text[8];
@@ -608,9 +822,65 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
     return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
 }
 
+void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour) {
+    /* A speaker in an r.h box: a small square body, a cone opening right, and
+     * either two arcs of sound or a slash through the lot. Proportions come
+     * off the rect so the same glyph serves the bar and anywhere else it is
+     * wanted -- the padlock does the same, for the same reason. */
+    const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
+    const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
+    const int16_t unit = static_cast<int16_t>(r.h);
+    const int16_t bodyW = static_cast<int16_t>(unit * 3 / 16);
+    const int16_t bodyH = static_cast<int16_t>(unit * 6 / 16);
+    const int16_t coneW = static_cast<int16_t>(unit * 4 / 16);
+    const int16_t coneH = static_cast<int16_t>(unit * 12 / 16);
+    const int16_t left = static_cast<int16_t>(cx - unit * 6 / 16);
+
+    tft.fillRect(left, static_cast<int16_t>(cy - bodyH / 2), bodyW, bodyH, colour);
+    const int16_t coneX = static_cast<int16_t>(left + bodyW);
+    tft.fillTriangle(coneX, static_cast<int16_t>(cy - bodyH / 2),
+                     coneX, static_cast<int16_t>(cy + bodyH / 2),
+                     static_cast<int16_t>(coneX + coneW),
+                     static_cast<int16_t>(cy - coneH / 2), colour);
+    tft.fillTriangle(coneX, static_cast<int16_t>(cy + bodyH / 2),
+                     static_cast<int16_t>(coneX + coneW),
+                     static_cast<int16_t>(cy - coneH / 2),
+                     static_cast<int16_t>(coneX + coneW),
+                     static_cast<int16_t>(cy + coneH / 2), colour);
+
+    const int16_t waveX = static_cast<int16_t>(coneX + coneW + 1);
+    if (muted) {
+        /* A slash, corner to corner across the whole glyph. Not a small cross
+         * beside it: at this size anything subtler is a smudge, and "muted"
+         * has to survive being glanced at by a parent from across a room. */
+        for (int8_t i = 0; i < 2; ++i) {
+            tft.drawLine(static_cast<int16_t>(r.x + 1 + i), static_cast<int16_t>(r.y + 1),
+                         static_cast<int16_t>(r.x + r.w - 3 + i),
+                         static_cast<int16_t>(r.y + r.h - 1), colour);
+        }
+        return;
+    }
+    /* Two arcs, drawn as circle segments clipped to the right-hand side --
+     * there is no arc primitive, and at this size the right half of a circle
+     * plotted by hand is four pixels each. */
+    for (int8_t band = 0; band < 2; ++band) {
+        const int16_t rad = static_cast<int16_t>(2 + band * 3);
+        for (int16_t dy = static_cast<int16_t>(-rad); dy <= rad; ++dy) {
+            const int32_t dx2 = static_cast<int32_t>(rad) * rad - static_cast<int32_t>(dy) * dy;
+            if (dx2 < 0) continue;
+            int16_t dx = 0;
+            while ((dx + 1) * (dx + 1) <= dx2) ++dx;
+            if (dx <= 0) continue;
+            tft.drawPixel(static_cast<int16_t>(waveX + dx - 1),
+                          static_cast<int16_t>(cy + dy), colour);
+        }
+    }
+}
+
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg) {
-    if (!BOARD.hasBatterySense()) {
-        return;   // no battery hardware, no badge -- see batteryBadgeWidth()
+    // No sense line, or no usable reading: no badge. See batteryBadgeWidth().
+    if (!BOARD.hasBatterySense() || percent < 0) {
+        return;
     }
     char text[8];
     batteryText(text, sizeof(text), percent);
@@ -620,7 +890,16 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     const int16_t bx = static_cast<int16_t>(cx - totalW / 2);
     const int16_t by = static_cast<int16_t>(cy - BATT_H / 2);
 
-    const uint16_t neutralClr = (s_theme == Theme::Light) ? rgb(120, 126, 138) : rgb(160, 164, 180);
+    /* THE SHELL AND DIGITS TAKE THE INK OF WHATEVER THEY SIT ON.
+     *
+     * This was one of two greys chosen for Dark and Light, used by all nine
+     * themes -- so the badge was grey on Classic's white bar, grey on Silver's
+     * silver one and grey on Pocket's green, while the gear and the padlock
+     * beside it were drawn in the bar's own text colour and were perfectly
+     * clear. Deriving it from `bg` puts the badge in the same ink as its
+     * neighbours on every theme, including the launcher header and the lock
+     * screen, which pass their own backgrounds in. */
+    const uint16_t neutralClr = onFill(bg);
     const bool low = percent >= 0 && percent <= Board::BATTERY_LOW_PERCENT;
     /* Shell and digits stay neutral except when it is low. Red is the "charge
      * me" signal and it only works while it is rare -- colouring the shell at
@@ -680,7 +959,11 @@ void drawSlider(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint8_t minPct,
     if (pct < minPct) pct = minPct;
     if (pct > maxPct) pct = maxPct;
 
-    const uint16_t accent = rgb(36, 132, 204);
+    /* The theme's accent, not a chosen blue. It was rgb(36,132,204) -- the
+     * same web blue the primary buttons carried -- so the brightness and
+     * volume sliders were the one blue thing on eight of the nine palettes,
+     * sitting a few pixels from a button that had already been fixed. */
+    const uint16_t accent = COLOR_ACCENT;
     const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
     const int16_t trackH = 8;
     const int16_t pad = 11;                       // keeps the handle inside r

@@ -160,8 +160,9 @@ void LudoGame::renderTable(AppContext& host) {
         Ui::drawLabel(tft, Rect{8, 90, 304, 18}, "Waiting for it to start...", Ui::muted(),
                       2, Align::Center);
         Ui::drawLabel(tft, Rect{8, 150, 304, 12},
-                      "Moves travel by Bluetooth. Anyone near hears them.", Ui::muted(), 1,
-                      Align::Center);
+                      host.batteryLow() ? "Battery low: a nearby game may not finish."
+                                        : "Moves travel by Bluetooth. Anyone near hears them.",
+                      host.batteryLow() ? Ui::warning() : Ui::muted(), 1, Align::Center);
         Ui::drawButton(tft, BACK_RECT, "Back", Ui::panel(), Ui::outline(), Ui::text());
         return;
     }
@@ -202,11 +203,15 @@ void LudoGame::renderTable(AppContext& host) {
         Ui::drawButton(tft, tableRowRect(r), line, fill, Ui::outline(), ink);
     }
     if (rows > 0 && rows < ROWS_SHOWN) {
-        /* It is a broadcast, and the screen that starts it says so. */
+        /* It is a broadcast, and the screen that starts it says so -- unless
+         * the battery is low, which outranks it: a console that dies
+         * mid-game cannot tell anyone. */
+        const bool low = host.batteryLow();
         Ui::drawLabel(tft,
                       Rect{8, static_cast<int16_t>(ROWS_TOP + rows * ROW_PITCH + 4), 304, 12},
-                      "Moves travel by Bluetooth. Anyone near hears them.", Ui::muted(), 1,
-                      Align::Center);
+                      low ? "Battery low: a nearby game may not finish."
+                          : "Moves travel by Bluetooth. Anyone near hears them.",
+                      low ? Ui::warning() : Ui::muted(), 1, Align::Center);
     }
 
     snprintf(line, sizeof(line), "Computers: %u", static_cast<unsigned>(computers_));

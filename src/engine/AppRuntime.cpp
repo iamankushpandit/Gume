@@ -121,6 +121,12 @@ void BrainoApp::playSound(Sound cue) {
     board_.playSound(cue);
 }
 
+bool BrainoApp::batteryLow() {
+    /* isBatteryLow() reads the snapshot the sampling task publishes -- no
+     * conversion on this path. A board with no battery sense is never low. */
+    return BOARD.hasBatterySense() && board_.isBatteryLow();
+}
+
 void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
     board_.pulseRgb(r, g, b, ms);
 }
@@ -320,6 +326,7 @@ void BrainoApp::loop() {
         const Rect settingsButton = LauncherLayout::topBarSettingsRect(renderer_.width());
         const Rect homeButton = LauncherLayout::topBarHomeRect();
         const Rect lockButton = activeLockRect();
+        const Rect speakerButton = activeSpeakerRect();
         /* BOOT is Home. It is consumed here, above the active screen's
          * update(), for the same reason the Home glyph is: a screen that also
          * saw the press would act on it, and the player would find it done on
@@ -350,6 +357,12 @@ void BrainoApp::loop() {
         } else if (touch.justPressed &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
+        /* Mute is consumed up here for the same reason Home, the gear and
+         * Lock are: a tap that also reached the screen would press whatever
+         * sat under the speaker, and the player would find it done. */
+        } else if (touch.justPressed && Board::hasSound() &&
+                   speakerButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            toggleMute();
         } else if (activeAppIsPlayable() && !activeApp_->followsLayout) {
             /* Below the chrome, a fixed-canvas game hit-tests against its own
              * 320x240 space, so the physical press has to be mapped back into

@@ -268,7 +268,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 37 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 38 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -557,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,508,321 / 3,145,728 bytes,
-**79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 79,708 / 327,680 (24.3%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,557,861 / 3,145,728 bytes,
+**81.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 86,812 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -629,7 +629,16 @@ orientation that were up before. Three things about it are load-bearing:
   landscape is the tight case and every gap is stated in the comment there.
   The battery badge is variable width, so it is placed off
   `Ui::batteryBadgeWidth()` rather than a constant -- same rule as the
-  launcher header.
+  launcher header. **It belongs top right, level with the middle of the
+  mark**, and it spent a release in the bottom corner instead on the
+  reasoning that a status badge should not compete with the brand. The
+  measurement disagrees: the footer is drawn centred across the full width
+  and `lockFooterText()` deliberately picks the widest wording that measures
+  whole, so a badge at the right-hand end of that row is in the footer's
+  way. Up beside the mark there is nothing to hit -- the badge is 50px wide
+  and centred, and 240px portrait is the tight case and still clears it by
+  about 39px. It is centred on the mark's own height rather than a typed-in
+  y, so it cannot drift if the logo size changes.
 - **`Locked` is excluded from the idle-timeout block** alongside `ScreenSaver`
   and `Asleep`; it runs its own `LOCK_TIMEOUT_MS` and hands back to sleep (or
   to the saver under `SaverOnly`). Leaving it in that block re-arms the saver
@@ -739,10 +748,10 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 38 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
-- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
+- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead -- with one measured exception: the **mute control does not fit that row in portrait**. At 240px the badges reach about x=155 and the padlock starts at `lW-64`, which leaves roughly 20px for an 18px glyph plus its gaps, so it goes on the profile-name row above, whose right-hand half is empty because the name is capped at 112px. It sits **in the padlock's column** (`speakerRect()` takes `lockRect().x`) rather than mid-row: at `lW-96` it was beside nothing and above nothing, and it read off both portrait panels as an icon floating in an empty row. Anything new in that header needs the same treatment â€” measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
@@ -812,6 +821,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `NearbySeat::forThisGame` (an invitation names its game; a lobby must not
   accept another game's) and `nearbySelfId()` (so every console orders the
   table alike). Still a BROADCAST: everyone in range hears every move.
+  **A console that goes quiet pauses the whole table**, and once it is Gone
+  the host may play on without it: `Ludo::Net::takeoverFrom(seat)` is a
+  numbered ply in the `from` values 16..19 that nothing else uses, saying
+  that seat is the host's computer seat from here on. Only the host's word
+  counts, a guest whose own seat is taken goes to its lobby told why, and it
+  is a new meaning for existing bits rather than a payload change -- which
+  is the whole of why it needed no fresh agreement about the air.
 - **Backgammon's dice do not go on the air either, and that is what made it
   fit.** An earlier plan ruled nearby Backgammon out because the turn has no
   field for dice. It does not need one: as in Ludo, both consoles derive every
@@ -822,6 +838,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   forced-move rules included. A turn goes on the air on Done, one checker per
   ply, each once the other console has acked the last; a turn with no legal
   move sends nothing, because both consoles compute that it has none.
+- **A console that goes quiet pauses the game, and the service says when.**
+  The second way a two-player game ends never arrives as a message -- a flat
+  battery cannot send `nearbyEnd()` -- so `NearbyPlay::peerSilentMs()` reports
+  the silence off the scanner's own `lastSeenMs`, and `NearbyWatch`
+  (`src/games/`) turns it into Present / Quiet (`PEER_QUIET_MS`, 6s) / Gone
+  (the scanner's 45s TTL) and one card: waiting for whom, for how long, Keep
+  waiting or End game. Every nearby game hooks it at the same two places;
+  none may decide "too long" for itself. Nothing transmits for it: it is
+  derived from the absence of the beacon that is already there, which is why
+  it needed no agreement about what goes on the air. See
+  `src/games/CLAUDE.md`.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- children put the
   device down constantly and a game that evaporated is a game they stop
@@ -900,6 +927,41 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   watchdog: **work whose deadline is not the frame's does not belong on the
   frame.**
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
+
+## A theme is not done until every screen has been seen in it
+
+**Adding or changing a theme means running these two, in this order, and
+looking at what the second one writes:**
+
+```bash
+python tools/check_contrast.py          # every pairing, against the WCAG floors
+python tools/gen_screens.py --themes    # docs/theme-sheets/<theme>.png
+```
+
+The check is arithmetic and catches what arithmetic can: text that cannot be
+read on what it sits on. It cannot catch a glyph drawn in a colour the palette
+never chose, and that is what nine themes shipped with -- a Home button painted
+`TFT_WHITE` on Classic's white bar, so the button was simply not there; launcher
+tile labels fixed white over a fill the theme picks, unreadable on three of
+them; a battery badge in one of two greys chosen for Dark, invisible on
+Pocket's green; primary buttons in a hard-coded web blue on all nine. Every one
+of those looked perfect in the Dark mock-ups, which were the only mock-ups
+there were.
+
+The sheets render a representative set of screens -- launcher, About, Settings,
+System Info, Scores, a game, a tracing canvas, the lock screen -- in each
+palette. Read them for three things:
+
+1. **Is every glyph still there?** A control that vanishes into its background
+   is the failure this exists to catch, and it is invisible in a diff.
+2. **Does anything look like it belongs to another theme?** A colour that does
+   not move when the palette does is a constant that should be a role.
+   `barText`, the tile fills, `radius` and `accent` were each found that way.
+3. **Is the ink on a coloured fill readable?** Text over a themed fill takes
+   `Ui::onFill()` / `Ui::onFillSoft()`, never a chosen black or white.
+
+A palette that passes the checker and fails the sheets is normal. The checker
+is a floor; the sheets are the design.
 
 ## Adding a game or an app â€” the whole checklist
 
@@ -1064,7 +1126,8 @@ src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPla
                           RecentQuestions, ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           LetterTracer (the finger-tracing engine Trace and
-                          Cursive share), CursiveGlyphData (generated) +
+                          Cursive share: logic, Draw, Arrows, Words and a
+                          Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
                           SettingsApp (tabs + routing), SettingsPanels
@@ -1078,7 +1141,19 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Backgammon likewise: BackgammonGame (flow, input),
                           BackgammonDraw, BackgammonNet (the nearby game),
                           BackgammonSave, over BackgammonRules and
-                          BackgammonAi (pure, host-tested)
+                          BackgammonAi (pure, host-tested).
+                          Chess is five .cpp against one header -- ChessGame
+                          (flow, input), ChessRules, ChessDraw, ChessNet (the
+                          lobby and the nearby game), ChessSave -- sharing
+                          ChessInternal.h; Sea Battle is four: SeaBattleGame
+                          (flow, input, the fleet), SeaBattleDraw,
+                          SeaBattleNet, SeaBattleSave.
+                          NearbyWatch is the pause every nearby game shares
+                          when the other console goes quiet.
+                          GoRules (the rules, scoring and the wire encoding)
+                          and GoAi (both computer levels and the dead-stone
+                          estimate) are pure and host-tested, like
+                          Backgammon's.
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
@@ -1087,14 +1162,18 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
-                          LauncherLayout
+                          LauncherLayout, LogoMask (generated -- the product
+                          mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
-                          gen_board_docs.py (each board's pin table and pin
-                          diagram, from its profile; --check runs in CI),
+                          gen_logo_mask.py (the product mark, from
+                          tools/braino-badge.svg -- writes a preview that MUST
+                          be looked at),
                           gen_cursive_glyphs.py (cursive letterforms, from a
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),
                           check_boards.py, check_catalog.py,
+                          check_contrast.py (every theme's colours against
+                          the WCAG floors),
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
                           above), build_stamp.py,
@@ -1304,7 +1383,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     cannot be removed; the *active* player cannot be removed either (from a
     cable that would pull a profile out from under a running game); two
     players cannot share a name. Games at launcher index 32+ cannot be hidden
-    yet -- visibility is a 32-bit mask and the catalogue is 37 -- and the
+    yet -- visibility is a 32-bit mask and the catalogue is 38 -- and the
     console says so rather than answering ok.
   - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
     under the closed privacy list.

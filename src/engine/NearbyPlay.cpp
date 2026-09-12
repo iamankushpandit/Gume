@@ -145,6 +145,9 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
 /* Copy the session traffic across verbatim. No interpretation: this module
  * does not know a chess move from a backgammon one, and should not. */
 void recordSession(Known& entry, const BleScan::Sighting& seen) {
+    /* Unconditional and first: a peer that is still here but has nothing new
+     * to say is still here, and that is the fact a paused game is waiting on. */
+    entry.lastSeenMs = seen.lastSeenMs;
     entry.inviting = seen.inviting;
     if (seen.inviting) {
         strncpy(entry.inviteTarget, seen.inviteTarget, sizeof(entry.inviteTarget) - 1);

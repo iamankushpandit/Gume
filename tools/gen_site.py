@@ -177,6 +177,7 @@ BOARD_DETAILS = {
 }
 
 SCREEN_CAPTIONS = {
+    "about-intro": "About: the mark, the version and what is inside",
     "about-tall": "About: the intro page, Tall layout",
     "profiles-tall": "Profiles: who is playing, Tall layout",
     "scores-tall": "Scores: this player, Tall layout",
@@ -184,6 +185,8 @@ SCREEN_CAPTIONS = {
     "systeminfo-tall": "System Info: board, Tall layout",
     "wifi-tall": "Network & Time, Tall layout",
     "about-radios": "About: what the radios do",
+    "about-password": "About: where the Wi-Fi password is kept",
+    "about-warranty": "About: no warranty, and the risk you accept",
     "about-build": "About: which build is on the device",
     "about-updates": "About: whether a newer firmware exists, and where to get it",
     "calendar": "Calendar",
@@ -201,6 +204,8 @@ SCREEN_CAPTIONS = {
     "ludo-table": "Ludo: invite up to three consoles nearby",
     "backgammon": "Backgammon: race your checkers home and off",
     "backgammon-lobby": "Backgammon: one console, the computer, or nearby",
+    "go": "Go: surround to capture, on 9x9 or 19x19",
+    "go-lobby": "Go: five rule sets, two levels, three ways to play",
     "cursive": "Cursive: trace joined-up letters and words",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
@@ -210,6 +215,7 @@ SCREEN_CAPTIONS = {
     "grewords": "GRE Words: quiz",
     "grewords-study": "GRE Words: study",
     "launcher-tall": "Launcher: Tall layout",
+    "launcher-tall-dense": "Launcher: Tall layout on a 4-inch panel",
     "launcher-wide": "Launcher: Wide layout",
     "math": "Math",
     "maze": "Maze",
@@ -248,6 +254,7 @@ SCREEN_CAPTIONS = {
     "timezone": "Time zone picker",
     "trace": "Trace: uppercase and digits",
     "trace-lower": "Trace: lowercase",
+    "trace-words": "Trace: printed words",
     "whack": "Whack",
 }
 
@@ -275,7 +282,7 @@ PLAYABLE_STILLS = {
     "numberline": ("numberline",),
     "flags": ("flags-country", "flags-capital"),
     "states": ("states",),
-    "trace": ("trace", "trace-lower"),
+    "trace": ("trace", "trace-lower", "trace-words"),
     "stateflags": ("stateflags",),
     "statemaps": ("statemaps",),
     "percent": ("percent",),
@@ -289,6 +296,7 @@ PLAYABLE_STILLS = {
     "cursive": ("cursive",),
     "ludo": ("ludo", "ludo-lobby", "ludo-table"),
     "backgammon": ("backgammon", "backgammon-lobby"),
+    "go": ("go", "go-lobby"),
 }
 
 SYSTEM_SHOWCASE = (
@@ -296,7 +304,7 @@ SYSTEM_SHOWCASE = (
         "id": "launcher",
         "title": "Launcher",
         "subtitle": "Wide and Tall home layouts with live profile, clock, Wi-Fi, BLE and battery status.",
-        "stills": ("launcher-wide", "launcher-tall"),
+        "stills": ("launcher-wide", "launcher-tall", "launcher-tall-dense"),
     },
     {
         "id": "profiles",
@@ -329,7 +337,8 @@ SYSTEM_SHOWCASE = (
     {
         "id": "about",
         "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
-        "stills": ("about-tall", "about-radios", "about-build", "about-updates"),
+        "stills": ("about-intro", "about-tall", "about-radios", "about-password",
+                   "about-warranty", "about-build", "about-updates"),
     },
     {
         "id": "nearby",
