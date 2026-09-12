@@ -31,6 +31,28 @@ and worst columns are drawn at a hard-coded x=244 and x=306, both off a 240px
 panel, and the top bar's title floor lets the title run under the clock.
 Neither is fixed here; the mock-ups are what make them visible.
 
+**Both of those are now fixed.** Scores draws its value columns off the row's
+own right edge rather than at a typed-in x, and offers the second column only
+when the row can hold two numbers beside a game name -- a truncated score is
+not a smaller score, it is a wrong one, so a 240px panel shows bests alone
+rather than two half-numbers. The Device tab had the same fault at x = 236 and
+x = 312 and is fixed with it. The top bar no longer floors the title width at
+32px: on a narrow panel that floor was wider than the gap before the clock, so
+the floor won and the two were drawn on the same pixels. Where there is not
+room for both, the clock gives way -- it is repeated on the launcher header
+and in Wi-Fi, while the title is the only thing that says which screen you are
+on -- and its sync badge goes with it, since a tick with nothing to qualify
+says nothing. Landscape is untouched: at 320px the gap is never that small.
+
+**The system apps are no longer called games.** `WifiGame`, `SettingsGame`,
+`ProfileGame`, `ScoresGame`, `AboutGame`, `SystemInfoGame`, `NearbyGame` and
+`LauncherGame` are `WifiApp`, `SettingsApp` and so on, files included. They
+are `Game` subclasses because that is the screen lifecycle every screen here
+shares, and they always will be -- but Wi-Fi is not a game, and a reader has
+no way to tell which of the names in `GameInstances` are things a child plays
+and which are the console's own screens. The playable catalogue keeps `Game`,
+so the distinction now shows in the names. No behaviour changes.
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its

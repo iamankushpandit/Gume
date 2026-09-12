@@ -171,13 +171,16 @@ def topbar(d, title, synced=True, bars=3, w=W):
     # title is drawn 32px, so a portrait top bar really does overlap. Mirrored
     # rather than tidied, because tidying it here would hide it.
     status_left = clock_right - d.textlength(t, font=F2)
-    title_max = max(32, status_left - 62 - 4)
+    title_gap = status_left - 62 - 4
+    show_clock = title_gap >= 44                      # Ui::TOP_BAR_MIN_TITLE_W
+    title_max = title_gap if show_clock else clock_right - 62 - 4
     s = title
     while len(s) > 2 and d.textlength(s, font=F2) > title_max:
         s = s[:-1]
     d.text((62, 8), s, font=F2, fill=TEXT)
-    d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
-    sync_badge(d, sync_cx, 15, synced)
+    if show_clock:
+        d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
+        sync_badge(d, sync_cx, 15, synced)
     wifi_badge(d, wifi_cx, 15, bars)
     battery_badge(d, batt_right - batt_w // 2, 15, 72)
     d.ellipse([w - 34, 4, w - 12, 26], outline=TEXT)
@@ -2952,12 +2955,12 @@ def scores_tall():
     """Scores (Mine tab) in portrait -- ScoresApp::rowRect's own arithmetic:
     rows fill from 56 to screenH - 32, pitch floored at 30, width screenW - 16.
 
-    The best and worst columns do NOT move with the rows: they are drawn right-
-    aligned at a hard-coded x = 244 and x = 306 (ScoresApp::render), which on a
-    240px-wide panel are both off the edge of the screen. TFT_eSPI silently
-    stops drawing there, so in portrait every score is invisible and the rows
-    carry a game name and nothing else. That is drawn faithfully here -- the
-    empty right-hand side of these rows is the bug, not a gap in the mock-up."""
+    The value columns come off the row's own right edge (ScoresApp::
+    scoreColumns), and the second one is dropped when the row cannot hold two
+    numbers beside a game name -- which is the case at 240px, so this shows one
+    column of bests and no worsts. They were a hard-coded x = 244 and x = 306
+    until the commit that added this image, both off the edge of a 240px panel,
+    which left every score cut in half or missing entirely."""
     im, d = blank_tall()
     topbar(d, "Scores", w=PW)
     for lab, r, active in (("Mine", (8, 34, 64, 18), True),
@@ -2972,16 +2975,29 @@ def scores_tall():
     pitch = max(30, ((PH - 32) - 56 - 4) // 5)
     rows = [("Memory Match", "18 moves"), ("Math", "24 pts"), ("Multiplication", "31 pts"),
             ("Whack A Mole", "27 pts"), ("Microku", "1:42")]
-    # Column headings, at the same off-panel x the values use.
-    d.text((244, 64), "best", font=F1, fill=MUTED)
-    d.text((306, 64), "worst", font=F1, fill=MUTED)
+    # ScoresApp::scoreColumns, restated: columns come off the row's own right
+    # edge, and the second is dropped when the row cannot hold two numbers and
+    # a name. At 240px it is dropped, so "worst" is not drawn at all here.
+    row_w = PW - 16
+    second_right = 8 + row_w - 6
+    show_second = (row_w - 68 * 2 - 14) >= 96
+    first_right = second_right - 68 if show_second else second_right
+    label_max = first_right - 68 - 16 - 6
+    d.text((first_right - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
+    if show_second:
+        d.text((second_right - d.textlength("worst", font=F1), 64), "worst",
+               font=F1, fill=MUTED)
     for i, (name, value) in enumerate(rows):
         y = 56 + i * pitch
         h = pitch - 2
         d.rounded_rectangle([8, y, PW - 9, y + h], 4, fill=SURFACE, outline=OUTLINE)
-        d.text((16, y + h / 2 - 7), name, font=F2, fill=TEXT)
-        # x = 244 and 306, right-aligned, exactly as the firmware draws them.
-        d.text((244 - d.textlength(value, font=F2), y + h / 2 - 7), value,
+        label = name
+        while label and d.textlength(label, font=F2) > label_max:
+            label = label[:-1]
+        if label != name and len(label) > 1:
+            label = label[:-1] + "."
+        d.text((16, y + h / 2 - 7), label, font=F2, fill=TEXT)
+        d.text((first_right - d.textlength(value, font=F2), y + h / 2 - 7), value,
                font=F2, fill=SUCCESS)
     footer_y = PH - 32
     button(d, (8, footer_y, int(PW * 0.275), 26), "Prev")

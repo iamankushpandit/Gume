@@ -17,6 +17,45 @@ namespace {
 constexpr int16_t SCORES_ROWS_TOP = 56;
 constexpr int16_t SCORES_FOOTER_H = 32;
 constexpr int16_t SCORES_MARGIN = 8;
+
+/* The widest value this screen draws, measured rather than guessed: the
+ * longest is a six-character score like "250pts" at font 2. */
+constexpr int16_t SCORES_VALUE_W = 68;
+/* Below this there is no room for a game name beside two numbers. */
+constexpr int16_t SCORES_LABEL_MIN_W = 96;
+
+/* Where the value columns go, derived from the row they sit in.
+ *
+ * They used to be typed in: x = 244 and x = 306 on the Mine tab, x = 236 and
+ * x = 312 on the Device tab. All four are off the right-hand edge of a 240px
+ * portrait panel, and TFT_eSPI simply stops drawing at the viewport edge with
+ * no mark and no mid-word warning -- so in portrait every score on this
+ * screen was cut in half or missing altogether, and the rows carried a game
+ * name and blank space. The rows themselves were fine, because rowRect has
+ * always been derived from screenW; only the things drawn inside them were
+ * not, which is why it looked like a working screen with no numbers on it.
+ *
+ * The second column is offered only when the row can hold two numbers AND a
+ * name. A truncated score is not a smaller score, it is a wrong one, so a
+ * narrow panel drops the second column rather than squeezing both. */
+struct ScoreColumns {
+    int16_t firstRight;    // best (Mine) / device best (Device)
+    int16_t secondRight;   // worst (Mine) / holder (Device)
+    int16_t labelMaxW;
+    bool showSecond;
+};
+
+ScoreColumns scoreColumns(const Rect& r) {
+    ScoreColumns c{};
+    c.secondRight = static_cast<int16_t>(r.x + r.w - 6);
+    c.showSecond =
+        static_cast<int16_t>(r.w - SCORES_VALUE_W * 2 - 14) >= SCORES_LABEL_MIN_W;
+    c.firstRight = c.showSecond
+        ? static_cast<int16_t>(c.secondRight - SCORES_VALUE_W)
+        : c.secondRight;
+    c.labelMaxW = static_cast<int16_t>(c.firstRight - SCORES_VALUE_W - (r.x + 8) - 6);
+    return c;
+}
 }  // namespace
 
 /* Rows share the height between the tabs and the footer, but never get
@@ -216,12 +255,15 @@ void ScoresApp::render(GameHost& host) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.drawString(board.profileName(board.activeProfile()), 8, 60, 2);
 
-        // Column headings
+        // Column headings, over the columns they name.
         if (needsFullRender()) {
+            const ScoreColumns head = scoreColumns(rowRect(0, sW, sH));
             tft.setTextColor(Ui::muted(), Ui::bg());
             tft.setTextDatum(TR_DATUM);
-            tft.drawString("best", 244, 64, 1);
-            tft.drawString("worst", 306, 64, 1);
+            tft.drawString("best", head.firstRight, 64, 1);
+            if (head.showSecond) {
+                tft.drawString("worst", head.secondRight, 64, 1);
+            }
             tft.setTextDatum(TL_DATUM);
         }
 
@@ -245,9 +287,14 @@ void ScoresApp::render(GameHost& host) {
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
 
+            const ScoreColumns col = scoreColumns(r);
+
+            /* Fitted to the room left beside the numbers. A game name is the
+             * one thing here that can be shortened without becoming untrue. */
             tft.setTextColor(Ui::text(), Ui::surface());
             tft.setTextDatum(ML_DATUM);
-            tft.drawString(score->label, r.x + 8, r.y + r.h / 2, 2);
+            tft.drawString(Ui::fitted(tft, score->label, col.labelMaxW, 2),
+                           r.x + 8, r.y + r.h / 2, 2);
 
             const uint32_t best  = board.getScore(score->bestKey, 0);
             const uint32_t worst = board.worstScore(score->bestKey, best);
@@ -256,12 +303,17 @@ void ScoresApp::render(GameHost& host) {
             tft.setTextColor(Ui::success(), Ui::surface());
             char value[24];
             snprintf(value, sizeof(value), "%u%s", best, score->unit);
-            tft.drawString(value, 244, r.y + r.h / 2, 2);
-            tft.setTextColor(Ui::muted(), Ui::surface());
-            snprintf(value, sizeof(value), "%u%s", worst, score->unit);
-            tft.drawString(value, 306, r.y + r.h / 2, 2);
+            tft.drawString(value, col.firstRight, r.y + r.h / 2, 2);
+            if (col.showSecond) {
+                tft.setTextColor(Ui::muted(), Ui::surface());
+                snprintf(value, sizeof(value), "%u%s", worst, score->unit);
+                tft.drawString(value, col.secondRight, r.y + r.h / 2, 2);
+            }
 
-            if (score->lowerIsBetter) {
+            /* Only where the label was not already using that room -- on a
+             * narrow panel this note and the name are after the same pixels,
+             * and the name is the one that has to win. */
+            if (score->lowerIsBetter && col.showSecond) {
                 tft.setTextColor(Ui::muted(), Ui::surface());
                 tft.setTextDatum(ML_DATUM);
                 tft.drawString("lower is better", r.x + 100, r.y + r.h / 2, 1);
@@ -306,26 +358,34 @@ void ScoresApp::render(GameHost& host) {
                 tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());
                 tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
 
-                // Game label
+                const ScoreColumns col = scoreColumns(r);
+
+                // Game label, fitted to what the value columns leave it.
                 tft.setTextColor(Ui::text(), Ui::surface());
                 tft.setTextDatum(ML_DATUM);
-                tft.drawString(score->label, r.x + 8, r.y + r.h / 2, 2);
+                tft.drawString(Ui::fitted(tft, score->label, col.labelMaxW, 2),
+                               r.x + 8, r.y + r.h / 2, 2);
 
-                // Device best value, right-aligned at x = 236
+                // Device best, in the first column.
                 char scoreStr[32];
                 snprintf(scoreStr, sizeof(scoreStr), "%u%s", db.value, score->unit);
                 tft.setTextDatum(MR_DATUM);
                 tft.setTextColor(Ui::success(), Ui::surface());
-                tft.drawString(scoreStr, 236, r.y + r.h / 2, 2);
+                tft.drawString(scoreStr, col.firstRight, r.y + r.h / 2, 2);
 
-                // Holder name, right-aligned at x = 312, gold if current player
-                if (db.holder < Board::MAX_PLAYERS) {
+                /* Who holds it, in the second -- gold when it is this player.
+                 * On a panel with room for only one column the score stays and
+                 * the name goes: a record with no holder is still a record,
+                 * but a holder with no number says nothing at all. */
+                if (col.showSecond && db.holder < Board::MAX_PLAYERS) {
                     uint16_t holderColor = (board.activeProfile() == db.holder)
                         ? Ui::rgb(255, 200, 0)
                         : Ui::muted();
                     tft.setTextColor(holderColor, Ui::surface());
                     tft.setTextDatum(MR_DATUM);
-                    tft.drawString(holderNames_[db.holder], 312, r.y + r.h / 2, 2);
+                    tft.drawString(Ui::fitted(tft, holderNames_[db.holder],
+                                              SCORES_VALUE_W, 2),
+                                   col.secondRight, r.y + r.h / 2, 2);
                 }
             }
         }
