@@ -84,7 +84,12 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
     if (mode == Board::LayoutMode::Vertical) {
         return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, screenW - 46)), 20};
     }
-    const int16_t x = 124;
+    /* 132, not 124. The byline -- "(C) iamankushpandit" at font 1 from x=10
+     * -- measures about 114px and therefore ends at about x=124, so a name
+     * starting there touched it with no gap at all; reported from the device
+     * as the two running together. Eight pixels of air, taken from a name that
+     * truncates gracefully rather than from the badge row that does not. */
+    const int16_t x = 132;
     /* Stops short of the header's status hairline at lW-138. That hairline has
      * moved out twice now -- 6px when the battery badge grew to carry its
      * percentage, then 22px again for the Lock badge -- and the profile name

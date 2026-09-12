@@ -557,8 +557,8 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,519,745 / 3,145,728 bytes,
-**80.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+Flash is global and nearly the binding constraint (2,523,561 / 3,145,728 bytes,
+**80.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 81,436 / 327,680 (24.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
@@ -900,6 +900,41 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   watchdog: **work whose deadline is not the frame's does not belong on the
   frame.**
 - **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
+
+## A theme is not done until every screen has been seen in it
+
+**Adding or changing a theme means running these two, in this order, and
+looking at what the second one writes:**
+
+```bash
+python tools/check_contrast.py          # every pairing, against the WCAG floors
+python tools/gen_screens.py --themes    # docs/theme-sheets/<theme>.png
+```
+
+The check is arithmetic and catches what arithmetic can: text that cannot be
+read on what it sits on. It cannot catch a glyph drawn in a colour the palette
+never chose, and that is what nine themes shipped with -- a Home button painted
+`TFT_WHITE` on Classic's white bar, so the button was simply not there; launcher
+tile labels fixed white over a fill the theme picks, unreadable on three of
+them; a battery badge in one of two greys chosen for Dark, invisible on
+Pocket's green; primary buttons in a hard-coded web blue on all nine. Every one
+of those looked perfect in the Dark mock-ups, which were the only mock-ups
+there were.
+
+The sheets render a representative set of screens -- launcher, About, Settings,
+System Info, Scores, a game, a tracing canvas, the lock screen -- in each
+palette. Read them for three things:
+
+1. **Is every glyph still there?** A control that vanishes into its background
+   is the failure this exists to catch, and it is invisible in a diff.
+2. **Does anything look like it belongs to another theme?** A colour that does
+   not move when the palette does is a constant that should be a role.
+   `barText`, the tile fills, `radius` and `accent` were each found that way.
+3. **Is the ink on a coloured fill readable?** Text over a themed fill takes
+   `Ui::onFill()` / `Ui::onFillSoft()`, never a chosen black or white.
+
+A palette that passes the checker and fails the sheets is normal. The checker
+is a floor; the sheets are the design.
 
 ## Adding a game or an app â€” the whole checklist
 

@@ -58,6 +58,14 @@ constexpr uint16_t COLOR_SHADOW   = 0x0000;
 struct Palette {
     uint16_t bg, bar, barText, surface, panel, text, muted, outline;
     uint16_t success, error, warning;
+    /* ACCENT: the fill of a primary action -- Settings' Network button, Wi-Fi's
+     * Scan and JOIN. It is a role because it was three copies of
+     * `Ui::rgb(36, 132, 204)` typed into two screens, which is a blue that
+     * belongs to the Dark theme and was drawn on all nine: a flat web blue on
+     * Pocket's four greens, on Paper's cream and on Classic's System 7 grey.
+     * Same lesson as barText and the tile fills -- when a theme cannot be
+     * done, look for the colour that is a constant and should be a role. */
+    uint16_t accent;
     uint16_t tile[3];   // launcher tile fills, cycled by slot
     uint8_t radius;     // button/tile corner radius; 0 is square
 };
@@ -70,35 +78,41 @@ struct Palette {
 constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
     // Dark -- the original.
     {0x0843, 0x10A6, 0xFFFF, 0x18E8, 0x212B, 0xF7BE, 0xA534, 0x52AA,
-     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, 0x1C7B, TILES_RGB, 6},
     // Light -- the original. Dark bar, because the bar text was white.
     {0xFFFF, 0x10A6, 0xFFFF, 0xEF7D, 0xDEFB, 0x2124, 0x630C, 0xA514,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, 0x1C7B, TILES_RGB, 6},
     // Midnight -- deep indigo; saturated tiles sit better on navy than black.
     {0x10A3, 0x1906, 0xFFFF, 0x1926, 0x3230, 0xE77E, 0xB5DB, 0x3A2C,
-     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, 0x3B1C, TILES_RGB, 6},
     // Dusk -- warm charcoal, amber type, almost no blue anywhere.
     {0x18C2, 0x2103, 0xF719, 0x2923, 0x41A4, 0xF719, 0xB4CF, 0x5A67,
-     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, TILES_RGB, 6},
+     DARK_SUCCESS, DARK_ERROR, DARK_WARNING, 0xA2E3, TILES_RGB, 6},
     /* Paper -- cream and brown. Now that bar text is a role, the bar can be
      * the warm brown it always wanted instead of the shared dark one. */
     {0xF77C, 0x3985, 0xF77C, 0xEF3A, 0xDE56, 0x3984, 0x6246, 0xC5B3,
-     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, TILES_RGB, 6},
+     LIGHT_SUCCESS, LIGHT_ERROR, LIGHT_WARNING, 0x3985, TILES_RGB, 6},
     // High Contrast -- accessibility. MUTED is nearly white on purpose.
     {0x0000, 0x0000, 0xFFFF, 0x0000, 0x2104, 0xFFFF, 0xE71C, 0xFFFF,
-     0x07E0, 0xF800, 0xFFE0, TILES_RGB, 6},
+     0x07E0, 0xF800, 0xFFE0, 0x07FF, TILES_RGB, 6},
     /* Classic -- System 7. Mid-grey desktop, white paper, black hairlines and
      * black type, and a white bar with black glyphs, which is the whole reason
      * barText had to stop being a constant. Square. The drop shadow
      * drawButton already paints is period-correct by accident. */
-    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x41E8, 0x0000,
-     0x0240, 0x7861, 0x61A0,
+    {0x8C51, 0xFFFF, 0x0000, 0xFFFF, 0xE71C, 0x0000, 0x2124, 0x0000,
+     0x0240, 0x7861, 0x61A0, 0x0010,
      {0xCE59, 0xE71C, 0xA534}, 0},
     /* Silver -- Windows 98. Teal desktop, silver face, navy bar with white
      * type. Square, and the bevel drawButton already draws is exactly the
      * period's raised-button idiom. */
-    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x2965, 0x9CB3,
-     0x01A0, 0x5861, 0x4120,
+    /* MUTED IS BLACK HERE, the same as text, and that is the theme
+     * answering a question rather than a mistake. Secondary text has to be
+     * readable on the teal desktop as well as on the silver face, and on that
+     * teal nothing lighter than black reaches 4.5:1 -- the grey it used to be
+     * measured 1.2. So this theme separates primary from secondary by size
+     * and position instead of by shade, and keeps both readable. */
+    {0x0410, 0x0010, 0xFFFF, 0xC618, 0xC618, 0x0000, 0x0000, 0x9CB3,
+     0x01A0, 0x5861, 0x4120, 0x0010,
      {0x0010, 0x03EB, 0x8000}, 0},
     /* Pocket -- the original handheld's four greens, and nothing else.
      *
@@ -111,7 +125,7 @@ constexpr Palette PALETTES[static_cast<uint8_t>(Ui::Theme::Count)] = {
      * for this theme to work at all; three bright RGB rectangles on green is
      * the first thing anyone would see. */
     {0x9DE1, 0x09C1, 0x9DE1, 0x8D61, 0x8D61, 0x09C1, 0x21E4, 0x3306,
-     0x2AE5, 0x09C1, 0x4AC0,
+     0x2AE5, 0x09C1, 0x4AC0, 0x09C1,
      {0x8D61, 0x3306, 0x09C1}, 0},
 };
 
@@ -132,6 +146,7 @@ uint16_t COLOR_OUTLINE = PALETTES[0].outline;
 uint16_t COLOR_SUCCESS = PALETTES[0].success;
 uint16_t COLOR_ERROR   = PALETTES[0].error;
 uint16_t COLOR_WARNING = PALETTES[0].warning;
+uint16_t COLOR_ACCENT  = PALETTES[0].accent;
 }
 
 /* The two theme enums are cast into each other rather than mapped, so they
@@ -251,6 +266,10 @@ uint16_t warning() {
     return COLOR_WARNING;
 }
 
+uint16_t accent() {
+    return COLOR_ACCENT;
+}
+
 uint16_t shade(uint16_t color, uint8_t percent) {
     uint16_t r = (color >> 11) & 0x1F;
     uint16_t g = (color >> 5) & 0x3F;
@@ -271,15 +290,21 @@ void clear(Ui::Renderer& tft) {
 /* Proportional to the rect since the top-bar slot narrowed to 32px to make
  * room for the lock: the roof, the body and the door were all fixed insets off
  * a 42px slot, and at 32px the door was as wide as the house. */
+/* THE HOUSE TAKES THE BAR'S OWN INK, not white.
+ *
+ * It was TFT_WHITE, which is right on every dark bar and invisible on
+ * Classic's white one -- the Home button was simply not there, on the one
+ * theme built around a white title bar. The doorway is still punched in the
+ * bar's colour, because that is what makes it read as a doorway. */
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r) {
     const int16_t cx = r.x + r.w / 2;
     const int16_t inset = max<int16_t>(3, static_cast<int16_t>(r.w / 6));
     const int16_t roofY = r.y + 6;
     tft.fillTriangle(cx, roofY, static_cast<int16_t>(r.x + inset), r.y + 16,
-                     static_cast<int16_t>(r.x + r.w - inset), r.y + 16, TFT_WHITE);
+                     static_cast<int16_t>(r.x + r.w - inset), r.y + 16, COLOR_BAR_TEXT);
     const int16_t bodyW = max<int16_t>(8, static_cast<int16_t>(r.w - 2 * inset - 6));
     tft.fillRoundRect(static_cast<int16_t>(cx - bodyW / 2), r.y + 15, bodyW,
-                      static_cast<int16_t>(r.h - 20), 2, TFT_WHITE);
+                      static_cast<int16_t>(r.h - 20), 2, COLOR_BAR_TEXT);
     const int16_t doorW = max<int16_t>(4, static_cast<int16_t>(bodyW / 3));
     tft.fillRect(static_cast<int16_t>(cx - doorW / 2),
                  static_cast<int16_t>(r.y + r.h - 12), doorW, 7, COLOR_BAR);
@@ -393,20 +418,40 @@ namespace {
 struct LogoArt {
     const uint8_t* bits;
     int16_t width, height, stride;
+    /* Where the mark LOOKS centred, which is not width/2: the trade mark sign
+     * hangs off the right, so centring the bitmap put the brain and the name
+     * visibly left of centre on the lock screen and the saver. Generated
+     * alongside the bits. */
+    int16_t centre;
 };
 
 LogoArt logoArt(Logo which) {
     switch (which) {
         case Logo::Word:
             return {&LogoMask::WORD_BITS[0][0], LogoMask::WORD_WIDTH,
-                    LogoMask::WORD_HEIGHT, LogoMask::WORD_BYTES_PER_ROW};
+                    LogoMask::WORD_HEIGHT, LogoMask::WORD_BYTES_PER_ROW,
+                    LogoMask::WORD_CENTRE};
         case Logo::WordSmall:
             return {&LogoMask::WORD_SMALL_BITS[0][0], LogoMask::WORD_SMALL_WIDTH,
-                    LogoMask::WORD_SMALL_HEIGHT, LogoMask::WORD_SMALL_BYTES_PER_ROW};
+                    LogoMask::WORD_SMALL_HEIGHT, LogoMask::WORD_SMALL_BYTES_PER_ROW,
+                    LogoMask::WORD_SMALL_CENTRE};
+        case Logo::BadgeMid:
+            return {&LogoMask::BADGE_MID_BITS[0][0], LogoMask::BADGE_MID_WIDTH,
+                    LogoMask::BADGE_MID_HEIGHT, LogoMask::BADGE_MID_BYTES_PER_ROW,
+                    LogoMask::BADGE_MID_CENTRE};
+        case Logo::Icon:
+            return {&LogoMask::ICON_BITS[0][0], LogoMask::ICON_WIDTH,
+                    LogoMask::ICON_HEIGHT, LogoMask::ICON_BYTES_PER_ROW,
+                    LogoMask::ICON_CENTRE};
+        case Logo::IconBig:
+            return {&LogoMask::ICON_BIG_BITS[0][0], LogoMask::ICON_BIG_WIDTH,
+                    LogoMask::ICON_BIG_HEIGHT, LogoMask::ICON_BIG_BYTES_PER_ROW,
+                    LogoMask::ICON_BIG_CENTRE};
         case Logo::Badge:
         default:
             return {&LogoMask::BADGE_BITS[0][0], LogoMask::BADGE_WIDTH,
-                    LogoMask::BADGE_HEIGHT, LogoMask::BADGE_BYTES_PER_ROW};
+                    LogoMask::BADGE_HEIGHT, LogoMask::BADGE_BYTES_PER_ROW,
+                    LogoMask::BADGE_CENTRE};
     }
 }
 }   // namespace
@@ -414,7 +459,10 @@ LogoArt logoArt(Logo which) {
 void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
               Logo which) {
     const LogoArt art = logoArt(which);
-    const int16_t x0 = static_cast<int16_t>(cx - art.width / 2);
+    /* cx is where the mark should LOOK centred, so the bitmap hangs off its
+     * optical centre rather than its own middle. A caller placing the mark
+     * against a left edge passes x + logoCentre(). */
+    const int16_t x0 = static_cast<int16_t>(cx - art.centre);
     const int16_t y0 = static_cast<int16_t>(cy - art.height / 2);
     for (int16_t y = 0; y < art.height; ++y) {
         const uint8_t* row = art.bits + y * art.stride;
@@ -440,6 +488,10 @@ int16_t logoWidth(Logo which) {
 
 int16_t logoHeight(Logo which) {
     return logoArt(which).height;
+}
+
+int16_t logoCentre(Logo which) {
+    return logoArt(which).centre;
 }
 
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
@@ -707,12 +759,27 @@ int16_t batteryShellWidth(Ui::Renderer& tft, const char* text) {
 }  // namespace
 
 int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
+    /* NO READING MEANS NO BADGE, and therefore no width either. A percentage
+     * below zero is the firmware saying it does not know -- a board with no
+     * sense line, or an ADC reading outside anything this hardware produces.
+     * It used to draw the shell with the digits left out, and an empty
+     * rounded box with a nub on one end was read off the device as an SD-card
+     * icon: a symbol for a thing this console does not have, where a battery
+     * should be. Returning zero closes the gap in every header that lays
+     * itself out from this, because they all measure rather than assume.
+     *
+     * It is NOT a claim that no pack is fitted. Nothing here can tell a
+     * missing pack from a present one -- the charger holds the sense line at
+     * float voltage either way, which is measured and written down in
+     * src/hal/CLAUDE.md. This says only that there is no usable reading. */
+    if (percent < 0) return 0;
     char text[8];
     batteryText(text, sizeof(text), percent);
     return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
 }
 
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg) {
+    if (percent < 0) return;   // see batteryBadgeWidth(): no reading, no badge
     char text[8];
     batteryText(text, sizeof(text), percent);
 
@@ -721,7 +788,16 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     const int16_t bx = static_cast<int16_t>(cx - totalW / 2);
     const int16_t by = static_cast<int16_t>(cy - BATT_H / 2);
 
-    const uint16_t neutralClr = (s_theme == Theme::Light) ? rgb(120, 126, 138) : rgb(160, 164, 180);
+    /* THE SHELL AND DIGITS TAKE THE INK OF WHATEVER THEY SIT ON.
+     *
+     * This was one of two greys chosen for Dark and Light, used by all nine
+     * themes -- so the badge was grey on Classic's white bar, grey on Silver's
+     * silver one and grey on Pocket's green, while the gear and the padlock
+     * beside it were drawn in the bar's own text colour and were perfectly
+     * clear. Deriving it from `bg` puts the badge in the same ink as its
+     * neighbours on every theme, including the launcher header and the lock
+     * screen, which pass their own backgrounds in. */
+    const uint16_t neutralClr = onFill(bg);
     const bool low = percent >= 0 && percent <= Board::BATTERY_LOW_PERCENT;
     /* Shell and digits stay neutral except when it is low. Red is the "charge
      * me" signal and it only works while it is rare -- colouring the shell at

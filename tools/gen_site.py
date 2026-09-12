@@ -203,6 +203,8 @@ BOARD_DETAILS = {
 SCREEN_CAPTIONS = {
     "about-intro": "About: the mark, the version and what is inside",
     "about-radios": "About: what the radios do",
+    "about-password": "About: where the Wi-Fi password is kept",
+    "about-warranty": "About: no warranty, and the risk you accept",
     "about-build": "About: which build is on the device",
     "about-updates": "About: whether a newer firmware exists, and where to get it",
     "calendar": "Calendar",
@@ -229,6 +231,7 @@ SCREEN_CAPTIONS = {
     "grewords": "GRE Words: quiz",
     "grewords-study": "GRE Words: study",
     "launcher-tall": "Launcher: Tall layout",
+    "launcher-tall-dense": "Launcher: Tall layout on a 4-inch panel",
     "launcher-wide": "Launcher: Wide layout",
     "math": "Math",
     "maze": "Maze",
@@ -316,7 +319,7 @@ SYSTEM_SHOWCASE = (
         "id": "launcher",
         "title": "Launcher",
         "subtitle": "Wide and Tall home layouts with live profile, clock, Wi-Fi, BLE and battery status.",
-        "stills": ("launcher-wide", "launcher-tall"),
+        "stills": ("launcher-wide", "launcher-tall", "launcher-tall-dense"),
     },
     {
         "id": "profiles",
@@ -349,7 +352,8 @@ SYSTEM_SHOWCASE = (
     {
         "id": "about",
         "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
-        "stills": ("about-intro", "about-radios", "about-build", "about-updates"),
+        "stills": ("about-intro", "about-radios", "about-password",
+                   "about-warranty", "about-build", "about-updates"),
     },
     {
         "id": "nearby",

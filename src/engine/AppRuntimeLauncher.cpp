@@ -214,7 +214,16 @@ void LauncherGame::drawHeader(GameHost& host) {
          * changing BRAINO_PRODUCT_NAME. Nothing else uses y=4..30 in portrait;
          * the gear sits at y=48..72. */
         tft.setTextDatum(ML_DATUM);
-        tft.drawString(BRAINO_PRODUCT_NAME, 10, 17, 4);
+        /* THE MARK, WITH ITS TRADE MARK SIGN -- not the name in font 4.
+         *
+         * The wordmark variant is cut to a font-4 heading's height, so the row
+         * keeps its geometry, but it is 107px wide against the text's ~84.
+         * At 240 that leaves about 7px of air before the copyright, which is
+         * right-aligned and about 108px wide. That is the whole budget for
+         * this row: re-measure it before putting anything else on it. */
+        Ui::drawLogo(tft,
+                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
+                     16, Ui::text(), Ui::Logo::Word);
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.setTextDatum(MR_DATUM);
         tft.drawString(BRAINO_COPYRIGHT_SHORT, static_cast<int16_t>(lW - 8), 17, 1);
@@ -246,7 +255,11 @@ void LauncherGame::drawHeader(GameHost& host) {
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
 
     } else {
-        tft.drawString(BRAINO_PRODUCT_NAME, 10, 16, 4);
+        /* The same mark in landscape, where the copyright sits on its own row
+         * underneath and there is no width to fight over. */
+        Ui::drawLogo(tft,
+                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
+                     16, Ui::text(), Ui::Logo::Word);
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.drawString(BRAINO_COPYRIGHT_SHORT, 10, 38, 1);
         tft.setTextDatum(ML_DATUM);

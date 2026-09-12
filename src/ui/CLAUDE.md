@@ -15,13 +15,25 @@ redrawing it in a new colour is an overdraw of the same shape and needs no
 erase. Ask `logoWidth()`/`logoHeight()` for the variant you are drawing rather
 than assuming a size.
 
-Three marks are generated, not one: `BADGE` (the whole artwork, 90px, the
-screen saver) and `WORD` / `WORD_SMALL` (the wordmark alone, at the heights the
-product name used to be drawn as text in a font-4 header and a font-2 row).
-`Ui::Logo` picks between them. **The product name is not drawn as text anywhere
-but the launcher** -- the lock screen, Profiles and About all draw the mark --
-and the launcher is the exception only because its header is laid out to the
-pixel around a measured string.
+Six marks are generated, not one: `BADGE` (the whole artwork, 118px, the screen
+saver) and `BADGE_MID` (two thirds of it, the lock screen); `WORD` /
+`WORD_SMALL` (the wordmark alone, at the heights the product name used to be
+drawn as text in a font-4 header and a font-2 row); and `ICON` / `ICON_BIG`
+(the brain on its own, for a row that has no room for the name). `Ui::Logo`
+picks between them. **The product name is not drawn as text anywhere in the UI**
+-- the launcher, Profiles, the lock screen and About all draw the mark.
+
+Every mark but the icon carries a **trade mark sign**, stamped by the generator
+at a proportional height rather than drawn into the SVG, so one artwork serves
+every size. That is what makes the next paragraph necessary.
+
+**`drawLogo(cx, ...)` places the mark's OPTICAL centre at `cx`, not the middle
+of its bitmap.** The sign hangs off the right-hand end, so centring the image
+sits the brain and the name visibly left of centre -- which is exactly how the
+lock screen looked when it was first drawn. `<NAME>_CENTRE` is emitted beside
+the bits (the centre of the ink *without* the sign) and `Ui::logoCentre()`
+exposes it, so a caller placing a mark against a left edge passes
+`x + logoCentre(which)` rather than `x + logoWidth(which) / 2`.
 
 ## Contrast is checked, not judged
 
@@ -42,7 +54,18 @@ Two things it knows that are not in the table:
   the check keeps passing while the panel stops being readable.
 
 The check is a floor, not a design: passing it does not make a palette good, it
-only means nothing in it is unreadable. Judge the look on glass.
+only means nothing in it is unreadable. Judge the look on glass -- and before
+that, in `python tools/gen_screens.py --themes`, which renders a representative
+set of screens in all nine palettes to `docs/theme-sheets/`. Every defect
+reported off the device -- an invisible Home button on Classic, a grey battery
+badge on Silver and Pocket, one hard-coded blue for every theme's primary
+button -- was visible in those sheets the moment they existed, and invisible
+before, because the stills were all Dark.
+
+`Ui::tileFill()` is cycled by `LauncherLayout::tileFillIndex()`, not by the raw
+slot: `slot % 3` paints every column one colour on a three-column grid, so
+there it steps by row as well and the fills run diagonally. A mock-up that
+cycles by slot on such a grid is drawing something the firmware does not.
 
 `Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so that all nine themes work.
 

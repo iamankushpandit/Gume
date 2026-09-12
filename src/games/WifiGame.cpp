@@ -497,7 +497,7 @@ void WifiGame::renderDynamic(GameHost& host) {
         tft.drawString(hasCreds ? ssid : String("No saved network"), baseX(14), baseY(48), 2);
         Ui::drawWifiBadge(tft, baseX(296), baseY(54), Ui::bg());
 
-        Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
         Ui::drawButton(tft, baseRect(166, 64, 140, 30), hasCreds ? "Forget" : "---",
                        hasCreds ? Ui::panel() : Ui::surface(), Ui::outline(),
                        hasCreds ? Ui::text() : Ui::muted(), false, 2);
@@ -562,9 +562,9 @@ void WifiGame::renderDynamic(GameHost& host) {
             if (idx >= n) break;
             const Rect r = zoneRect(slot);
             const bool sel = (idx == current);
-            tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, sel ? Ui::rgb(36, 132, 204) : Ui::surface());
+            tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, sel ? Ui::accent() : Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
-            tft.setTextColor(sel ? TFT_WHITE : Ui::text(), sel ? Ui::rgb(36, 132, 204) : Ui::surface());
+            tft.setTextColor(sel ? TFT_WHITE : Ui::text(), sel ? Ui::accent() : Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(Board::tzZoneName(idx), r.x + 10, r.y + r.h / 2, 2);
         }
@@ -681,14 +681,14 @@ void WifiGame::renderDynamic(GameHost& host) {
             keyboardPainted_ = true;
         }
         Ui::drawButton(tft, baseRect(2, 208, 52, 24), "CAPS",
-                       capsLock_ ? Ui::rgb(36, 132, 204) : Ui::surface(), Ui::outline(),
+                       capsLock_ ? Ui::accent() : Ui::surface(), Ui::outline(),
                        capsLock_ ? TFT_WHITE : Ui::text(), false, 1);
         Ui::drawButton(tft, baseRect(58, 208, 52, 24), symbols_ ? "abc" : "!#$",
-                       symbols_ ? Ui::rgb(36, 132, 204) : Ui::surface(), Ui::outline(),
+                       symbols_ ? Ui::accent() : Ui::surface(), Ui::outline(),
                        symbols_ ? TFT_WHITE : Ui::text(), false, 1);
         Ui::drawButton(tft, baseRect(114, 208, 74, 24), "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
         Ui::drawButton(tft, baseRect(192, 208, 50, 24), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
 
     } else if (phase_ == Phase::Connecting) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
@@ -706,10 +706,17 @@ void WifiGame::renderDynamic(GameHost& host) {
         tft.setTextColor(connectOk_ ? Ui::success() : Ui::error(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
         tft.drawString(connectOk_ ? "Connected!" : "Connection failed", baseX(WIFI_BASE_W / 2), baseY(96), 4);
-        tft.setTextColor(saveReadback_.length() ? Ui::success() : Ui::error(), Ui::bg());
-        tft.drawString(saveReadback_.length() ? String("Saved: ") + saveReadback_
-                                              : String("NOT saved - empty SSID"),
-                       baseX(WIFI_BASE_W / 2), baseY(122), 2);
+        /* A stack buffer rather than String concatenation: this is a render
+         * path, and the memory rule counts every allocation made on one. */
+        const bool saved = saveReadback_.length() > 0;
+        char line[48];
+        const char* msg = "NOT saved - empty SSID";
+        if (saved) {
+            snprintf(line, sizeof(line), "Saved: %s", saveReadback_.c_str());
+            msg = line;
+        }
+        tft.setTextColor(saved ? Ui::success() : Ui::error(), Ui::bg());
+        tft.drawString(msg, baseX(WIFI_BASE_W / 2), baseY(122), 2);
         if (connectOk_ && board.ntpEnabled()) {
             tft.setTextColor(Ui::text(), Ui::bg());
             tft.drawString("Clock sync started", baseX(WIFI_BASE_W / 2), baseY(136), 2);

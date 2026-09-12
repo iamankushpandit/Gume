@@ -45,6 +45,12 @@ COPYRIGHT_SHORT = "(C) iamankushpandit"
 
 W, H = 320, 240
 BG, SURFACE, PANEL = (18, 20, 26), (32, 36, 46), (52, 58, 72)
+# The top bar and its ink are palette roles, not the card colour -- Classic's
+# bar is white with black glyphs. apply_theme() rewrites all of these.
+BAR, BAR_TEXT = (16, 20, 48), (255, 255, 255)
+# The fill of a primary action -- Ui::accent(). A role, not the tile blue it
+# used to be typed as in two screens.
+ACCENT = (28, 142, 216)
 TEXT, MUTED, OUTLINE = (232, 236, 242), (140, 148, 162), (86, 94, 110)
 SUCCESS, ERROR, WARN = (52, 254, 128), (247, 61, 82), (255, 230, 110)
 BLUE, GREEN, RED, SHADOW = (36, 132, 204), (45, 154, 96), (222, 83, 83), (10, 11, 15)
@@ -67,7 +73,11 @@ def shade(c, pct):
     return tuple(min(255, v * pct // 100) for v in c)
 
 
-def button(d, r, label, fill=PANEL, tc=TEXT, f=F2):
+def button(d, r, label, fill=None, tc=None, f=F2):
+    # Resolved here rather than in the signature: a default argument is bound
+    # once, at import, so a palette swapped afterwards would never reach it.
+    fill = PANEL if fill is None else fill
+    tc = TEXT if tc is None else tc
     x, y, w, h = r
     d.rounded_rectangle([x + 2, y + 3, x + w + 1, y + h + 2], 6, fill=SHADOW)
     d.rounded_rectangle([x, y, x + w - 1, y + h - 1], 6, fill=fill)
@@ -123,8 +133,10 @@ def wifi_badge(d, cx, cy, bars=3):
             d.point((cx + dx, dot_y + dy), fill=col)
 
 
-def lock_icon(d, r, color=TEXT, bg=SURFACE):
+def lock_icon(d, r, color=None, bg=None):
     """Mirrors Ui::drawLockIcon: a hoop over a body, keyhole punched back out."""
+    color = TEXT if color is None else color
+    bg = SURFACE if bg is None else bg
     x, y, w, h = r
     cx = x + w // 2
     body_w = w - w // 4
@@ -147,22 +159,22 @@ def lock_icon(d, r, color=TEXT, bg=SURFACE):
 
 
 def topbar(d, title, synced=True, bars=3):
-    d.rectangle([0, 0, W - 1, 29], fill=SURFACE)
-    d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
-    d.line([(0, 29), (W, 29)], fill=shade(SURFACE, 60))
+    d.rectangle([0, 0, W - 1, 29], fill=BAR)
+    d.line([(0, 0), (W, 0)], fill=shade(BAR, 145))
+    d.line([(0, 29), (W, 29)], fill=shade(BAR, 60))
     # Home narrowed from 42px to 32px to make room for Lock beside it, and the
     # title starts at 62 instead of 48. See LauncherLayout.
-    d.rounded_rectangle([2, 5, 30, 24], 3, outline=MUTED)
-    d.text((5, 9), "home", font=F1, fill=MUTED)
-    lock_icon(d, (40, 6, 18, 18))
-    d.text((62, 8), title, font=F2, fill=TEXT)
+    d.rounded_rectangle([2, 5, 30, 24], 3, outline=BAR_TEXT)
+    d.text((5, 9), "home", font=F1, fill=BAR_TEXT)
+    lock_icon(d, (40, 6, 18, 18), BAR_TEXT, BAR)
+    d.text((62, 8), title, font=F2, fill=BAR_TEXT)
     t = "12:41 AM"
     batt_w = battery_width(72)
     batt_right = W - 40
     wifi_cx = batt_right - batt_w - 6 - 8
     sync_cx = wifi_cx - 8 - 6 - 6
     clock_right = sync_cx - 12
-    d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=TEXT)
+    d.text((clock_right - d.textlength(t, font=F2), 8), t, font=F2, fill=BAR_TEXT)
     sync_badge(d, sync_cx, 15, synced)
     wifi_badge(d, wifi_cx, 15, bars)
     battery_badge(d, batt_right - batt_w // 2, 15, 72)
@@ -1418,7 +1430,7 @@ def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
-    d.text((10, 5), PRODUCT, font=F4, fill=TEXT)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
     d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # Profile name: plain text on the byline row, no button chrome.
     d.text((124, 34), "Ava", font=F1, fill=TEXT)
@@ -1453,11 +1465,65 @@ def launcher_wide():
     return im
 
 
+def launcher_tall_dense():
+    """The 3x3 portrait grid, which only a panel 320px on its short side gets.
+
+    LauncherLayout::grid() switches to GRID_TALL_DENSE at DENSE_PORTRAIT_MIN_W,
+    so this is the 4-inch board stood on its end -- nine tiles, and the only
+    launcher layout no still had. Tiles come from the layout's own arithmetic
+    (GAP 8, header 78, footer 32), not from hand-placed rectangles.
+    """
+    w, h = 320, 480
+    im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
+    d.rectangle([0, 0, w - 1, 77], fill=SURFACE)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
+    d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
+           font=F1, fill=MUTED)
+    d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
+    d.text((8, 36), "Ava", font=F2, fill=TEXT)
+    d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
+    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
+    batt_w = battery_width(72)
+    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
+    battery_badge(d, bx + 40 + batt_w // 2, 60)
+    d.ellipse([w - 32, 48, w - 8, 72], outline=TEXT)
+    lock_icon(d, (w - 64, 51, 18, 18))
+
+    gap, header_h, footer_h, cols, rows_n = 8, 78, 32, 3, 3
+    tile_w = (w - gap * (cols + 1)) // cols
+    tile_h = (h - header_h - footer_h - gap * (rows_n + 1)) // rows_n
+    fills = (BLUE, GREEN, RED)
+    for slot, (title, sub) in enumerate(front_page_tiles(9)):
+        col, row = slot % cols, slot // cols
+        x = gap + col * (tile_w + gap)
+        y = header_h + gap + row * (tile_h + gap)
+        # LauncherLayout::tileFillIndex(): on a three-column grid `slot % 3`
+        # paints every column one colour, so it steps by row as well and the
+        # colours run diagonally. The mock had the striped version.
+        fill = fills[(col + row) % 3]
+        d.rounded_rectangle([x + 2, y + 3, x + tile_w + 1, y + tile_h + 2], 6, fill=SHADOW)
+        d.rounded_rectangle([x, y, x + tile_w - 1, y + tile_h - 1], 6, fill=fill)
+        d.line([(x + 4, y + 1), (x + tile_w - 5, y + 1)], fill=shade(fill, 138))
+        r = 13
+        d.ellipse([x + tile_w // 2 - r, y + 14, x + tile_w // 2 + r, y + 14 + 2 * r],
+                  fill=(120, 200, 255), outline=WHITE)
+        for text, fnt, yy, ink in ((title, F2, tile_h - 40, on_fill(fill)),
+                                   (sub, F1, tile_h - 22, on_fill_soft(fill))):
+            t = text
+            while d.textlength(t, font=fnt) > tile_w - 8 and len(t) > 2:
+                t = t[:-1]
+            d.text((x + tile_w / 2 - d.textlength(t, font=fnt) / 2, y + yy), t,
+                   font=fnt, fill=ink)
+    button(d, (8, h - 28, 74, 24), "Prev"); button(d, (w - 82, h - 28, 74, 24), "Next")
+    d.text((w / 2 - 12, h - 23), page_label(9), font=F2, fill=TEXT)
+    return im
+
+
 def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
     # Title left, copyright right, sharing the top row. See AppRuntimeLauncher.
-    d.text((10, 6), PRODUCT, font=F4, fill=TEXT)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
     d.text((232 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
            font=F1, fill=MUTED)
     d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
@@ -1536,13 +1602,13 @@ def settings_device():
     # Four rows of 30px from y=58, under the tab baseline. Network shares a
     # clock-settings row with the NTP resync cadence.
     button(d, (8, 58, 144, 30), "Theme: Dark")
-    button(d, (164, 58, 144, 30), "Menu: Tall")
+    button(d, (164, 58, 144, 30), "Menu: Landscape")
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
-    button(d, (8, 126, 144, 30), "Network", BLUE, WHITE)
+    button(d, (8, 126, 144, 30), "Network", ACCENT, on_fill(ACCENT))
     button(d, (164, 126, 144, 30), "Sync: 6h")
     button(d, (8, 160, 144, 30), "Nearby: On")
-    button(d, (164, 160, 144, 30), "Reset device", (120, 58, 58), WHITE)
+    button(d, (164, 160, 144, 30), "Reset device", shade(ERROR, 70), on_fill(shade(ERROR, 70)))
     d.text((8, 194), "Brightness", font=F1, fill=MUTED)
     d.text((312 - d.textlength("80%", font=F1), 194), "80%", font=F1, fill=MUTED)
     # slider: track, filled portion, handle -- mirrors Ui::drawSlider
@@ -1589,23 +1655,29 @@ def wakelock(w=W, h=H):
     bx, by = (W - bw) // 2, (H - bh) // 2 + 37
     text_max = W - 16
 
-    # Header, two rows: wordmark and battery, then the copyright, then a
-    # hairline. Fixed, not drifting like the saver's -- this screen is up for
-    # seconds, not hours. The copyright gets its own row because the badge is
-    # variable width and all three do not fit across 240px. Mirrors the
-    # HEADER_* constants in AppRuntimeLock.cpp.
-    header_h, header_pad, row1_cy, row2_y = 40, 10, 14, 26
-    _draw_logo(d, header_pad + _logo_mask("WORD_SMALL")[0] // 2, row1_cy,
-               TEXT, "WORD_SMALL")
-    batt_w = battery_width()
-    battery_badge(d, W - header_pad - batt_w // 2, row1_cy)
-    d.text((header_pad, row2_y), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-    d.line([(header_pad, header_h), (W - header_pad, header_h)], fill=OUTLINE)
+    # The mark, centred and at two thirds size, with the copyright under it --
+    # this is what the device shows sitting on a table, so it says what it is.
+    # The padlock is NOT here: it moved onto the "Locked" line below, where it
+    # labels the state instead of being a fourth stacked object. Mirrors
+    # AppRuntimeLock.cpp.
+    header_pad = 10
+    badge_w, badge_h, _, badge_cx = _logo_mask("BADGE_MID")
+    _draw_logo(d, W // 2, header_pad + badge_h // 2, TEXT, "BADGE_MID")
 
-    lock_icon(d, (W // 2 - 15, by - 82, 30, 30), MUTED, BG)
-    centered_fitted(d, "Locked", W / 2, by - 44, text_max, F4, TEXT)
+    # The padlock and the word as one centred group, measured together.
+    glyph, gap = 24, 8
+    locked_w = d.textlength("Locked", font=F4)
+    group_x = W / 2 - (glyph + gap + locked_w) / 2
+    lock_icon(d, (int(group_x), by - 44, glyph, glyph), MUTED, BG)
+    d.text((group_x + glyph + gap, by - 44), "Locked", font=F4, fill=TEXT)
     centered_fitted(d, "Press and hold the button", W / 2, by - 16, text_max, F1, MUTED)
-    button(d, (bx, by, bw, bh), "Hold to unlock", fill=BLUE, tc=WHITE)
+    button(d, (bx, by, bw, bh), "Hold to unlock", fill=ACCENT,
+           tc=on_fill(ACCENT))
+    # The battery sits in the bottom corner now, out of the brand's way -- and
+    # is not drawn at all when there is no reading, where it used to show an
+    # empty shell that reads as an SD card.
+    batt_w = battery_width()
+    battery_badge(d, W - header_pad - batt_w // 2, H - 16)
     barx, bary, barh = bx, by + bh + 10, 10
     d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
     d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],
@@ -1814,18 +1886,24 @@ def _logo_mask(name="BADGE"):
     hdr = (ROOT / "src" / "ui" / "LogoMask.h").read_text(encoding="utf-8")
     w = int(_re.search(r"%s_WIDTH = (\d+)" % name, hdr).group(1))
     h = int(_re.search(r"%s_HEIGHT = (\d+)" % name, hdr).group(1))
+    centre = int(_re.search(r"%s_CENTRE = (\d+)" % name, hdr).group(1))
     body = _re.search(r"%s_BITS\[[^\]]*\]\[[^\]]*\] = \{(.*?)\n\};" % name,
                       src, _re.S).group(1)
     rows = [[int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{2})", line)]
             for line in _re.findall(r"\{([^{}]*0x[^{}]*)\}", body)]
     assert len(rows) == h, "%s has %d rows, header says %d" % (name, len(rows), h)
-    return w, h, rows
+    return w, h, rows, centre
 
 
 def _draw_logo(d, cx, cy, colour, name="BADGE"):
-    """Ui::drawLogo(): the ink of the mask, as horizontal runs."""
-    w, h, rows = _logo_mask(name)
-    x0, y0 = cx - w // 2, cy - h // 2
+    """Ui::drawLogo(): the ink of the mask, as horizontal runs.
+
+    `cx` is the mark's OPTICAL centre, as in the firmware -- the trade mark
+    sign hangs off the right, so centring the bitmap would sit the mark left
+    of where it belongs.
+    """
+    w, h, rows, centre = _logo_mask(name)
+    x0, y0 = cx - centre, cy - h // 2
     for y, row in enumerate(rows):
         run = None
         for x in range(w + 1):
@@ -1845,7 +1923,7 @@ def screensaver():
     im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
     rally = (255, 160, 60)
     mid_x, mid_y = W // 2, H // 2
-    logo_w, logo_h, _ = _logo_mask("BADGE")
+    logo_w, logo_h, _, logo_cx = _logo_mask("BADGE")
     copy_gap = 8
     block_h = logo_h + copy_gap + 8
     text_y, text_h = mid_y - block_h // 2, block_h
@@ -1871,6 +1949,7 @@ def screensaver():
 SCREENS = [
     ("launcher-wide", launcher_wide, "Home screen, Wide layout"),
     ("launcher-tall", launcher_tall, "Home screen, Tall layout"),
+    ("launcher-tall-dense", launcher_tall_dense, "Home screen, Tall layout on a 4-inch panel"),
     ("flags-country", flags_country, "Flags: name the country"),
     ("flags-capital", flags_capital, "Flags: capital-city bonus"),
     ("states", states, "US States: name the capital"),
@@ -2502,7 +2581,7 @@ def about_intro():
                        (ROOT / "platformio.ini").read_text(encoding="utf-8")).group(1)
     im, d = blank(); topbar(d, "About")
     d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
-    _draw_logo(d, 14 + _logo_mask("WORD_SMALL")[0] // 2,
+    _draw_logo(d, 14 + _logo_mask("WORD_SMALL")[3],
                48 + _logo_mask("WORD_SMALL")[1] // 2, TEXT, "WORD_SMALL")
     for y, text, font, colour in (
             (70, COPYRIGHT_SHORT, F1, MUTED),
@@ -2517,6 +2596,47 @@ def about_intro():
     button(d, (12, 206, 92, 28), "Prev")
     button(d, (216, 206, 92, 28), "Next")
     d.text((W / 2 - 14, 212), "1/10", font=F2, fill=MUTED)
+    return im
+
+
+def about_password():
+    """About: where the Wi-Fi password lives, said on the device."""
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "The Wi-Fi password", font=F2, fill=TEXT)
+    for y, text, colour in ((70, "Kept in this device's memory", TEXT),
+                            (84, "as plain text, not encrypted.", TEXT),
+                            (102, "Anyone holding the device with", MUTED),
+                            (116, "a USB cable can read it. Over", MUTED),
+                            (130, "the air, nobody can.", MUTED),
+                            (148, "This is how nearly every ESP32", MUTED),
+                            (162, "device works, open source or", MUTED),
+                            (176, "not. It is not specific to us.", MUTED)):
+        d.text((14, y), text, font=F1, fill=colour)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "8/12", font=F2, fill=MUTED)
+    return im
+
+
+def about_warranty():
+    """About: what the owner is accepting by using it."""
+    im, d = blank(); topbar(d, "About")
+    d.rounded_rectangle([10, 38, 309, 195], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((14, 44), "Use it knowing this", font=F2, fill=TEXT)
+    for y, text, colour in ((70, "Use a network you would not", TEXT),
+                            (84, "mind sharing: a phone hotspot,", TEXT),
+                            (98, "or a guest network.", TEXT),
+                            (116, "This console is provided as is,", MUTED),
+                            (130, "with no warranty and no", MUTED),
+                            (144, "responsibility accepted for any", MUTED),
+                            (158, "loss or damage. Using it means", MUTED),
+                            (172, "accepting that, and the risk", MUTED),
+                            (186, "described here.", MUTED)):
+        d.text((14, y), text, font=F1, fill=colour)
+    button(d, (12, 206, 92, 28), "Prev")
+    button(d, (216, 206, 92, 28), "Next")
+    d.text((W / 2 - 14, 212), "9/12", font=F2, fill=MUTED)
     return im
 
 
@@ -2772,7 +2892,7 @@ def profiles_pick():
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     # Header band
     d.rectangle([0, 0, W, 30], fill=SURFACE)
-    _draw_logo(d, 10 + _logo_mask("WORD")[0] // 2, 15, TEXT, "WORD")
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 15, TEXT, "WORD")
     d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
     # promptY = 32 in landscape, and the hint sits 18px below it.
@@ -2986,7 +3106,8 @@ def _e_tabs(d, active):
     d.line([(0, 52), (319, 52)], fill=OUTLINE)
 
 
-def _e_strip(d, text, ink=TEXT):
+def _e_strip(d, text, ink=None):
+    ink = TEXT if ink is None else ink
     d.rounded_rectangle([6, 56, W - 7, 82], 5, fill=SURFACE, outline=OUTLINE)
     font = F2 if d.textlength(text, font=F2) <= W - 24 else F1
     d.text((W / 2 - d.textlength(text, font=font) / 2, 69 - (7 if font is F2 else 5)),
@@ -3073,6 +3194,8 @@ EXTRA_SCREENS = [
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("about-intro", about_intro, "About: the mark, the version, what is inside"),
     ("about-radios", about_radios, "About: what the radios do"),
+    ("about-password", about_password, "About: where the Wi-Fi password lives"),
+    ("about-warranty", about_warranty, "About: no warranty, and the risk accepted"),
     ("about-build", about_build, "About: which build is on the device"),
     ("about-updates", about_updates, "About: whether a newer firmware exists"),
     ("tictactoe", tictactoe, "Tic-Tac-Toe"),
@@ -3115,7 +3238,104 @@ EXTRA_SCREENS = [
 SCREENS.extend(EXTRA_SCREENS)
 
 
+# --- every screen, in every theme ------------------------------------------
+#
+# THE STILLS ABOVE ARE ALL DARK, AND EIGHT OTHER THEMES SHIP.
+#
+# Every mock-up in this file is drawn in the Dark palette, because that is what
+# the constants at the top hold -- so the other eight were never looked at, and
+# the faults they had were exactly the ones nobody sees in a screenshot: a Home
+# button drawn white on Classic's white bar, a battery badge in a grey chosen
+# for Dark sitting on Silver's silver and Pocket's green, secondary text at
+# 1.2:1 on a teal desktop. tools/check_contrast.py measures the palette, but a
+# ratio cannot tell you that a glyph is drawn in a colour the palette never
+# chose.
+#
+# So: `python tools/gen_screens.py --themes` re-renders a representative set of
+# screens in each of the nine palettes and writes one contact sheet per theme
+# to docs/theme-sheets/. Look at them. They are the only place a chrome colour
+# that ignores the theme shows up before the device does.
+
+THEME_SHEET_SCREENS = (
+    "launcher-wide",        # tiles, header, the badge row
+    "launcher-tall",        # PORTRAIT: a different header and a 2x2 grid
+    "launcher-tall-dense",  # PORTRAIT on a big panel: the 3x3 grid
+    "about-intro",          # a card of body text, the mark
+    "settings-device",      # controls on a card
+    "systeminfo-memory",    # dense rows, meters, muted labels
+    "scores",               # a list with values
+    "math",                 # a game: big text and answer buttons
+    "trace",                # a game with its own canvas colours
+    "wakelock",             # chrome on the bare ground
+)
+
+
+def _palette_rgb(value):
+    """RGB565 as the panel expands it, which is what the eye sees."""
+    r, g, b = (value >> 11) & 0x1F, (value >> 5) & 0x3F, value & 0x1F
+    return ((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2))
+
+
+def apply_theme(palette):
+    """Point every colour in this file at one row of Ui.cpp's PALETTES.
+
+    Read from the firmware's own table rather than restated here -- the whole
+    value of the sheet is that it shows what the device will draw.
+    """
+    global BG, SURFACE, PANEL, TEXT, MUTED, OUTLINE, SUCCESS, ERROR, WARN
+    global BAR, BAR_TEXT, BLUE, GREEN, RED, ACCENT
+    BG = _palette_rgb(palette["bg"])
+    SURFACE = _palette_rgb(palette["surface"])
+    PANEL = _palette_rgb(palette["panel"])
+    TEXT = _palette_rgb(palette["text"])
+    MUTED = _palette_rgb(palette["muted"])
+    OUTLINE = _palette_rgb(palette["outline"])
+    SUCCESS = _palette_rgb(palette["success"])
+    ERROR = _palette_rgb(palette["error"])
+    WARN = _palette_rgb(palette["warning"])
+    BAR = _palette_rgb(palette["bar"])
+    BAR_TEXT = _palette_rgb(palette["barText"])
+    BLUE, GREEN, RED = (_palette_rgb(t) for t in palette["tile"])
+    ACCENT = _palette_rgb(palette["accent"])
+
+
+def theme_sheets():
+    """One contact sheet per theme, into docs/theme-sheets/."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    from check_contrast import parse_palettes
+    out = ROOT / "docs" / "theme-sheets"
+    out.mkdir(parents=True, exist_ok=True)
+    by_name = {name: fn for name, fn, _ in SCREENS}
+    for palette in parse_palettes():
+        apply_theme(palette)
+        shots = []
+        for name in THEME_SHEET_SCREENS:
+            if name in by_name:
+                shots.append((name, by_name[name]()))
+        cols = 4
+        cw = max(s.width for _, s in shots) + 10
+        ch = max(s.height for _, s in shots) + 26
+        rows = (len(shots) + cols - 1) // cols
+        sheet = Image.new("RGB", (cols * cw + 10, rows * ch + 30), (26, 26, 30))
+        draw = ImageDraw.Draw(sheet)
+        draw.text((12, 8), "%s  --  %d screens" % (palette["name"], len(shots)),
+                  font=F2, fill=(240, 240, 240))
+        for i, (name, shot) in enumerate(shots):
+            x, y = 10 + (i % cols) * cw, 30 + (i // cols) * ch
+            draw.text((x, y), name, font=F1, fill=(170, 170, 175))
+            sheet.paste(shot, (x, y + 14))
+        path = out / ("%s.png" % palette["name"].lower().replace(" ", "-"))
+        sheet.save(path)
+        print("  %s" % path.name)
+    # No restore: this only ever runs as its own invocation, and leaving the
+    # last theme in the globals cannot reach the ordinary stills.
+    print("wrote %d theme sheets to %s" % (len(parse_palettes()), out))
+
+
 def main() -> None:
+    if "--themes" in sys.argv:
+        theme_sheets()
+        return
     OUT.mkdir(parents=True, exist_ok=True)
     if not HAVE_ART:
         print("NOTE: map-n-flag checkout not found; flag/outline art will be blank")

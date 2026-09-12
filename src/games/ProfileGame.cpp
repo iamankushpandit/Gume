@@ -541,7 +541,7 @@ void ProfileGame::renderDynamic(GameHost& host) {
         /* The mark rather than the name in font 4 -- the wordmark variant is
          * cut to that height, so the header's geometry does not move. */
         Ui::drawLogo(tft,
-                     static_cast<int16_t>(10 + Ui::logoWidth(Ui::Logo::Word) / 2),
+                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
                      15, Ui::text(), Ui::Logo::Word);
 
         // The mark is the brand's, the copyright is the author's -- two

@@ -57,10 +57,39 @@ SVG = os.path.join(ROOT, "tools", "braino-badge.svg")
 WORDMARK_TOP = 300.0
 
 MARKS = [
-    ("BADGE", 90, "badge"),      # everything: the screen saver
-    ("WORD", 26, "wordmark"),    # a font-4 header: Profiles
+    # Everything, and the screen saver is the one place with room for it. 118
+    # rather than 90: the saver is the console sitting on a shelf showing what
+    # it is, so the mark carries the screen -- but it shares 240 pixels with a
+    # copyright line and a battery badge, and half the height is where it stops
+    # being a mark and starts being a wall.
+    ("BADGE", 118, "badge"),
+    # The lock screen: big enough to be the brand on a device somebody has
+    # picked up, small enough to leave room for the word Locked, the button and
+    # the progress bar on a 240px panel.
+    ("BADGE_MID", 64, "badge"),
+    ("WORD", 26, "wordmark"),         # a font-4 header: the launcher, Profiles
     ("WORD_SMALL", 16, "wordmark"),   # a font-2 row: the lock screen, About
+    # The brain alone, for the places that already say the name in words next
+    # to it -- a header that has the wordmark beside it, or a page whose title
+    # is the product. Repeating the name there is not branding, it is clutter.
+    ("ICON", 22, "icon"),             # beside a header row's wordmark
+    ("ICON_BIG", 56, "icon"),         # a page corner: About
 ]
+
+# THE TRADE MARK SIGN, AND WHY IT IS DRAWN HERE.
+#
+# The mark carries a TM wherever it appears. Nothing in the firmware can add
+# one: the UI fonts are ASCII bitmaps with no such glyph, and setting it as two
+# letters at the smallest font would be six pixels tall beside a sixteen-pixel
+# wordmark -- as big as the name it qualifies. So it is drawn into the mask, at
+# a size proportional to the mark, as part of the artwork.
+#
+# It is TM and not (R): (R) means a registered mark, and claiming registration
+# that does not exist is a misrepresentation in most places that have a
+# register. TM claims common-law rights and needs no filing.
+TM_HEIGHT = 0.30        # of the wordmark's own ink height
+TM_GAP = 0.06           # of that height again, between the name and the sign
+TM_MIN_PX = 5           # below this it is a smudge; it does not shrink further
 
 # Supersampling for the fill. 4x4 is enough that the thin strokes inside the
 # brain -- about two pixels wide at this size -- come out even rather than
@@ -187,12 +216,15 @@ def load(path):
 
 
 def select(paths, which):
-    """The subpaths belonging to one half of the artwork."""
+    """The subpaths belonging to one part of the artwork."""
     if which == "badge":
         return paths
     out = []
     for subs, rule in paths:
-        keep = [s for s in subs if min(y for _, y in s) >= WORDMARK_TOP]
+        if which == "wordmark":
+            keep = [s for s in subs if min(y for _, y in s) >= WORDMARK_TOP]
+        else:   # icon: the brain, everything above the letters
+            keep = [s for s in subs if min(y for _, y in s) < WORDMARK_TOP]
         if keep:
             out.append((keep, rule))
     return out
@@ -239,6 +271,56 @@ def rasterise(view, paths, height, ss):
     return ink.reshape(height, ss, width, ss).mean(axis=(1, 3))
 
 
+def stamp_tm(mask, word_top_row):
+    """Add the trade mark sign at the top right of the wordmark's ink.
+
+    `word_top_row` is the first row the WORDMARK occupies -- for the badge that
+    is part-way down, and the sign belongs beside the name rather than beside
+    the brain. Returns a new, slightly wider mask.
+    """
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+
+    rows = np.where(mask[word_top_row:].any(axis=1))[0]
+    cols = np.where(mask[word_top_row:].any(axis=0))[0]
+    if not len(rows) or not len(cols):
+        return mask
+    ink_top = word_top_row + rows[0]
+    ink_bottom = word_top_row + rows[-1]
+    ink_right = cols[-1]
+    word_h = ink_bottom - ink_top + 1
+
+    size = max(TM_MIN_PX, int(round(word_h * TM_HEIGHT)))
+    gap = max(1, int(round(word_h * TM_GAP)))
+    # Rendered through PIL rather than hand-plotted: at five pixels a drawn T
+    # and M are the same thing a font gives, and the font stays legible as the
+    # mark grows.
+    font = None
+    for name in ("consolab.ttf", "consola.ttf", "arialbd.ttf"):
+        try:
+            font = ImageFont.truetype(name, size * 2)
+            break
+        except OSError:
+            continue
+    if font is None:
+        font = ImageFont.load_default()
+    probe = Image.new("L", (size * 6, size * 4), 0)
+    ImageDraw.Draw(probe).text((0, 0), "TM", font=font, fill=255)
+    box = probe.getbbox()
+    if box is None:
+        return mask
+    glyph = np.array(probe.crop(box)) > 110
+    tm_w, tm_h = glyph.shape[1], glyph.shape[0]
+
+    out = np.zeros((mask.shape[0], ink_right + 1 + gap + tm_w), bool)
+    out[:, :mask.shape[1]] = mask
+    x0 = ink_right + 1 + gap
+    y0 = max(0, ink_top)
+    y1 = min(out.shape[0], y0 + tm_h)
+    out[y0:y1, x0:x0 + tm_w] |= glyph[:y1 - y0]
+    return out
+
+
 def emit(marks):
     lines = [
         "/* GENERATED by tools/gen_logo_mask.py from tools/braino-badge.svg.",
@@ -248,7 +330,7 @@ def emit(marks):
         '#include "LogoMask.h"',
         "",
     ]
-    for name, mask, width, height in marks:
+    for name, mask, width, height, _centre in marks:
         per_row = (width + 7) // 8
         lines.append("const uint8_t LogoMask::%s_BITS[LogoMask::%s_HEIGHT]"
                      "[LogoMask::%s_BYTES_PER_ROW] = {" % (name, name, name))
@@ -283,9 +365,11 @@ def emit(marks):
         "namespace LogoMask {",
         "",
     ]
-    for name, _, width, height in marks:
+    for name, _, width, height, centre in marks:
         header += [
             "constexpr int16_t %s_WIDTH = %d;" % (name, width),
+            # The x within the bitmap that reads as the middle of the mark.
+            "constexpr int16_t %s_CENTRE = %d;" % (name, centre),
             "constexpr int16_t %s_HEIGHT = %d;" % (name, height),
             "constexpr int16_t %s_BYTES_PER_ROW = %d;" % (name, (width + 7) // 8),
             "extern const uint8_t %s_BITS[%s_HEIGHT][%s_BYTES_PER_ROW];" % (name, name, name),
@@ -318,7 +402,7 @@ def preview(rendered):
         sys.stderr.write("Pillow not installed; skipping the preview sheet.\n")
         return
     tiles = []
-    for name, mask, width, height in rendered:
+    for name, mask, width, height, _centre in rendered:
         scale = 4 if height > 40 else 8
         tiles.append((name,) + preview_one(mask, width, height, scale))
     w = max(t[1].width + t[2].width + 60 for t in tiles)
@@ -347,7 +431,38 @@ def main():
         x, y, w, h = bounds(chosen)
         cov = rasterise((x, y, w, h), chosen, height, SUPERSAMPLE)
         mask = cov >= THRESHOLD
-        rendered.append((name, mask, mask.shape[1], mask.shape[0]))
+        # Where the wordmark starts inside this mark: the top for a wordmark
+        # variant, part-way down for the badge.
+        # The sign goes beside the NAME. A brain on its own carries no
+        # wordmark to qualify, and at 22 pixels a TM beside it would be three
+        # pixels of grey mush -- the places that draw the icon draw the
+        # wordmark next to it, and that one carries the sign.
+        if which != "icon":
+            word_top = 0
+            if which == "badge":
+                word_top = int(max(0, (WORDMARK_TOP - y) * height / h))
+            mask = stamp_tm(mask, word_top)
+        # WHERE THE MARK LOOKS CENTRED, which is not the middle of the
+        # bitmap: the trade mark sign hangs off the right, so centring the
+        # image puts the brain and the name visibly left of centre. This is
+        # the centre of the ink WITHOUT the sign, and Ui::drawLogo() places
+        # that at the point it is given.
+        centre = mask.shape[1] // 2
+        if which != "icon":
+            import numpy as _np
+            cols = _np.where(mask[:, :].any(axis=0))[0]
+            # The sign is the ink to the right of the gap that follows the
+            # name; find the widest gap in the right-hand third and cut there.
+            if len(cols):
+                gaps = _np.where(_np.diff(cols) > 1)[0]
+                cut = None
+                for g in gaps:
+                    if cols[g] > mask.shape[1] * 0.55:
+                        cut = cols[g]
+                        break
+                right = cut if cut is not None else cols[-1]
+                centre = int((cols[0] + right) // 2)
+        rendered.append((name, mask, mask.shape[1], mask.shape[0], centre))
     body, header = emit(rendered)
     io.open(os.path.join(ROOT, "src", "ui", "LogoMask.cpp"), "w",
             encoding="utf-8", newline="\n").write(body)
@@ -355,7 +470,7 @@ def main():
             encoding="utf-8", newline="\n").write(header)
     print("wrote    src/ui/LogoMask.{h,cpp}")
     total = 0
-    for name, mask, width, height in rendered:
+    for name, mask, width, height, _centre in rendered:
         cost = ((width + 7) // 8) * height
         total += cost
         print("         %-11s %3dx%-3d  %2.0f%% ink  %4d bytes"

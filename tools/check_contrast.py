@@ -109,8 +109,10 @@ def parse_palettes():
         if depth >= 1:
             cur += ch
 
+    # In the order Palette declares them: positional, so a field added to the
+    # struct without a line here silently shifts every role after it.
     ROLES = ["bg", "bar", "barText", "surface", "panel", "text", "muted",
-             "outline", "success", "error", "warning"]
+             "outline", "success", "error", "warning", "accent"]
     out = []
     for i, row in enumerate(rows):
         tokens = [t.strip() for t in re.split(r",(?![^{]*\})", row) if t.strip()]
@@ -156,14 +158,16 @@ def pairs(p):
         ("text", "bg", TEXT, "body text on the ground"),
         ("text", "surface", TEXT, "body text on a card"),
         ("text", "panel", TEXT, "text on a control"),
-        # muted on the bare ground is held to the LARGE floor rather than the
-        # body-text one. Body text on the ground is Ui::text(); what is drawn
-        # muted there is short hints at font 2 and up, and holding this pair to
-        # 4.5 would force the period themes' desktops to give up the very
-        # colour they are (a mid grey, a teal) or flatten muted into text. On a
-        # card or a control -- where About and System Info put paragraphs of it
-        # -- it is held to 4.5 with no exception.
-        ("muted", "bg", LARGE, "secondary text on the ground"),
+        # muted on the bare ground was held to the LARGE floor for a while, on
+        # the argument that what is drawn muted there is short hints at font 2
+        # and up. That was too generous and it was reported from the device:
+        # "grey text in teal is also bad in silver". 3:1 is a floor for a
+        # SHAPE you have to notice, not for a word you have to read at 8px
+        # behind a diffusing overlay. Secondary text is text wherever it is
+        # drawn, so it is 4.5 everywhere -- and if that flattens a period
+        # theme's muted into its text on the desktop, the desktop is the wrong
+        # place for that theme to be drawing secondary text.
+        ("muted", "bg", TEXT, "secondary text on the ground"),
         ("muted", "surface", TEXT, "secondary text on a card -- About, System Info"),
         ("muted", "panel", TEXT, "secondary text on a control"),
         ("barText", "bar", TEXT, "the top bar's title and glyphs"),
@@ -173,6 +177,10 @@ def pairs(p):
         ("error", "surface", GRAPHIC, "same, on a card"),
         ("warning", "bg", GRAPHIC, "warnings and the tracing guide arrow"),
         ("warning", "surface", GRAPHIC, "same, on a card"),
+        # The accent is a fill, and what has to be readable is the label on
+        # it -- which is Ui::onFill(accent), checked below with the tiles.
+        ("accent", "bg", GRAPHIC, "a primary action has to stand out"),
+        ("accent", "surface", GRAPHIC, "same, on a card"),
         ("outline", "bg", HAIRLINE, "hairlines on the ground"),
         ("outline", "surface", HAIRLINE, "hairlines on a card"),
     ]
@@ -220,6 +228,13 @@ def check(palettes):
         # on Classic's light grey tile at 1.3:1; if either of those ever goes
         # back to a constant, this check goes on passing while the panel stops
         # being readable, so keep the two in step.
+        # The accent's own label, by the same rule as a tile's.
+        acc = rgb565_to_rgb(p["accent"])
+        r = ratio(on_fill(acc), acc)
+        if r < TEXT:
+            rows.append(("accent label", "accent", r, TEXT, "label on a primary action"))
+            problems.append("%s: the label on the accent is %.1f:1, needs %.1f"
+                            % (p["name"], r, TEXT))
         for i, tile in enumerate(p["tile"]):
             fill = rgb565_to_rgb(tile)
             for what, colour in (("label", on_fill(fill)),

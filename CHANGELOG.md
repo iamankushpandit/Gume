@@ -17,6 +17,53 @@ them. Persistence is off now: the firmware always connects from its own stored
 credentials, so the copy it owns is the only one there is. It is still plain
 text, and the README now says so and says what it would take to change it.
 
+**Every screen has now been looked at in every theme, and several were
+broken.** The mock-ups were all Dark, so the other eight were never seen: the
+Home button was painted white and vanished on Classic's white bar, the battery
+badge used one of two greys chosen for Dark and disappeared on Silver's silver
+and Pocket's green, and the primary buttons were a hard-coded web blue on all
+nine. `python tools/gen_screens.py --themes` renders a representative set of
+screens in each palette to `docs/theme-sheets/`, and CLAUDE.md now requires it
+whenever a theme is added or changed. The Home glyph and the battery badge take
+the ink of whatever they sit on; `accent` is a palette role, so a primary
+action is the theme's colour rather than one blue for everybody.
+
+**Secondary text is held to the same contrast as any other text.** It had a
+looser floor on the bare ground, which was reported from the device as grey
+text on Silver's teal being hard to read. It is 4.5:1 everywhere now; on Silver
+that means secondary text is the same black as primary, because nothing lighter
+is readable on that desktop, and size does the separating instead.
+
+**The mark carries a trade mark sign, and it is everywhere the name was.** The
+generator cuts the wordmark out of the badge artwork and stamps a proportional
+TM beside it, so every place that used to set "Braino!" in the UI font -- the
+launcher, Profiles, the lock screen, About -- now draws the real letterforms
+with the sign. About and the lock screen also show the brain itself.
+
+**The lock screen leads with the brand.** The mark is centred at two thirds
+size instead of a small wordmark in the corner, the padlock moved onto the
+"Locked" line where it labels the state, and the battery moved to the bottom
+corner out of the brand's way.
+
+**A battery badge with no reading is not drawn at all.** It used to draw an
+empty shell, which was read off the device as an SD-card icon -- a symbol for
+something this console does not have. No reading means no badge and no width,
+so the headers close the gap. It is not a claim that no pack is fitted: nothing
+here can tell a missing pack from a present one.
+
+**About says where the Wi-Fi password is kept.** Two pages: that it is stored
+in plain text, that anyone holding the device with a cable can read it, that
+this is how nearly every ESP32 device works rather than something particular to
+this one -- and that the console is provided as is, with no warranty and no
+responsibility accepted, which using it accepts.
+
+**Settings says Landscape and Portrait** where it said Horizontal and Vertical.
+The code keeps its own names; those two words are what an owner calls a screen
+turned on its side.
+
+**The launcher's player name no longer touches the byline.** In landscape the
+name started at exactly the x the copyright ends at.
+
 **Joining a network no longer costs you the one you had.** The Wi-Fi screen
 saved the SSID and password *before* trying them, so mistyping a password on
 another network destroyed the working credentials -- and there was no way to

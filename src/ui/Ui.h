@@ -37,6 +37,10 @@ uint16_t outline();
 uint16_t success();
 uint16_t error();
 uint16_t warning();
+/* The fill of a primary action -- Settings' Network button, Wi-Fi's Scan and
+ * JOIN. Pair it with onFill(accent()) for the label rather than assuming
+ * white: on the themes whose accent is light, white on it cannot be read. */
+uint16_t accent();
 void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
@@ -66,15 +70,23 @@ void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
  * Sizes are fixed, because the masks are: ask logoWidth()/logoHeight() for the
  * variant you are drawing and lay out around them rather than assuming. */
 enum class Logo : uint8_t {
-    Badge,       // the whole artwork: brain over wordmark, 90px tall
+    Badge,       // the whole artwork: brain over wordmark, for the saver
     Word,        // the wordmark alone, at the height a font-4 heading was
     WordSmall,   // the wordmark alone, at the height a font-2 row was
+    BadgeMid,    // the whole artwork at two thirds: the lock screen
+    Icon,        // the brain alone, beside a header row's wordmark
+    IconBig,     // the brain alone, for a page corner
 };
 
+/* `cx` is where the mark should LOOK centred. That is not the middle of its
+ * bitmap: the trade mark sign hangs off the right-hand end, so a mark centred
+ * by its image sits visibly left of centre. To place one against a left edge,
+ * pass `x + logoCentre(which)`. */
 void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
               Logo which = Logo::Badge);
 int16_t logoWidth(Logo which = Logo::Badge);
 int16_t logoHeight(Logo which = Logo::Badge);
+int16_t logoCentre(Logo which = Logo::Badge);
 
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
  * warning dot when it is still the free-running build-time estimate. Drawn at
