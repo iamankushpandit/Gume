@@ -1,14 +1,6 @@
 # Changelog
 
-## 5.11.0-SNAPSHOT — Unreleased
-
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.10.0
-release, and `release.yml` refuses to publish a tag whose version carries it.
-
-`Board::compareVersions()` sorts a pre-release before the release of the same
-number, so a console on this build is correctly told that nothing newer exists
-rather than being nagged all cycle to install the 5.10.0 it is ahead of.
+## 5.11.0 — 2026-09-12
 
 **About calls two-console play experimental, on the device.** It is the one
 thing shipping here that has not been exercised end to end on two boards since
@@ -208,15 +200,16 @@ boards can be added to `docs/boards/img/`; the tool strips their metadata --
 EXIF can hold a GPS position or a name -- and CI refuses one that still
 carries any.
 
-**First thing this cycle: a two-console regression check of nearby play.** It
-has now been carried over twice. Two defects in that path were fixed late in
+**Still outstanding, carried over from 5.9.0 and 5.10.0:** a two-console
+regression check of nearby play -- which is why About now calls two-console
+play experimental rather than letting the owner find out. Two defects in that path were fixed late in
 5.9.0 — the acceptor never published its ply-0 answer, and a peer's turn was
 recorded only on the sighting that first brought it into range — so the code
 that shipped is not the code that was exercised on two boards, and it is the
 headline feature of that release.
 
-**Second: the boot banner should carry the device's stored STATE, not just its
-identity.** Diagnosing the 5.9.1 panel bug took far longer than it should
+**Also outstanding: the boot banner should carry the device's stored STATE,
+not just its identity.** Diagnosing the 5.9.1 panel bug took far longer than it should
 have, because four boards on one commit produced four healthy, nearly
 identical logs while looking different from each other. Everything that
 changes what a screen shows — theme, brightness, layout, idle timeouts, mute
