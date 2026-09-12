@@ -2160,6 +2160,35 @@ def go_lobby():
     return im
 
 
+def chess_lobby():
+    """Chess's lobby: the Level and colour chips, then one console, the
+    computer, and whichever peers fit.
+
+    Geometry from ChessGame::lobbyChipRect() and lobbyRowRect(): chips at
+    TOP_BAR_H + 6, 26 tall, two across the width with a 6px gap; rows start 8
+    below them at 30 tall on a 36 pitch. How many rows there are is MEASURED on
+    the device -- lobbyRowCount() stops above the footnote -- which on a 240
+    panel is four, so two peers are offered and the rest are not. The Nearby
+    app remains the place that lists everything in range.
+    """
+    im, d = blank(); topbar(d, "Chess")
+    chips = [("Level", "Easy"), ("You play", "White")]
+    cw = (W - 20 - 6) // 2
+    for i, (label, value) in enumerate(chips):
+        x = 10 + i * (cw + 6)
+        d.rounded_rectangle([x, 36, x + cw - 1, 61], 6, fill=SURFACE, outline=OUTLINE)
+        d.text((x + 7, 39), label, font=F1, fill=MUTED)
+        d.text((x + 7, 48), value, font=F2, fill=TEXT)
+        d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
+    rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", PANEL, TEXT)]
+    for r, (label, fill, ink) in enumerate(rows):
+        button(d, (10, 70 + r * 36, W - 20, 30), label, fill=fill, tc=ink)
+    d.text((W // 2, H - 6), "Moves travel by Bluetooth. Anyone near hears them.",
+           font=F1, fill=MUTED, anchor="ms")
+    return im
+
+
 SCREENS = [
     ("launcher-wide", launcher_wide, "Home screen, Wide layout"),
     ("launcher-tall", launcher_tall, "Home screen, Tall layout"),
@@ -3765,6 +3794,7 @@ EXTRA_SCREENS = [
     ("backgammon-lobby", backgammon_lobby, "Backgammon: one console, the computer, or nearby"),
     ("go", go, "Go: a ghost stone where the finger landed, the panel saying what it takes"),
     ("go-lobby", go_lobby, "Go: rules and level chips, one console, the computer, or nearby"),
+    ("chess-lobby", chess_lobby, "Chess: level and colour chips, one console, the computer, or nearby"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 SCREENS.extend(PORTRAIT_SCREENS)

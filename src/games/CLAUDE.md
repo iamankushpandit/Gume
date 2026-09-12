@@ -193,11 +193,36 @@ Who can use it:
 
 Both were one `.cpp` each until they passed the size the modularity rule
 allows, and both are now split the way Backgammon is: `ChessGame.cpp` (the
-game's life, a fresh board, a tap on it), `ChessRules.cpp` (move generation,
-check, the endings), `ChessDraw.cpp` (geometry and every pixel, the lobby's
-row geometry included), `ChessNet.cpp` (the lobby and the poll that plays a
-nearby game) and `ChessSave.cpp`, sharing `ChessInternal.h` for the three
-square helpers and the back rank that more than one of them needs. Sea Battle
+game's life, a fresh board, a tap on it), `ChessDraw.cpp` (geometry and every
+pixel, the lobby's row geometry included), `ChessNet.cpp` (the lobby and the
+poll that plays a nearby game) and `ChessSave.cpp`, over `ChessRules.h` /
+`ChessRules.cpp` (move generation, check, the endings) and `ChessAi.cpp` (both
+computer levels).
+
+**Those last two are pure and must stay pure.** They are `namespace Ch`, they
+include `<stdint.h>` and `<string.h>` and nothing else, and
+`test/host/chess_rules_test.cpp` compiles them with a host g++ -- which is what
+proves it, since the test will not build if an Arduino header ever leaks in.
+That matters here more than the equivalent rule elsewhere, because
+`ChessRules.cpp` carried a comment claiming purity for a long time while
+including `ChessGame.h`, and therefore `Game.h`, `Ui.h` and TFT_eSPI. The
+bodies were honest and the translation unit was not, and nothing could tell the
+difference until something tried to build it off the device. A comment is not a
+mechanism; the test is.
+
+`ChessInternal.h` survives for the square helpers, but it now takes them from
+`ChessRules.h` with four using-declarations rather than defining them --
+deliberately four names rather than `using namespace Ch`, so a file has to say
+what it is taking.
+
+**The computer runs across frames, never on a task and never to completion in
+one.** `ChessAi` splits its alpha-beta at the root: `stepSearch()` scores one
+root move per call and the screen stops when the frame's microsecond budget is
+spent, so a partial result can never be mistaken for a finished one. Easy is
+one ply plus a recapture check. Both are deliberately weak -- a console that
+beats a seven-year-old every time is a worse product than one they beat half
+the time -- and both are deterministic in (position, seed), which is what makes
+a bad move reportable rather than a story about one. Sea Battle
 is `SeaBattleGame.cpp` (the fleet and a shot as well as the screen -- its
 rules are eighty lines), `SeaBattleDraw.cpp`, `SeaBattleNet.cpp` and
 `SeaBattleSave.cpp`. The split was by line range and nothing moved changed;

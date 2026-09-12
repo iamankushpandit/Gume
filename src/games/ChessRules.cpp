@@ -1,12 +1,16 @@
-#include "ChessGame.h"
+#include "ChessRules.h"
 
 #include <string.h>
 
-#include "ChessInternal.h"
-
-/* The rules of chess, and nothing about a screen. Pure: it could be compiled
- * on the host like BackgammonRules if it were ever needed to. See the class
- * comment in ChessGame.h for why "legal" is meant strictly. */
+/* The rules of chess, and nothing about a screen. Pure, and now provably so:
+ * this file includes stdint and string and nothing else, which is what lets
+ * test/host/chess_rules_test.cpp compile it with a host g++. It used to say
+ * "pure" in a comment while including ChessGame.h, which reaches Game.h, Ui.h
+ * and TFT_eSPI -- the function bodies were honest, the translation unit was
+ * not, and nothing could tell the difference until something tried to build
+ * it. See ChessRules.h for why "legal" is meant strictly.
+ */
+namespace Ch {
 
 namespace {
 
@@ -27,7 +31,7 @@ constexpr int8_t BISHOP_DR[4] = {1, -1, -1, 1};
 
 // ---------------------------------------------------------------- rules
 
-uint8_t ChessGame::kingSquare(const Position& p, bool white) {
+uint8_t kingSquare(const Position& p, bool white) {
     for (uint8_t s = 0; s < 64; ++s) {
         if (p.sq[s] != EMPTY && kind(p.sq[s]) == KING && isWhite(p.sq[s]) == white) {
             return s;
@@ -45,7 +49,7 @@ uint8_t ChessGame::kingSquare(const Position& p, bool white) {
  * matters because move generation needs *this*, and the other order is a
  * recursion waiting to happen.
  */
-bool ChessGame::attacked(const Position& p, uint8_t square, bool bySideIsWhite) {
+bool attacked(const Position& p, uint8_t square, bool bySideIsWhite) {
     const int8_t f = fileOf(square);
     const int8_t r = rankOf(square);
 
@@ -113,7 +117,7 @@ bool ChessGame::attacked(const Position& p, uint8_t square, bool bySideIsWhite) 
     return false;
 }
 
-uint8_t ChessGame::pseudoMoves(const Position& p, uint8_t from, uint8_t* out) {
+uint8_t pseudoMoves(const Position& p, uint8_t from, uint8_t* out) {
     const int8_t piece = p.sq[from];
     if (piece == EMPTY || isWhite(piece) != p.whiteToMove) return 0;
 
@@ -223,7 +227,7 @@ uint8_t ChessGame::pseudoMoves(const Position& p, uint8_t from, uint8_t* out) {
     return n;
 }
 
-int8_t ChessGame::applyMove(Position& p, uint8_t from, uint8_t to) {
+int8_t applyMove(Position& p, uint8_t from, uint8_t to) {
     const int8_t piece = p.sq[from];
     const bool white = isWhite(piece);
     const int8_t k = kind(piece);
@@ -298,7 +302,7 @@ int8_t ChessGame::applyMove(Position& p, uint8_t from, uint8_t to) {
     return captured;
 }
 
-uint8_t ChessGame::legalMoves(const Position& p, uint8_t from, uint8_t* out) {
+uint8_t legalMoves(const Position& p, uint8_t from, uint8_t* out) {
     uint8_t pseudo[MAX_MOVES];
     const uint8_t count = pseudoMoves(p, from, pseudo);
     const bool white = p.whiteToMove;
@@ -329,7 +333,7 @@ uint8_t ChessGame::legalMoves(const Position& p, uint8_t from, uint8_t* out) {
  *
  * Deliberately not "can the side to move force a win". That is a search, and
  * this game has no engine -- see the class comment. */
-bool ChessGame::deadPosition(const Position& p) {
+bool deadPosition(const Position& p) {
     uint8_t minors[2] = {0, 0};       // [0] white, [1] black
     uint8_t bishops[2] = {0, 0};
     int8_t bishopShade[2] = {-1, -1}; // square colour of a lone bishop
@@ -360,7 +364,7 @@ bool ChessGame::deadPosition(const Position& p) {
     return false;
 }
 
-bool ChessGame::hasAnyLegalMove(const Position& p) {
+bool hasAnyLegalMove(const Position& p) {
     uint8_t buf[MAX_MOVES];
     for (uint8_t s = 0; s < 64; ++s) {
         if (p.sq[s] == EMPTY || isWhite(p.sq[s]) != p.whiteToMove) continue;
@@ -369,3 +373,4 @@ bool ChessGame::hasAnyLegalMove(const Position& p) {
     return false;
 }
 
+}   // namespace Ch

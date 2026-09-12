@@ -571,9 +571,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,559,745 / 3,145,728 bytes,
-**81.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 86,876 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,563,341 / 3,145,728 bytes,
+**81.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 87,492 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1180,10 +1180,11 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           BackgammonDraw, BackgammonNet (the nearby game),
                           BackgammonSave, over BackgammonRules and
                           BackgammonAi (pure, host-tested).
-                          Chess is five .cpp against one header -- ChessGame
-                          (flow, input), ChessRules, ChessDraw, ChessNet (the
-                          lobby and the nearby game), ChessSave -- sharing
-                          ChessInternal.h; Sea Battle is four: SeaBattleGame
+                          Chess is six .cpp against two headers -- ChessGame
+                          (flow, input), ChessDraw, ChessNet (the lobby and the
+                          nearby game), ChessSave, over ChessRules (the rules)
+                          and ChessAi (both computer levels), which are pure
+                          C++ with no Arduino and are host-tested; Sea Battle is four: SeaBattleGame
                           (flow, input, the fleet), SeaBattleDraw,
                           SeaBattleNet, SeaBattleSave.
                           NearbyWatch is the pause every nearby game shares

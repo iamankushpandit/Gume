@@ -7,18 +7,15 @@
 
 #include "ChessGame.h"
 
-/* Named idx() and not the obvious sq(): Arduino already defines sq(x) as "x
- * squared", so a two-argument call to it is a preprocessor error rather than a
- * shadowing warning, and the message names a macro you never wrote. The
- * Position member stays .sq -- member access never reaches the preprocessor. */
-constexpr uint8_t idx(int8_t file, int8_t rank) {
-    return static_cast<uint8_t>(rank * 8 + file);
-}
-constexpr int8_t fileOf(uint8_t s) { return static_cast<int8_t>(s % 8); }
-constexpr int8_t rankOf(uint8_t s) { return static_cast<int8_t>(s / 8); }
-
-/* The back rank, used to set up and to spell a promotion. */
-constexpr int8_t BACK_RANK[8] = {
-    ChessGame::ROOK, ChessGame::KNIGHT, ChessGame::BISHOP, ChessGame::QUEEN,
-    ChessGame::KING, ChessGame::BISHOP, ChessGame::KNIGHT, ChessGame::ROOK,
-};
+/* idx(), fileOf(), rankOf() and BACK_RANK moved into ChessRules.h when the
+ * rules were made pure -- the engine needs them and may not include a screen.
+ * These declarations keep the call sites reading the way they always did,
+ * which is why this file still exists rather than every .cpp growing a Ch::
+ * prefix on arithmetic that was never ambiguous.
+ *
+ * Deliberately four names rather than `using namespace Ch;`. The whole point
+ * of the namespace is that a file has to say what it is taking from it. */
+using Ch::idx;
+using Ch::fileOf;
+using Ch::rankOf;
+using Ch::BACK_RANK;

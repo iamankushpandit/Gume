@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-81.4%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-81.5%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 38 |
-| Flash | 2,559,745 / 3,145,728 bytes (**81.4%**) |
-| RAM | 86,876 / 327,680 bytes (**26.5%**) |
+| Flash | 2,563,341 / 3,145,728 bytes (**81.5%**) |
+| RAM | 87,492 / 327,680 bytes (**26.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -370,7 +370,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
 | **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a child can make something rather than be tested on it, and the note names are on the keys so the naming comes for free | 3+ |
-| **Chess** | The full rules for two players — on one device, or on two in the same room over Bluetooth. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other | 6+ |
+| **Chess** | The full rules, against a friend or against the console — on one device, on two in the same room over Bluetooth, or on your own at Easy or Medium. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other — or, on your own, an opponent that is beatable on purpose | 6+ |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a child works out that hits come in lines long before anyone explains it | 6+ |
 | **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-nine short words a five-year-old knows, covering every letter but q. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, drawn a third larger than the first version because young players found it too small to follow. A numbered arrow beside each stroke shows where it starts and which way it goes, the way a handwriting workbook marks it. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
 | **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |

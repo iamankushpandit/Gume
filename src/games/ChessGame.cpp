@@ -15,13 +15,28 @@
 
 namespace {
 
+/* How long the computer appears to think, and how much of each frame it may
+ * actually spend doing it.
+ *
+ * The pause is deliberate and is not the search: Easy decides in well under a
+ * millisecond, and a reply that lands the instant your finger leaves the glass
+ * reads as a machine that had already decided rather than an opponent. 650ms
+ * is copied from Go, where the same question was settled by playing it.
+ *
+ * The slice is the real constraint. 4000us leaves the rest of the 20ms frame
+ * for touch and for the repaint that follows a move -- see CLAUDE.md's
+ * responsiveness rule. Medium's search is stepped a slice at a time until it
+ * finishes; it is never allowed to run to completion inside one frame. */
+constexpr uint32_t CPU_THINK_MS = 650;
+constexpr uint32_t CPU_SLICE_US = 4000;
+
 constexpr AppMetadata CHESS_METADATA = {
     "chess",
     "Chess",
     nullptr,
-    "two players",
+    "friend or computer",
     "Chess",
-    "Two players. Tap a piece to see its moves.",
+    "A friend or the computer. Tap to see moves.",
     nullptr,
     LauncherIcon::Chess,
     32,
@@ -100,7 +115,10 @@ void ChessGame::begin(AppContext& host) {
  * what survives a flat battery; here is what survives everything else, and
  * costs one NVS write on a screen change rather than one per frame. */
 void ChessGame::end(AppContext& host) {
-    if (mode_ == Mode::Local || mode_ == Mode::Remote) saveGame(host);
+    if (mode_ == Mode::Local || mode_ == Mode::Computer ||
+        mode_ == Mode::Remote) {
+        saveGame(host);
+    }
     host.nearbyStop();
 }
 
@@ -152,6 +170,23 @@ void ChessGame::startLocal() {
     newGame();
 }
 
+void ChessGame::startComputer() {
+    mode_ = Mode::Computer;
+    opponent_[0] = 0;
+    /* The coin toss happens ONCE, here, and what is stored afterwards is the
+     * colour rather than the request. A restored game that re-rolled Random
+     * would hand the player the other side of the board they had been
+     * playing, which is the kind of bug that reads as the console cheating. */
+    rng_.s = static_cast<uint32_t>(millis()) | 1u;
+    humanIsWhite_ = sideChoice_ == Side::White   ? true
+                    : sideChoice_ == Side::Black ? false
+                                                 : (rng_.next() & 1u) != 0;
+    newGame();
+    /* White moves first, so a player who chose Black is owed a move before
+     * they have done anything. */
+    if (!humanTurn()) beginThinking();
+}
+
 void ChessGame::startRemote(const NearbySeat& seat, uint8_t session,
                             bool weAreWhite) {
     strncpy(opponent_, seat.deviceId, sizeof(opponent_) - 1);
@@ -169,8 +204,106 @@ void ChessGame::startRemote(const NearbySeat& seat, uint8_t session,
 }
 
 bool ChessGame::ourTurn() const {
+    if (mode_ == Mode::Computer) return humanTurn();
     if (mode_ != Mode::Remote) return true;
     return pos_.whiteToMove == remoteIsWhite_;
+}
+
+bool ChessGame::humanTurn() const {
+    if (mode_ != Mode::Computer) return true;
+    return pos_.whiteToMove == humanIsWhite_;
+}
+
+/* Every move goes through here: the person's tap, the opponent's broadcast and
+ * the computer's choice alike.
+ *
+ * It exists because the third caller made the duplication untenable. The same
+ * eight steps -- mark what moved, apply, note the capture, clear the
+ * selection, recompute the status, save, sound, repaint -- were written out in
+ * ChessGame.cpp and again in ChessNet.cpp, and they had already drifted: only
+ * one of them repainted the rank a castling rook crosses. */
+void ChessGame::playMove(AppContext& host, uint8_t from, uint8_t to, bool publish) {
+    markSquare(from);
+    markSquare(to);
+    /* Castling and en passant move or remove a piece on a square nobody
+     * touched, so those are repainted too. Marking the whole home rank and the
+     * captured pawn's square is cheaper than working out which case applied. */
+    for (int8_t f = 0; f < 8; ++f) markSquare(idx(f, rankOf(from)));
+    if (pos_.epSquare != NO_SQ) {
+        markSquare(idx(fileOf(pos_.epSquare), rankOf(from)));
+    }
+    for (uint8_t t = 0; t < targetCount_; ++t) markSquare(targets_[t]);
+
+    recordCapture(applyMove(pos_, from, to));
+    if (publish && mode_ == Mode::Remote) {
+        ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+        ourFrom_ = from;
+        ourTo_ = to;
+        host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+    }
+    selected_ = NO_SQ;
+    targetCount_ = 0;
+    refreshStatus();
+    /* Written after every move, not just on the way out. That is what survives
+     * a battery going flat mid-game; end() is what survives everything else. */
+    saveGame(host);
+    /* A draw is an ending and sounds like one, but it is not a win. On a board
+     * with no speaker this changes nothing, which is why the status line has
+     * to carry the same news in words. */
+    host.playSound(status_ == Status::Checkmate ? Sound::Victory
+                   : gameOver()                 ? Sound::GameOver
+                   : status_ == Status::Check   ? Sound::Reveal
+                                                : Sound::Tap);
+    markDirty();
+
+    /* Hand over to the computer if it is now its move. The search is started
+     * here rather than in update() so that it is armed by the act that made it
+     * the computer's turn, whatever that act was -- including a restored game,
+     * which calls this path's tail in ChessSave. */
+    if (mode_ == Mode::Computer && !gameOver() && !humanTurn()) {
+        beginThinking();
+    }
+}
+
+/* Arm the computer's move. Medium's search is begun now and stepped over the
+ * frames that follow; Easy has nothing to prepare and only waits out the same
+ * pause, so that the two feel like the same opponent thinking harder. */
+void ChessGame::beginThinking() {
+    thinking_ = true;
+    thinkUntilMs_ = millis() + CPU_THINK_MS;
+    if (level_ == Ch::Level::Medium) {
+        Ch::beginSearch(search_, pos_, static_cast<uint32_t>(millis()) ^ 0x9E3779B9u);
+    }
+    panelStale_ = true;
+    markDirty();
+}
+
+void ChessGame::updateComputer(AppContext& host, uint32_t now) {
+    if (!thinking_ || mode_ != Mode::Computer || gameOver()) return;
+
+    if (level_ == Ch::Level::Medium) {
+        /* A slice of the search, bounded in microseconds rather than in nodes,
+         * because what has to be protected is the frame and not the tree. The
+         * budget is well inside the 20ms the loop allows, with the repaint
+         * that follows still to pay for. */
+        const uint32_t t0 = micros();
+        const bool done = Ch::stepSearch(
+            search_, [&]() { return micros() - t0 > CPU_SLICE_US; });
+        if (!done || now < thinkUntilMs_) return;
+    } else if (now < thinkUntilMs_) {
+        return;
+    }
+
+    Ch::Move m = level_ == Ch::Level::Medium ? Ch::bestMove(search_)
+                                             : Ch::chooseEasy(pos_, rng_);
+    thinking_ = false;
+    if (m.from == NO_SQ || m.to == NO_SQ) {
+        /* No move: the position is over and refreshStatus() already knows it.
+         * Saying so here rather than playing something illegal is the whole of
+         * the contract between this screen and the engine. */
+        return;
+    }
+    playMove(host, m.from, m.to, false);
 }
 
 void ChessGame::markSquare(uint8_t square) {
@@ -210,6 +343,11 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     pollOpponent(host);
+    /* Beside pollOpponent() and for the same reason: both are an opponent
+     * making a move without anybody touching the screen, both self-gate on the
+     * mode, and both must run before the tap handling below so a move that has
+     * just arrived is on the board before a finger lands on it. */
+    updateComputer(host, millis());
 
     /* Republish every frame. Unchanged values do not touch the radio, and a
      * move must stay on the air until it is replaced: the opponent may be
@@ -287,7 +425,10 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
      * legality filter would catch an out-of-turn move anyway -- it generates
      * for the side to move -- but stopping it here means the pieces simply do
      * not respond, which reads as "not your turn" rather than as a bug. */
-    if (mode_ == Mode::Remote && !ourTurn()) return;
+    /* Not your move: the board is not tappable. ourTurn() answers for the
+     * computer as well as the network now -- without that, a player could move
+     * the computer's pieces for it while it was thinking. */
+    if (!ourTurn()) return;
 
     const uint8_t hit = squareAt(host, touch.x, touch.y);
     if (hit == NO_SQ) return;
@@ -295,42 +436,7 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
     // A tap on one of the marked squares plays the move.
     for (uint8_t i = 0; i < targetCount_; ++i) {
         if (targets_[i] != hit) continue;
-        const uint8_t from = selected_;
-        markSquare(from);
-        markSquare(hit);
-        /* Castling and en passant move or remove a piece on a square the
-         * player never touched, so those have to be repainted too. Marking
-         * the whole home rank and the captured pawn's square is cheaper than
-         * working out which case applied. */
-        for (int8_t f = 0; f < 8; ++f) markSquare(idx(f, rankOf(from)));
-        if (pos_.epSquare != NO_SQ) {
-            markSquare(idx(fileOf(pos_.epSquare), rankOf(from)));
-        }
-        for (uint8_t t = 0; t < targetCount_; ++t) markSquare(targets_[t]);
-
-        recordCapture(applyMove(pos_, from, hit));
-        if (mode_ == Mode::Remote) {
-            ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
-            ourFrom_ = from;
-            ourTo_ = hit;
-            host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
-        }
-        selected_ = NO_SQ;
-        targetCount_ = 0;
-        refreshStatus();
-        /* Written after every move, not just on the way out. That is what
-         * survives a battery going flat mid-game; end() is what survives
-         * everything else. A move is not a hot path -- one NVS write per move
-         * is nothing against the thirty-odd a whole game costs. */
-        saveGame(host);
-        /* A draw is an ending and sounds like one, but it is not a win.
-         * On a board with no speaker this changes nothing, which is why the
-         * status line has to carry the same news in words. */
-        host.playSound(status_ == Status::Checkmate ? Sound::Victory
-                       : gameOver()                 ? Sound::GameOver
-                       : status_ == Status::Check   ? Sound::Reveal
-                                                    : Sound::Tap);
-        markDirty();
+        playMove(host, selected_, hit, true);
         return;
     }
 
