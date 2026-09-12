@@ -173,8 +173,28 @@ private:
     Go::Level level_ = Go::Level::Easy;
 
     /* The marking phase. dead_ is one byte per point; own_ is the ownership
-     * it implies, repainted as territory; agreed_ is who has pressed Agree
-     * (bit per colour) in a local game. */
+     * it implies, repainted as territory.
+     *
+     * agreed_ is who has accepted the marking, as ONE bit per colour in every
+     * mode. It was two encodings for a while -- a count locally and a bit mask
+     * across consoles -- which was self-consistent in each and exactly the
+     * shape a later bug takes, so both now go through agreedBit(). Locally the
+     * console is passed between two people and nothing can tell which of them
+     * is pressing, so the first press is taken as the player to move and the
+     * second as the other: the same two bits rather than a second way of
+     * counting to two. Against the computer neither bit is set, because the
+     * person's word is final and finishGame() is called at once. */
+    static constexpr uint8_t agreedBit(uint8_t colour) {
+        return static_cast<uint8_t>(1U << colour);
+    }
+    /* A function, not a `static constexpr` value: a static data member's
+     * initialiser is evaluated while the class is still incomplete, so it
+     * cannot call agreedBit() above it. A constexpr member function can,
+     * because bodies are compiled once the class is closed -- and that keeps
+     * the shift written down exactly once. */
+    static constexpr uint8_t agreedBoth() {
+        return static_cast<uint8_t>(agreedBit(Go::BLACK) | agreedBit(Go::WHITE));
+    }
     uint8_t dead_[Go::MAX_POINTS] = {};
     uint8_t own_[Go::MAX_POINTS] = {};
     uint8_t agreed_ = 0;
@@ -249,6 +269,11 @@ private:
         uint8_t ended;
     };
     static constexpr uint16_t SAVE_MAGIC = 0x60A0;
-    static constexpr uint8_t SAVE_VERSION = 1;
+    /* 2 changed what `agreed` means: version 1 counted local agreements 1/3
+     * while using colour bits remotely, so a version-1 blob restored under
+     * these rules would read one local press as White having agreed. The
+     * struct is the same size, which is exactly the case `version` exists
+     * for -- loadBlob() cannot catch it by length. */
+    static constexpr uint8_t SAVE_VERSION = 2;
     static constexpr uint32_t CONFIRM_MS = 3000;
 };

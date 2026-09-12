@@ -243,8 +243,8 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
         case Go::Net::Kind::Accept:
             if (phase_ != Phase::Marking) return;
             theirPly_ = t.ply;
-            agreed_ = static_cast<uint8_t>(agreed_ | (1U << Go::other(humanColour_)));
-            if (agreed_ == 6) {
+            agreed_ = static_cast<uint8_t>(agreed_ | agreedBit(Go::other(humanColour_)));
+            if (agreed_ == agreedBoth()) {
                 finishGame(host);
             } else {
                 char line[26];

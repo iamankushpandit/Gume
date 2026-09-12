@@ -275,31 +275,33 @@ void GoGame::pressAction(AppContext& host, uint32_t now) {
          * argued about dead stones would be a worse thing to hand a child
          * than one that is occasionally wrong. Across consoles both must
          * agree, and ours goes on the air (GoNet). */
-        if (mode_ == Mode::Local) {
-            agreed_ = agreed_ == 0 ? 1 : 3;   // one press each, in either order
-            host.playSound(Sound::Select);
-            if (agreed_ == 3) {
-                finishGame(host);
-            } else {
-                setMessage("Pass to the other player");
-                buttonsStale_ = true;
-                markDirty();
-            }
-        } else if (mode_ == Mode::Computer) {
+        if (mode_ == Mode::Computer) {
             finishGame(host);
-        } else if (mode_ == Mode::Remote) {
-            agreed_ = static_cast<uint8_t>(agreed_ | (1U << humanColour_));
+            return;
+        }
+        /* Whose agreement this press is. Locally the console is passed and
+         * nothing can tell the two people apart, so the first press counts
+         * for the player to move and the second for the other; remotely it
+         * is always ours. One encoding either way -- see agreedBit(). */
+        const uint8_t who =
+            mode_ == Mode::Local
+                ? ((agreed_ & agreedBit(state_.toMove)) != 0 ? Go::other(state_.toMove)
+                                                            : state_.toMove)
+                : humanColour_;
+        agreed_ = static_cast<uint8_t>(agreed_ | agreedBit(who));
+        if (mode_ == Mode::Remote) {
             ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
             Go::Net::encode(Go::Net::Kind::Accept, Go::PASS, ourFrom_, ourTo_);
             publishOurs(host);
-            host.playSound(Sound::Select);
-            if (agreed_ == 6) {
-                finishGame(host);
-            } else {
-                setMessage("Waiting for them to agree");
-                buttonsStale_ = true;
-                markDirty();
-            }
+        }
+        host.playSound(Sound::Select);
+        if (agreed_ == agreedBoth()) {
+            finishGame(host);
+        } else {
+            setMessage(mode_ == Mode::Local ? "Pass to the other player"
+                                            : "Waiting for them to agree");
+            buttonsStale_ = true;
+            markDirty();
         }
         return;
     }

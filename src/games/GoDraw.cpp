@@ -465,8 +465,13 @@ void GoGame::drawButtons(Ui::Renderer& tft, bool sure) const {
         Ui::drawPagerButton(tft, passRect(), "Resume", mode_ != Mode::Remote);
         Ui::drawPagerButton(tft, undoRect(), "Undo", false);
         if (big()) Ui::drawPagerButton(tft, placeRect(), "Place", false);
-        const bool waitingOthers = (mode_ == Mode::Local && agreed_ != 0) ||
-                                   (mode_ == Mode::Remote && (agreed_ & (1U << humanColour_)) != 0);
+        /* "Agreed" means we have agreed and are waiting for somebody else,
+         * which can only happen across consoles. Locally the next press is
+         * the OTHER player's, so the button has to keep saying "Agree" --
+         * it read "Agreed" while still wanting a press, which is the small
+         * wrong behaviour the two encodings were hiding. */
+        const bool waitingOthers =
+            mode_ == Mode::Remote && (agreed_ & agreedBit(humanColour_)) != 0;
         Ui::drawButton(tft, actionRect(), waitingOthers ? "Agreed" : "Agree",
                        waitingOthers ? Ui::panel() : Ui::success(), Ui::outline(),
                        waitingOthers ? Ui::muted() : static_cast<uint16_t>(TFT_BLACK), false, font);
