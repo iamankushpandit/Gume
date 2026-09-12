@@ -141,7 +141,9 @@ and one card, so the games cannot each decide what "too long" means:
   the peer then goes Gone, because that is a new fact.
 - *Gone* -- the scanner has dropped the peer (`SIGHTING_TTL_MS`, 45s). Same
   card, "out of range". Waiting has no time limit: the game is saved after
-  every move, so waiting costs nothing.
+  every move, so waiting costs nothing. A game with more than two seats can
+  offer something here that a two-player game cannot: Ludo's host gets a
+  third button, *Play without* (see the Ludo section).
 
 Coming back needs nothing. A turn is state that stays on the air, so a
 console that reappears in the same session re-hears the current move and
@@ -249,9 +251,25 @@ board game.
   the one that ended it included -- goes straight back to its lobby, where
   the others read "A4F2 ended the game" until they tap. The ender's word stays
   on the air until its screen closes or it starts another game, so a console
-  that has not heard it yet still will. A console that simply walks away
-  stalls the game instead -- the radio cannot tell away from slow -- and
-  anyone can then End it.
+  that has not heard it yet still will.
+- **A console that goes quiet pauses the whole table, and the host may play
+  on without it.** The same `NearbyWatch` as the two-player games, over every
+  chair but our own (`tickTable()`), because a seat that cannot ack the last
+  ply stalls `canPublish()` for everyone anyway. Once a chair is *Gone* --
+  not merely Quiet: six seconds is a scan gap, forty-five is somebody who
+  left -- the host's card carries a third button, *Play without X*. That
+  makes the chair's seat a computer seat the host plays, and it has to be
+  SAID, because every other console reads that seat's turns from the chair
+  it came with: `Ludo::Net::takeoverFrom(seat)` is a numbered ply like a
+  move, from 16..19 where nothing already on the air can be mistaken for
+  it, published once the remaining chairs have acked the last ply
+  (`pendingDrop_` until then, and until then the seat is nobody's, so no
+  move for it can get ahead of the word). Only the host's takeover counts.
+  A guest that hears its own seat taken goes back to its lobby, told
+  "<host> played on without you" -- there is no way back into a seat a
+  computer now holds. `droppedChairs_` is saved with the game; a chosen
+  but unsaid takeover is not. No payload change and no new flag: it is a
+  new meaning for the field the moves already use.
 - **Whose turn it is blinks; nothing else does.** A dot beside that seat's row
   in the panel, and -- on the console whose person must roll -- the die's
   frame. Both change colour on one 400ms clock (`blinkPhase()`), never size,

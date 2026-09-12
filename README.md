@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,512,201 / 3,145,728 bytes (**79.9%**) |
-| RAM | 79,908 / 327,680 bytes (**24.4%**) |
+| Flash | 2,513,893 / 3,145,728 bytes (**79.9%**) |
+| RAM | 79,916 / 327,680 bytes (**24.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1070,8 +1070,14 @@ for how long, and offers Keep waiting or End game; after 45 seconds it says out
 of range. Waiting has no limit -- the game is saved after every move -- and a
 console that comes back into range picks the game up where it stopped, because
 each console's latest move is still on the air. Ending from that card tells the
-other console, if it returns, that the game is over. Nothing new is
-transmitted for any of this: it is worked out from the beacon not being there.
+other console, if it returns, that the game is over. At a Ludo table the whole
+table pauses for one quiet console, and once it has been out of range for 45
+seconds the host is offered *Play without* it: that seat becomes a computer
+seat the host plays, announced to the table as an ordinary numbered turn, and
+the console that left is sent back to its lobby if it returns, told why.
+Nothing new is transmitted for any of this: it is worked out from the beacon
+not being there, and the takeover is a new meaning for a field the moves
+already use.
 
 Consoles can be given names, and a name is what you see on screen -- but a name
 is stored on your own device and is never transmitted. The advertisement is

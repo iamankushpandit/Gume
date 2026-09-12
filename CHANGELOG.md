@@ -25,6 +25,14 @@ nothing is re-sent. Nothing new is transmitted for any of this. Chess and Sea
 Battle were split into several files first, along Backgammon's lines, because
 both had passed the size the modularity rule allows.
 
+A Ludo table pauses whole for one quiet console, because a seat that cannot
+acknowledge the last turn stalls everyone anyway. Once that console has been
+gone 45 seconds the host is offered *Play without* it: the seat becomes a
+computer seat the host plays, said to the table as a numbered turn
+(`Ludo::Net::takeoverFrom`, a new meaning for the field the moves already use,
+no payload change), and the console that left is sent to its lobby if it
+returns, told why. Ludo's save format is version 3 for the dropped chairs.
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its

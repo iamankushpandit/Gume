@@ -437,9 +437,8 @@ void LudoGame::pressAction(AppContext& host, uint32_t now) {
         confirmUntilMs_ = 0;
         confirmShown_ = false;
         if (net_) {
-            host.nearbyEnd(session_, Ludo::Net::nextPly(applied_), applied_);
-            ended_ = true;
-            leaveTable(host);
+            endTableByUs(host);
+            return;
         }
         mode_ = Mode::Lobby;
         lobbyStale_ = true;
@@ -477,6 +476,12 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
         pollTable(host, now);   // may take another console's roll
         if (mode_ != Mode::Play) {
             return;             // or may have ended the game for everyone
+        }
+        /* Is everyone still here? After the poll, so a roll that did arrive
+         * is applied first; before any tap, so a press through the card is
+         * never a move. */
+        if (updatePause(host, touch, now)) {
+            return;
         }
     }
 

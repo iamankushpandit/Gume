@@ -557,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,512,201 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,513,893 / 3,145,728 bytes,
 **79.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 79,908 / 327,680 (24.4%) -- higher than it was, deliberately: RowList traded
+at 79,916 / 327,680 (24.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -812,6 +812,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `NearbySeat::forThisGame` (an invitation names its game; a lobby must not
   accept another game's) and `nearbySelfId()` (so every console orders the
   table alike). Still a BROADCAST: everyone in range hears every move.
+  **A console that goes quiet pauses the whole table**, and once it is Gone
+  the host may play on without it: `Ludo::Net::takeoverFrom(seat)` is a
+  numbered ply in the `from` values 16..19 that nothing else uses, saying
+  that seat is the host's computer seat from here on. Only the host's word
+  counts, a guest whose own seat is taken goes to its lobby told why, and it
+  is a new meaning for existing bits rather than a payload change -- which
+  is the whole of why it needed no fresh agreement about the air.
 - **Backgammon's dice do not go on the air either, and that is what made it
   fit.** An earlier plan ruled nearby Backgammon out because the turn has no
   field for dice. It does not need one: as in Ludo, both consoles derive every
