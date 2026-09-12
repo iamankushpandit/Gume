@@ -571,7 +571,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,557,813 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,557,837 / 3,145,728 bytes,
 **81.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 86,812 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1133,7 +1133,8 @@ src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPlay,
-                          AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
+                          AppRuntime, AppRuntimeLock, AppRuntimeNotify (the
+                          header banner), AppRuntimeIdentity,
                           AppRuntimeConsole (+Settings, +Profiles),
                           ConsoleText,
                           ScoreCatalog, Progress,

@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 38 |
-| Flash | 2,557,813 / 3,145,728 bytes (**81.3%**) |
+| Flash | 2,557,837 / 3,145,728 bytes (**81.3%**) |
 | RAM | 86,812 / 327,680 bytes (**26.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1334,6 +1334,7 @@ src/
     AppRuntimeLauncher.cpp  LauncherApp paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimeNotify.cpp  the header banner: battery, update, nearby
     AppRuntimeIdentity.cpp  boot banner: which board, which build
     AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded
     AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
