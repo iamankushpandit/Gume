@@ -1,4 +1,4 @@
-#include "SettingsGame.h"
+#include "SettingsApp.h"
 
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
@@ -10,7 +10,7 @@
  * ~600-line mark CLAUDE.md's modularity rule draws and the Sound tab would
  * have taken it well past 700:
  *
- *   SettingsGame.cpp    this file -- lifecycle, tabs, update(), render()
+ *   SettingsApp.cpp    this file -- lifecycle, tabs, update(), render()
  *   SettingsPanels.cpp  the four tab bodies and the geometry of their rows
  *   SettingsPin.cpp     the PIN pad and the Admin tab it belongs to
  *
@@ -19,9 +19,9 @@
  * controls that never touch it. Every member is still declared in one header,
  * so a rect and the hit test that reads it cannot drift apart. */
 
-const char* SettingsGame::title() const { return "Settings"; }
+const char* SettingsApp::title() const { return "Settings"; }
 
-void SettingsGame::begin(GameHost& host) {
+void SettingsApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_DEVICE_SETTINGS, "open settings");
     confirmReset_ = false;
     tab_ = Tab::Device;
@@ -38,18 +38,18 @@ void SettingsGame::begin(GameHost& host) {
  * whatever the division left over so the strip always reaches the right edge
  * -- 320 / 4 is exact, 320 / 3 was not, and the fudge belongs in one place
  * rather than in each tab's own accessor. */
-Rect SettingsGame::tabRect(uint8_t index) const {
+Rect SettingsApp::tabRect(uint8_t index) const {
     const int16_t w = static_cast<int16_t>(panelW_ / TAB_COUNT);
     const int16_t x = static_cast<int16_t>(index * w);
     const int16_t last = index + 1 >= TAB_COUNT;
     return Rect{x, 30, last ? static_cast<int16_t>(panelW_ - x) : w, 22};
 }
 
-Rect SettingsGame::tabRectFor(Tab tab) const {
+Rect SettingsApp::tabRectFor(Tab tab) const {
     return tabRect(static_cast<uint8_t>(tab));
 }
 
-bool SettingsGame::isAdmin(Board& board) const {
+bool SettingsApp::isAdmin(Board& board) const {
     return board.isAdminProfile(board.activeProfile());
 }
 
@@ -57,12 +57,12 @@ bool SettingsGame::isAdmin(Board& board) const {
  * shared between hit testing and drawing, so they have to agree; caching it
  * here is what lets them, and picks up a rotation without any of them
  * knowing about it. */
-void SettingsGame::syncPanel(GameHost& host) {
+void SettingsApp::syncPanel(GameHost& host) {
     panelW_ = static_cast<int16_t>(host.display().width());
     panelH_ = static_cast<int16_t>(host.display().height());
 }
 
-void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
+void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
     syncPanel(host);
     if (!touch.justPressed) return;
 
@@ -276,7 +276,7 @@ void SettingsGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void SettingsGame::renderStatic(GameHost& host) {
+void SettingsApp::renderStatic(GameHost& host) {
     syncPanel(host);
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
@@ -306,7 +306,7 @@ void SettingsGame::renderStatic(GameHost& host) {
     Ui::drawTabBaseline(tft, 52, 0, panelW_, tabRectFor(tab_));
 }
 
-void SettingsGame::renderDynamic(GameHost& host) {
+void SettingsApp::renderDynamic(GameHost& host) {
     syncPanel(host);
     Ui::Renderer& tft = host.display();
 

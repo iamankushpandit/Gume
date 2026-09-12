@@ -2,7 +2,7 @@
 
 #include "engine/Game.h"
 
-class LauncherGame : public Game {
+class LauncherApp : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;

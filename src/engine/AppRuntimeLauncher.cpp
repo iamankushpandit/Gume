@@ -106,17 +106,17 @@ void BrainoApp::launch(const AppDefinition& app) {
     activeGame_->clearDirty();
 }
 
-const char* LauncherGame::title() const {
+const char* LauncherApp::title() const {
     return "Launcher";
 }
 
-void LauncherGame::begin(GameHost& host) {
+void LauncherApp::begin(GameHost& host) {
     host.content().scan();
     clampPage(host);
     markFullDirty();
 }
 
-void LauncherGame::clampPage(GameHost& host) {
+void LauncherApp::clampPage(GameHost& host) {
     const uint8_t pageSize = host.launcherPageSize();
     const uint8_t pages = max<uint8_t>(1, (host.launcherEntryCount() + pageSize - 1) / pageSize);
     if (page_ >= pages) {
@@ -124,7 +124,7 @@ void LauncherGame::clampPage(GameHost& host) {
     }
 }
 
-void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
+void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -184,7 +184,7 @@ void LauncherGame::update(GameHost& host, const TouchPoint& touch) {
  *
  * It paints its own background and takes nothing from the caller, so it is
  * correct over a live screen as well as over a freshly cleared one. */
-void LauncherGame::drawHeader(GameHost& host) {
+void LauncherApp::drawHeader(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t lW = static_cast<int16_t>(tft.width());
@@ -293,13 +293,13 @@ void LauncherGame::drawHeader(GameHost& host) {
                      Ui::surface());
 }
 
-bool LauncherGame::renderChrome(GameHost& host) {
+bool LauncherApp::renderChrome(GameHost& host) {
     drawHeader(host);
     return true;
 }
 
 /* Background and header. Only on a full repaint -- paging does not touch it. */
-void LauncherGame::renderStatic(GameHost& host) {
+void LauncherApp::renderStatic(GameHost& host) {
     static_assert(MAX_TILES >= LauncherLayout::MAX_PAGE_SIZE,
                   "slotHasButton_ cannot cover every tile on a page");
     Ui::clear(host.display());
@@ -317,7 +317,7 @@ void LauncherGame::renderStatic(GameHost& host) {
  * label is drawn with the tile colour as its text background -- so a tile
  * erases the tile that was there. The two things that do NOT self-erase are
  * handled explicitly below: a slot with no entry on it, and the pager. */
-void LauncherGame::renderDynamic(GameHost& host) {
+void LauncherApp::renderDynamic(GameHost& host) {
     clampPage(host);
 
     Board& board = host.board();

@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,507,577 / 3,145,728 bytes (**79.7%**) |
+| Flash | 2,508,321 / 3,145,728 bytes (**79.7%**) |
 | RAM | 79,708 / 327,680 bytes (**24.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1279,7 +1279,7 @@ src/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
     AppRuntime.cpp      runtime loop, transitions, view state
-    AppRuntimeLauncher.cpp  LauncherGame paging, tiles, header UI
+    AppRuntimeLauncher.cpp  LauncherApp paging, tiles, header UI
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeIdentity.cpp  boot banner: which board, which build
@@ -1289,7 +1289,7 @@ src/
     AppRuntimeConsoleProfiles.cpp  console: players and their games (CRUD)
     ConsoleText.h       console argument parsing, allocation-free
     Game.h              base class; lifecycle + full vs partial invalidation
-    LauncherGame.h      home screen lifecycle object
+    LauncherApp.h      home screen lifecycle object
     GameCatalog.cpp     derived playable-game catalog view
     ScoreCatalog.cpp    derived scored-app catalog view
     NearbyPlay.cpp      anonymous peer scores, notifications, sharing switch
@@ -1297,7 +1297,7 @@ src/
     Progress.cpp        per-item mastery, spaced repetition
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
-    SettingsGame.cpp    Settings: lifecycle, the four tabs, touch routing
+    SettingsApp.cpp    Settings: lifecycle, the four tabs, touch routing
     SettingsPanels.cpp  the Device, Power and Sound tab bodies
     SettingsPin.cpp     the admin PIN pad and the Admin tab
     CountryData.cpp     capitals, continents, difficulty tiers

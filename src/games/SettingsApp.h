@@ -14,11 +14,11 @@
  * slider, with nowhere to put three more controls.
  *
  * The implementation is split across three .cpp files by concern -- see the
- * header comment in SettingsGame.cpp. Every rect accessor is declared here,
+ * header comment in SettingsApp.cpp. Every rect accessor is declared here,
  * in one place, so a control's geometry and the hit test that reads it cannot
  * drift apart however the files are arranged.
  */
-class SettingsGame : public Game {
+class SettingsApp : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;

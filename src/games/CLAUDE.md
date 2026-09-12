@@ -73,7 +73,7 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
   erased. Repaint fully only when the scene genuinely changed. The worked
   example is in the root `CLAUDE.md`: the tracer's direction arrow cleared
   the screen eleven times per word before this was written down.
-- `RowList` section headings are struck through by a rule that starts a fixed 54px in, so keep them to about six characters. `NearbyGame` puts the peer's tag in the heading and everything else about it in rows for exactly this reason.
+- `RowList` section headings are struck through by a rule that starts a fixed 54px in, so keep them to about six characters. `NearbyApp` puts the peer's tag in the heading and everything else about it in rows for exactly this reason.
 - Never block `update()` for more than a second or two. The loop is watchdogged (`Watchdog::TIMEOUT_SECONDS = 12`) and a long busy-wait reboots the device. Games do not feed or touch the watchdog themselves; if you genuinely must block, ask `Board` to do it behind a `Watchdog::Pause`.
 
 ## Adding a game

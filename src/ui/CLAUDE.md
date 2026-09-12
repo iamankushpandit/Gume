@@ -41,7 +41,7 @@ Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI
 ## Keypad
 
 `Ui::Keypad` is the on-screen QWERTY keyboard, and it is the ONLY one. There
-were two hand-rolled copies before it -- ProfileGame's rename and WifiGame's
+were two hand-rolled copies before it -- ProfileApp's rename and WifiApp's
 password entry -- each with its own grid maths, and a third was about to be
 written for naming a Nearby peer.
 

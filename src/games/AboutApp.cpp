@@ -1,4 +1,4 @@
-#include "AboutGame.h"
+#include "AboutApp.h"
 #include "AppVersion.h"
 #include "BuildStamp.h"
 #include "UpdateChannel.h"
@@ -45,11 +45,11 @@ constexpr int16_t PANEL_TOP = 38;
 constexpr int16_t FOOTER_H = 44;
 }
 
-const char* AboutGame::title() const {
+const char* AboutApp::title() const {
     return "About";
 }
 
-void AboutGame::begin(GameHost& host) {
+void AboutApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_DEVICE_STATUS, "open about");
     page_ = 0;
     markFullDirty();
@@ -57,26 +57,26 @@ void AboutGame::begin(GameHost& host) {
 
 /* About is a system app, so it lays out against the live screen size rather
  * than SCREEN_WIDTH/SCREEN_HEIGHT and works in either orientation. */
-Rect AboutGame::panelRect(int16_t w, int16_t h) const {
+Rect AboutApp::panelRect(int16_t w, int16_t h) const {
     return Rect{10, PANEL_TOP, static_cast<int16_t>(w - 20),
                 static_cast<int16_t>(h - PANEL_TOP - FOOTER_H)};
 }
 
-Rect AboutGame::prevRect(int16_t w, int16_t h) const {
+Rect AboutApp::prevRect(int16_t w, int16_t h) const {
     (void)w;
     return Rect{12, static_cast<int16_t>(h - 34), 92, 28};
 }
 
-Rect AboutGame::nextRect(int16_t w, int16_t h) const {
+Rect AboutApp::nextRect(int16_t w, int16_t h) const {
     return Rect{static_cast<int16_t>(w - 104), static_cast<int16_t>(h - 34), 92, 28};
 }
 
-void AboutGame::drawLine(Ui::Renderer& tft, int16_t y, const String& text, uint8_t font) const {
+void AboutApp::drawLine(Ui::Renderer& tft, int16_t y, const String& text, uint8_t font) const {
     tft.drawString(Ui::fitted(tft, text, static_cast<int16_t>(tft.width() - 28), font),
                    14, y, font);
 }
 
-void AboutGame::update(GameHost& host, const TouchPoint& touch) {
+void AboutApp::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
@@ -97,7 +97,7 @@ void AboutGame::update(GameHost& host, const TouchPoint& touch) {
  * intro page is the one screen an owner reads to learn either. Braino! is the
  * console; GoodTime Micro Company still owns it. Both come from AppVersion.h --
  * this page must not be where either gets re-typed. */
-void AboutGame::renderIntro(Ui::Renderer& tft) {
+void AboutApp::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 48, BRAINO_PRODUCT_NAME, 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 70, BRAINO_COPYRIGHT, 1);
@@ -112,7 +112,7 @@ void AboutGame::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 190, "Up to 5 players, plus a Guest.", 1);
 }
 
-void AboutGame::renderGames(Ui::Renderer& tft, int16_t w) {
+void AboutApp::renderGames(Ui::Renderer& tft, int16_t w) {
     const uint8_t start = static_cast<uint8_t>((page_ - PAGE_FIRST_GAME) * GAMES_PER_PAGE);
     /* Blurbs start at a fraction of the width, not a fixed 118px, so the column
      * does not run off the edge of a 240px portrait screen. */
@@ -136,7 +136,7 @@ void AboutGame::renderGames(Ui::Renderer& tft, int16_t w) {
 
 /* Everything on this page is read from the running system. Nothing here is a
  * claim that can quietly stop being true. */
-void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
+void AboutApp::renderRadios(Ui::Renderer& tft, Board& board) {
     drawLine(tft, 48, "What the radios do", 2);
 
     const bool wifiCreds = board.hasWifiCredentials();
@@ -186,7 +186,7 @@ void AboutGame::renderRadios(Ui::Renderer& tft, Board& board) {
  * RESET is named here despite doing nothing of ours, because an owner looking
  * at two identical buttons will press both and deserves to know why only one
  * of them appears to work. */
-void AboutGame::renderControls(Ui::Renderer& tft) {
+void AboutApp::renderControls(Ui::Renderer& tft) {
     drawLine(tft, 48, "The buttons on the board", 2);
     tft.setTextColor(Ui::text(), Ui::surface());
     drawLine(tft, 76, "BOOT  goes back to the menu.", 1);
@@ -202,7 +202,7 @@ void AboutGame::renderControls(Ui::Renderer& tft) {
     drawLine(tft, 190, "Neither button erases anything.", 1);
 }
 
-void AboutGame::renderCredits(Ui::Renderer& tft) {
+void AboutApp::renderCredits(Ui::Renderer& tft) {
     drawLine(tft, 48, "Artwork credits", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 74, "Flags: lipis/flag-icons (MIT).", 1);
@@ -233,7 +233,7 @@ void AboutGame::renderCredits(Ui::Renderer& tft) {
  *
  * "unknown" is shown plainly rather than hidden. A build from a source tarball
  * has no git to ask, and saying so is the honest answer. */
-void AboutGame::renderBuild(Ui::Renderer& tft) {
+void AboutApp::renderBuild(Ui::Renderer& tft) {
     drawLine(tft, 48, "This build", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 74, "Which firmware is on this device.", 1);
@@ -270,7 +270,7 @@ void AboutGame::renderBuild(Ui::Renderer& tft) {
  * true is narrower and worth stating precisely: the request carries nothing
  * about this device, not its version, not its board, not a profile. That is
  * what the line says, and it should not be rounded up. */
-void AboutGame::renderUpdates(Ui::Renderer& tft, Board& board) {
+void AboutApp::renderUpdates(Ui::Renderer& tft, Board& board) {
     drawLine(tft, 48, "Updates", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 74, "Braino does not update itself.", 1);
@@ -303,7 +303,7 @@ void AboutGame::renderUpdates(Ui::Renderer& tft, Board& board) {
     }
 }
 
-void AboutGame::render(GameHost& host) {
+void AboutApp::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());

@@ -24,12 +24,12 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/AboutGame.cpp": {
+    "src/games/AboutApp.cpp": {
       "String": 7,
       "delay": 0,
       "heap": 0
     },
-    "src/games/AboutGame.h": {
+    "src/games/AboutApp.h": {
       "String": 1,
       "delay": 0,
       "heap": 0
@@ -109,12 +109,12 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/ProfileGame.h": {
+    "src/games/ProfileApp.h": {
       "String": 1,
       "delay": 0,
       "heap": 0
     },
-    "src/games/ScoresGame.cpp": {
+    "src/games/ScoresApp.cpp": {
       "String": 1,
       "delay": 0,
       "heap": 0
@@ -129,7 +129,7 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/SystemInfoGame.cpp": {
+    "src/games/SystemInfoApp.cpp": {
       "String": 41,
       "delay": 0,
       "heap": 0
@@ -154,12 +154,12 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/WifiGame.cpp": {
+    "src/games/WifiApp.cpp": {
       "String": 19,
       "delay": 2,
       "heap": 0
     },
-    "src/games/WifiGame.h": {
+    "src/games/WifiApp.h": {
       "String": 3,
       "delay": 0,
       "heap": 0

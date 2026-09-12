@@ -4,7 +4,7 @@
 #include "ui/RowList.h"
 #include "ui/Ui.h"
 
-class SystemInfoGame : public Game {
+class SystemInfoApp : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;

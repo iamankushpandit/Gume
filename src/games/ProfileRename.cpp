@@ -1,5 +1,5 @@
 #include "ProfileRename.h"
-#include "ProfileGame.h"
+#include "ProfileApp.h"
 #include "hal/Board.h"
 #include "ui/Keypad.h"
 
@@ -10,11 +10,11 @@
 
 /* Centred horizontally at the bottom of the screen (same row as Add / Done
  * on the picker), both orientations. */
-Rect ProfileGame::renameCancelRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::renameCancelRect(int16_t screenW, int16_t screenH) const {
     return Rect{static_cast<int16_t>((screenW - 52) / 2), static_cast<int16_t>(screenH - 30), 52, 22};
 }
 
-void ProfileGame::updateRename(GameHost& host, const TouchPoint& touch) {
+void ProfileApp::updateRename(GameHost& host, const TouchPoint& touch) {
     Board& board = host.board();
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
@@ -59,7 +59,7 @@ void ProfileGame::updateRename(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void ProfileGame::renderRename(GameHost& host) {
+void ProfileApp::renderRename(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());

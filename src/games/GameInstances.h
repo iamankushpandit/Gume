@@ -1,6 +1,6 @@
 #pragma once
 
-#include "games/AboutGame.h"
+#include "games/AboutApp.h"
 #include "games/CinnamonGame.h"
 #include "games/ColorMixGame.h"
 #include "games/CoinFlipGame.h"
@@ -17,7 +17,7 @@
 #include "games/MicrokuGame.h"
 #include "games/MoneyGame.h"
 #include "games/MultiplicationGame.h"
-#include "games/NearbyGame.h"
+#include "games/NearbyApp.h"
 #include "games/NumberLineGame.h"
 #include "games/ObjectAddGame.h"
 #include "games/OddOneOutGame.h"
@@ -28,21 +28,21 @@
 #include "games/LudoGame.h"
 #include "games/BackgammonGame.h"
 #include "games/PercentCircleGame.h"
-#include "games/ProfileGame.h"
-#include "games/ScoresGame.h"
+#include "games/ProfileApp.h"
+#include "games/ScoresApp.h"
 #include "games/SequenceGame.h"
-#include "games/SettingsGame.h"
+#include "games/SettingsApp.h"
 #include "games/ShapeColorGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
 #include "games/StateFlagGame.h"
 #include "games/StateMapGame.h"
 #include "games/StatesGame.h"
-#include "games/SystemInfoGame.h"
+#include "games/SystemInfoApp.h"
 #include "games/TicTacToeGame.h"
 #include "games/TimeGame.h"
 #include "games/TraceGame.h"
-#include "games/WifiGame.h"
+#include "games/WifiApp.h"
 #include "games/WhackAMoleGame.h"
 
 struct GameInstances {
@@ -63,8 +63,8 @@ struct GameInstances {
     ColorMixGame colorMix;
     SlidingPuzzleGame slidingPuzzle;
     OddOneOutGame oddOneOut;
-    SettingsGame settings;
-    WifiGame wifi;
+    SettingsApp settings;
+    WifiApp wifi;
     ObjectAddGame objectAdd;
     FingerCountGame fingerCount;
     SequenceGame sequence;
@@ -85,9 +85,9 @@ struct GameInstances {
     CursiveGame cursive;
     LudoGame ludo;
     BackgammonGame backgammon;
-    ProfileGame profile;
-    ScoresGame scores;
-    AboutGame about;
-    SystemInfoGame systemInfo;
-    NearbyGame nearby;
+    ProfileApp profile;
+    ScoresApp scores;
+    AboutApp about;
+    SystemInfoApp systemInfo;
+    NearbyApp nearby;
 };
