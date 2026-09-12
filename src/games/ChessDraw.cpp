@@ -159,13 +159,49 @@ uint8_t ChessGame::squareAt(AppContext& host, int16_t x, int16_t y) const {
  * Laid out against the live panel like everything else here, and the rows are
  * generous -- this is a menu a child taps once, not a board they play on, so
  * there is no reason to make the targets small. */
+/* The lobby: two setting chips, then a column of buttons.
+ *
+ * The chips are Go's idiom rather than Ludo's pair of buttons, because there
+ * are two settings here and a row of buttons per setting would push the peers
+ * off the panel. They sit ABOVE the buttons, since they qualify the computer
+ * row rather than following from it.
+ *
+ * How many buttons fit is measured, not assumed. In landscape the panel holds
+ * four -- pass and play, the computer, and two peers -- and in portrait it
+ * holds more. It used to be a hard-coded five with no note of what happened to
+ * a sixth console; now the peers that do not fit simply are not offered, which
+ * is the same answer honestly arrived at, and the Nearby app remains the place
+ * that lists everything in range. */
+Rect ChessGame::lobbyChipRect(AppContext& host, uint8_t index) const {
+    Ui::Renderer& tft = host.display();
+    const int16_t w = static_cast<int16_t>((tft.width() - 20 - 6) / 2);
+    return Rect{static_cast<int16_t>(10 + index * (w + 6)),
+                static_cast<int16_t>(TOP_BAR_H + 6), w, 26};
+}
+
 Rect ChessGame::lobbyRowRect(AppContext& host, uint8_t row) const {
     Ui::Renderer& tft = host.display();
     const int16_t w = static_cast<int16_t>(tft.width());
-    const int16_t top = static_cast<int16_t>(TOP_BAR_H + 8);
+    const Rect chip = lobbyChipRect(host, 0);
+    const int16_t top = static_cast<int16_t>(chip.y + chip.h + 8);
     const int16_t h = 30;
     return Rect{10, static_cast<int16_t>(top + row * (h + 6)),
                 static_cast<int16_t>(w - 20), h};
+}
+
+uint8_t ChessGame::lobbyRowCount(AppContext& host) const {
+    Ui::Renderer& tft = host.display();
+    /* The footnote owns the bottom of the panel and says something a player
+     * needs -- that moves are broadcast, or that the battery will not last the
+     * game -- so rows stop above it rather than under it. */
+    const int16_t floorY = static_cast<int16_t>(tft.height() - 22);
+    uint8_t n = 0;
+    while (n < MAX_LOBBY_ROWS) {
+        const Rect r = lobbyRowRect(host, n);
+        if (r.y + r.h > floorY) break;
+        ++n;
+    }
+    return n;
 }
 
 

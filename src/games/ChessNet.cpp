@@ -13,12 +13,45 @@ void ChessGame::renderLobby(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
+    /* The two chips. A label above a value, with a small triangle saying a
+     * tap cycles it -- the same shape Go uses, so a player who has met one
+     * knows what the other does. They qualify the computer row below them. */
+    char label[32];
+    static const char* const SIDES[3] = {"White", "Black", "Random"};
+    const char* const values[2] = {
+        level_ == Ch::Level::Easy ? "Easy" : "Medium",
+        SIDES[static_cast<uint8_t>(sideChoice_)],
+    };
+    static const char* const CHIPS[2] = {"Level", "You play"};
+    for (uint8_t i = 0; i < 2; ++i) {
+        const Rect r = lobbyChipRect(host, i);
+        tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
+        tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.drawString(CHIPS[i], static_cast<int16_t>(r.x + 7),
+                       static_cast<int16_t>(r.y + 3), 1);
+        tft.setTextColor(Ui::text(), Ui::surface());
+        tft.drawString(values[i], static_cast<int16_t>(r.x + 7),
+                       static_cast<int16_t>(r.y + 12), 2);
+        tft.fillTriangle(static_cast<int16_t>(r.x + r.w - 16),
+                         static_cast<int16_t>(r.y + 11),
+                         static_cast<int16_t>(r.x + r.w - 8),
+                         static_cast<int16_t>(r.y + 11),
+                         static_cast<int16_t>(r.x + r.w - 12),
+                         static_cast<int16_t>(r.y + 17), Ui::muted());
+    }
+    tft.setTextColor(Ui::text(), Ui::bg());
+
+    const uint8_t rows = lobbyRowCount(host);
     Ui::drawButton(tft, lobbyRowRect(host, 0), "Pass and play",
                    Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    if (rows > 1) {
+        Ui::drawButton(tft, lobbyRowRect(host, 1), "Play the computer",
+                       Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+    }
 
-    char label[32];
-    uint8_t row = 1;
-    for (uint8_t i = 0; i < seatCount_ && row < 5; ++i, ++row) {
+    uint8_t row = 2;
+    for (uint8_t i = 0; i < seatCount_ && row < rows; ++i, ++row) {
         /* A peer offering us a game reads differently from one merely
          * present, and the wording has to say which -- "Play A4F2" and
          * "A4F2 invites you" are different offers. */
@@ -91,13 +124,37 @@ void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
 
     if (!touch.justPressed) return;
 
+    /* The chips cycle. Neither is admin-gated and neither transmits: they are
+     * settings for a game against this console. */
+    if (lobbyChipRect(host, 0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        level_ = level_ == Ch::Level::Easy ? Ch::Level::Medium : Ch::Level::Easy;
+        host.playSound(Sound::Tap);
+        saveGame(host);
+        markFullDirty();
+        return;
+    }
+    if (lobbyChipRect(host, 1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        sideChoice_ = static_cast<Side>((static_cast<uint8_t>(sideChoice_) + 1) % 3);
+        host.playSound(Sound::Tap);
+        saveGame(host);
+        markFullDirty();
+        return;
+    }
+
     if (lobbyRowRect(host, 0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.playSound(Sound::Select);
         startLocal();
         return;
     }
+    if (lobbyRowCount(host) > 1 &&
+        lobbyRowRect(host, 1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        host.playSound(Sound::Select);
+        startComputer();
+        markFullDirty();
+        return;
+    }
     for (uint8_t i = 0; i < seatCount_; ++i) {
-        if (!lobbyRowRect(host, static_cast<uint8_t>(i + 1))
+        if (!lobbyRowRect(host, static_cast<uint8_t>(i + 2))
                  .contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             continue;
         }
@@ -188,19 +245,13 @@ void ChessGame::pollOpponent(AppContext& host) {
     }
     if (!ok) return;
 
-    for (int8_t f = 0; f < 8; ++f) markSquare(idx(f, rankOf(turn.from)));
-    markSquare(turn.from);
-    markSquare(turn.to);
-    recordCapture(applyMove(pos_, turn.from, turn.to));
+    /* Their ply is recorded BEFORE the move is played, because playMove()
+     * republishes and the ack it sends has to be the one we have just
+     * accepted. */
     theirPly_ = turn.ply;
-    selected_ = NO_SQ;
-    targetCount_ = 0;
-    refreshStatus();
-    saveGame(host);
-    host.playSound(gameOver()                 ? Sound::GameOver
-                   : status_ == Status::Check ? Sound::Reveal
-                                              : Sound::Tap);
-    markDirty();
+    /* publish == false: this move is theirs. Answering it with one of our own
+     * ply numbers would tell them we had moved when we had not. */
+    playMove(host, turn.from, turn.to, false);
 }
 
 

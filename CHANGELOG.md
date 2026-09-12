@@ -10,6 +10,40 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**Chess has a computer opponent, at two levels.** It is the only strategy
+game here that did not -- Go has two levels, Ludo two, Backgammon one -- so a
+child with nobody to play sat in front of a board that could not move. The
+lobby gains a *Play the computer* row and two chips: Level (Easy or Medium) and
+which colour you take (White, Black or Random, resolved once at the start and
+then stored as the colour, so a restored game cannot hand you the other side).
+
+`ChessGame.h` used to state that there was no computer opponent and that this
+was a decision rather than an omission, because a search worth playing "would
+have to run across frames or on its own task". That was the answer rather than
+the objection: Go had already shipped exactly it. Medium is alpha-beta to three
+plies, split at the root so one root move is scored per slice and the screen
+stops when the frame's 4ms budget is spent -- a partial result can never be
+mistaken for a finished one. Easy is one ply plus a look at what can be taken
+straight back, so it will not hang its queen on move four, and it chooses at
+random among moves that score alike so it does not open identically every game.
+
+Both are deliberately weak. A console that beats a seven-year-old every time is
+a worse product than one they beat half the time.
+
+**The rules are now pure, and provably.** `ChessRules.cpp` carried a comment
+claiming it could be compiled on the host "if it were ever needed to" while
+including `ChessGame.h`, and therefore `Game.h`, `Ui.h` and TFT_eSPI -- the
+function bodies were honest, the translation unit was not, and nothing could
+tell the difference until something tried. The rules moved into `namespace Ch`
+in `ChessRules.h` with the engine beside them in `ChessAi.cpp`, both including
+`<stdint.h>` and `<string.h>` and nothing else, and
+`test/host/chess_rules_test.cpp` compiles them with a host g++. The test is
+what proves the purity, since it will not build if an Arduino header returns.
+
+Chess saves grow two bytes and `SAVE_VERSION` goes to 4, so a game in progress
+across the upgrade is retired rather than misread -- which is what the fixed
+layout is for.
+
 **Find my Braino.** The Nearby screen's peer list gains a *Find* beside each
 *Poke*. A poke was only ever a blip and a banner -- fine for nudging somebody
 who is holding their console, useless for the case everybody actually has,

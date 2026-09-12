@@ -25,6 +25,9 @@ void ChessGame::saveGame(AppContext& host) const {
     out.theirPly = theirPly_;
     out.ourFrom = ourFrom_;
     out.ourTo = ourTo_;
+    out.level = static_cast<uint8_t>(level_);
+    out.sideChoice = static_cast<uint8_t>(sideChoice_);
+    out.humanIsWhite = humanIsWhite_ ? 1 : 0;
     out.takenCount[0] = takenCount_[0];
     out.takenCount[1] = takenCount_[1];
     memcpy(out.taken, taken_, sizeof(out.taken));
@@ -39,8 +42,21 @@ bool ChessGame::restoreGame(AppContext& host) {
     /* Only a game that is still going is worth coming back to. A finished one
      * is restored as nothing, so the screen opens at the lobby rather than at
      * a checkmate somebody already read. */
+    /* The chips come back whatever else does. They are settings rather than
+     * part of a game, so a finished or unrestorable board should still leave
+     * the lobby saying what it said last time. Restored BEFORE any of the
+     * early returns below, deliberately. */
+    if (in.level <= static_cast<uint8_t>(Ch::Level::Medium)) {
+        level_ = static_cast<Ch::Level>(in.level);
+    }
+    if (in.sideChoice <= static_cast<uint8_t>(Side::Random)) {
+        sideChoice_ = static_cast<Side>(in.sideChoice);
+    }
+
     const Mode m = static_cast<Mode>(in.mode);
-    if (m != Mode::Local && m != Mode::Remote) return false;
+    if (m != Mode::Local && m != Mode::Computer && m != Mode::Remote) {
+        return false;
+    }
     /* Only an unfinished game is worth coming back to. Every terminal status
      * is listed rather than tested for "not Playing", so adding a new way for
      * a game to end forces a decision here instead of silently restoring a
@@ -72,6 +88,7 @@ bool ChessGame::restoreGame(AppContext& host) {
     }
 
     mode_ = m;
+    humanIsWhite_ = in.humanIsWhite != 0;
     remoteIsWhite_ = in.remoteIsWhite != 0;
     endedByUs_ = in.endedByUs != 0;
     memcpy(opponent_, in.opponent, sizeof(opponent_));
@@ -92,5 +109,12 @@ bool ChessGame::restoreGame(AppContext& host) {
      * two copies to disagree -- and refreshStatus() is cheap enough to run
      * once on the way in. */
     refreshStatus();
+    /* A computer to move comes back thinking. Without this the board restores
+     * with the computer's move owed and nothing armed to make it, and the game
+     * sits there until the player taps something -- which they cannot, because
+     * it is not their turn. Go restores mid-think for the same reason. */
+    if (mode_ == Mode::Computer && !gameOver() && !humanTurn()) {
+        beginThinking();
+    }
     return true;
 }
