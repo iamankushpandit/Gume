@@ -4,10 +4,24 @@ These rules apply to everyone changing this repository, human or agent. `CONTRIB
 
 ## Two standing rules â€” do these without being asked
 
-**No AI attribution in commits.** Never add `Co-Authored-By: Claude`,
-`Co-Authored-By:` naming any AI, "Generated withâ€¦" footers, or any trailer that
-credits a model or tool. This applies to commits, amends, squashes and PR
-bodies. The history here records a human author.
+**No AI attribution in commits -- and no AI in the names either.** Never add
+`Co-Authored-By: Claude`, `Co-Authored-By:` naming any AI, "Generated with..."
+footers, or any trailer that credits a model or tool. This applies to commits,
+amends, squashes and PR bodies. The history here records a human author.
+
+The same goes for **the word itself**. No `claude`, and no other model or vendor
+name, anywhere a contribution leaves a trace: branch names, commit subjects and
+bodies, PR titles and descriptions, file names, identifiers, comments and TODOs.
+A branch called `claude/fix-the-thing` records who typed rather than what
+changed, and unlike a session it is permanent -- it is in the merge commit, the
+pull request, and every clone, long after anyone remembers which tool was open
+that day. Name a branch for its work instead: `feat/<game-id>`, `fix/<area>`,
+`docs/<topic>`. If you find yourself on a branch that breaks this, rename it
+before you open the pull request (`git branch -m <new-name>`).
+
+The `CLAUDE.md` files are the one exception, because that filename is how an
+agent finds this rulebook at all. The rule is about what a *change* carries, not
+about what the rulebook is called.
 
 **Docs are part of the change, not a follow-up.** If a change alters behaviour,
 architecture, dependencies, screens, settings, the game list or the build, then
