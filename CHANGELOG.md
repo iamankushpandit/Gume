@@ -10,6 +10,15 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**About calls two-console play experimental, on the device.** It is the one
+thing shipping here that has not been exercised end to end on two boards since
+the defects in it were fixed, and the note below has now carried that check
+over three releases. Saying so where the owner reads it is the honest way to
+ship it: a feature that sometimes fails to connect is a disappointment when it
+was promised and a curiosity when it was labelled. The claim being qualified is
+two consoles, not the radio -- the beacon, the Nearby list and a poke are
+mature. The line comes out when the check has actually been run.
+
 **Chess has a computer opponent, at two levels.** It is the only strategy
 game here that did not -- Go has two levels, Ludo two, Backgammon one -- so a
 child with nobody to play sat in front of a board that could not move. The

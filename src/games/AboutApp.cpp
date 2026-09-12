@@ -138,8 +138,21 @@ void AboutApp::renderIntro(Ui::Renderer& tft) {
     /* The last three sit clear of the panel's bottom edge, which is at
      * y=196 in landscape (PANEL_TOP + h - PANEL_TOP - FOOTER_H). At 190 the
      * final line overflowed it by two pixels and read as cut off. */
-    drawLine(tft, 156, "195 flags and 50 US states,", 1);
-    drawLine(tft, 170, "all stored on the device.", 1);
+    drawLine(tft, 156, "195 flags and 50 US states, stored.", 1);
+    /* PLAYING ACROSS CONSOLES IS CALLED EXPERIMENTAL, ON THE DEVICE.
+     *
+     * It is the one thing shipped here that has not been exercised end to end
+     * on two boards since the defects in it were fixed -- the changelog has
+     * carried that check over three releases now. Saying so where the owner
+     * reads it is the honest way to ship it: a feature that sometimes does not
+     * connect is a disappointment when it was promised and a curiosity when it
+     * was labelled.
+     *
+     * Two consoles is the claim being qualified, not the radio. The beacon,
+     * the Nearby list and a poke are all mature; it is invitations, turns and
+     * acks between two devices that are new enough to say this about. Take the
+     * line out when that check has actually been run, and not before. */
+    drawLine(tft, 170, "Two-console play: experimental.", 1);
     drawLine(tft, 184, "Up to 5 players, plus a Guest.", 1);
 }
 
