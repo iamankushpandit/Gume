@@ -557,7 +557,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,507,925 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,507,937 / 3,145,728 bytes,
 **79.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 79,844 / 327,680 (24.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1078,7 +1078,13 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Backgammon likewise: BackgammonGame (flow, input),
                           BackgammonDraw, BackgammonNet (the nearby game),
                           BackgammonSave, over BackgammonRules and
-                          BackgammonAi (pure, host-tested)
+                          BackgammonAi (pure, host-tested).
+                          Chess is five .cpp against one header -- ChessGame
+                          (flow, input), ChessRules, ChessDraw, ChessNet (the
+                          lobby and the nearby game), ChessSave -- sharing
+                          ChessInternal.h; Sea Battle is four: SeaBattleGame
+                          (flow, input, the fleet), SeaBattleDraw,
+                          SeaBattleNet, SeaBattleSave.
 src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
                           per-concern HAL units, BoardAudio (the synthesiser),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT

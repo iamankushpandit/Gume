@@ -139,6 +139,21 @@ Who can use it:
 - **Naming a peer stays admin-only.** It is a device-wide label, not a personal
   one, and it is what every screen then calls that console.
 
+## Chess and Sea Battle
+
+Both were one `.cpp` each until they passed the size the modularity rule
+allows, and both are now split the way Backgammon is: `ChessGame.cpp` (the
+game's life, a fresh board, a tap on it), `ChessRules.cpp` (move generation,
+check, the endings), `ChessDraw.cpp` (geometry and every pixel, the lobby's
+row geometry included), `ChessNet.cpp` (the lobby and the poll that plays a
+nearby game) and `ChessSave.cpp`, sharing `ChessInternal.h` for the three
+square helpers and the back rank that more than one of them needs. Sea Battle
+is `SeaBattleGame.cpp` (the fleet and a shot as well as the screen -- its
+rules are eighty lines), `SeaBattleDraw.cpp`, `SeaBattleNet.cpp` and
+`SeaBattleSave.cpp`. The split was by line range and nothing moved changed;
+`ChessInternal.h` is for the Chess files and nobody else, like
+`NearbyPlayState.h` in the engine.
+
 ## Ludo
 
 Split on purpose: `LudoRules` (rules, the computer player and the table
