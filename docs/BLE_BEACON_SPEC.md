@@ -41,7 +41,7 @@ silently diverge.
 | 2 | 2 | Family tag `"BR"` |
 | 4 | 1 | Layout version — `4` |
 | 5 | 2 | Device id, the two MAC bytes |
-| 7 | 1 | Flags. Bit 0 = shares Nearby activity, bit 1 = poking, bit 2 = game invitation, bit 3 = game turn; the rest reserved, sent as zero |
+| 7 | 1 | Flags. Bit 0 = shares Nearby activity, bit 1 = poking, bit 2 = game invitation, bit 3 = game turn, bit 4 = the poke is a *find*; bits 5-7 reserved, sent as zero |
 | 8 | 1 | *(any flag set)* Open game, an index into the playable app registry |
 | 9 | 4 | *(sharing, no poke/invite/move)* Best score for that game, little endian |
 | 9 | 2 | *(poke or invite)* Target — the device id being poked or invited |
@@ -201,7 +201,7 @@ be read as a game, a score or a poke target that was never sent.
 ### The poke, and what it actually is
 
 A poke is a nudge one console sends another: the target raises a notification
-and makes a sound. Three properties are part of the contract.
+and makes a sound. Four properties are part of the contract.
 
 - **It is a broadcast, not a message.** Non-connectable advertising has no
   addressing. Every Braino in range hears that `A4F2` poked `B1C3`; only `B1C3`
@@ -219,8 +219,33 @@ and makes a sound. Three properties are part of the contract.
   and is never reset, so a second poke to the same peer is a new event rather
   than a repeat of the last one.
 
+- **A poke can ask to be heard.** Bit 4, `FLAG_FIND`, turns a poke into a
+  *find*: the target rings a bell repeatedly, blinks its LED and wakes its
+  panel, instead of blipping once. This is what answers "where did the console
+  get to?", and it is the reason the receiver's reaction is part of this
+  document at all. It costs a reserved flag bit and **no bytes** -- the sharing
+  payload is already exactly 31, so a field was never available.
+
+  It does **not** bump the layout version, and that is deliberate. A reader
+  rejects the whole manufacturer block on a version mismatch, so bumping would
+  make consoles on either side of the change invisible to each other in Nearby
+  -- a far worse outcome than the one it would be guarding against. Nothing a
+  version protects is at risk here: no length changes and no existing field
+  changes meaning, so a reader that does not know bit 4 sees a poke, ignores
+  the bit, and blips. That is the correct behaviour, not a degradation to be
+  apologised for. **Spending a reserved bit is only safe on those terms** --
+  a future flag that moves a field must bump the version.
+
+  A find is still a broadcast. Everyone in range hears that `A4F2` is looking
+  for `B1C3`; only `B1C3` rings. The docs and the UI must keep saying so.
+
 Poking requires Nearby play to be on, which requires the beacon to be on. There
 is no path that pokes while the radio setting says the device is quiet.
+
+Ringing additionally obeys the owner's **Find alert** setting (Settings >
+Sound). With it set to Quiet the banner and the LED still happen and the bell
+does not. On Ring, a find will briefly **unmute** a muted console so that it
+can answer, and restore the mute when the alert ends -- see `NearbyPlay`.
 
 - **Device ID** is the last two bytes of the factory Bluetooth MAC, rendered as
   four uppercase hex digits. It is a hardware serial, stable across reboots so a

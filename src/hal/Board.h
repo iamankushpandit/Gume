@@ -515,6 +515,17 @@ public:
     bool nearbyEnabled();
     void setNearbyEnabled(bool on);
 
+    /* Whether a find from a nearby console makes this one RING.
+     *
+     * Off leaves the banner and the LED and takes only the noise -- and with
+     * it the unmute, which is the part worth knowing about: an alert flips the
+     * mute switch so a silenced console can still be found, and puts it back
+     * when the alert ends. An owner who does not want that has this switch.
+     * Global, like every other device setting; the speaker belongs to whoever
+     * is in the room. */
+    bool findAlertEnabled();
+    void setFindAlertEnabled(bool on);
+
     /* Local labels for the devices Nearby can see -- "RAVI" against the tag
      * A4F2, so a poke says who rather than what.
      *
@@ -654,6 +665,8 @@ private:
     uint8_t cachedNtpResyncHours_ = NTP_RESYNC_DEFAULT_HOURS;
     bool nearbyCached_ = false;
     bool cachedNearby_ = false;
+    bool findAlertCached_ = false;
+    bool cachedFindAlert_ = true;
 
     /* Fixed slots, no allocation, written as one blob. 8 x 16 bytes is 128
      * bytes of NVS and matches BleScan::MAX_SIGHTINGS -- there is no point

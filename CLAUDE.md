@@ -4,10 +4,24 @@ These rules apply to everyone changing this repository, human or agent. `CONTRIB
 
 ## Two standing rules â€” do these without being asked
 
-**No AI attribution in commits.** Never add `Co-Authored-By: Claude`,
-`Co-Authored-By:` naming any AI, "Generated withâ€¦" footers, or any trailer that
-credits a model or tool. This applies to commits, amends, squashes and PR
-bodies. The history here records a human author.
+**No AI attribution in commits -- and no AI in the names either.** Never add
+`Co-Authored-By: Claude`, `Co-Authored-By:` naming any AI, "Generated with..."
+footers, or any trailer that credits a model or tool. This applies to commits,
+amends, squashes and PR bodies. The history here records a human author.
+
+The same goes for **the word itself**. No `claude`, and no other model or vendor
+name, anywhere a contribution leaves a trace: branch names, commit subjects and
+bodies, PR titles and descriptions, file names, identifiers, comments and TODOs.
+A branch called `claude/fix-the-thing` records who typed rather than what
+changed, and unlike a session it is permanent -- it is in the merge commit, the
+pull request, and every clone, long after anyone remembers which tool was open
+that day. Name a branch for its work instead: `feat/<game-id>`, `fix/<area>`,
+`docs/<topic>`. If you find yourself on a branch that breaks this, rename it
+before you open the pull request (`git branch -m <new-name>`).
+
+The `CLAUDE.md` files are the one exception, because that filename is how an
+agent finds this rulebook at all. The rule is about what a *change* carries, not
+about what the rulebook is called.
 
 **Docs are part of the change, not a follow-up.** If a change alters behaviour,
 architecture, dependencies, screens, settings, the game list or the build, then
@@ -557,9 +571,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,557,861 / 3,145,728 bytes,
-**81.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 86,812 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,559,745 / 3,145,728 bytes,
+**81.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 86,876 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -686,7 +700,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
-| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudio.cpp` | The console's sound vocabulary, and the synthesiser that generates every one of them a sample at a time |
+| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudioCues.cpp` / `BoardAudio.cpp` / `BoardAudioBackend.cpp` | The console's sound vocabulary, the synthesiser that generates every one of them a sample at a time, and the codec/I2S/DAC hardware under it |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
@@ -883,9 +897,21 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   target reacts -- and the docs must keep saying so rather than implying a
   private channel. The one identifier it carries is the target's own advertised
   id, so it adds an event to the radio, not a new kind of data.
+- **A find is a poke that asks to be heard, and it spends a reserved flag bit
+  rather than a byte or a version.** `FLAG_FIND` (bit 4) makes the target ring
+  `Sound::Bell` on a cadence, blink its LED and wake its panel, for
+  `ALERT_MS`. It adds nothing to a payload that has nothing to add to. **It
+  does not bump `PAYLOAD_VERSION`, and must not**: `decode()` rejects the whole
+  manufacturer block on a version mismatch, so a bump makes consoles either
+  side of it invisible to each other in Nearby -- worse than the problem. That
+  is safe here only because no length and no existing field changed meaning, so
+  an older reader sees a poke and blips. **A future flag that moves a field
+  does have to bump the version.** It is still a broadcast: everyone in range
+  hears who is looking for whom, only the target rings.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
+  (the cue tables themselves live in `BoardAudioCues.cpp`)
   from a script of oscillator, noise and formant segments. No WAV, no PCM
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
@@ -902,6 +928,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the whole of the feedback on a codec-less board anyway. `soundEnabled()` and
   `volume()` are RAM-mirrored write-through settings because the first is on
   the path of every cue in every game.
+
+  **Exactly one thing may change the switch itself, and it puts it back.** A
+  find alert (see above) unmutes a muted console so that it can answer, and
+  `NearbyPlay::dismissAlert()` restores it -- which is why every way an alert
+  can end, a touch and the BOOT key and its own timeout, funnels through that
+  one function. Note what this is *not*: nothing reaches past
+  `Board::playSound()`, so the invariant still holds literally -- a muted
+  console is silent, and this console is briefly not muted. It is the same
+  shape as `lockOnWake_`: a one-time override of a device setting, cleared in
+  the one place that already decides the episode is over. If you need a second
+  such override, be sure it can say the same two things.
 - **A screen makes a noise through `playSound(Sound::...)` and nothing else.**
   `Board::beep(freq, ms)` is private on purpose. A shared vocabulary is the
   point -- `Coin` means the same thing in Whack-a-Mole as in Memory, and a game
@@ -1119,7 +1156,8 @@ src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPlay,
-                          AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
+                          AppRuntime, AppRuntimeLock, AppRuntimeNotify (the
+                          header banner), AppRuntimeIdentity,
                           AppRuntimeConsole (+Settings, +Profiles),
                           ConsoleText,
                           ScoreCatalog, Progress,
@@ -1154,8 +1192,13 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           and GoAi (both computer levels and the dead-stone
                           estimate) are pure and host-tested, like
                           Backgammon's.
-src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess facades,
-                          per-concern HAL units, BoardAudio (the synthesiser),
+src/hal/                  Board bring-up, BleBeacon (the radio) +
+                          BleBeaconPayload (the one description of what goes
+                          on air, and decode(), its exact inverse),
+                          BleScanner, BoardAccess facades,
+                          per-concern HAL units, BoardAudio (the synthesiser) +
+                          BoardAudioBackend (codec, I2S, amp) + BoardAudioCues
+                          (every cue and the spoken phrase),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage

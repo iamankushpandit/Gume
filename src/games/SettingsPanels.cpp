@@ -43,6 +43,13 @@ constexpr int16_t SETTINGS_TOP = 58;
 constexpr int16_t SETTINGS_BOTTOM_RESERVE = 36;   // the brightness bar
 constexpr int16_t SETTINGS_MIN_PITCH = 34;
 constexpr int16_t SETTINGS_MAX_ROW_H = 44;
+
+/* The Sound tab's own stack -- see the comment above muteRect(). Gaps rather
+ * than a pitch, because this tab's bands are not all the same height. */
+constexpr int16_t SOUND_GAP = 4;
+constexpr int16_t SOUND_CAPTION_H = 12;   // the "Volume" / "70%" line
+constexpr int16_t SOUND_TRACK_H = 32;     // the slider itself
+constexpr int16_t SOUND_FOOT_GAP = 8;
 }  // namespace
 
 int16_t SettingsApp::gridRowPitch() const {
@@ -91,32 +98,72 @@ Rect SettingsApp::brightRect() const {
                 static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2), 32};
 }
 
-/* Sound tab.
+/* Sound tab: NOT the shared four-row grid, and it cannot be.
  *
- * Mute is a full-width row of its own because it is the control most people
- * come to this tab for and it should not have to be found. Below it the
- * volume slider, then the two test buttons side by side.
+ * Every other tab stacks four plain buttons, which is exactly what
+ * gridRowPitch() is sized for -- 34px on a 240 panel. This tab has those same
+ * four controls PLUS a caption line above the slider and two lines of
+ * footnote, and a 44px slider band does not fit in a 34px row.
  *
- * The vertical stack is measured against 240px: tab baseline at 52, mute row
- * 58-88, the level readout on its own line at 96, the slider 104-136, the test
- * buttons 148-178, and two lines of explanation at 190 and 206 -- which leaves
- * 34px of margin at the bottom. There is room for one more row here and not
- * two. */
-Rect SettingsApp::muteRect()      const { return gridWide(0); }
-/* Takes the grid's position but keeps its designed height.
+ * It did not fit before either, and the panel showed it: the caption is drawn
+ * 12px above the slider, the slider sat at the grid's row 1 (y=92), so the
+ * caption landed at 80 -- eight pixels INSIDE the mute button above it, which
+ * ran from 58 to 88. Every owner saw "Volume" printed across the bottom of the
+ * mute switch. What hid it from review was the mock-up: gen_screens.py had
+ * copied a comment here that still described a pitch of ~45 (rows at 58 / 104
+ * / 148), so the picture drew a layout the firmware had not produced for some
+ * time, and the two were never compared to anything but themselves.
  *
- * A button gets easier to hit as it grows; a slider does not -- what matters
- * is the length of its travel, which is already the full width. Letting it
- * take the grid's row height made the rect 46px tall, and drawSlider centres
- * the track inside the rect, so the track sank while the "Volume" caption
- * stayed pinned above the rect's top edge and was left floating in the gap.
- * The brightness bar has always been a fixed 32 for the same reason. */
-Rect SettingsApp::volumeRect()    const {
-    const Rect r = gridWide(1);
-    return Rect{r.x, r.y, r.w, 32};
+ * So this tab measures its own bands, in the order they are drawn, each from
+ * the one above it. The row height is still borrowed from the grid so the
+ * buttons match the other tabs, and everything scales with the panel: on 240
+ * that is mute 58-88, caption 92-104, track 104-136, tests 140-170, find alert
+ * 174-204, footnotes at 212 and 228, ending 4px clear of the bottom.
+ *
+ * Do not restate those numbers anywhere else. Derive them, as gen_screens.py
+ * now does, or the next reader inherits the same lie. */
+Rect SettingsApp::muteRect() const {
+    return Rect{SETTINGS_MARGIN, SETTINGS_TOP,
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                gridRowHeight()};
 }
-Rect SettingsApp::testCueRect()   const { return gridCell(2, 0); }
-Rect SettingsApp::testVoiceRect() const { return gridCell(2, 1); }
+
+/* The slider TRACK, with its caption in the SOUND_CAPTION_H above it.
+ *
+ * A fixed height rather than the row height: a button gets easier to hit as it
+ * grows, a slider does not -- what matters is the length of its travel, which
+ * is already the full width. Letting it take a 46px row made drawSlider centre
+ * the track low while the caption stayed pinned to the rect's top edge, and
+ * left the two floating apart. */
+Rect SettingsApp::volumeRect() const {
+    const Rect m = muteRect();
+    return Rect{SETTINGS_MARGIN,
+                static_cast<int16_t>(m.y + m.h + SOUND_GAP + SOUND_CAPTION_H),
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                SOUND_TRACK_H};
+}
+
+Rect SettingsApp::testCueRect() const {
+    const Rect v = volumeRect();
+    const int16_t colW = static_cast<int16_t>(
+        (panelW_ - SETTINGS_MARGIN - SETTINGS_GAP - SETTINGS_GAP) / 2);
+    return Rect{SETTINGS_MARGIN,
+                static_cast<int16_t>(v.y + v.h + SOUND_GAP), colW,
+                gridRowHeight()};
+}
+
+Rect SettingsApp::testVoiceRect() const {
+    const Rect a = testCueRect();
+    return Rect{static_cast<int16_t>(SETTINGS_MARGIN + a.w + SETTINGS_GAP),
+                a.y, a.w, a.h};
+}
+
+Rect SettingsApp::findAlertRect() const {
+    const Rect t = testCueRect();
+    return Rect{SETTINGS_MARGIN, static_cast<int16_t>(t.y + t.h + SOUND_GAP),
+                static_cast<int16_t>(panelW_ - SETTINGS_MARGIN * 2),
+                gridRowHeight()};
+}
 
 /* Power tab: four full-width rows, so the labels have room to say what the
  * setting actually does rather than abbreviating to fit half a screen.
@@ -349,12 +396,12 @@ void SettingsApp::renderSoundTab(GameHost& host) {
     /* The footnotes sit under the test buttons, so they move with them. They
      * were at a fixed 190/206, which was under the buttons at 240 tall and
      * straight through them on a taller panel. */
-    const int16_t soundFootY =
-        static_cast<int16_t>(testCueRect().y + testCueRect().h + 12);
+    const int16_t soundFootY = static_cast<int16_t>(
+        findAlertRect().y + findAlertRect().h + SOUND_FOOT_GAP);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString("Volume", 8, static_cast<int16_t>(volumeRect().y - 12), 1);
+    tft.drawString("Volume", 8, static_cast<int16_t>(volumeRect().y - SOUND_CAPTION_H), 1);
     tft.setTextDatum(TR_DATUM);
     if (!present) {
         snprintf(label, sizeof(label), "--");
@@ -366,7 +413,7 @@ void SettingsApp::renderSoundTab(GameHost& host) {
     } else {
         snprintf(label, sizeof(label), "%u%%", board.volume());
     }
-    tft.drawString(label, panelW_ - 8, static_cast<int16_t>(volumeRect().y - 12), 1);
+    tft.drawString(label, panelW_ - 8, static_cast<int16_t>(volumeRect().y - SOUND_CAPTION_H), 1);
     tft.setTextDatum(TL_DATUM);
 
     Ui::drawSlider(tft, volumeRect(), present ? board.volume() : 0, 0,
@@ -378,6 +425,20 @@ void SettingsApp::renderSoundTab(GameHost& host) {
                    Ui::outline(), testInk, false, 2);
     Ui::drawButton(tft, testVoiceRect(), "Say hello", testFill,
                    Ui::outline(), testInk, false, 2);
+
+    /* Whether a find from another console rings this one. It is on the Sound
+     * tab rather than beside Nearby because what it governs is noise, and
+     * because it is the switch an owner reaches for at bedtime.
+     *
+     * Live even while muted, deliberately -- unlike everything above it. Being
+     * muted is exactly the state in which this setting decides something: an
+     * alert unmutes the console to ring and mutes it again afterwards, and
+     * this is the switch that says whether it may. */
+    snprintf(label, sizeof(label), "Find alert: %s",
+             board.findAlertEnabled() ? "Ring" : "Quiet");
+    Ui::drawButton(tft, findAlertRect(), label,
+                   (admin && present) ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   (admin && present) ? Ui::text() : Ui::muted(), false, 2);
 
     /* Two lines, and both are measured to fit 320px at font 1 -- the longest
      * of them is the not-admin one. Keep any replacement under about 52

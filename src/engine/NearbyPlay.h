@@ -44,6 +44,14 @@ constexpr uint8_t MAX_EVENTS = 6;
 /** Longest notification text, sized to the top bar at font 2. */
 constexpr uint8_t BANNER_MAX = 40;
 
+/* THE FIND ALERT -- how long a lost console makes itself known for, and how
+ * often. Long enough to walk through a house and follow the sound; bounded,
+ * because the one thing worse than a console you cannot find is one that will
+ * not stop. A fresh find (a new nonce) restarts the window rather than
+ * queueing behind it. */
+constexpr uint32_t ALERT_MS = 20000;
+constexpr uint32_t ALERT_CADENCE_MS = 1500;
+
 /* One peer, resolved against this device's catalog and records. Everything
  * here is derived at read time -- nothing is stored between calls. */
 struct PeerView {
@@ -100,6 +108,22 @@ bool poke(Board& board, const char* deviceId);
 
 /** True while our own poke is still being transmitted. */
 bool pokeInFlight();
+
+/* Ask one peer to make itself heard: the same poke, with FLAG_FIND set, so the
+ * far end rings and lights up instead of blipping once. Same gate as poke(),
+ * and nothing extra goes on air. */
+bool find(Board& board, const char* deviceId);
+
+/* A find aimed at THIS console is being answered right now: ringing, blinking,
+ * and asking the runtime to wake the panel. Generation changes on start and on
+ * stop, so the runtime can watch it the way it watches the banner. */
+bool alertActive();
+uint32_t alertGeneration();
+
+/* Stop an alert, whatever ended it -- a touch, the BOOT key, or its own
+ * timeout. The single exit, which is why the mute switch is restored here and
+ * nowhere else. */
+void dismissAlert(Board& board);
 
 /* Once per frame from the runtime. Expires sightings, raises notifications for
  * anything that changed and ages out the banner. Does nothing measurable when

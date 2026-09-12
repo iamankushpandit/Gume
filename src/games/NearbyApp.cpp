@@ -205,11 +205,20 @@ void NearbyApp::rebuildRows(GameHost& host) {
              * remove. The tag stays visible as its own row above. */
             const char* who = label != nullptr ? label : peer.deviceId;
             char chipLabel[RowList::LABEL_MAX];
-            snprintf(chipLabel, sizeof(chipLabel), justPoked ? "Poked %s" : "Poke %s",
-                     who);
+            snprintf(chipLabel, sizeof(chipLabel),
+                     justPoked && !pokedWasFind_ ? "Poked %s" : "Poke %s", who);
             snprintf(pokeTargets_[pokeTargetCount_], sizeof(pokeTargets_[0]), "%s",
                      peer.deviceId);
             rows_.addAction(chipLabel, static_cast<int8_t>(pokeTargetCount_));
+            /* A second chip, because the two are different requests and the
+             * difference is audible at the far end. Poke is a nudge for
+             * somebody holding their console; Find is for a console nobody can
+             * see, and it rings until it is picked up. Neither is admin-only:
+             * a child who has lost the thing is exactly who needs this. */
+            snprintf(chipLabel, sizeof(chipLabel),
+                     justPoked && pokedWasFind_ ? "Finding %s" : "Find %s", who);
+            rows_.addAction(chipLabel,
+                            static_cast<int8_t>(FIND_ACTION_BASE + pokeTargetCount_));
             /* Naming is admin-only, so a player who cannot use the chip is not
              * shown one. The greyed-out-but-live mistake has been made in
              * Settings already; absent is cleaner than decorative. */
@@ -416,6 +425,20 @@ void NearbyApp::update(GameHost& host, const TouchPoint& touch) {
                 markFullDirty();
                 return;
             }
+            if (action >= FIND_ACTION_BASE &&
+                action < static_cast<int8_t>(FIND_ACTION_BASE + pokeTargetCount_)) {
+                const int8_t which = static_cast<int8_t>(action - FIND_ACTION_BASE);
+                if (NearbyPlay::find(board, pokeTargets_[which])) {
+                    snprintf(pokedId_, sizeof(pokedId_), "%s", pokeTargets_[which]);
+                    pokedWasFind_ = true;
+                    pokedAtMs_ = millis();
+                    rowsStale_ = true;
+                    markDirty();
+                } else {
+                    board.beepError();
+                }
+                return;
+            }
             if (action >= 0 && action < static_cast<int8_t>(pokeTargetCount_)) {
                 /* NearbyPlay::poke() re-derives the gate itself, so a chip
                  * pressed just as the radio went down is refused there rather
@@ -423,6 +446,7 @@ void NearbyApp::update(GameHost& host, const TouchPoint& touch) {
                  * does nothing -- the same rule the sharing toggle follows. */
                 if (NearbyPlay::poke(board, pokeTargets_[action])) {
                     snprintf(pokedId_, sizeof(pokedId_), "%s", pokeTargets_[action]);
+                    pokedWasFind_ = false;
                     pokedAtMs_ = millis();
                     rowsStale_ = true;
                     markDirty();

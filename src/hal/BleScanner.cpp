@@ -55,6 +55,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
                 table_[i].haveScore = true;
             }
             table_[i].poking = obs.poking;
+            table_[i].findMe = obs.findMe;
             if (obs.poking) {
                 snprintf(table_[i].pokeTarget, sizeof(table_[i].pokeTarget), "%s",
                          obs.pokeTarget);
@@ -110,6 +111,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     s.bestScore = obs.bestScore;
     s.haveScore = obs.haveScore;
     s.poking = obs.poking;
+    s.findMe = obs.findMe;
     snprintf(s.pokeTarget, sizeof(s.pokeTarget), "%s", obs.pokeTarget);
     s.pokeNonce = obs.pokeNonce;
     s.inviting = obs.inviting;

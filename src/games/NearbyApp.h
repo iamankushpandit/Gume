@@ -78,6 +78,7 @@ private:
     /* The peer poked most recently, and when -- so its chip can say "Poked"
      * for a moment instead of leaving the press unacknowledged. */
     char pokedId_[5] = {0};
+    bool pokedWasFind_ = false;   // whether pokedId_ was a Find or a Poke
     uint32_t pokedAtMs_ = 0;
 
     Phase phase_ = Phase::List;
@@ -99,6 +100,9 @@ private:
     /* Action-chip ids. Poke chips take 0..MAX_POKE_TARGETS-1 and Name chips
      * take that plus NAME_ACTION_BASE, so one hit test resolves both without a
      * second array to keep in step. */
+    /* Find chips take FIND_ACTION_BASE..+7, between the Poke chips and the
+     * Name chips, so one hit test still resolves all three by range. */
+    static constexpr int8_t FIND_ACTION_BASE = 8;
     static constexpr int8_t NAME_ACTION_BASE = 16;
 
     RowList rows_;
