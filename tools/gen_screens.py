@@ -1556,7 +1556,11 @@ def launcher_tall_dense():
     battery_badge(d, bx + 40 + batt_w // 2, 60)
     d.ellipse([w - 32, 48, w - 8, 72], outline=TEXT)
     lock_icon(d, (w - 64, 51, CONTROL_H, CONTROL_H))
-    speaker_icon(d, (w - 96, 32, CONTROL_H, CONTROL_H), False, TEXT)
+    # Directly above the padlock, taking its x. It sat at w-96 for a release,
+    # which is neither beside nor above anything -- an icon floating in an
+    # empty row, reported off both portrait panels. Mirrors
+    # LauncherLayout::speakerRect(), which derives this from lockRect().
+    speaker_icon(d, (w - 64, 32, CONTROL_H, CONTROL_H), False, TEXT)
 
     gap, header_h, footer_h, cols, rows_n = 8, 78, 32, 3, 3
     tile_w = (w - gap * (cols + 1)) // cols
@@ -1606,8 +1610,10 @@ def launcher_tall():
     ble_badge(d, batt_left + batt_w + 11, 60)
     d.ellipse([208, 48, 232, 72], outline=TEXT)
     lock_icon(d, (176, 51, CONTROL_H, CONTROL_H))
-    # Profile-name row: at 240px the badge row is full by x=155.
-    speaker_icon(d, (240 - 96, 32, CONTROL_H, CONTROL_H), False, TEXT)
+    # Profile-name row, because at 240px the badge row is full by x=155 -- but
+    # in the padlock's column, not floating in the middle of it. Mirrors
+    # LauncherLayout::speakerRect().
+    speaker_icon(d, (176, 32, CONTROL_H, CONTROL_H), False, TEXT)
     _fills = (BLUE, GREEN, RED, BLUE)
     tiles = [(t, sub, _fills[i % 4])
              for i, (t, sub) in enumerate(front_page_tiles(4))]
@@ -1744,11 +1750,15 @@ def wakelock(w=W, h=H):
     centered_fitted(d, "Press and hold the button", W / 2, by - 16, text_max, F1, MUTED)
     button(d, (bx, by, bw, bh), "Hold to unlock", fill=ACCENT,
            tc=on_fill(ACCENT))
-    # The battery sits in the bottom corner now, out of the brand's way -- and
-    # is not drawn at all when there is no reading, where it used to show an
-    # empty shell that reads as an SD card.
+    # The battery is top right, level with the middle of the mark. It spent a
+    # release in the bottom corner, which put it in the way of the footer --
+    # that sentence is centred across the full width and deliberately picks
+    # the widest wording that fits. Up here the corner is empty, because the
+    # mark is only 50px wide and centred. Centred on the mark rather than at
+    # a typed-in y, as in AppRuntimeLock.cpp. Not drawn at all when there is
+    # no reading, where it used to show an empty shell that reads as an SD card.
     batt_w = battery_width()
-    battery_badge(d, W - header_pad - batt_w // 2, H - 16)
+    battery_badge(d, W - header_pad - batt_w // 2, header_pad + badge_h // 2)
     barx, bary, barh = bx, by + bh + 10, 10
     d.rounded_rectangle([barx, bary, barx + bw - 1, bary + barh - 1], 4, outline=OUTLINE)
     d.rectangle([barx + 2, bary + 2, barx + 2 + (bw - 4) * 62 // 100, bary + barh - 3],

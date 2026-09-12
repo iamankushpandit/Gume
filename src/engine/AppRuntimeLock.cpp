@@ -354,17 +354,30 @@ void BrainoApp::renderLock() {
          * trade mark sign, and the launcher, Profiles and About all still
          * carry the copyright in full. */
 
-        /* THE BATTERY MOVES OUT OF THE BRAND'S ROW, to the bottom corner
-         * beside the footer. It was top right, level with the wordmark, which
-         * is where the mark now is -- and a status badge does not need to
-         * compete with it. It draws nothing at all when there is no reading;
-         * see Ui::batteryBadgeWidth(). */
+        /* THE BATTERY IS TOP RIGHT, level with the middle of the mark.
+         *
+         * It spent one release in the bottom corner beside the footer, on the
+         * reasoning that a status badge should not compete with the brand.
+         * Asked for back up here, and the measurement agrees: the footer is
+         * drawn CENTRED ACROSS THE FULL WIDTH (textMaxW below), and
+         * lockFooterText() deliberately picks the widest wording that
+         * measures whole -- so a badge parked at the right-hand end of that
+         * same row is in the footer's way, on a narrow panel especially.
+         * Up here there is nothing to collide with: the mark is 50px wide
+         * and centred, which leaves the right-hand corner empty on every
+         * panel this builds for (240px portrait is the tight case and still
+         * clears it by about 39px).
+         *
+         * Centred on the mark rather than at a typed-in y, so it cannot
+         * drift if the logo size changes. Draws nothing at all when there is
+         * no reading -- see Ui::batteryBadgeWidth(). */
         const int8_t battPct = board_.getBatteryPercent();
         const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
         if (battW > 0) {
             Ui::drawBatteryBadge(tft,
                                  static_cast<int16_t>(W - HEADER_PAD - battW / 2),
-                                 lockFooterY(tft), battPct, Ui::bg());
+                                 static_cast<int16_t>(HEADER_PAD + badgeH / 2), battPct,
+                                 Ui::bg());
         }
 
         /* The padlock and the word as ONE centred group, measured rather than

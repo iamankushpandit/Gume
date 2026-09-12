@@ -93,11 +93,19 @@ Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
  * x=155 and the padlock and gear take everything from x=176, so a fourth
  * glyph there would overlap the battery on the narrowest panel we support.
  * It goes on the profile-name row instead, whose right-hand half is empty in
- * both portrait widths -- the name is capped at 112px from x=8. */
+ * both portrait widths -- the name is capped at 112px from x=8.
+ *
+ * DIRECTLY ABOVE THE PADLOCK, though, and that part was wrong for a release.
+ * It sat at screenW-96, which is neither beside anything nor above anything:
+ * on the device it read as an icon floating in the middle of an otherwise
+ * empty row, reported off both the 2.8-inch and the 4-inch in portrait. The
+ * row is the only place it fits, but the column is a choice, so it takes the
+ * padlock's x -- both are CONTROL_H glyphs of the same family, so the pair
+ * lines up exactly and cannot drift if the padlock moves. Derived from
+ * lockRect() rather than restated for that reason. */
 Rect speakerRect(Board::LayoutMode mode, int16_t screenW) {
     if (mode == Board::LayoutMode::Vertical) {
-        return Rect{static_cast<int16_t>(screenW - 96), 32,
-                    Ui::CONTROL_H, Ui::CONTROL_H};
+        return Rect{lockRect(mode, screenW).x, 32, Ui::CONTROL_H, Ui::CONTROL_H};
     }
     const Rect lock = lockRect(mode, screenW);
     return Rect{static_cast<int16_t>(lock.x + lock.w + 4), lock.y,

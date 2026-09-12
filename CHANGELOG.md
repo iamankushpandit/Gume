@@ -53,6 +53,18 @@ no way to tell which of the names in `GameInstances` are things a child plays
 and which are the console's own screens. The playable catalogue keeps `Game`,
 so the distinction now shows in the names. No behaviour changes.
 
+**Two placements the mock-ups and the panel disagreed about.** The mute
+control in the launcher's portrait header sat at `lW-96`, beside nothing and
+above nothing, and read off both the 2.8-inch and the 4-inch as an icon
+floating in an empty row; it now takes the padlock's column, derived from
+`lockRect()` so the pair cannot drift apart. It stays on the profile-name row
+rather than joining the badges, because at 240px that row is full by x=155 and
+the padlock starts at `lW-64` -- about 20px for an 18px glyph. And the lock
+screen's battery badge is back at the top right, level with the middle of the
+mark: in the bottom corner it shared a row with a footer that is centred across
+the full width and deliberately picks the widest wording that fits, so the two
+were laid over each other on a narrow panel.
+
 **Go.** The thirty-eighth game: 9x9 everywhere, 19x19 on the 4-inch console
 only (`GoGame::BIG_BOARD_AVAILABLE`, from the panel's physical width -- a
 point on 19x19 is ten logical pixels from its neighbours and only a big
