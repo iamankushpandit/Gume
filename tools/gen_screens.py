@@ -2838,8 +2838,8 @@ def about_intro():
             (98, "Copyright 2026.", F1, MUTED),
             (116, "Version %s" % version, F2, TEXT),
             (140, "%d games built in" % len(playable_apps()), F2, TEXT),
-            (156, "195 flags and 50 US states,", F1, MUTED),
-            (170, "all stored on the device.", F1, MUTED),
+            (156, "195 flags and 50 US states, stored.", F1, MUTED),
+            (170, "Two-console play: experimental.", F1, MUTED),
             (184, "Up to 5 players, plus a Guest.", F1, MUTED)):
         d.text((14, y), text, font=font, fill=colour)
     button(d, (12, 206, 92, 28), "Prev")
@@ -3655,8 +3655,8 @@ def about_tall():
     line(98, "Copyright 2026.", F1, MUTED)
     line(116, "Version 5.11.0-SNAPSHOT")
     line(140, "37 games built in")
-    line(162, "195 flags and 50 US states,", F1, MUTED)
-    line(176, "all stored on the device.", F1, MUTED)
+    line(162, "195 flags and 50 US states, stored.", F1, MUTED)
+    line(176, "Two-console play: experimental.", F1, MUTED)
     line(190, "Up to 5 players, plus a Guest.", F1, MUTED)
     button(d, (12, PH - 34, 92, 28), "Prev", SURFACE, MUTED)
     button(d, (PW - 104, PH - 34, 92, 28), "Next")
