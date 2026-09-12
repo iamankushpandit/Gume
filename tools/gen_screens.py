@@ -1382,6 +1382,38 @@ def front_page_tiles(count):
     return [(a.label, a.subtitle) for a in apps[:count]]
 
 
+def on_fill(fill):
+    """Ui::onFill(): black or white, whichever can be read on this fill.
+
+    Restated here because the launcher tiles are the reason it exists: their
+    labels were a fixed white over a palette colour, which is unreadable on
+    half the themes. A mock-up that kept drawing them white would be showing
+    something the device no longer does.
+    """
+    def lin(c):
+        c /= 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(c) for c in fill[:3])
+    return (0, 0, 0) if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 else (255, 255, 255)
+
+
+def on_fill_soft(fill):
+    """Ui::onFillSoft(): 88% towards that ink, or the ink itself when the fill
+    is too mid-tone to allow the step."""
+    ink = on_fill(fill)
+    soft = tuple(int(f + (i - f) * 88 / 100) for f, i in zip(fill[:3], ink))
+
+    def lum(c):
+        def lin(v):
+            v /= 255.0
+            return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+        r, g, b = (lin(x) for x in c)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    a, b_ = lum(soft), lum(fill[:3])
+    hi, lo = max(a, b_), min(a, b_)
+    return soft if (hi + 0.05) / (lo + 0.05) >= 4.5 else ink
+
+
 def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
@@ -1414,8 +1446,8 @@ def launcher_wide():
         d.rounded_rectangle([x, y, x + 144, y + 45], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 140, y + 1)], fill=shade(fill, 138))
         d.ellipse([x + 10, y + 8, x + 36, y + 34], fill=(120, 200, 255), outline=WHITE)
-        d.text((x + 46, y + 9), title, font=F2, fill=WHITE)
-        d.text((x + 46, y + 28), sub, font=F1, fill=(235, 245, 255))
+        d.text((x + 46, y + 9), title, font=F2, fill=on_fill(fill))
+        d.text((x + 46, y + 28), sub, font=F1, fill=on_fill_soft(fill))
     button(d, (8, 212, 74, 24), "Prev"); button(d, (W - 82, 212, 74, 24), "Next")
     d.text((W / 2 - 12, 217), page_label(6), font=F2, fill=TEXT)
     return im
@@ -1453,7 +1485,7 @@ def launcher_tall():
             while d.textlength(s2, font=f) > 100 and len(s2) > 2:
                 s2 = s2[:-1]
             d.text((x + 54 - d.textlength(s2, font=f) / 2, y + yy), s2, font=f,
-                   fill=WHITE if f is F2 else (235, 245, 255))
+                   fill=on_fill(fill) if f is F2 else on_fill_soft(fill))
     button(d, (8, 292, 74, 24), "Prev"); button(d, (158, 292, 74, 24), "Next")
     d.text((110, 297), page_label(4), font=F2, fill=TEXT)
     return im
@@ -1563,7 +1595,8 @@ def wakelock(w=W, h=H):
     # variable width and all three do not fit across 240px. Mirrors the
     # HEADER_* constants in AppRuntimeLock.cpp.
     header_h, header_pad, row1_cy, row2_y = 40, 10, 14, 26
-    d.text((header_pad, row1_cy - 8), PRODUCT, font=F2, fill=TEXT)
+    _draw_logo(d, header_pad + _logo_mask("WORD_SMALL")[0] // 2, row1_cy,
+               TEXT, "WORD_SMALL")
     batt_w = battery_width()
     battery_badge(d, W - header_pad - batt_w // 2, row1_cy)
     d.text((header_pad, row2_y), COPYRIGHT_SHORT, font=F1, fill=MUTED)
@@ -1769,27 +1802,29 @@ def timezone_picker():
     return im
 
 
-def _logo_mask():
-    """The generated product mark, read out of src/ui/LogoMask.cpp.
+def _logo_mask(name="BADGE"):
+    """One generated mark, read out of src/ui/LogoMask.cpp.
 
     Read rather than re-rasterised from the SVG: the point of a mock-up is to
     show what the firmware draws, and what the firmware draws is this table.
+    `name` is BADGE, WORD or WORD_SMALL -- the same three Ui::Logo offers.
     """
     import re as _re
     src = (ROOT / "src" / "ui" / "LogoMask.cpp").read_text(encoding="utf-8")
     hdr = (ROOT / "src" / "ui" / "LogoMask.h").read_text(encoding="utf-8")
-    w = int(_re.search(r"WIDTH = (\d+)", hdr).group(1))
-    h = int(_re.search(r"HEIGHT = (\d+)", hdr).group(1))
-    rows = []
-    for line in _re.findall(r"\{([^{}]*0x[^{}]*)\}", src):
-        rows.append([int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{2})", line)])
-    assert len(rows) == h, "LogoMask.cpp has %d rows, header says %d" % (len(rows), h)
+    w = int(_re.search(r"%s_WIDTH = (\d+)" % name, hdr).group(1))
+    h = int(_re.search(r"%s_HEIGHT = (\d+)" % name, hdr).group(1))
+    body = _re.search(r"%s_BITS\[[^\]]*\]\[[^\]]*\] = \{(.*?)\n\};" % name,
+                      src, _re.S).group(1)
+    rows = [[int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{2})", line)]
+            for line in _re.findall(r"\{([^{}]*0x[^{}]*)\}", body)]
+    assert len(rows) == h, "%s has %d rows, header says %d" % (name, len(rows), h)
     return w, h, rows
 
 
-def _draw_logo(d, cx, cy, colour):
+def _draw_logo(d, cx, cy, colour, name="BADGE"):
     """Ui::drawLogo(): the ink of the mask, as horizontal runs."""
-    w, h, rows = _logo_mask()
+    w, h, rows = _logo_mask(name)
     x0, y0 = cx - w // 2, cy - h // 2
     for y, row in enumerate(rows):
         run = None
@@ -1810,7 +1845,7 @@ def screensaver():
     im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
     rally = (255, 160, 60)
     mid_x, mid_y = W // 2, H // 2
-    logo_w, logo_h, _ = _logo_mask()
+    logo_w, logo_h, _ = _logo_mask("BADGE")
     copy_gap = 8
     block_h = logo_h + copy_gap + 8
     text_y, text_h = mid_y - block_h // 2, block_h
@@ -2701,7 +2736,7 @@ def profiles_pick():
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     # Header band
     d.rectangle([0, 0, W, 30], fill=SURFACE)
-    d.text((10, 15 - 9), PRODUCT, font=F4, fill=TEXT)
+    _draw_logo(d, 10 + _logo_mask("WORD")[0] // 2, 15, TEXT, "WORD")
     d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
     # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
     # promptY = 32 in landscape, and the hint sits 18px below it.

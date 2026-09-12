@@ -98,7 +98,13 @@ void AboutGame::update(GameHost& host, const TouchPoint& touch) {
  * console; GoodTime Micro Company still owns it. Both come from AppVersion.h --
  * this page must not be where either gets re-typed. */
 void AboutGame::renderIntro(Ui::Renderer& tft) {
-    drawLine(tft, 48, BRAINO_PRODUCT_NAME, 2);
+    /* The mark itself. This page is the one place an owner reads to learn what
+     * the console is called, so it shows them the thing on the case rather
+     * than the name set in the UI font. */
+    Ui::drawLogo(tft,
+                 static_cast<int16_t>(14 + Ui::logoWidth(Ui::Logo::Word) / 2),
+                 static_cast<int16_t>(48 + Ui::logoHeight(Ui::Logo::Word) / 2),
+                 Ui::text(), Ui::Logo::Word);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 70, BRAINO_COPYRIGHT, 1);
     drawLine(tft, 84, String("Educational games for the ") + BOARD_NAME + ".", 1);

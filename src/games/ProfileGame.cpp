@@ -538,9 +538,11 @@ void ProfileGame::renderDynamic(GameHost& host) {
         const Rect header = headerRect(W, H);
         tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
 
-        tft.setTextColor(Ui::text(), Ui::surface());
-        tft.setTextDatum(ML_DATUM);
-        tft.drawString(BRAINO_PRODUCT_NAME, 10, 15, 4);
+        /* The mark rather than the name in font 4 -- the wordmark variant is
+         * cut to that height, so the header's geometry does not move. */
+        Ui::drawLogo(tft,
+                     static_cast<int16_t>(10 + Ui::logoWidth(Ui::Logo::Word) / 2),
+                     15, Ui::text(), Ui::Logo::Word);
 
         // The mark is the brand's, the copyright is the author's -- two
         // different facts, and AppVersion.h is where both are spelled.

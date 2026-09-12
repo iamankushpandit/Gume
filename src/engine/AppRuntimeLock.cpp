@@ -305,9 +305,13 @@ void BrainoApp::renderLock() {
          *
          * Both rows are drawn off measured widths rather than constants, the
          * same rule the launcher header follows. */
-        tft.setTextDatum(ML_DATUM);
-        tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(BRAINO_PRODUCT_NAME, HEADER_PAD, HEADER_ROW1_CY, 2);
+        /* The mark, not the name in the UI font -- and at the wordmark's
+         * small size, which is the height the text it replaces was drawn at,
+         * so the row's measured layout is unchanged. */
+        Ui::drawLogo(tft,
+                     static_cast<int16_t>(HEADER_PAD +
+                                          Ui::logoWidth(Ui::Logo::WordSmall) / 2),
+                     HEADER_ROW1_CY, Ui::text(), Ui::Logo::WordSmall);
 
         const int8_t battPct = board_.getBatteryPercent();
         const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
