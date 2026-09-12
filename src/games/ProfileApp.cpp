@@ -1,4 +1,4 @@
-#include "ProfileGame.h"
+#include "ProfileApp.h"
 #include "ProfileRename.h"
 #include "AppVersion.h"
 #include "engine/AppRegistry.h"
@@ -36,9 +36,9 @@ void drawLockBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour) {
 }
 }
 
-const char* ProfileGame::title() const { return "Profiles"; }
+const char* ProfileApp::title() const { return "Profiles"; }
 
-void ProfileGame::begin(GameHost& host) {
+void ProfileApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_PROFILES, "open profiles");
     phase_ = Phase::Pick;
     draft_ = "";
@@ -56,7 +56,7 @@ void ProfileGame::begin(GameHost& host) {
  * x=124, so a single 30px bar carries both. Rename the product to something
  * long again and this is the first thing to re-measure -- portrait is the tight
  * one, and the row pitch below depends on the bar staying 30px. */
-Rect ProfileGame::headerRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::headerRect(int16_t screenW, int16_t screenH) const {
     (void)screenH;
     return Rect{0, 0, screenW, 30};
 }
@@ -73,27 +73,27 @@ constexpr int16_t rowsHeight(bool tall){ return tall ? 33 : 23; }
 constexpr int16_t rowsMenuW(bool tall) { return tall ? 54 : 62; }
 }   // namespace
 
-Rect ProfileGame::slotRect(uint8_t i, int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::slotRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     return Rect{8, static_cast<int16_t>(rowsTop(tall) + i * rowsPitch(tall)),
                 static_cast<int16_t>(screenW - 22 - rowsMenuW(tall)), rowsHeight(tall)};
 }
-Rect ProfileGame::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     return Rect{static_cast<int16_t>(screenW - 8 - rowsMenuW(tall)),
                 static_cast<int16_t>(rowsTop(tall) + i * rowsPitch(tall)),
                 rowsMenuW(tall), rowsHeight(tall)};
 }
-Rect ProfileGame::addRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::addRect(int16_t screenW, int16_t screenH) const {
     const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
     return Rect{8, static_cast<int16_t>(screenH - 30), w, 26};
 }
-Rect ProfileGame::doneRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::doneRect(int16_t screenW, int16_t screenH) const {
     const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
     return Rect{static_cast<int16_t>(16 + w), static_cast<int16_t>(screenH - 30), w, 26};
 }
 
-Rect ProfileGame::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t margin = 8;
     const int16_t gap = 4;
@@ -104,7 +104,7 @@ Rect ProfileGame::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t scr
     return Rect{static_cast<int16_t>(margin + col * (keyW + gap)),
                 static_cast<int16_t>(y0 + row * pitch), keyW, keyH};
 }
-Rect ProfileGame::menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const {
     const bool tall = screenH > screenW;
     const int16_t actionW = static_cast<int16_t>(min<int16_t>(200, screenW - 40));
     const int16_t actionH = tall ? 38 : 34;
@@ -114,17 +114,17 @@ Rect ProfileGame::menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) co
                 static_cast<int16_t>(y0 + i * pitch), actionW, actionH};
 }
 
-Rect ProfileGame::gameCheckRect(uint8_t row, int16_t screenW) const {
+Rect ProfileApp::gameCheckRect(uint8_t row, int16_t screenW) const {
     return Rect{8, static_cast<int16_t>(62 + row * 29),
                 static_cast<int16_t>(screenW - 16), 27};
 }
-Rect ProfileGame::gamesBackRect(int16_t screenW) const {
+Rect ProfileApp::gamesBackRect(int16_t screenW) const {
     return Rect{static_cast<int16_t>(screenW - 72), 4, 64, 24};
 }
-Rect ProfileGame::gamesPrevRect(int16_t screenH) const {
+Rect ProfileApp::gamesPrevRect(int16_t screenH) const {
     return Rect{8, static_cast<int16_t>(screenH - 30), 92, 25};
 }
-Rect ProfileGame::gamesNextRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::gamesNextRect(int16_t screenW, int16_t screenH) const {
     return Rect{static_cast<int16_t>(screenW - 100), static_cast<int16_t>(screenH - 30), 92, 25};
 }
 
@@ -140,7 +140,7 @@ Rect ProfileGame::gamesNextRect(int16_t screenW, int16_t screenH) const {
  * 240px in landscape, so the bottom row and both action buttons were drawn
  * off the panel entirely -- there was nothing to press. Anything changed here
  * must still end above screenH. */
-Rect ProfileGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
     const int16_t top    = PIN_PAD_TOP;
     const int16_t bottom = static_cast<int16_t>(screenH - 6);
     const int16_t pitchY = static_cast<int16_t>((bottom - top) / PIN_PAD_ROWS);
@@ -156,21 +156,21 @@ Rect ProfileGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t 
 
 /* Bottom row, outer two cells. Kept as accessors so the touch handler and the
  * renderer cannot disagree about where they are. */
-Rect ProfileGame::pinDeleteRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::pinDeleteRect(int16_t screenW, int16_t screenH) const {
     return pinKeyRect(3, 0, screenW, screenH);
 }
 
-Rect ProfileGame::pinConfirmRect(int16_t screenW, int16_t screenH) const {
+Rect ProfileApp::pinConfirmRect(int16_t screenW, int16_t screenH) const {
     return pinKeyRect(3, 2, screenW, screenH);
 }
 
 /* Top-left, clear of the pad. Without this a player who taps the admin row is
  * stuck on the PIN screen with no way back to the picker. */
-Rect ProfileGame::pinCancelRect(int16_t, int16_t) const {
+Rect ProfileApp::pinCancelRect(int16_t, int16_t) const {
     return Rect{6, 6, 52, 22};
 }
 
-void ProfileGame::beginPinEntry(uint8_t profile, PinPurpose purpose) {
+void ProfileApp::beginPinEntry(uint8_t profile, PinPurpose purpose) {
     profileToSwitchTo_ = profile;
     pinPurpose_ = purpose;
     adminPinAttempt_ = 0;
@@ -179,21 +179,21 @@ void ProfileGame::beginPinEntry(uint8_t profile, PinPurpose purpose) {
     markFullDirty();
 }
 
-uint8_t ProfileGame::visibleGameRows(int16_t screenH) const {
+uint8_t ProfileApp::visibleGameRows(int16_t screenH) const {
     const int16_t usable = static_cast<int16_t>(screenH - 92);
     if (usable <= 0) return 3;
     return static_cast<uint8_t>(min<int16_t>(8, max<int16_t>(3, usable / 29)));
 }
 
-uint8_t ProfileGame::rowCount(Board& board) const {
+uint8_t ProfileApp::rowCount(Board& board) const {
     return static_cast<uint8_t>(board.playerCount() + 1);
 }
 
-uint8_t ProfileGame::profileForRow(Board& board, uint8_t row) const {
+uint8_t ProfileApp::profileForRow(Board& board, uint8_t row) const {
     return (row < board.playerCount()) ? row : Board::GUEST_INDEX;
 }
 
-void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
+void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
     if (!host.requireCapability(APP_CAP_PROFILES, "manage profiles")) {
         return;
@@ -395,7 +395,7 @@ void ProfileGame::update(GameHost& host, const TouchPoint& touch) {
 /* markDirty(), not markFullDirty(): a digit moves four dots and nothing else,
  * and the dots are the whole of renderDynamic() in this phase. Asking for a
  * full repaint here is what put a Ui::clear() on every keypress. */
-void ProfileGame::appendPinDigit(uint8_t digit) {
+void ProfileApp::appendPinDigit(uint8_t digit) {
     if (adminPinDigitCount_ < PIN_LENGTH) {
         adminPinAttempt_ = adminPinAttempt_ * 10 + digit;
         adminPinDigitCount_++;
@@ -403,7 +403,7 @@ void ProfileGame::appendPinDigit(uint8_t digit) {
     }
 }
 
-void ProfileGame::deletePinDigit() {
+void ProfileApp::deletePinDigit() {
     if (adminPinDigitCount_ > 0) {
         adminPinAttempt_ /= 10;
         adminPinDigitCount_--;
@@ -422,7 +422,7 @@ void ProfileGame::deletePinDigit() {
  * noticeable flicker in the firmware for exactly that reason.
  *
  * The heading is chrome, not content: this pad only ever asks one question. */
-void ProfileGame::renderPinPadChrome(GameHost& host) {
+void ProfileApp::renderPinPadChrome(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
@@ -473,7 +473,7 @@ void ProfileGame::renderPinPadChrome(GameHost& host) {
  * fixed centre and radius, so the fill covers its own predecessor exactly --
  * including the backwards case, a dot going from filled to empty on DEL or on
  * a rejected PIN. Clearing a rect around them first would only add a flash. */
-void ProfileGame::renderPinDots(GameHost& host) {
+void ProfileApp::renderPinDots(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
 
@@ -487,7 +487,7 @@ void ProfileGame::renderPinDots(GameHost& host) {
     }
 }
 
-bool ProfileGame::renderChrome(GameHost& host) {
+bool ProfileApp::renderChrome(GameHost& host) {
     (void)host;
     return false;   // see the header -- nothing here to repaint in isolation
 }
@@ -509,7 +509,7 @@ bool ProfileGame::renderChrome(GameHost& host) {
  * cost was paid four times in a row while somebody watched: see the note above
  * renderPinPadChrome(). The other candidate, a single visibility row, is still
  * only recorded. */
-void ProfileGame::renderStatic(GameHost& host) {
+void ProfileApp::renderStatic(GameHost& host) {
     Ui::clear(host.display());
     /* The pad's keys, heading and Back do not change while a PIN is typed, so
      * they are painted here, once. Every route into and out of PinEntry asks
@@ -519,7 +519,7 @@ void ProfileGame::renderStatic(GameHost& host) {
     }
 }
 
-void ProfileGame::renderDynamic(GameHost& host) {
+void ProfileApp::renderDynamic(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());

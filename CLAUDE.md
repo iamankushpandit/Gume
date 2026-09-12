@@ -35,7 +35,7 @@ any more is a worse lie than a missing one.
 
 ## The About app is user-facing documentation â€” keep it true
 
-`AboutGame` is the only documentation most owners will ever read, and the only
+`AboutApp` is the only documentation most owners will ever read, and the only
 one they read *while holding the device*. It is part of the deliverable, not a
 credits screen. **Update it in the same commit as the change it describes.**
 
@@ -250,7 +250,7 @@ Rules, in the order they bite:
 3. **Don't rebuild content on every frame.** Rebuild when the data changed and
    keep a `stale` flag. Scrolling changes an offset, not the content.
 4. **A `String` member on a screen is a smell.** A few exist for genuinely
-   user-entered text (`ProfileGame::draft_`, `WifiGame::password_`) â€” that is
+   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) â€” that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
    through `BrainoApp::leaveActiveGame()`, which compares free heap
@@ -583,7 +583,7 @@ This keeps diffs reviewable, conflicts locatable, and prevents any single file f
 
 `setup()`/`loop()` in `src/main.cpp` delegate to a `BrainoApp` singleton defined in `src/engine/AppRuntime.*`, which owns every screen as a `static` instance and implements `GameHost`.
 
-Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED), **Asleep** (backlight off, panel in low-power state) and **Locked** (the hold-to-unlock guard between either of those and the screen underneath). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherGame` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
+Runtime views are now only **Game** (including Launcher, Profiles, Settings and ordinary games), **ScreenSaver** (self-playing Pong that mirrors rally colour onto the case LED), **Asleep** (backlight off, panel in low-power state) and **Locked** (the hold-to-unlock guard between either of those and the screen underneath). Boot opens the Profiles app first; after a profile is chosen, `goHome()` activates `LauncherApp` through the same `begin`/`update`/`render` lifecycle as the rest of the screens.
 
 The idle path is driven by `Board::idleAction()`: `SaverThenSleep` runs the
 saver and then blanks after `sleepSeconds()`, `SleepOnly` blanks straight away
@@ -711,7 +711,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   bench is one decision, not twenty; `lock` ends it and the tool always sends
   it.
 - **Per-player game visibility and profile removal are admin-only; renaming is
-  not.** `ProfileGame` gates on `board.isAdminProfile(board.activeProfile())`
+  not.** `ProfileApp` gates on `board.isAdminProfile(board.activeProfile())`
   — the *actor*, not the profile being edited. Those two are different
   questions and conflating them is exactly how Remove ended up available to
   every player. The Games list stays readable by anyone on purpose: a player who
@@ -719,7 +719,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   that is short for unexplained reasons.
 - **Settings is readable by everyone and writable only by the admin.** There is
   no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
-  early return in `SettingsGame::update()`, sitting *below* tab switching so a
+  early return in `SettingsApp::update()`, sitting *below* tab switching so a
   non-admin can still page through and read. The greyed-out controls are a
   drawing decision and enforce nothing on their own: for a while every greyed
   row was still live and a player could toggle the lot. If you add a control,
@@ -739,7 +739,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherGame`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 37 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead. Anything new in that header needs the same treatment â€” measure, don't guess.
@@ -839,7 +839,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   defect, not a bug. They are **global, not profile-scoped**: `saveBlob()` is
   transparently profile-prefixed and Guest silently drops writes, so a guest
   naming a peer would watch it work and lose it. Setting one is **admin-only**,
-  enforced in `NearbyGame::update()` rather than by withholding the chip --
+  enforced in `NearbyApp::update()` rather than by withholding the chip --
   a chip is a drawing decision and enforces nothing, which is how every
   greyed-out Settings row stayed live once already.
 - **A poke rides the beacon and displaces the score; it is not a fourth
@@ -1056,7 +1056,7 @@ src/BuildStamp.cpp        which build this is; recompiled every build
 src/wifi_diag.cpp         standalone radio test (env:wifidiag only)
 src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
-src/engine/               Game, LauncherGame, GameCatalog, AppRegistry, NearbyPlay,
+src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, AppRuntimeIdentity,
                           AppRuntimeConsole (+Settings, +Profiles),
                           ConsoleText,
@@ -1067,7 +1067,7 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Cursive share), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
                           Settings is three .cpp against one header --
-                          SettingsGame (tabs + routing), SettingsPanels
+                          SettingsApp (tabs + routing), SettingsPanels
                           (the tab bodies), SettingsPin (the PIN pad).
                           Ludo is six .cpp against one header -- LudoGame
                           (flow, input), LudoBoard (the board), LudoPanel

@@ -1,9 +1,9 @@
-#include "ScoresGame.h"
+#include "ScoresApp.h"
 #include "engine/AppRegistry.h"
 
-const char* ScoresGame::title() const { return "Scores"; }
+const char* ScoresApp::title() const { return "Scores"; }
 
-void ScoresGame::begin(GameHost& host) {
+void ScoresApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_SCORES, "open scores");
     page_ = 0;
     activeTab_ = Tab::Mine;
@@ -23,7 +23,7 @@ constexpr int16_t SCORES_MARGIN = 8;
  * tighter than the 30px pitch this screen was designed with -- so 320x240
  * yields exactly the old 56 + row * 30, and a taller panel spends its extra
  * height on taller rows, which are also easier to hit. */
-Rect ScoresGame::rowRect(uint8_t row, int16_t screenW, int16_t screenH) const {
+Rect ScoresApp::rowRect(uint8_t row, int16_t screenW, int16_t screenH) const {
     const int16_t footerY = static_cast<int16_t>(screenH - SCORES_FOOTER_H);
     const int16_t avail = static_cast<int16_t>(footerY - SCORES_ROWS_TOP - 4);
     int16_t pitch = static_cast<int16_t>(avail / ROWS_PER_PAGE);
@@ -35,32 +35,32 @@ Rect ScoresGame::rowRect(uint8_t row, int16_t screenW, int16_t screenH) const {
                 static_cast<int16_t>(screenW - SCORES_MARGIN * 2),
                 static_cast<int16_t>(pitch - 2)};
 }
-Rect ScoresGame::mineTabRect() const {
+Rect ScoresApp::mineTabRect() const {
     return Rect{8, 34, 64, 18};
 }
-Rect ScoresGame::deviceTabRect() const {
+Rect ScoresApp::deviceTabRect() const {
     return Rect{80, 34, 80, 18};
 }
 
 /* Prev and Next hug the edges, Switch is centred between them. The fractions
  * are the old widths over 320, so the original board keeps 88 / 112 / 88 at
  * x = 8 / 104 / 224 exactly. */
-Rect ScoresGame::prevRect(int16_t screenW, int16_t screenH) const {
+Rect ScoresApp::prevRect(int16_t screenW, int16_t screenH) const {
     return Rect{SCORES_MARGIN, static_cast<int16_t>(screenH - SCORES_FOOTER_H),
                 static_cast<int16_t>(screenW * 0.275f), 26};
 }
-Rect ScoresGame::switchRect(int16_t screenW, int16_t screenH) const {
+Rect ScoresApp::switchRect(int16_t screenW, int16_t screenH) const {
     const int16_t w = static_cast<int16_t>(screenW * 0.35f);
     return Rect{static_cast<int16_t>((screenW - w) / 2),
                 static_cast<int16_t>(screenH - SCORES_FOOTER_H), w, 26};
 }
-Rect ScoresGame::nextRect(int16_t screenW, int16_t screenH) const {
+Rect ScoresApp::nextRect(int16_t screenW, int16_t screenH) const {
     const int16_t w = static_cast<int16_t>(screenW * 0.275f);
     return Rect{static_cast<int16_t>(screenW - SCORES_MARGIN - w),
                 static_cast<int16_t>(screenH - SCORES_FOOTER_H), w, 26};
 }
 
-uint8_t ScoresGame::playedCount(GameHost& host) const {
+uint8_t ScoresApp::playedCount(GameHost& host) const {
     uint8_t n = 0;
     for (uint8_t i = 0; i < playableAppCount(); ++i) {
         const AppScoreInfo* score = playableAppAt(i).score();
@@ -71,11 +71,11 @@ uint8_t ScoresGame::playedCount(GameHost& host) const {
     return n;
 }
 
-uint8_t ScoresGame::deviceRowCount() const {
+uint8_t ScoresApp::deviceRowCount() const {
     return deviceRowCount_;
 }
 
-void ScoresGame::buildDeviceTable(GameHost& host) {
+void ScoresApp::buildDeviceTable(GameHost& host) {
     Board& board = host.board();
     deviceRowCount_ = 0;
 
@@ -134,7 +134,7 @@ void ScoresGame::buildDeviceTable(GameHost& host) {
     deviceStale_ = false;
 }
 
-void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
+void ScoresApp::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) return;
     if (!host.requireCapability(APP_CAP_SCORES, "view scores")) {
         return;
@@ -193,7 +193,7 @@ void ScoresGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void ScoresGame::render(GameHost& host) {
+void ScoresApp::render(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t sW = static_cast<int16_t>(tft.width());

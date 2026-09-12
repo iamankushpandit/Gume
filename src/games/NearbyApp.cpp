@@ -1,4 +1,4 @@
-#include "NearbyGame.h"
+#include "NearbyApp.h"
 
 #include <string.h>
 
@@ -47,14 +47,14 @@ constexpr uint32_t POKED_LABEL_MS = 4000;
 
 /* The draft buffer and the storage it lands in must agree, or a name typed to
  * the on-screen limit would be silently truncated on save. */
-static_assert(NearbyGame::draftCapacity() == Board::PEER_NAME_MAX,
+static_assert(NearbyApp::draftCapacity() == Board::PEER_NAME_MAX,
               "peer name draft buffer must match Board::PEER_NAME_MAX");
 
-const char* NearbyGame::title() const {
+const char* NearbyApp::title() const {
     return "Nearby";
 }
 
-void NearbyGame::begin(GameHost& host) {
+void NearbyApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_DEVICE_STATUS, "read radio status");
     rows_.clear();
     rowsStale_ = true;
@@ -73,7 +73,7 @@ void NearbyGame::begin(GameHost& host) {
  * keeps running when this screen closes -- a notification about somebody
  * beating your score is worth having while you are playing, not only while you
  * are staring at the list. rows_ is a flat member that never allocated. */
-void NearbyGame::end(GameHost& host) {
+void NearbyApp::end(GameHost& host) {
     (void)host;
     rows_.clear();
     rowsStale_ = true;
@@ -84,16 +84,16 @@ void NearbyGame::end(GameHost& host) {
     clearDraft();
 }
 
-Rect NearbyGame::toggleRect(int16_t screenW) const {
+Rect NearbyApp::toggleRect(int16_t screenW) const {
     return Rect{8, TOGGLE_TOP, static_cast<int16_t>(screenW - 16), TOGGLE_H};
 }
 
-Rect NearbyGame::contentRect(int16_t screenW, int16_t screenH) const {
+Rect NearbyApp::contentRect(int16_t screenW, int16_t screenH) const {
     const int16_t top = static_cast<int16_t>(TOGGLE_TOP + TOGGLE_H + 6);
     return Rect{0, top, screenW, static_cast<int16_t>(screenH - top)};
 }
 
-void NearbyGame::rebuildRows(GameHost& host) {
+void NearbyApp::rebuildRows(GameHost& host) {
     Board& board = host.board();
     rows_.clear();
     pokeTargetCount_ = 0;
@@ -227,12 +227,12 @@ void NearbyGame::rebuildRows(GameHost& host) {
     rowsStale_ = false;
 }
 
-void NearbyGame::clearDraft() {
+void NearbyApp::clearDraft() {
     draft_[0] = '\0';
     draftLen_ = 0;
 }
 
-Rect NearbyGame::nameCancelRect(int16_t screenW, int16_t screenH) const {
+Rect NearbyApp::nameCancelRect(int16_t screenW, int16_t screenH) const {
     return Rect{static_cast<int16_t>((screenW - 52) / 2),
                 static_cast<int16_t>(screenH - 30), 52, 22};
 }
@@ -241,7 +241,7 @@ Rect NearbyGame::nameCancelRect(int16_t screenW, int16_t screenH) const {
  * ui/Keypad; what lives here is the only part that is about peers -- what OK
  * means, and the fact that an empty name forgets the device rather than
  * storing a blank one. */
-void NearbyGame::updateName(GameHost& host, const TouchPoint& touch) {
+void NearbyApp::updateName(GameHost& host, const TouchPoint& touch) {
     Board& board = host.board();
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
@@ -287,7 +287,7 @@ void NearbyGame::updateName(GameHost& host, const TouchPoint& touch) {
     markDirty();
 }
 
-void NearbyGame::renderName(GameHost& host) {
+void NearbyApp::renderName(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
@@ -321,7 +321,7 @@ void NearbyGame::renderName(GameHost& host) {
     tft.setTextDatum(TL_DATUM);
 }
 
-void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
+void NearbyApp::update(GameHost& host, const TouchPoint& touch) {
     if (phase_ == Phase::Name) {
         updateName(host, touch);
         return;
@@ -445,7 +445,7 @@ void NearbyGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void NearbyGame::renderStatic(GameHost& host) {
+void NearbyApp::renderStatic(GameHost& host) {
     if (phase_ == Phase::Name) {
         return;   // renderName() paints the whole phase, chrome included
     }
@@ -454,7 +454,7 @@ void NearbyGame::renderStatic(GameHost& host) {
     drawnToggle_ = false;
 }
 
-void NearbyGame::renderDynamic(GameHost& host) {
+void NearbyApp::renderDynamic(GameHost& host) {
     if (phase_ == Phase::Name) {
         renderName(host);
         return;

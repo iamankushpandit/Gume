@@ -23,7 +23,7 @@
  * A system app, so it lays out against tft.width()/height() and works in both
  * orientations.
  */
-class NearbyGame : public Game {
+class NearbyApp : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;
@@ -84,7 +84,7 @@ private:
 
     /* Which device the naming phase is editing, and the text so far.
      *
-     * A fixed buffer, NOT a String. ProfileGame and WifiGame keep Strings for
+     * A fixed buffer, NOT a String. ProfileApp and WifiApp keep Strings for
      * their user-entered text and CLAUDE.md calls that "the bar" -- but the
      * bar is for text of unbounded length. A peer label is capped at ten
      * characters by the storage it goes into, so the String would buy nothing

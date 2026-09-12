@@ -1,4 +1,4 @@
-#include "WifiGame.h"
+#include "WifiApp.h"
 #include <WiFi.h>
 #include <esp_bt.h>
 #include <esp_sntp.h>
@@ -6,13 +6,13 @@
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
 
-const char WifiGame::KEYS_LOWER[4][11] = {
+const char WifiApp::KEYS_LOWER[4][11] = {
     "1234567890",
     "qwertyuiop",
     "asdfghjkl-",
     "zxcvbnm.@_"
 };
-const char WifiGame::KEYS_UPPER[4][11] = {
+const char WifiApp::KEYS_UPPER[4][11] = {
     "1234567890",
     "QWERTYUIOP",
     "ASDFGHJKL-",
@@ -20,16 +20,16 @@ const char WifiGame::KEYS_UPPER[4][11] = {
 };
 /* Symbol layer. The letter layers only carried  - . @ _  which is not
  * enough for a typical WPA passphrase. */
-const char WifiGame::KEYS_SYMBOL[4][11] = {
+const char WifiApp::KEYS_SYMBOL[4][11] = {
     "1234567890",
     "!@#$%^&*()",
     "-_=+[]{};:",
     "'\",.<>/?~\\",
 };
 
-const char* WifiGame::title() const { return "Wi-Fi"; }
+const char* WifiApp::title() const { return "Wi-Fi"; }
 
-void WifiGame::begin(GameHost& host) {
+void WifiApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_NETWORK, "open wifi");
     phase_ = Phase::Idle;
     password_ = "";
@@ -47,42 +47,42 @@ constexpr int16_t WIFI_BASE_W = 320;
 constexpr int16_t WIFI_BASE_H = 240;
 }  // namespace
 
-void WifiGame::syncPanel(GameHost& host) {
+void WifiApp::syncPanel(GameHost& host) {
     panelW_ = static_cast<int16_t>(host.display().width());
     panelH_ = static_cast<int16_t>(host.display().height());
 }
 
 /* Map a rect from the design size onto the panel. Exact identity at 320x240. */
-Rect WifiGame::baseRect(int16_t x, int16_t y, int16_t w, int16_t h) const {
+Rect WifiApp::baseRect(int16_t x, int16_t y, int16_t w, int16_t h) const {
     return Rect{static_cast<int16_t>(static_cast<int32_t>(x) * panelW_ / WIFI_BASE_W),
                 static_cast<int16_t>(static_cast<int32_t>(y) * panelH_ / WIFI_BASE_H),
                 static_cast<int16_t>(static_cast<int32_t>(w) * panelW_ / WIFI_BASE_W),
                 static_cast<int16_t>(static_cast<int32_t>(h) * panelH_ / WIFI_BASE_H)};
 }
 
-int16_t WifiGame::baseX(int16_t x) const {
+int16_t WifiApp::baseX(int16_t x) const {
     return static_cast<int16_t>(static_cast<int32_t>(x) * panelW_ / WIFI_BASE_W);
 }
 
-int16_t WifiGame::baseY(int16_t y) const {
+int16_t WifiApp::baseY(int16_t y) const {
     return static_cast<int16_t>(static_cast<int32_t>(y) * panelH_ / WIFI_BASE_H);
 }
 
-Rect WifiGame::netRect(uint8_t slot) const {
+Rect WifiApp::netRect(uint8_t slot) const {
     // 31px pitch keeps all five rows clear of the Prev/Back/Next row at y=206.
     return baseRect(8, static_cast<int16_t>(48 + slot * 31), 304, 29);
 }
 
-Rect WifiGame::zoneRect(uint8_t slot) const {
+Rect WifiApp::zoneRect(uint8_t slot) const {
     return baseRect(8, static_cast<int16_t>(46 + slot * 28), 304, 26);
 }
 
-Rect WifiGame::keyRect(uint8_t row, uint8_t col) const {
+Rect WifiApp::keyRect(uint8_t row, uint8_t col) const {
     return baseRect(static_cast<int16_t>(2 + col * 32),
                     static_cast<int16_t>(96 + row * 28), 28, 24);
 }
 
-void WifiGame::startScan(GameHost& host) {
+void WifiApp::startScan(GameHost& host) {
     if (!host.requireCapability(APP_CAP_NETWORK, "scan wifi")) {
         return;
     }
@@ -102,7 +102,7 @@ void WifiGame::startScan(GameHost& host) {
     markFullDirty();
 }
 
-void WifiGame::runScan() {
+void WifiApp::runScan() {
     /* THIS BLOCKS FOR ABOUT FOUR AND A HALF SECONDS, ON PURPOSE.
      *
      * A 300ms-per-channel active scan is roughly four seconds, and the mode
@@ -202,7 +202,7 @@ void WifiGame::runScan() {
     markFullDirty();
 }
 
-void WifiGame::checkScan() {
+void WifiApp::checkScan() {
     // Runs one tick after startScan(), so the "Scanning..." screen is visible
     // before we block.
     if (scanPending_) {
@@ -211,7 +211,7 @@ void WifiGame::checkScan() {
     }
 }
 
-void WifiGame::startConnect(GameHost& host) {
+void WifiApp::startConnect(GameHost& host) {
     if (!host.requireCapability(APP_CAP_NETWORK, "join wifi")) {
         return;
     }
@@ -247,7 +247,7 @@ void WifiGame::startConnect(GameHost& host) {
     markFullDirty();
 }
 
-void WifiGame::checkConnect(GameHost& host) {
+void WifiApp::checkConnect(GameHost& host) {
     if (!host.requireCapability(APP_CAP_NETWORK, "finish wifi join")) {
         phase_ = Phase::Idle;
         markFullDirty();
@@ -271,7 +271,7 @@ void WifiGame::checkConnect(GameHost& host) {
     }
 }
 
-void WifiGame::update(GameHost& host, const TouchPoint& touch) {
+void WifiApp::update(GameHost& host, const TouchPoint& touch) {
     syncPanel(host);
     if (phase_ == Phase::Idle) {
         // Repaint when the link or sync state changes, so the badges and the
@@ -424,13 +424,13 @@ void WifiGame::update(GameHost& host, const TouchPoint& touch) {
  * So the split below is a migration onto the base class's methods. Every
  * invalidation is now markFullDirty(), which is exactly what render() gave
  * them before by opening with Ui::clear(). */
-void WifiGame::renderStatic(GameHost& host) {
+void WifiApp::renderStatic(GameHost& host) {
     syncPanel(host);
     Ui::clear(host.display());
     Ui::drawTopBar(host.board(), title());
 }
 
-void WifiGame::renderDynamic(GameHost& host) {
+void WifiApp::renderDynamic(GameHost& host) {
     syncPanel(host);
     Board& board = host.board();
     Ui::Renderer& tft = host.display();

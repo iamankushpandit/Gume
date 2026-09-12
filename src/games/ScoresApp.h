@@ -12,7 +12,7 @@
  * number is better (Maze time, Slide moves) are labelled so the pair is not
  * read backwards.
  */
-class ScoresGame : public Game {
+class ScoresApp : public Game {
 public:
     const char* title() const override;
     void begin(GameHost& host) override;

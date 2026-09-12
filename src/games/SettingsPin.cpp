@@ -1,4 +1,4 @@
-#include "SettingsGame.h"
+#include "SettingsApp.h"
 
 #include "hal/Board.h"
 
@@ -11,7 +11,7 @@
  * about which cell is which. */
 
 namespace {
-/* PIN pad geometry, matching ProfileGame's: three columns, four rows, the
+/* PIN pad geometry, matching ProfileApp's: three columns, four rows, the
  * last row being DEL / 0 / OK. */
 constexpr uint8_t PIN_PAD_COLS = 3;
 constexpr uint8_t PIN_PAD_ROWS = 4;
@@ -22,7 +22,7 @@ constexpr uint8_t PIN_LENGTH   = 4;
 }
 
 /* Admin tab: one action for now. Sized like a Device-tab row. */
-Rect SettingsGame::changePinRect() const { return Rect{8, 58, 304, 30}; }
+Rect SettingsApp::changePinRect() const { return Rect{8, 58, 304, 30}; }
 
 /* Below the PIN row and its explanation, clear of the footer.
  *
@@ -31,18 +31,18 @@ Rect SettingsGame::changePinRect() const { return Rect{8, 58, 304, 30}; }
  * 140, this row 164-194, and the footer at 220. That leaves 26px between the
  * button and the footer, which is the tightest gap on the tab -- check it
  * before adding a fourth thing here. */
-Rect SettingsGame::recalibrateRect() const { return Rect{8, 164, 304, 30}; }
+Rect SettingsApp::recalibrateRect() const { return Rect{8, 164, 304, 30}; }
 
 /* Abandons a half-finished PIN change. Without it a mis-tap on Change PIN
  * traps the admin on the pad with no way back. */
-Rect SettingsGame::pinCancelRect() const { return Rect{6, 6, 52, 22}; }
+Rect SettingsApp::pinCancelRect() const { return Rect{6, 6, 52, 22}; }
 
 /* Standard PIN pad, laid out against the live panel size so it works in both
  * orientations and, more importantly, so every row lands above the bottom
  * edge. The previous version hard-coded rows at y=220 and buttons at y=270 on
  * a 240px-tall panel: the bottom row and both actions were drawn off-screen,
  * leaving nothing to press. */
-Rect SettingsGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
+Rect SettingsApp::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
     const int16_t top    = PIN_PAD_TOP;
     const int16_t bottom = static_cast<int16_t>(screenH - 6);
     const int16_t pitchY = static_cast<int16_t>((bottom - top) / PIN_PAD_ROWS);
@@ -58,14 +58,14 @@ Rect SettingsGame::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t
 
 /* Bottom row, outer cells -- accessors so the renderer and the touch handler
  * cannot disagree about where they are. */
-Rect SettingsGame::pinDeleteRect(int16_t screenW, int16_t screenH) const {
+Rect SettingsApp::pinDeleteRect(int16_t screenW, int16_t screenH) const {
     return pinKeyRect(3, 0, screenW, screenH);
 }
-Rect SettingsGame::pinConfirmRect(int16_t screenW, int16_t screenH) const {
+Rect SettingsApp::pinConfirmRect(int16_t screenW, int16_t screenH) const {
     return pinKeyRect(3, 2, screenW, screenH);
 }
 
-void SettingsGame::appendPinDigit(uint8_t digit) {
+void SettingsApp::appendPinDigit(uint8_t digit) {
     if (enteredPinDigits_ < PIN_LENGTH) {
         enteredPin_ = static_cast<uint16_t>(enteredPin_ * 10 + digit);
         enteredPinDigits_++;
@@ -73,7 +73,7 @@ void SettingsGame::appendPinDigit(uint8_t digit) {
     }
 }
 
-void SettingsGame::deletePinDigit() {
+void SettingsApp::deletePinDigit() {
     if (enteredPinDigits_ > 0) {
         enteredPin_ /= 10;
         enteredPinDigits_--;
@@ -84,7 +84,7 @@ void SettingsGame::deletePinDigit() {
 /* One pad, three jobs: unlock, enter a new PIN, confirm it. Keeping the hit
  * testing in a single place is what stops the renderer and the handler
  * disagreeing about which cell is which. */
-bool SettingsGame::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
+bool SettingsApp::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
     Board& board = host.board();
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
@@ -159,7 +159,7 @@ bool SettingsGame::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
  * The heading is chrome rather than content because it only changes between
  * PIN tasks (Enter new -> Re-enter new), and that transition already asks for
  * a full repaint. If a third task is ever added, check that it does too. */
-void SettingsGame::renderPinPadChrome(GameHost& host, const char* heading) {
+void SettingsApp::renderPinPadChrome(GameHost& host, const char* heading) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
@@ -208,7 +208,7 @@ void SettingsGame::renderPinPadChrome(GameHost& host, const char* heading) {
  * at a fixed centre and radius, so the fill covers its own predecessor exactly
  * -- including the backwards case, a dot going from filled to empty on DEL.
  * Clearing a rect around them first would only add a flash of background. */
-void SettingsGame::renderPinDots(GameHost& host) {
+void SettingsApp::renderPinDots(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
 
@@ -222,7 +222,7 @@ void SettingsGame::renderPinDots(GameHost& host) {
     }
 }
 
-void SettingsGame::renderAdminTab(GameHost& host) {
+void SettingsApp::renderAdminTab(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());

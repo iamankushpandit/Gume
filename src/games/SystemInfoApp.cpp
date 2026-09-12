@@ -1,4 +1,4 @@
-#include "SystemInfoGame.h"
+#include "SystemInfoApp.h"
 #include "AppVersion.h"
 #include "BuildStamp.h"
 #include "engine/AppRegistry.h"
@@ -86,15 +86,15 @@ String wifiPhyText() {
 }
 }
 
-const char* const SystemInfoGame::TAB_LABELS[TAB_COUNT] = {
+const char* const SystemInfoApp::TAB_LABELS[TAB_COUNT] = {
     "Board", "Memory", "Network", "BLE", "App"
 };
 
-const char* SystemInfoGame::title() const {
+const char* SystemInfoApp::title() const {
     return "System Info";
 }
 
-void SystemInfoGame::begin(GameHost& host) {
+void SystemInfoApp::begin(GameHost& host) {
     (void)host.requireCapability(APP_CAP_DIAGNOSTICS, "open diagnostics");
     tab_ = 0;
     lastRefreshMs_ = 0;
@@ -121,14 +121,14 @@ void SystemInfoGame::begin(GameHost& host) {
 /* Nothing to release. rows_ is a flat, statically sized member holding char
  * buffers, so leaving this screen frees no heap because it never took any --
  * which is the point of RowList. clear() just resets the count. */
-void SystemInfoGame::end(GameHost& host) {
+void SystemInfoApp::end(GameHost& host) {
     (void)host;
     rows_.clear();
     rowsStale_ = true;
     scrolling_ = false;
 }
 
-Rect SystemInfoGame::tabRect(uint8_t idx, int16_t screenW, int16_t stripY) const {
+Rect SystemInfoApp::tabRect(uint8_t idx, int16_t screenW, int16_t stripY) const {
     const int16_t tabW = static_cast<int16_t>(screenW / TAB_COUNT);
     const int16_t x = static_cast<int16_t>(idx * tabW);
     const int16_t nextX = (idx + 1 == TAB_COUNT) ? screenW
@@ -136,12 +136,12 @@ Rect SystemInfoGame::tabRect(uint8_t idx, int16_t screenW, int16_t stripY) const
     return Rect{x, stripY, static_cast<int16_t>(nextX - x), TAB_STRIP_H};
 }
 
-Rect SystemInfoGame::contentRect(int16_t screenW, int16_t screenH) const {
+Rect SystemInfoApp::contentRect(int16_t screenW, int16_t screenH) const {
     const int16_t top = static_cast<int16_t>(tabStripY() + TAB_STRIP_H);
     return Rect{0, top, screenW, static_cast<int16_t>(screenH - top)};
 }
 
-bool SystemInfoGame::refreshTelemetry(bool force) {
+bool SystemInfoApp::refreshTelemetry(bool force) {
     const uint32_t now = millis();
     if (!force && lastRefreshMs_ != 0 && now - lastRefreshMs_ < REFRESH_MS) {
         return false;
@@ -167,7 +167,7 @@ bool SystemInfoGame::refreshTelemetry(bool force) {
     return true;
 }
 
-SystemInfoGame::TrafficSnapshot SystemInfoGame::readTrafficCounters() const {
+SystemInfoApp::TrafficSnapshot SystemInfoApp::readTrafficCounters() const {
     TrafficSnapshot snap;
 #if MIB2_STATS
     void* rawNetif = nullptr;
@@ -187,7 +187,7 @@ SystemInfoGame::TrafficSnapshot SystemInfoGame::readTrafficCounters() const {
     return snap;
 }
 
-void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
+void SystemInfoApp::update(GameHost& host, const TouchPoint& touch) {
     if (refreshTelemetry(false)) {
         rowsStale_ = true;
         markDirty();
@@ -241,7 +241,7 @@ void SystemInfoGame::update(GameHost& host, const TouchPoint& touch) {
     }
 }
 
-void SystemInfoGame::drawTabStrip(Ui::Renderer& tft, int16_t screenW) {
+void SystemInfoApp::drawTabStrip(Ui::Renderer& tft, int16_t screenW) {
     tft.fillRect(0, tabStripY(), screenW, TAB_STRIP_H, Ui::panel());
     for (uint8_t i = 0; i < TAB_COUNT; ++i) {
         Ui::drawTab(tft, tabRect(i, screenW, tabStripY()), TAB_LABELS[i], i == tab_);
@@ -250,7 +250,7 @@ void SystemInfoGame::drawTabStrip(Ui::Renderer& tft, int16_t screenW) {
                         0, screenW, tabRect(tab_, screenW, tabStripY()));
 }
 
-void SystemInfoGame::buildBoardRows(GameHost& host) {
+void SystemInfoApp::buildBoardRows(GameHost& host) {
     Board& board = host.board();
     const Board::BatteryTelemetry battery = board.readBatteryTelemetry();
     const int8_t pct = board.getBatteryPercent();
@@ -306,7 +306,7 @@ void SystemInfoGame::buildBoardRows(GameHost& host) {
     rows_.addRow("Free app", formatBytes(ESP.getFreeSketchSpace()));
 }
 
-void SystemInfoGame::buildMemoryRows(GameHost& host) {
+void SystemInfoApp::buildMemoryRows(GameHost& host) {
     Board& board = host.board();
     const Watchdog::Stats stats = Watchdog::stats();
     const Board::StorageTelemetry storage = board.storageTelemetry();
@@ -397,7 +397,7 @@ void SystemInfoGame::buildMemoryRows(GameHost& host) {
     rows_.addRow("Boot count", cpuText);
 }
 
-void SystemInfoGame::buildNetworkRows(GameHost& host) {
+void SystemInfoApp::buildNetworkRows(GameHost& host) {
     Board& board = host.board();
     const bool up = WiFi.status() == WL_CONNECTED;
     const time_t lastSyncEpoch = board.lastTimeSyncEpoch();
@@ -467,7 +467,7 @@ void SystemInfoGame::buildNetworkRows(GameHost& host) {
  * The distinction the screen has to keep honest: `live` is non-null only while
  * the controller is advertising. When it is null nothing is on air, and the
  * configured identity is labelled as configuration, never as broadcast. */
-void SystemInfoGame::buildBleRows(GameHost& host) {
+void SystemInfoApp::buildBleRows(GameHost& host) {
     Board& board = host.board();
     const BleBeacon::Advertisement& cfg = BleBeacon::configured();
     const BleBeacon::Advertisement* live = BleBeacon::broadcasting();
@@ -572,7 +572,7 @@ void SystemInfoGame::buildBleRows(GameHost& host) {
     }
 }
 
-void SystemInfoGame::buildAppStateRows(GameHost& host) {
+void SystemInfoApp::buildAppStateRows(GameHost& host) {
     Board& board = host.board();
     const Watchdog::Stats stats = Watchdog::stats();
 
@@ -628,7 +628,7 @@ void SystemInfoGame::buildAppStateRows(GameHost& host) {
     rows_.addRow("Temp", "Not shown; ESP32 reading not trusted");
 }
 
-void SystemInfoGame::rebuildRows(GameHost& host) {
+void SystemInfoApp::rebuildRows(GameHost& host) {
     switch (tab_) {
         case 0: buildBoardRows(host); break;
         case 1: buildMemoryRows(host); break;
@@ -639,7 +639,7 @@ void SystemInfoGame::rebuildRows(GameHost& host) {
     rowsStale_ = false;
 }
 
-void SystemInfoGame::drawContent(GameHost& host) {
+void SystemInfoApp::drawContent(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const Rect cr = contentRect(static_cast<int16_t>(tft.width()),
                                 static_cast<int16_t>(tft.height()));
@@ -656,7 +656,7 @@ void SystemInfoGame::drawContent(GameHost& host) {
     rows_.draw(tft, cr, scrollOffset_[tab_]);
 }
 
-void SystemInfoGame::renderStatic(GameHost& host) {
+void SystemInfoApp::renderStatic(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
@@ -668,6 +668,6 @@ void SystemInfoGame::renderStatic(GameHost& host) {
  * one call. Keeping both halves of that in one function is deliberate -- a
  * viewport set in renderStatic() and reset in renderDynamic() would leak its
  * clip onto the next screen the first time an early return got between them. */
-void SystemInfoGame::renderDynamic(GameHost& host) {
+void SystemInfoApp::renderDynamic(GameHost& host) {
     drawContent(host);
 }

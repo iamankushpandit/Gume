@@ -1336,7 +1336,7 @@ SETTINGS_TABS = ("Device", "Power", "Sound", "Admin")
 
 
 def settings_tabs(d, active_index):
-    """Four tabs, each SCREEN_WIDTH/4 wide -- mirrors SettingsGame::tabRect(),
+    """Four tabs, each SCREEN_WIDTH/4 wide -- mirrors SettingsApp::tabRect(),
     which divides the live width rather than assuming fixed halves, and gives
     the last tab the rounding so the strip reaches the right edge."""
     each = 320 // len(SETTINGS_TABS)
@@ -1566,7 +1566,7 @@ def profiles_games():
     This lived in a Settings tab once and the mock-up went on depicting that
     long after Settings stopped having one -- Settings holds Device, Power and
     Admin. Visibility is per player, so it belongs with the player. Geometry
-    follows ProfileGame::gameCheckRect() and gamesBackRect()."""
+    follows ProfileApp::gameCheckRect() and gamesBackRect()."""
     im, d = blank()
     lab = "Ada"
     d.text((W / 2 - d.textlength(lab, font=F4) / 2, 8), lab, font=F4, fill=TEXT)
@@ -2109,7 +2109,7 @@ def numberline():
 
 
 def _si_tabs(d, active):
-    """Mirrors SystemInfoGame: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
+    """Mirrors SystemInfoApp: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
     labels = ["Board", "Memory", "Network", "BLE", "App"]
     y, tw = 32, W // 5
     d.rectangle([0, y, W - 1, y + 27], fill=PANEL)
@@ -2224,7 +2224,7 @@ def systeminfo_memory():
 def nearby():
     """Nearby: the anonymous peer list.
 
-    Geometry from NearbyGame: a full-width toggle at y=TOP_BAR_HEIGHT+6 with
+    Geometry from NearbyApp: a full-width toggle at y=TOP_BAR_HEIGHT+6 with
     30px height, then the RowList below it."""
     im, d = blank(); topbar(d, "Nearby")
     button(d, (8, 36, 304, 30), "Sharing: On", SUCCESS, (12, 20, 14))
@@ -2519,12 +2519,12 @@ def profiles_pick():
     d.rectangle([0, 0, W, 30], fill=SURFACE)
     d.text((10, 15 - 9), PRODUCT, font=F4, fill=TEXT)
     d.text((W - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 15 - 5), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-    # "Who is playing?" and guest hint. Baselines come from ProfileGame::render:
+    # "Who is playing?" and guest hint. Baselines come from ProfileApp::render:
     # promptY = 32 in landscape, and the hint sits 18px below it.
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
     d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
-    # Six rows (five players + Guest) from ProfileGame's rowsTop/rowsPitch.
+    # Six rows (five players + Guest) from ProfileApp's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
         y = 60 + i * 25
@@ -2586,7 +2586,7 @@ def _keypad(d, screen_w=None, screen_h=None, reserve=KP_FOOTER_BUTTON):
 def profiles_rename():
     """Name entry, reached from Add Player or from Edit -> Rename.
 
-    Geometry follows ProfileGame: the centred title at y=8, the field at
+    Geometry follows ProfileApp: the centred title at y=8, the field at
     ((W - fieldW) / 2, 28, fieldW, 30) with fieldW = min(240, W - 40), the
     QWERTY pad from Ui::Keypad (anchored to the bottom above FOOTER_BUTTON),
     and the Cancel button from renameCancelRect()."""
@@ -2610,7 +2610,7 @@ def nearby_name():
     """Naming a nearby device, reached from the Name chip in the Nearby list.
 
     Admin-only, and local: the label never reaches the radio. Geometry follows
-    NearbyGame::renderName -- heading at y=8, the field at ((W - fieldW) / 2,
+    NearbyApp::renderName -- heading at y=8, the field at ((W - fieldW) / 2,
     28, fieldW, 30), Ui::Keypad below it and Cancel from nameCancelRect()."""
     im, d = blank()
     lab = "Name for A4F2"
@@ -2840,24 +2840,24 @@ def blank_tall():
 
 
 def pw(x):
-    """WifiGame::baseX -- the design's 320 mapped onto the panel's width."""
+    """WifiApp::baseX -- the design's 320 mapped onto the panel's width."""
     return int(x * PW / 320)
 
 
 def ph(y):
-    """WifiGame::baseY -- the design's 240 mapped onto the panel's height.
+    """WifiApp::baseY -- the design's 240 mapped onto the panel's height.
     Independent of pw() on purpose; that independence is the thing that pulls
     a fixed-size glyph away from the row it belongs to."""
     return int(y * PH / 240)
 
 
 def prect(x, y, w, h):
-    """WifiGame::baseRect."""
+    """WifiApp::baseRect."""
     return (pw(x), ph(y), pw(w), ph(h))
 
 
 def wifi_tall():
-    """Wi-Fi (Network & Time) in portrait -- WifiGame::renderIdle through
+    """Wi-Fi (Network & Time) in portrait -- WifiApp::renderIdle through
     baseX/baseY at 240x320.
 
     The Wi-Fi badge is placed off the MEASURED width of the SSID, which is the
@@ -2895,7 +2895,7 @@ def wifi_tall():
 
 
 def settings_tall():
-    """Settings (Device tab) in portrait. Mirrors SettingsGame's shared grid:
+    """Settings (Device tab) in portrait. Mirrors SettingsApp's shared grid:
     pitch = (panelH - 36 - 8 - 58) / 4 floored at 34, row height capped at 44,
     columns (panelW - 8 - 12 - 12) / 2. At 240x320 that is a 54px pitch and
     104px columns, so the controls spread down the taller panel rather than
@@ -2949,11 +2949,11 @@ def settings_tall():
 
 
 def scores_tall():
-    """Scores (Mine tab) in portrait -- ScoresGame::rowRect's own arithmetic:
+    """Scores (Mine tab) in portrait -- ScoresApp::rowRect's own arithmetic:
     rows fill from 56 to screenH - 32, pitch floored at 30, width screenW - 16.
 
     The best and worst columns do NOT move with the rows: they are drawn right-
-    aligned at a hard-coded x = 244 and x = 306 (ScoresGame::render), which on a
+    aligned at a hard-coded x = 244 and x = 306 (ScoresApp::render), which on a
     240px-wide panel are both off the edge of the screen. TFT_eSPI silently
     stops drawing there, so in portrait every score is invisible and the rows
     carry a game name and nothing else. That is drawn faithfully here -- the
@@ -2992,7 +2992,7 @@ def scores_tall():
 
 
 def about_tall():
-    """About (intro page) in portrait -- AboutGame::panelRect, which is
+    """About (intro page) in portrait -- AboutApp::panelRect, which is
     PANEL_TOP=38 down to FOOTER_H=44 off the bottom, with every line fitted to
     width - 28. The page's line baselines are fixed (48..190), so on a 320px-
     tall panel the text keeps its landscape spacing and the panel simply has
@@ -3027,7 +3027,7 @@ def about_tall():
 
 
 def systeminfo_tall():
-    """System Info (Board tab) in portrait. SystemInfoGame::tabRect divides the
+    """System Info (Board tab) in portrait. SystemInfoApp::tabRect divides the
     live width by TAB_COUNT=5, so on 240px each tab is 48px -- the labels are
     fitted here because that is what the strip has room for, and the content
     below starts at TOP_BAR_HEIGHT + 2 + TAB_STRIP_H."""
