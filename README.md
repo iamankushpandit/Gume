@@ -4,15 +4,15 @@
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
 [![Version](https://img.shields.io/badge/version-5.11.0--SNAPSHOT-9a6700)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-37-2d7d9a)](#the-games)
+[![Games](https://img.shields.io/badge/games-38-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-79.9%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-80.7%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 37-game educational console for young players, running on an **ESP32-32E
+A 38-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -29,9 +29,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 37 |
-| Flash | 2,514,389 / 3,145,728 bytes (**79.9%**) |
-| RAM | 79,916 / 327,680 bytes (**24.4%**) |
+| Games | 38 |
+| Flash | 2,539,625 / 3,145,728 bytes (**80.7%**) |
+| RAM | 85,076 / 327,680 bytes (**26.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -375,6 +375,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-eight easy words covering every letter. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, and an arrow appears at each point where the direction changes. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice | 5+ |
 | **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a child who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can | 5+ |
 | **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk | 7+ |
+| **Go** | The oldest board game there is, on a 9x9 board (19x19 on the 4-inch console), for two on one console, against the computer at Easy or Medium, or against another console in the room over Bluetooth. Five rule sets, chosen before the game: *Capture 1*, *3* or *5* -- first to take that many stones wins, the way it is taught in schools -- *Area*, and *Territory*, which ends with both players marking the groups that cannot live. A stone is placed in two taps, the first a ghost so a misplaced finger costs nothing, and on 19x19 the panel magnifies the five-by-five around it. Undo takes back your move and the computer's reply; the game is remembered if you put the device down | Surrounding rather than attacking, and the idea that a group lives or dies by its liberties -- the computer never fills its own eye, and a child who watches it learns why | 6+ |
 
 Flags, Elements and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
@@ -557,6 +558,10 @@ One screen per game, in launcher order.
 <p align="center">
   <img src="docs/screens/backgammon.png" width="300" alt="Backgammon: a checker picked up, where it can go">
   <img src="docs/screens/backgammon-lobby.png" width="300" alt="Backgammon: one console, the computer, or nearby">
+</p>
+<p align="center">
+  <img src="docs/screens/go.png" width="300" alt="Go: a ghost stone where the finger landed, the panel saying what it takes">
+  <img src="docs/screens/go-lobby.png" width="300" alt="Go: rules and level chips, one console, the computer, or nearby">
 </p>
 
 ### Logic, memory and attention

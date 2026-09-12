@@ -323,6 +323,66 @@ computer, declared in the same header), both pure and host-tested by
   comes from the invitation's coin toss, who moves first from the opening roll.
   Either side ending the game sends both back to the lobby.
 
+## Go
+
+Split like Backgammon: `GoRules` (the rules, scoring and the wire encoding)
+and `GoAi.cpp` (both computer levels and the dead-stone estimate, declared
+in the same header), both pure and host-tested by
+`test/host/go_rules_test.cpp`; `GoGame.cpp` (flow and input), `GoDraw.cpp`,
+`GoNet.cpp` (the lobby and the nearby game) and `GoSave.cpp`. `GoRules.h`
+states the rules as played.
+
+- **Legality has one definition: `Go::legal()`**, and one way to change the
+  board: `Go::play()`, which refuses an illegal move and changes nothing.
+  The ghost, the computer, and every move off the air go through them.
+  Simple ko, not superko; suicide illegal; a capture is never suicide.
+- **Five rule sets are one enum**, chosen in the lobby and fixed for the
+  game. Capture 1/3/5 forbid passing (`legal(PASS)` is false), so the Pass
+  button greys and the computer plays its least bad move rather than
+  passing. Territory sets `over` on the second pass with `winner` still
+  EMPTY: the marking phase decides, through `score(dead)`.
+- **The computer never fills its own eye** -- `fillsOwnEye()` is the one
+  veto in the move generator and in the random playouts, because a playout
+  that fills its own eyes kills its own groups and judges every position
+  wrong. Easy is `chooseEasy()`, now. Medium is `beginSearch()` then
+  `stepSearch()` with a microsecond budget each frame (`CPU_SLICE_US`)
+  until `bestMove()`; the `Search` is a fixed 2.6 KB member. The dead-stone
+  opinion under Territory is `playoutOwnership()` two per frame from
+  `updateMarking()`, so neither ever costs a frame.
+- **Two taps place a stone.** `tapBoard()` sets a ghost on the nearest point
+  (`pointAt()` never answers "nowhere" on the board); the same point tapped
+  again, or Place on 19x19, plays it. The ghost follows a held finger. Do
+  not add a one-tap path: a misplaced stone is for ever.
+- **Repaint is per point.** `dirty_` is a bit per point, `markChanged()`
+  compares the board before and after a move, and `repaintPoint()` paints
+  one cell whole -- wood, the grid through it clipped to the outer lines, a
+  star, the stone, the marker, the ghost, a dead cross, a territory mark.
+  The panel is four parts with stale flags. `markFullDirty()` is for entering
+  the screen, a new game, Undo, the marking phase (territory can change
+  across the board on one toggle) and the result card. The 19x19 magnifier
+  is the info box and redraws whenever a point does.
+- **19x19 is a compile-time fact about the panel**, `SCREEN_WIDTH >= 480`,
+  read once as `BIG_BOARD_AVAILABLE`. Playable games always draw a 320x240
+  canvas and get their touch scaled to it, so the 4-inch board buys pixels,
+  not coordinates; the magnifier is what makes ten logical pixels a target.
+  On a small board the Board chip does not exist rather than being refused.
+- **On the air, a Go turn is an eleven-bit word** across the service's two
+  six-bit fields (`Go::Net`): two bits of kind -- stone, pass, dead-group
+  toggle, accept -- and nine of point. `to` carries a fixed high bit so the
+  presence word cannot decode, and the reserved ending decodes to a point
+  off every board; both static_assert'd. The marking phase is the one place
+  both sides speak out of turn: toggles apply as they arrive from either
+  side, any toggle unagrees both, and the game is scored when both have
+  accepted. Undo and Resume do not exist across consoles.
+- **Board size does not travel.** An invitation cannot carry it, so each
+  console plays the size its own chip says; a 19x19 console meeting a 9x9
+  one is refused by move validation rather than merged. The lobby only
+  offers 19x19 where it can be played, which is one board, so in practice
+  the question does not arise; if a second big board is ever supported, the
+  size needs to go on the air, and that is a change to what is transmitted.
+- **Saved packed**: two bits a point, so 19x19 is a hundred bytes. Undo is
+  not saved. The lobby's chips are, and come back whatever else does.
+
 ## Tracing games
 
 `LetterTracer` is the finger-tracing engine: waypoint resampling, hit testing,

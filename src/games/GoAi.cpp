@@ -213,6 +213,33 @@ uint16_t chooseEasy(const State& s, Rng& rng) {
     return pts[0];
 }
 
+namespace {
+/* Play `s` out with random moves; the finished board is left in `s`. */
+void playOut(State& s, Rng& rng) {
+    s.over = false;
+    s.passes = 0;
+    const uint16_t cap = static_cast<uint16_t>(2 * points(s.n));
+    uint8_t passes = 0;
+    for (uint16_t i = 0; i < cap && passes < 2; ++i) {
+        const uint16_t p = randomMove(s, rng);
+        if (p == PASS) {
+            ++passes;
+            if (!play(s, PASS)) s.toMove = other(s.toMove);
+        } else {
+            passes = 0;
+            play(s, p);
+        }
+        if (s.over && s.winner != EMPTY) return;
+    }
+}
+}   // namespace
+
+void playoutOwnership(const State& s, Rng& rng, uint8_t* own) {
+    State t = s;
+    playOut(t, rng);
+    ownership(t, nullptr, own);
+}
+
 uint8_t playout(State s, Rng& rng) {
     s.over = false;
     s.passes = 0;
@@ -288,23 +315,8 @@ void estimateDead(const State& s, uint8_t* dead, uint32_t seed, uint16_t playout
     Rng rng;
     rng.x = seed | 1U;
     for (uint16_t k = 0; k < playouts; ++k) {
-        State t = s;
-        t.over = false;
-        t.passes = 0;
-        const uint16_t cap = static_cast<uint16_t>(2 * points(t.n));
-        uint8_t passes = 0;
-        for (uint16_t i = 0; i < cap && passes < 2; ++i) {
-            const uint16_t p = randomMove(t, rng);
-            if (p == PASS) {
-                ++passes;
-                if (!play(t, PASS)) t.toMove = other(t.toMove);
-            } else {
-                passes = 0;
-                play(t, p);
-            }
-        }
         uint8_t own[MAX_POINTS];
-        ownership(t, nullptr, own);
+        playoutOwnership(s, rng, own);
         for (uint16_t i = 0; i < total; ++i) {
             if (s.at[i] != EMPTY && own[i] == s.at[i]) ++alive[i];
         }

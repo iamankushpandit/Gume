@@ -195,6 +195,10 @@ uint16_t bestMove(const Search& sr);
 /* One random playout from `s` to the end, returning the winner by area score.
  * Both sides play random legal non-eye-filling moves; at most 2n^2 moves. */
 uint8_t playout(State s, Rng& rng);
+/* The same playout, returning who owns every point at the end instead of the
+ * winner: one sample for a dead-stone estimate, so a screen can take them a
+ * few per frame rather than all at once. */
+void playoutOwnership(const State& s, Rng& rng, uint8_t* own);
 /* Which stones a playout thinks are dead: from the finished position, run
  * `playouts` playouts and mark a stone dead when its point ends up owned by
  * the other colour in more than half of them. The computer's opinion for the

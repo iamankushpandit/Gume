@@ -10,6 +10,27 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**Go.** The thirty-eighth game: 9x9 everywhere, 19x19 on the 4-inch console
+only (`GoGame::BIG_BOARD_AVAILABLE`, from the panel's physical width -- a
+point on 19x19 is ten logical pixels from its neighbours and only a big
+panel makes that a target). Five rule sets on one chip -- *Capture 1*, *3*
+and *5*, first to take that many stones, the form taught in schools; *Area*,
+stones plus surrounded points plus 5.5 komi; *Territory*, which ends with a
+marking phase where both players agree which groups cannot live -- and two
+computer levels: Easy is heuristics that never fill an own eye, Medium plays
+random games from the best dozen points, a few per frame so a move takes a
+moment and never a frame, and the same playouts are its opinion of the dead
+stones. A stone is placed in two taps, ghost then confirm, because a
+misplaced stone is for ever and a resistive panel misplaces; on 19x19 the
+panel magnifies the five-by-five around the ghost and has a Place button.
+Repaint is per point. Undo takes back your move and the computer's reply.
+Nearby play rides the existing two-player service with an eleven-bit word
+across its two six-bit fields, so a 19x19 point fits and the service's own
+presence and ending words cannot read as a move (`Go::Net`,
+static_assert'd); the marking phase travels as dead-group toggles and an
+accept from each side. Score is wins against the computer, per profile. The
+rules and the computer are pure C++ with a host test beside Backgammon's.
+
 **A nearby game whose other console goes quiet now pauses and says so.** A
 flat battery or a child walking out of range cannot send anything, and until
 now Chess, Sea Battle and Backgammon sat on "is thinking" for ever when it

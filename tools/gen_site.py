@@ -195,6 +195,8 @@ SCREEN_CAPTIONS = {
     "ludo-table": "Ludo: invite up to three consoles nearby",
     "backgammon": "Backgammon: race your checkers home and off",
     "backgammon-lobby": "Backgammon: one console, the computer, or nearby",
+    "go": "Go: surround to capture, on 9x9 or 19x19",
+    "go-lobby": "Go: five rule sets, two levels, three ways to play",
     "cursive": "Cursive: trace joined-up letters and words",
     "fingers-count": "Fingers: count them",
     "fingers-show": "Fingers: show me N",
@@ -283,6 +285,7 @@ PLAYABLE_STILLS = {
     "cursive": ("cursive",),
     "ludo": ("ludo", "ludo-lobby", "ludo-table"),
     "backgammon": ("backgammon", "backgammon-lobby"),
+    "go": ("go", "go-lobby"),
 }
 
 SYSTEM_SHOWCASE = (

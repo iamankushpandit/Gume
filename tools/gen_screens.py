@@ -1636,6 +1636,114 @@ def screensaver():
     return im
 
 
+# ---- Go --------------------------------------------------------------------
+# Geometry from src/games/GoDraw.cpp: BX, BY, STEP and MARGIN for the 9x9
+# board, and the panel rectangles derived from the board's box.
+GO_BX, GO_BY, GO_STEP, GO_MARGIN = 5, 34, 23, 9
+GO_BOX = 8 * GO_STEP + 2 * GO_MARGIN
+GO_PX = GO_BX + GO_BOX + 4
+GO_PW = W - GO_PX - 4
+GO_WOOD, GO_GRID = (196, 152, 88), (92, 66, 34)
+GO_BLACK, GO_BLACK_EDGE = (38, 38, 48), (96, 96, 112)
+GO_WHITE, GO_WHITE_EDGE = (244, 241, 232), (150, 145, 132)
+GO_HI, GO_MARK = (120, 230, 255), (247, 61, 82)
+
+
+def _go_xy(r, c):
+    return GO_BX + GO_MARGIN + c * GO_STEP, GO_BY + GO_MARGIN + r * GO_STEP
+
+
+def _go_stone(d, x, y, rad, black, faded=False):
+    fill = GO_BLACK if black else GO_WHITE
+    edge = GO_BLACK_EDGE if black else GO_WHITE_EDGE
+    if faded:
+        fill = tuple((a + b) // 2 for a, b in zip(fill, GO_WOOD))
+        edge = tuple((a + b) // 2 for a, b in zip(edge, GO_WOOD))
+    else:
+        d.ellipse([x - rad + 1, y - rad + 2, x + rad + 1, y + rad + 2],
+                  fill=tuple(v * 55 // 100 for v in GO_WOOD))
+    d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=fill, outline=edge)
+    if not faded:
+        hr = max(1, rad // 4)
+        hx, hy = x - rad // 3, y - rad // 3
+        d.ellipse([hx - hr, hy - hr, hx + hr, hy + hr],
+                  fill=shade(fill, 160) if black else (255, 255, 255))
+
+
+def go():
+    """Go, 9x9, against the computer under Area rules: a white stone in atari,
+    Black's ghost on the point that takes it, and the panel saying so.
+
+    The board is drawn as the device draws it -- wood, the grid, the five
+    star points, stones at 46% of a step -- and every rectangle in the panel
+    is the one GoDraw.cpp derives from the board's box."""
+    im, d = blank(); topbar(d, "Go")
+    d.rectangle([GO_BX, GO_BY, GO_BX + GO_BOX - 1, GO_BY + GO_BOX - 1], fill=GO_WOOD)
+    for i in range(9):
+        x0, y = _go_xy(i, 0); x1, _ = _go_xy(i, 8)
+        d.line([(x0, y), (x1, y)], fill=GO_GRID)
+        x, y0 = _go_xy(0, i); _, y1 = _go_xy(8, i)
+        d.line([(x, y0), (x, y1)], fill=GO_GRID)
+    for r, c in ((2, 2), (2, 6), (6, 2), (6, 6), (4, 4)):
+        x, y = _go_xy(r, c)
+        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=GO_GRID)
+    black = [(2, 2), (2, 3), (3, 1), (4, 1), (5, 2), (6, 3), (6, 5), (5, 6), (4, 6),
+             (3, 6), (2, 5), (1, 6)]
+    white = [(3, 2), (4, 2), (4, 3), (5, 3), (5, 4), (3, 4), (2, 6), (1, 4), (6, 6)]
+    rad = GO_STEP * 46 // 100
+    for r, c in black:
+        _go_stone(d, *_go_xy(r, c), rad, True)
+    for r, c in white:
+        _go_stone(d, *_go_xy(r, c), rad, False)
+    x, y = _go_xy(1, 6)   # the last move
+    d.ellipse([x - rad // 2, y - rad // 2, x + rad // 2, y + rad // 2], outline=GO_MARK)
+    x, y = _go_xy(2, 7)   # the ghost
+    mixed = tuple((a + b) // 2 for a, b in zip(GO_BLACK, GO_WOOD))
+    d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=mixed, outline=GO_HI)
+    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        d.line([(x + dx * (rad + 1), y + dy * (rad + 1)), (x + dx * (rad + 4), y + dy * (rad + 4))],
+               fill=GO_HI)
+
+    px, pw = GO_PX, GO_PW
+    d.rounded_rectangle([px, 34, px + pw - 1, 55], 6, fill=SURFACE, outline=OUTLINE)
+    _go_stone(d, px + 12, 45, 8, True)
+    d.text((px + 28, 45), "Your turn", font=F2, fill=TEXT, anchor="lm")
+    d.text((px, 60), "Captured", font=F1, fill=MUTED)
+    _go_stone(d, px + 10, 82, 8, True)
+    d.text((px + 24, 82), "3", font=F4, fill=TEXT, anchor="lm")
+    _go_stone(d, px + 58, 82, 8, False)
+    d.text((px + 72, 82), "1", font=F4, fill=TEXT, anchor="lm")
+    d.rounded_rectangle([px, 96, px + pw - 1, 129], 6, fill=SURFACE, outline=OUTLINE)
+    d.text((px + 6, 101), "Tap again to play", font=F1, fill=MUTED)
+    d.text((px + 6, 112), "H7 takes 1", font=F2, fill=SUCCESS)
+    button(d, (px, 136, pw, 26), "Pass")
+    button(d, (px, 166, pw, 24), "Undo")
+    button(d, (px, 194, pw, 26), "End game")
+    return im
+
+
+def go_lobby():
+    """Go's lobby: the Rules and Level chips, then one console, the computer,
+    and a console in the room offering a game. The Board chip appears only
+    on a panel wide enough for 19x19, which the 2.8-inch is not."""
+    im, d = blank(); topbar(d, "Go")
+    chips = [("Rules", "Capture 1"), ("Level", "Easy")]
+    cw = (W - 16 - 5) // 2
+    for i, (label, value) in enumerate(chips):
+        x = 8 + i * (cw + 5)
+        d.rounded_rectangle([x, 36, x + cw - 1, 61], 6, fill=SURFACE, outline=OUTLINE)
+        d.text((x + 7, 39), label, font=F1, fill=MUTED)
+        d.text((x + 7, 48), value, font=F2, fill=TEXT)
+        d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
+    rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+    for r, (label, fill, ink) in enumerate(rows):
+        button(d, (8, 70 + r * 36, W - 16, 31), label, fill=fill, tc=ink)
+    d.text((W // 2, H - 4), "Moves travel by Bluetooth. Anyone near hears them.",
+           font=F1, fill=MUTED, anchor="ms")
+    return im
+
+
 SCREENS = [
     ("launcher-wide", launcher_wide, "Home screen, Wide layout"),
     ("launcher-tall", launcher_tall, "Home screen, Tall layout"),
@@ -2841,6 +2949,8 @@ EXTRA_SCREENS = [
     ("ludo-table", ludo_table, "Ludo: inviting consoles in the room"),
     ("backgammon", backgammon, "Backgammon: a checker picked up, where it can go"),
     ("backgammon-lobby", backgammon_lobby, "Backgammon: one console, the computer, or nearby"),
+    ("go", go, "Go: a ghost stone where the finger landed, the panel saying what it takes"),
+    ("go-lobby", go_lobby, "Go: rules and level chips, one console, the computer, or nearby"),
 ]
 SCREENS.extend(EXTRA_SCREENS)
 
