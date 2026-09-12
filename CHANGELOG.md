@@ -10,6 +10,29 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**The screen saver shows the product mark.** The brain badge with the wordmark
+under it -- the same artwork the case badge is cut from -- instead of "Braino!"
+in a font. It is carried as a one-bit silhouette generated from the SVG by
+`tools/gen_logo_mask.py`, 810 bytes, painted in whatever colour the caller
+likes: on the saver that is the dim shade of the rally colour it always was, so
+the mark still changes with every paddle hit.
+
+**The tracing guide arrow follows the finger again, beside the line.** Moving
+the arrows off the path and numbering them made the plan for a letter readable,
+and lost the thing an arrow is for while you are part way along a stroke:
+players reported an arrow that shows up at the start and then does not move. So
+there are two kinds now. The numbered ones are the plan -- placed once, never
+moving, all muted. One more, in the highlight colour, follows the dot being
+aimed at and points where the stroke goes next, drawn beside the line rather
+than on it so it never covers the dots. It is not drawn at all where neither
+side of the line is clear.
+
+**Cursive's dots are half the size.** Its letterforms are loops, and inside a
+tight one -- the eye of an `l`, the crossing of a `k` -- two runs of dots pass
+within a few pixels of each other, so at the printed letters' radius they
+merged into a blob and the shape was lost. Cursive draws them at a radius of
+one, print keeps two, and the dot being aimed at is unchanged in both.
+
 **Sounds no longer click on and off.** A recording of Piano on a DAC board
 showed a sharp click as every note started and another about 300ms later as
 it stopped -- and the same happened to every beep on the device. The I2S

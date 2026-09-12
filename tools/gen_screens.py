@@ -1135,11 +1135,10 @@ def _plan_arrows(paths, ways, turns):
     return placed
 
 
-def _draw_arrows(d, arrows, active):
-    """LetterTracer::drawArrows(): the active stroke's arrows lit, others muted."""
+def _draw_arrow(d, a, col):
+    """One arrow: shaft, head, and the stroke number for a numbered one."""
     import math as _m
-    for a in arrows:
-        col = WARN if a["stroke"] == active else MUTED
+    if True:
         (tx, ty), (px, py) = a["tail"], a["tip"]
         L = _m.dist((tx, ty), (px, py))
         ux, uy = (px - tx) / L, (py - ty) / L
@@ -1153,13 +1152,64 @@ def _draw_arrows(d, arrows, active):
             d.text((lx - d.textlength(n, font=F1) / 2, ly - 5), n, font=F1, fill=col)
 
 
-def _tracer_canvas(d, paths, spacing, fraction, turns, active=0):
+def _draw_arrows(d, arrows):
+    """LetterTracer::drawArrows(): the plan for the letter, all of it muted."""
+    for a in arrows:
+        _draw_arrow(d, a, MUTED)
+
+
+def _guide(d, ways, active, inked):
+    """The one arrow that moves: LetterTracer::updateGuide(), restated.
+
+    Beside the dot being aimed at, pointing where the stroke goes next, on
+    whichever side of the line is clearer -- and not drawn at all when neither
+    side is, because an arrow over the dots is what this replaced.
+    """
+    import math as _m
+    OFF, LEN, HEAD, HALF, CLEAR = 8, 16, 5, 4, 3
+    way = ways[active]
+    if inked + 1 >= len(way):
+        return
+    p, q = way[inked], way[inked + 1]
+    L = _m.dist(p, q)
+    if L < 0.5:
+        return
+    ux, uy = (q[0] - p[0]) / L, (q[1] - p[1]) / L
+
+    def seg2(pt, a, b):
+        abx, aby = b[0] - a[0], b[1] - a[1]
+        l2 = abx * abx + aby * aby
+        t = 0 if l2 == 0 else max(0, min(1, ((pt[0] - a[0]) * abx + (pt[1] - a[1]) * aby) / l2))
+        ex, ey = pt[0] - a[0] - abx * t, pt[1] - a[1] - aby * t
+        return ex * ex + ey * ey
+
+    segs = [(w[i], w[i + 1] if i + 1 < len(w) else w[i]) for w in ways for i in range(len(w))]
+    best, chosen = -1e9, None
+    for side in (1, -1):
+        nx, ny = -uy * side, ux * side
+        tail = (p[0] + nx * OFF, p[1] + ny * OFF)
+        tip = (tail[0] + ux * LEN, tail[1] + uy * LEN)
+        worst = 1e9
+        for t in range(0, LEN + 1, 4):
+            pt = (tail[0] + ux * t, tail[1] + uy * t)
+            if not (58 <= pt[0] <= 262 and 55 <= pt[1] <= 213):
+                worst = -1e9
+                break
+            worst = min(worst, _m.sqrt(min(seg2(pt, a, b) for a, b in segs)))
+        if worst > best:
+            best, chosen = worst, dict(tail=tail, tip=tip, numbered=False, stroke=active)
+    if chosen and best >= CLEAR:
+        _draw_arrow(d, chosen, WARN)
+
+
+def _tracer_canvas(d, paths, spacing, fraction, turns, active=0, dot=2):
     """The ghost, the traced part, the dots, the arrows and the start ring.
 
     Strokes before `active` are finished, `fraction` of the active one is
     traced, and the rest are waiting.
     """
     ways = [_resample(pts, spacing) for pts in paths]
+    r = dot
     for pts in paths:
         d.line(pts, fill=OUTLINE, width=1)
     arrows = _plan_arrows(paths, ways, turns)
@@ -1172,12 +1222,13 @@ def _tracer_canvas(d, paths, spacing, fraction, turns, active=0):
             d.line([way[i - 1], way[i]], fill=SUCCESS, width=2)
         for i, (x, y) in enumerate(way):
             if i < inked:
-                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=SUCCESS)
+                d.ellipse([x - r, y - r, x + r, y + r], fill=SUCCESS)
             elif si == active and i == inked:
                 d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=WARN)
             else:
-                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=MUTED)
-    _draw_arrows(d, arrows, active)
+                d.ellipse([x - r, y - r, x + r, y + r], fill=MUTED)
+    _draw_arrows(d, arrows)
+    _guide(d, ways, active, max(1, int(len(ways[active]) * fraction)))
     hx, hy = ways[active][0]
     d.ellipse([hx - 6, hy - 6, hx + 6, hy + 6], outline=WARN, width=2)
     total = sum(len(w) for w in ways)
@@ -1233,7 +1284,7 @@ def cursive():
     cw = int(_re.search(r"CURSIVE_COORD_W = (\d+)", hdr).group(1))
     ch = int(_re.search(r"CURSIVE_COORD_H = (\d+)", hdr).group(1))
     _tracer_canvas(d, _glyph_strokes("CursiveGlyphData.cpp", "W_DOG", cw, ch),
-                   14, 0.45, False)
+                   14, 0.45, False, dot=1)
     return im
 
 
@@ -1718,15 +1769,52 @@ def timezone_picker():
     return im
 
 
+def _logo_mask():
+    """The generated product mark, read out of src/ui/LogoMask.cpp.
+
+    Read rather than re-rasterised from the SVG: the point of a mock-up is to
+    show what the firmware draws, and what the firmware draws is this table.
+    """
+    import re as _re
+    src = (ROOT / "src" / "ui" / "LogoMask.cpp").read_text(encoding="utf-8")
+    hdr = (ROOT / "src" / "ui" / "LogoMask.h").read_text(encoding="utf-8")
+    w = int(_re.search(r"WIDTH = (\d+)", hdr).group(1))
+    h = int(_re.search(r"HEIGHT = (\d+)", hdr).group(1))
+    rows = []
+    for line in _re.findall(r"\{([^{}]*0x[^{}]*)\}", src):
+        rows.append([int(v, 16) for v in _re.findall(r"0x([0-9A-Fa-f]{2})", line)])
+    assert len(rows) == h, "LogoMask.cpp has %d rows, header says %d" % (len(rows), h)
+    return w, h, rows
+
+
+def _draw_logo(d, cx, cy, colour):
+    """Ui::drawLogo(): the ink of the mask, as horizontal runs."""
+    w, h, rows = _logo_mask()
+    x0, y0 = cx - w // 2, cy - h // 2
+    for y, row in enumerate(rows):
+        run = None
+        for x in range(w + 1):
+            on = x < w and (row[x >> 3] >> (7 - (x & 7))) & 1
+            if on and run is None:
+                run = x
+            elif not on and run is not None:
+                d.rectangle([x0 + run, y0 + y, x0 + x - 1, y0 + y], fill=colour)
+                run = None
+    return w, h
+
+
 def screensaver():
-    """Mirrors BrainoApp::renderScreenSaver(): the wordmark still and centred,
-    "Braino!" in a 60% shade of the rally colour, the battery at top centre,
+    """Mirrors BrainoApp::renderScreenSaver(): the product MARK still and
+    centred, in a 60% shade of the rally colour, the battery at top centre,
     and a net that skips the stretches behind both."""
     im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
     rally = (255, 160, 60)
     mid_x, mid_y = W // 2, H // 2
-    text_w = int(max(d.textlength(PRODUCT, font=F4), d.textlength(COPYRIGHT_SHORT, font=F1))) + 8
-    text_y, text_h = mid_y - 26, 48
+    logo_w, logo_h, _ = _logo_mask()
+    copy_gap = 8
+    block_h = logo_h + copy_gap + 8
+    text_y, text_h = mid_y - block_h // 2, block_h
+    text_w = int(max(logo_w, d.textlength(COPYRIGHT_SHORT, font=F1))) + 8
     bat_y, bat_h = 14 - 8, 16
     for y in range(0, H, 14):
         behind_text = y + 8 > text_y and y < text_y + text_h
@@ -1734,8 +1822,9 @@ def screensaver():
         if not behind_text and not behind_bat:
             d.rectangle([mid_x - 1, y, mid_x, y + 8], fill=(40, 40, 40))
     name = tuple(c * 60 // 100 for c in rally)
-    d.text((mid_x - d.textlength(PRODUCT, font=F4) / 2, mid_y - 22), PRODUCT, font=F4, fill=name)
-    d.text((mid_x - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, mid_y + 9), COPYRIGHT_SHORT, font=F1, fill=(70, 76, 92))
+    _draw_logo(d, mid_x, text_y + logo_h // 2, name)
+    d.text((mid_x - d.textlength(COPYRIGHT_SHORT, font=F1) / 2, text_y + logo_h + copy_gap - 4),
+           COPYRIGHT_SHORT, font=F1, fill=(70, 76, 92))
     battery_badge(d, mid_x, 14, 72)
     d.rounded_rectangle([7, 70, 13, 110], 3, fill=rally)
     d.rounded_rectangle([307, 130, 313, 170], 3, fill=rally)

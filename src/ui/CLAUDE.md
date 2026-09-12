@@ -1,5 +1,20 @@
 # src/ui
 
+## LogoMask.{h,cpp} + Ui::drawLogo()
+
+The product mark -- the brain over the wordmark -- as a one-bit silhouette,
+**generated** by `tools/gen_logo_mask.py` from `tools/braino-badge.svg`. Edit
+the SVG or the script, never the output, and look at `docs/logo-mask.png`
+afterwards: a mark that has lost a stroke still compiles and still draws.
+
+One bit rather than a colour depth, because the caller picks the colour --
+the screen saver paints it in a shade of the rally colour that moves with
+every paddle hit, which an anti-aliased image could not do without knowing
+the background. `drawLogo()` paints only the ink, as horizontal runs, so
+redrawing it in a new colour is an overdraw of the same shape and needs no
+erase. It is 72x90 and 810 bytes; ask `logoWidth()`/`logoHeight()` rather
+than assuming either.
+
 `Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so that all nine themes work.
 
 ## Renderer

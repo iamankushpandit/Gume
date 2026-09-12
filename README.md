@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-79.9%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-80.0%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,513,957 / 3,145,728 bytes (**79.9%**) |
-| RAM | 81,372 / 327,680 bytes (**24.8%**) |
+| Flash | 2,515,993 / 3,145,728 bytes (**80.0%**) |
+| RAM | 81,436 / 327,680 bytes (**24.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -766,8 +766,11 @@ anyone touching it in March and November.
 </p>
 
 Pong that plays itself. Paddles sweep opposite ways; every rally speeds the ball
-up and advances the colour, mirrored on the case LED. Touching it returns you to
-**whatever you were doing** — not the home screen.
+up and advances the colour, mirrored on the case LED. The **product mark** sits
+still in the middle, in a dim shade of the rally colour, so it changes with
+every paddle hit; it is the same artwork the case badge is cut from, carried in
+the firmware as a one-bit mask. Touching it returns you to **whatever you were
+doing** — not the home screen.
 
 After the saver, the device **sleeps**: the backlight goes off and the panel
 drops into its low-power state, which is what actually saves the battery — a
@@ -1301,6 +1304,7 @@ src/
     Renderer.h          app-facing drawing interface, no TFT driver include
     TftRenderer.h       TFT_eSPI adapter used by firmware runtime
     LauncherIcons.cpp   launcher tile icon drawing
+    LogoMask.cpp        the product mark, generated -- see tools/gen_logo_mask.py
     LauncherLayout.cpp  launcher header, profile and tile geometry
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored

@@ -557,9 +557,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,513,957 / 3,145,728 bytes,
-**79.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 81,372 / 327,680 (24.8%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,515,993 / 3,145,728 bytes,
+**80.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 81,436 / 327,680 (24.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1088,8 +1088,12 @@ src/hal/                  Board bring-up, BleBeacon, BleScanner, BoardAccess fac
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
-                          LauncherLayout
+                          LauncherLayout, LogoMask (generated -- the product
+                          mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_logo_mask.py (the product mark, from
+                          tools/braino-badge.svg -- writes a preview that MUST
+                          be looked at),
                           gen_cursive_glyphs.py (cursive letterforms, from a
                           GPLv3 dotted teaching font -- writes a preview sheet
                           that MUST be looked at),

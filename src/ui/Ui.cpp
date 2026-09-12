@@ -2,6 +2,7 @@
 #include "hal/Clock.h"
 #include "hal/Board.h"
 #include "ui/LauncherLayout.h"
+#include "ui/LogoMask.h"
 #include "ui/TftRenderer.h"
 #include <WiFi.h>
 #include "map_n_flag.h"
@@ -303,6 +304,45 @@ void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg)
     tft.fillCircle(cx, keyCy, keyR, bg);
     tft.fillRect(static_cast<int16_t>(cx - max<int16_t>(1, keyR / 2)), keyCy,
                  max<int16_t>(1, keyR), static_cast<int16_t>(bodyH / 3), bg);
+}
+
+/* The product mark, blitted from its one-bit mask.
+ *
+ * RUNS, NOT PIXELS: each row is emitted as horizontal spans, so the mark costs
+ * a few hundred line calls rather than 6,480 pixel calls. The screen saver
+ * repaints it whenever the rally colour changes, which is every paddle hit, so
+ * this sits on a path that runs while nobody is watching a frame budget but
+ * the panel is: a pixel-at-a-time blit is visible as the mark wiping in.
+ *
+ * Only the ink is painted. Nothing is erased first, which is what lets a
+ * colour change be an overdraw of exactly the same shape. */
+void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour) {
+    const int16_t x0 = static_cast<int16_t>(cx - LogoMask::WIDTH / 2);
+    const int16_t y0 = static_cast<int16_t>(cy - LogoMask::HEIGHT / 2);
+    for (int16_t y = 0; y < LogoMask::HEIGHT; ++y) {
+        const uint8_t* row = LogoMask::BITS[y];
+        int16_t runStart = -1;
+        for (int16_t x = 0; x <= LogoMask::WIDTH; ++x) {
+            const bool on = x < LogoMask::WIDTH &&
+                            ((row[x >> 3] >> (7 - (x & 7))) & 1u) != 0;
+            if (on && runStart < 0) {
+                runStart = x;
+            } else if (!on && runStart >= 0) {
+                tft.drawFastHLine(static_cast<int16_t>(x0 + runStart),
+                                  static_cast<int16_t>(y0 + y),
+                                  static_cast<int16_t>(x - runStart), colour);
+                runStart = -1;
+            }
+        }
+    }
+}
+
+int16_t logoWidth() {
+    return LogoMask::WIDTH;
+}
+
+int16_t logoHeight() {
+    return LogoMask::HEIGHT;
 }
 
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {

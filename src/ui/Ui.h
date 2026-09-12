@@ -49,6 +49,19 @@ void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
 void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg);
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
+/* THE PRODUCT MARK: the brain with "Braino!" under it, centred on (cx, cy).
+ *
+ * A one-bit silhouette generated from the artwork by tools/gen_logo_mask.py,
+ * painted in `colour` and nothing else -- the background is left alone, so a
+ * caller that wants the mark in a new colour simply draws it again in the same
+ * place. That is what the screen saver does on every paddle hit.
+ *
+ * Its size is fixed, because the mask is: ask logoWidth()/logoHeight() and lay
+ * out around them rather than assuming. */
+void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour);
+int16_t logoWidth();
+int16_t logoHeight();
+
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
  * warning dot when it is still the free-running build-time estimate. Drawn at
  * (cx, cy) as a centre point; about 12px across. */
