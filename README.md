@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 38 |
-| Flash | 2,557,861 / 3,145,728 bytes (**81.3%**) |
+| Flash | 2,557,813 / 3,145,728 bytes (**81.3%**) |
 | RAM | 86,812 / 327,680 bytes (**26.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1377,7 +1377,9 @@ src/
     BoardStorage.cpp    schema migration + app-scoped NVS keys
     BoardStorageMaintenance.cpp  profile moves + NVS telemetry
     TouchTypes.h        TouchPoint event type shared without display deps
-    BleBeacon.cpp       the one authoritative BLE advertisement payload
+    BleBeacon.cpp       the beacon radio: bring-up, advertise, poke, turns
+    BleBeaconPayload.cpp  the one authoritative advertisement payload,
+                        and decode(), its exact inverse
     BleScanner.cpp      passive observer for other Braino beacons
     Clock.cpp           time and date formatting
     Watchdog.cpp        loop supervisor, stall logging, crash breadcrumb
