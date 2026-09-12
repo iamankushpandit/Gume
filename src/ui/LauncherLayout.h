@@ -6,6 +6,8 @@
 namespace LauncherLayout {
 
 Rect topBarSettingsRect(int16_t screenW);
+/* Mute/unmute, right of the padlock and the same size. See Ui::CONTROL_H. */
+Rect topBarSpeakerRect(int16_t screenW);
 
 /* The shared top bar's two left-hand controls. Home has always been there;
  * Lock sits beside it, which is why the home slot narrowed from 42px to 32px
@@ -51,6 +53,11 @@ struct Grid {
 constexpr int16_t DENSE_PORTRAIT_MIN_W = 320;
 /** The most tiles any grid puts on one page. */
 constexpr uint8_t MAX_PAGE_SIZE = 9;
+/* Mute/unmute on the launcher's own header. Landscape: the badge row, beside
+ * the padlock. Portrait: the profile-name row, because the badge row at 240px
+ * has no fourth slot. */
+Rect speakerRect(Board::LayoutMode mode, int16_t screenW);
+
 Grid grid(Board::LayoutMode mode, int16_t screenW, int16_t screenH);
 uint8_t pageSize(Board::LayoutMode mode, int16_t screenW, int16_t screenH);
 

@@ -12,6 +12,15 @@ Lifecycle is `begin()` -> `update()`/`render()` per frame -> `end()`. `end()` is
 
 `BrainoApp` lives in `AppRuntime.cpp` plus `AppRuntimeLauncher.cpp`, `AppRuntimeScreenSaver.cpp`, `AppRuntimeLock.cpp` and `AppRuntimeIdentity.cpp` (the boot banner, and the `identify?` reply -- the same facts, so a board can be identified without a reset, never the MAC), `AppRuntimeConsole.cpp` + `AppRuntimeConsoleSettings.cpp` + `AppRuntimeConsoleProfiles.cpp` (the serial console: one line reader, one command table, one reply grammar `ok key="v"` / `err <code> <message>` with word-character keys; `get`/`set` over one settings table mirroring the Settings and Wi-Fi screens, CRUD for players, per-player game visibility; device reads open, changes and player-name reads behind `unlock <admin PIN>` keyed on each row's `AppCapability`; same `Board` setters and refusals as the screens, not counted as activity -- add a command or a setting as a row, never a string match; parsing in `ConsoleText.h`), rather than keeping launcher/runtime/saver logic embedded in `main.cpp`. `AppRuntimeLauncher.cpp` implements `LauncherApp`, so home screen touch/render goes through the same lifecycle as the app screens; only ScreenSaver, Asleep and Locked remain runtime views. `AppRuntimeLock.cpp` owns the hold-to-unlock guard and `lockAndSleepNow()`, the Lock button's entry point -- the deliberate way into the same guard, which sleeps through the ordinary `enterSleep()` and leaves `activeGame_` alone so a completed hold resumes it. The guard itself: it lays itself out against the live `tft.width()`/`height()` and applies no rotation of its own, because `resumeUnderlyingScreen()` applies the returning screen's rotation and rotating twice for a screen that is up for a second costs two full repaints.
 
+`AppRuntimeLock.cpp` also owns `toggleMute()` and `activeSpeakerRect()`, the
+header's mute control. It is the same shape of thing as the Lock button -- a
+device-wide state changed from a glyph in the chrome, with the tap consumed by
+the runtime above the active screen so it cannot also press whatever sat under
+it -- which is why the two live together rather than in `Ui`. **It is
+deliberately not gated on the admin PIN**, unlike every other route to that
+setting; the reasoning is written out at the definition and should be read
+before anyone adds the gate.
+
 The default `end()` does nothing, which is right for the games: they hold only their own members and `begin()` resets those. Override it if a screen acquires anything that outlives a frame: a cached buffer, a sampling cadence, a radio or a file handle. Nothing runs off a task or timer today, so no screen keeps burning cycles once you leave it; the hook exists so that stays true as screens grow. `SystemInfoApp` uses it to clear its fixed-buffer row list.
 
 Invalidation is two-level because a full 320x240 wipe is ~150 KB over SPI / ~30 ms of blanking:

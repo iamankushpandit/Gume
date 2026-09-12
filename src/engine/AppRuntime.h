@@ -181,6 +181,11 @@ private:
     void enterLock();
     /** Where the Lock button is on whatever screen is up right now. */
     Rect activeLockRect();
+    /** Where the mute control is on whatever screen is up right now. */
+    Rect activeSpeakerRect();
+    /* Mute or unmute from the header, without Settings and without the admin
+     * PIN. See the comment on the definition for why that gate is absent. */
+    void toggleMute();
     void updateLock(const TouchPoint& touch, uint32_t nowMs);
     void renderLock();
     void resumeUnderlyingScreen();

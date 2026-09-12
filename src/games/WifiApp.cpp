@@ -228,18 +228,24 @@ void WifiApp::startConnect(GameHost& host) {
     Serial.printf("[wifi] JOIN ssid len %u, pass len %u\n",
                   (unsigned)ssid.length(), (unsigned)password_.length());
 
-    if (ssid.length() > 0) {
-        board.setWifiCredentials(ssid, password_);
-    } else {
-        Serial.println("[wifi] REFUSING to save an empty SSID");
+    /* NOTHING IS SAVED HERE. It used to be: the new SSID and password went
+     * into NVS before WiFi.begin() was called, so mistyping a password on a
+     * different network destroyed the working one -- the owner came back to a
+     * console that could not reach the network it had been using for weeks,
+     * and had no way to find out what it used to be. The credentials are
+     * written in checkConnect(), once the association has actually
+     * succeeded; until then the old ones are the ones on the device. */
+    if (ssid.length() == 0) {
+        Serial.println("[wifi] REFUSING to join an empty SSID");
+        phase_ = Phase::Idle;
+        markFullDirty();
+        return;
     }
-    saveReadback_ = board.wifiSsid();
-    /* What this checks is that NVS round-tripped what we wrote, so the
-     * verdict is the diagnostic and the name was only ever how it was
-     * spelled. Comparing here says strictly more than printing it did. */
-    Serial.printf("[wifi] readback %s\n",
-                  saveReadback_ == ssid ? "matches" : "MISMATCH");
 
+    /* Off here too: the join path is the other place a password reaches
+     * esp_wifi, and its own NVS copy is one this firmware cannot clear. See
+     * the note in BoardNetwork.cpp. */
+    WiFi.persistent(false);
     WiFi.begin(ssid.c_str(), password_.c_str());
     connectStart_ = millis();
     connectOk_ = false;
@@ -253,9 +259,22 @@ void WifiApp::checkConnect(GameHost& host) {
         markFullDirty();
         return;
     }
+    Board& board = host.board();
     const wl_status_t st = WiFi.status();
     if (st == WL_CONNECTED) {
         connectOk_ = true;
+        /* Now it is worth keeping. The readback checks that NVS round-tripped
+         * what we wrote; the verdict is the diagnostic, and the name was only
+         * ever how it was spelled. */
+        String ssid = selectedSsid_;
+        if (ssid.length() == 0 && selectedNet_ >= 0) ssid = WiFi.SSID(selectedNet_);
+        if (ssid.length() == 0) ssid = WiFi.SSID();
+        if (ssid.length() > 0) {
+            board.setWifiCredentials(ssid, password_);
+            saveReadback_ = board.wifiSsid();
+            Serial.printf("[wifi] saved after connecting, readback %s\n",
+                          saveReadback_ == ssid ? "matches" : "MISMATCH");
+        }
         // Delegate to the board so the stored timezone is applied. This used to
         // call configTime(0, 0, ...) directly, which pinned the clock to UTC.
         host.board().beginTimeSync();
@@ -266,9 +285,28 @@ void WifiApp::checkConnect(GameHost& host) {
     if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL ||
         millis() - connectStart_ > 15000UL) {
         connectOk_ = false;
+        /* The attempt failed, so the device is sitting associated with
+         * nothing while its saved network is still in NVS untouched. Ask for
+         * it back: without this the console stays off the air until it is
+         * rebooted, which is indistinguishable from having lost the network.
+         * Harmless when nothing is saved -- beginTimeSync() returns at once. */
+        rejoinSaved(host);
         phase_ = Phase::Done;
         markFullDirty();
     }
+}
+
+/* Put the console back on the network it already had.
+ *
+ * Every way out of the scan -- Back from the list, < back from the keyboard, a
+ * failed join -- leaves the radio associated with nothing, because runScan()
+ * cycles WIFI_OFF/WIFI_STA to scan. The credentials in NVS are untouched, so
+ * this is only a reconnect; it is what stops "I looked at the other networks"
+ * from reading as "my network is gone". */
+void WifiApp::rejoinSaved(GameHost& host) {
+    Board& board = host.board();
+    if (!board.hasWifiCredentials() || Ui::wifiUp()) return;
+    board.beginTimeSync();
 }
 
 void WifiApp::update(GameHost& host, const TouchPoint& touch) {
@@ -331,7 +369,7 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
             ++listPage_; markFullDirty(); return;
         }
         if (baseRect(104, 206, 112, 26).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            phase_ = Phase::Idle; markFullDirty(); return;
+            phase_ = Phase::Idle; rejoinSaved(host); markFullDirty(); return;
         }
         for (uint8_t slot = 0; slot < 5; ++slot) {
             const uint8_t idx = listPage_ * 5 + slot;
@@ -355,26 +393,30 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
             for (uint8_t col = 0; col < 10; ++col) {
                 if (keyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
                     if (password_.length() < 63) password_ += keys[row][col];
-                    markFullDirty(); return;
+                    markDirty(); return;
                 }
             }
         }
         if (baseRect(2, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            capsLock_ = !capsLock_; symbols_ = false; markFullDirty(); return;
+            capsLock_ = !capsLock_; symbols_ = false;
+            keyboardPainted_ = false; markDirty(); return;
         }
         if (baseRect(58, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            symbols_ = !symbols_; markFullDirty(); return;
+            symbols_ = !symbols_; keyboardPainted_ = false; markDirty(); return;
         }
         if (baseRect(114, 208, 74, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (password_.length() < 63) password_ += ' ';
-            markFullDirty(); return;
+            markDirty(); return;
         }
         if (baseRect(192, 208, 50, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (password_.length() > 0) password_.remove(password_.length() - 1);
-            markFullDirty(); return;
+            markDirty(); return;
         }
         if (baseRect(246, 208, 72, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startConnect(host); return; }
-        if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { phase_ = Phase::List; markFullDirty(); }
+        if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            phase_ = Phase::List;
+            markFullDirty();
+        }
 
     } else if (phase_ == Phase::TimeZone) {
         const uint8_t n = Board::tzZoneCount();
@@ -426,6 +468,10 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
  * them before by opening with Ui::clear(). */
 void WifiApp::renderStatic(GameHost& host) {
     syncPanel(host);
+    /* The panel is about to be wiped, so whatever the keyboard had on it is
+     * gone: say so, or the first partial frame draws a field over a blank
+     * screen and no keys. */
+    keyboardPainted_ = false;
     Ui::clear(host.display());
     Ui::drawTopBar(host.board(), title());
 }
@@ -474,7 +520,7 @@ void WifiApp::renderDynamic(GameHost& host) {
                           wifiBadgeCx < wifiBadgeLimit ? wifiBadgeCx : wifiBadgeLimit,
                           ssidMidY, Ui::bg());
 
-        Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, baseRect(14, 64, 140, 30), "Scan Wi-Fi", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
         Ui::drawButton(tft, baseRect(166, 64, 140, 30), hasCreds ? "Forget" : "---",
                        hasCreds ? Ui::panel() : Ui::surface(), Ui::outline(),
                        hasCreds ? Ui::text() : Ui::muted(), false, 2);
@@ -539,9 +585,9 @@ void WifiApp::renderDynamic(GameHost& host) {
             if (idx >= n) break;
             const Rect r = zoneRect(slot);
             const bool sel = (idx == current);
-            tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, sel ? Ui::rgb(36, 132, 204) : Ui::surface());
+            tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, sel ? Ui::accent() : Ui::surface());
             tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
-            tft.setTextColor(sel ? TFT_WHITE : Ui::text(), sel ? Ui::rgb(36, 132, 204) : Ui::surface());
+            tft.setTextColor(sel ? TFT_WHITE : Ui::text(), sel ? Ui::accent() : Ui::surface());
             tft.setTextDatum(ML_DATUM);
             tft.drawString(Board::tzZoneName(idx), r.x + 10, r.y + r.h / 2, 2);
         }
@@ -635,21 +681,37 @@ void WifiApp::renderDynamic(GameHost& host) {
          * two cannot drift apart again. */
         tft.drawString(shown, static_cast<int16_t>(field.x + 8),
                        static_cast<int16_t>(field.y + field.h / 2), 2);
-        for (uint8_t row = 0; row < 4; ++row) {
-            for (uint8_t col = 0; col < 10; ++col) {
-                char buf[2] = {keys[row][col], 0};
-                Ui::drawButton(tft, keyRect(row, col), String(buf), Ui::surface(), Ui::outline(), Ui::text(), false, 2);
+        /* THE KEYBOARD IS NOT REPAINTED PER KEYSTROKE.
+         *
+         * Every key used to call markFullDirty(), which clears the screen and
+         * redraws forty-five buttons -- each a shadow roundrect, a fill, a
+         * bevel, an outline and a glyph -- to change one character in the
+         * field above them. On the panel that is the whole screen flashing at
+         * typing speed, on the one screen where an owner is looking carefully
+         * at what they have typed.
+         *
+         * What actually changes is the field, which is drawn above on every
+         * repaint. The keys change only when the LAYER does -- caps, symbols
+         * -- or when the screen underneath was cleared, and both of those say
+         * so by clearing keyboardPainted_. */
+        if (!keyboardPainted_) {
+            for (uint8_t row = 0; row < 4; ++row) {
+                for (uint8_t col = 0; col < 10; ++col) {
+                    char buf[2] = {keys[row][col], 0};
+                    Ui::drawButton(tft, keyRect(row, col), String(buf), Ui::surface(), Ui::outline(), Ui::text(), false, 2);
+                }
             }
+            keyboardPainted_ = true;
         }
         Ui::drawButton(tft, baseRect(2, 208, 52, 24), "CAPS",
-                       capsLock_ ? Ui::rgb(36, 132, 204) : Ui::surface(), Ui::outline(),
+                       capsLock_ ? Ui::accent() : Ui::surface(), Ui::outline(),
                        capsLock_ ? TFT_WHITE : Ui::text(), false, 1);
         Ui::drawButton(tft, baseRect(58, 208, 52, 24), symbols_ ? "abc" : "!#$",
-                       symbols_ ? Ui::rgb(36, 132, 204) : Ui::surface(), Ui::outline(),
+                       symbols_ ? Ui::accent() : Ui::surface(), Ui::outline(),
                        symbols_ ? TFT_WHITE : Ui::text(), false, 1);
         Ui::drawButton(tft, baseRect(114, 208, 74, 24), "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
         Ui::drawButton(tft, baseRect(192, 208, 50, 24), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::rgb(36, 132, 204), Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
 
     } else if (phase_ == Phase::Connecting) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
@@ -667,10 +729,17 @@ void WifiApp::renderDynamic(GameHost& host) {
         tft.setTextColor(connectOk_ ? Ui::success() : Ui::error(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
         tft.drawString(connectOk_ ? "Connected!" : "Connection failed", baseX(WIFI_BASE_W / 2), baseY(96), 4);
-        tft.setTextColor(saveReadback_.length() ? Ui::success() : Ui::error(), Ui::bg());
-        tft.drawString(saveReadback_.length() ? String("Saved: ") + saveReadback_
-                                              : String("NOT saved - empty SSID"),
-                       baseX(WIFI_BASE_W / 2), baseY(122), 2);
+        /* A stack buffer rather than String concatenation: this is a render
+         * path, and the memory rule counts every allocation made on one. */
+        const bool saved = saveReadback_.length() > 0;
+        char line[48];
+        const char* msg = "NOT saved - empty SSID";
+        if (saved) {
+            snprintf(line, sizeof(line), "Saved: %s", saveReadback_.c_str());
+            msg = line;
+        }
+        tft.setTextColor(saved ? Ui::success() : Ui::error(), Ui::bg());
+        tft.drawString(msg, baseX(WIFI_BASE_W / 2), baseY(122), 2);
         if (connectOk_ && board.ntpEnabled()) {
             tft.setTextColor(Ui::text(), Ui::bg());
             tft.drawString("Clock sync started", baseX(WIFI_BASE_W / 2), baseY(136), 2);

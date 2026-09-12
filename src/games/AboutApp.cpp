@@ -27,7 +27,14 @@ constexpr uint8_t PAGE_FIRST_GAME = 1;
 constexpr uint8_t CONTROLS_PAGES = BOARD.hasBootButton() ? 1 : 0;
 constexpr uint8_t PAGE_CONTROLS = PAGE_FIRST_GAME + GAME_PAGES;
 constexpr uint8_t PAGE_RADIOS = PAGE_CONTROLS + CONTROLS_PAGES;
-constexpr uint8_t PAGE_CREDITS = PAGE_RADIOS + 1;
+/* And then what the radio LEAVES BEHIND, which is the question the radio page
+ * raises and does not answer: the network password is kept on the device. It
+ * is two pages because it is two things -- what is true, and what the owner is
+ * accepting by using it -- and because eight font-1 lines is what a page
+ * holds. */
+constexpr uint8_t PAGE_PASSWORD = PAGE_RADIOS + 1;
+constexpr uint8_t PAGE_WARRANTY = PAGE_PASSWORD + 1;
+constexpr uint8_t PAGE_CREDITS = PAGE_WARRANTY + 1;
 /* The build stamp gets a page of its own rather than a line on the intro.
  * The intro page already runs to y=190 and the panel bottom is y=196 in
  * landscape, so there is no room there -- and this is the page somebody is
@@ -98,7 +105,28 @@ void AboutApp::update(GameHost& host, const TouchPoint& touch) {
  * console; GoodTime Micro Company still owns it. Both come from AppVersion.h --
  * this page must not be where either gets re-typed. */
 void AboutApp::renderIntro(Ui::Renderer& tft) {
-    drawLine(tft, 48, BRAINO_PRODUCT_NAME, 2);
+    /* The mark itself. This page is the one place an owner reads to learn what
+     * the console is called, so it shows them the thing on the case rather
+     * than the name set in the UI font.
+     *
+     * THE SMALL WORDMARK, because this line was font 2 and the next line sits
+     * 22px below it. The 26px variant is for a font-4 heading; drawn here it
+     * ran to y=74 and the copyright line at y=70 painted its own background
+     * over the bottom of the letters -- which reads as a logo with its feet
+     * cut off. Match the mark to the row it replaces, not to the page. */
+    Ui::drawLogo(tft,
+                 static_cast<int16_t>(14 + Ui::logoCentre(Ui::Logo::WordSmall)),
+                 static_cast<int16_t>(48 + Ui::logoHeight(Ui::Logo::WordSmall) / 2),
+                 Ui::text(), Ui::Logo::WordSmall);
+    /* And the brain, in the corner the text does not reach. The lines on this
+     * page run to about x=210 at their longest, so the icon sits to the right
+     * of them rather than above or below: it costs the page no rows, which is
+     * what it has none of. */
+    Ui::drawLogo(tft,
+                 static_cast<int16_t>(tft.width() - 20 -
+                                      Ui::logoWidth(Ui::Logo::IconBig) / 2),
+                 static_cast<int16_t>(52 + Ui::logoHeight(Ui::Logo::IconBig) / 2),
+                 Ui::muted(), Ui::Logo::IconBig);
     tft.setTextColor(Ui::muted(), Ui::surface());
     drawLine(tft, 70, BRAINO_COPYRIGHT, 1);
     drawLine(tft, 84, String("Educational games for the ") + BOARD_NAME + ".", 1);
@@ -107,9 +135,12 @@ void AboutApp::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 116, String("Version ") + BRAINO_VERSION, 2);
     drawLine(tft, 140, String(playableAppCount()) + " games built in", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 162, "195 flags and 50 US states,", 1);
-    drawLine(tft, 176, "all stored on the device.", 1);
-    drawLine(tft, 190, "Up to 5 players, plus a Guest.", 1);
+    /* The last three sit clear of the panel's bottom edge, which is at
+     * y=196 in landscape (PANEL_TOP + h - PANEL_TOP - FOOTER_H). At 190 the
+     * final line overflowed it by two pixels and read as cut off. */
+    drawLine(tft, 156, "195 flags and 50 US states,", 1);
+    drawLine(tft, 170, "all stored on the device.", 1);
+    drawLine(tft, 184, "Up to 5 players, plus a Guest.", 1);
 }
 
 void AboutApp::renderGames(Ui::Renderer& tft, int16_t w) {
@@ -186,6 +217,48 @@ void AboutApp::renderRadios(Ui::Renderer& tft, Board& board) {
  * RESET is named here despite doing nothing of ours, because an owner looking
  * at two identical buttons will press both and deserves to know why only one
  * of them appears to work. */
+/* WHERE THE WI-FI PASSWORD LIVES, said on the device rather than only in a
+ * README nobody reads on a phone.
+ *
+ * It says "nearly every ESP32 project" deliberately. This is not a defect of
+ * this firmware to be apologised for: an ESP32 keeps its settings in plain
+ * flash, its download mode will read that flash back over USB, and neither
+ * the Arduino toolchain nor most projects built on it turn either off. An
+ * owner who knows that can choose a network they do not mind sharing, which
+ * is worth more than a reassurance would be. */
+void AboutApp::renderPassword(Ui::Renderer& tft) {
+    drawLine(tft, 48, "The Wi-Fi password", 2);
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 74, "Kept in this device's memory", 1);
+    drawLine(tft, 88, "as plain text, not encrypted.", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 106, "Anyone holding the device with", 1);
+    drawLine(tft, 120, "a USB cable can read it. Over", 1);
+    drawLine(tft, 134, "the air, nobody can.", 1);
+    drawLine(tft, 152, "This is how nearly every ESP32", 1);
+    drawLine(tft, 166, "device works, open source or", 1);
+    drawLine(tft, 180, "not. It is not specific to us.", 1);
+}
+
+/* The second half, and the one that is a statement rather than a fact: what
+ * the owner is accepting. It is the licence's own position -- GPL-3.0 section
+ * 15 disclaims warranty and 16 disclaims liability -- said in words a parent
+ * reads rather than as a clause reference. */
+void AboutApp::renderWarranty(Ui::Renderer& tft) {
+    drawLine(tft, 48, "Use it knowing this", 2);
+    tft.setTextColor(Ui::text(), Ui::surface());
+    drawLine(tft, 74, "Use a network you would not", 1);
+    drawLine(tft, 88, "mind sharing: a phone hotspot,", 1);
+    drawLine(tft, 102, "or a guest network.", 1);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    drawLine(tft, 120, "This console is provided as is,", 1);
+    drawLine(tft, 134, "with no warranty and no", 1);
+    drawLine(tft, 148, "responsibility accepted for any", 1);
+    drawLine(tft, 162, "loss or damage. Using it means", 1);
+    drawLine(tft, 176, "accepting that, and the risk", 1);
+    drawLine(tft, 190, "described here.", 1);
+}
+
 void AboutApp::renderControls(Ui::Renderer& tft) {
     drawLine(tft, 48, "The buttons on the board", 2);
     tft.setTextColor(Ui::text(), Ui::surface());
@@ -328,6 +401,10 @@ void AboutApp::render(GameHost& host) {
         renderGames(tft, w);
     } else if (page_ == PAGE_RADIOS) {
         renderRadios(tft, board);
+    } else if (page_ == PAGE_PASSWORD) {
+        renderPassword(tft);
+    } else if (page_ == PAGE_WARRANTY) {
+        renderWarranty(tft);
     } else if (page_ == PAGE_UPDATES) {
         renderUpdates(tft, board);
     } else if (page_ == PAGE_CREDITS) {

@@ -12,7 +12,21 @@ constexpr int16_t LAUNCHER_HEADER_H_WIDE = 48;
 namespace LauncherLayout {
 
 Rect topBarSettingsRect(int16_t screenW) {
-    return Rect{static_cast<int16_t>(screenW - 34), 3, 26, 24};
+    /* Ui::CONTROL_H, like the padlock and the speaker. It was 26x24 -- the
+     * one oversized glyph on a bar of 18px ones -- and the eight pixels that
+     * gave back are most of what the speaker cost. */
+    return Rect{static_cast<int16_t>(screenW - 8 - Ui::CONTROL_H),
+                static_cast<int16_t>((TOP_BAR_HEIGHT - Ui::CONTROL_H) / 2),
+                Ui::CONTROL_H, Ui::CONTROL_H};
+}
+
+/* Mute sits immediately right of the padlock, at the same size. Both are
+ * derived from topBarLockRect so the three cannot drift apart, and the
+ * title's left edge is derived from THIS rather than from the padlock. */
+Rect topBarSpeakerRect(int16_t screenW) {
+    const Rect lock = topBarLockRect(screenW);
+    return Rect{static_cast<int16_t>(lock.x + lock.w + 6), lock.y,
+                Ui::CONTROL_H, Ui::CONTROL_H};
 }
 
 Rect topBarHomeRect() {
@@ -45,8 +59,8 @@ Rect topBarLockRect(int16_t screenW) {
  * over it when the lock moves. At 320px this is 40 + 18 + 4 = 62, which is
  * exactly where the title has always started. */
 int16_t topBarTitleLeft(int16_t screenW) {
-    const Rect lock = topBarLockRect(screenW);
-    return static_cast<int16_t>(lock.x + lock.w + 4);
+    const Rect speaker = topBarSpeakerRect(screenW);
+    return static_cast<int16_t>(speaker.x + speaker.w + 4);
 }
 
 /* Both layouts put the padlock in the status cluster, at badge size, centred
@@ -65,7 +79,29 @@ Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
      * screenW-116 to screenW-138 -- and profileRect()'s right limit moved with
      * it, exactly as it did when the battery badge grew. The name truncates
      * gracefully; the badge row does not. */
-    return Rect{static_cast<int16_t>(screenW - 136), 25, 18, 18};
+    return Rect{static_cast<int16_t>(screenW - 158), 25, Ui::CONTROL_H, Ui::CONTROL_H};
+}
+
+/* Mute, on the launcher's own header, which draws no top bar.
+ *
+ * LANDSCAPE it joins the badge row beside the padlock, so the hairline moved
+ * out a third time -- lW-138 to lW-160 -- and profileRect()'s right limit
+ * moved with it again. That row has never had spare pixels and still has
+ * none.
+ *
+ * PORTRAIT it does NOT join that row. At 240px the badges already end near
+ * x=155 and the padlock and gear take everything from x=176, so a fourth
+ * glyph there would overlap the battery on the narrowest panel we support.
+ * It goes on the profile-name row instead, whose right-hand half is empty in
+ * both portrait widths -- the name is capped at 112px from x=8. */
+Rect speakerRect(Board::LayoutMode mode, int16_t screenW) {
+    if (mode == Board::LayoutMode::Vertical) {
+        return Rect{static_cast<int16_t>(screenW - 96), 32,
+                    Ui::CONTROL_H, Ui::CONTROL_H};
+    }
+    const Rect lock = lockRect(mode, screenW);
+    return Rect{static_cast<int16_t>(lock.x + lock.w + 4), lock.y,
+                Ui::CONTROL_H, Ui::CONTROL_H};
 }
 
 int16_t headerHeight(Board::LayoutMode mode) {
@@ -84,13 +120,20 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
     if (mode == Board::LayoutMode::Vertical) {
         return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, screenW - 46)), 20};
     }
-    const int16_t x = 124;
+    /* 132, not 124. The byline -- "(C) iamankushpandit" at font 1 from x=10
+     * -- measures about 114px and therefore ends at about x=124, so a name
+     * starting there touched it with no gap at all; reported from the device
+     * as the two running together. Eight pixels of air, taken from a name that
+     * truncates gracefully rather than from the badge row that does not. */
+    const int16_t x = 132;
     /* Stops short of the header's status hairline at lW-138. That hairline has
      * moved out twice now -- 6px when the battery badge grew to carry its
      * percentage, then 22px again for the Lock badge -- and the profile name
      * gives up those pixels both times, because it truncates gracefully and
      * the badge row does not. */
-    const int16_t rightLimit = static_cast<int16_t>(screenW - 142);
+    /* screenW-164 now: the hairline moved out a third time for the mute
+     * control. Same trade as the two before it. */
+    const int16_t rightLimit = static_cast<int16_t>(screenW - 164);
     const int16_t w = static_cast<int16_t>(min<int16_t>(86, max<int16_t>(52, rightLimit - x)));
     return Rect{x, 30, w, 18};
 }
