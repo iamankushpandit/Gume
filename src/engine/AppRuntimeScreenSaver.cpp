@@ -215,35 +215,52 @@ void BrainoApp::renderScreenSaver() {
                ballEraseY < y + h && ballEraseY + BALL * 2 > y;
     };
 
-    /* THE WORDMARK STANDS STILL, CENTRED ON WHICHEVER WAY THE PANEL IS HELD.
+    /* THE MARK STANDS STILL, CENTRED ON WHICHEVER WAY THE PANEL IS HELD.
      *
      * It used to bob up and down on an eighteen-second sine, which meant
      * erasing and redrawing a band of the screen whenever the integer position
      * changed -- a visible shimmer for no information. effW and effH are the
      * live panel, so the centre is right in landscape and portrait alike.
      *
-     * What changes instead is colour: "Braino!" takes a dim shade of the rally
+     * It is the BADGE now rather than the product name in font 4: the brain
+     * with the wordmark under it, from the same artwork the case badge is cut
+     * from, blitted from a one-bit mask (`Ui::drawLogo`). The name is inside
+     * the artwork, so nothing draws it as text here any more.
+     *
+     * What changes instead is colour: the mark takes a dim shade of the rally
      * colour, so it shifts with every paddle hit. A colour change is an
-     * overdraw -- the text is drawn with an opaque background in the same
-     * place -- so nothing is erased and nothing flashes. The only other thing
-     * that repaints it is the ball passing through, which has already punched
-     * its own square out of it. */
+     * overdraw -- the same silhouette, in the same place -- so nothing is
+     * erased and nothing flashes. The only other thing that repaints it is the
+     * ball passing through, which has already punched its own square out of
+     * it; the erase inside that square is why the mark is redrawn whole rather
+     * than only when its colour moves.
+     *
+     * The block is the mark with the copyright line under it, and its box is
+     * derived from the mask's own size -- the net skips that box, and the ball
+     * test uses it, so a typed-in rectangle here would show up as a net drawn
+     * through the logo. */
     const int16_t midX = static_cast<int16_t>(effW / 2);
     const int16_t midY = static_cast<int16_t>(effH / 2);
-    const int16_t nameY = static_cast<int16_t>(midY - 10);
-    const int16_t copyY = static_cast<int16_t>(midY + 14);
+    constexpr int16_t COPY_GAP = 8;
+    const int16_t logoW = Ui::logoWidth();
+    const int16_t logoH = Ui::logoHeight();
+    const int16_t blockH = static_cast<int16_t>(logoH + COPY_GAP + 8);
+    const int16_t textY = static_cast<int16_t>(midY - blockH / 2);
+    const int16_t logoCy = static_cast<int16_t>(textY + logoH / 2);
+    const int16_t copyY = static_cast<int16_t>(textY + logoH + COPY_GAP);
     const int16_t textW = static_cast<int16_t>(
-        max<int16_t>(static_cast<int16_t>(tft.textWidth(BRAINO_PRODUCT_NAME, 4)),
-                     static_cast<int16_t>(tft.textWidth(BRAINO_COPYRIGHT, 1))) + 8);
+        max<int16_t>(logoW, static_cast<int16_t>(tft.textWidth(BRAINO_COPYRIGHT, 1))) + 8);
     const int16_t textX = static_cast<int16_t>(midX - textW / 2);
-    const int16_t textY = static_cast<int16_t>(midY - 26);
-    constexpr int16_t TEXT_H = 48;
+    const int16_t TEXT_H = blockH;
     const uint16_t nameColour = Ui::shade(ssav_color_, 60);
     if (!ssav_textDrawn_ || nameColour != ssav_textColorDrawn_ ||
         hitsBall(textX, textY, textW, TEXT_H)) {
+        /* No erase, deliberately: the silhouette never changes shape, so the
+         * new colour lands on exactly the pixels the old one occupied, and the
+         * ball has already blacked out whatever it flew through. Clearing the
+         * block first would be a 72x104 flash on every paddle hit. */
+        Ui::drawLogo(tft, midX, logoCy, nameColour);
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(nameColour, TFT_BLACK);
-        tft.drawString(BRAINO_PRODUCT_NAME, midX, nameY, 4);
         tft.setTextColor(Ui::rgb(70, 76, 92), TFT_BLACK);
         tft.drawString(BRAINO_COPYRIGHT, midX, copyY, 1);
         tft.setTextDatum(TL_DATUM);

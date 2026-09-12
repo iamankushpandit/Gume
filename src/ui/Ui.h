@@ -37,6 +37,10 @@ uint16_t outline();
 uint16_t success();
 uint16_t error();
 uint16_t warning();
+/* The fill of a primary action -- Settings' Network button, Wi-Fi's Scan and
+ * JOIN. Pair it with onFill(accent()) for the label rather than assuming
+ * white: on the themes whose accent is light, white on it cannot be read. */
+uint16_t accent();
 void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
@@ -49,13 +53,67 @@ void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
 void drawLockIcon(Ui::Renderer& tft, const Rect& r, uint16_t color, uint16_t bg);
 void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color = TFT_WHITE);
 
+/* THE PRODUCT MARK, centred on (cx, cy) and painted in `colour`.
+ *
+ * One-bit silhouettes generated from the artwork by tools/gen_logo_mask.py.
+ * Only the ink is painted -- the background is left alone -- so a caller that
+ * wants the mark in a new colour simply draws it again in the same place,
+ * which is what the screen saver does on every paddle hit.
+ *
+ * THE PRODUCT NAME IS NOT DRAWN AS TEXT ANYWHERE BUT THE LAUNCHER. It is the
+ * mark, and a font-4 approximation of it is not; every other screen that used
+ * to spell "Braino!" in the UI font now draws `Logo::Word` or
+ * `Logo::WordSmall`, which are the real letterforms at the size that text was.
+ * The launcher keeps its text because its header is laid out to the pixel
+ * around a measured string, and that is a separate change.
+ *
+ * Sizes are fixed, because the masks are: ask logoWidth()/logoHeight() for the
+ * variant you are drawing and lay out around them rather than assuming. */
+enum class Logo : uint8_t {
+    Badge,       // the whole artwork: brain over wordmark, for the saver
+    Word,        // the wordmark alone, at the height a font-4 heading was
+    WordSmall,   // the wordmark alone, at the height a font-2 row was
+    BadgeMid,    // the whole artwork at two thirds: the lock screen
+    Icon,        // the brain alone, beside a header row's wordmark
+    IconBig,     // the brain alone, for a page corner
+};
+
+/* `cx` is where the mark should LOOK centred. That is not the middle of its
+ * bitmap: the trade mark sign hangs off the right-hand end, so a mark centred
+ * by its image sits visibly left of centre. To place one against a left edge,
+ * pass `x + logoCentre(which)`. */
+void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
+              Logo which = Logo::Badge);
+int16_t logoWidth(Logo which = Logo::Badge);
+int16_t logoHeight(Logo which = Logo::Badge);
+int16_t logoCentre(Logo which = Logo::Badge);
+
+/* ONE HEIGHT FOR EVERY STATUS GLYPH IN A HEADER ROW. The sync dot, the Wi-Fi
+ * fan and the Bluetooth rune are all drawn inside a box this tall, centred on
+ * the `cy` they are given. They were 13, 13 and 17 once, chosen separately,
+ * and a row of icons that do not share a height reads as a mistake however
+ * good each one is on its own.
+ *
+ * The battery badge is the deliberate exception: it is a shell containing a
+ * number rather than a glyph, and it needs two more pixels for the digits to
+ * be legible. Everything else in that row matches this. */
+constexpr int16_t BADGE_H = 13;
+
+/* And ONE SIZE FOR EVERY TAPPABLE GLYPH IN THE BAR -- the padlock, the
+ * speaker and the gear. The gear was 26x24 beside an 18px padlock, so the two
+ * controls sitting four pixels apart were different sizes for no reason a
+ * user could see; shrinking it also paid for eight of the pixels the speaker
+ * costs. TOUCH_HIT_SLOP widens all three targets equally, so a smaller glyph
+ * is not a smaller thing to hit. */
+constexpr int16_t CONTROL_H = 18;
+
 /* Small badge shown beside the clock: a tick when the time came from NTP, a
  * warning dot when it is still the free-running build-time estimate. Drawn at
- * (cx, cy) as a centre point; about 12px across. */
+ * (cx, cy) as a centre point; BADGE_H across. */
 void drawSyncBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, bool synced, uint16_t bg);
 
 /* Wi-Fi state beside the clock: signal arcs when associated, greyed with a red
- * slash when not. Centred on (cx, cy), about 16px across. */
+ * slash when not. Centred on (cx, cy), BADGE_H tall. */
 void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
 
 /* Battery beside Wi-Fi: a battery shell holding the percentage as numerals,
@@ -83,6 +141,17 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent);
  * shade, and that is the one question this icon exists to answer at a glance.
  * Centred on (cx, cy), 10x16. */
 void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
+
+/* Sound, as a CONTROL rather than an indicator: one tap mutes or unmutes the
+ * console from wherever the player is, which before this meant leaving the
+ * game, opening Settings, finding the Sound tab and being the admin.
+ *
+ * It always shows the state it is in -- waves when sound is on, a slash when
+ * it is muted -- because a toggle that looks the same either way makes the
+ * question "is it muted?" answerable only by making a noise, which is the one
+ * thing you cannot do in the room where somebody muted it. Drawn to
+ * CONTROL_H, ink from `bg` like every other glyph up there. */
+void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour);
 
 /* Transient notification strip, painted over the top of whatever header is
  * already there. Nearby play raises these when another console arrives or
@@ -210,6 +279,21 @@ constexpr int16_t BUTTON_SHADOW_DY = 3;
 
 /** Text and glyphs drawn on the top bar. A palette role, not a constant. */
 uint16_t barText();
+
+/* THE INK THAT CAN BE READ ON `fill`: black or white, whichever contrasts
+ * more. Use it wherever text or a glyph goes on a colour the THEME chose --
+ * a launcher tile, the success badge -- rather than picking one and hoping.
+ *
+ * The launcher's tile labels were a fixed white over a palette fill, which is
+ * how Classic came to draw white on a light grey tile at 1.3:1 and Pocket
+ * white on pale green at 2.6:1. Neither is readable, and neither was visible
+ * in a mock-up of the Dark theme.
+ *
+ * `onFillSoft` is the same decision, backed off towards the fill, for the
+ * second line of a tile -- the subtitle that used to be a fixed near-white. It
+ * stays the readable side of the fill, so it dims without vanishing. */
+uint16_t onFill(uint16_t fill);
+uint16_t onFillSoft(uint16_t fill);
 /* The three launcher tile fills, cycled by slot. They are palette entries
  * because a theme built from four shades of green cannot survive three bright
  * RGB tiles on its first screen. */
