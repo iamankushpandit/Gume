@@ -39,14 +39,16 @@ void ChessGame::renderLobby(AppContext& host) {
     }
 
     tft.setTextDatum(BC_DATUM);
-    tft.setTextColor(Ui::muted(), Ui::bg());
     /* The empty case names who can fix it. Switching the radio on is an
      * admin job, so a player who reads "turn Beacon on" and cannot find the
      * switch has been sent to a door they have no key for. Playing, once it is
-     * on, needs no admin at all. */
-    const char* note = seatCount_ > 0
-        ? "Moves travel by Bluetooth. Anyone near hears them."
-        : "Nobody nearby. An adult can switch Beacon and Nearby on.";
+     * on, needs no admin at all. A low battery outranks both: a console that
+     * dies mid-game cannot tell anyone, so this is the moment to say it. */
+    const bool low = seatCount_ > 0 && host.batteryLow();
+    tft.setTextColor(low ? Ui::warning() : Ui::muted(), Ui::bg());
+    const char* note = low             ? "Battery low: a nearby game may not finish."
+                       : seatCount_ > 0 ? "Moves travel by Bluetooth. Anyone near hears them."
+                                        : "Nobody nearby. An adult can switch Beacon and Nearby on.";
     tft.drawString(note, static_cast<int16_t>(tft.width() / 2),
                    static_cast<int16_t>(tft.height() - 6), 1);
     tft.setTextDatum(TL_DATUM);

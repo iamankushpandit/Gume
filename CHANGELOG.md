@@ -33,6 +33,11 @@ computer seat the host plays, said to the table as a numbered turn
 no payload change), and the console that left is sent to its lobby if it
 returns, told why. Ludo's save format is version 3 for the dropped chairs.
 
+The one silence that can be seen coming is your own, so every nearby lobby's
+footer says "Battery low: a nearby game may not finish" when the board's own
+low-battery threshold is crossed (`AppContext::batteryLow()`, from the
+published snapshot, never the ADC).
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its

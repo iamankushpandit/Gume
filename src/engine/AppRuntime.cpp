@@ -121,6 +121,12 @@ void BrainoApp::playSound(Sound cue) {
     board_.playSound(cue);
 }
 
+bool BrainoApp::batteryLow() {
+    /* isBatteryLow() reads the snapshot the sampling task publishes -- no
+     * conversion on this path. A board with no battery sense is never low. */
+    return BOARD.hasBatterySense() && board_.isBatteryLow();
+}
+
 void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
     board_.pulseRgb(r, g, b, ms);
 }

@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,513,893 / 3,145,728 bytes (**79.9%**) |
+| Flash | 2,514,181 / 3,145,728 bytes (**79.9%**) |
 | RAM | 79,916 / 327,680 bytes (**24.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1077,7 +1077,8 @@ seat the host plays, announced to the table as an ordinary numbered turn, and
 the console that left is sent back to its lobby if it returns, told why.
 Nothing new is transmitted for any of this: it is worked out from the beacon
 not being there, and the takeover is a new meaning for a field the moves
-already use.
+already use. The one silence that can be seen coming is your own: when the
+battery is low, every nearby lobby says so before a game starts.
 
 Consoles can be given names, and a name is what you see on screen -- but a name
 is stored on your own device and is never transmitted. The advertisement is

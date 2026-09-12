@@ -401,11 +401,15 @@ void BackgammonGame::renderLobby(AppContext& host) {
     }
     /* Why a game just vanished, else what nearby play is and who can switch
      * it on -- an adult, since the radio is admin-only; playing is not. */
+    /* A low battery outranks the usual note, below a note about a game that
+     * just ended: a console that dies mid-game cannot tell anyone. */
+    const bool low = lobbyNote_[0] == 0 && seatCount_ > 0 && host.batteryLow();
     const char* note = lobbyNote_[0] != 0 ? lobbyNote_
+                       : low              ? "Battery low: a nearby game may not finish."
                        : seatCount_ > 0   ? "Moves travel by Bluetooth. Anyone near hears them."
                                           : "Nearby play: an adult can switch Beacon and Nearby on.";
     tft.setTextDatum(BC_DATUM);
-    tft.setTextColor(lobbyNote_[0] != 0 ? Ui::warning() : Ui::muted(), Ui::bg());
+    tft.setTextColor(lobbyNote_[0] != 0 || low ? Ui::warning() : Ui::muted(), Ui::bg());
     tft.drawString(note, GAME_CANVAS_WIDTH / 2, GAME_CANVAS_HEIGHT - 4, lobbyNote_[0] != 0 ? 2 : 1);
     tft.setTextDatum(TL_DATUM);
 }

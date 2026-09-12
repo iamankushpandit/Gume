@@ -92,6 +92,7 @@ public:
     void beepOk() override;
     void beepError() override;
     void playSound(Sound cue) override;
+    bool batteryLow() override;
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) override;
     void drawTopBar(const char* title) override;
     void goHome() override;

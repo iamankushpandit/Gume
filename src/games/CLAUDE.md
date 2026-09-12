@@ -165,6 +165,15 @@ Nothing about this transmits. It is derived from the ABSENCE of the beacon
 that is already there, which is why it needed no payload change and no
 agreement about what goes on the air.
 
+**And the one case that can be anticipated is.** Your own battery dying is
+the one silence you can see coming, so every nearby lobby's footer line
+becomes "Battery low: a nearby game may not finish", in the warning colour,
+when `AppContext::batteryLow()` says so -- the board's own
+`BATTERY_LOW_PERCENT`, from the published snapshot, never the ADC. It
+replaces the broadcast note rather than adding a line, because the lobbies
+have one line to give. A new nearby lobby should do the same in the same
+slot.
+
 Who can use it:
 
 - **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,

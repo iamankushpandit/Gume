@@ -78,6 +78,13 @@ public:
      * happened rather than the one that sounds nicest. Silent on a board with
      * no codec, so nothing may depend on it having been heard. */
     virtual void playSound(Sound cue) = 0;
+    /* True at or below the board's own low-battery threshold
+     * (Board::BATTERY_LOW_PERCENT); false on a board with no battery sense.
+     * A nearby lobby says so before a game starts: a console whose battery
+     * dies mid-game cannot tell anyone, so this is the one moment it can be
+     * anticipated rather than discovered. Reads a published snapshot, not the
+     * ADC, so it is safe from a render path. */
+    virtual bool batteryLow() = 0;
     virtual void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) = 0;
     virtual void drawTopBar(const char* title) = 0;
     virtual void goHome() = 0;
