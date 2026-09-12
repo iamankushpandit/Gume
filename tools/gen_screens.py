@@ -1785,34 +1785,37 @@ def settings_sound():
     """Settings tab: the mute switch and the volume, with the two test buttons.
 
     Geometry from muteRect() / volumeRect() / testCueRect() / testVoiceRect() /
-    findAlertRect(), all four rows of one grid -- so it is computed here the
-    way SettingsPanels computes it rather than typed in:
+    findAlertRect(). This tab does NOT use the shared four-row grid -- it has
+    the same four controls plus a caption line and two footnotes, which does
+    not fit a 34px pitch -- so it measures its own bands, each from the one
+    above, and this reproduces that arithmetic rather than restating its
+    output:
 
-        pitch  = (240 - SETTINGS_BOTTOM_RESERVE 36 - MARGIN 8 - TOP 58) // 4
-        row(n) = 58 + n * pitch,  height = pitch - 4
+        rowH  = gridRowHeight()  = (240 - 36 - 8 - 58) // 4 - 4  = 30
+        mute  = 58, rowH
+        track = mute.bottom + 4 + 12 (the caption), 32
+        tests = track.bottom + 4, rowH
+        find  = tests.bottom + 4, rowH
+        foot  = find.bottom + 8, then +16
 
-    which is 34 and rows at 58/92/126/160. The literals that were here before
-    -- 58/104/148 -- came from a comment describing a pitch of ~45, and had
-    drifted: the picture showed the test buttons 22px lower than the panel puts
-    them. Nothing flagged it, because a mock-up is only ever compared to
-    itself. Adding the fourth row is what made the two disagree visibly.
-
-    Drawn mid-travel rather than at the default. The default is AT the ceiling
-    (Board::AUDIO_VOLUME_MAX, 85), and a slider drawn full-width would show
-    nothing about the range -- a picture of a handle at the right-hand end
-    looks like 100% whatever the readout says. The ceiling is a fact for the
-    prose to carry; what the picture is for is the layout.
+    The literals that were here once -- 58 / 104 / 148 -- came from a comment
+    describing a pitch of ~45 and had drifted. Because this file had copied
+    them, the picture and the panel were never compared to each other, which
+    is how the caption came to be printed across the bottom of the mute button
+    on every console without anything noticing.
     """
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 2)
-    pitch = (240 - 36 - 8 - 58) // 4
-    row = lambda n: 58 + n * pitch
-    h = pitch - 4
-    button(d, (8, row(0), 304, h), "Sound: On")
-    d.text((8, row(1) - 12), "Volume", font=F1, fill=MUTED)
-    d.text((312 - d.textlength("70%", font=F1), row(1) - 12), "70%",
+    h = (240 - 36 - 8 - 58) // 4 - 4          # gridRowHeight()
+    mute_y = 58
+    track_y = mute_y + h + 4 + 12              # SOUND_GAP + SOUND_CAPTION_H
+    tests_y = track_y + 32 + 4
+    find_y = tests_y + h + 4
+    button(d, (8, mute_y, 304, h), "Sound: On")
+    d.text((8, track_y - 12), "Volume", font=F1, fill=MUTED)
+    d.text((312 - d.textlength("70%", font=F1), track_y - 12), "70%",
            font=F1, fill=MUTED)
-    r = (8, row(1), 304, 32)
+    r = (8, track_y, 304, 32)
     cy = r[1] + r[3] // 2
     pad, span = 11, r[2] - 22
     fill = int(70 / 85 * span)          # value / AUDIO_VOLUME_MAX
@@ -1825,12 +1828,12 @@ def settings_sound():
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
     d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
-    button(d, (8, row(2), 144, h), "Test sound", ACCENT, on_fill(ACCENT))
-    button(d, (164, row(2), 144, h), "Say hello", ACCENT, on_fill(ACCENT))
-    # Row 3, the tab's last spare row. An ordinary panel button because it
-    # stays live while the console is muted, unlike everything above it.
-    button(d, (8, row(3), 304, h), "Find alert: Ring")
-    foot = row(3) + h + 12
+    button(d, (8, tests_y, 144, h), "Test sound", ACCENT, on_fill(ACCENT))
+    button(d, (164, tests_y, 144, h), "Say hello", ACCENT, on_fill(ACCENT))
+    # An ordinary panel button because it stays live while the console is
+    # muted, unlike everything above it.
+    button(d, (8, find_y, 304, h), "Find alert: Ring")
+    foot = find_y + h + 8
     d.text((8, foot), "Volume is capped for young ears.", font=F1, fill=MUTED)
     d.text((8, foot + 16), "Every sound is made by the device, not a file.",
            font=F1, fill=MUTED)
