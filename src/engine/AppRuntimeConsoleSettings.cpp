@@ -168,6 +168,14 @@ const BrainoApp::ConsoleSetting* BrainoApp::consoleSettings(size_t& count) {
              a.board_.setWakeLockEnabled(on);
              return nullptr;
          }},
+        {"find_alert", "on|off", nullptr,
+         [](BrainoApp& a, char* o, size_t n) { onOff(o, n, a.board_.findAlertEnabled()); },
+         [](BrainoApp& a, const char* v) -> const char* {
+             bool on = false;
+             if (!parseOnOff(v, on)) return "range find_alert is on|off";
+             a.board_.setFindAlertEnabled(on);
+             return nullptr;
+         }},
         {"light", "on|off", nullptr,
          [](BrainoApp& a, char* o, size_t n) { onOff(o, n, a.board_.rgbEnabled()); },
          [](BrainoApp& a, const char* v) -> const char* {

@@ -241,6 +241,27 @@ void BrainoApp::loop() {
         requestChromeRender();
     }
 
+    /* A console being looked for lights its panel, and any press stops it.
+     *
+     * The wake goes through the ordinary path, so an owner who keeps the
+     * hold-to-unlock guard on still gets it -- and that is the right screen to
+     * arrive at: the lock screen carries the wordmark and the battery badge,
+     * which is exactly what somebody who has just found a device wants, and it
+     * returns itself to sleep afterwards.
+     *
+     * The press is NOT consumed. It stops the noise and then does whatever it
+     * was going to do; the lock screen already swallows the press that woke
+     * it. Dismissing here rather than inside any one view means every way of
+     * ending an alert -- a touch, the BOOT key, or its own timeout in
+     * NearbyPlay::tick() -- runs the same restore of the mute switch. */
+    if (NearbyPlay::alertActive() &&
+        (rawTouch.justPressed || rawTouch.down || boot.justPressed)) {
+        NearbyPlay::dismissAlert(board_);
+    }
+    if (NearbyPlay::alertActive() && view_ == View::Asleep) {
+        wakeFromSleep();
+    }
+
     /* The BOOT key counts as activity exactly as a touch does. Leaving it out
      * would mean pressing Home and watching the saver arrive a moment later,
      * because as far as the idle timer was concerned nobody had touched the

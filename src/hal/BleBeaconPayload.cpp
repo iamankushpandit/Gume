@@ -92,6 +92,7 @@ void buildPayload(Advertisement& a) {
     mfg[n++] = idBytes_[1];
     mfg[n++] = static_cast<uint8_t>((a.sharesActivity ? FLAG_SHARES_ACTIVITY : 0x00) |
                                     (a.poking ? FLAG_POKE : 0x00) |
+                                    (a.poking && a.findMe ? FLAG_FIND : 0x00) |
                                     (a.inviting ? FLAG_INVITE : 0x00) |
                                     (a.hasTurn ? FLAG_TURN : 0x00));
     if (a.sharesActivity) {
@@ -217,6 +218,7 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
      * 2 did and what a poke's shorter block breaks. */
     const bool shares = (mfg[7] & FLAG_SHARES_ACTIVITY) != 0;
     const bool poke = (mfg[7] & FLAG_POKE) != 0;
+    const bool find = (mfg[7] & FLAG_FIND) != 0;
     const bool invite = (mfg[7] & FLAG_INVITE) != 0;
     const bool turn = (mfg[7] & FLAG_TURN) != 0;
 
@@ -225,6 +227,7 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
     out.bestScore = 0;
     out.haveScore = false;
     out.poking = false;
+    out.findMe = false;
     out.pokeTarget[0] = '\0';
     out.pokeNonce = 0;
     out.inviting = false;
@@ -270,6 +273,10 @@ bool decode(const uint8_t* mfg, uint8_t len, Observation& out) {
     }
     if (poke && len >= MFG_LEN_POKE) {
         out.poking = true;
+        /* Gated on the poke's own length like every other field, not on the
+         * flag alone: FLAG_FIND carries no bytes of its own, but the target
+         * and nonce it qualifies do. */
+        out.findMe = find;
         snprintf(out.pokeTarget, sizeof(out.pokeTarget), "%02X%02X", mfg[9], mfg[10]);
         out.pokeNonce = mfg[11];
     } else if (out.sharesActivity && !turn && len >= MFG_LEN_ACTIVITY) {

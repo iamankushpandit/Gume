@@ -97,6 +97,7 @@ private:
     Rect volumeRect() const;
     Rect testCueRect() const;
     Rect testVoiceRect() const;
+    Rect findAlertRect() const;
 
     Rect idleActionRect() const;
     Rect idleAfterRect() const;

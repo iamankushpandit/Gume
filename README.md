@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-81.3%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-81.4%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -30,8 +30,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 38 |
-| Flash | 2,557,977 / 3,145,728 bytes (**81.3%**) |
-| RAM | 86,820 / 327,680 bytes (**26.5%**) |
+| Flash | 2,559,601 / 3,145,728 bytes (**81.4%**) |
+| RAM | 86,876 / 327,680 bytes (**26.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -631,6 +631,13 @@ go. On a board with no audio codec the tab says so plainly rather than offering
 controls that do nothing — "this board cannot" and "you have muted it" are
 different things to tell an owner. See [Sound](#sound).
 
+The tab's last row is **Find alert**, which decides whether a *Find* from
+another console makes this one ring. It is the one control here that stays live
+while the console is muted, because muted is exactly the state it governs: on
+**Ring** a find briefly unmutes the console so it can answer and mutes it again
+afterwards; on **Quiet** the console still shows the banner and blinks its LED
+and never makes a sound. See [Find my Braino](#nearby-play).
+
 **Admin** holds the PIN and **Recalibrate touch**. The calibration wizard runs
 on its own only when nothing is stored, which leaves one hole it cannot fill: a
 calibration that is *present but wrong* — drifted, or captured by a child
@@ -763,6 +770,29 @@ should be:
   transmitted repeatedly for those seconds because a listener's scan windows
   have gaps, and a nonce makes sure the target reacts exactly once no matter how
   many copies it hears.
+
+**Find my Braino.** Beside each peer's *Poke* there is a *Find*, and it is the
+one to press when the console is not in the room you are in. The far end does
+not blip once and hope somebody is looking at it: it **rings a bell every
+second and a half for twenty seconds, blinks its case LED, and lights its
+screen**, so you can walk towards it. Any touch, or the BOOT key, stops it; so
+does the twenty seconds running out.
+
+Three things worth knowing, because they are the difference between a feature
+that works when you need it and one that does not:
+
+- **It will unmute a muted console, and mute it again afterwards.** A console
+  that has been silenced is exactly the one you cannot find, so a find flips
+  the switch to answer and puts it back the moment the alert ends. If you would
+  rather it never did that, **Settings > Sound > Find alert: Quiet** leaves the
+  banner and the LED and takes the bell -- and with it the unmuting.
+- **It wakes the screen even from sleep**, arriving at the lock screen if you
+  use hold-to-unlock, which is the screen that shows the wordmark and the
+  battery. It puts itself back to sleep if nobody picks it up.
+- **It sends nothing new.** A find is the same poke on the same beacon with one
+  spare flag bit set: no extra bytes, no new kind of data, and the same
+  broadcast caveat as a poke -- everyone in range hears who is looking for
+  whom, and only the named console rings.
 
 **Naming a device.** A tag like `A4F2` says nothing about whose console it is,
 so the admin can label one -- up to 10 characters -- and the list and the poke
@@ -1147,7 +1177,9 @@ bit is clear. "Not transmitted" has to be structural to be worth claiming.
 
 A **poke** adds one more thing, and only for the few seconds it is on air: the
 device id being poked, plus a counter that lets the target tell a repeat from a
-new poke. That id is not new information on the radio — it is the same id that
+new poke. A **find** is that same poke with one spare flag bit set, so it adds
+nothing further at all -- what differs is entirely what the *receiving* console
+does about it. That id is not new information on the radio — it is the same id that
 device is already broadcasting as its own name. Because the payload is already
 full, the poke *replaces* the best-score bytes while it is live rather than
 being added to them.

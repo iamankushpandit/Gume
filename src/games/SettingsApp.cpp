@@ -189,6 +189,16 @@ void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
             board.playSound(Sound::Boot);
             return;
         }
+        if (findAlertRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            /* No soundEnabled() guard, unlike every control above. Muted is
+             * precisely when this matters: it decides whether a find may
+             * unmute the console to answer. */
+            const bool ring = !board.findAlertEnabled();
+            board.setFindAlertEnabled(ring);
+            if (ring && board.soundEnabled()) board.playSound(Sound::Bell);
+            markControl(findAlertRect());
+            return;
+        }
         return;
     }
 

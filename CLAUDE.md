@@ -571,9 +571,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,557,977 / 3,145,728 bytes,
-**81.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 86,820 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,559,601 / 3,145,728 bytes,
+**81.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 86,876 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -897,6 +897,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   target reacts -- and the docs must keep saying so rather than implying a
   private channel. The one identifier it carries is the target's own advertised
   id, so it adds an event to the radio, not a new kind of data.
+- **A find is a poke that asks to be heard, and it spends a reserved flag bit
+  rather than a byte or a version.** `FLAG_FIND` (bit 4) makes the target ring
+  `Sound::Bell` on a cadence, blink its LED and wake its panel, for
+  `ALERT_MS`. It adds nothing to a payload that has nothing to add to. **It
+  does not bump `PAYLOAD_VERSION`, and must not**: `decode()` rejects the whole
+  manufacturer block on a version mismatch, so a bump makes consoles either
+  side of it invisible to each other in Nearby -- worse than the problem. That
+  is safe here only because no length and no existing field changed meaning, so
+  an older reader sees a poke and blips. **A future flag that moves a field
+  does have to bump the version.** It is still a broadcast: everyone in range
+  hears who is looking for whom, only the target rings.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
@@ -917,6 +928,17 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the whole of the feedback on a codec-less board anyway. `soundEnabled()` and
   `volume()` are RAM-mirrored write-through settings because the first is on
   the path of every cue in every game.
+
+  **Exactly one thing may change the switch itself, and it puts it back.** A
+  find alert (see above) unmutes a muted console so that it can answer, and
+  `NearbyPlay::dismissAlert()` restores it -- which is why every way an alert
+  can end, a touch and the BOOT key and its own timeout, funnels through that
+  one function. Note what this is *not*: nothing reaches past
+  `Board::playSound()`, so the invariant still holds literally -- a muted
+  console is silent, and this console is briefly not muted. It is the same
+  shape as `lockOnWake_`: a one-time override of a device setting, cleared in
+  the one place that already decides the episode is over. If you need a second
+  such override, be sure it can say the same two things.
 - **A screen makes a noise through `playSound(Sound::...)` and nothing else.**
   `Board::beep(freq, ms)` is private on purpose. A shared vocabulary is the
   point -- `Coin` means the same thing in Whack-a-Mole as in Memory, and a game

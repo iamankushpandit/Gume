@@ -66,7 +66,7 @@ constexpr const char* NAME_PREFIX = "Braino-";
 /** gameIndex value meaning "no game open". */
 constexpr uint8_t GAME_NONE = 0xFF;
 
-/* Manufacturer-data flag bits. The rest are reserved and must be transmitted
+/* Manufacturer-data flag bits. Bits 5-7 are reserved and must be transmitted
  * as zero. */
 constexpr uint8_t FLAG_SHARES_ACTIVITY = 0x01;
 constexpr uint8_t FLAG_POKE = 0x02;
@@ -80,6 +80,19 @@ constexpr uint8_t FLAG_INVITE = 0x04;
  * tells them apart -- which is exactly why the version had to go to 4: a
  * version-3 reader seeing thirteen bytes would read a move as a best score. */
 constexpr uint8_t FLAG_TURN = 0x08;
+
+/* A poke that asks to be HEARD rather than merely noticed -- "find my
+ * Braino". It rides inside the POKE block and adds no bytes, which is the only
+ * reason it could exist at all: the sharing payload is already exactly 31.
+ *
+ * It does NOT bump PAYLOAD_VERSION, and that is deliberate rather than lazy.
+ * decode() rejects an entire manufacturer block on a version mismatch, so a
+ * bump would make consoles on either side of it mutually invisible in Nearby
+ * -- peers would vanish from each other's lists, which is far worse than the
+ * thing it would be protecting. Reserved bits exist for exactly this: a reader
+ * that does not know bit 4 sees FLAG_POKE, ignores the rest, and pokes. The
+ * field lengths are untouched, so there is nothing it can misread. */
+constexpr uint8_t FLAG_FIND = 0x10;
 
 /* Manufacturer-data lengths, in bytes, excluding the AD header.
  *   BASE     company(2) tag(2) version(1) id(2) flags(1)
@@ -151,6 +164,9 @@ struct Advertisement {
      * clearExpiredPoke() once POKE_ADVERTISE_MS has passed, which is what
      * keeps this an event rather than a state somebody is left stuck in. */
     bool poking = false;
+    /* Set with `poking` when the poke is a find, so the far end rings
+     * rather than blipping. Costs a reserved flag bit and no bytes. */
+    bool findMe = false;
     uint8_t pokeTarget[2] = {0, 0};
     uint8_t pokeNonce = 0;
 
@@ -199,6 +215,10 @@ struct Observation {
      * otherwise in the API would invite somebody to treat it as private. Only
      * the device whose id matches reacts. */
     bool poking = false;
+    /* The poke asks to be heard, not merely noticed. A reader that predates
+     * FLAG_FIND simply leaves this false and blips, which is the whole point
+     * of spending a reserved bit rather than a version. */
+    bool findMe = false;
     char pokeTarget[5] = {0};
     uint8_t pokeNonce = 0;
 
@@ -245,8 +265,11 @@ void setActivity(bool share, uint8_t gameIndex, uint32_t bestScore);
 /* Put a poke on air for POKE_ADVERTISE_MS, aimed at one peer's device id (the
  * four hex digits it advertises, e.g. "A4F2"). Bumps the nonce so a repeat of
  * the same target is a new event, and returns false if the id is malformed or
- * the beacon is not advertising. */
-bool poke(const char* targetDeviceId);
+ * the beacon is not advertising.
+ *
+ * `findMe` marks it a find rather than a nudge -- same bytes, one reserved
+ * flag bit, and the far end rings instead of blipping. See FLAG_FIND. */
+bool poke(const char* targetDeviceId, bool findMe = false);
 
 /* Drop an expired poke and re-advertise without it. Called once per frame from
  * the same tick that drives the scanner; cheap and idempotent when there is no

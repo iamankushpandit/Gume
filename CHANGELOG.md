@@ -10,6 +10,43 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**Find my Braino.** The Nearby screen's peer list gains a *Find* beside each
+*Poke*. A poke was only ever a blip and a banner -- fine for nudging somebody
+who is holding their console, useless for the case everybody actually has,
+which is a console down the back of a sofa. A find makes the far end ring a
+bell every 1.5s for 20s, blink its case LED and wake its screen, and any touch
+or the BOOT key stops it.
+
+Nothing new goes on the air. A find is the same poke with one reserved flag bit
+set -- the payload is already exactly 31 bytes and had nothing to give -- so
+what changed is entirely what the receiving console does about it. The layout
+version is deliberately *not* bumped: a reader rejects the whole manufacturer
+block on a version mismatch, so bumping it would have made consoles either side
+of this release invisible to each other in Nearby, while a console that does
+not know the bit simply pokes as it always did.
+
+**A find will unmute a muted console, and mute it again when the alert ends.**
+A console that has been silenced is precisely the one that cannot be found, so
+the alert flips the switch to answer and `NearbyPlay::dismissAlert()` -- the
+single place an alert can end, whether by touch, by the BOOT key or by timing
+out -- puts it back. The one-gate mute rule is intact: nothing reaches past
+`Board::playSound()`; the switch itself genuinely changes and genuinely
+returns. **Settings > Sound > Find alert: Quiet** opts out, leaving the banner
+and the LED.
+
+`Sound::Bell` is the first cue in the vocabulary meant to be heard from another
+room rather than by whoever is holding the device.
+
+**Three refactors landed first**, each its own commit and none of them changing
+behaviour: `BleBeacon.cpp` (648 lines) splits into the radio and
+`BleBeaconPayload.cpp`, which now holds the advertisement's one description and
+`decode()`, its exact inverse, alone in one file; `AppRuntime.cpp` (671) gives
+up the header banner to `AppRuntimeNotify.cpp`, where the three things that can
+raise one and the priority between them sit together; and `BoardAudio.cpp`
+(1456) becomes the synthesiser, `BoardAudioBackend.cpp` for the codec, I2S,
+amplifier and DAC, and `BoardAudioCues.cpp` for the vocabulary -- so adding a
+sound now touches one file and no hardware.
+
 **The Wi-Fi badge no longer floats away from the network it describes.** On
 the Wi-Fi screen it was pinned at the right-hand edge of the design while the
 SSID was left-aligned, so it sat alone with the width of the row empty between

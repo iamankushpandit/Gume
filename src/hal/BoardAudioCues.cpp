@@ -160,6 +160,27 @@ constexpr Segment CUE_YOUR_TURN[] = {
     tone(784, 120, 80),
 };
 
+/* A struck bell, twice. The one cue meant to carry across a room.
+ *
+ * There is no per-segment envelope -- gain slews between segments and that is
+ * all -- so the decay of a strike is spelled out as the same pitch at falling
+ * amplitude. Two strikes rather than one because a single ring is easy to
+ * mistake for one of the shorter cues; a pair is unmistakably a bell asking
+ * for attention.
+ *
+ * 580ms total, and the ceiling matters: the runtime re-arms this every
+ * ALERT_CADENCE_MS, and arm() would read a re-arm inside its own duration as
+ * a held note and never restart it. See Sound::Bell. */
+constexpr Segment CUE_BELL[] = {
+    tone(1319, 60, 95),     // E6, struck
+    tone(1319, 90, 62),
+    tone(1319, 110, 30),    // ringing down
+    hush(40),
+    tone(1046, 60, 95),     // C6
+    tone(1046, 90, 62),
+    tone(1046, 130, 28),
+};
+
 /* The four pads. Sine rather than square: they are the only cue that plays
  * repeatedly at a steady pulse, and a square wave becomes wearing after two
  * dozen of them. 260ms fits inside Cinnamon's 600ms lit period with room, so
@@ -338,6 +359,7 @@ void Board::playSound(Sound cue) {
         case Sound::Pop:       armCue(CUE_POP); break;
         case Sound::Step:      armCue(CUE_STEP); break;
         case Sound::YourTurn:  armCue(CUE_YOUR_TURN); break;
+        case Sound::Bell:      armCue(CUE_BELL); break;
         case Sound::Pad1:      armCue(CUE_PAD_1); break;
         case Sound::Pad2:      armCue(CUE_PAD_2); break;
         case Sound::Pad3:      armCue(CUE_PAD_3); break;

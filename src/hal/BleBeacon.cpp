@@ -234,6 +234,7 @@ bool invitePeer(const char* targetDeviceId, uint8_t session,
      * waiting for. */
     adv_.hasTurn = false;
     adv_.poking = false;
+    adv_.findMe = false;
     adv_.inviting = true;
     adv_.pokeTarget[0] = target[0];
     adv_.pokeTarget[1] = target[1];
@@ -286,6 +287,7 @@ void setTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
     }
     adv_.hasTurn = true;
     adv_.poking = false;
+    adv_.findMe = false;
     adv_.inviting = false;
     adv_.turnSession = s6;
     adv_.turnPly = p7;
@@ -305,7 +307,7 @@ void clearTurn() {
     restartRadio();
 }
 
-bool poke(const char* targetDeviceId) {
+bool poke(const char* targetDeviceId, bool findMe) {
     if (!active_) {
         /* Nothing is on air, so nothing would carry it. Refusing beats
          * arming a poke that expires unheard six seconds later. */
@@ -316,6 +318,7 @@ bool poke(const char* targetDeviceId) {
         return false;
     }
     adv_.poking = true;
+    adv_.findMe = findMe;
     adv_.pokeTarget[0] = target[0];
     adv_.pokeTarget[1] = target[1];
     /* Wraps at 256 and that is fine: the receiver only asks whether this nonce
@@ -325,8 +328,8 @@ bool poke(const char* targetDeviceId) {
     pokeStartedMs_ = millis();
     buildPayload(adv_);
     restartRadio();
-    Serial.printf("[ble] poking %s (nonce %u)\n", targetDeviceId,
-                  static_cast<unsigned>(adv_.pokeNonce));
+    Serial.printf("[ble] %s %s (nonce %u)\n", findMe ? "finding" : "poking",
+                  targetDeviceId, static_cast<unsigned>(adv_.pokeNonce));
     return true;
 }
 
@@ -343,6 +346,7 @@ void clearExpiredPoke() {
         return;
     }
     adv_.poking = false;
+    adv_.findMe = false;
     adv_.inviting = false;
     adv_.pokeTarget[0] = 0;
     adv_.pokeTarget[1] = 0;

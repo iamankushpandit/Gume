@@ -49,6 +49,7 @@ struct Sighting {
      * than as one global "last poke" because two devices can poke inside the
      * same second, and a single slot would silently drop one of them. */
     bool poking = false;
+    bool findMe = false;        // the poke asks to be heard: see FLAG_FIND
     char pokeTarget[5] = {0};
     uint8_t pokeNonce = 0;
 

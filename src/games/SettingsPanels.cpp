@@ -97,11 +97,24 @@ Rect SettingsApp::brightRect() const {
  * come to this tab for and it should not have to be found. Below it the
  * volume slider, then the two test buttons side by side.
  *
- * The vertical stack is measured against 240px: tab baseline at 52, mute row
- * 58-88, the level readout on its own line at 96, the slider 104-136, the test
- * buttons 148-178, and two lines of explanation at 190 and 206 -- which leaves
- * 34px of margin at the bottom. There is room for one more row here and not
- * two. */
+ * The vertical stack is NOT typed in here, and the numbers below are only a
+ * reading of it -- gridRowPitch() derives the pitch from the live panel, which
+ * on 240px is (240 - 36 - 8 - 58) / 4 = 34, putting the four rows at 58, 92,
+ * 126 and 160, each 30 tall. Row 3 is the find-alert switch, and the two
+ * explanation lines derive from it rather than sitting at a literal, so they
+ * move with it; that leaves 14px of margin at the bottom.
+ *
+ * This comment previously stated 58 / 104 / 148 for the first three rows, from
+ * a pitch that has not held for some time, and tools/gen_screens.py had copied
+ * those literals -- which is why the mock-up disagreed with the panel without
+ * anything noticing. Read the numbers off gridRowPitch(), or do not state them.
+ *
+ * Row 3 was the one spare row this tab had, and it is now spent: anything
+ * further needs a tab of its own rather than a squeeze.
+ *
+ * The footnotes are derived from the last row rather than fixed, so they move
+ * with it -- they were at a literal 190/206 once, which put them straight
+ * through the test buttons on a taller panel. */
 Rect SettingsApp::muteRect()      const { return gridWide(0); }
 /* Takes the grid's position but keeps its designed height.
  *
@@ -117,6 +130,7 @@ Rect SettingsApp::volumeRect()    const {
 }
 Rect SettingsApp::testCueRect()   const { return gridCell(2, 0); }
 Rect SettingsApp::testVoiceRect() const { return gridCell(2, 1); }
+Rect SettingsApp::findAlertRect() const { return gridWide(3); }
 
 /* Power tab: four full-width rows, so the labels have room to say what the
  * setting actually does rather than abbreviating to fit half a screen.
@@ -350,7 +364,7 @@ void SettingsApp::renderSoundTab(GameHost& host) {
      * were at a fixed 190/206, which was under the buttons at 240 tall and
      * straight through them on a taller panel. */
     const int16_t soundFootY =
-        static_cast<int16_t>(testCueRect().y + testCueRect().h + 12);
+        static_cast<int16_t>(findAlertRect().y + findAlertRect().h + 12);
 
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
@@ -378,6 +392,20 @@ void SettingsApp::renderSoundTab(GameHost& host) {
                    Ui::outline(), testInk, false, 2);
     Ui::drawButton(tft, testVoiceRect(), "Say hello", testFill,
                    Ui::outline(), testInk, false, 2);
+
+    /* Whether a find from another console rings this one. It is on the Sound
+     * tab rather than beside Nearby because what it governs is noise, and
+     * because it is the switch an owner reaches for at bedtime.
+     *
+     * Live even while muted, deliberately -- unlike everything above it. Being
+     * muted is exactly the state in which this setting decides something: an
+     * alert unmutes the console to ring and mutes it again afterwards, and
+     * this is the switch that says whether it may. */
+    snprintf(label, sizeof(label), "Find alert: %s",
+             board.findAlertEnabled() ? "Ring" : "Quiet");
+    Ui::drawButton(tft, findAlertRect(), label,
+                   (admin && present) ? Ui::panel() : Ui::surface(), Ui::outline(),
+                   (admin && present) ? Ui::text() : Ui::muted(), false, 2);
 
     /* Two lines, and both are measured to fit 320px at font 1 -- the longest
      * of them is the not-admin one. Keep any replacement under about 52

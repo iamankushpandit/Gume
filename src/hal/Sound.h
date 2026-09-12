@@ -86,6 +86,19 @@ enum class Sound : uint8_t {
     NoteB4,
     NoteC5,
 
+    /* THE ONE CUE MEANT TO BE HEARD FROM ANOTHER ROOM.
+     *
+     * Every other sound here is feedback for somebody already holding the
+     * console, so it is short and quiet on purpose. This one answers "find my
+     * Braino": it is a struck bell, loud, with a long enough tail to carry
+     * through a cushion, and the runtime repeats it on a cadence for as long
+     * as the alert lasts. It stays under 700ms so that each repeat restarts
+     * the script rather than being taken for a held note -- arm() treats the
+     * same script arriving while it is still sounding as a continuation, which
+     * is what keeps a piano key from clicking and would here swallow the gap
+     * between rings. */
+    Bell,
+
     Boot,       // the spoken startup phrase
 };
 

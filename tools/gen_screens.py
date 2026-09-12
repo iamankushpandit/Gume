@@ -1784,7 +1784,18 @@ def wakelock_tall():
 def settings_sound():
     """Settings tab: the mute switch and the volume, with the two test buttons.
 
-    Geometry from muteRect() / volumeRect() / testCueRect() / testVoiceRect().
+    Geometry from muteRect() / volumeRect() / testCueRect() / testVoiceRect() /
+    findAlertRect(), all four rows of one grid -- so it is computed here the
+    way SettingsPanels computes it rather than typed in:
+
+        pitch  = (240 - SETTINGS_BOTTOM_RESERVE 36 - MARGIN 8 - TOP 58) // 4
+        row(n) = 58 + n * pitch,  height = pitch - 4
+
+    which is 34 and rows at 58/92/126/160. The literals that were here before
+    -- 58/104/148 -- came from a comment describing a pitch of ~45, and had
+    drifted: the picture showed the test buttons 22px lower than the panel puts
+    them. Nothing flagged it, because a mock-up is only ever compared to
+    itself. Adding the fourth row is what made the two disagree visibly.
 
     Drawn mid-travel rather than at the default. The default is AT the ceiling
     (Board::AUDIO_VOLUME_MAX, 85), and a slider drawn full-width would show
@@ -1794,10 +1805,14 @@ def settings_sound():
     """
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 2)
-    button(d, (8, 58, 304, 30), "Sound: On")
-    d.text((8, 92), "Volume", font=F1, fill=MUTED)
-    d.text((312 - d.textlength("70%", font=F1), 92), "70%", font=F1, fill=MUTED)
-    r = (8, 104, 304, 32)
+    pitch = (240 - 36 - 8 - 58) // 4
+    row = lambda n: 58 + n * pitch
+    h = pitch - 4
+    button(d, (8, row(0), 304, h), "Sound: On")
+    d.text((8, row(1) - 12), "Volume", font=F1, fill=MUTED)
+    d.text((312 - d.textlength("70%", font=F1), row(1) - 12), "70%",
+           font=F1, fill=MUTED)
+    r = (8, row(1), 304, 32)
     cy = r[1] + r[3] // 2
     pad, span = 11, r[2] - 22
     fill = int(70 / 85 * span)          # value / AUDIO_VOLUME_MAX
@@ -1810,10 +1825,14 @@ def settings_sound():
     hx = r[0] + pad + fill
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
     d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
-    button(d, (8, 148, 144, 30), "Test sound", ACCENT, on_fill(ACCENT))
-    button(d, (164, 148, 144, 30), "Say hello", ACCENT, on_fill(ACCENT))
-    d.text((8, 190), "Volume is capped for young ears.", font=F1, fill=MUTED)
-    d.text((8, 206), "Every sound is made by the device, not a file.",
+    button(d, (8, row(2), 144, h), "Test sound", ACCENT, on_fill(ACCENT))
+    button(d, (164, row(2), 144, h), "Say hello", ACCENT, on_fill(ACCENT))
+    # Row 3, the tab's last spare row. An ordinary panel button because it
+    # stays live while the console is muted, unlike everything above it.
+    button(d, (8, row(3), 304, h), "Find alert: Ring")
+    foot = row(3) + h + 12
+    d.text((8, foot), "Volume is capped for young ears.", font=F1, fill=MUTED)
+    d.text((8, foot + 16), "Every sound is made by the device, not a file.",
            font=F1, fill=MUTED)
     return im
 
@@ -2733,6 +2752,11 @@ def nearby():
         ("r", "Your best", "7 lvl", None),
         ("r", "", "They are ahead of you", WARN),
         ("a", "Poke 7C1B", "", None),
+        # Find sits beside Poke on every peer, named or not, and is not
+        # admin-gated -- a child who has lost the console is exactly who needs
+        # it. Poke nudges somebody holding their device; Find rings until the
+        # device is picked up.
+        ("a", "Find RAVI", "", None),
         ("a", "Rename 7C1B", "", None),
         # An IDLE peer, deliberately: this one is at its launcher with no game
         # open, and it still gets a Poke chip. The chip was originally added
@@ -2744,6 +2768,7 @@ def nearby():
         ("r", "Distance", "Far", MUTED),
         ("r", "Playing", "Choosing a game", MUTED),
         ("a", "Poke B930", "", None),
+        ("a", "Find B930", "", None),
         ("a", "Name B930", "", None),
     ]
     content = (0, 72, W, H - 72)

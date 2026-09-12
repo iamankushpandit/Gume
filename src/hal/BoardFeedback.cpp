@@ -80,6 +80,19 @@ void Board::setNearbyEnabled(bool on) {
     prefs_.putBool("nearbyOn", on);
 }
 
+bool Board::findAlertEnabled() {
+    if (!findAlertCached_) {
+        cachedFindAlert_ = prefs_.getBool("findRing", true);
+        findAlertCached_ = true;
+    }
+    return cachedFindAlert_;
+}
+void Board::setFindAlertEnabled(bool on) {
+    cachedFindAlert_ = on;
+    findAlertCached_ = true;
+    prefs_.putBool("findRing", on);
+}
+
 /* ---------------------------------------------------------------- peer labels
  *
  * One blob, one RAM mirror, and nothing here is ever read by BleBeacon. See
