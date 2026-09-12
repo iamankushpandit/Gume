@@ -19,6 +19,18 @@ one axis at a time while the glyph stays a fixed 15px. It is now placed off
 the measured width of the SSID and clamped at the right, which is what the
 sync badge on the row below already did.
 
+**The system apps have portrait mock-ups.** `docs/screens/` had exactly one
+portrait image out of 73 -- the launcher -- while CLAUDE.md requires every
+system app to work in both orientations, so for Wi-Fi, Settings, Scores,
+About, System Info and Profiles the portrait half of that rule could not be
+checked without flashing a board. `tools/gen_screens.py` now renders all six,
+each restating its own screen's layout arithmetic at 240x320 rather than
+re-imagining it, so a number that does not survive a narrow panel shows up as
+a broken picture instead of a plausible one. Two already do: the Scores best
+and worst columns are drawn at a hard-coded x=244 and x=306, both off a 240px
+panel, and the top bar's title floor lets the title run under the clock.
+Neither is fixed here; the mock-ups are what make them visible.
+
 **Every supported board has its own page, and its pin table cannot drift from
 the firmware.** `docs/boards/` has a page per board: how to recognise it by
 screen size, touch and USB ports, what has been checked on hardware, and its
