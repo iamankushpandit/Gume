@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 37 |
-| Flash | 2,519,717 / 3,145,728 bytes (**80.1%**) |
+| Flash | 2,519,745 / 3,145,728 bytes (**80.1%**) |
 | RAM | 81,436 / 327,680 bytes (**24.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -964,6 +964,31 @@ Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip
 Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
+
+### Where the Wi-Fi password is kept, and what that is worth
+
+In the ESP32's own flash, **in plain text**. It is stored once -- the Wi-Fi
+stack's habit of keeping a second copy of its own is switched off, so `Forget`
+removes the only one there is -- and nothing ever sends it anywhere: not over
+the radio, not over the cable, not to the screen.
+
+It is not encrypted, and saying it plainly is better than implying otherwise.
+Encrypting it would need a key, and a key stored in the same flash protects
+nothing at all: this firmware is open source and published as a binary anyone
+can download, so a key inside it is a key everybody has. Real protection here
+means the ESP32's own flash encryption, whose key lives in one-time fuses the
+CPU can use and software cannot read -- the same shape of answer a phone gives,
+where the file is encrypted with a key held in hardware rather than by the app
+that wrote it. That is not switched on: it is burned into each chip
+individually, cannot be undone, and would stop the web installer from being
+able to flash that board again.
+
+So: someone who picks the device up, opens the case and attaches a USB cable
+can read the network password out of it, the same as they could from most
+hobbyist hardware and from a router's own flash. Someone across the network
+cannot. If that trade is wrong for where you keep yours, the honest fix is
+flash encryption rather than a scrambled string, and it is worth opening an
+issue about.
 
 ### The USB cable
 

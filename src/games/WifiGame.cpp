@@ -242,6 +242,10 @@ void WifiGame::startConnect(GameHost& host) {
         return;
     }
 
+    /* Off here too: the join path is the other place a password reaches
+     * esp_wifi, and its own NVS copy is one this firmware cannot clear. See
+     * the note in BoardNetwork.cpp. */
+    WiFi.persistent(false);
     WiFi.begin(ssid.c_str(), password_.c_str());
     connectStart_ = millis();
     connectOk_ = false;

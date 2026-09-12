@@ -10,6 +10,13 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.9.1 it is ahead of.
 
+**The Wi-Fi password is stored once, not twice.** The ESP-IDF Wi-Fi stack keeps
+its own plain-text copy of whatever it is handed, in its own NVS namespace --
+so the password was written to flash twice, and `Forget` cleared only one of
+them. Persistence is off now: the firmware always connects from its own stored
+credentials, so the copy it owns is the only one there is. It is still plain
+text, and the README now says so and says what it would take to change it.
+
 **Joining a network no longer costs you the one you had.** The Wi-Fi screen
 saved the SSID and password *before* trying them, so mistyping a password on
 another network destroyed the working credentials -- and there was no way to
