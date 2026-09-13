@@ -10,6 +10,23 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**Going idle ends an admin session.** An adult who unlocked the admin profile
+kept it across the screen saver and across panel sleep, so the console could be
+put down with Settings open and picked up by anybody: every device switch, the
+per-player game lists and the profile controls, with no PIN asked. `begin()`
+already refused to *boot* into admin for exactly this reason -- being admin is
+not evidence about who is holding the device -- and an idle timeout is the same
+fact arriving a different way. Both idle entries now drop to Guest, so the
+saver, panel sleep, the Lock button and the lock screen's own timeout are all
+covered. The lock screen never closed this and was never meant to: it is an
+accidental-touch guard whose hold is deliberately not a secret.
+
+Coming back therefore starts the screen over rather than resuming it, which is
+the answer the serial console already gave when a profile changed underneath a
+screen. That is not tidiness. Settings' change-PIN pad sits *above* that
+screen's own admin gate, because only an admin can reach it -- a resumed pad
+would have handed the next person the PIN itself.
+
 **About calls two-console play experimental, on the device.** It is the one
 thing shipping here that has not been exercised end to end on two boards since
 the defects in it were fixed, and the note below has now carried that check

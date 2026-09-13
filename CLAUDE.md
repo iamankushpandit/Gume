@@ -613,8 +613,10 @@ gated on `Board::wakeLockEnabled()` (default on, RAM-mirrored, global like
 every device setting). It is an **accidental-touch guard, not access control**:
 it is disjoint from the admin PIN, neither granting nor revoking admin, and
 `resumeUnderlyingScreen()` -- the single tail shared by `exitScreenSaver()`,
-`wakeFromSleep()` and the unlock -- returns to exactly the screen, profile and
-orientation that were up before. Three things about it are load-bearing:
+`wakeFromSleep()` and the unlock -- returns to exactly the screen and
+orientation that were up before. It used to return the *profile* too; going
+idle now ends an admin session, which is the entry paths' doing rather than
+this one's -- see the invariant below. Three things about it are load-bearing:
 
 - **The press that got you here is swallowed.** `enterLock()` sets
   `swallowTouch_`, so a press held through a bag can never complete the
@@ -752,6 +754,21 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   drops to Guest if it finds admin selected. The picker's Done button goes home
   with whatever is already active, so a remembered admin selection is a PIN
   bypass, not a convenience. Do not "restore the last profile" here.
+- **Going idle must not leave the admin profile active either.** Same fact,
+  arriving a different way: the console was put down, and who picked it up is
+  not something the device knows -- which is the whole threat model the PIN is
+  written against. `endAdminSessionForIdle()` is called by *both* idle
+  entries, `enterScreenSaver()` and `enterSleep()`, so the saver, panel sleep,
+  the Lock button and the lock screen's own timeout are all covered by one
+  line each. Before it, an adult could open Settings, walk away, and whoever
+  touched the panel next had every switch on it with no PIN asked; the lock
+  screen does not close that, because it is an accidental-touch guard whose
+  hold is deliberately not a secret. It drops on the way *in* rather than on
+  the way out so that no exit can forget, and it sets `adminEndedByIdle_` so
+  that `resumeUnderlyingScreen()` starts the screen over instead of resuming
+  it -- **that part is not tidiness**: Settings' change-PIN pad sits above
+  that screen's own admin gate, being reachable only by an admin, so a resumed
+  pad would let whoever came back set the PIN.
 - **A PIN's digit count is not derivable from its value.** `0000` and an empty
   field are both zero, so every PIN entry point tracks digits separately from
   the number, and only judges an entry once it is exactly four long. Both

@@ -4,7 +4,18 @@
 #include "AppVersion.h"
 #include "hal/Watchdog.h"
 
+/* See the comment on the declaration: idle ends an admin session, for the
+ * same reason a reboot does. Both idle entries call it, so there is no way
+ * into the saver, into panel sleep or through the Lock button that keeps
+ * admin alive. */
+void BrainoApp::endAdminSessionForIdle() {
+    if (!board_.isAdminProfile(board_.activeProfile())) return;
+    board_.setActiveProfile(Board::GUEST_INDEX);
+    adminEndedByIdle_ = true;
+}
+
 void BrainoApp::enterScreenSaver() {
+    endAdminSessionForIdle();
     board_.setRgbColor(0, 140, 255);
     /* Only a live screen is worth remembering. Coming back here from the lock
      * screen -- which happens when nobody unlocks in time -- must not
@@ -20,6 +31,7 @@ void BrainoApp::enterScreenSaver() {
 }
 
 void BrainoApp::enterSleep() {
+    endAdminSessionForIdle();
     if (view_ == View::Game) {
         ssavPrevView_ = view_;
     }
@@ -81,11 +93,20 @@ void BrainoApp::resumeUnderlyingScreen() {
     /* One place decides what you come back to, so it is also the one place
      * that can say the deliberate lock is over. */
     lockOnWake_ = false;
+    /* A screen that was up for an admin is started over rather than resumed;
+     * see adminEndedByIdle_. relaunchActiveGame() calls begin() again, which
+     * is where each screen clears whatever it was part way through. */
+    const bool restart = adminEndedByIdle_;
+    adminEndedByIdle_ = false;
     if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
         applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;
-        activeGame_->requestRender();
+        if (restart) {
+            relaunchActiveGame();   // requests its own full repaint
+        } else {
+            activeGame_->requestRender();
+        }
     } else {
         goHome();   // applies its own rotation
     }
