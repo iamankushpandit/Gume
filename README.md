@@ -3,7 +3,7 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.12.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.12.1-blue)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
@@ -1236,7 +1236,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.12.0**. See
+Current release: **5.12.1**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
@@ -1476,6 +1476,12 @@ launchable system apps. That replaced the old split between `CATALOG_KINDS[]`,
 Code in this repository is licensed **GPL-3.0-or-later** — see
 [LICENSE](LICENSE). Copyright © 2026 iamankushpandit.
 
+**Every file carries that notice itself**, as an SPDX header naming the
+licence, the holder and what reuse requires — because the file, not the
+repository, is what reaches a stranger who copies one thing out of it.
+`tools/check_licenses.py` writes them (`--fix`) and CI fails a file that has
+none.
+
 The copyright and the brand are held by different parties on purpose, and
 [NOTICE.md](NOTICE.md) is the short statement of which is which: the code is
 the individual's and comes to you under the GPL, while **Braino!**, the game
@@ -1520,3 +1526,10 @@ The remaining obligation is attribution, not restriction: `mledoze/countries`
 is ODbL, so the capital/region data must keep its credit. Note also that the
 Arduino-ESP32 core is **LGPL** — distributing a statically-linked binary
 carries relinking obligations.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

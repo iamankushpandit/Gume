@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+//
+// Part of Braino! -- https://github.com/iamankushpandit/Gume
+// Free software under GPL-3.0-or-later. Reusing any part of this file, in
+// any work, must keep this notice, credit iamankushpandit as the
+// author, and stay under the same licence with corresponding source
+// offered. See LICENSE and NOTICE.md.
+
 #pragma once
 
 /* Product identity, spelled once.
@@ -31,7 +40,7 @@
  * not go away -- it is waiting for the next name that does not fit. If you
  * change either, re-measure: the portrait launcher has about 38px of air
  * between the product name and this string, and that is the whole allowance. */
-#define BRAINO_VERSION          "5.12.0"
+#define BRAINO_VERSION          "5.12.1"
 #define BRAINO_PRODUCT_NAME     "Braino!"
 /** The brand that publishes the console, and the owner of the marks. */
 #define BRAINO_COMPANY          "GoodTime Micro Company"

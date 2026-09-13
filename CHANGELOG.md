@@ -1,5 +1,31 @@
 # Changelog
 
+## 5.12.1 — 2026-09-13
+
+**A licence release. The console does exactly what 5.12.0 does.** Across
+`src/`, `include/`, `lib/` and `test/` this change removes no line and adds
+only comments, so nothing compiled behaves differently -- what moves in the
+image is the version string and the build stamp, and the flash figure is
+5.12.0's to the byte. It is tagged rather than held on `dev` because a
+notice nobody has a copy of is not a notice.
+
+**Every file now states its own licence.** The repository has been
+GPL-3.0-or-later since it was published and LICENSE, NOTICE.md and the README
+all said so, but none of that travels: what reaches a stranger is one file --
+a `.cpp` pasted into a forum answer, a script copied into another tree, a page
+of documentation lifted into a wiki -- and an unmarked file carries no author,
+no terms and no way back to either. Every source file, header, script,
+workflow, `platformio.ini`, the site template and the SVGs now carry an SPDX
+notice naming the licence, the holder (iamankushpandit), where the work came
+from and what reuse requires; documents carry the same four facts as a visible
+footer, because a reader lifting a paragraph out of a rendered page never sees
+an HTML comment. Nothing about the licence itself changed -- the grant is the
+one that was already there, written where it can be seen.
+
+`tools/check_licenses.py` is both the check and the fix (`--fix`), runs in CI
+on every pull request and at release, and is imported by every generator so
+that regenerating a table cannot quietly strip the notice.
+
 ## 5.12.0 — 2026-09-13
 
 **Two new games, and two old ones taught to get harder.** The catalogue is 40.
@@ -3359,3 +3385,10 @@ Launcher company line layout fix.
 
 Initial firmware: 20 games, theme and layout settings, touch calibration,
 optional SD-card content, Pong screen saver.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

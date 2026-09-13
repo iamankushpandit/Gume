@@ -130,6 +130,12 @@ because history, clones, forks and tarballs all keep copies.
 - `python tools/check_identifiers.py` runs in CI. It catches MACs and public
   IPs; it cannot catch an SSID or a person's name, so a clean run is not
   permission.
+- **Every file you add carries its own licence notice.** SPDX identifier,
+  holder (`iamankushpandit`), where it came from, what reuse requires -- source,
+  scripts, workflows, and documents as a visible footer. Do not type one: run
+  `python tools/check_licenses.py --fix`, which is also what CI checks. A
+  generated file gets its notice from its generator, via `header_for()` in that
+  same tool, so regenerating cannot strip it.
 
 ## No data collection — the rule that outranks the feature
 
@@ -502,3 +508,10 @@ Four things that cause real damage here if you skip them:
 3. **`GAME_CATALOG[]` and `CATALOG_KINDS[]` are index-coupled across two files** and a bad merge misaligns them silently — it still compiles and links, and the only symptom is a tile launching the wrong game. Re-verify entry-for-entry after every merge.
 4. **One physical board, one serial port** — shared across all branches and worktrees. Don't flash or factory-reset without saying so; it wipes calibration, profiles and scores another agent may be testing against.
 5. **Take the board lock before building or flashing.** It lives at `(git rev-parse --git-common-dir)/gume-board.lock` so it's visible from every worktree. If it's held by a live process, wait and poll. If no build or flash process is actually running, the lock is stale — delete it and carry on, and say that you did. Release your own lock even when the build fails.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*
