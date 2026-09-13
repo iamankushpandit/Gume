@@ -42,6 +42,8 @@ enum class LauncherIcon : uint8_t {
     Ludo,
     Backgammon,
     Go,
+    Space,
+    Roman,
     Profiles,
     Scores,
     Settings,

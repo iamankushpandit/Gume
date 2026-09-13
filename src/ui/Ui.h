@@ -199,6 +199,28 @@ String fitted(Ui::Renderer& tft, const String& text, int16_t maxW, uint8_t font)
 
 void drawLabel(Ui::Renderer& tft, const Rect& r, const String& text, uint16_t color, uint8_t font = 2, Align align = Align::Left);
 int16_t drawWrappedText(Ui::Renderer& tft, const String& text, const Rect& r, uint16_t color, uint8_t font = 2, Align align = Align::Left);
+
+/* Break `text` into lines that each fit `maxW` at `font`, WITHOUT ALLOCATING.
+ *
+ * `drawWrappedText` above does the same job and does it with `String` --
+ * a concatenation per word and a reallocation per line. That is fine where it
+ * is used (a Backgammon message changes when the game says something), and it
+ * is the wrong shape for a quiz, which rewrites its question every few
+ * seconds for as long as a child keeps playing. The memory rule in the root
+ * CLAUDE.md is about exactly that: not a leak, but many small allocations of
+ * differing sizes made and freed over and over until no large block is left.
+ * So this one writes into the caller's fixed buffers and touches no heap.
+ *
+ * Returns the number of lines the text NEEDS, which may be more than
+ * `maxLines` -- only the first `maxLines` are written. That is what lets a
+ * caller say "wrap at font 2, and if it did not fit in three lines, wrap it
+ * again at font 1" rather than discovering the overflow on the panel.
+ *
+ * A single word wider than `maxW` is placed anyway and will overrun: there is
+ * nothing better to do with it, and the caller chose the font. */
+constexpr uint8_t WRAP_LINE_MAX = 52;
+uint8_t wrapLines(Ui::Renderer& tft, const char* text, int16_t maxW, uint8_t font,
+                  char (*lines)[WRAP_LINE_MAX], uint8_t maxLines);
 /* Smooth semicircular hop from x1 to x2, peaking `height` above baseY.
  * Plotted as short chords around a half ellipse -- drawing two straight lines
  * to a midpoint (as the number line game did) renders a triangle, not an arc. */
