@@ -64,7 +64,9 @@ usually is one.
 | Multiplication | **converted** | Group A, follows Math. |
 | Counting | **converted** | Group A. Up to 21 dots now static. |
 | Flag | **converted** | Group A. The flag blit is static across the capital bonus. |
-| *quiz screens (10 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
+| *quiz screens (9 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
+| ShapeColorGame | **converted** | Group A-ish: eight rows tracked by state. See below. |
+| SpaceGame, RomanGame | **born converted** | Group A. Written against this document rather than fixed afterwards. |
 | TicTacToe | **converted** | Group B. |
 | SlidingPuzzle | **converted** | Group B. |
 | Maze | **converted** | Group C. |
@@ -653,3 +655,66 @@ dot can breathe.
 
 Recorded rather than chosen. Everything else in this audit preserves behaviour
 exactly; this one cannot, so it is the maintainer's call.
+
+
+---
+
+## ShapeColorGame -- converted, and what it found on the way (5.12)
+
+Not a quiz despite sitting in Group A: it is **eight rows and a stats line**,
+and a tap changes one row, or one of each column. It used to answer every press
+by filling the whole content area and redrawing all eight rows, both shapes in
+each, and the header.
+
+**Static** -- the instruction line, and only that. It is the one thing on the
+screen that is identical from the first frame to the last.
+
+**Dynamic**
+
+| Element | Changes when |
+|---|---|
+| One left-hand row | it is selected, deselected, or matched |
+| One right-hand row | its item is matched (the outline fills in) |
+| `Level N  Taps N  Best N` | any tap |
+| The win card | the last pair goes down |
+
+Each row paints its own rounded rect opaquely, so a state change erases its
+predecessor with no clear of its own -- the same property the answer buttons
+rely on. The trackers are `0xFF` after `renderStatic()` and after a new round,
+because a row that goes from state 0 to state 0 **with a different shape on
+it** would otherwise be skipped. That is the trap this document already
+describes for answer buttons, and it applies verbatim to anything indexed by
+position rather than by content.
+
+**A new round is a full repaint, and that is the honest answer.** Four new
+shapes, four new labels, a new level in the header and a win card that has to
+go: the scene genuinely changed. The win card itself is not -- it is drawn over
+the rows and nothing but a new round takes it away.
+
+### The overlap this turned up in MathGame
+
+Worth writing down because the code read correctly for two releases.
+
+Math's question panel was `fillRoundRect(26, 76, 268, 54)`, so rows 76..129.
+The prompt strip below it was cleared with `fillRect(20, 125, 280, 18)`, rows
+125..142. **Those overlap by five rows**, which includes the panel's bottom
+border -- so every answer erased the bottom of the question panel, and nothing
+put it back until the next question, because the panel is gated on
+`drawnQuestion_`.
+
+It was there from the day the screen was split, on every board. It is invisible
+in `docs/screens/` for the reason stated at the top of this file: a mock-up
+draws elements in isolation with no clear rectangles at all, so an erase-over
+cannot appear in one.
+
+The fix is the rule the root `CLAUDE.md` already states -- derive the clear
+rectangle, never type it in. `PANEL_Y`, `PANEL_H` and `BUTTON_TOP` are written
+once at the top of `MathGame.cpp`; `PROMPT_Y` and `PROMPT_H` come out of them,
+and two `static_assert`s fail if anyone moves one number far enough to bring
+the overlap back.
+
+`ShapeColorGame` had the same shape of fault waiting: its stats line is
+right-aligned and shrinks, and the obvious clear rectangle for it reaches up
+into the instruction line -- which is now **static**, so nothing would ever
+have repainted the rows it took off. Starting the strip at 50 rather than 48 is
+the whole fix, and the comment there says why the two pixels matter.

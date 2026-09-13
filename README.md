@@ -3,16 +3,16 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.11.0-blue)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-38-2d7d9a)](#the-games)
+[![Version](https://img.shields.io/badge/version-5.12.0-blue)](CHANGELOG.md)
+[![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-81.5%25%20of%203%20MB-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-82.1%25%20of%203%20MB-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-A 38-game educational console for young players, running on an **ESP32-32E
+A 40-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -29,9 +29,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 38 |
-| Flash | 2,563,333 / 3,145,728 bytes (**81.5%**) |
-| RAM | 87,492 / 327,680 bytes (**26.5%**) |
+| Games | 40 |
+| Flash | 2,581,433 / 3,145,728 bytes (**82.1%**) |
+| RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -351,12 +351,13 @@ needs without touching anyone else's. Only the admin can change it.
 | **Fingers** | Alternates *"How many fingers?"* (count what's raised) and *"Show me 7 fingers"* (raise that many) | Counting on hands in **both** directions — recognising a quantity and producing one | 3–6 |
 | **Shape Arith** | Objects appear one by one to add; subtraction splits left vs. take-away boxes | Makes arithmetic concrete before it's symbolic. The subtraction display keeps the removed group visible while the player counts what is left | 4–6 |
 | **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic | 5–7 |
-| **Math** | "Tap the answer" — addition and subtraction, difficulty rises with level | Recall speed once the concept is solid | 5–8 |
+| **Math** | "Tap the answer" — addition and subtraction, difficulty rises with level. From level 2 about a third of the questions arrive as **word problems**: "Nia has 12 shells and gives 7 away. How many are left?" | Recall speed once the concept is solid, then the harder half — working out which sum a sentence is asking for. Level 1 stays pure arithmetic, because a child still learning that 3 + 4 is 7 is being asked to read as well, and the reading is the harder job at that age | 5–8 |
 | **Multiply** | "Tap the product" — times tables | Multiplication facts | 7–10 |
 | **Fractions** | "Pick the matching fraction" against a pie chart | Connects the written fraction to the amount it represents | 6–9 |
 | **Money** | "How much is this?" — count coins, compare amounts, make change | Coin values and everyday arithmetic | 5–9 |
 | **Percent** | Read, make and calculate percentages on a circle | Percentage as a portion of a whole, before it is an algorithm | 7–11 |
 | **Sorting** | "Tap smallest to largest" (or the reverse) | Ordering and magnitude comparison | 4–7 |
+| **Roman** | Roman numerals, both ways round: read one, or write a number as one. The symbol key and the rule for the level stay on the screen, and every answer is followed by the number taken apart — `XIV = X + IV = 10 + 4`. The wrong answers are the real mistakes: reading XIV as 10 + 1 + 5, or writing 4 as IIII | Place value in a system that has none, and the habit of checking a smaller symbol before a bigger one. Five levels, each adding the next letter: X, then L, then C, then D and M | 7–12 |
 
 ### World knowledge
 
@@ -368,6 +369,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition | 7–12 |
 | **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time | 4–7 |
 | **Time** | "Which time is shown?" on an analogue clock | Reading a clock face | 5–8 |
+| **Space** | Forty-four questions about the solar system and the layers of air above it — the planets in order, why Venus beats Mercury, where the ozone is, which layer the Space Station orbits in. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Three levels, so a five-year-old is never asked about the Karman line | 5–12 |
 | **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen | 5–12 |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a child can make something rather than be tested on it, and the note names are on the keys so the naming comes for free | 3+ |
 | **Chess** | The full rules, against a friend or against the console — on one device, on two in the same room over Bluetooth, or on your own at Easy or Medium. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other — or, on your own, an opponent that is beatable on purpose | 6+ |
@@ -387,7 +389,7 @@ uses **adaptive difficulty** — see below.
 | **Cinnamon** | Repeat the colour sequence | Working memory and sustained attention | 4–10 |
 | **Memory** | Match pairs face-down | Visual working memory | 3–8 |
 | **Odd One** | "Tap the one that is different" | Categorisation — spotting the attribute that doesn't fit | 3–6 |
-| **Shapes** | Match a named shape *and* colour, e.g. "red circle" | Holding two attributes in mind at once | 3–6 |
+| **Shapes** | Match each shape to its outline, over four rounds that each take an easy cue away: the four everyone knows ("red circle"), then four told apart by **side count** (pentagon, hexagon, heptagon, octagon), then **lookalikes** (oval, rectangle, diamond, trapezium), then **concave against convex**, with the word on the row | Holding two attributes in mind at once, then shape vocabulary a child can use: that a hexagon is a hexagon because it has six sides, that an oval is not a circle, and that concave and convex are the names for bending in and bulging out | 3–8 |
 | **Color Mix** | "What do you get?" mixing two colours | Colour theory, and that mixing is predictable | 4–8 |
 | **Microku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a player's level | 6–12 |
 | **Slide** | Slide numbered tiles into order | Planning several moves ahead | 6–12 |
@@ -520,6 +522,11 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/sorting.png" width="300" alt="Sorting">
+  <img src="docs/screens/math-words.png" width="300" alt="Math: a word problem">
+  <img src="docs/screens/roman.png" width="300" alt="Roman Numerals: read the numeral">
+</p>
+<p align="center">
+  <img src="docs/screens/roman-write.png" width="300" alt="Roman Numerals: write the number">
 </p>
 
 ### World knowledge
@@ -541,6 +548,10 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/elements-quiz.png" width="300" alt="Elements: find it in the table">
+  <img src="docs/screens/space.png" width="300" alt="Space: the solar system and the air above us">
+</p>
+<p align="center">
+  <img src="docs/screens/space-answered.png" width="300" alt="Space: the fact after an answer">
   <img src="docs/screens/piano.png" width="300" alt="Piano: one octave">
 </p>
 <p align="center">
@@ -573,6 +584,7 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/shapes.png" width="300" alt="Shape & Color">
+  <img src="docs/screens/shapes-concave.png" width="300" alt="Shape & Color: concave against convex">
   <img src="docs/screens/colormix.png" width="300" alt="Color Mix">
   <img src="docs/screens/microku.png" width="300" alt="Microku">
 </p>
@@ -1224,7 +1236,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.11.0**. See
+Current release: **5.12.0**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---

@@ -27,16 +27,35 @@ private:
     Rect answerRect(uint8_t index) const;
     void newQuestion();
     void makeOptions();
+    void makeWordProblem();
     uint8_t level() const;
     bool optionExists(int16_t value, uint8_t upTo) const;
     uint16_t elapsedSeconds() const;
-    String formatSeconds(uint16_t seconds) const;
+    void formatSeconds(uint16_t seconds, char* out, size_t len) const;
     void updateBest(AppContext& host);
+    void drawQuestion(Ui::Renderer& tft);
 
     int16_t left_ = 0;
     int16_t right_ = 0;
     int16_t answer_ = 0;
     int16_t options_[4] = {};
+
+    /* The same sum, in words.
+     *
+     * A child who can answer "12 - 7 = ?" often cannot answer "Nia has 12
+     * shells and gives 7 away", and the second is the one that turns up in
+     * school and in life. So from level 2 some questions are dressed as a
+     * story: the arithmetic underneath is unchanged and so are the four
+     * buttons, which is what keeps this a variation on the screen rather than
+     * a second screen.
+     *
+     * A fixed buffer rather than a String, and filled once per question: the
+     * memory rule in the root CLAUDE.md is about small allocations repeated
+     * for hours, and a quiz question every few seconds is exactly that shape.
+     * 128 is the longest template with three-digit numbers and the longest
+     * name and noun in the tables, plus room. */
+    char problem_[128] = {};
+    bool wordProblem_ = false;
 
     /* What each button currently shows: 0 unanswered, 1 correct, 2 wrong.
      * Answering changes at most TWO of the four -- the right one turns green

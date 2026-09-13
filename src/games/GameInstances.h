@@ -29,6 +29,7 @@
 #include "games/BackgammonGame.h"
 #include "games/GoGame.h"
 #include "games/PercentCircleGame.h"
+#include "games/RomanGame.h"
 #include "games/ProfileApp.h"
 #include "games/ScoresApp.h"
 #include "games/SequenceGame.h"
@@ -36,6 +37,7 @@
 #include "games/ShapeColorGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
+#include "games/SpaceGame.h"
 #include "games/StateFlagGame.h"
 #include "games/StateMapGame.h"
 #include "games/StatesGame.h"
@@ -87,6 +89,8 @@ struct GameInstances {
     LudoGame ludo;
     BackgammonGame backgammon;
     GoGame go;
+    SpaceGame space;
+    RomanGame roman;
     ProfileApp profile;
     ScoresApp scores;
     AboutApp about;

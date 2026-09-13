@@ -167,6 +167,27 @@ private:
     void wakeFromSleep();
     void exitScreenSaver();
 
+    /* Going idle ends an admin session, exactly as a reboot does.
+     *
+     * BrainoApp::begin() already refuses to boot into admin, for the reason
+     * stated there: the picker's Done button goes home with whatever profile
+     * is active, so a remembered admin selection hands out admin without a
+     * PIN. An idle timeout is the same fact arriving a different way -- the
+     * console was put down, and who picked it up is not something the device
+     * knows. Leaving admin active across the saver meant an adult could open
+     * Settings, walk away, and the next person to touch the panel had every
+     * switch on it, the per-player game lists and the profile controls, with
+     * no PIN asked. The lock screen does not close this: it is an
+     * accidental-touch guard and its hold is deliberately not a secret.
+     *
+     * Dropping on the way IN rather than on the way out is what makes it
+     * hold for every exit -- the saver, panel sleep, the Lock button and the
+     * lock screen's own timeout all pass through here, and
+     * resumeUnderlyingScreen() is left with the one job it has. Guest writes
+     * nothing, which is the right thing to be holding until somebody
+     * chooses again. */
+    void endAdminSessionForIdle();
+
     /* The lock screen -- an accidental-touch guard, nothing to do with the
      * admin PIN. Coming out of the saver or out of panel sleep, a single
      * stray press used to land on whatever screen was underneath, live. Now
@@ -309,6 +330,17 @@ private:
      * makes an explicit lock land on the lock screen even for an owner who has
      * switched the wake lock off: they asked for this one. */
     bool lockOnWake_ = false;
+    /* Set by endAdminSessionForIdle() when it actually demoted somebody,
+     * cleared by resumeUnderlyingScreen(). The screen that was up was drawn
+     * for an admin and may be holding admin-only state mid-flight -- the
+     * change-PIN pad on Settings is the sharp one: it sits ABOVE that
+     * screen's own admin gate, because it is only reachable by an admin, so
+     * handing it to whoever comes back would let them set the PIN. Starting
+     * the screen over is the same answer the console already gives when a
+     * profile changes underneath a screen (refreshAfterProfileChange), and
+     * it is honest for the rest too: the scope every screen reads its data
+     * from has changed. */
+    bool adminEndedByIdle_ = false;
     bool lockHolding_ = false;
     bool lockFullPaint_ = true;
     int16_t lockPaintedPct_ = -1;

@@ -1137,6 +1137,75 @@ int16_t drawWrappedText(Ui::Renderer& tft, const String& text, const Rect& r, ui
     return y;
 }
 
+/* See the header for why this exists beside drawWrappedText: it allocates
+ * nothing, and it reports how many lines the text really needed. Greedy
+ * word wrapping, measured against the live font rather than a character
+ * count -- the panel's width is pixels and a proportional font makes
+ * "Willow" and "IIIIII" different widths. */
+uint8_t wrapLines(Ui::Renderer& tft, const char* text, int16_t maxW, uint8_t font,
+                  char (*lines)[WRAP_LINE_MAX], uint8_t maxLines) {
+    if (text == nullptr) {
+        return 0;
+    }
+    char line[WRAP_LINE_MAX];
+    char candidate[WRAP_LINE_MAX];
+    line[0] = '\0';
+    size_t lineLen = 0;
+    uint8_t needed = 0;
+
+    /* Commit whatever is in `line`. Lines past `maxLines` are counted and not
+     * written, which is the whole of how the caller learns it did not fit. */
+    auto commit = [&]() {
+        if (lineLen == 0) return;
+        if (needed < maxLines) {
+            memcpy(lines[needed], line, lineLen + 1);
+        }
+        ++needed;
+        line[0] = '\0';
+        lineLen = 0;
+    };
+
+    const char* p = text;
+    while (*p != '\0') {
+        while (*p == ' ' || *p == '\n' || *p == '\t') {
+            ++p;
+        }
+        if (*p == '\0') break;
+        const char* word = p;
+        while (*p != '\0' && *p != ' ' && *p != '\n' && *p != '\t') {
+            ++p;
+        }
+        size_t wordLen = static_cast<size_t>(p - word);
+        if (wordLen > WRAP_LINE_MAX - 1) {
+            wordLen = WRAP_LINE_MAX - 1;   // cannot fit any line; keep the buffer safe
+        }
+
+        const size_t joined = lineLen + (lineLen > 0 ? 1 : 0) + wordLen;
+        bool fits = joined < WRAP_LINE_MAX;
+        if (fits) {
+            memcpy(candidate, line, lineLen);
+            size_t at = lineLen;
+            if (lineLen > 0) candidate[at++] = ' ';
+            memcpy(candidate + at, word, wordLen);
+            candidate[at + wordLen] = '\0';
+            /* The first word on a line goes on it whatever it measures --
+             * there is no narrower place to put it. */
+            fits = lineLen == 0 || tft.textWidth(candidate, font) <= maxW;
+        }
+        if (fits) {
+            memcpy(line, candidate, joined + 1);
+            lineLen = joined;
+        } else {
+            commit();
+            memcpy(line, word, wordLen);
+            line[wordLen] = '\0';
+            lineLen = wordLen;
+        }
+    }
+    commit();
+    return needed;
+}
+
 void drawHopArc(Ui::Renderer& tft, int16_t x1, int16_t x2, int16_t baseY,
                 int16_t height, uint16_t color, bool arrowAtEnd) {
     const float cx = (x1 + x2) * 0.5f;
