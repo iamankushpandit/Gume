@@ -10,6 +10,65 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.10.0 it is ahead of.
 
+**Two new games, and two old ones taught to get harder.** The catalogue is 40.
+
+**Space** asks forty-four questions about the solar system and the layers of
+air above it, and answers every one of them. Right or wrong, the tap is
+followed by a plain sentence: that Venus beats Mercury because its clouds hold
+the heat in, that the ozone doing the work is in the stratosphere, that the
+Space Station orbits inside the thermosphere. The atmosphere is in there with
+the planets deliberately -- "where does space start" and "how far up does the
+air go" are one question, and a quiz that answers one and not the other leaves
+the join out. Three levels, so a five-year-old is asked which planet is red and
+never about the Karman line.
+
+**Roman** runs both ways: read a numeral, or write a number as one. The symbol
+key and the rule for the level stay on the screen the whole time, because at
+this age reading the notation is the skill and remembering seven letters is
+not. Every answer is followed by the number taken apart -- `XIV = X + IV = 10 +
+4` -- and the wrong answers are the mistakes children actually make rather than
+four numbers picked at random: XIV read as 10 + 1 + 5, and 44 written as
+XXXXIV. Five levels, each adding the next letter.
+
+**Math now asks word problems.** From level 2, about one question in three
+arrives as a sentence -- "Nia has 21 shells and gives 8 away. How many are
+left?" -- over the same arithmetic, the same four buttons and the same scoring.
+Level 1 stays pure sums on purpose: a child still working out that 3 + 4 is 7
+is being asked to read as well, and at that age the reading is the harder half.
+
+**Shapes has four rounds instead of one**, each taking an easy cue away. The
+four everyone knows, then four told apart by side count -- pentagon, hexagon,
+heptagon, octagon -- then the lookalikes a child calls circle and square until
+somebody makes them look twice, and finally concave against convex with the
+word on the row. Level 4 always deals two of each family, because the word is
+only a lesson when it tells two rows apart.
+
+**Going idle ends an admin session.** An adult who unlocked the admin profile
+kept it across the screen saver and across panel sleep, so the console could be
+put down with Settings open and picked up by anybody: every device switch, the
+per-player game lists and the profile controls, with no PIN asked. `begin()`
+already refused to *boot* into admin for exactly this reason -- being admin is
+not evidence about who is holding the device -- and an idle timeout is the same
+fact arriving a different way. Both idle entries now drop to Guest, so the
+saver, panel sleep, the Lock button and the lock screen's own timeout are all
+covered. The lock screen never closed this and was never meant to: it is an
+accidental-touch guard whose hold is deliberately not a secret.
+
+Coming back therefore starts the screen over rather than resuming it, which is
+the answer the serial console already gave when a profile changed underneath a
+screen. That is not tidiness. Settings' change-PIN pad sits *above* that
+screen's own admin gate, because only an admin can reach it -- a resumed pad
+would have handed the next person the PIN itself.
+
+**And the Math question panel stopped eating its own border.** The panel
+occupied rows 76..129 and the prompt strip below it was cleared from row 125,
+so every answer erased the bottom five rows of the question -- its border
+included -- and nothing put them back until the next question. It had been
+there since the screen was split, on every board, and it cannot appear in
+`docs/screens/` at all, because a mock-up draws elements in isolation with no
+clear rectangles. The stack is derived from one set of constants now, with two
+`static_assert`s that fail if the overlap is reintroduced.
+
 **About calls two-console play experimental, on the device.** It is the one
 thing shipping here that has not been exercised end to end on two boards since
 the defects in it were fixed, and the note below has now carried that check

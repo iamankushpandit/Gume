@@ -2276,8 +2276,271 @@ def _quiz4(title, eq, prompt, answers, correct, ay, ah, eq_y=96):
     return im
 
 
+# ----------------------------------------------- the four-button quiz screens
+#
+# Math, Space and Roman are one layout with three question panels, so the
+# geometry lives here once and each screen passes what differs. The rects are
+# the ones in the C++ -- MathGame's PANEL_*/BUTTON_TOP block and SpaceGame's
+# questionRect()/noteRect() -- because a mock-up that approximates a rectangle
+# is a mock-up that cannot show you the rectangle is wrong.
+#
+# What it still cannot show is an ERASE. Nothing here has a clear rectangle at
+# all, so an overlap between a panel and the strip below it -- which is exactly
+# the defect Math carried until 5.12 -- is invisible in this file by
+# construction. See docs/RENDER_AUDIT.md.
+
+QUIZ_BTN_TOP, QUIZ_BTN_H = 144, 38
+
+
+def _quiz_wrap(d, text, max_w, f):
+    lines, line = [], ""
+    for word in text.split():
+        candidate = word if not line else line + " " + word
+        if line and d.textlength(candidate, font=f) > max_w:
+            lines.append(line)
+            line = word
+        else:
+            line = candidate
+    if line:
+        lines.append(line)
+    return lines
+
+
+def _quiz_buttons(d, answers, correct, big=True):
+    """`big` mirrors which pair of fonts the screen drops between.
+
+    Math and Roman answer with a number or a numeral and start at font 4;
+    Space answers with a word like "Carbon dioxide" and starts at font 2. Both
+    fall one step when the label does not measure, which is the firmware's own
+    rule -- TFT_eSPI cuts an overlong string at the viewport edge with no mark,
+    and nothing in this file can show you that.
+    """
+    big_f, small_f = (F4, F2) if big else (F2, F1)
+    for i, a in enumerate(answers):
+        r = (18 + (i % 2) * 152, QUIZ_BTN_TOP + (i // 2) * 46, 132, QUIZ_BTN_H)
+        ok = (a == correct)
+        f = big_f if d.textlength(a, font=big_f) <= r[2] - 10 else small_f
+        button(d, r, a, SUCCESS if ok else BLUE, (0, 0, 0) if ok else WHITE, f)
+
+
+def _quiz_header(d, left, left_small, right, right_small):
+    d.text((10, 34), left, font=F2, fill=TEXT)
+    d.text((10, 52), left_small, font=F1, fill=TEXT)
+    d.text((W - 10 - d.textlength(right, font=F2), 34), right, font=F2, fill=TEXT)
+    d.text((W - 10 - d.textlength(right_small, font=F1), 52), right_small, font=F1, fill=TEXT)
+
+
+def _quiz_panel_text(d, rect, text, f, line_h):
+    """Wrapped and centred in the panel, the way drawQuestion() does it."""
+    x, y, w, h = rect
+    d.rounded_rectangle([x, y, x + w, y + h], 8, fill=PANEL, outline=OUTLINE)
+    lines = _quiz_wrap(d, text, w - 16, f)
+    ty = y + (h - len(lines) * line_h) // 2
+    for line in lines:
+        d.text((x + (w - d.textlength(line, font=f)) / 2, ty), line, font=f, fill=TEXT)
+        ty += line_h
+
+
 def math_game():
-    return _quiz4("Math", "7 + 5 = ?", "Tap the answer", ["12", "11", "13", "10"], "12", 144, 38)
+    """Math: the plain sum. Panel is PANEL_Y..PANEL_Y+PANEL_H, prompt below it."""
+    im, d = blank(); topbar(d, "Math")
+    _quiz_header(d, "Level 2", "Correct 6  1:12", "Streak 3", "Best 9 / 2:05")
+    d.rounded_rectangle([26, 70, 294, 126], 8, fill=PANEL, outline=OUTLINE)
+    eq = "12 - 7 = ?"
+    d.text((W / 2 - d.textlength(eq, font=F4) / 2, 88), eq, font=F4, fill=TEXT)
+    p = "Tap the answer"
+    d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
+    _quiz_buttons(d, ["5", "4", "6", "9"], "5")
+    return im
+
+
+def math_words():
+    """Math: the same sum as a word problem, wrapped into the same panel."""
+    im, d = blank(); topbar(d, "Math")
+    _quiz_header(d, "Level 3", "Correct 11  2:40", "Streak 4", "Best 14 / 3:02")
+    _quiz_panel_text(d, (26, 70, 268, 56),
+                     "Nia has 21 shells and gives 8 away. How many are left?",
+                     F2, 18)
+    p = "Tap the answer"
+    d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
+    _quiz_buttons(d, ["13", "11", "29", "12"], "13")
+    return im
+
+
+def space():
+    """Space: a question, unanswered."""
+    im, d = blank(); topbar(d, "Space Quiz")
+    _quiz_header(d, "Level 2", "Correct 7", "Streak 3", "Best 11")
+    _quiz_panel_text(d, (20, 66, 280, 58), "Where is the ozone layer?", F2, 18)
+    p = "Tap the answer"
+    d.text((W / 2 - d.textlength(p, font=F2) / 2, 126), p, font=F2, fill=WARN)
+    _quiz_buttons(d, ["Stratosphere", "Troposphere", "Mesosphere", "Exosphere"],
+                  "Stratosphere", big=False)
+    return im
+
+
+def space_answered():
+    """Space: the fact, which is the whole reason the screen exists.
+
+    Two lines of font 1 at y=125 and y=135, which is noteRect() exactly -- it
+    ends one row above the first button.
+    """
+    im, d = blank(); topbar(d, "Space Quiz")
+    _quiz_header(d, "Level 2", "Correct 8", "Streak 4", "Best 11")
+    _quiz_panel_text(d, (20, 66, 280, 58), "Where is the ozone layer?", F2, 18)
+    fact = "Ozone up there soaks up the Sun's ultraviolet light before it reaches us."
+    for i, line in enumerate(_quiz_wrap(d, fact, 292, F1)[:2]):
+        d.text((W / 2 - d.textlength(line, font=F1) / 2, 125 + i * 10), line,
+               font=F1, fill=SUCCESS)
+    _quiz_buttons(d, ["Stratosphere", "Troposphere", "Mesosphere", "Exosphere"],
+                  "Stratosphere", big=False)
+    return im
+
+
+def _roman_screen(prompt, subject, answers, correct, level, key, rule, note, note_col,
+                  note_big=False):
+    im, d = blank(); topbar(d, "Roman Numerals")
+    d.text((10, 32), "Level %d" % level, font=F2, fill=TEXT)
+    right = "Correct 12   Best 18"
+    d.text((W - 10 - d.textlength(right, font=F2), 32), right, font=F2, fill=TEXT)
+    # The key strip: the symbols in play, and the rule for this level. Both
+    # belong to the LEVEL, which is why the firmware repaints them only when it
+    # changes rather than once a question.
+    d.text((W / 2 - d.textlength(key, font=F1) / 2, 50), key, font=F1, fill=TEXT)
+    d.text((W / 2 - d.textlength(rule, font=F1) / 2, 61), rule, font=F1, fill=MUTED)
+    d.rounded_rectangle([20, 74, 300, 124], 8, fill=PANEL, outline=OUTLINE)
+    d.text((W / 2 - d.textlength(prompt, font=F2) / 2, 77), prompt, font=F2, fill=MUTED)
+    d.text((W / 2 - d.textlength(subject, font=F4) / 2, 95), subject, font=F4, fill=TEXT)
+    if note:
+        # The prompt before an answer is font 2; the decomposition after one is
+        # two lines of font 1. Same strip, different heights, which is why the
+        # firmware clears it whole rather than trusting a glyph background.
+        f = F2 if note_big else F1
+        d.text((W / 2 - d.textlength(note, font=f) / 2, 125), note, font=f, fill=note_col)
+    _quiz_buttons(d, answers, correct)
+    return im
+
+
+def roman():
+    """Roman Numerals: read one, answered, with the decomposition underneath."""
+    return _roman_screen("What number is this?", "XIV", ["14", "16", "15", "11"], "14",
+                         2, "I=1   V=5   X=10",
+                         "A smaller sign BEFORE a bigger one is taken away.",
+                         "XIV = X + IV = 10 + 4 = 14", SUCCESS)
+
+
+def roman_write():
+    """Roman Numerals: the other direction, unanswered.
+
+    XXXXIV is on a button on purpose: the wrong answers here are the mistakes a
+    child actually makes, not four numbers picked at random.
+    """
+    return _roman_screen("Write this in Roman numerals", "44",
+                         ["XLIV", "XXXXIV", "LIV", "XLVI"], None,
+                         3, "I=1   V=5   X=10   L=50",
+                         "XL is 10 before 50 = 40. LX is 50 and 10 = 60.",
+                         "Tap the answer", WARN, note_big=True)
+
+
+# ------------------------------------------------------------- Shape & Color
+#
+# The point tables are the ones in ShapeColorGame.cpp, as hundredths of the
+# radius. Restated rather than shared because this file cannot include a C
+# header -- if you change one, change both.
+
+SHAPE_POLYS = {
+    "star": [(0, -100), (22, -31), (95, -31), (36, 12), (59, 81),
+             (0, 38), (-59, 81), (-36, 12), (-95, -31), (-22, -31)],
+    "pinwheel": [(0, -100), (26, -26), (100, 0), (26, 26),
+                 (0, 100), (-26, 26), (-100, 0), (-26, -26)],
+    "cross": [(-33, -100), (33, -100), (33, -33), (100, -33), (100, 33), (33, 33),
+              (33, 100), (-33, 100), (-33, 33), (-100, 33), (-100, -33), (-33, -33)],
+    "arrow": [(-90, -40), (20, -40), (20, -90), (100, 0), (20, 90), (20, 40), (-90, 40)],
+    "trapezium": [(-55, -60), (55, -60), (100, 60), (-100, 60)],
+}
+
+
+def _regular(n, xs=100, ys=100, flat_bottom=True):
+    start = -math.pi / 2 + (math.pi / n if (n % 2 == 0 and flat_bottom) else 0)
+    return [(math.cos(start + i * 2 * math.pi / n) * xs,
+             math.sin(start + i * 2 * math.pi / n) * ys) for i in range(n)]
+
+
+SHAPE_POLYS["pentagon"] = _regular(5)
+SHAPE_POLYS["hexagon"] = _regular(6)
+SHAPE_POLYS["heptagon"] = _regular(7)
+SHAPE_POLYS["octagon"] = _regular(8)
+SHAPE_POLYS["diamond"] = _regular(4, 76, 100, False)
+SHAPE_POLYS["oval"] = _regular(20, 100, 58)
+
+
+def _shape(d, name, cx, cy, size, col, filled):
+    if name == "circle":
+        box = [cx - size, cy - size, cx + size, cy + size]
+        d.ellipse(box, fill=col if filled else None, outline=col, width=2)
+        return
+    if name in ("square", "rectangle"):
+        hw = size
+        hh = size if name == "square" else size * 6 // 10
+        box = [cx - hw, cy - hh, cx + hw, cy + hh]
+        d.rounded_rectangle(box, 3, fill=col if filled else None, outline=col, width=2)
+        return
+    if name == "triangle":
+        pts = [(cx, cy - size), (cx + size, cy + size), (cx - size, cy + size)]
+    else:
+        pts = [(cx + x * size / 100, cy + y * size / 100) for x, y in SHAPE_POLYS[name]]
+    d.polygon(pts, fill=col if filled else None, outline=col)
+
+
+def _shape_screen(level, names, order, matched, stats):
+    im, d = blank(); topbar(d, "Shape & Color")
+    head = "Tap a shape, then its matching outline"
+    d.text((W / 2 - d.textlength(head, font=F2) / 2, 34), head, font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength(stats, font=F1), 50), stats, font=F1, fill=TEXT)
+    tight = level >= 4
+    cols = [(225, 60, 80), (42, 117, 213), (39, 157, 112), (244, 188, 48)]
+    for i, (label, shape, concave) in enumerate(names):
+        r = (16, 58 + i * 43, 136, 38)
+        done = i in matched
+        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 6, fill=PANEL,
+                            outline=(45, 154, 96) if done else OUTLINE)
+        if not done:
+            _shape(d, shape, r[0] + (22 if tight else 24), r[1] + r[3] // 2,
+                   11 if tight else 13, cols[i], True)
+            d.text((r[0] + (38 if tight else 42), r[1] + 14), label, font=F1, fill=TEXT)
+            if tight:
+                tag = "concave" if concave else "convex"
+                d.text((r[0] + r[2] - 5 - d.textlength(tag, font=F1), r[1] + 14),
+                       tag, font=F1, fill=MUTED)
+        else:
+            d.text((r[0] + (38 if tight else 42), r[1] + 12), "matched", font=F2, fill=TEXT)
+        t = (168, 58 + i * 43, 136, 38)
+        j = order[i]
+        d.rounded_rectangle([t[0], t[1], t[0] + t[2], t[1] + t[3]], 6, fill=SURFACE,
+                            outline=(214, 214, 214))
+        _shape(d, names[j][1], t[0] + 28, t[1] + t[3] // 2, 13,
+               cols[j] if j in matched else (100, 104, 112), j in matched)
+        d.text((t[0] + 54, t[1] + 12), "target", font=F2, fill=MUTED)
+    return im
+
+
+def shapes():
+    """Shape & Color, level 1: colour and shape together."""
+    return _shape_screen(
+        1,
+        [("red circle", "circle", False), ("blue square", "square", False),
+         ("green triangle", "triangle", False), ("yellow star", "star", True)],
+        [1, 0, 3, 2], {0}, "Level 1   Taps 3   Best 8")
+
+
+def shapes_concave():
+    """Shape & Color, level 4: two concave, two convex, and the word on the row."""
+    return _shape_screen(
+        4,
+        [("cross", "cross", True), ("hexagon", "hexagon", False),
+         ("pinwheel", "pinwheel", True), ("diamond", "diamond", False)],
+        [2, 3, 0, 1], set(), "Level 4   Taps 0   Best 8")
+
 
 
 def multiply():
@@ -2362,23 +2625,6 @@ def microku():
     w, gap = 46, 12
     for v in range(1, 5):
         button(d, (8 + (v - 1) * (w + gap), 205, w, 30), str(v))
-    return im
-
-
-def shapes():
-    im, d = blank(); topbar(d, "Shape & Color")
-    d.text((W / 2 - d.textlength("Match them up", font=F2) / 2, 38), "Match them up", font=F2, fill=MUTED)
-    items = [("red circle", (230, 70, 70)), ("blue square", (70, 130, 230)),
-             ("green tri", (70, 200, 110)), ("yellow star", (240, 210, 70))]
-    for i, (lab, col) in enumerate(items):
-        r = (16, 58 + i * 43, 136, 38)
-        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 5, fill=SURFACE, outline=OUTLINE)
-        d.ellipse([r[0] + 8, r[1] + 9, r[0] + 28, r[1] + 29], fill=col)
-        d.text((r[0] + 36, r[1] + 12), lab, font=F1, fill=TEXT)
-        t = (168, 58 + i * 43, 136, 38)
-        d.rounded_rectangle([t[0], t[1], t[0] + t[2], t[1] + t[3]], 5, fill=PANEL, outline=OUTLINE)
-        d.text((t[0] + 12, t[1] + 12), ["blue square", "red circle", "yellow star", "green tri"][i],
-               font=F1, fill=TEXT)
     return im
 
 
@@ -3759,11 +4005,13 @@ EXTRA_SCREENS = [
     ("tictactoe", tictactoe, "Tic-Tac-Toe"),
     ("memory", memory, "Memory Match"),
     ("math", math_game, "Math"),
+    ("math-words", math_words, "Math: a word problem"),
     ("multiply", multiply, "Multiplication"),
     ("time", time_game, "Time"),
     ("whack", whack, "Whack A Mole"),
     ("microku", microku, "Microku"),
     ("shapes", shapes, "Shape & Color"),
+    ("shapes-concave", shapes_concave, "Shape & Color: concave against convex"),
     ("counting", counting, "Counting"),
     ("money", money, "Money"),
     ("fractions", fractions, "Fractions"),
@@ -3783,6 +4031,10 @@ EXTRA_SCREENS = [
     ("elements", elements, "Elements: the periodic table"),
     ("elements-card", elements_card, "Elements: one element up close"),
     ("elements-quiz", elements_quiz, "Elements: find it in the table"),
+    ("space", space, "Space: the solar system and the air above us"),
+    ("space-answered", space_answered, "Space: the fact after an answer"),
+    ("roman", roman, "Roman Numerals: read the numeral"),
+    ("roman-write", roman_write, "Roman Numerals: write the number"),
     ("piano", piano, "Piano: one octave"),
     ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
     ("seabattle", sea_battle, "Sea Battle: hunting the fleet, your sea beside it"),

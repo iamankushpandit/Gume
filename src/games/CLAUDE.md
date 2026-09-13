@@ -76,6 +76,39 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 - `RowList` section headings are struck through by a rule that starts a fixed 54px in, so keep them to about six characters. `NearbyApp` puts the peer's tag in the heading and everything else about it in rows for exactly this reason.
 - Never block `update()` for more than a second or two. The loop is watchdogged (`Watchdog::TIMEOUT_SECONDS = 12`) and a long busy-wait reboots the device. Games do not feed or touch the watchdog themselves; if you genuinely must block, ask `Board` to do it behind a `Watchdog::Pause`.
 
+## The four-button quiz screens
+
+Math, Multiplication, Counting, Time, Flag, Percent, Space and Roman are one
+layout: header counters, a question panel, four answer buttons at
+`(18 + col * 152, 144 + row * 46, 132, 38)`, a strip between them. If you add a
+ninth, copy `MathGame` or `SpaceGame` rather than inventing the rects again --
+two screens with the same shape should not put their buttons in two
+nearly-identical places.
+
+Three things about that family are load-bearing, and all three are mistakes
+somebody already made here:
+
+- **The question panel is DYNAMIC, gated on a `drawn...` flag.** Classing it as
+  static means only `markFullDirty()` can repaint it, which makes every new
+  question a 320x240 wipe.
+- **Invalidate the button trackers in `newQuestion()`.** A button repaints only
+  when its *state* changes, and on a new question the two that were never
+  highlighted go 0 -> 0 -- so they keep the previous question's labels.
+- **Derive the strip below the panel from the panel's own bottom edge.** Math
+  typed both in and they overlapped by five rows for two releases, erasing the
+  panel's border on every answer. `docs/RENDER_AUDIT.md` has the full story.
+
+**Wrap text with `Ui::wrapLines()`, not `Ui::drawWrappedText()`.** The second
+builds every line with `String`, which is right where it is used (a game
+message changes when the game says something) and wrong for a question that is
+rewritten every few seconds for as long as a child keeps playing. `wrapLines()`
+writes into the caller's fixed buffers, allocates nothing, and returns how many
+lines the text *needed* -- which is what lets a panel say "wrap at font 2, and
+if that wanted a fourth line, wrap it again at font 1" instead of discovering
+the overflow on the panel. TFT_eSPI cuts an overlong string at the viewport
+edge with no mark and mid-word, and `tools/gen_screens.py` cannot reproduce
+that, so a label that overflows looks perfect in every mock-up.
+
 ## Adding a game
 
 The full checklist lives in the root `CLAUDE.md` under "Adding a game or an app": work through that, not this summary. It covers the docs, the screenshots and the verification steps, which is where things have actually been shipped broken. The code edits alone are:

@@ -152,6 +152,32 @@ void dieFace(Ui::Renderer& tft, int16_t x, int16_t y, int16_t size, uint16_t fac
     }
 }
 
+/* A tilted elliptical band, two pixels thick, for the one icon that needs a
+ * ring rather than a circle. Plotted rather than masked: the Wi-Fi tile once
+ * drew whole circles and painted the unwanted half out with a rectangle, and
+ * the mask was three pixels short. Explicit geometry cannot spill. */
+void ellipseRing(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t rx, int16_t ry,
+                 int16_t tiltDegrees, uint16_t color) {
+    const float tilt = tiltDegrees * PI / 180.0f;
+    const float ct = cosf(tilt);
+    const float st = sinf(tilt);
+    int16_t px = 0;
+    int16_t py = 0;
+    for (uint8_t i = 0; i <= 24; ++i) {
+        const float a = i * 2.0f * PI / 24;
+        const float ex = cosf(a) * rx;
+        const float ey = sinf(a) * ry;
+        const int16_t x = static_cast<int16_t>(cx + ex * ct - ey * st);
+        const int16_t y = static_cast<int16_t>(cy + ex * st + ey * ct);
+        if (i > 0) {
+            tft.drawLine(px, py, x, y, color);
+            tft.drawLine(px, static_cast<int16_t>(py + 1), x, static_cast<int16_t>(y + 1), color);
+        }
+        px = x;
+        py = y;
+    }
+}
+
 /** Pole only; the field is the caller's, and is what tells the two flags apart. */
 void flagPole(Ui::Renderer& tft, int16_t cx, int16_t cy) {
     strokeV(tft, static_cast<int16_t>(cx - 15), static_cast<int16_t>(cy - 16), 33, steel());
@@ -571,6 +597,30 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             tft.drawCircle(cx + 12, cy + 12, 6, ink());
             tft.fillCircle(cx, cy, 6, snow());
             tft.drawCircle(cx, cy, 6, ink());
+            break;
+        case LauncherIcon::Space:
+            /* A ringed planet, with one star to say which sky. Rule 5: the
+             * other discs in this set are a coin (solid amber, with an
+             * edge-on sliver beside it) and two pie charts with wedges taken
+             * out; nothing else has a band running THROUGH it, which is what
+             * makes this one readable at a glance. Rule 2: snow body, one
+             * accent, and the ring in the quiet second solid. */
+            tft.fillCircle(cx, cy, 12, snow());
+            ellipseRing(tft, cx, cy, 18, 6, -20, steel());
+            fillStar(tft, static_cast<int16_t>(cx - 13), static_cast<int16_t>(cy - 13),
+                     4, amber());
+            break;
+        case LauncherIcon::Roman:
+            /* IV carved on a tablet -- the strokes, not the letters, so it is
+             * geometry like the rest of the set rather than a font. Rule 5:
+             * Math's plate carries a plus over a minus and Multiplication's a
+             * single cross; a serifed upright beside a V is neither. */
+            plate(tft, cx, cy, 34, 32, snow());
+            strokeV(tft, static_cast<int16_t>(cx - 11), static_cast<int16_t>(cy - 10), 20, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 14), static_cast<int16_t>(cy - 10), 8, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 14), static_cast<int16_t>(cy + 8), 8, ink());
+            strokeDiag(tft, cx - 1, cy - 10, cx + 5, cy + 9, ink());
+            strokeDiag(tft, cx + 12, cy - 10, cx + 6, cy + 9, ink());
             break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());

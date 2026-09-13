@@ -282,7 +282,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 38 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 40 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -571,9 +571,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,563,357 / 3,145,728 bytes,
-**81.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 87,492 / 327,680 (26.5%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,581,473 / 3,145,728 bytes,
+**82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -613,8 +613,10 @@ gated on `Board::wakeLockEnabled()` (default on, RAM-mirrored, global like
 every device setting). It is an **accidental-touch guard, not access control**:
 it is disjoint from the admin PIN, neither granting nor revoking admin, and
 `resumeUnderlyingScreen()` -- the single tail shared by `exitScreenSaver()`,
-`wakeFromSleep()` and the unlock -- returns to exactly the screen, profile and
-orientation that were up before. Three things about it are load-bearing:
+`wakeFromSleep()` and the unlock -- returns to exactly the screen and
+orientation that were up before. It used to return the *profile* too; going
+idle now ends an admin session, which is the entry paths' doing rather than
+this one's -- see the invariant below. Three things about it are load-bearing:
 
 - **The press that got you here is swallowed.** `enterLock()` sets
   `swallowTouch_`, so a press held through a bag can never complete the
@@ -752,6 +754,21 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   drops to Guest if it finds admin selected. The picker's Done button goes home
   with whatever is already active, so a remembered admin selection is a PIN
   bypass, not a convenience. Do not "restore the last profile" here.
+- **Going idle must not leave the admin profile active either.** Same fact,
+  arriving a different way: the console was put down, and who picked it up is
+  not something the device knows -- which is the whole threat model the PIN is
+  written against. `endAdminSessionForIdle()` is called by *both* idle
+  entries, `enterScreenSaver()` and `enterSleep()`, so the saver, panel sleep,
+  the Lock button and the lock screen's own timeout are all covered by one
+  line each. Before it, an adult could open Settings, walk away, and whoever
+  touched the panel next had every switch on it with no PIN asked; the lock
+  screen does not close that, because it is an accidental-touch guard whose
+  hold is deliberately not a secret. It drops on the way *in* rather than on
+  the way out so that no exit can forget, and it sets `adminEndedByIdle_` so
+  that `resumeUnderlyingScreen()` starts the screen over instead of resuming
+  it -- **that part is not tidiness**: Settings' change-PIN pad sits above
+  that screen's own admin gate, being reachable only by an admin, so a resumed
+  pad would let whoever came back set the PIN.
 - **A PIN's digit count is not derivable from its value.** `0000` and an empty
   field are both zero, so every PIN entry point tracks digits separately from
   the number, and only judges an entry once it is exactly four long. Both
@@ -762,7 +779,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 38 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 40 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
 - **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead -- with one measured exception: the **mute control does not fit that row in portrait**. At 240px the badges reach about x=155 and the padlock starts at `lW-64`, which leaves roughly 20px for an 18px glyph plus its gaps, so it goes on the profile-name row above, whose right-hand half is empty because the name is capped at 112px. It sits **in the padlock's column** (`speakerRect()` takes `lockRect().x`) rather than mid-row: at `lW-96` it was beside nothing and above nothing, and it read off both portrait panels as an icon floating in an empty row. Anything new in that header needs the same treatment â€” measure, don't guess.
@@ -916,7 +933,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 76.0%. As synthesis it is under a kilobyte.
+  artwork, on a budget already at 82.1%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.

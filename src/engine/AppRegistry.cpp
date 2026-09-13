@@ -43,6 +43,8 @@ Game& cursive(GameInstances& games) { return games.cursive; }
 Game& ludo(GameInstances& games) { return games.ludo; }
 Game& backgammon(GameInstances& games) { return games.backgammon; }
 Game& go(GameInstances& games) { return games.go; }
+Game& space(GameInstances& games) { return games.space; }
+Game& roman(GameInstances& games) { return games.roman; }
 Game& scores(GameInstances& games) { return games.scores; }
 Game& profiles(GameInstances& games) { return games.profile; }
 Game& settings(GameInstances& games) { return games.settings; }
@@ -115,6 +117,11 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     metadataCatalogApp(backgammonAppMetadata(), backgammon),
     /* Landscape only, like Ludo: a square board and a panel beside it. */
     metadataCatalogApp(goAppMetadata(), go),
+    /* Appended, as everything after Elements has been: per-profile game
+     * visibility is stored by launcher position, so inserting one anywhere but
+     * the end silently reassigns every player's hidden-game choices. */
+    metadataCatalogApp(spaceAppMetadata(), space),
+    metadataCatalogApp(romanAppMetadata(), roman),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
