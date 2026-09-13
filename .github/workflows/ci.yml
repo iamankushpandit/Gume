@@ -1,3 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
 name: CI
 
 # Runs on every pull request, and on pushes to the two protected branches.
@@ -101,6 +110,7 @@ jobs:
           python -m py_compile tools/check_frame_rules.py
           python -m py_compile tools/check_privacy.py
           python -m py_compile tools/check_identifiers.py
+          python -m py_compile tools/check_licenses.py
           python -m py_compile tools/gen_site.py
           python -m py_compile tools/gen_board_docs.py
 
@@ -118,6 +128,10 @@ jobs:
           python tools/check_catalog.py
           python tools/check_frame_rules.py
           python tools/check_privacy.py
+          # A licence at the root of a repository is a claim about the
+          # repository; the file is what reaches whoever copies one thing out
+          # of it. Every file that can carry the notice carries it.
+          python tools/check_licenses.py
           # Board pages are generated from the profiles; a stale one fails here.
           python tools/gen_board_docs.py --check
           # A hardware identifier cannot be un-published: a MAC is burned into

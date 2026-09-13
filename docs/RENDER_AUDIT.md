@@ -718,3 +718,10 @@ right-aligned and shrinks, and the obvious clear rectangle for it reaches up
 into the instruction line -- which is now **static**, so nothing would ever
 have repainted the rows it took off. Starting the strip at 50 rather than 48 is
 the whole fix, and the comment there says why the two pixels matter.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

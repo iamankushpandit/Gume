@@ -21,6 +21,15 @@ trading name that is not an incorporated entity cannot hold a copyright, and a
 licence notice naming a holder that does not legally exist is precisely the
 notice a downstream user cannot rely on.
 
+**Every file says this itself.** Each source file, script, workflow and
+document in the repository carries the same notice in miniature: the SPDX
+licence identifier, the copyright holder, a link back here, and what reuse
+requires. `tools/check_licenses.py` keeps it that way and CI runs it. Those
+headers grant nothing new and take nothing back -- they are this page, written
+where a file that has travelled on its own can still be read. Keep them if you
+copy a file; that, and the source obligation above, is the whole of what is
+asked.
+
 ## Trademarks
 
 **Braino!** is a product of GoodTime Micro Company™. **Braino!**, **GoodTime
@@ -71,3 +80,10 @@ Every asset compiled into the firmware is MIT or public domain, and the
 libraries keep their own permissive licences. The full table, including the
 one attribution obligation that survives (`mledoze/countries`, ODbL), is in the
 README's [Credits and licensing](README.md#credits-and-licensing) section.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

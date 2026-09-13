@@ -47,6 +47,48 @@ images of the deleted Countries game for two releases, and the Settings picture
 showed a grid that no longer existed. A mock-up of a screen that is not there
 any more is a worse lie than a missing one.
 
+## Every file says who wrote it, and under what licence
+
+The repository has been GPL-3.0-or-later since it was published, and LICENSE,
+NOTICE.md and the README all say so. **None of that travels.** A licence at the
+root of a repository is a claim about the repository; the thing that actually
+reaches a stranger is one file -- a `.cpp` pasted into a forum answer, a tool
+script copied into another tree, a page of documentation lifted into a wiki.
+Split from its repository, an unmarked file carries no author, no terms and no
+way back to either, and whoever took it is not being dishonest: they have
+nothing to go on.
+
+So **every text file that supports a comment carries the notice itself** -- the
+SPDX licence identifier, the copyright holder, where the work came from, and
+what reuse requires. Source, headers, scripts, workflows, `platformio.ini`, the
+site template, the SVGs; documents carry it as a visible footer instead,
+because a reader lifting a paragraph out of a rendered page never sees an HTML
+comment. It grants nothing new and takes nothing back. It is the licence the
+project already had, written where it can be seen.
+
+**`python tools/check_licenses.py` is the check, and `--fix` is the fix.** That
+is deliberate: a rule that has to be remembered 250 times is a rule that will
+be missed, which is the same reasoning as `check_docs.py`. It runs in CI on
+every pull request. Three things follow from it:
+
+- **A new file gets a notice in the commit that adds it.** Run `--fix`; do not
+  hand-type one, and do not copy one from a neighbouring file with a different
+  extension.
+- **A generated file gets its notice from its generator.** `header_for()` in
+  `check_licenses.py` is the one definition of the wording and every generator
+  imports it, so regenerating a table cannot quietly strip the notice and two
+  copies of the header cannot drift apart.
+- **The holder in a header is `iamankushpandit` and nothing else.** A header
+  that disagrees with LICENSE is worse than no header, because it is the one a
+  downstream reader will rely on. The exemptions -- LICENSE itself, files with
+  no comment syntax (JSON, binaries), and PlatformIO's stub READMEs -- are
+  listed with their reasons at the top of the checker; add to that list only
+  for a reason of the same kind, never for convenience.
+
+The related rule this does not replace: **trademark is not copyright.**
+NOTICE.md keeps them apart, and a fork renames the product while keeping the
+attribution. See `include/AppVersion.h`.
+
 ## The About app is user-facing documentation â€” keep it true
 
 `AboutApp` is the only documentation most owners will ever read, and the only
@@ -571,7 +613,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,489 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,581,433 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1237,7 +1279,11 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           the WCAG floors),
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
-                          above), build_stamp.py,
+                          above),
+                          check_licenses.py (every file states its licence,
+                          its holder and what reuse requires; --fix writes
+                          the missing ones, and every generator imports its
+                          header_for()), build_stamp.py,
                           envs.py (which environments are the product and
                           which are bench probes -- the only list),
                           pack_release.py, split_render.py,
@@ -1526,3 +1572,9 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - `src/games/CountryDataTable.cpp` is generated â€” edit `tools/gen_country_facts.py` and regenerate.
 - `swallowTouch_` in `main.cpp` suppresses the first press after a rotation change or screen-saver dismissal, preventing a phantom tap on freshly drawn UI.
 
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

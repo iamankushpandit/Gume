@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+//
+// Part of Braino! -- https://github.com/iamankushpandit/Gume
+// Free software under GPL-3.0-or-later. Reusing any part of this file, in
+// any work, must keep this notice, credit iamankushpandit as the
+// author, and stay under the same licence with corresponding source
+// offered. See LICENSE and NOTICE.md.
+
 // Host-side test of the Ludo rules engine, compiled against the real
 // src/games/LudoRules.cpp. LudoRules is pure C++ with no Arduino in it -- that
 // is a rule (see src/games/CLAUDE.md) and this file is what proves it still

@@ -285,10 +285,11 @@ python tools/check_frame_rules.py
 python tools/check_docs.py
 python tools/check_boards.py
 python tools/check_privacy.py
+python tools/check_licenses.py
 pio run -e app -e bringup -e batdiag -e wifidiag
 ```
 
-Those five checks plus site generation are what CI's required `verify` job runs
+Those six checks plus site generation are what CI's required `verify` job runs
 on every pull request, so running them locally is running the gate:
 
 ```bash
@@ -440,7 +441,22 @@ somebody to hold the board.
 
 ## Licensing
 
-This project is licensed **GPL-3.0-or-later** — see [LICENSE](LICENSE).
+This project is licensed **GPL-3.0-or-later** — see [LICENSE](LICENSE), and
+**every file says so itself**. Each source file, script, workflow and document
+carries a short notice naming the licence (as an SPDX identifier), the
+copyright holder, where the work came from, and what reuse requires. Add a new
+file and `python tools/check_licenses.py --fix` will write it for you;
+`python tools/check_licenses.py` runs in CI and fails on a file that has none.
+Do not delete a notice, and do not put a different holder in one -- a file
+whose header disagrees with LICENSE is worse than a file with no header,
+because it is the header a downstream reader will rely on.
+
+The reason for having them at all is that a licence at the root of a
+repository is a claim about the repository, and the thing that actually
+reaches a stranger is a single file: one `.cpp` pasted into a forum answer,
+one script copied into another tree, one page of documentation lifted into a
+wiki. Split from its repository, an unmarked file carries no author, no terms
+and no way back to either.
 
 By opening a pull request you agree that your contribution is licensed under
 those same terms. There is no separate CLA, and contributing to this
@@ -464,3 +480,10 @@ The bundled libraries and artwork keep their own permissive licences
 licence that is not — anything GPL-incompatible, or "non-commercial" and
 similar source-available terms, cannot ship in this firmware. If you are
 unsure, raise it in the issue before writing the code.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

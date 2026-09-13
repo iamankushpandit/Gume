@@ -1,3 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
 name: Release
 
 # Publishes a GitHub release with every firmware image attached, when a v* tag
@@ -133,6 +142,7 @@ jobs:
           python tools/check_boards.py
           python tools/check_catalog.py
           python tools/check_frame_rules.py
+          python tools/check_licenses.py
 
       # The five product environments, derived by tools/envs.py rather than
       # listed here. It used to be every [env:*] in platformio.ini, which meant

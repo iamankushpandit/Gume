@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+//
+// Part of Braino! -- https://github.com/iamankushpandit/Gume
+// Free software under GPL-3.0-or-later. Reusing any part of this file, in
+// any work, must keep this notice, credit iamankushpandit as the
+// author, and stay under the same licence with corresponding source
+// offered. See LICENSE and NOTICE.md.
+
 /* The generated header MUST come before BuildStamp.h, whose "unknown"
  * fallbacks are guarded on these macros not already existing. It is written
  * into the build directory by tools/build_stamp.py, so it is absent when
