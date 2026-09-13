@@ -30,7 +30,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,489 / 3,145,728 bytes (**82.1%**) |
+| Flash | 2,581,433 / 3,145,728 bytes (**82.1%**) |
 | RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — 763 KB (34% of the image) |
 
@@ -1476,6 +1476,12 @@ launchable system apps. That replaced the old split between `CATALOG_KINDS[]`,
 Code in this repository is licensed **GPL-3.0-or-later** — see
 [LICENSE](LICENSE). Copyright © 2026 iamankushpandit.
 
+**Every file carries that notice itself**, as an SPDX header naming the
+licence, the holder and what reuse requires — because the file, not the
+repository, is what reaches a stranger who copies one thing out of it.
+`tools/check_licenses.py` writes them (`--fix`) and CI fails a file that has
+none.
+
 The copyright and the brand are held by different parties on purpose, and
 [NOTICE.md](NOTICE.md) is the short statement of which is which: the code is
 the individual's and comes to you under the GPL, while **Braino!**, the game
@@ -1520,3 +1526,10 @@ The remaining obligation is attribution, not restriction: `mledoze/countries`
 is ODbL, so the capital/region data must keep its credit. Note also that the
 Arduino-ESP32 core is **LGPL** — distributing a statically-linked binary
 carries relinking obligations.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

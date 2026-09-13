@@ -1,5 +1,16 @@
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+<!--
+     SPDX-License-Identifier: GPL-3.0-or-later
+     SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+
+     Part of Braino! -- https://github.com/iamankushpandit/Gume
+     Free software under GPL-3.0-or-later. Reusing any part of this file, in
+     any work, must keep this notice, credit iamankushpandit as the
+     author, and stay under the same licence with corresponding source
+     offered. See LICENSE and NOTICE.md.
+-->
+
  "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
 <svg version="1.0" xmlns="http://www.w3.org/2000/svg"
  width="1280.000000pt" height="640.000000pt" viewBox="0 0 1280.000000 640.000000"

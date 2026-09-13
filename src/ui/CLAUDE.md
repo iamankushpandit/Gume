@@ -181,3 +181,10 @@ Callers keep their own scroll offset and pass it in, so one list can serve sever
 Images are 4-bit indexed data in flash, decoded one row at a time through `mnf_row_rgb565()` into a ~200-byte stack buffer and pushed with `pushPixels()` — so a full-screen flag costs no heap and no framebuffer. Keep that streaming pattern if you add new image helpers; buffering a whole image would not fit in RAM.
 
 Note the byte-swap correction applied before `pushPixels()`; dropping it produces colour-garbled output.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*
