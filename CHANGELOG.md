@@ -1,14 +1,13 @@
 # Changelog
 
-## 5.13.0-SNAPSHOT — Unreleased
+## 5.12.1 — 2026-09-13
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for the 5.12.0
-release, and `release.yml` refuses to publish a tag whose version carries it.
-
-`Board::compareVersions()` sorts a pre-release before the release of the same
-number, so a console on this build is correctly told that nothing newer exists
-rather than being nagged all cycle to install the 5.12.0 it is ahead of.
+**A licence release. The console does exactly what 5.12.0 does.** Across
+`src/`, `include/`, `lib/` and `test/` this change removes no line and adds
+only comments, so nothing compiled behaves differently -- what moves in the
+image is the version string and the build stamp, and the flash figure is
+5.12.0's to the byte. It is tagged rather than held on `dev` because a
+notice nobody has a copy of is not a notice.
 
 **Every file now states its own licence.** The repository has been
 GPL-3.0-or-later since it was published and LICENSE, NOTICE.md and the README
