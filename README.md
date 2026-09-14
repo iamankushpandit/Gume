@@ -3,7 +3,7 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.12.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.13.0--SNAPSHOT-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
@@ -1236,7 +1236,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.12.1**. See
+Current release: **5.13.0-SNAPSHOT**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---
@@ -1273,9 +1273,13 @@ To check the page itself before pushing:
 python tools/gen_site.py
 ```
 
-That writes `site/_build/` (git-ignored) with the page and one manifest per
-firmware. The binaries are *not* built locally; the flash button only works
-against the published site, where CI has put them there.
+That writes `site/_build/` (git-ignored) with the page, one manifest per
+firmware, the six stills the page shows and a copy of `site/assets/`. The
+binaries are *not* built locally; the flash button only works against the
+published site, where CI has put them there. `gen_site.py` refuses to generate
+if the page references an asset that is missing, or if an asset in the tree is
+referenced by nothing -- a broken image on the landing page and dead weight in
+every clone are both worth failing a build over.
 
 ### Diagnostics
 
@@ -1450,6 +1454,8 @@ tools/
   check_frame_rules.py  ratchet on heap/String/delay in render paths
 site/
   index.template.html   the landing page, with {{PLACEHOLDERS}} gen_site fills
+  assets/               its photos, hero video and poster -- the only part of
+                        the page not derived from the firmware
 .github/
   workflows/ci.yml      runs checks and builds every firmware on a clean runner
   workflows/pages.yml   publishes the site with the same built firmware
