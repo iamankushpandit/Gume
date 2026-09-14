@@ -14,6 +14,24 @@ have the chunkier bezel.
 The screens are generated stills, which is what makes the picture worth
 trusting: what is on the glass is what the firmware draws, down to the
 launcher icons the mock-ups only learned to draw in this same release.
+**The launcher mock-ups draw the real icons.** Every launcher still -- the
+wide one, the tall one and the 3x3 portrait grid -- drew a plain blue circle
+in each tile, where the device draws cards, coins, a tricolour, a sudoku grid,
+a ruler. Those three images are the picture of the product in the README
+gallery, on the installer page and in every theme sheet, so the front page has
+been showing a launcher that does not exist. `tools/gen_screens.py` now ports
+the nine front-page icons from `src/ui/LauncherIcons.cpp`, keeping that file's
+palette, its two-pixel stroke rule and its 36px box rather than inventing new
+ones.
+
+It was found by trying to composite a generated still onto a photograph of a
+real device: the photo showed icons and the mock-up showed circles, which is
+the comparison no check performs.
+
+An icon that is not ported yet now **stops the build** rather than falling
+back to a circle. The silent fallback is exactly how this shipped -- a
+placeholder that looks deliberate is indistinguishable from art, and it sat on
+the landing page for months.
 
 In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
