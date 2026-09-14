@@ -46,8 +46,13 @@
   .muted{color:var(--muted)}
 
   /* nav */
-  .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px var(--gutter);background:rgba(11,12,16,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-  .nav .mark{font-weight:900;font-size:22px;letter-spacing:-.03em;color:var(--yellow);text-decoration:none}
+  .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px var(--gutter);background:rgba(11,12,16,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .nav .mark{display:inline-flex;align-items:center;gap:11px;font-weight:900;
+             font-size:38px;letter-spacing:-.03em;color:var(--yellow);text-decoration:none}
+  .nav .mark img{height:54px;width:auto;display:block}
+  /* Narrow screens shrink it, but not much: the mark is the one thing on this
+     bar that has to be legible at a glance. */
+  @media (max-width:640px){.nav .mark{font-size:32px;gap:9px}.nav .mark img{height:44px}}
   .nav ul{display:flex;gap:6px;list-style:none;margin:0;padding:0}
   .nav li a{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px}
   .nav li a:hover,.nav li a:focus-visible{background:rgba(255,255,255,.1)}
@@ -72,6 +77,13 @@
   .phone button{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:rgba(11,12,16,.75);color:#fff;border:0;border-radius:999px;padding:9px 16px;font:600 14px var(--font);cursor:pointer;backdrop-filter:blur(6px)}
   .phone .yt{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:13px;color:#fff;text-decoration:none;background:rgba(11,12,16,.6);padding:5px 10px;border-radius:999px}
   @media (max-width:860px){.hero{grid-template-columns:1fr;padding-top:4vh}.phone{margin-top:24px}}
+
+  /* the product lineup: every size, every colour, a real screen on each */
+  .lineup{padding:0 var(--gutter) 6vh;text-align:center}
+  .lineup h2{font-size:clamp(34px,4.6vw,68px);font-weight:900;letter-spacing:-.04em;line-height:.95}
+  .lineup p{margin:18px auto 0;max-width:42rem;font-size:19px;color:var(--muted)}
+  .lineup .shot{margin-top:38px;border-radius:22px;overflow:hidden;background:#fff}
+  .lineup .shot img{width:100%;height:auto}
 
   /* the generated still wall, straight under the hero */
   .stills{padding:0 var(--gutter) 12vh}
@@ -131,8 +143,9 @@
   .games h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
   .games .intro{margin-top:22px;max-width:38rem;font-size:20px;color:var(--muted)}
   .games .intro a{color:var(--yellow)}
-  .wall{margin-top:44px;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:clamp(24px,3.4vw,54px);font-weight:800;letter-spacing:-.035em;line-height:1.05}
-  .wall span{opacity:.92}
+  .wall{margin-top:30px;display:flex;flex-wrap:wrap;gap:8px}
+  .wall span{font-size:15px;font-weight:600;letter-spacing:0;color:var(--muted);
+             border:1px solid var(--line);border-radius:999px;padding:5px 13px}
 
   /* videos */
   .videos{padding:14vh var(--gutter);background:var(--ink-2)}
@@ -202,7 +215,7 @@
 <body>
 
 <nav class="nav" aria-label="Page">
-  <a class="mark" href="#top">Braino!</a>
+  <a class="mark" href="#top"><img src="assets/braino-badge.svg" alt="" aria-hidden="true">Braino!</a>
   <ul>
     <li><a href="#games">Games</a></li>
     <li><a href="#videos">Videos</a></li>
@@ -235,6 +248,17 @@
   </div>
 </header>
 
+<section class="lineup" aria-label="The three sizes and the case colours">
+  <h2>Three sizes.<br>Any colour you can print.</h2>
+  <p>
+    2.8, 3.2 and 4 inch, shown at their true relative sizes &mdash; the case
+    footprints are measured from the printable meshes in this repository, so
+    the 4-inch really is a third wider than the 2.8-inch. Every screen is the
+    firmware's own.
+  </p>
+  <div class="shot"><img src="assets/lineup.jpg" alt="Eight Braino consoles in eight filament colours across three board sizes, each running a different game" loading="lazy"></div>
+</section>
+
 <section class="stills" aria-label="What the screens look like">
   <div class="wall-grid">
 {{STILL_WALL}}
@@ -257,8 +281,15 @@
       <li>4-inch boards, resistive touch</li>
     </ul>
     <p class="body muted">One firmware. You pick the board when you flash.</p>
+    <p class="body muted">It runs on the bare board exactly as it is &mdash; no case, no battery, nothing to print. The case is there if you want one.</p>
+    <p class="body muted" style="font-size:15px;opacity:.75">Three boards, three of the nine themes. Board artwork by LCDWIKI; the screens are Braino's own.</p>
   </div>
-  <figure><img src="assets/three-consoles.jpg" alt="Three Braino consoles in pink cases on a table" loading="lazy"></figure>
+  <figure style="background:#fff">
+    <picture>
+      <source srcset="assets/boards-braino.webp" type="image/webp">
+      <img src="assets/boards-braino.png" alt="Braino running on three bare ESP32 CYD boards - 3.2 inch, 4 inch and the 2.8 inch S3 - in three different themes" loading="lazy" style="object-fit:contain">
+    </picture>
+  </figure>
 </section>
 
 <section class="chapter flip" data-bg="#5b2a86">
@@ -267,7 +298,7 @@
     <p class="body">First letters to the periodic table to brain training. Flags, US states and elements use spaced repetition, so a missed item comes back sooner and a mastered one fades into the background. Difficulty adapts as a player improves.</p>
     <p class="body muted">Games, not lessons. That is the whole trick.</p>
   </div>
-  <figure><img src="assets/in-hand-flags.jpg" alt="A Braino held in one hand showing the Flags game" loading="lazy"></figure>
+  <figure><img src="assets/in-hand-flags.jpg" alt="A Braino in a printed case showing the launcher" loading="lazy"></figure>
 </section>
 
 <section class="chapter" data-bg="#0e7c7b">
@@ -447,7 +478,7 @@
 <section class="builders">
   <h2>Builders wanted.</h2>
   <div class="asks">
-    <a class="g" href="{{REPO}}/blob/main/CONTRIBUTING.md"><b>Add a game.</b><p>The launcher, profiles, scoring, mastery tracking and spaced repetition already exist. You write the activity; Braino does the rest.</p></a>
+    <a class="g" href="{{REPO}}/blob/main/CONTRIBUTING.md"><b>Add a game.</b><p>The launcher, profiles, scoring, mastery tracking and spaced repetition already exist. You write the activity; Braino does the rest. Not sure yet? <b>Open a discussion</b> and think it through in the open.</p></a>
     <a class="p" href="{{REPO}}/blob/main/docs/PORTING.md"><b>Port a board.</b><p>A new board is one header under include/boards and one section in platformio.ini. Nothing under src names a GPIO. PORTING.md is the checklist, and it starts by asking whether the board can run this at all.</p></a>
     <a class="a" href="{{REPO}}/tree/main/cases"><b>Design a case.</b><p>The 3.2-inch and 4-inch boards would love a good enclosure, in speaker and no-speaker variants. Print notes and fastener sizes are as valuable as the mesh.</p></a>
   </div>
@@ -473,6 +504,10 @@
       <b>github.com/iamankushpandit</b>
       <span>The author, and everything else published alongside Braino.</span>
     </a>
+    <a href="{{REPO}}/discussions">
+      <b>Start a discussion</b>
+      <span>For an idea rather than a defect &mdash; a game worth adding, a board worth porting, or thinking out loud about any of it.</span>
+    </a>
     <a href="mailto:esp32.gume@proton.me">
       <b>esp32.gume@proton.me</b>
       <span>Email, for anything that does not belong in public.</span>
@@ -486,6 +521,7 @@
     <a href="{{REPO}}">Source on GitHub</a> &middot;
     <a href="{{REPO}}/blob/main/CHANGELOG.md">Changelog</a> &middot;
     <a href="{{REPO}}/issues">Open an issue</a> &middot;
+    <a href="{{REPO}}/discussions">Discussions</a> &middot;
     <a href="https://github.com/iamankushpandit">iamankushpandit</a> &middot;
     <a href="mailto:esp32.gume@proton.me">esp32.gume@proton.me</a> &middot; GPL-3.0-or-later
   </span>
