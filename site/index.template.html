@@ -8,460 +8,488 @@
      any work, must keep this notice, credit iamankushpandit as the
      author, and stay under the same licence with corresponding source
      offered. See LICENSE and NOTICE.md.
+
+     Every double-braced placeholder here is filled by tools/gen_site.py out of the
+     firmware itself -- the version from AppVersion.h, the games and their
+     blurbs from AppRegistry, the boards from platformio.ini, the build
+     figures from README. Do not type any of those facts in by hand: a page
+     that restates the firmware is a page that will disagree with it.
 -->
 
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Braino! &mdash; {{GAME_COUNT}}-game console firmware for the ESP32</title>
-<meta name="description" content="Braino! is open ESP32 firmware: {{GAME_COUNT}} educational games for young players on supported ESP32 touchscreen boards. Flash it from this page.">
+<title>Braino! &mdash; an entire learning console in 4 MB</title>
+<meta name="description" content="Braino! is open-source firmware that turns an ESP32 touchscreen board into a learning console: {{GAME_COUNT}} games, no accounts, no telemetry, no cloud. Flash it from this page in about a minute.">
+<meta property="og:title" content="Braino! &mdash; an entire learning console in 4 MB">
+<meta property="og:description" content="Open-source firmware for ESP32 touchscreen boards. {{GAME_COUNT}} games. Flash it from your browser.">
+<meta property="og:image" content="https://iamankushpandit.github.io/Gume/assets/social-preview.jpg">
+<meta name="theme-color" content="#0b0c10">
 <style>
-:root {
-  --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #14181d;
-  --muted: #5c6672; --accent: #0b6bcb; --accent-ink: #ffffff;
-  --warn-bg: #fff6e5; --warn-line: #e0b355; --success: #178a52;
-  --hero-panel: #101721; --hero-ink: #f4f7fb; --hero-muted: #b9c3cf;
-  --shadow: 0 18px 42px rgba(18, 28, 45, 0.14);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1116; --panel: #161b22; --line: #2b323b; --ink: #e6edf3;
-    --muted: #9aa5b1; --accent: #4c9aff; --accent-ink: #0b1220;
-    --warn-bg: #241d0c; --warn-line: #6b5320; --success: #43c582;
-    --hero-panel: #0c121a; --hero-ink: #f5f8ff; --hero-muted: #b9c3cf;
-    --shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+  :root{
+    --ink:#0b0c10; --ink-2:#14161c; --paper:#f3f2ee; --line:rgba(255,255,255,.14);
+    --pink:#d8336e; --yellow:#ffd600; --teal:#0e7c7b; --indigo:#2f33b5;
+    --amber:#f2a900; --purple:#5b2a86; --green:#1f8a4c;
+    --fg:#fff; --muted:rgba(255,255,255,.66);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --gutter:clamp(20px,5vw,72px);
   }
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--ink);
-  font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-a { color: var(--accent); }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 72px; }
-header.hero {
-  margin: 20px -8px 0; padding: 52px 20px 28px; text-align: center;
-  border-radius: 18px; background: var(--hero-panel); color: var(--hero-ink);
-  box-shadow: var(--shadow); overflow: hidden;
-}
-header.hero h1 { font-size: clamp(2.5rem, 6vw, 5.8rem); line-height: 0.95; margin: 0 0 14px; letter-spacing: 0; }
-header.hero p.tag { color: var(--hero-muted); margin: 0 auto; max-width: 760px; font-size: 1.08rem; }
-.badges { margin-top: 18px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.badge {
-  font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line);
-  border-radius: 999px; padding: 3px 12px; background: var(--panel);
-}
-.hero .badge { color: var(--hero-ink); background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.18); }
-.hardware-pill {
-  display: inline-block; margin: 18px auto 0; padding: 8px 14px;
-  border-radius: 999px; background: rgba(255, 255, 255, 0.1);
-  color: var(--hero-ink); border: 1px solid rgba(255, 255, 255, 0.2);
-  font-size: 0.92rem;
-}
-.hardware-pill a { color: #9bd0ff; font-weight: 700; }
-.screen-wall {
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px; margin: 30px auto 6px; max-width: 1080px;
-}
-@media (max-width: 980px) { .screen-wall { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (max-width: 620px) { .screen-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-figure { margin: 0; text-align: center; }
-figcaption { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
-section { margin-top: 44px; }
-h2 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: -0.01em; }
-h3 { font-size: 1.05rem; margin: 26px 0 6px; }
-.lede { color: var(--muted); margin-top: 0; }
-.card {
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: 14px; padding: 22px;
-}
-.flash-grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
-@media (min-width: 720px) { .flash-grid { grid-template-columns: 1fr 1fr; } }
-label.field { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; }
-select {
-  width: 100%; padding: 10px 12px; border-radius: 10px; font: inherit;
-  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
-}
-#variant-note { color: var(--muted); font-size: 0.9rem; margin: 12px 0 0; }
-.install-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; }
-button.install {
-  background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px;
-  padding: 12px 22px; font: inherit; font-weight: 600; cursor: pointer;
-}
-.note { font-size: 0.9rem; color: var(--muted); }
-.warn {
-  background: var(--warn-bg); border: 1px solid var(--warn-line);
-  border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; margin-top: 18px;
-}
-.hardware-callout {
-  background: #eef7ff; border: 1px solid #a9d2f3; border-radius: 12px;
-  padding: 12px 14px; font-size: 0.95rem; margin: 0 0 18px;
-}
-@media (prefers-color-scheme: dark) {
-  .hardware-callout { background: #102033; border-color: #24496d; }
-}
-table { border-collapse: collapse; width: 100%; font-size: 0.94rem; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-.show-grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
-@media (min-width: 760px) { .show-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1120px) { .show-grid.games-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.show-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  overflow: hidden; box-shadow: 0 10px 24px rgba(18, 28, 45, 0.08);
-}
-.wall-still,
-.screen-shot {
-  background: #0b0f15; border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px; overflow: hidden;
-}
-.wall-still img,
-.screen-shot img {
-  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain;
-  background: #0b0f15; image-rendering: pixelated;
-}
-.wall-still figcaption,
-.screen-shot figcaption {
-  margin: 0; padding: 6px 8px; color: #dbe6f2; background: #101721;
-  font-size: 0.72rem; line-height: 1.25; min-height: 30px;
-}
-.wall-still { box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28); }
-.media-grid { display: grid; gap: 7px; padding: 8px; background: #0b0f15; }
-.media-count-1 { grid-template-columns: 1fr; }
-.media-count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.media-count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 520px) {
-  .media-count-2,
-  .media-count-3 { grid-template-columns: 1fr; }
-}
-.show-copy { padding: 15px 16px 17px; }
-.show-copy h3 { margin: 3px 0 7px; font-size: 1.16rem; }
-.show-copy p { margin: 0; }
-.eyebrow {
-  color: var(--success); font-size: 0.72rem; font-weight: 800;
-  text-transform: uppercase; letter-spacing: 0.08em;
-}
-.meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px !important; }
-.meta-row span {
-  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
-  color: var(--muted); font-size: 0.74rem;
-}
-pre {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  padding: 14px; overflow-x: auto; font-size: 0.85rem;
-}
-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-ul.tight { padding-left: 20px; }
-ul.tight li { margin: 4px 0; }
-footer {
-  border-top: 1px solid var(--line); margin-top: 56px; padding-top: 18px;
-  color: var(--muted); font-size: 0.85rem; text-align: center;
-}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--font);font-size:18px;line-height:1.5;-webkit-font-smoothing:antialiased;transition:background-color .9s ease}
+  a{color:inherit}
+  img,video{display:block;max-width:100%}
+  h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.02em;line-height:1}
+  p{margin:0}
+  figure{margin:0}
+  .muted{color:var(--muted)}
+
+  /* nav */
+  .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px var(--gutter);background:rgba(11,12,16,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .nav .mark{font-weight:900;font-size:22px;letter-spacing:-.03em;color:var(--yellow);text-decoration:none}
+  .nav ul{display:flex;gap:6px;list-style:none;margin:0;padding:0}
+  .nav li a{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px}
+  .nav li a:hover,.nav li a:focus-visible{background:rgba(255,255,255,.1)}
+  .nav li a.star{background:var(--yellow);color:var(--ink)}
+  /* Narrow screens keep the last two links only, so the markup order puts
+     Flash it and Star there: everything else on this page can be read by
+     scrolling, and flashing is the one thing that cannot. */
+  @media (max-width:640px){.nav li:not(:nth-last-child(-n+2)){display:none}}
+
+  /* hero */
+  .hero{min-height:calc(100vh - 60px);min-height:calc(100svh - 60px);display:grid;grid-template-columns:1.2fr .8fr;gap:var(--gutter);align-items:center;padding:6vh var(--gutter) 10vh}
+  .hero h1{font-size:clamp(88px,19vw,300px);font-weight:900;letter-spacing:-.06em;color:var(--yellow);line-height:.85}
+  .hero .lede{margin-top:28px;font-size:clamp(22px,2.6vw,36px);font-weight:700;letter-spacing:-.02em;line-height:1.15}
+  .hero .sub{margin-top:18px;max-width:34rem;font-size:19px;color:var(--muted)}
+  .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+  .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:999px;font-weight:700;text-decoration:none;font-size:17px;border:0;cursor:pointer;font-family:inherit}
+  .btn-solid{background:var(--yellow);color:var(--ink)}
+  .btn-ghost{background:transparent;color:var(--fg);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
+  .btn:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+  .phone{justify-self:center;width:min(300px,68vw);aspect-ratio:9/16;border-radius:34px;background:var(--pink);padding:10px;box-shadow:0 40px 80px rgba(0,0,0,.55);position:relative}
+  .phone video{width:100%;height:100%;object-fit:cover;border-radius:26px;background:#000}
+  .phone button{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:rgba(11,12,16,.75);color:#fff;border:0;border-radius:999px;padding:9px 16px;font:600 14px var(--font);cursor:pointer;backdrop-filter:blur(6px)}
+  .phone .yt{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:13px;color:#fff;text-decoration:none;background:rgba(11,12,16,.6);padding:5px 10px;border-radius:999px}
+  @media (max-width:860px){.hero{grid-template-columns:1fr;padding-top:4vh}.phone{margin-top:24px}}
+
+  /* the generated still wall, straight under the hero */
+  .stills{padding:0 var(--gutter) 12vh}
+  .wall-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  @media (max-width:620px){.wall-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .wall-still{border-radius:12px;overflow:hidden;background:#0b0f15;box-shadow:0 14px 30px rgba(0,0,0,.4)}
+  .wall-still img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#0b0f15;image-rendering:pixelated}
+  .wall-still figcaption{padding:6px 8px;font-size:11px;line-height:1.25;color:var(--muted);background:#101721;min-height:28px}
+  .stills .note{margin-top:18px;max-width:44rem;font-size:15px;color:var(--muted)}
+
+  /* chapters */
+  .chapter{min-height:100vh;min-height:100svh;display:grid;grid-template-columns:1fr 1fr;gap:var(--gutter);align-items:center;padding:12vh var(--gutter)}
+  .chapter h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .chapter .body{margin-top:26px;font-size:clamp(18px,1.5vw,22px);max-width:32rem}
+  .chapter .body + .body{margin-top:14px}
+  .chapter .list{margin:26px 0 0;padding:0;list-style:none;font-size:clamp(18px,1.5vw,22px);max-width:32rem}
+  .chapter .list li{padding:10px 0;border-top:1px solid var(--line)}
+  .chapter figure{border-radius:22px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 30px 70px rgba(0,0,0,.45)}
+  .chapter figure.tall{aspect-ratio:3/4;max-height:78vh;justify-self:center;width:min(100%,60vh)}
+  .chapter figure img{width:100%;height:100%;object-fit:cover;transform:scale(1.08) translateY(var(--py,0));will-change:transform}
+  .chapter.flip figure{order:-1}
+  .chapter.amber,.chapter.amber .muted{color:var(--ink)}
+  .chapter.amber .list li{border-top-color:rgba(0,0,0,.18)}
+  .chapter.amber .muted{color:rgba(0,0,0,.6)}
+  @media (max-width:860px){.chapter{grid-template-columns:1fr;min-height:0;padding:14vh var(--gutter)}.chapter.flip figure{order:0}.chapter figure{aspect-ratio:16/10}.chapter figure.tall{width:min(100%,70vw)}}
+
+  /* flasher */
+  .flash{background:var(--paper);color:var(--ink);padding:14vh var(--gutter)}
+  .flash h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .flash .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:var(--gutter);margin-top:44px;align-items:start}
+  .flash .steps{list-style:none;margin:0;padding:0;counter-reset:s;font-size:20px}
+  .flash .steps li{display:grid;grid-template-columns:44px 1fr;gap:14px;padding:16px 0;border-top:1px solid rgba(0,0,0,.14)}
+  .flash .steps li::before{counter-increment:s;content:counter(s);font-weight:900;font-size:30px;line-height:1;letter-spacing:-.04em}
+  .panel{background:#fff;border-radius:22px;padding:26px;box-shadow:0 30px 60px rgba(0,0,0,.12)}
+  .panel label{display:block;font-weight:700;font-size:15px;margin:18px 0 6px}
+  .panel label:first-of-type{margin-top:0}
+  .panel select{width:100%;font:16px var(--font);padding:12px 14px;border-radius:12px;border:1.5px solid #cfcfd6;background:#fff;color:var(--ink)}
+  .panel select:focus-visible{outline:3px solid var(--indigo);outline-offset:2px}
+  .install{margin-top:22px}
+  esp-web-install-button button{width:100%;display:inline-flex;justify-content:center;align-items:center;gap:10px;padding:18px 22px;border-radius:14px;border:0;background:var(--ink);color:var(--yellow);font:800 20px var(--font);cursor:pointer}
+  esp-web-install-button button:hover{background:#000}
+  esp-web-install-button [slot="unsupported"],esp-web-install-button [slot="not-allowed"]{display:block;margin-top:12px;padding:12px 14px;border-radius:12px;background:#fff3c4;color:#5a4200;font-size:15px}
+  .fine{margin-top:16px;font-size:15px;color:rgba(0,0,0,.62)}
+  .fine a{color:var(--indigo)}
+  .warn{margin-top:16px;padding:12px 14px;border-radius:12px;background:#fff3c4;color:#5a4200;font-size:15px}
+  .flash details{margin-top:22px;font-size:16px}
+  .flash details summary{cursor:pointer;font-weight:700}
+  .flash pre{overflow:auto;background:var(--ink);color:#e6e6e6;border-radius:14px;padding:16px 18px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-all}
+  .boards{margin:36px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+  .boards li{padding:16px 18px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.08)}
+  .boards b{display:block;font-size:24px;letter-spacing:-.03em}
+  .boards span{display:block;font-size:15px;color:rgba(0,0,0,.62);margin-top:2px}
+  @media (max-width:860px){.flash .grid{grid-template-columns:1fr}}
+
+  /* games, as type rather than as ninety-one pictures */
+  .games{padding:14vh var(--gutter)}
+  .games h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .games .intro{margin-top:22px;max-width:38rem;font-size:20px;color:var(--muted)}
+  .games .intro a{color:var(--yellow)}
+  .wall{margin-top:44px;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:clamp(24px,3.4vw,54px);font-weight:800;letter-spacing:-.035em;line-height:1.05}
+  .wall span{opacity:.92}
+
+  /* videos */
+  .videos{padding:14vh var(--gutter);background:var(--ink-2)}
+  .videos h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .videos .row{display:grid;grid-template-columns:1fr 1fr;gap:var(--gutter);margin-top:44px}
+  .facade{position:relative;border-radius:22px;overflow:hidden;aspect-ratio:16/9;background:#000;cursor:pointer;border:0;padding:0;width:100%;box-shadow:0 30px 60px rgba(0,0,0,.5)}
+  .facade img{width:100%;height:100%;object-fit:cover;opacity:.9}
+  .facade .play{position:absolute;inset:0;display:grid;place-items:center}
+  .facade .play span{width:84px;height:84px;border-radius:50%;background:var(--yellow);display:grid;place-items:center;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .facade .play svg{margin-left:6px}
+  .facade iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .videos h3{margin-top:16px;font-size:26px;font-weight:800;letter-spacing:-.03em}
+  .videos p{margin-top:8px;color:var(--muted);max-width:30rem}
+  @media (max-width:860px){.videos .row{grid-template-columns:1fr}}
+
+  /* poster, first run, privacy, builders */
+  .poster{display:grid;grid-template-columns:.7fr 1.3fr;gap:var(--gutter);align-items:center;padding:14vh var(--gutter)}
+  .poster img{border-radius:14px;box-shadow:0 30px 60px rgba(0,0,0,.5)}
+  .poster h2{font-size:clamp(40px,5.5vw,84px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .poster p{margin-top:22px;max-width:32rem;font-size:20px;color:var(--muted)}
+  @media (max-width:860px){.poster{grid-template-columns:1fr}.poster img{max-width:360px}}
+
+  .firstrun{padding:0 var(--gutter) 14vh}
+  .firstrun h2{font-size:clamp(36px,4.5vw,64px);font-weight:900;letter-spacing:-.04em}
+  .firstrun ol{margin:34px 0 0;padding:0;list-style:none;counter-reset:f;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .firstrun li{padding:22px;border-radius:18px;background:var(--ink-2);font-size:17px;color:var(--muted)}
+  .firstrun li::before{counter-increment:f;content:counter(f);display:block;font-size:30px;font-weight:900;color:var(--yellow);letter-spacing:-.04em;line-height:1;margin-bottom:10px}
+  .firstrun b{color:var(--fg)}
+
+  .privacy{padding:14vh var(--gutter);background:var(--ink-2)}
+  .privacy h2{font-size:clamp(40px,5.5vw,84px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .privacy .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:34px var(--gutter);margin-top:40px}
+  .privacy h3{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .privacy p{margin-top:8px;color:var(--muted);font-size:17px}
+
+  .builders{padding:14vh var(--gutter)}
+  .builders h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .asks{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:40px}
+  .asks a{display:block;padding:26px;border-radius:22px;text-decoration:none;min-height:220px}
+  .asks a:focus-visible{outline:3px solid #fff;outline-offset:3px}
+  .asks b{display:block;font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1}
+  .asks p{margin-top:12px;font-size:17px;opacity:.9}
+  .asks .g{background:var(--green)}
+  .asks .p{background:var(--purple)}
+  .asks .a{background:var(--amber);color:var(--ink)}
+  .ai{margin-top:14vh;display:grid;grid-template-columns:1fr 1fr;gap:var(--gutter);align-items:start}
+  .ai h2{font-size:clamp(36px,4.5vw,64px)}
+  .ai p{font-size:20px;color:var(--muted);max-width:32rem}
+  @media (max-width:860px){.ai{grid-template-columns:1fr}}
+
+  .contact{padding:0 var(--gutter) 14vh}
+  .contact h2{font-size:clamp(40px,5.5vw,84px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .contact .intro{margin-top:22px;max-width:38rem;font-size:20px;color:var(--muted)}
+  .contact .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:40px}
+  .contact .cards a{display:block;padding:24px;border-radius:22px;text-decoration:none;background:var(--ink-2);box-shadow:inset 0 0 0 1.5px var(--line)}
+  .contact .cards a:hover{background:#1b1e26}
+  .contact .cards a:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+  .contact .cards b{display:block;font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--yellow);word-break:break-word}
+  .contact .cards span{display:block;margin-top:10px;font-size:16px;color:var(--muted)}
+
+  footer{padding:60px var(--gutter) 80px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;font-size:15px;color:var(--muted)}
+  footer a{color:#fff}
+
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}body{transition:none}.chapter figure img{transform:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<header class="hero">
-  <h1>Braino!</h1>
-  <p class="tag">
-    A {{GAME_COUNT}}-game educational console for young players, running as open
-    firmware on supported ESP32 touchscreen boards. No accounts, no telemetry, no SD
-    card &mdash; every game is baked into flash.
-  </p>
-  <div class="badges">
-    <span class="badge">v{{VERSION}}</span>
-    <span class="badge">{{GAME_COUNT}} games</span>
-    <span class="badge">{{SCREEN_COUNT}} generated stills</span>
-    <span class="badge">ESP32 &middot; Multi-board support</span>
-    <span class="badge">Flash {{FLASH}}</span>
-    <span class="badge">RAM {{RAM}}</span>
+<nav class="nav" aria-label="Page">
+  <a class="mark" href="#top">Braino!</a>
+  <ul>
+    <li><a href="#games">Games</a></li>
+    <li><a href="#videos">Videos</a></li>
+    <li><a href="#privacy">Privacy</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#flash">Flash it</a></li>
+    <li><a class="star" href="{{REPO}}">Star on GitHub</a></li>
+  </ul>
+</nav>
+
+<header class="hero" id="top">
+  <div>
+    <h1>4 MB.</h1>
+    <p class="lede">That is smaller than one photo.<br>It runs an entire learning console.</p>
+    <p class="sub">
+      Braino! is open-source firmware for the ESP32 CYD, the Cheap Yellow Display:
+      an ESP32 already soldered to a touchscreen. {{GAME_COUNT}} games &mdash;
+      handwriting, flags, maths, the periodic table, chess across the room. No ads,
+      no accounts, no cloud.
+    </p>
+    <div class="cta">
+      <a class="btn btn-solid" href="#flash">Flash it from your browser</a>
+      <a class="btn btn-ghost" href="#videos">Watch it running</a>
+    </div>
   </div>
-  <p class="hardware-pill">
-    Select your board above to flash the right firmware for your hardware.
-  </p>
+  <div class="phone">
+    <video id="short" src="assets/braino-short.mp4" autoplay muted loop playsinline poster="assets/hero-dark.jpg" aria-label="One-minute video of Braino running"></video>
+    <a class="yt" href="https://www.youtube.com/shorts/uudDh8QGjKI">Also on YouTube</a>
+    <button id="sound" type="button" aria-pressed="false">Turn sound on</button>
+  </div>
 </header>
 
-<div class="screen-wall" aria-label="Selected generated stills">
+<section class="stills" aria-label="What the screens look like">
+  <div class="wall-grid">
 {{STILL_WALL}}
-</div>
-<p class="note" style="text-align:center">
-  These {{SCREEN_COUNT}} stills are rendered mock-ups, redrawn on a PC from the
-  exact rectangles, fonts and colours in the C++ source &mdash; the board does
-  not wire the panel's MISO line, so true screenshots are not possible. The
-  flag artwork is the real pixel data the device draws from.
-</p>
-
-<section id="install">
-  <h2>Install it from this page</h2>
-  <p class="lede">
-    Plug the board into a USB port and flash it here: no toolchain, no
-    PlatformIO, nothing to download by hand.
-  </p>
-  <p class="hardware-callout">
-    <b>Select your board from the dropdown above before flashing.</b> Each firmware
-    image is built for specific pins and display drivers. Flashing the wrong image
-    for your board may result in a blank screen or non-responsive touch.
-  </p>
-
-  <div class="card">
-    <div class="flash-grid">
-      <div>
-        <label class="field" for="board">Board</label>
-        <select id="board">
-{{BOARD_OPTIONS}}
-        </select>
-      </div>
-      <div>
-        <label class="field" for="variant">Firmware</label>
-        <select id="variant">
-{{VARIANT_OPTIONS}}
-        </select>
-      </div>
-      <div>
-        <label class="field" for="release">Version</label>
-        <select id="release"></select>
-      </div>
-    </div>
-
-    <p id="variant-note"></p>
-    <p id="release-note" class="warn" hidden></p>
-
-    <div class="install-row">
-      <esp-web-install-button id="installer">
-        <button class="install" slot="activate">Connect and flash</button>
-        <span slot="unsupported" class="note">
-          Web flashing needs Web Serial, so it wants desktop <b>Chrome</b>,
-          <b>Edge</b> or <b>Opera</b>. Firefox and Safari cannot do it &mdash; the
-          manual instructions below work everywhere.
-        </span>
-        <span slot="not-allowed" class="note">
-          This page has to be served over HTTPS to reach a serial port.
-        </span>
-      </esp-web-install-button>
-      <span class="note">Takes about a minute over USB.</span>
-    </div>
-
-    <div class="warn">
-      <b>Flashing replaces the firmware; erasing wipes the player data.</b> The
-      touch calibration, the five profiles, their scores and their mastery data
-      all live in the ESP32's NVS partition. A plain install leaves NVS alone; if
-      the installer offers <i>Erase device</i>, that is what throws it away.
-    </div>
   </div>
-
-  <h3>If your browser cannot, or you would rather use a terminal</h3>
   <p class="note">
-    Every build here is also a plain set of <code>.bin</code> files. With
-    <a href="https://github.com/espressif/esptool">esptool</a> installed:
+    Mock-ups, not photographs: they are redrawn on a PC from the exact
+    rectangles, fonts and colours in the C++ source, because the board does not
+    wire the panel's MISO line and a true screenshot is not possible. The flag
+    artwork is the real pixel data the device draws from.
   </p>
-  <pre><code id="esptool-cmd"></code></pre>
-  <p class="note" id="download-links"></p>
 </section>
 
-<section id="video">
-  <h2>See it running</h2>
-  <div class="card">
-    <p style="margin-top:0">
-      <strong>Hacktuber</strong> showcased Braino on his channel &mdash; the
-      first time somebody outside this project picked it up, put it on real
-      hardware and showed it working. That is worth more than any amount of
-      documentation, and we are grateful for it.
-    </p>
-    <p>
-      <a href="https://www.youtube.com/watch?v=xvjQwQaIYu8&amp;t=14s">Watch the
-      showcase</a> &middot;
-      <a href="https://www.youtube.com/@Hacktuber">@Hacktuber on YouTube</a>
-    </p>
-    <p>
-      <strong>A walkthrough from us is on the way.</strong> The games, two
-      consoles playing each other across the room, and what it actually takes
-      to build one of these. Stay tuned.
-    </p>
-    <p class="note" style="margin-bottom:0">
-      Those are ordinary links rather than embedded players, deliberately: an
-      embed would load Google's tracking on this page, and the Privacy section
-      below says this page does not do that.
-    </p>
+<section class="chapter" data-bg="#d8336e">
+  <div>
+    <h2>It is firmware,<br>not a gadget.</h2>
+    <p class="body">Nothing to buy from us. Search &ldquo;ESP32 CYD&rdquo; on AliExpress or Amazon, plug the board into USB, and flash it from this page in about a minute.</p>
+    <ul class="list">
+      <li>2.8-inch boards, resistive or capacitive touch</li>
+      <li>3.2-inch boards, resistive touch</li>
+      <li>4-inch boards, resistive touch</li>
+    </ul>
+    <p class="body muted">One firmware. You pick the board when you flash.</p>
+  </div>
+  <figure><img src="assets/three-consoles.jpg" alt="Three Braino consoles in pink cases on a table" loading="lazy"></figure>
+</section>
+
+<section class="chapter flip" data-bg="#5b2a86">
+  <div>
+    <h2>Learning that<br>looks like play.</h2>
+    <p class="body">First letters to the periodic table to brain training. Flags, US states and elements use spaced repetition, so a missed item comes back sooner and a mastered one fades into the background. Difficulty adapts as a player improves.</p>
+    <p class="body muted">Games, not lessons. That is the whole trick.</p>
+  </div>
+  <figure><img src="assets/in-hand-flags.jpg" alt="A Braino held in one hand showing the Flags game" loading="lazy"></figure>
+</section>
+
+<section class="chapter" data-bg="#0e7c7b">
+  <div>
+    <h2>An administrator<br>curates the games.</h2>
+    <p class="body">Up to five player profiles plus a Guest that saves nothing. The administrator chooses which games each player sees, so one console can be a different console for every player. Settings are readable by anyone and changeable only by the administrator, behind a PIN.</p>
+    <p class="body muted">No ads. No accounts. No feed. Nothing to scroll.</p>
+  </div>
+  <figure class="tall"><img src="assets/six-tiles.jpg" alt="Six Braino consoles showing six colour themes" loading="lazy"></figure>
+</section>
+
+<section class="chapter flip" data-bg="#2f33b5">
+  <div>
+    <h2>They find<br>each other.</h2>
+    <p class="body">Chess, Sea Battle and Backgammon for two, Ludo for four, across consoles in the same room over Bluetooth Low Energy. It is a beacon, not pairing: no phone in the middle, no internet. The beacon is off by default, and only an administrator turns it on.</p>
+    <p class="body muted">Dice are never sent. Every console rolls for itself, and checks every move it hears against its own board.</p>
+  </div>
+  <figure class="tall"><img src="assets/chess-two.jpg" alt="Two Braino consoles playing chess against each other" loading="lazy"></figure>
+</section>
+
+<section class="chapter amber" data-bg="#f2a900">
+  <div>
+    <h2>The case is<br>in the repo.</h2>
+    <p class="body">Prints without supports, no screws, the lid snaps on. Room inside for a 3000 mAh battery and a small speaker. The lid carries the speaker grille, the embossed mark and slots that reach the BOOT and RESET buttons.</p>
+    <p class="body muted">Pink is the house colour. Print yours in anything.</p>
+  </div>
+  <figure><img src="assets/open-case.jpg" alt="An open Braino case showing the battery, speaker and board" loading="lazy"></figure>
+</section>
+
+<section class="flash" id="flash">
+  <h2>Flash it from<br>your browser.</h2>
+  <div class="grid">
+    <div>
+      <ol class="steps">
+        <li><span>Plug the board into a USB port with a data cable. Charge-only cables look identical and behave like a dead board.</span></li>
+        <li><span>Pick your board. Two boards sold under the same name can carry different display controllers, and the wrong image gives a blank screen or dead touch rather than an error.</span></li>
+        <li><span>Press Install. About a minute later the board reboots into Braino. Nothing to download, no toolchain, no SD card.</span></li>
+      </ol>
+      <ul class="boards">
+        <li><b>2.8&Prime;</b><span>resistive, one USB-C &mdash; E32R28T-1 / ESP32-32E</span></li>
+        <li><b>2.8&Prime;</b><span>resistive, USB-C and micro-USB, no battery hardware &mdash; ESP32-2432S028</span></li>
+        <li><b>2.8&Prime;</b><span>capacitive, one USB-C &mdash; Freenove FNK0104B, also sold as LCDWIKI ES3C28P</span></li>
+        <li><b>3.2&Prime;</b><span>resistive, one USB-C &mdash; E32R32P</span></li>
+        <li><b>4&Prime;</b><span>resistive, one USB-C &mdash; E32R40T</span></li>
+      </ul>
+      <p class="fine">
+        Web Serial works in desktop Chrome, Edge and Opera; Firefox and Safari cannot
+        flash from a page, and the terminal route works everywhere. Flashing replaces
+        the firmware and leaves your players, scores and touch calibration alone
+        &mdash; those live in the ESP32's NVS partition, and only <i>Erase device</i>
+        throws them away. A board that is not on this list is not supported: a
+        mismatched image gives a blank or wrongly coloured screen rather than an
+        error. To add one, see
+        <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a>.
+        You may also need a CH340 or CP210x USB-serial driver, if your operating
+        system does not already have one.
+      </p>
+    </div>
+    <div class="panel">
+      <label for="board">Board</label>
+      <select id="board">
+{{BOARD_OPTIONS}}
+      </select>
+
+      <label for="variant">Firmware</label>
+      <select id="variant">
+{{VARIANT_OPTIONS}}
+      </select>
+
+      <label for="release">Version</label>
+      <select id="release"></select>
+
+      <p class="fine" id="variant-note"></p>
+      <p class="warn" id="release-note" hidden></p>
+
+      <div class="install">
+        <esp-web-install-button id="installer">
+          <button slot="activate" type="button">Install Braino! on this board</button>
+          <span slot="unsupported">This browser cannot reach a USB port. Open the page in desktop Chrome, Edge or Opera, or use the terminal route below.</span>
+          <span slot="not-allowed">Web Serial needs HTTPS. Open the page at iamankushpandit.github.io/Gume.</span>
+        </esp-web-install-button>
+      </div>
+
+      <details>
+        <summary>Use a terminal instead</summary>
+        <p class="fine">
+          Every build here is also a plain set of <code>.bin</code> files. With
+          <a href="https://github.com/espressif/esptool">esptool</a> installed, this is
+          the command for the board and version selected above:
+        </p>
+        <pre><code id="esptool-cmd"></code></pre>
+        <p class="fine" id="download-links"></p>
+      </details>
+
+      <p class="fine">Braino! v{{VERSION}} &middot; flash {{FLASH}} &middot; RAM {{RAM}}</p>
+    </div>
   </div>
 </section>
 
-<section id="hardware">
-  <h2>What you need</h2>
-  <div class="card">
-    <table>
-      <tr>
-        <th style="width:26%">Board</th>
-        <td>
-          One of the five supported boards, each of which has been run on hardware.
-          Tell them apart by screen size, touch type and USB ports:
-          <ul>
-            <li><b>4-inch</b>, resistive touch, one USB-C &mdash; E32R40T</li>
-            <li><b>3.2-inch</b>, resistive touch, one USB-C &mdash; E32R32P</li>
-            <li><b>2.8-inch</b>, capacitive touch, one USB-C &mdash; Freenove FNK0104B (also sold as LCDWIKI ES3C28P)</li>
-            <li><b>2.8-inch</b>, resistive touch, one USB-C &mdash; E32R28T-1</li>
-            <li><b>2.8-inch</b>, resistive touch, USB-C <i>and</i> micro-USB &mdash; ESP32-2432S028 (inverted panel).
-              It has no battery hardware, so run it from USB power: a wall adapter,
-              a computer, or a USB power bank (for example
-              <a href="https://www.walmart.com/ip/5K-PWR-BNK/14769668232">this 5,000 mAh one</a>,
-              a suggestion we have not tested with this board).</li>
-          </ul>
-          A board not in this list is not supported: a mismatched image gives a blank
-          or wrongly coloured screen rather than an error.
-        </td>
-      </tr>
-      <tr>
-        <th>Cable</th>
-        <td>A USB <i>data</i> cable. Charge-only cables are common and look exactly like a dead board.</td>
-      </tr>
-      <tr>
-        <th>Driver</th>
-        <td>A CH340 or CP210x USB-serial driver, if your OS does not already have one.</td>
-      </tr>
-      <tr>
-        <th>Power</th>
-        <td>Optional 3.7&nbsp;V LiPo on the board's battery connector; the firmware reports the charge level.</td>
-      </tr>
-    </table>
-    <p class="note" style="margin-bottom:0">
-      Make sure to select the correct board in the dropdown above. Each firmware image
-      is built for specific pins and display drivers; flashing the wrong image will
-      result in a blank screen or non-responsive touch. To support a board that is not
-      listed, add a profile for it and build from source &mdash;
-      <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a> is the checklist.
-    </p>
-  </div>
-</section>
-
-<section id="first-run">
-  <h2>First run</h2>
-  <ol class="tight">
+<section class="firstrun">
+  <h2>First run.</h2>
+  <ol>
     <li>The device boots into <b>Profiles</b>. Pick a player, or Guest &mdash; Guest deliberately saves nothing.</li>
     <li>Resistive touch needs calibrating once: <b>Settings &rarr; Calibrate</b>, then tap the three targets.</li>
-    <li>Wi-Fi is optional and used for one thing, the clock: <b>Settings &rarr; Network</b>. Automatic resync defaults to 6 hours.</li>
-    <li>Pare the launcher down to what one player needs in <b>Profiles &rarr; Edit &rarr; Games</b>.</li>
+    <li>Wi-Fi is optional, and used for one thing, the clock: <b>Settings &rarr; Network</b>. Automatic resync defaults to 6 hours.</li>
+    <li>Pare the launcher down to what one player needs, in <b>Profiles &rarr; Edit &rarr; Games</b>.</li>
   </ol>
 </section>
 
-<section id="games">
-  <h2>The {{GAME_COUNT}} games</h2>
-  <p class="lede">
-    Every one can be hidden per player. Flags and the three US States games use
-    spaced repetition, so a missed item comes back sooner and a mastered one
-    fades into the background.
+<section class="games" id="games">
+  <h2>Every game,<br>baked into flash.</h2>
+  <p class="intro">
+    All {{GAME_COUNT}} of them, and any one can be hidden per player. This list is
+    generated from the firmware's own registry, so it cannot drift from what is
+    actually on the board.
   </p>
-  <div class="show-grid games-grid">
-{{GAME_CARDS}}
+  <div class="wall">
+{{GAME_WALL}}
   </div>
-</section>
-
-<section id="system-screens">
-  <h2>Apps, settings and sleep</h2>
-  <p class="lede">
-    The launcher, profiles, settings, Wi-Fi, scores, About, System Info and the
-    screen saver are shown with the same generated stills as the games.
+  <p class="intro" style="margin-top:34px">
+    Every screen has a mock-up, redrawn on a PC from the rectangles, fonts and
+    colours in the source. They live in
+    <a href="{{REPO}}#the-games">the README gallery</a> rather than here.
   </p>
-  <div class="show-grid">
-{{SYSTEM_CARDS}}
+</section>
+
+<section class="videos" id="videos">
+  <h2>See it running.</h2>
+  <div class="row">
+    <div>
+      <button class="facade" type="button" data-yt="bESbkhq6tcc" aria-label="Play the six-minute walkthrough">
+        <img src="assets/walkthrough-poster.jpg" alt="" loading="lazy">
+        <span class="play"><span><svg width="34" height="34" viewBox="0 0 24 24" fill="#0b0c10"><path d="M8 5v14l11-7z"/></svg></span></span>
+      </button>
+      <h3>The six-minute walkthrough</h3>
+      <p>Which board, how to install, first run, the games, chess and Ludo across consoles, the poke, and what the case looks like inside.</p>
+    </div>
+    <div>
+      <button class="facade" type="button" data-yt="xvjQwQaIYu8" data-start="14" aria-label="Play Hacktuber's showcase">
+        <img src="assets/chess-two.jpg" alt="" loading="lazy">
+        <span class="play"><span><svg width="34" height="34" viewBox="0 0 24 24" fill="#0b0c10"><path d="M8 5v14l11-7z"/></svg></span></span>
+      </button>
+      <h3>Hacktuber&rsquo;s showcase</h3>
+      <p>The first time somebody outside this project put Braino on real hardware and showed it working. That is worth more than any amount of documentation, and we are grateful for it. <a href="https://www.youtube.com/@Hacktuber">@Hacktuber</a></p>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:28px;max-width:40rem;font-size:15px">
+    Nothing from YouTube loads until you press play. When you do, the player comes
+    from youtube-nocookie.com. The one-minute video at the top of the page is served
+    from this site.
+  </p>
+</section>
+
+<section class="poster">
+  <a href="assets/braino-poster-A2.pdf"><img src="assets/poster-preview.jpg" alt="The Braino! poster" loading="lazy"></a>
+  <div>
+    <h2>Take it to<br>a maker faire.</h2>
+    <p>The A2 poster is print-ready, with bleed and crop marks, and the QR code goes straight to the repository. Pin it on a wall, a classroom door or a makerspace noticeboard.</p>
+    <div class="cta"><a class="btn btn-solid" href="assets/braino-poster-A2.pdf" download>Download the poster (PDF)</a></div>
   </div>
 </section>
 
-<section id="privacy">
-  <h2>Privacy</h2>
-  <div class="card">
-    <p style="margin-top:0">
-      No accounts, analytics, telemetry, or personal-data collection. The
-      optional Wi-Fi and Bluetooth LE features make only the limited exchanges
-      listed below &mdash; that list is the complete one. Scores and mastery
-      data live in the ESP32's own flash and never leave it.
-    </p>
-    <ul class="tight">
-      <li><b>Wi-Fi</b> connects only to reach an NTP server, plus one lookup to
-        <code>ip-api.com</code> to guess the time zone on first connect. You can
-        skip Wi-Fi entirely. After the first clock set, automatic NTP resync is
-        configurable from 1 to 24 hours and defaults to 6 hours.</li>
-      <li><b>Bluetooth LE</b> is off by default. Switched on, it advertises a
-        device name (<code>Braino-&lt;id&gt;</code>) and two bytes of the factory
-        Bluetooth MAC &mdash; and the device shows you a hex dump of the exact
-        bytes on air, read back from the same buffer that was handed to the
-        radio.</li>
-      <li><b>Nearby play</b> is a second opt-in on top of that, also off by
-        default. Turned on, the beacon additionally carries which game is open
-        and the best score for it, so consoles in the same room can see each
-        other's records. No player name, no profile name, nothing profile-scoped:
-        a peer is four hex digits of its own hardware id and nothing else, and
-        there is no path from a score back to a player. Listening is passive, so
-        a console that is only watching transmits nothing extra. Turned off, the
-        two fields are absent from the payload rather than sent as zeroes.</li>
-      <li><b>Games between consoles</b> &mdash; Chess, Sea Battle and Backgammon for
-        two, Ludo for up to four &mdash; ride the same beacon. While one is running,
-        each console advertises its latest move: a session number, a move number
-        and two small numbers saying what was played. No name, no profile and no
-        score travels with a move, and dice are never sent at all: every console
-        works each roll out for itself. It is a broadcast &mdash; anyone
-        in range can hear the moves &mdash; and every move received is checked
-        against the receiver's own board before it is played.</li>
-      <li><b>Poke</b> lets one console nudge another from the Nearby list. It
-        rides the same beacon and adds no new kind of data: for a few seconds it
-        carries the device id being poked &mdash; the same four hex digits that
-        device already broadcasts as its own name &mdash; and a counter. Because
-        the payload is already full, the poke replaces the best-score bytes
-        while it is on air rather than adding to them. It is a broadcast, not a
-        private message: every Braino in range hears it and only the one being
-        addressed reacts.</li>
-      <li><b>Local names for nearby devices</b> stay on the device that stored
-        them. The admin can label a tag they recognise so a poke says who
-        rather than what; the beacon never reads that label, so what goes on
-        air is identical whether every device is named or none is. It is your
-        word for someone else's console, held in your own console's storage
-        &mdash; the way a contact name works in a phone.</li>
-      <li><b>This page</b> talks to your board over Web Serial, inside your
-        browser. The firmware is fetched from GitHub Pages; nothing about your
-        device is sent anywhere.</li>
-    </ul>
+<section class="privacy" id="privacy">
+  <h2>What leaves the board.<br>All of it, listed.</h2>
+  <div class="cols">
+    <div><h3>Wi-Fi</h3><p>Optional, and used for the clock: an NTP server, plus one lookup to ip-api.com to guess the time zone on first connect. A daily check asks whether a newer firmware exists, and that request says nothing whatsoever about this device. Skip Wi-Fi entirely and nothing else changes.</p></div>
+    <div><h3>Bluetooth Low Energy</h3><p>Off by default. Switched on, it advertises a device name and two bytes of the factory Bluetooth MAC &mdash; and the device shows you a hex dump of the exact bytes on air, read back from the same buffer that was handed to the radio.</p></div>
+    <div><h3>Nearby</h3><p>A second opt-in on top of that, also off by default. The beacon then additionally carries which game is open and the best score for it. No player name, no profile name, nothing profile-scoped: a peer is four hex digits of its own hardware id and nothing else.</p></div>
+    <div><h3>Games between consoles</h3><p>Each console advertises its latest move: a session number, a move number and two small numbers saying what was played. Dice are never sent. It is a broadcast &mdash; anyone in range hears the moves &mdash; and every move received is checked against the receiver's own board before it is played.</p></div>
+    <div><h3>Poke</h3><p>Rides the same beacon and adds no new kind of data: for a few seconds it carries the id being poked, which that console already broadcasts as its own name, and a counter. Every Braino in range hears it; only the one addressed reacts.</p></div>
+    <div><h3>Local names for peers</h3><p>Stay on the console that stored them. The administrator can label a tag they recognise so a poke says who rather than what; the beacon never reads that label, so what goes on air is identical whether every peer is named or none is.</p></div>
+    <div><h3>Scores and profiles</h3><p>Live in the ESP32's own flash and never leave it. There is no account to make, nothing to sign in to, and no way for anybody here to see how a player plays.</p></div>
+    <div><h3>This page</h3><p>Talks to your board over Web Serial, inside your browser; nothing about your device is sent anywhere. The firmware comes from GitHub Pages, and the Install button's code (esp-web-tools) from the unpkg CDN. Those two are the only requests this page makes on load &mdash; no analytics, no cookies, no fonts from anybody else.</p></div>
   </div>
 </section>
 
-<section id="contribute">
-  <h2>Help wanted</h2>
-  <div class="card">
-    <p style="margin-top:0">
-      Braino supports three ESP32 touchscreen boards today, and the CYD family
-      has many more variants. They differ in ways that fail quietly &mdash;
-      different backlight pins, different display drivers, the same GPIO
-      meaning different things &mdash; which is why each one is described
-      explicitly rather than guessed at.
-    </p>
-    <p>
-      Adding a board is two files: a profile under
-      <code>include/boards/&lt;id&gt;.h</code> holding the pins, rotations and
-      which peripherals exist, and the matching <code>[board_&lt;id&gt;]</code>
-      section in <code>platformio.ini</code> holding what the display driver
-      must be told at compile time. Nothing under <code>src/</code> names a
-      GPIO. <a href="{{REPO}}/blob/main/docs/PORTING.md">docs/PORTING.md</a> is
-      the full checklist, and it starts with the honest question of whether a
-      given board can run this firmware at all.
-    </p>
-    <p>
-      <strong>Bug reports and code critique are especially welcome.</strong>
-      If you spot a mistake, please open an issue &mdash; and if you can, say
-      how you would fix it.
-    </p>
-    <p class="note" style="margin-bottom:0">
-      <a href="{{REPO}}/issues">Open an issue</a> &middot;
-      <a href="{{REPO}}/blob/main/CONTRIBUTING.md">Contributing guide</a>
-    </p>
+<section class="builders">
+  <h2>Builders wanted.</h2>
+  <div class="asks">
+    <a class="g" href="{{REPO}}/blob/main/CONTRIBUTING.md"><b>Add a game.</b><p>The launcher, profiles, scoring, mastery tracking and spaced repetition already exist. You write the activity; Braino does the rest.</p></a>
+    <a class="p" href="{{REPO}}/blob/main/docs/PORTING.md"><b>Port a board.</b><p>A new board is one header under include/boards and one section in platformio.ini. Nothing under src names a GPIO. PORTING.md is the checklist, and it starts by asking whether the board can run this at all.</p></a>
+    <a class="a" href="{{REPO}}/tree/main/cases"><b>Design a case.</b><p>The 3.2-inch and 4-inch boards would love a good enclosure, in speaker and no-speaker variants. Print notes and fastener sizes are as valuable as the mesh.</p></a>
+  </div>
+  <div class="ai">
+    <h2>Built with AI.<br>On purpose.</h2>
+    <p>The privacy contract &mdash; no telemetry, no accounts, nothing leaves the board &mdash; is written into the repository, and CI checks every change against it, whoever or whatever wrote it. Bug reports and code critique are especially welcome: <a href="{{REPO}}/issues">open an issue</a>, and if you can, say how you would fix it.</p>
+  </div>
+</section>
+
+<section class="contact" id="contact">
+  <h2>Get in touch.</h2>
+  <p class="intro">
+    An issue is the best place for anything about the firmware &mdash; it is public,
+    it is searchable, and the next person with the same board finds the answer. For
+    everything else, either of these reaches a person.
+  </p>
+  <div class="cards">
+    <a href="{{REPO}}/issues">
+      <b>Open an issue</b>
+      <span>A bug, a board that will not flash, a game idea, a correction to these pages.</span>
+    </a>
+    <a href="https://github.com/iamankushpandit">
+      <b>github.com/iamankushpandit</b>
+      <span>The author, and everything else published alongside Braino.</span>
+    </a>
+    <a href="mailto:esp32.gume@proton.me">
+      <b>esp32.gume@proton.me</b>
+      <span>Email, for anything that does not belong in public.</span>
+    </a>
   </div>
 </section>
 
 <footer>
-  Braino! v{{VERSION}} &middot; page generated {{BUILT}} &middot;
-  <a href="{{REPO}}">source on GitHub</a> &middot;
-  <a href="{{REPO}}/blob/main/CHANGELOG.md">changelog</a>
+  <span>Braino! v{{VERSION}} &middot; page generated {{BUILT}}</span>
+  <span>
+    <a href="{{REPO}}">Source on GitHub</a> &middot;
+    <a href="{{REPO}}/blob/main/CHANGELOG.md">Changelog</a> &middot;
+    <a href="{{REPO}}/issues">Open an issue</a> &middot;
+    <a href="https://github.com/iamankushpandit">iamankushpandit</a> &middot;
+    <a href="mailto:esp32.gume@proton.me">esp32.gume@proton.me</a> &middot; GPL-3.0-or-later
+  </span>
 </footer>
-
-</div>
 
 <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
 <script>
@@ -611,6 +639,87 @@ footer {
   releaseSel.addEventListener('change', apply);
   populateVariants();
   apply();
+</script>
+<script>
+  /* Everything below is presentation. It must never be the thing that decides
+   * which firmware is flashed -- that is the block above, and it runs first so
+   * a failure here cannot leave the installer unwired. */
+  (function () {
+    if (!('IntersectionObserver' in window)) { return; }
+
+    /* The chapter colour follows the reader: one orchestrated effect, and the
+     * only thing on this page that moves without being asked to. */
+    var base = getComputedStyle(document.documentElement)
+                 .getPropertyValue('--ink').trim();
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { document.body.style.backgroundColor = e.target.dataset.bg; }
+      });
+    }, { threshold: 0.55 });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-bg]'),
+      function (c) { io.observe(c); });
+
+    var resetIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { document.body.style.backgroundColor = base; }
+      });
+    }, { threshold: 0.3 });
+    ['#top', '#flash', '#games'].forEach(function (s) {
+      var el = document.querySelector(s);
+      if (el) { resetIO.observe(el); }
+    });
+
+    /* Gentle parallax on the chapter photos, driven by scroll only. */
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var figs = Array.prototype.slice.call(
+        document.querySelectorAll('.chapter figure img'));
+      var tick = false;
+      addEventListener('scroll', function () {
+        if (tick) { return; }
+        tick = true;
+        requestAnimationFrame(function () {
+          var vh = innerHeight;
+          figs.forEach(function (img) {
+            var r = img.parentElement.getBoundingClientRect();
+            var p = (r.top + r.height / 2 - vh / 2) / vh;
+            img.style.setProperty('--py', (p * -24) + 'px');
+          });
+          tick = false;
+        });
+      }, { passive: true });
+    }
+
+    /* The hero video starts muted, as every browser insists. This is the way in. */
+    var video = document.getElementById('short');
+    var sound = document.getElementById('sound');
+    if (video && sound) {
+      sound.addEventListener('click', function () {
+        video.muted = !video.muted;
+        sound.textContent = video.muted ? 'Turn sound on' : 'Turn sound off';
+        sound.setAttribute('aria-pressed', String(!video.muted));
+        if (!video.muted) { video.play(); }
+      });
+    }
+
+    /* YouTube is a click-to-play facade: nothing from Google is fetched until
+     * the reader asks for it, and then from youtube-nocookie.com. The Privacy
+     * section says this page makes two requests on load, and an ordinary embed
+     * would quietly make that untrue. */
+    Array.prototype.forEach.call(document.querySelectorAll('.facade'),
+      function (f) {
+        f.addEventListener('click', function () {
+          var start = f.dataset.start ? '&start=' + f.dataset.start : '';
+          var frame = document.createElement('iframe');
+          frame.src = 'https://www.youtube-nocookie.com/embed/' + f.dataset.yt
+                    + '?autoplay=1&rel=0' + start;
+          frame.allow = 'autoplay; encrypted-media; picture-in-picture';
+          frame.allowFullscreen = true;
+          frame.title = f.getAttribute('aria-label');
+          f.replaceChildren(frame);
+          f.style.cursor = 'default';
+        });
+      });
+  })();
 </script>
 </body>
 </html>

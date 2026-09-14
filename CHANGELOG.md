@@ -10,6 +10,47 @@ release, and `release.yml` refuses to publish a tag whose version carries it.
 number, so a console on this build is correctly told that nothing newer exists
 rather than being nagged all cycle to install the 5.12.1 it is ahead of.
 
+**A new landing page.** The installer page now leads with what the thing is
+rather than with a wall of mock-ups: the 4 MB line, a one-minute video served
+from the site itself, and one chapter per question a reader actually arrives
+with -- which board, what it teaches, who decides what a child can open, what
+two consoles do in the same room, and what the case costs to print. The
+flasher is unchanged behaviour for behaviour: the same board/firmware/version
+pickers driven by the same generated `BUILDS` list, the same per-board
+`esptool` command, the same warning when an older release is selected.
+
+**Ninety-one mock-ups became six.** The old page showed every generated still
+it had -- a wall of twelve at the top, three on each of the forty game cards,
+three on each of the nine system screens. They were honest and they were
+exhausting, and a reader deciding whether to buy a board does not need to see
+the Settings sound tab. The page now shows six chosen ones, larger, and the
+game list is simply every game's name, set as type. The README gallery is
+still the place for all of them, and it is linked from the section.
+
+Nothing became hand-written in the move. The names, the counts, the board
+list, the version, the build figures and the six stills are all still filled
+by `tools/gen_site.py` from the firmware, and `check_docs.py` still fails if a
+placeholder is dropped or a version number is typed into the template. One
+check did change meaning: a still on disk that the site does not show is no
+longer an error, because the site deliberately does not show most of them.
+What that rule protected has not moved -- `check_screens()` still fails when a
+still has no generator entry, when a generated one is missing, and when a
+playable game has no screenshot at all.
+
+**The page says how to reach a person.** A Contact section, and the same two
+addresses in the footer: the GitHub account and `esp32.gume@proton.me`, with
+an issue named first because it is public and the next person with the same
+board finds the answer.
+
+The photos, the hero video and the A2 poster live in `site/assets/` and are
+published from the Pages origin, so the page still fetches nothing from a
+third party on load except the Install button's own code. YouTube is a
+click-to-play facade: nothing from Google is requested until the reader
+presses play, and then from `youtube-nocookie.com`. `gen_site.py` checks the
+asset folder both ways, the way it already checked the stills -- a referenced
+file that is not there is a broken image on the landing page, and a file
+nothing references is weight in every clone.
+
 ## 5.12.1 — 2026-09-13
 
 **A licence release. The console does exactly what 5.12.0 does.** Across

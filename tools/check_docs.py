@@ -386,7 +386,15 @@ def check_older_versions(problems):
 
 
 def check_site_screens(problems):
-    """Every docs/screens still must appear on the site, and vice versa.
+    """Every still the site shows must exist.
+
+    This used to assert the other direction too -- every still on disk had to
+    appear on the site -- because the site showed all ninety-one, so an orphan
+    meant a game had been added and not wired up. The page now shows six
+    chosen ones and links to the README gallery for the rest, so that reading
+    is gone. What it was protecting is not: check_screens() above still fails
+    when a still has no generator entry, when a generated one is missing from
+    disk, and when a playable game has no screenshot at all.
 
     gen_site.validate_site_screens() is the authority; it reports through
     die(), which writes to stderr and raises SystemExit. Left alone that would
@@ -396,7 +404,7 @@ def check_site_screens(problems):
     captured = io.StringIO()
     try:
         with contextlib.redirect_stderr(captured):
-            gen_site.validate_site_screens(playable_apps())
+            gen_site.validate_site_screens()
     except SystemExit:
         message = captured.getvalue().strip() or "gen_site.py rejected the screen set"
         for line in message.splitlines():

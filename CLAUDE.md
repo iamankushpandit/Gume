@@ -1093,12 +1093,16 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
-11. `tools/gen_site.py` — add every new still to `PLAYABLE_STILLS` (or
-    `SYSTEM_SHOWCASE` for a system app), keyed by app id, and give each one a
-    `SCREEN_CAPTIONS` entry. **A still on disk that the site does not
-    reference makes `gen_site.py` refuse to generate**, which fails the Pages
-    deploy rather than the build. Elements shipped without this and the site
-    went undeployed for two pushes.
+11. `tools/gen_site.py` — nothing, usually. The landing page shows six
+    chosen stills (`HERO_STILLS`) rather than all of them, and its game list
+    is names read from `AppRegistry`, so a new game appears on it without
+    anybody touching the generator. It showed all ninety-one once, with three
+    per game card, and that is why this step used to be a wiring job; the
+    page is now a page rather than a contact sheet, and the README gallery is
+    where a reader goes for every screen. Only if you want the new still to
+    be one of the six: add it to `HERO_STILLS` and give it a
+    `SCREEN_CAPTIONS` entry, and take one out — six is the number because
+    more stops selling and starts listing.
 
 ### 4. Verify
 
@@ -1119,9 +1123,9 @@ how About fell six games behind in the first place:
   `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
-  fails if a version number is typed into it. The gallery is generated too, so
-  do not add an `<img>` to the template to show a new screenshot — add the
-  still to `PLAYABLE_STILLS` per step 11 above
+  fails if a version number is typed into it. The game list and the six-still
+  wall are generated too, so do not add an `<img>` or a game name to the
+  template — see step 11 above
 
 ### If it is a system app rather than a game
 
@@ -1296,7 +1300,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           (which board is on which port, keyed by the
                           firmware's own Board::deviceId(); the real registry
                           is gitignored because it names one person's boards)
-site/                     index.template.html â€” the GitHub Pages landing page
+site/                     index.template.html â€” the GitHub Pages landing page;
+                          assets/ â€” its photos, hero video and poster PDF,
+                          the only part of the page not derived from firmware
 .github/workflows/        ci.yml validates checks, then builds one job per
                           environment in parallel (`verify` is the required
                           check that judges them); pages.yml publishes
@@ -1387,6 +1393,15 @@ break it, and all three fail in someone else's browser rather than here:
    clean checkout, locally and in GitHub Actions. If `lib_deps` changes shape,
    keep both `.github/workflows/ci.yml` and `.github/workflows/pages.yml`
    building all four environments in the same commit.
+4. **Touching `site/assets/`.** The photos, the one-minute hero video and the
+   A2 poster are the one part of the page that is *not* derived from the
+   firmware, so they are the one part that can rot with nothing noticing. Both
+   directions are checked, for the same reason the stills are: `gen_site.py`
+   refuses to generate when the page references an asset that is not there
+   (a broken image on the landing page) or when an asset nobody references is
+   sitting in the tree (weight in every clone, forever). `gen_site.py` copies
+   the folder into the build, so nothing on the page reaches outside the Pages
+   origin for a picture.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
