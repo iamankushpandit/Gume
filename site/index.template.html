@@ -81,6 +81,22 @@
   .hero .lede{margin-top:28px;font-size:clamp(22px,2.6vw,36px);font-weight:700;letter-spacing:-.02em;line-height:1.15}
   .hero .sub{margin-top:18px;max-width:34rem;font-size:19px;color:var(--muted)}
   .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+  /* The page has product photography on it now -- eight consoles in eight
+     colours, lit and arranged the way a shop would arrange them. That picture
+     is honest about what the thing LOOKS like and dishonest about what it IS,
+     because nothing on this page can be bought. The kicker answers that before
+     the reader scrolls into the lineup rather than after it. */
+  .kicker{display:inline-flex;align-items:center;gap:10px;margin-bottom:22px;
+          padding:7px 15px;border:1px solid rgba(255,255,255,.22);border-radius:999px;
+          font-size:14px;font-weight:700;letter-spacing:.01em;color:var(--muted)}
+  .kicker b{color:var(--yellow);font-weight:800}
+  /* A pill that wraps is not a pill. It fits one line on a desktop and needs
+     two on a phone, so below 640 it stops pretending: same words, a rounded
+     block instead of a capsule. */
+  @media (max-width:640px){
+    .kicker{display:block;border-radius:14px;padding:9px 13px;font-size:13px;line-height:1.5;margin-bottom:18px}
+  }
+  .notforsale{margin:26px auto 0;max-width:44rem;font-size:15px;color:var(--muted);opacity:.85}
   .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:999px;font-weight:700;text-decoration:none;font-size:17px;border:0;cursor:pointer;font-family:inherit}
   .btn-solid{background:var(--yellow);color:var(--ink)}
   .btn-ghost{background:transparent;color:var(--fg);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
@@ -241,6 +257,7 @@
 
 <header class="hero" id="top">
   <div>
+    <p class="kicker"><b>Firmware, not a gadget.</b> Nothing here is for sale.</p>
     <h1>4 MB.</h1>
     <p class="lede">That is smaller than one photo.<br>It runs an entire learning console.</p>
     <p class="sub">
@@ -248,6 +265,11 @@
       an ESP32 already soldered to a touchscreen. {{GAME_COUNT}} games &mdash;
       handwriting, flags, maths, the periodic table, chess across the room. No ads,
       no accounts, no cloud.
+    </p>
+    <p class="sub">
+      You buy the board from whoever you like &mdash; we sell nothing and take
+      nothing &mdash; and flash this onto it for free. The whole thing is
+      GPL-3.0: read it, change it, build your own from it.
     </p>
     <div class="cta">
       <a class="btn btn-solid" href="#flash">Flash it from your browser</a>
@@ -270,6 +292,13 @@
     firmware's own.
   </p>
   <div class="shot"><img src="assets/lineup.jpg" alt="Eight Braino consoles in eight filament colours across three board sizes, each running a different game" loading="lazy"></div>
+  <p class="notforsale">
+    <b>This is not an advertisement.</b> None of these is a product and none of
+    them is for sale &mdash; not by us and not by anyone. They are ordinary
+    ESP32 CYD boards anybody can buy for a few pounds, in cases anybody can
+    print, running free software. The picture is here to show you what you
+    would end up with, not to sell you one.
+  </p>
 </section>
 
 <section class="stills" aria-label="What the screens look like">
