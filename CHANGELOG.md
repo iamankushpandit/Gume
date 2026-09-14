@@ -2,6 +2,25 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+**Every game is pictured, and the picture is generated.** The games section
+carries all forty consoles, one per game, built from `AppRegistry` rather than
+from a list typed into the generator -- so a picture that is short by two
+games cannot happen, for the same reason the About screen and the README table
+cannot go stale. The hero now leads with the games nothing else on a CYD does:
+Chess, Ludo and Sea Battle across consoles, and the joined-up handwriting.
+
+**The landing page has a product lineup.** Three board sizes turned in space,
+eight filament colours, a different game on every screen, on white. It is
+drawn rather than photographed, and every number in it is taken rather than
+chosen: the case footprints come from the printable meshes in `cases/` (91.4 x
+55.4, 99.1 x 60.4 and 119.5 x 66.0 mm), the depth comes from the same files,
+and the screen apertures come from each panel's diagonal and aspect. So the
+4-inch really is a third wider than the 2.8-inch, and the 2.8-inch really does
+have the chunkier bezel.
+
+The screens are generated stills, which is what makes the picture worth
+trusting: what is on the glass is what the firmware draws, down to the
+launcher icons the mock-ups only learned to draw in this same release.
 **The launcher mock-ups draw the real icons.** Every launcher still -- the
 wide one, the tall one and the 3x3 portrait grid -- drew a plain blue circle
 in each tile, where the device draws cards, coins, a tricolour, a sudoku grid,

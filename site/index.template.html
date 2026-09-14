@@ -73,6 +73,13 @@
   .phone .yt{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:13px;color:#fff;text-decoration:none;background:rgba(11,12,16,.6);padding:5px 10px;border-radius:999px}
   @media (max-width:860px){.hero{grid-template-columns:1fr;padding-top:4vh}.phone{margin-top:24px}}
 
+  /* the product lineup: every size, every colour, a real screen on each */
+  .lineup{padding:0 var(--gutter) 6vh;text-align:center}
+  .lineup h2{font-size:clamp(34px,4.6vw,68px);font-weight:900;letter-spacing:-.04em;line-height:.95}
+  .lineup p{margin:18px auto 0;max-width:42rem;font-size:19px;color:var(--muted)}
+  .lineup .shot{margin-top:38px;border-radius:22px;overflow:hidden;background:#fff}
+  .lineup .shot img{width:100%;height:auto}
+
   /* the generated still wall, straight under the hero */
   .stills{padding:0 var(--gutter) 12vh}
   .wall-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
@@ -235,6 +242,17 @@
   </div>
 </header>
 
+<section class="lineup" aria-label="The three sizes and the case colours">
+  <h2>Three sizes.<br>Any colour you can print.</h2>
+  <p>
+    2.8, 3.2 and 4 inch, shown at their true relative sizes &mdash; the case
+    footprints are measured from the printable meshes in this repository, so
+    the 4-inch really is a third wider than the 2.8-inch. Every screen is the
+    firmware's own.
+  </p>
+  <div class="shot"><img src="assets/lineup.jpg" alt="Eight Braino consoles in eight filament colours across three board sizes, each running a different game" loading="lazy"></div>
+</section>
+
 <section class="stills" aria-label="What the screens look like">
   <div class="wall-grid">
 {{STILL_WALL}}
@@ -258,7 +276,7 @@
     </ul>
     <p class="body muted">One firmware. You pick the board when you flash.</p>
   </div>
-  <figure><img src="assets/three-consoles.jpg" alt="Three Braino consoles in pink cases on a table" loading="lazy"></figure>
+  <figure><img src="assets/lineup-sizes.jpg" alt="The 2.8, 3.2 and 4 inch consoles side by side at true relative scale" loading="lazy" style="object-fit:contain;background:#fff"></figure>
 </section>
 
 <section class="chapter flip" data-bg="#5b2a86">
@@ -384,6 +402,9 @@
     generated from the firmware's own registry, so it cannot drift from what is
     actually on the board.
   </p>
+  <div class="shot" style="margin-top:38px;border-radius:22px;overflow:hidden;background:#fff">
+    <img src="assets/catalogue.jpg" alt="All 40 games, one console each" loading="lazy" style="width:100%;height:auto;display:block">
+  </div>
   <div class="wall">
 {{GAME_WALL}}
   </div>

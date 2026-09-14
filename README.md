@@ -1454,8 +1454,9 @@ tools/
   check_frame_rules.py  ratchet on heap/String/delay in render paths
 site/
   index.template.html   the landing page, with {{PLACEHOLDERS}} gen_site fills
-  assets/               its photos, hero video and poster -- the only part of
-                        the page not derived from the firmware
+  assets/               its photos, hero video, poster and the product
+                        lineup -- the only part of the page not derived
+                        from the firmware
 .github/
   workflows/ci.yml      runs checks and builds every firmware on a clean runner
   workflows/pages.yml   publishes the site with the same built firmware
