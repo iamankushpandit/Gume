@@ -135,6 +135,13 @@ jobs:
           # Board pages are generated from the profiles; a stale one fails here.
           python tools/gen_board_docs.py --check
 
+          # A hardware identifier cannot be un-published: a MAC is burned into
+          # eFuse, so it names that board for its whole life. board_registry.json
+          # mapped six of them to the firmware each was running and reached two
+          # releases before anybody noticed. This check runs on every PR because
+          # noticing is exactly what did not happen.
+          python tools/check_identifiers.py
+
       # main is the released state, and only a check can keep it that way.
       #
       # Merging dev into main to publish the site carried dev's -SNAPSHOT with
@@ -143,22 +150,17 @@ jobs:
       # into firmware/latest.txt, which every console with Wi-Fi reads -- so
       # owners on the real release were told to update to an unreleased build.
       #
-      # Every check above passed and none of them was wrong: they assert that
-      # AppVersion.h, the README and the CHANGELOG agree with each other, and
-      # all three said 5.13.0-SNAPSHOT. release.yml refuses a -SNAPSHOT only
-      # when publishing a tag, which is long after the merge that caused it.
+      # The checks above all passed and none of them was wrong: they assert
+      # that AppVersion.h, the README and the CHANGELOG agree with each other,
+      # and all three said 5.13.0-SNAPSHOT. release.yml refuses a -SNAPSHOT
+      # only when publishing a tag, which is long after the merge that caused
+      # it.
       #
       # Gated on main because dev carries a snapshot between releases by
       # design; `base_ref` catches it at the pull request, before the merge.
       - name: main must carry a released version
         if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
         run: python tools/check_docs.py --released
-          # A hardware identifier cannot be un-published: a MAC is burned into
-          # eFuse, so it names that board for its whole life. board_registry.json
-          # mapped six of them to the firmware each was running and reached two
-          # releases before anybody noticed. This check runs on every PR because
-          # noticing is exactly what did not happen.
-          python tools/check_identifiers.py
 
       # Site generation is cheap -- seconds, pure standard library, no
       # PlatformIO -- and it MUST run on every pull request. Do not put this
