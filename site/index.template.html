@@ -49,18 +49,31 @@
   .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px var(--gutter);background:rgba(11,12,16,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
   .nav .mark{display:inline-flex;align-items:center;gap:11px;font-weight:900;
              font-size:38px;letter-spacing:-.03em;color:var(--yellow);text-decoration:none}
-  .nav .mark img{height:54px;width:auto;display:block}
-  /* Narrow screens shrink it, but not much: the mark is the one thing on this
-     bar that has to be legible at a glance. */
-  @media (max-width:640px){.nav .mark{font-size:32px;gap:9px}.nav .mark img{height:44px}}
+  /* The BRAIN only, not the full badge. braino-badge.svg is a lockup -- the
+     brain above the word -- and the name is already set in type beside it
+     here, so the badge made the header say "Braino!" twice. braino-mark.svg
+     is the same artwork with the viewBox cropped above the word. */
+  .nav .mark img{height:46px;width:auto;display:block}
   .nav ul{display:flex;gap:6px;list-style:none;margin:0;padding:0}
-  .nav li a{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px}
+  .nav li a{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;white-space:nowrap}
   .nav li a:hover,.nav li a:focus-visible{background:rgba(255,255,255,.1)}
   .nav li a.star{background:var(--yellow);color:var(--ink)}
   /* Narrow screens keep the last two links only, so the markup order puts
      Flash it and Star there: everything else on this page can be read by
      scrolling, and flashing is the one thing that cannot. */
   @media (max-width:640px){.nav li:not(:nth-last-child(-n+2)){display:none}}
+  /* 375px is the measurement that matters, and the bar did not fit it: both
+     remaining links wrapped onto two lines each. Every number below is spent
+     buying that row back -- a smaller mark, a tighter gutter, and links that
+     are allowed to be small because they sit beside a mark that is not. */
+  @media (max-width:640px){
+    .nav{padding:12px clamp(14px,4vw,20px);gap:10px}
+    .nav .mark{font-size:26px;gap:7px}
+    .nav .mark img{height:34px}
+    .nav ul{gap:4px}
+    .nav li a{padding:7px 11px;font-size:13px}
+  }
+  @media (max-width:360px){.nav .mark{font-size:22px}.nav .mark img{height:29px}}
 
   /* hero */
   .hero{min-height:calc(100vh - 60px);min-height:calc(100svh - 60px);display:grid;grid-template-columns:1.2fr .8fr;gap:var(--gutter);align-items:center;padding:6vh var(--gutter) 10vh}
@@ -215,7 +228,7 @@
 <body>
 
 <nav class="nav" aria-label="Page">
-  <a class="mark" href="#top"><img src="assets/braino-badge.svg" alt="" aria-hidden="true">Braino!</a>
+  <a class="mark" href="#top"><img src="assets/braino-mark.svg" alt="" aria-hidden="true">Braino!</a>
   <ul>
     <li><a href="#games">Games</a></li>
     <li><a href="#videos">Videos</a></li>
