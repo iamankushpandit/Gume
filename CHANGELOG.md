@@ -2,6 +2,13 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+**Every game is pictured, and the picture is generated.** The games section
+carries all forty consoles, one per game, built from `AppRegistry` rather than
+from a list typed into the generator -- so a picture that is short by two
+games cannot happen, for the same reason the About screen and the README table
+cannot go stale. The hero now leads with the games nothing else on a CYD does:
+Chess, Ludo and Sea Battle across consoles, and the joined-up handwriting.
+
 **The landing page has a product lineup.** Three board sizes turned in space,
 eight filament colours, a different game on every screen, on white. It is
 drawn rather than photographed, and every number in it is taken rather than
