@@ -192,6 +192,45 @@ def speaker_icon(d, r, muted, colour):
         d.arc([wave_x - rad, cy - rad, wave_x + rad, cy + rad], -60, 60, fill=colour)
 
 
+def home_icon(d, r, colour, bg):
+    """Ui::drawHomeIcon: a filled roof, a body, and the door knocked back out
+    in the bar colour. Not the word "home" in a box, which is what the mock
+    drew -- on every screen, in the strip a reader looks at first."""
+    x, y, w, h = r
+    cx = x + w // 2
+    inset = max(3, w // 6)
+    d.polygon([(cx, y + 6), (x + inset, y + 16), (x + w - inset, y + 16)], fill=colour)
+    body_w = max(8, w - 2 * inset - 6)
+    d.rounded_rectangle([cx - body_w // 2, y + 15,
+                         cx - body_w // 2 + body_w - 1, y + 15 + (h - 20) - 1],
+                        2, fill=colour)
+    door_w = max(4, body_w // 3)
+    d.rectangle([cx - door_w // 2, y + h - 12,
+                 cx - door_w // 2 + door_w - 1, y + h - 12 + 7 - 1], fill=bg)
+
+
+def gear_icon(d, r, colour):
+    """Ui::drawGearIcon: eight teeth on a hub, drawn as outlines like the
+    firmware does, so it reads the same at 18px as it does on the panel."""
+    x, y, w, h = r
+    cx, cy = x + w / 2.0, y + h / 2.0
+    outer = min(w, h) / 2.0 - 3
+    hub_outer = max(4.0, outer - 4)
+    hub_inner = max(2.0, hub_outer - 4)
+    for i in range(8):
+        a = i * math.pi / 4.0
+        dx, dy = math.cos(a), math.sin(a)
+        px, py = -dy, dx
+        pts = [(cx + dx * hub_outer + px * 2.0, cy + dy * hub_outer + py * 2.0),
+               (cx + dx * (outer + 1) + px * 2.0, cy + dy * (outer + 1) + py * 2.0),
+               (cx + dx * (outer + 1) - px * 2.0, cy + dy * (outer + 1) - py * 2.0),
+               (cx + dx * hub_outer - px * 2.0, cy + dy * hub_outer - py * 2.0)]
+        d.polygon(pts, outline=colour)
+    for rr in (hub_outer, hub_outer - 1, hub_inner):
+        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=colour)
+    d.ellipse([cx - 1, cy - 1, cx + 1, cy + 1], fill=colour)
+
+
 def topbar(d, title, synced=True, bars=3, muted=False, w=W):
     """Ui::drawTopBar. Takes a width because the firmware reads tft.width() at
     render time -- that is what lets the portrait mock-ups carry the same bar
@@ -200,8 +239,7 @@ def topbar(d, title, synced=True, bars=3, muted=False, w=W):
     d.line([(0, 0), (w, 0)], fill=shade(BAR, 145))
     d.line([(0, 29), (w, 29)], fill=shade(BAR, 60))
     # Home narrowed from 42px to 32px to make room for Lock beside it.
-    d.rounded_rectangle([2, 5, 30, 24], 3, outline=BAR_TEXT)
-    d.text((5, 9), "home", font=F1, fill=BAR_TEXT)
+    home_icon(d, (2, 2, 28, 26), BAR_TEXT, BAR)
     lock_icon(d, (40, 6, CONTROL_H, CONTROL_H), BAR_TEXT, BAR)
     # Mute, right of the padlock; the title starts after it now.
     speaker_icon(d, (64, 6, CONTROL_H, CONTROL_H), muted, BAR_TEXT)
@@ -237,8 +275,8 @@ def topbar(d, title, synced=True, bars=3, muted=False, w=W):
     wifi_badge(d, wifi_cx, 15, bars)
     battery_badge(d, batt_right - batt_w // 2, 15, 72)
     # The gear is CONTROL_H now, like the padlock and the speaker beside it.
-    d.ellipse([w - 8 - CONTROL_H, (30 - CONTROL_H) // 2,
-               w - 8, (30 - CONTROL_H) // 2 + CONTROL_H], outline=BAR_TEXT)
+    gear_icon(d, (w - 8 - CONTROL_H, (30 - CONTROL_H) // 2, CONTROL_H, CONTROL_H),
+              BAR_TEXT)
 
 
 BATT_H, BATT_PAD, BATT_TERM_W = 15, 3, 2
@@ -1651,7 +1689,7 @@ def launcher_wide():
     battery_badge(d, batt_right - batt_w // 2, 34)
     # Third move: lW-116 -> lW-138 for Lock -> lW-160 for mute.
     d.line([(W - 160, 8), (W - 160, 40)], fill=OUTLINE)
-    d.ellipse([W - 30, 11, W - 5, 36], outline=TEXT)   # gearRect(), unchanged
+    gear_icon(d, (W - 30, 11, 25, 25), TEXT)          # gearRect(), unchanged
     # Lock at the left-hand end of the badge row, inside the hairline, at badge
     # size. See LauncherLayout::lockRect().
     lock_icon(d, (W - 158, 25, CONTROL_H, CONTROL_H))
@@ -1694,7 +1732,7 @@ def launcher_tall_dense():
     batt_w = battery_width(72)
     sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
     battery_badge(d, bx + 40 + batt_w // 2, 60)
-    d.ellipse([w - 32, 48, w - 8, 72], outline=TEXT)
+    gear_icon(d, (w - 32, 48, 24, 24), TEXT)
     lock_icon(d, (w - 64, 51, CONTROL_H, CONTROL_H))
     # Directly above the padlock, taking its x. It sat at w-96 for a release,
     # which is neither beside nor above anything -- an icon floating in an
@@ -1746,7 +1784,7 @@ def launcher_tall():
     sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
     battery_badge(d, batt_left + batt_w // 2, 60)
     ble_badge(d, batt_left + batt_w + 11, 60)
-    d.ellipse([208, 48, 232, 72], outline=TEXT)
+    gear_icon(d, (208, 48, 24, 24), TEXT)
     lock_icon(d, (176, 51, CONTROL_H, CONTROL_H))
     # Profile-name row, because at 240px the badge row is full by x=155 -- but
     # in the padlock's column, not floating in the middle of it. Mirrors

@@ -45,8 +45,10 @@ original work in their own right.
 
 import argparse
 import os
+import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ElementTree
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -124,10 +126,17 @@ def prologue_len(lines, ext):
     if lines and lines[0].startswith("#!"):
         n = 1
     if ext in (".html", ".svg"):
-        while n < len(lines) and (
-            lines[n].lstrip().lower().startswith("<?xml")
-            or lines[n].lstrip().lower().startswith("<!doctype")
-        ):
+        # A declaration is not a line. An SVG saved by Inkscape wraps its
+        # DOCTYPE across two, so counting lines put the notice INSIDE the
+        # DOCTYPE and the file stopped parsing -- which is how
+        # tools/chess_pieces.svg shipped unopenable. Consume each declaration
+        # up to its own closing ">".
+        while n < len(lines):
+            head = lines[n].lstrip().lower()
+            if not (head.startswith("<?xml") or head.startswith("<!doctype")):
+                break
+            while n < len(lines) and ">" not in lines[n]:
+                n += 1
             n += 1
     return n
 
@@ -138,6 +147,17 @@ def render(style):
     if opener:
         out.append(opener)
     for line in NOTICE:
+        if closer == "-->":
+            # "--" may not appear inside an XML comment (XML 1.0 s2.5), and
+            # the notice uses it as an em dash. In HTML a browser forgives it;
+            # in an SVG it does not, because an SVG is parsed as XML and a
+            # not-well-formed document is dropped whole. Three SVGs here
+            # shipped unreadable that way -- including the site's header logo,
+            # which rendered as a broken image next to its own wordmark, and
+            # tools/braino-badge.svg, which the firmware's product mark is
+            # generated from. Sanitise at the one place the notice is
+            # rendered, so the wording stays one definition rather than two.
+            line = re.sub(r"-{2,}", "-", line)
         out.append((prefix + line).rstrip())
     if closer:
         out.append(closer)
@@ -194,6 +214,30 @@ def fix_markdown(text):
     return text.rstrip("\n") + "\n\n" + MARKDOWN_FOOTER
 
 
+def malformed_svgs(paths):
+    """Tracked SVGs that no longer parse as XML.
+
+    This checker writes into SVGs, so it is the thing most likely to break
+    one, and it broke three. An SVG is XML: a browser does not repair it and
+    does not report it either -- the image is simply absent, which reads as a
+    missing file or a wrong path rather than as a malformed one. The check is
+    two lines and catches every way of getting it wrong, not just the "--"
+    that caused it here.
+    """
+    bad = []
+    for rel in paths:
+        if not rel.lower().endswith(".svg"):
+            continue
+        full = os.path.join(ROOT, rel)
+        if not os.path.isfile(full):
+            continue
+        try:
+            ElementTree.parse(full)
+        except ElementTree.ParseError as exc:
+            bad.append((rel, str(exc)))
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser(description="Check every file carries a licence notice.")
     ap.add_argument("--fix", action="store_true",
@@ -221,6 +265,16 @@ def main():
         with open(full, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(new)
         fixed += 1
+
+    bad = malformed_svgs(tracked_files())
+    if bad:
+        sys.stderr.write("check_licenses: {0} SVG(s) are not well-formed "
+                         "XML and will not render:\n\n".format(len(bad)))
+        for rel, why in bad:
+            sys.stderr.write("  {0}: {1}\n".format(rel, why))
+        sys.stderr.write("\nNote that \"--\" cannot appear inside "
+                         "an XML comment.\n")
+        return 1
 
     if args.fix:
         print("check_licenses: added a notice to {0} file(s).".format(fixed))
