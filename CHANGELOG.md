@@ -2,6 +2,19 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+**The landing page has a product lineup.** Three board sizes turned in space,
+eight filament colours, a different game on every screen, on white. It is
+drawn rather than photographed, and every number in it is taken rather than
+chosen: the case footprints come from the printable meshes in `cases/` (91.4 x
+55.4, 99.1 x 60.4 and 119.5 x 66.0 mm), the depth comes from the same files,
+and the screen apertures come from each panel's diagonal and aspect. So the
+4-inch really is a third wider than the 2.8-inch, and the 2.8-inch really does
+have the chunkier bezel.
+
+The screens are generated stills, which is what makes the picture worth
+trusting: what is on the glass is what the firmware draws, down to the
+launcher icons the mock-ups only learned to draw in this same release.
+
 In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
 `release.yml` refuses to publish a tag whose version carries it.
