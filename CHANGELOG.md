@@ -2,6 +2,36 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+**A licence notice may not break the file it is written into.** Three of the
+repository's four SVGs did not parse, and `tools/check_licenses.py` -- the
+tool that exists to protect them -- is what broke them. Two faults: `--`
+cannot appear inside an XML comment, and the notice uses it as an em dash;
+and `prologue_len()` counted lines, so an SVG whose DOCTYPE wraps across two
+got the notice spliced into the middle of it. A browser neither renders a
+malformed SVG nor reports one, so the image is simply absent -- the landing
+page's header logo shipped as a broken image beside its own wordmark, and
+`tools/braino-badge.svg`, which the firmware's product mark is generated
+from, was unreadable too. The checker now parses every tracked SVG and fails
+on one that will not render.
+
+**The mock-ups draw the real Home and Settings icons.** The generator drew
+the word "home" in a box and a bare circle for the gear; the device draws a
+house and an eight-toothed gear. The top bar is on every still, so the
+placeholder appeared 91 times in the strip a reader looks at first. Both are
+now ported from `Ui::drawHomeIcon()` and `Ui::drawGearIcon()` rather than
+approximated -- the same repair as the launcher tiles above, one level up.
+
+**The landing page shows the product, on the boards people own.** A lineup
+of the supported sizes built from the case meshes, so the proportions are the
+hardware's rather than a drawing's; and Braino running on bare boards,
+composited onto the manufacturers' own front views, three boards in three
+different themes. A board needs neither case nor battery to run this, and the
+page now shows that instead of claiming it. The header carries the product
+mark itself. `in-hand-flags.jpg` was shot under an orange lamp and has been
+relit. The flasher is untouched: the same pickers, the same ids, the same
+manifest.
+
+
 **The launcher mock-ups draw the real icons.** Every launcher still -- the
 wide one, the tall one and the 3x3 portrait grid -- drew a plain blue circle
 in each tile, where the device draws cards, coins, a tricolour, a sudoku grid,
