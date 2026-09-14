@@ -1273,9 +1273,13 @@ To check the page itself before pushing:
 python tools/gen_site.py
 ```
 
-That writes `site/_build/` (git-ignored) with the page and one manifest per
-firmware. The binaries are *not* built locally; the flash button only works
-against the published site, where CI has put them there.
+That writes `site/_build/` (git-ignored) with the page, one manifest per
+firmware, the six stills the page shows and a copy of `site/assets/`. The
+binaries are *not* built locally; the flash button only works against the
+published site, where CI has put them there. `gen_site.py` refuses to generate
+if the page references an asset that is missing, or if an asset in the tree is
+referenced by nothing -- a broken image on the landing page and dead weight in
+every clone are both worth failing a build over.
 
 ### Diagnostics
 
@@ -1450,6 +1454,8 @@ tools/
   check_frame_rules.py  ratchet on heap/String/delay in render paths
 site/
   index.template.html   the landing page, with {{PLACEHOLDERS}} gen_site fills
+  assets/               its photos, hero video and poster -- the only part of
+                        the page not derived from the firmware
 .github/
   workflows/ci.yml      runs checks and builds every firmware on a clean runner
   workflows/pages.yml   publishes the site with the same built firmware

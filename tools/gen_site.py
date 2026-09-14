@@ -24,6 +24,9 @@ Writes, into DIR (default `site/_build`, which is not committed):
     index.html                             the page, from site/index.template.html
     firmware/<board>/<env>/manifest.json   an esp-web-tools manifest per build
     screens/*.png                          a copy of docs/screens
+    assets/*                               a copy of site/assets --
+                                           the photos, the hero video
+                                           and the poster
 
 The .bin files each manifest points at are *not* produced here -- CI builds
 them with `pio run` and drops them next to their manifest. Run this locally to
@@ -38,7 +41,7 @@ import re
 import shutil
 import sys
 
-from app_registry_parser import playable_apps, system_apps
+from app_registry_parser import playable_apps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -274,111 +277,20 @@ SCREEN_CAPTIONS = {
     "whack": "Whack",
 }
 
-PLAYABLE_STILLS = {
-    "tictactoe": ("tictactoe",),
-    "memory": ("memory",),
-    "math": ("math", "math-words"),
-    "multiply": ("multiply",),
-    "time": ("time",),
-    "whack": ("whack",),
-    "cinnamon": ("cinnamon",),
-    "microku": ("microku",),
-    "shapecolor": ("shapes", "shapes-concave"),
-    "counting": ("counting",),
-    "money": ("money",),
-    "fractions": ("fractions",),
-    "maze": ("maze",),
-    "sort": ("sorting",),
-    "colormix": ("colormix",),
-    "slide": ("slide",),
-    "oddone": ("oddone",),
-    "shapearith": ("shapearith",),
-    "fingers": ("fingers-count", "fingers-show"),
-    "calendar": ("calendar",),
-    "numberline": ("numberline",),
-    "flags": ("flags-country", "flags-capital"),
-    "states": ("states",),
-    "trace": ("trace", "trace-lower", "trace-words"),
-    "stateflags": ("stateflags",),
-    "statemaps": ("statemaps",),
-    "percent": ("percent",),
-    "grewords": ("grewords", "grewords-study"),
-    "dice": ("dice",),
-    "coinflip": ("coinflip",),
-    "elements": ("elements", "elements-card", "elements-quiz"),
-    "space": ("space", "space-answered"),
-    "roman": ("roman", "roman-write"),
-    "piano": ("piano",),
-    "chess": ("chess", "chess-lobby"),
-    "seabattle": ("seabattle",),
-    "cursive": ("cursive",),
-    "ludo": ("ludo", "ludo-lobby", "ludo-table"),
-    "backgammon": ("backgammon", "backgammon-lobby"),
-    "go": ("go", "go-lobby"),
-}
-
-SYSTEM_SHOWCASE = (
-    {
-        "id": "launcher",
-        "title": "Launcher",
-        "subtitle": "Wide and Tall home layouts with live profile, clock, Wi-Fi, BLE and battery status.",
-        "stills": ("launcher-wide", "launcher-tall", "launcher-tall-dense"),
-    },
-    {
-        "id": "profiles",
-        "subtitle": "Boot-time player choice, five players, Guest mode that deliberately saves nothing, "
-                    "a PIN-guarded admin profile, and per-player game visibility only the admin can set.",
-        "stills": ("profiles", "profiles-tall", "profiles-pin", "profiles-games", "profiles-rename"),
-    },
-    {
-        "id": "settings",
-        "subtitle": "Device controls, brightness, screen saver and sleep policy -- "
-                    "readable by anyone, changeable only by the admin.",
-        "stills": ("settings-device", "settings-tall", "settings-power", "settings-sound",
-                   "settings-admin", "settings-pin"),
-    },
-    {
-        "id": "wifi",
-        "subtitle": "Optional Wi-Fi for NTP time only, with a timezone picker for daylight-saving rules.",
-        "stills": ("network-time", "wifi-tall", "timezone"),
-    },
-    {
-        "id": "scores",
-        "subtitle": "Per-player best and worst scores, plus device-wide records and record holders.",
-        "stills": ("scores-mine", "scores-tall", "scores-device"),
-    },
-    {
-        "id": "systeminfo",
-        "subtitle": "Live board, memory, network, BLE, NVS and watchdog diagnostics for hardware triage.",
-        "stills": ("systeminfo-memory", "systeminfo-tall", "systeminfo-ble"),
-    },
-    {
-        "id": "about",
-        "subtitle": "Parent-readable documentation on the device, including exactly what the radios broadcast.",
-        "stills": ("about-intro", "about-tall", "about-radios", "about-password",
-                   "about-warranty", "about-build", "about-updates"),
-    },
-    {
-        "id": "nearby",
-        "subtitle": "Opt-in, anonymous score sharing with other Brainos in range, and a poke to get "
-                    "someone's attention. Device tags only on the radio; a name you give a device "
-                    "never leaves your own.",
-        "stills": ("nearby", "nearby-name"),
-    },
-    {
-        "id": "screensaver",
-        "title": "Screen Saver",
-        "subtitle": "Self-playing Pong before panel sleep, with rally colour mirrored on the case LED -- "
-                    "and a press-and-hold unlock on the way back, so a stray press in a bag "
-                    "cannot land on a live screen.",
-        "stills": ("screensaver", "wakelock", "wakelock-tall"),
-    },
-)
-
+# The stills the page shows, and the whole of them.
+#
+# There were ninety-one: a wall of them at the top, three on every game card,
+# three on every system screen. They were honest and they were exhausting --
+# a reader deciding whether to buy a twelve-pound board does not need to see
+# the Settings sound tab. These six are the ones that answer a question
+# somebody actually arrives with: what does it look like, what does it teach
+# that nothing else does, is it colourful, is it serious, do two of them
+# really play each other, is it any fun. The rest still exist, are still
+# generated by gen_screens.py, and still appear in the README gallery, which
+# is where a reader who wants all of them should be.
 HERO_STILLS = (
-    "launcher-wide", "counting", "flags-country", "shapearith", "trace",
-    "grewords", "maze", "settings-power", "profiles", "scores-device",
-    "systeminfo-memory", "screensaver",
+    "launcher-wide", "trace", "flags-country",
+    "elements", "chess", "cinnamon",
 )
 
 
@@ -502,16 +414,15 @@ def still_figure(name, class_name="still", loading="eager"):
     )
 
 
-def media_grid(stills, loading="eager"):
-    count = len(stills)
-    classes = "media-grid media-count-%d" % count
-    return '<div class="%s">\n%s\n      </div>' % (
-        classes,
-        "\n".join(
-            "        " + still_figure(name, "screen-shot", loading)
-            for name in stills
-        ),
-    )
+def render_game_wall(apps):
+    """Every playable game as its own name, in launcher order.
+
+    Still derived from AppRegistry, so it cannot fall behind the firmware --
+    that was never the reason the cards existed. What is gone is three
+    screenshots per game, not the list.
+    """
+    return "\n".join(
+        "    <span>%s</span>" % escape(app.title) for app in apps)
 
 
 def render_still_wall():
@@ -521,92 +432,57 @@ def render_still_wall():
     )
 
 
-def render_game_cards(apps):
-    cards = []
-    for app in apps:
-        if app.id not in PLAYABLE_STILLS:
-            die("no site still mapping for playable app '%s'" % app.id)
-        score = ""
-        if app.score is not None:
-            direction = (
-                "lower score is better"
-                if app.score.lower_is_better else
-                "higher score is better"
-            )
-            score = '<span>%s</span>' % direction
-        meta = "".join((
-            '<span>Game %02d</span>' % (app.index + 1),
-            '<span>%s</span>' % escape(app.subtitle),
-            score,
-        ))
-        cards.append(
-            '<article class="show-card game-card" id="game-%s">\n'
-            '      %s\n'
-            '      <div class="show-copy">\n'
-            '        <p class="eyebrow">%s</p>\n'
-            '        <h3>%s</h3>\n'
-            '        <p>%s</p>\n'
-            '        <p class="meta-row">%s</p>\n'
-            '      </div>\n'
-            '    </article>'
-            % (
-                escape(app.id),
-                media_grid(PLAYABLE_STILLS[app.id]),
-                escape(app.label),
-                escape(app.title),
-                escape(app.blurb),
-                meta,
-            )
-        )
-    return "\n".join("    " + card for card in cards)
+def validate_site_screens():
+    """Every still the page shows must exist.
 
-
-def render_system_cards():
-    registry = {app.id: app for app in system_apps()}
-    cards = []
-    for item in SYSTEM_SHOWCASE:
-        entry = registry.get(item["id"])
-        title = item.get("title") or (entry.title if entry else item["id"].title())
-        subtitle = item.get("subtitle") or (entry.subtitle if entry else "")
-        kind = "System app" if entry else "Runtime screen"
-        cards.append(
-            '<article class="show-card system-card" id="screen-%s">\n'
-            '      %s\n'
-            '      <div class="show-copy">\n'
-            '        <p class="eyebrow">%s</p>\n'
-            '        <h3>%s</h3>\n'
-            '        <p>%s</p>\n'
-            '      </div>\n'
-            '    </article>'
-            % (
-                escape(item["id"]),
-                media_grid(item["stills"]),
-                kind,
-                escape(title),
-                escape(subtitle),
-            )
-        )
-    return "\n".join("    " + card for card in cards)
-
-
-def referenced_site_screens(apps):
-    names = set(HERO_STILLS)
-    for app in apps:
-        names.update(PLAYABLE_STILLS.get(app.id, ()))
-    for item in SYSTEM_SHOWCASE:
-        names.update(item["stills"])
-    return names
-
-
-def validate_site_screens(apps):
-    available = available_screen_names()
-    referenced = referenced_site_screens(apps)
-    missing = referenced - available
+    The other direction -- a still on disk that the page does not show -- used
+    to fail here, back when the page showed all ninety-one and an orphan meant
+    somebody had added a game and forgotten to wire it up. The page now shows
+    six, so that reading no longer holds. The contract it was protecting did
+    not move: check_docs.py's check_screens() still fails when a still has no
+    generator entry, when a generated one is missing from disk, and when a
+    playable game has no screenshot at all.
+    """
+    missing = set(HERO_STILLS) - available_screen_names()
     if missing:
         die("site references missing screen still(s): %s" % ", ".join(sorted(missing)))
+
+
+ASSET_DIR = os.path.join(ROOT, "site", "assets")
+
+
+def referenced_assets(template):
+    """Every assets/<file> the page asks for, by name.
+
+    The photos, the hero video and the poster are the one part of this page
+    that is *not* derived from the firmware -- so they are the one part that
+    can rot with nothing noticing. A src that points at nothing is a broken
+    image on the landing page; a file nobody points at is weight in every
+    clone, forever. Both are caught below.
+    """
+    return set(re.findall(r"assets/([A-Za-z0-9._-]+)", template))
+
+
+def available_assets():
+    if not os.path.isdir(ASSET_DIR):
+        return set()
+    return {
+        name for name in os.listdir(ASSET_DIR)
+        if os.path.isfile(os.path.join(ASSET_DIR, name))
+    }
+
+
+def validate_assets(template):
+    available = available_assets()
+    referenced = referenced_assets(template)
+    missing = referenced - available
+    if missing:
+        die("the page references missing site/assets file(s): %s"
+            % ", ".join(sorted(missing)))
     unused = available - referenced
     if unused:
-        die("docs/screens still(s) not represented on the site: %s" % ", ".join(sorted(unused)))
+        die("site/assets file(s) the page never references: %s -- reference "
+            "them or delete them" % ", ".join(sorted(unused)))
 
 
 def cached_releases():
@@ -697,7 +573,7 @@ def main():
     release = version()
     supported = boards()
     catalog = playable_apps()
-    validate_site_screens(catalog)
+    validate_site_screens()
     flash, ram = build_figures()
 
     out = args.out
@@ -789,12 +665,11 @@ def main():
     # reader to pair them is how somebody flashes the 2.8-inch build onto a
     # 4-inch board and gets a black screen that looks like a dead device.
     variant_options = ""
-    game_cards = render_game_cards(catalog)
-    system_cards = render_system_cards()
+    game_wall = render_game_wall(catalog)
     still_wall = render_still_wall()
-    screen_count = len(referenced_site_screens(catalog))
 
     page = read("site", "index.template.html")
+    validate_assets(page)
     for key, value in (
         ("{{VERSION}}", release),
         ("{{GAME_COUNT}}", str(len(catalog))),
@@ -802,10 +677,8 @@ def main():
         ("{{RAM}}", escape(ram)),
         ("{{BOARD_OPTIONS}}", board_options),
         ("{{VARIANT_OPTIONS}}", variant_options),
-        ("{{SCREEN_COUNT}}", str(screen_count)),
         ("{{STILL_WALL}}", still_wall),
-        ("{{GAME_CARDS}}", game_cards),
-        ("{{SYSTEM_CARDS}}", system_cards),
+        ("{{GAME_WALL}}", game_wall),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
@@ -819,8 +692,18 @@ def main():
     with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as handle:
         handle.write(page)
 
-    shutil.copytree(os.path.join(ROOT, "docs", "screens"),
-                    os.path.join(out, "screens"))
+    # Only the stills the page shows. It copied all of docs/screens back when
+    # it showed all of docs/screens; publishing the other eighty-five now
+    # would be shipping images nothing links to.
+    os.makedirs(os.path.join(out, "screens"))
+    for name in HERO_STILLS:
+        shutil.copy(os.path.join(ROOT, "docs", "screens", "%s.png" % name),
+                    os.path.join(out, "screens", "%s.png" % name))
+    # The photos, the hero video and the poster PDF. They are committed
+    # rather than generated, so they are copied rather than built -- but
+    # they are published from here so that nothing on the page has to
+    # reach outside the Pages origin for an image.
+    shutil.copytree(ASSET_DIR, os.path.join(out, "assets"))
     # Jekyll would otherwise skip anything starting with an underscore.
     open(os.path.join(out, ".nojekyll"), "w").close()
 
