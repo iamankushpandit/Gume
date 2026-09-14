@@ -1454,6 +1454,136 @@ def page_label(per_page):
     return "1/%d" % ((total + per_page - 1) // per_page)
 
 
+# --- launcher tile artwork -------------------------------------------------
+#
+# Ported from src/ui/LauncherIcons.cpp, which is the authority. Until this
+# existed every launcher mock-up drew a plain blue circle in each tile, so all
+# three pictures of the product -- the README gallery, the installer page and
+# the theme sheets -- showed a launcher that does not exist. The device draws
+# cards, coins, a tricolour, a sudoku grid. A mock-up that lies is worse than a
+# missing one, and this one was on the front page.
+#
+# The palette, the stroke weights and the 36px box are the C++ file's, not new
+# choices here. Ui::rgb() values, copied rather than re-derived:
+ICON_SNOW  = (247, 250, 253)   # the silhouette; every icon's main mass
+ICON_INK   = (26, 34, 48)      # detail drawn on top of snow
+ICON_STEEL = (158, 172, 188)   # the second, quieter solid
+ICON_AMBER = (255, 196, 64)
+ICON_CORAL = (255, 110, 100)
+ICON_SKY   = (96, 190, 255)
+ICON_RADIUS = 4                # every rounded corner in the icon set
+
+
+def _ih(d, x, y, w, c):
+    """A horizontal stroke. Two pixels, never one -- rule 4 in the C++ file: a
+    single-pixel line breaks up on this panel and reads as an artefact."""
+    d.rectangle([x, y, x + w - 1, y + 1], fill=c)
+
+
+def _iv(d, x, y, h, c):
+    d.rectangle([x, y, x + 1, y + h - 1], fill=c)
+
+
+def _idiag(d, x0, y0, x1, y1, c):
+    """A diagonal with body, drawn as a bundle of offset lines."""
+    for t in (-1, 0, 1):
+        d.line([(x0, y0 + t), (x1, y1 + t)], fill=c)
+        d.line([(x0 + t, y0), (x1 + t, y1)], fill=c)
+
+
+def _iplate(d, cx, cy, w, h, c):
+    """The workhorse silhouette: a rounded slab centred on (cx, cy)."""
+    d.rounded_rectangle([cx - w // 2, cy - h // 2, cx - w // 2 + w - 1,
+                         cy - h // 2 + h - 1], ICON_RADIUS, fill=c)
+
+
+def _irr(d, x, y, w, h, rad, c):
+    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], rad, fill=c)
+
+
+def _idisc(d, cx, cy, r, c):
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=c)
+
+
+def _iring(d, cx, cy, r, c):
+    """A two-pixel ring, so circles match the stroke weight of everything else."""
+    for rr in (r, r - 1):
+        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=c)
+
+
+def launcher_icon(d, icon, cx, cy, fill):
+    """Draw one launcher icon centred on (cx, cy), as the device draws it."""
+    if icon == "Memory":
+        # One card face-down, one turned over.
+        _irr(d, cx - 17, cy - 13, 16, 26, ICON_RADIUS, ICON_STEEL)
+        _idiag(d, cx - 14, cy - 7, cx - 5, cy + 6, ICON_SNOW)
+        _irr(d, cx + 1, cy - 15, 16, 26, ICON_RADIUS, ICON_SNOW)
+        _idisc(d, cx + 9, cy - 2, 5, ICON_CORAL)
+    elif icon == "Money":
+        # Gold behind silver, milled rims, no denominations.
+        _idisc(d, cx - 7, cy - 6, 11, ICON_AMBER)
+        _iring(d, cx - 7, cy - 6, 7, shade(ICON_AMBER, 65))
+        _idisc(d, cx + 6, cy + 6, 11, ICON_SNOW)
+        _iring(d, cx + 6, cy + 6, 7, ICON_STEEL)
+    elif icon == "Flag":
+        # A tricolour, so it cannot be taken for the star field State Flags uses.
+        _iv(d, cx - 15, cy - 16, 33, ICON_STEEL)            # flagPole()
+        d.rectangle([cx - 13, cy - 15, cx - 5, cy + 3], fill=ICON_SKY)
+        d.rectangle([cx - 4, cy - 15, cx + 4, cy + 3], fill=ICON_SNOW)
+        d.rectangle([cx + 5, cy - 15, cx + 13, cy + 3], fill=ICON_CORAL)
+    elif icon == "Microku":
+        # One empty square left to solve.
+        _iplate(d, cx, cy, 34, 34, ICON_SNOW)
+        for i, (ox, oy) in enumerate(((-8, -8), (8, -8), (-8, 8), (8, 8))):
+            if i == 2:
+                continue
+            _irr(d, cx + ox - 6, cy + oy - 6, 13, 13, 2,
+                 ICON_AMBER if i == 1 else ICON_INK)
+        _iv(d, cx - 1, cy - 15, 30, ICON_STEEL)
+        _ih(d, cx - 15, cy - 1, 30, ICON_STEEL)
+    elif icon == "NumberLine":
+        _ih(d, cx - 17, cy + 6, 34, ICON_SNOW)
+        for t in range(5):
+            _iv(d, cx - 16 + t * 8, cy + 1, 6, ICON_SNOW)
+        d.polygon([(cx + 8, cy + 2), (cx + 2, cy - 8), (cx + 14, cy - 8)],
+                  fill=ICON_AMBER)
+    elif icon == "GreWords":
+        _irr(d, cx - 10, cy - 9, 26, 24, ICON_RADIUS, ICON_STEEL)
+        _irr(d, cx - 16, cy - 15, 26, 24, ICON_RADIUS, ICON_SNOW)
+        d.text((cx - 3, cy - 3), "Aa", font=F2, fill=ICON_INK, anchor="mm")
+    elif icon == "Trace":
+        # The letter, plus the guide dots the game makes a player follow.
+        d.text((cx - 6, cy - 1), "A", font=F4, fill=ICON_SNOW, anchor="mm")
+        for dy in range(0, 16, 5):
+            _idisc(d, cx + 12, cy - 13 + dy, 2, ICON_AMBER)
+    elif icon == "Counting":
+        # A countable group, three over two, rather than a scatter.
+        for i in range(3):
+            _idisc(d, cx - 12 + i * 12, cy - 8, 5, ICON_SNOW)
+        for i in range(2):
+            _idisc(d, cx - 6 + i * 12, cy + 6, 5,
+                   ICON_AMBER if i == 1 else ICON_SNOW)
+    elif icon == "TicTacToe":
+        # A grid that has been played in. An empty lattice was Whack.
+        _iplate(d, cx, cy, 34, 34, ICON_SNOW)
+        _iv(d, cx - 6, cy - 15, 30, ICON_INK)
+        _iv(d, cx + 5, cy - 15, 30, ICON_INK)
+        _ih(d, cx - 15, cy - 6, 30, ICON_INK)
+        _ih(d, cx - 15, cy + 5, 30, ICON_INK)
+        _idiag(d, cx - 13, cy - 13, cx - 9, cy - 9, ICON_CORAL)
+        _idiag(d, cx - 9, cy - 13, cx - 13, cy - 9, ICON_CORAL)
+        _iring(d, cx, cy, 4, ICON_INK)
+    else:
+        # Loud, rather than a circle. A silent placeholder is exactly how every
+        # launcher still came to show art the device never draws. If a game
+        # reaches the front page whose icon is not ported yet, that stops a
+        # build rather than quietly shipping a picture that is wrong.
+        raise SystemExit(
+            "gen_screens.py: launcher icon %r is not ported from "
+            "src/ui/LauncherIcons.cpp yet, and it is on the launcher front "
+            "page. Add it to launcher_icon()." % icon)
+
+
 def front_page_tiles(count):
     """The first `count` launcher tiles, read from the registry.
 
@@ -1466,7 +1596,7 @@ def front_page_tiles(count):
     """
     from app_registry_parser import playable_apps
     apps = sorted(playable_apps(), key=lambda a: a.index)
-    return [(a.label, a.subtitle) for a in apps[:count]]
+    return [(a.label, a.subtitle, a.icon) for a in apps[:count]]
 
 
 def on_fill(fill):
@@ -1528,13 +1658,14 @@ def launcher_wide():
     speaker_icon(d, (W - 136, 25, CONTROL_H, CONTROL_H), False, TEXT)
     tiles = front_page_tiles(6)
     cols = [BLUE, GREEN, RED]
-    for slot, (title, sub) in enumerate(tiles):
+    for slot, (title, sub, icon) in enumerate(tiles):
         x, y = 10 + (slot % 2) * 155, 52 + (slot // 2) * 53
         fill = cols[slot % 3]
         d.rounded_rectangle([x + 2, y + 3, x + 146, y + 48], 6, fill=SHADOW)
         d.rounded_rectangle([x, y, x + 144, y + 45], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 140, y + 1)], fill=shade(fill, 138))
-        d.ellipse([x + 10, y + 8, x + 36, y + 34], fill=(120, 200, 255), outline=WHITE)
+        # drawLauncherIcon() centres the art at (r.x + 24, r.y + 22).
+        launcher_icon(d, icon, x + 24, y + 22, fill)
         d.text((x + 46, y + 9), title, font=F2, fill=on_fill(fill))
         d.text((x + 46, y + 28), sub, font=F1, fill=on_fill_soft(fill))
     button(d, (8, 212, 74, 24), "Prev"); button(d, (W - 82, 212, 74, 24), "Next")
@@ -1575,7 +1706,7 @@ def launcher_tall_dense():
     tile_w = (w - gap * (cols + 1)) // cols
     tile_h = (h - header_h - footer_h - gap * (rows_n + 1)) // rows_n
     fills = (BLUE, GREEN, RED)
-    for slot, (title, sub) in enumerate(front_page_tiles(9)):
+    for slot, (title, sub, icon) in enumerate(front_page_tiles(9)):
         col, row = slot % cols, slot // cols
         x = gap + col * (tile_w + gap)
         y = header_h + gap + row * (tile_h + gap)
@@ -1586,9 +1717,7 @@ def launcher_tall_dense():
         d.rounded_rectangle([x + 2, y + 3, x + tile_w + 1, y + tile_h + 2], 6, fill=SHADOW)
         d.rounded_rectangle([x, y, x + tile_w - 1, y + tile_h - 1], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + tile_w - 5, y + 1)], fill=shade(fill, 138))
-        r = 13
-        d.ellipse([x + tile_w // 2 - r, y + 14, x + tile_w // 2 + r, y + 14 + 2 * r],
-                  fill=(120, 200, 255), outline=WHITE)
+        launcher_icon(d, icon, x + tile_w // 2, y + 27, fill)
         for text, fnt, yy, ink in ((title, F2, tile_h - 40, on_fill(fill)),
                                    (sub, F1, tile_h - 22, on_fill_soft(fill))):
             t = text
@@ -1624,14 +1753,14 @@ def launcher_tall():
     # LauncherLayout::speakerRect().
     speaker_icon(d, (176, 32, CONTROL_H, CONTROL_H), False, TEXT)
     _fills = (BLUE, GREEN, RED, BLUE)
-    tiles = [(t, sub, _fills[i % 4])
-             for i, (t, sub) in enumerate(front_page_tiles(4))]
-    for slot, (title, sub, fill) in enumerate(tiles):
+    tiles = [(t, sub, ic, _fills[i % 4])
+             for i, (t, sub, ic) in enumerate(front_page_tiles(4))]
+    for slot, (title, sub, icon, fill) in enumerate(tiles):
         x, y = 8 + (slot % 2) * 116, 86 + (slot // 2) * 104
         d.rounded_rectangle([x + 2, y + 3, x + 109, y + 98], 6, fill=SHADOW)
         d.rounded_rectangle([x, y, x + 107, y + 95], 6, fill=fill)
         d.line([(x + 4, y + 1), (x + 103, y + 1)], fill=shade(fill, 138))
-        d.ellipse([x + 39, y + 15, x + 69, y + 45], fill=(120, 200, 255), outline=WHITE)
+        launcher_icon(d, icon, x + 54, y + 30, fill)
         for s, f, yy in ((title, F2, 58), (sub, F1, 78)):
             s2 = s
             while d.textlength(s2, font=f) > 100 and len(s2) > 2:
