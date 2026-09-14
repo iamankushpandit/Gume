@@ -24,6 +24,7 @@ Exit code 0 = clean, 1 = something has drifted. It deliberately does not try to
 check prose; it checks the facts that have actually gone stale before.
 """
 
+import argparse
 import contextlib
 import io
 import os
@@ -480,7 +481,67 @@ def check_badges(problems):
              % (badge.group(1), real))
 
 
+def check_released_version(problems):
+    """`main` must never carry a pre-release version.
+
+    This is written in the past tense of a failure. Publishing the landing page
+    meant merging `dev` into `main`, and a merge brings everything on the
+    branch -- including `include/AppVersion.h`. So `main` inherited
+    5.13.0-SNAPSHOT, GitHub Pages built the installer from it, and the version
+    picker offered a snapshot as `(latest)`.
+
+    Worse than the label: `tools/gen_site.py` writes the same string into
+    `firmware/latest.txt`, which every console with Wi-Fi reads daily, and
+    `Board::compareVersions()` only ranks a pre-release below a release when
+    the numbers are equal. 5.13.0-SNAPSHOT beats 5.12.1 on the minor number, so
+    every owner on 5.12.1 was told an update was waiting and pointed at an
+    unreleased build.
+
+    Every existing check passed, and none of them was wrong: check_version()
+    asserts that AppVersion.h, the README and the CHANGELOG agree with each
+    other, and all three agreed -- they all said 5.13.0-SNAPSHOT. Consistency
+    was checked. The policy that `main` is the released state was written in
+    CLAUDE.md and nowhere a machine could read it, and `release.yml` refuses a
+    -SNAPSHOT only when publishing a tag, which is far too late to stop a merge.
+
+    So this is the check that had to exist. It runs only where the policy
+    applies -- `main`, and pull requests targeting it -- because `dev` carries
+    a snapshot between releases by design.
+    """
+    version = find_version()
+    if version is None:
+        fail(problems, "AppVersion.h: BRAINO_VERSION not found")
+        return
+    if "-" in version:
+        fail(problems, "BRAINO_VERSION is '%s', a pre-release, and this is "
+                       "main. Whatever main carries is what the installer "
+                       "offers as `latest` and what firmware/latest.txt tells "
+                       "every console to update to. Cut the release, or take "
+                       "the change to main without dev's version bump."
+             % version)
+
+    changelog = read("CHANGELOG.md")
+    first = re.search(r"^## (\S+)", changelog, re.M)
+    if first and "-" in first.group(1):
+        fail(problems, "CHANGELOG.md leads with '%s', an unreleased section, "
+                       "and this is main. Unreleased notes belong on dev."
+             % first.group(1))
+
+
+def find_version():
+    match = re.search(r'BRAINO_VERSION\s+"([^"]+)"', read("include", "AppVersion.h"))
+    return match.group(1) if match else None
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Check the docs against the code.")
+    parser.add_argument("--released", action="store_true",
+                        help="also assert this tree is a released state: no "
+                             "pre-release version, no unreleased changelog "
+                             "section. Run this on main and on pull requests "
+                             "targeting it, never on dev.")
+    args = parser.parse_args()
+
     problems = []
     check_version(problems)
     check_game_count(problems)
@@ -492,6 +553,8 @@ def main():
     check_screens(problems)
     check_site(problems)
     check_badges(problems)
+    if args.released:
+        check_released_version(problems)
 
     if problems:
         print("Docs are out of sync with the code:\n")
