@@ -1,6 +1,6 @@
 # Security Policy
 
-Braino! runs on hardware that children hold, so a few of the things below are
+Braino! runs on hardware that young players hold, so a few of the things below are
 stated more bluntly than a firmware project usually bothers with.
 
 ## Reporting a vulnerability
@@ -55,7 +55,7 @@ Stated plainly, because two of these look like vulnerabilities and are not:
 
 - **The admin PIN is a parental control, not a security boundary.** It is four
   digits, it is stored in plaintext NVS, and anyone with the board and a USB
-  cable can read or erase it. It exists to stop a seven-year-old unhiding a
+  cable can read or erase it. It exists to stop a young player unhiding a
   game, and it is documented that way in the README. A PIN bypass is a bug
   report, not a security report.
 - **The lock screen is an accidental-touch guard**, not access control. It is

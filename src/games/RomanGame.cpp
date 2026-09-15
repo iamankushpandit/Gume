@@ -144,7 +144,7 @@ bool explain(uint16_t value, char* out, size_t outLen) {
 
 /* The symbols in play at each level, and the one rule that matters there.
  * Both lines are on the screen for as long as the level is, because looking a
- * symbol up is the skill at this age, not remembering it. */
+ * symbol up is the skill at this stage, not remembering it. */
 struct LevelKey {
     const char* symbols;
     const char* rule;

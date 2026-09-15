@@ -37,8 +37,8 @@ Examples of unacceptable behaviour:
 
 ## A note particular to this project
 
-Braino! is built for young children, and screenshots, issues and pull requests
-here sometimes carry a child's profile name or a photograph of a device in
+Braino! is built for young players, and screenshots, issues and pull requests
+here sometimes carry a young player's profile name or a photograph of a device in
 somebody's home. **Redact before you post.** If you notice that somebody else
 has not, say so kindly or report it privately rather than quoting it onward.
 Treating that as an ordinary part of review, rather than as an accusation, is

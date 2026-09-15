@@ -51,7 +51,7 @@ private:
 
     /* The same sum, in words.
      *
-     * A child who can answer "12 - 7 = ?" often cannot answer "Nia has 12
+     * A young player who can answer "12 - 7 = ?" often cannot answer "Nia has 12
      * shells and gives 7 away", and the second is the one that turns up in
      * school and in life. So from level 2 some questions are dressed as a
      * story: the arithmetic underneath is unchanged and so are the four

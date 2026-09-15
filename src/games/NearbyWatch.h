@@ -17,7 +17,7 @@
  *
  * A two-player game can end two ways and only one arrives as a message.
  * nearbyEnd() is somebody pressing End game. The other is a flat battery, a
- * child walking into the next room, a console sat on: none of those can send
+ * young player walking into the next room, a console sat on: none of those can send
  * anything, so until this existed a game whose opponent vanished sat on "their
  * turn" for ever, saying nothing. The service now measures the silence
  * (AppContext::nearbyPeerSilentMs); this turns it into three states and one

@@ -41,7 +41,7 @@ constexpr AppMetadata GO_METADATA = {
     true,
 };
 
-/* The computer waits before it plays, so a child can see whose turn it
+/* The computer waits before it plays, so a young player can see whose turn it
  * became; the medium player thinks a few playouts per frame and plays when
  * both the playouts and the wait are done. */
 constexpr uint32_t CPU_THINK_MS = 650;
@@ -281,7 +281,7 @@ void GoGame::pressAction(AppContext& host, uint32_t now) {
     if (phase_ == Phase::Marking) {
         /* Agree. One console with two people needs both to say so; against
          * the computer the person's word is final, because a computer that
-         * argued about dead stones would be a worse thing to hand a child
+         * argued about dead stones would be a worse thing to hand a young player
          * than one that is occasionally wrong. Across consoles both must
          * agree, and ours goes on the air (GoNet). */
         if (mode_ == Mode::Computer) {

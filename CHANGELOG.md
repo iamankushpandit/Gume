@@ -1,5 +1,28 @@
 # Changelog
 
+## 5.12.3 — 2026-09-15
+
+**No ages.** The documents put numbers on the people using the console: a
+range beside every game in the README, and ages throughout the design notes.
+They are gone. A game's row now says what it is and what it builds. Where a
+note compared two players, it compares a younger player with an older one;
+elsewhere it says young player. The checklist in `CLAUDE.md` and `AGENTS.md`
+no longer asks for an age with a new game. Prose only: nothing on the panel
+ever showed one.
+
+**Players are players.** The comments and documents described the people
+holding the console by age rather than by what they are doing on it. They
+now say player, or young player where the age is the point of the sentence --
+a finger on a resistive panel, a first chess game, a word being traced. It is
+prose throughout: no string on the panel changed, so the console behaves
+exactly as before and its image differs only in the build stamp.
+
+Four occurrences are not about people and are left as they are: the NVS key
+that stores how many profiles exist, which a rename would reset to zero on
+every console that upgrades; a search-tree variable in the chess engine; a
+CSS selector in the landing page; and one of the short words Trace asks a
+player to write.
+
 ## 5.12.2 — 2026-09-15
 
 **Administrator, not adult.** The nearby-play lobbies told a player that
@@ -83,7 +106,7 @@ fact.
 **A new landing page.** The installer page now leads with what the thing is
 rather than with a wall of mock-ups: the 4 MB line, a one-minute video served
 from the site itself, and one chapter per question a reader actually arrives
-with -- which board, what it teaches, who decides what a child can open, what
+with -- which board, what it teaches, who decides what a young player can open, what
 two consoles do in the same room, and what the case costs to print. The
 flasher is unchanged behaviour for behaviour: the same board/firmware/version
 pickers driven by the same generated `BUILDS` list, the same per-board
@@ -158,26 +181,26 @@ the heat in, that the ozone doing the work is in the stratosphere, that the
 Space Station orbits inside the thermosphere. The atmosphere is in there with
 the planets deliberately -- "where does space start" and "how far up does the
 air go" are one question, and a quiz that answers one and not the other leaves
-the join out. Three levels, so a five-year-old is asked which planet is red and
+the join out. Three levels, so a younger player is asked which planet is red and
 never about the Karman line.
 
 **Roman** runs both ways: read a numeral, or write a number as one. The symbol
 key and the rule for the level stay on the screen the whole time, because at
 this age reading the notation is the skill and remembering seven letters is
 not. Every answer is followed by the number taken apart -- `XIV = X + IV = 10 +
-4` -- and the wrong answers are the mistakes children actually make rather than
+4` -- and the wrong answers are the mistakes young players actually make rather than
 four numbers picked at random: XIV read as 10 + 1 + 5, and 44 written as
 XXXXIV. Five levels, each adding the next letter.
 
 **Math now asks word problems.** From level 2, about one question in three
 arrives as a sentence -- "Nia has 21 shells and gives 8 away. How many are
 left?" -- over the same arithmetic, the same four buttons and the same scoring.
-Level 1 stays pure sums on purpose: a child still working out that 3 + 4 is 7
-is being asked to read as well, and at that age the reading is the harder half.
+Level 1 stays pure sums on purpose: a young player still working out that 3 + 4 is 7
+is being asked to read as well, and at that stage the reading is the harder half.
 
 **Shapes has four rounds instead of one**, each taking an easy cue away. The
 four everyone knows, then four told apart by side count -- pentagon, hexagon,
-heptagon, octagon -- then the lookalikes a child calls circle and square until
+heptagon, octagon -- then the lookalikes a young player calls circle and square until
 somebody makes them look twice, and finally concave against convex with the
 word on the row. Level 4 always deals two of each family, because the word is
 only a lesson when it tells two rows apart.
@@ -221,7 +244,7 @@ mature. The line comes out when the check has actually been run.
 
 **Chess has a computer opponent, at two levels.** It is the only strategy
 game here that did not -- Go has two levels, Ludo two, Backgammon one -- so a
-child with nobody to play sat in front of a board that could not move. The
+young player with nobody to play sat in front of a board that could not move. The
 lobby gains a *Play the computer* row and two chips: Level (Easy or Medium) and
 which colour you take (White, Black or Random, resolved once at the start and
 then stored as the colour, so a restored game cannot hand you the other side).
@@ -236,7 +259,7 @@ mistaken for a finished one. Easy is one ply plus a look at what can be taken
 straight back, so it will not hang its queen on move four, and it chooses at
 random among moves that score alike so it does not open identically every game.
 
-Both are deliberately weak. A console that beats a seven-year-old every time is
+Both are deliberately weak. A console that beats a young player every time is
 a worse product than one they beat half the time.
 
 **The rules are now pure, and provably.** `ChessRules.cpp` carried a comment
@@ -329,7 +352,7 @@ says nothing. Landscape is untouched: at 320px the gap is never that small.
 `LauncherGame` are `WifiApp`, `SettingsApp` and so on, files included. They
 are `Game` subclasses because that is the screen lifecycle every screen here
 shares, and they always will be -- but Wi-Fi is not a game, and a reader has
-no way to tell which of the names in `GameInstances` are things a child plays
+no way to tell which of the names in `GameInstances` are things a young player plays
 and which are the console's own screens. The playable catalogue keeps `Game`,
 so the distinction now shows in the names. No behaviour changes.
 
@@ -367,7 +390,7 @@ accept from each side. Score is wins against the computer, per profile. The
 rules and the computer are pure C++ with a host test beside Backgammon's.
 
 **A nearby game whose other console goes quiet now pauses and says so.** A
-flat battery or a child walking out of range cannot send anything, and until
+flat battery or a young player walking out of range cannot send anything, and until
 now Chess, Sea Battle and Backgammon sat on "is thinking" for ever when it
 happened. The nearby service now reports how long each peer has been silent
 (`nearbyPeerSilentMs()`, from the scanner's own `lastSeenMs`, which it had
@@ -667,7 +690,7 @@ switch it on and off between each one.
 
 **Trace and Cursive mark each stroke the way a handwriting workbook does.**
 The direction arrow used to sit on the path itself, one at a time, and jump to
-the next turn as the finger reached it. User testing with five-year-olds said
+the next turn as the finger reached it. User testing with young players said
 plainly that it confused them: it covered the dots it was pointing along, and
 it was one more thing moving while they concentrated. Now every stroke has a
 short numbered arrow *beside* it, outside the letter, showing where it starts
@@ -683,7 +706,7 @@ moves and two strokes' arrows recolour in place.
 
 **Trace has a Words tab.** Fifty-four short printed words -- cat, dog, sun,
 the, you -- covering every letter but q, spelled out at runtime from the same
-lowercase letters, so a child writes "cat" with exactly the strokes they
+lowercase letters, so a young player writes "cat" with exactly the strokes they
 practised on c, a and t, and the words cost nothing in flash but their
 spelling. Prev moves down to make room for the fourth tab, in Cursive too, so
 it sits in the same place in both games.
@@ -692,7 +715,7 @@ it sits in the same place in both games.
 words too small to follow, and they were: every word shares one scale and the
 widest of the old list -- mostly four- and five-letter sight words -- left an
 x-height of about 25 pixels. The new list is forty-nine two- and
-three-letter words a five-year-old knows, and they are drawn at about 35.
+three-letter words a young player knows, and they are drawn at about 35.
 Nothing with a q fits, so q is practised on the abc tab. The generator also
 stopped measuring its group width from the leftmost point of any word to the
 rightmost of any other, which had been shrinking every word by a further 7%.
@@ -769,7 +792,7 @@ cube, and no score: a win is not a number.
 - **The computer** plays every complete legal sequence through a position score
   -- pip lead, made points (home points and runs of them more), opponents on
   the bar, blots weighted by how many checkers can reach them -- and shows its
-  moves one at a time so a child can follow them. One level.
+  moves one at a time so a young player can follow them. One level.
 - **Nearby play is the lobby's third way to play**, and it needed no change to
   what is transmitted. An earlier plan ruled it out because the turn has no
   field for dice; it does not need one. As in Ludo, both consoles derive every
@@ -859,7 +882,7 @@ fixed here is the tree, and the possibility of a repeat.
 - **`tools/check_identifiers.py` runs in CI on every pull request**, failing on
   MAC addresses in either separator style and on public IP addresses. It was
   tested against both before being wired in. It cannot recognise an SSID, a
-  hostname or a child's name, so the rule in `CLAUDE.md` covers what a machine
+  hostname or a young player's name, so the rule in `CLAUDE.md` covers what a machine
   cannot.
 
 **Still open, and needing a decision rather than code:** `BleBeacon` composes
@@ -1150,7 +1173,7 @@ service rather than a chess feature — the next two-player game needs no new
 wire format.
 
 **Cursive** — trace joined-up handwriting, in three modes: capitals,
-lowercase, and **easy words**. Words are the point of cursive: a child who can
+lowercase, and **easy words**. Words are the point of cursive: a young player who can
 draw a lone `c` still has to learn that `cat` is one movement across the page.
 
 **A word is one unbroken stroke**, which took two attempts. The first kept one
@@ -1241,13 +1264,13 @@ mattering, which is a feature and not a constant.
 
 Within a letter the *shortest* words win, not the sheets' own order — that is
 arbitrary, and taking the first two that fit under `d` gave `do` and `done`
-while dropping `dog`. A three-letter word a child already reads beats a
+while dropping `dog`. A three-letter word a young player already reads beats a
 four-letter one they do not, and it is cheaper in flash too, so both things
 this filter cares about agree.
 
 *Budget*, because a word costs about 230 bytes of flash and more apps are
 coming. All 84 would be ~19KB on a partition already three quarters full, and
-no child works through 84 words — past the first couple per letter the extra
+no young player works through 84 words — past the first couple per letter the extra
 ones buy variety rather than learning. Two per letter covers the alphabet for
 about 11KB. The full 166 stay in the generator so the choice can be re-run if
 the budget ever loosens.
@@ -1265,11 +1288,11 @@ device. The control columns went from 68px to 52px and their buttons from 26px
 to 22px, which grows the canvas from 164x160 to 200x156 — a fifth more area,
 most of it in the direction a joined word needs. The word or letter is now
 **printed in ordinary type above the canvas**: there was only a font-1
-watermark behind the dots before, illegible at word size, so a child tracing
+watermark behind the dots before, illegible at word size, so a young player tracing
 `quiz` had no way to read what the word was. The dots shrank from radius 3 to
 2, because at the word set's 12px spacing the old ones merged the letters into
 a chain of blobs. And **the finished shape is drawn faintly underneath** — the
-thing a child is matching, the way a handwriting workbook prints a grey letter.
+thing a young player is matching, the way a handwriting workbook prints a grey letter.
 
 **It also stopped repainting the whole canvas to move one dot.** Every dirty
 frame used to wipe 200x156 pixels and redraw the ghost, every dot and the
@@ -1282,7 +1305,7 @@ erased. Full repaints are kept for the events that change the picture's shape �
 a new glyph, a new alphabet, a stroke finishing, completion.
 
 **Scoring counts practice and never ends.** Every letter and every word finished
-adds one, for as long as a child keeps going. A count rather than a best,
+adds one, for as long as a young player keeps going. A count rather than a best,
 because there is nothing to win here and nothing to lose — inventing a win
 condition would turn handwriting practice into a test. It is written through on
 every completion, so a console taken away mid-session keeps what was done.
@@ -1307,7 +1330,7 @@ apart; where the hand lifts — the dot on an `i`, the crossbar of a `t` — the
 gap jumps to between 190 and 600, so pen lifts are found by measurement rather
 than by anybody deciding where they are. One thing did have to be corrected:
 the font stores those small marks *before* the letter they belong to, which
-would ask a child to place the dot in mid-air and then hang a stem under it.
+would ask a young player to place the dot in mid-air and then hang a stem under it.
 The body now comes first.
 
 **The finger-tracing engine is now shared.** Everything Trace did — the
@@ -1329,7 +1352,7 @@ The grid is **eight by eight rather than the usual ten**, and that is the radio
 deciding: the service carries two six-bit values per turn, which is 0–63, which
 is exactly a square on an 8×8 board. Ten by ten would need a seventh bit and the
 advertisement is already full at 31 bytes. Eight also gives 25-pixel cells on
-the smallest panel, which is what a child's finger on a resistive screen needs.
+the smallest panel, which is what a young player's finger on a resistive screen needs.
 
 **Nothing about a fleet is ever transmitted.** Each console keeps its own ships
 and answers questions about them one square at a time — which is exactly how the
@@ -1350,7 +1373,7 @@ of your own sea, so you can watch shots land on you without changing screens.
 reach constantly -- they trade everything off -- and the console did not know it
 was over. It sat saying "White to move" for a game the rules had already ended,
 and the only way out was End game, which then reported "no result" for what
-chess calls a draw. A child learning the game would have taken that as the
+chess calls a draw. A young player learning the game would have taken that as the
 truth, which is the worst kind of defect this console can carry.
 
 Both draws that can be decided by counting are now detected and named:
@@ -1465,7 +1488,7 @@ advertiser cannot force a position that is not reachable by playing chess.
 
 **Chess remembers the game.** The board is written to NVS after every move and
 again on the way out, so pressing Lock, going Home or running the battery flat
-brings the same position back. This was the wrong way round before: children
+brings the same position back. This was the wrong way round before: young players
 put the device down constantly, and a game that evaporated because somebody
 pressed a button is a game they stop starting. A remote game is saved too,
 session and all -- the moves are advertised state rather than messages, so the
@@ -1610,7 +1633,7 @@ slot, belonging to a tile from the previous page.
 
 **The 4-inch board could not wake from sleep.** It went dark and stayed dark,
 and the only way back was the reset button -- which, on a console handed to a
-child, is indistinguishable from a broken device. The firmware was awake the
+young player, is indistinguishable from a broken device. The firmware was awake the
 whole time: touch was being read, the wake path ran, and the log reported a
 normal panel delay. The panel simply was not switched back on. Waking sent
 Sleep Out but never Display ON, which is sufficient on the ILI9341 the code was
@@ -1619,7 +1642,7 @@ for every board -- it costs one byte on a panel that is already lit.
 
 **The launcher leads with different games.** Page 1 is now Memory, Money,
 Flags, Microku, Trace and Counting. It opened with Tic-Tac-Toe and closed with
-Whack-a-Mole, neither of which says anything about what a child learns, and
+Whack-a-Mole, neither of which says anything about what a young player learns, and
 Trace -- letters and handwriting -- was on page 4 where nobody would find it.
 The launcher shows six tiles in landscape and four in portrait, so the first
 four are the front page. The README gallery, the About game list and the
@@ -2081,7 +2104,7 @@ source.
   from game code inside a 20ms frame budget, and playing a 200ms note the way
   the bring-up probe does would blow that budget on every correct answer in
   every game. Volume is capped at `AUDIO_VOLUME_MAX = 80` -- a ceiling in the
-  same spirit as `BRIGHTNESS_MIN`, for a handheld held near a child's ears --
+  same spirit as `BRIGHTNESS_MIN`, for a handheld held near a young player's ears --
   and the amplifier is powered only while something is playing.
 
   Boards with a bare `speakerPin` are unchanged: `beep()` is still a stub and
@@ -2411,7 +2434,7 @@ Flash 2,353,221 / 3,145,728 (74.8%), RAM 72,588 / 327,680 (22.2%).
   security boundary; saying so in the policy is kinder than saying it in a
   reply to somebody's first report.
 - **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1), with one addition
-  particular to this project: screenshots and issues here carry children's
+  particular to this project: screenshots and issues here carry young players'
   profile names, so redaction is treated as an ordinary part of review.
 - **Issue and pull request templates.** The bug report asks which board and
   which build, because those are the two things a firmware report is useless

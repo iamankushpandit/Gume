@@ -19,7 +19,7 @@
  * took can be taken straight back; Medium searches three plies with alpha-beta
  * and will see a fork coming. Neither is strong, and neither is trying to be:
  * this console is for players who are learning what the pieces do. An engine
- * that wins every game against a seven-year-old is a worse product than one
+ * that wins every game against a young player is a worse product than one
  * that loses half of them.
  *
  * THE FRAME BUDGET IS THE CONSTRAINT, not the strength. 20ms holds touch,
@@ -30,7 +30,7 @@
 namespace Ch {
 namespace {
 
-/* Centipawns. The classical values, because they are the ones a child will
+/* Centipawns. The classical values, because they are the ones a young player will
  * later read in any book, and this is a teaching device before it is an
  * engine. The king is worth more than every other piece together so that
  * losing it dominates any material count; it is never actually captured, but
@@ -215,7 +215,7 @@ Move chooseEasy(const Position& p, Rng& rng) {
     /* Every move within a pawn of the best one, so the choice among them can
      * be random. A computer that always plays the first move it generated is
      * recognisably a machine within three games -- it opens identically every
-     * time, and a child stops being able to lose to it by accident. */
+     * time, and a young player stops being able to lose to it by accident. */
     constexpr int16_t SLACK = 100;
     uint8_t pool[MAX_ROOT_MOVES];
     uint8_t poolCount = 0;

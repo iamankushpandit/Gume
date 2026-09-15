@@ -18,7 +18,7 @@
  * number, and -- in a set that asks for them -- one more beside each sharp
  * reversal part-way along. That is how a handwriting workbook marks a letter,
  * and it is what replaced the single arrow that used to sit ON the path and
- * jump from turn to turn: five-year-olds in testing could not tell it apart
+ * jump from turn to turn: young players in testing could not tell it apart
  * from the dots it was covering.
  *
  * "Beside" means parallel to the stroke, a few pixels off it. "Outside" means
@@ -159,7 +159,7 @@ float LetterTracer::clearance(float x, float y, float floor) const {
  *
  * The guide points from the target dot along the stroke, not from the finger:
  * the finger's own position is not sampled between dots, and the question a
- * child has at that moment is where the line goes AFTER the dot they are
+ * young player has at that moment is where the line goes AFTER the dot they are
  * reaching for. */
 void LetterTracer::updateGuide() {
     guideShown_ = false;

@@ -314,8 +314,8 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 
 ### 2. Docs — the part that actually gets forgotten
 
-7. `README.md` — a row in the right game table (what it is, what it builds,
-   age), or a bullet under the system screens if it is an app.
+7. `README.md` — a row in the right game table (what it is and what it
+   builds), or a bullet under the system screens if it is an app.
 8. `README.md` — an `<img>` in the matching screenshot gallery.
 9. `CHANGELOG.md` — an entry under the unreleased heading.
 

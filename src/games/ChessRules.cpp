@@ -270,7 +270,7 @@ int8_t applyMove(Position& p, uint8_t from, uint8_t to) {
 
     /* Promotion is automatic and always a queen. Under-promotion exists and is
      * occasionally the only winning move, but a chooser is a modal dialog on a
-     * screen with no room for one, and this is a game two children play. */
+     * screen with no room for one, and this is a game two young players play. */
     if (k == PAWN && (rankOf(to) == 7 || rankOf(to) == 0)) {
         p.sq[to] = static_cast<int8_t>(white ? QUEEN : -QUEEN);
     }

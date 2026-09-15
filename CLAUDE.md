@@ -154,7 +154,7 @@ So:
   merged-image install wiped NVS -- but it stays on that machine.
 - **`python tools/check_identifiers.py` runs in CI on every pull request.** It
   fails on MAC addresses in either separator style and on public IP addresses.
-  It cannot recognise an SSID, a hostname or a child's name, so a clean run is
+  It cannot recognise an SSID, a hostname or a young player's name, so a clean run is
   not permission: it catches the shapes a machine can catch, and this rule
   covers the rest.
 
@@ -185,7 +185,7 @@ request says nothing whatsoever about this device** -- no version, no board id,
 no query string, which is why the manifest lists every board and the comparison
 happens here -- and **the address shown to the owner is compiled in**, never
 read out of the response, which bounds a hostile answer to being wrong about a
-number rather than being able to send a child somewhere. `check_privacy.py`
+number rather than being able to send a young player somewhere. `check_privacy.py`
 asserts both. It runs only when Wi-Fi is already configured, and it is not
 declinable; a device with no Wi-Fi never makes the request at all. See
 `include/UpdateChannel.h`.
@@ -765,7 +765,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone.
   Sound belongs on that list for a reason worth stating: the speaker belongs to
   whoever is in the room, and a console that came back loud because a different
-  player picked it up is a poor thing to hand a child in a quiet house. Per-profile: scores, mastery blobs, game visibility.
+  player picked it up is a poor thing to hand a young player in a quiet house. Per-profile: scores, mastery blobs, game visibility.
 - **The admin PIN gates every route to admin powers**: switching to the admin
   profile, opening its Edit menu (rename plus its per-player game list), and
   the serial console's `unlock` (see Hardware notes). One profile is admin
@@ -923,7 +923,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   it needed no agreement about what goes on the air. See
   `src/games/CLAUDE.md`.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
-  to NVS after every move and on the way out, which is right -- children put the
+  to NVS after every move and on the way out, which is right -- young players put the
   device down constantly and a game that evaporated is a game they stop
   starting. But it retires the oldest exit there was: before this, walking away
   ended a game nobody could finish, and now walking away brings it straight
@@ -1081,8 +1081,8 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 
 ### 2. Docs â€” the part that actually gets forgotten
 
-6. `README.md` â€” a row in the right game table (what it is, what it builds,
-   age), or a bullet under the system screens if it is an app.
+6. `README.md` â€” a row in the right game table (what it is and what it
+   builds), or a bullet under the system screens if it is an app.
 7. `README.md` â€” an `<img>` in the matching screenshot gallery.
 8. `CHANGELOG.md` â€” an entry under the unreleased heading.
 

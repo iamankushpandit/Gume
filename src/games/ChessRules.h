@@ -163,8 +163,8 @@ int16_t evaluate(const Position& p);
 
 /* Easy: one ply, plus a look at what can be taken straight back.
  *
- * It is meant to be beaten by a child who is concentrating, and to lose
- * material in ways a child can see and copy. What it must NOT do is hang its
+ * It is meant to be beaten by a young player who is concentrating, and to lose
+ * material in ways a young player can see and copy. What it must NOT do is hang its
  * queen on move four for nothing, because that ends the game and teaches
  * nothing -- so it scores the recapture, and it chooses at random among moves
  * that score alike rather than always playing the first one generated. */

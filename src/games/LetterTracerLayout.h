@@ -23,7 +23,7 @@ namespace LetterTracerLayout {
 /* EVERY CONTROL LIVES IN A SIDE COLUMN, AND NONE ABOVE OR BELOW THE CANVAS.
  *
  * They used to sit in a strip 4px above the tracing area and another 12px
- * below it. A child tracing the top of a letter runs a finger straight off the
+ * below it. A young player tracing the top of a letter runs a finger straight off the
  * top edge into the mode tabs and lands on a different alphabet mid-stroke;
  * the same happens at the bottom with Prev and Next. The buttons were sitting
  * in the natural overshoot of the gesture the game exists to teach.
@@ -56,9 +56,9 @@ constexpr Rect NEXT_BTN{COL_R_X, 78, COL_W, BTN_H};
 /* The word or letter, spelled out in ordinary type above the canvas.
  *
  * There was no such thing before -- only a font-1 watermark behind the dots,
- * which at word sizes was illegible, so a child tracing 'quiz' had no way to
+ * which at word sizes was illegible, so a young player tracing 'quiz' had no way to
  * know that was the word. A label is not a decoration here: the whole task is
- * "write this", and the child has to be able to read what "this" is. */
+ * "write this", and the young player has to be able to read what "this" is. */
 constexpr int16_t CAPTION_Y = 31;
 constexpr int16_t CAPTION_H = 19;
 
@@ -91,7 +91,7 @@ constexpr int16_t NEXT_R = 3;
  *
  * They used to sit on the path itself, one at a time, just past whichever turn
  * came next, and jump forward as the finger reached it. User testing with
- * five-year-olds said plainly that this confused them: an arrow on the line
+ * young players said plainly that this confused them: an arrow on the line
  * covers the dots it is pointing along, and one that moves is one more thing
  * on the screen changing while they concentrate.
  *
@@ -131,7 +131,7 @@ constexpr int16_t ARROW_MAX_Y = BAR_Y - 7;
 /* A turn earns an arrow of its own only when it is a REVERSAL -- more than
  * about 100 degrees, like the top of an A or each point of an M. A right
  * angle, like the corner of an L, is left to the dots: they show the way round
- * it on their own, and every extra arrow is one more thing for a child to
+ * it on their own, and every extra arrow is one more thing for a young player to
  * read. Measured on the authored vertices, never the resampled dots, because
  * the resampler can land either side of an apex and split one sharp turn into
  * two gentle ones. */

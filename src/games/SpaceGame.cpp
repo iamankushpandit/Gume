@@ -38,7 +38,7 @@ constexpr AppMetadata SPACE_METADATA = {
  * `options[0]` is ALWAYS the right answer; which button it lands on is decided
  * per question by shuffling an order array. Storing it at a fixed index is
  * what keeps the table readable -- a `correct` column is one transcription
- * error away from teaching a child the wrong thing, and nothing in a build
+ * error away from teaching a young player the wrong thing, and nothing in a build
  * would catch it.
  *
  * `fact` is the sentence shown after answering. Two lines of font 1 across the
@@ -55,7 +55,7 @@ struct SpaceQuestion {
  * this table -- renderDynamic() drops to font 1 for the long ones. Past that
  * they are cut by the driver with no mark, so check a new one on the panel. */
 const SpaceQuestion QUESTIONS[] = {
-    // ---- level 1: the things a young child has already heard of ----
+    // ---- level 1: the things a young player has already heard of ----
     {1, "Which planet do we live on?",
      {"Earth", "Mars", "Venus", "Jupiter"},
      "Earth is the only world we know of with liquid water on its surface."},

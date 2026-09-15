@@ -2609,7 +2609,7 @@ def roman_write():
     """Roman Numerals: the other direction, unanswered.
 
     XXXXIV is on a button on purpose: the wrong answers here are the mistakes a
-    child actually makes, not four numbers picked at random.
+    young player actually makes, not four numbers picked at random.
     """
     return _roman_screen("Write this in Roman numerals", "44",
                          ["XLIV", "XXXXIV", "LIV", "XLVI"], None,
@@ -3207,7 +3207,7 @@ def nearby():
         ("r", "", "They are ahead of you", WARN),
         ("a", "Poke 7C1B", "", None),
         # Find sits beside Poke on every peer, named or not, and is not
-        # admin-gated -- a child who has lost the console is exactly who needs
+        # admin-gated -- a young player who has lost the console is exactly who needs
         # it. Poke nudges somebody holding their device; Find rings until the
         # device is picked up.
         ("a", "Find RAVI", "", None),

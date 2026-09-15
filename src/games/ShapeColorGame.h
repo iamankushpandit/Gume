@@ -19,13 +19,13 @@ const AppMetadata& shapeColorAppMetadata();
 /* Match four shapes to their outlines, getting harder each round.
  *
  * The ladder is the point. A round of circle / square / triangle / star is
- * solvable by colour alone, which is right for a three-year-old and is
- * nothing at all for a six-year-old -- so the rounds after it take the easy
+ * solvable by colour alone, which is right for a younger player and is
+ * nothing at all for an older player -- so the rounds after it take the easy
  * cues away one at a time:
  *
  *   1. the four everyone knows, named by colour and shape
  *   2. told apart by SIDE COUNT: pentagon, hexagon, heptagon, octagon
- *   3. lookalikes: oval, rectangle, diamond, trapezium -- the shapes a child
+ *   3. lookalikes: oval, rectangle, diamond, trapezium -- the shapes a young player
  *      calls "circle" and "square" until somebody makes them look twice
  *   4. CONCAVE against CONVEX, with the word on the row, because the
  *      distinction has a name and this is where it is worth learning
@@ -94,7 +94,7 @@ private:
     uint16_t bestTaps_ = 0;
     /* Rounds CLEARED, which is what the level is made of. It resets with the
      * screen rather than persisting: a level is where you are in this sitting,
-     * not a rank, and a child picking the console up should meet the easy
+     * not a rank, and a young player picking the console up should meet the easy
      * round first. */
     uint8_t rounds_ = 0;
 

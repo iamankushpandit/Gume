@@ -97,7 +97,7 @@ const LetterTracer::Glyph& LetterTracer::glyph() const {
     return spelled() ? spelled_ : glyphs_[glyphIndex_];
 }
 
-/* What the child is being asked to write, as a string.
+/* What the young player is being asked to write, as a string.
  *
  * A letter set can answer from Glyph::label, which is one char and is all a
  * letter needs. A word set cannot -- its glyphs each hold a whole word, and
@@ -185,7 +185,7 @@ void LetterTracer::nextGlyph() {
     loadGlyph();
 }
 
-/* Walk each stroke at a constant spacing, so the dots a child chases are
+/* Walk each stroke at a constant spacing, so the dots a young player chases are
  * evenly spread however long or curved the stroke is. A cursive letter is one
  * long curve where a printed one is two straight lines, and this is the code
  * that makes both feel the same to follow. */

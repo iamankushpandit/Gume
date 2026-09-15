@@ -478,7 +478,7 @@ void LudoGame::pollTable(AppContext& host, uint32_t now) {
              * air; this only reads the flag. One console leaving ends the game
              * for the table, because a seat nobody plays stops everyone -- so
              * every console goes back to its lobby, and the lobby says who
-             * ended it rather than leaving a child to wonder where the game
+             * ended it rather than leaving a young player to wonder where the game
              * went. Our own turn comes off the air: this console is in no game
              * now, and the ending we heard is carried by the one that sent it. */
             snprintf(lobbyNote_, sizeof(lobbyNote_), "%s ended the game",

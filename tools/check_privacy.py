@@ -344,7 +344,7 @@ def check_update_channel_is_anonymous():
 
     Also asserted: the address About shows is compiled in and is never read out
     of the response. A manifest that could name the destination could send a
-    child somewhere of an attacker's choosing, which is a different order of
+    young player somewhere of an attacker's choosing, which is a different order of
     problem from being wrong about a version number. See
     include/UpdateChannel.h.
     """

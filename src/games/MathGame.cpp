@@ -57,9 +57,9 @@ constexpr AppMetadata MATH_METADATA = {
 /* Names and things to count.
  *
  * Short, because the whole problem has to wrap into three lines of font 2, and
- * from as many places as a classroom has children in it. No pronouns anywhere
+ * from as many places as a classroom has young players in it. No pronouns anywhere
  * in the templates: "Ava has 7 shells and finds 5 more" needs none, and a
- * pronoun would be a guess about a made-up child that the sentence does not
+ * pronoun would be a guess about a made-up young player that the sentence does not
  * need to make. */
 const char* const NAMES[] = {
     "Ava", "Ben", "Chen", "Dara", "Eli", "Farah", "Gus", "Hana",
@@ -233,7 +233,7 @@ void MathGame::newQuestion() {
 
     /* Level 1 is never a story. A player still learning that 3 + 4 is 7 is
      * being asked to read a sentence as well, and the reading is the harder
-     * half at that age -- so the words arrive once the arithmetic is steady,
+     * half at that stage -- so the words arrive once the arithmetic is steady,
      * and then about a third of the time, so a run of them never becomes a
      * reading test. */
     wordProblem_ = currentLevel >= 2 && random(3) == 0;

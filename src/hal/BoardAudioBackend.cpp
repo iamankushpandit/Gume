@@ -109,7 +109,7 @@ namespace audio {
  * So the amp is held for the DMA depth plus margin after generation ends. */
 /* And held for a good while longer than that. The amplifier on the CYD boards
  * is an 8002 behind an enable line, and switching it is itself a pop -- which
- * at 150ms happened twice for every piano note, because a child plays notes
+ * at 150ms happened twice for every piano note, because a young player plays notes
  * further apart than that. Two seconds keeps it on through anything that is
  * being played and still lets an idle console drop it. */
 constexpr uint32_t AMP_TAIL_MS = 2000;

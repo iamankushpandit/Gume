@@ -45,7 +45,7 @@ public:
 
     /* Seven white keys plus the octave, and five black. A single octave rather
      * than two: at 240px portrait, fifteen white keys would be 16px each,
-     * which is below what a child's finger can hit on a resistive panel. One
+     * which is below what a young player's finger can hit on a resistive panel. One
      * octave gives 30px in portrait and 40px in landscape.
      *
      * Public because the note, name and layout tables in the .cpp are sized

@@ -211,7 +211,7 @@ public:
      * like theme and brightness and unlike anything profile-scoped: the
      * speaker belongs to whoever is in the room, not to whoever is signed in,
      * and a console that came back loud because a different player picked it
-     * up would be a poor thing to hand a child in a quiet house.
+     * up would be a poor thing to hand a young player in a quiet house.
      *
      * Both are mirrored in RAM. `soundEnabled()` is consulted on EVERY cue and
      * cues fire several times a second in a game like Whack-a-Mole, so reading

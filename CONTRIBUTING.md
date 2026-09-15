@@ -53,7 +53,7 @@ never gain a query string or a board/version parameter, and the address shown
 to the owner is compiled into the firmware rather than read out of the
 response. The first keeps the request anonymous; the second means the worst a
 hostile network can do is display a wrong version number, rather than point a
-child at an address of its choosing.
+young player at an address of its choosing.
 
 Adding a fifth changes what the product promises its owners. Raise it in an
 issue and get agreement before writing the code, because a pull request that
