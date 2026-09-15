@@ -2,6 +2,16 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+In development on `dev`. Nothing here has shipped; the version carries the
+`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
+`release.yml` refuses to publish a tag whose version carries it.
+
+`Board::compareVersions()` sorts a pre-release before the release of the same
+number, so a console on this build is correctly told that nothing newer
+exists rather than being nagged all cycle to install a version it is ahead of.
+
+## 5.12.3 — 2026-09-15
+
 **No ages.** The documents put numbers on the people using the console: a
 range beside every game in the README, and ages throughout the design notes.
 They are gone. A game's row now says what it is and what it builds. Where a
@@ -22,14 +32,6 @@ that stores how many profiles exist, which a rename would reset to zero on
 every console that upgrades; a search-tree variable in the chess engine; a
 CSS selector in the landing page; and one of the short words Trace asks a
 player to write.
-
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
-`release.yml` refuses to publish a tag whose version carries it.
-
-`Board::compareVersions()` sorts a pre-release before the release of the same
-number, so a console on this build is correctly told that nothing newer
-exists rather than being nagged all cycle to install a version it is ahead of.
 
 ## 5.12.2 — 2026-09-15
 
