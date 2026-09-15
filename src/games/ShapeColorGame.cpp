@@ -131,7 +131,7 @@ void fillPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
 
 /* A regular n-gon, and the oval, which is the same walk with the two axes
  * scaled differently. Flat side at the bottom for the polygons: an upright
- * hexagon is the one a child has seen. */
+ * hexagon is the one a young player has seen. */
 void regularPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
                  uint8_t n, uint16_t color, bool filled,
                  int16_t xScale = 100, int16_t yScale = 100,
@@ -140,7 +140,7 @@ void regularPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
     if (n > 20) n = 20;
     const float turn = 2.0f * PI / n;
     /* An even-sided polygon gets a half-turn so it stands on a flat edge --
-     * an upright hexagon is the one a child has seen, and a square on a
+     * an upright hexagon is the one a young player has seen, and a square on a
      * corner is a diamond, not a square. Which is exactly why the diamond
      * asks for that offset NOT to be applied. */
     const float start = -PI / 2.0f + ((n % 2 == 0 && flatBottom) ? turn / 2.0f : 0.0f);

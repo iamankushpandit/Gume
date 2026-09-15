@@ -223,7 +223,7 @@ void NearbyApp::rebuildRows(GameHost& host) {
              * difference is audible at the far end. Poke is a nudge for
              * somebody holding their console; Find is for a console nobody can
              * see, and it rings until it is picked up. Neither is admin-only:
-             * a child who has lost the thing is exactly who needs this. */
+             * a young player who has lost the thing is exactly who needs this. */
             snprintf(chipLabel, sizeof(chipLabel),
                      justPoked && pokedWasFind_ ? "Finding %s" : "Find %s", who);
             rows_.addAction(chipLabel,

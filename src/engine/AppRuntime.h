@@ -245,7 +245,7 @@ private:
     void tickBatteryWarning(uint32_t nowMs);
     /* Raises the "newer firmware exists" strip. Every player sees it, not just
      * the admin: a parent who is not holding the device has no other way to
-     * learn, and the wording tells a child what to do about it. */
+     * learn, and the wording tells a young player what to do about it. */
     void tickUpdateNotice(uint32_t nowMs);
 
     /* Mark the strip as needing paint and make the screen under it redraw. */

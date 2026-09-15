@@ -166,7 +166,7 @@ uint8_t ChessGame::squareAt(AppContext& host, int16_t x, int16_t y) const {
 /* The lobby. Two ways to play and a list of consoles in the room.
  *
  * Laid out against the live panel like everything else here, and the rows are
- * generous -- this is a menu a child taps once, not a board they play on, so
+ * generous -- this is a menu a young player taps once, not a board they play on, so
  * there is no reason to make the targets small. */
 /* The lobby: two setting chips, then a column of buttons.
  *
@@ -297,7 +297,7 @@ void ChessGame::drawSquare(AppContext& host, uint8_t square) const {
 
     /* A legal destination is marked with a ring rather than a fill, so the
      * piece standing on a capturable square is still visible underneath. A
-     * child needs to see what they are taking. */
+     * young player needs to see what they are taking. */
     if (isTarget) {
         const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
         const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
@@ -329,7 +329,7 @@ void ChessGame::drawStatus(AppContext& host) const {
         snprintf(bot, sizeof(bot), "waiting...");
         colour = Ui::muted();
     } else if (mode_ == Mode::Remote && watch_.paused() && !gameOver()) {
-        /* Still here after Keep waiting has taken the card away, so a child
+        /* Still here after Keep waiting has taken the card away, so a young player
          * looking at a board that will not respond is told why. */
         snprintf(top, sizeof(top), "%s", opponentLabel());
         snprintf(bot, sizeof(bot),
@@ -346,7 +346,7 @@ void ChessGame::drawStatus(AppContext& host) const {
                          pos_.whiteToMove ? "Black" : "White");
                 colour = Ui::warning();
                 break;
-            /* Every draw says WHY, in words a child can act on. "Draw" on
+            /* Every draw says WHY, in words a young player can act on. "Draw" on
              * its own teaches nothing; "too few pieces" is the whole lesson of
              * the endgame they have just reached, and it is the difference
              * between the console looking broken and the console teaching. */
@@ -382,7 +382,7 @@ void ChessGame::drawStatus(AppContext& host) const {
             default:
                 if (mode_ == Mode::Remote && !ourTurn()) {
                     /* Second person, because in a remote game "White to move"
-                     * does not tell a child whether to pick a piece up. */
+                     * does not tell a young player whether to pick a piece up. */
                     snprintf(top, sizeof(top), "%s", opponentLabel());
                     snprintf(bot, sizeof(bot), "is thinking");
                     colour = Ui::muted();

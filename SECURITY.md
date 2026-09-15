@@ -1,6 +1,6 @@
 # Security Policy
 
-Braino! runs on hardware that children hold, so a few of the things below are
+Braino! runs on hardware that young players hold, so a few of the things below are
 stated more bluntly than a firmware project usually bothers with.
 
 ## Reporting a vulnerability

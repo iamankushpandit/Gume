@@ -16,7 +16,7 @@
  * strokes and a pen lift between them -- which is exactly what the glyph table
  * already holds. So a word set in print stores only its words, as strings, and
  * this file lays each one out from the lowercase letters when it is chosen.
- * The letterforms a child sees in "cat" are therefore the very ones they
+ * The letterforms a young player sees in "cat" are therefore the very ones they
  * practised on the abc tab, and a fix to a letter fixes every word it is in.
  *
  * Cursive cannot work this way and does not try: joining the letters is the
@@ -117,7 +117,7 @@ void LetterTracer::fitSpelledSet() {
  *
  * Each letter keeps its own strokes in its own order -- the bowl of an 'a'
  * before its stem, the stem of a 't' before its crossbar -- so the numbers a
- * child follows in a word are the numbers they learned on the letter. A stroke
+ * young player follows in a word are the numbers they learned on the letter. A stroke
  * that would overflow the buffer is dropped whole, never cut short: a word
  * missing its last letter is visibly wrong, a letter missing half a stroke
  * looks like a different letter. */

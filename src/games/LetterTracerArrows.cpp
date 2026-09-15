@@ -159,7 +159,7 @@ float LetterTracer::clearance(float x, float y, float floor) const {
  *
  * The guide points from the target dot along the stroke, not from the finger:
  * the finger's own position is not sampled between dots, and the question a
- * child has at that moment is where the line goes AFTER the dot they are
+ * young player has at that moment is where the line goes AFTER the dot they are
  * reaching for. */
 void LetterTracer::updateGuide() {
     guideShown_ = false;

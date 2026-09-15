@@ -248,7 +248,7 @@ void SeaBattleGame::drawStatus(AppContext& host) const {
         snprintf(bot, sizeof(bot), "is aiming");
         colour = Ui::muted();
     } else {
-        /* What just happened beats whose turn it is: a child who has just
+        /* What just happened beats whose turn it is: a young player who has just
          * scored a hit wants to be told so, and the turn is obvious from the
          * board being tappable. */
         switch (lastShot_) {

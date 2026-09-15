@@ -35,7 +35,7 @@ below is deliberately short: an entry is a promise that the string names
 nothing real.
 
 WHAT THIS CANNOT CATCH, so do not treat a clean run as permission. An SSID is
-just a word; a hostname looks like a domain; a child's name looks like any
+just a word; a hostname looks like a domain; a young player's name looks like any
 other name. This checker finds the shapes a machine can recognise, and the
 rule in CLAUDE.md covers the rest.
 """

@@ -20,7 +20,7 @@ const AppMetadata& spaceAppMetadata();
 /* A quiz about the solar system and the layers of air above us.
  *
  * It is a TEACHING screen before it is a scoring one: every answer, right or
- * wrong, is followed by one plain sentence saying why. A child who guesses
+ * wrong, is followed by one plain sentence saying why. A young player who guesses
  * Mercury for "which planet is hottest" and is told only that they were wrong
  * has learned nothing; being told that Venus traps its heat under thick cloud
  * is the whole point of the screen.

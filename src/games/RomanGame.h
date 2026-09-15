@@ -20,7 +20,7 @@ const AppMetadata& romanAppMetadata();
 /* Roman numerals, both ways round, with the key on the screen.
  *
  * This is a TEACHING screen, so two things are deliberate. The symbol key is
- * always visible and grows as the level does -- a child meeting L for the
+ * always visible and grows as the level does -- a young player meeting L for the
  * first time should be able to look it up rather than guess, because the skill
  * being built is reading the notation, not remembering seven letters. And
  * every answer is followed by the number taken apart: "XIV = X + IV = 10 + 4".

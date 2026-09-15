@@ -24,7 +24,7 @@ using namespace LetterTracerLayout;
 /* The numbered arrows, all of them, where planArrows() put them.
  *
  * They are the PLAN for the letter -- which stroke starts where and sets off
- * which way -- so a child can see the whole of it before starting, numbered,
+ * which way -- so a young player can see the whole of it before starting, numbered,
  * the way a workbook shows it. They never move and they are all muted; what is
  * happening now is said by the two things in the highlight colour, the start
  * ring and the guide arrow that follows the finger.
@@ -37,7 +37,7 @@ void LetterTracer::drawArrows(Ui::Renderer& tft) {
         /* All of them muted, including the stroke being traced. They are the
          * plan for the letter; what is happening NOW is the guide arrow and
          * the ring, and those are the two things in the highlight colour. When
-         * every arrow competed for that colour a child had no way to tell the
+         * every arrow competed for that colour a young player had no way to tell the
          * one that mattered from the four that did not. */
         drawArrow(tft, arrows_[i], Ui::muted());
     }
@@ -89,7 +89,7 @@ Rect LetterTracer::arrowBox(const Arrow& a) const {
 /* Move the guide arrow WITHOUT clearing the screen.
  *
  * It moves every time a dot is claimed -- a couple of times a second while a
- * child is tracing -- so a full repaint here would be the screen flashing
+ * young player is tracing -- so a full repaint here would be the screen flashing
  * continuously, which is the failure the rendering rule in CLAUDE.md was
  * written about. Instead its old box is painted out and the letter repainted
  * inside that box: drawGhost() and drawAllDots() paint exactly what is already
@@ -125,7 +125,7 @@ void LetterTracer::moveGuide(Ui::Renderer& tft) {
  *
  * A ring rather than the filled, numbered badge that used to sit there. The
  * number moved to the arrow beside the stroke, where the workbook puts it, and
- * a filled disc covered the very dot the child is meant to put a finger on. */
+ * a filled disc covered the very dot the young player is meant to put a finger on. */
 void LetterTracer::drawStartRing(Ui::Renderer& tft) {
     if (complete_ || activeStroke_ >= strokeCount_) return;
     const Pt& p = pts_[strokeStart_[activeStroke_]];
@@ -169,7 +169,7 @@ void LetterTracer::drawCaption(Ui::Renderer& tft) {
 
 /* The finished shape, faintly, under everything else.
  *
- * This is the answer to "what am I aiming at?" -- a child can see the whole
+ * This is the answer to "what am I aiming at?" -- a young player can see the whole
  * letter or word before starting and check their own line against it as they
  * go, which is what a handwriting workbook's grey letter does. It costs no
  * screen space, which is why it went here rather than into a thumbnail beside
@@ -177,7 +177,7 @@ void LetterTracer::drawCaption(Ui::Renderer& tft) {
  *
  * Drawn from the RAW glyph polyline rather than from the resampled waypoints,
  * because the waypoints are 12 to 20 pixels apart and a polyline through them
- * visibly corners on the tight curves -- which is exactly where a child needs
+ * visibly corners on the tight curves -- which is exactly where a young player needs
  * the target to be accurate. */
 void LetterTracer::drawGhost(Ui::Renderer& tft) {
     if (glyphs_ == nullptr) return;

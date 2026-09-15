@@ -45,7 +45,7 @@ constexpr AppMetadata TRACE_METADATA = {
  * tools/gen_screens.py restates the layout, so _spell() there has the sums.
  *
  * Each costs only its letters in flash: the words are spelled out of the abc
- * glyphs at runtime, so the strokes a child follows in "cat" are the ones they
+ * glyphs at runtime, so the strokes a young player follows in "cat" are the ones they
  * practised on the abc tab. */
 const char* const TRACE_WORDS[] = {
     "at", "and", "ant", "bat", "bed", "big", "box", "bus", "cat", "cup",
@@ -66,7 +66,7 @@ constexpr uint8_t TRACE_LOWER_FIRST = 26;
  * wrong letter, and a count that is wrong is obviously wrong.
  *
  * Printed letters get an arrow at every sharp reversal as well as the numbered
- * one at each stroke's start: the apex of an A is where a child lifts off in
+ * one at each stroke's start: the apex of an A is where a young player lifts off in
  * the wrong direction. Words do not -- a word is up to eight strokes, and the
  * numbered arrows are already a lot to read. */
 constexpr LetterTracer::Set TRACE_SETS[] = {

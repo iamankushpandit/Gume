@@ -19,7 +19,7 @@
  * and no second app partition to put one in -- huge_app.csv has a single
  * `app0` slot, and on a 4MB board the firmware does not fit twice with room
  * for anything else. What this does is smaller and, on a device handed to
- * children, better: it reads one small file, compares a version string
+ * young players, better: it reads one small file, compares a version string
  * locally, and if there is something newer it says so and points at the web
  * installer. A person decides. Nothing is downloaded and nothing is written.
  *
@@ -53,7 +53,7 @@
  *
  * That single rule is what bounds the damage a hostile or spoofed response
  * can do to exactly one thing: displaying a wrong version number. It cannot
- * send a child to a URL of an attacker's choosing, because the console will
+ * send a young player to a URL of an attacker's choosing, because the console will
  * only ever show the address baked into its own firmware, and it cannot
  * trigger an install, because nothing here installs anything. If a future
  * change ever lets the response supply the destination, that reasoning

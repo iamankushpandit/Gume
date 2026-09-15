@@ -101,7 +101,7 @@ somebody already made here:
 **Wrap text with `Ui::wrapLines()`, not `Ui::drawWrappedText()`.** The second
 builds every line with `String`, which is right where it is used (a game
 message changes when the game says something) and wrong for a question that is
-rewritten every few seconds for as long as a child keeps playing. `wrapLines()`
+rewritten every few seconds for as long as a young player keeps playing. `wrapLines()`
 writes into the caller's fixed buffers, allocates nothing, and returns how many
 lines the text *needed* -- which is what lets a panel say "wrap at font 2, and
 if that wanted a fourth line, wrap it again at font 1" instead of discovering
@@ -159,7 +159,7 @@ acknowledged it. See the Ludo section below and `LudoRules.h`'s `Net`.
 
 **A peer that stops talking pauses the game, and every game pauses the same
 way.** The second way a two-player game ends never arrives as a message: a
-flat battery, a child walking into the next room, a console sat on. Until
+flat battery, a young player walking into the next room, a console sat on. Until
 5.11 every nearby game sat on "is thinking" for ever when that happened. The
 service now measures the silence (`nearbyPeerSilentMs()`, `NearbySeat::silentMs`)
 and `NearbyWatch` (`src/games/NearbyWatch.{h,cpp}`) turns it into three states
@@ -302,7 +302,7 @@ board game.
   entering the screen and starting a game, nothing else.
 - **Computer seats are a seat kind, not a mode.** Any mix of Player and
   Computer, at least two seats and at least one Player. The computer's roll and
-  its move are each delayed (`CPU_ROLL_MS`, `CPU_MOVE_MS`) so a child can see
+  its move are each delayed (`CPU_ROLL_MS`, `CPU_MOVE_MS`) so a young player can see
   what it did; without them a computer's whole turn is one frame.
 - **Across consoles, every seat has one decider.** `ownsSeat()` is true for
   the person holding this console and, on the host, for the computer seats;
@@ -456,7 +456,7 @@ engine twice.** Arrows on the path confused them and cursive words were too
 small to follow. Before making the guide cleverer, ask whether a five-year-old
 who has never held a pencil to joined writing would read it.
 
-- **The controls are in side columns and must stay there.** A child tracing the
+- **The controls are in side columns and must stay there.** A young player tracing the
   top of a letter runs a finger off the top edge, and buttons above or below the
   canvas sit in the natural overshoot of the gesture the game teaches.
 - **A `Set` carries its own dot spacing.** A single letter fills the canvas and
@@ -466,7 +466,7 @@ who has never held a pencil to joined writing would read it.
   traced -- that is how the word sets caption themselves, since `Glyph::label`
   is a single char.
 - **A `Set` may open at a random entry** (`randomStart`). Right for words and
-  wrong for an alphabet: ABC is the order a child is learning, while always
+  wrong for an alphabet: ABC is the order a young player is learning, while always
   being handed the same word first makes fifty words feel like one.
 - **A glyph table declares the box it was authored in.** `configure()` takes
   `coordW`/`coordH` and the tracer scales BOTH axes by one number, letterboxing
@@ -514,7 +514,7 @@ who has never held a pencil to joined writing would read it.
   generated, including the counts, which are `constexpr` because the game's
   `Set` table is. Edit the script, never the output, and **look at
   `docs/cursive-sheet.png`** afterwards: a malformed cursive `q` reads as a
-  perfectly good 9 until a child copies it, and nothing else will tell you.
+  perfectly good 9 until a young player copies it, and nothing else will tell you.
   Its word list is `KID_WORDS`, two and three letters, under
   `WORD_WIDTH_CAP` -- the cap is what sets how big every word is drawn, and a
   listed word over it fails the script rather than quietly vanishing.

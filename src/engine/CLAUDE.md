@@ -69,7 +69,7 @@ answers "how long since we heard this console", and `NearbySeat::silentMs`
 carries the same number to a lobby. It is `Known::lastSeenMs`, copied off the
 scanner's sighting in `recordSession()` -- nothing goes on the air for it. It
 exists because the second way a two-player game ends never arrives as a
-message: a flat battery or a child walking off cannot send `nearbyEnd()`, and
+message: a flat battery or a young player walking off cannot send `nearbyEnd()`, and
 before this every nearby game sat on "their turn" forever, saying nothing.
 `PEER_QUIET_MS` (6s, several missed scan windows rather than one) is the shared
 threshold past which a game pauses and says so; `PEER_SILENT_UNKNOWN` is
