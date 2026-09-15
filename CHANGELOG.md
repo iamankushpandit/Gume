@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.14.0-SNAPSHOT — Unreleased
+## 5.12.2 — 2026-09-15
 
 **Administrator, not adult.** The nearby-play lobbies told a player that
 "an adult" could switch Beacon and Nearby on, and the docs said the same about
@@ -70,22 +70,15 @@ back to a circle. The silent fallback is exactly how this shipped -- a
 placeholder that looks deliberate is indistinguishable from art, and it sat on
 the landing page for months.
 
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
-`release.yml` refuses to publish a tag whose version carries it.
-
-`Board::compareVersions()` sorts a pre-release before the release of the same
-number, so a console on this build is correctly told that nothing newer
-exists rather than being nagged all cycle to install a version it is ahead of.
-
 **There is no 5.13.0, and there will not be one.** 5.13.0-SNAPSHOT was opened
 after 5.12.1 and then published to `main` as the landing-page change rather
 than as a release, so the number was spent without a tag ever carrying it.
 Reusing it would mean two different sets of bytes answering to one version --
 the snapshot some people flashed from the installer, and a later release --
-which is the one thing a version number exists to prevent. The next release
-is 5.14.0. A gap in the sequence costs nothing; an ambiguous number cannot be
-repaired after the fact.
+which is the one thing a version number exists to prevent. The next minor
+release is 5.14.0; this one is a patch on 5.12, so it is 5.12.2. A gap in
+the sequence costs nothing; an ambiguous number cannot be repaired after the
+fact.
 
 **A new landing page.** The installer page now leads with what the thing is
 rather than with a wall of mock-ups: the 4 MB line, a one-minute video served
