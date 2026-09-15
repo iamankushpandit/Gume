@@ -183,7 +183,7 @@ void LudoGame::renderTable(AppContext& host) {
         Ui::drawLabel(tft, Rect{8, 70, 304, 18}, "Nobody nearby yet.", Ui::text(), 2,
                       Align::Center);
         Ui::drawLabel(tft, Rect{8, 96, 304, 12},
-                      "An adult can switch Beacon and Nearby on.", Ui::muted(), 1,
+                      "An administrator can switch Beacon and Nearby on.", Ui::muted(), 1,
                       Align::Center);
     }
     for (uint8_t r = 0; r < rows; ++r) {

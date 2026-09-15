@@ -1,5 +1,126 @@
 # Changelog
 
+## 5.12.2 — 2026-09-15
+
+**Administrator, not adult.** The nearby-play lobbies told a player that
+"an adult" could switch Beacon and Nearby on, and the docs said the same about
+whoever holds the admin PIN. The role is the administrator -- it is what the
+PIN, the profile and Settings already call it -- so that is the word now,
+everywhere it names the role.
+
+The lobby note could not simply take the longer word. It is drawn in font 1,
+six pixels a character and unfitted, on a 320-pixel canvas, and four of the
+five were already wider than that: "Nobody nearby. An adult can switch Beacon
+and Nearby on." is 336px, so Chess and Sea Battle were losing characters off
+both ends of the panel before this change, and Backgammon and Go at 324px
+were losing one. All five now carry Ludo's shorter wording, "An administrator
+can switch Beacon and Nearby on." -- 294px, inside the canvas with room to
+spare.
+
+Two occurrences are left alone because they are not the role: `adulterate`
+in the GRE word list, and a comment in `ChessGame.h` about chess programs
+written for adults.
+
+**A licence notice may not break the file it is written into.** Three of the
+repository's four SVGs did not parse, and `tools/check_licenses.py` -- the
+tool that exists to protect them -- is what broke them. Two faults: `--`
+cannot appear inside an XML comment, and the notice uses it as an em dash;
+and `prologue_len()` counted lines, so an SVG whose DOCTYPE wraps across two
+got the notice spliced into the middle of it. A browser neither renders a
+malformed SVG nor reports one, so the image is simply absent -- the landing
+page's header logo shipped as a broken image beside its own wordmark, and
+`tools/braino-badge.svg`, which the firmware's product mark is generated
+from, was unreadable too. The checker now parses every tracked SVG and fails
+on one that will not render.
+
+**The mock-ups draw the real Home and Settings icons.** The generator drew
+the word "home" in a box and a bare circle for the gear; the device draws a
+house and an eight-toothed gear. The top bar is on every still, so the
+placeholder appeared 91 times in the strip a reader looks at first. Both are
+now ported from `Ui::drawHomeIcon()` and `Ui::drawGearIcon()` rather than
+approximated -- the same repair as the launcher tiles above, one level up.
+
+**The landing page shows the product, on the boards people own.** A lineup
+of the supported sizes built from the case meshes, so the proportions are the
+hardware's rather than a drawing's; and Braino running on bare boards,
+composited onto the manufacturers' own front views, three boards in three
+different themes. A board needs neither case nor battery to run this, and the
+page now shows that instead of claiming it. The header carries the product
+mark itself. `in-hand-flags.jpg` was shot under an orange lamp and has been
+relit. The flasher is untouched: the same pickers, the same ids, the same
+manifest.
+
+
+**The launcher mock-ups draw the real icons.** Every launcher still -- the
+wide one, the tall one and the 3x3 portrait grid -- drew a plain blue circle
+in each tile, where the device draws cards, coins, a tricolour, a sudoku grid,
+a ruler. Those three images are the picture of the product in the README
+gallery, on the installer page and in every theme sheet, so the front page has
+been showing a launcher that does not exist. `tools/gen_screens.py` now ports
+the nine front-page icons from `src/ui/LauncherIcons.cpp`, keeping that file's
+palette, its two-pixel stroke rule and its 36px box rather than inventing new
+ones.
+
+It was found by trying to composite a generated still onto a photograph of a
+real device: the photo showed icons and the mock-up showed circles, which is
+the comparison no check performs.
+
+An icon that is not ported yet now **stops the build** rather than falling
+back to a circle. The silent fallback is exactly how this shipped -- a
+placeholder that looks deliberate is indistinguishable from art, and it sat on
+the landing page for months.
+
+**There is no 5.13.0, and there will not be one.** 5.13.0-SNAPSHOT was opened
+after 5.12.1 and then published to `main` as the landing-page change rather
+than as a release, so the number was spent without a tag ever carrying it.
+Reusing it would mean two different sets of bytes answering to one version --
+the snapshot some people flashed from the installer, and a later release --
+which is the one thing a version number exists to prevent. The next minor
+release is 5.14.0; this one is a patch on 5.12, so it is 5.12.2. A gap in
+the sequence costs nothing; an ambiguous number cannot be repaired after the
+fact.
+
+**A new landing page.** The installer page now leads with what the thing is
+rather than with a wall of mock-ups: the 4 MB line, a one-minute video served
+from the site itself, and one chapter per question a reader actually arrives
+with -- which board, what it teaches, who decides what a child can open, what
+two consoles do in the same room, and what the case costs to print. The
+flasher is unchanged behaviour for behaviour: the same board/firmware/version
+pickers driven by the same generated `BUILDS` list, the same per-board
+`esptool` command, the same warning when an older release is selected.
+
+**Ninety-one mock-ups became six.** The old page showed every generated still
+it had -- a wall of twelve at the top, three on each of the forty game cards,
+three on each of the nine system screens. They were honest and they were
+exhausting, and a reader deciding whether to buy a board does not need to see
+the Settings sound tab. The page now shows six chosen ones, larger, and the
+game list is simply every game's name, set as type. The README gallery is
+still the place for all of them, and it is linked from the section.
+
+Nothing became hand-written in the move. The names, the counts, the board
+list, the version, the build figures and the six stills are all still filled
+by `tools/gen_site.py` from the firmware, and `check_docs.py` still fails if a
+placeholder is dropped or a version number is typed into the template. One
+check did change meaning: a still on disk that the site does not show is no
+longer an error, because the site deliberately does not show most of them.
+What that rule protected has not moved -- `check_screens()` still fails when a
+still has no generator entry, when a generated one is missing, and when a
+playable game has no screenshot at all.
+
+**The page says how to reach a person.** A Contact section, and the same two
+addresses in the footer: the GitHub account and `esp32.gume@proton.me`, with
+an issue named first because it is public and the next person with the same
+board finds the answer.
+
+The photos, the hero video and the A2 poster live in `site/assets/` and are
+published from the Pages origin, so the page still fetches nothing from a
+third party on load except the Install button's own code. YouTube is a
+click-to-play facade: nothing from Google is requested until the reader
+presses play, and then from `youtube-nocookie.com`. `gen_site.py` checks the
+asset folder both ways, the way it already checked the stills -- a referenced
+file that is not there is a broken image on the landing page, and a file
+nothing references is weight in every clone.
+
 ## 5.12.1 — 2026-09-13
 
 **A licence release. The console does exactly what 5.12.0 does.** Across
@@ -61,7 +182,7 @@ somebody makes them look twice, and finally concave against convex with the
 word on the row. Level 4 always deals two of each family, because the word is
 only a lesson when it tells two rows apart.
 
-**Going idle ends an admin session.** An adult who unlocked the admin profile
+**Going idle ends an admin session.** An administrator who unlocked the admin profile
 kept it across the screen saver and across panel sleep, so the console could be
 put down with Settings open and picked up by anybody: every device switch, the
 per-player game lists and the profile controls, with no PIN asked. `begin()`

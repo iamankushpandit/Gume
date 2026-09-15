@@ -675,7 +675,7 @@ void GoGame::renderLobby(AppContext& host) {
     const char* note = lobbyNote_[0] != 0 ? lobbyNote_
                        : low              ? "Battery low: a nearby game may not finish."
                        : seatCount_ > 0   ? "Moves travel by Bluetooth. Anyone near hears them."
-                                          : "Nearby play: an adult can switch Beacon and Nearby on.";
+                                          : "An administrator can switch Beacon and Nearby on.";
     tft.setTextDatum(BC_DATUM);
     tft.setTextColor(lobbyNote_[0] != 0 || low ? Ui::warning() : Ui::muted(), Ui::bg());
     tft.drawString(note, GAME_CANVAS_WIDTH / 2, GAME_CANVAS_HEIGHT - 4, lobbyNote_[0] != 0 ? 2 : 1);

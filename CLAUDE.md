@@ -613,7 +613,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,433 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,581,369 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -802,7 +802,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   written against. `endAdminSessionForIdle()` is called by *both* idle
   entries, `enterScreenSaver()` and `enterSleep()`, so the saver, panel sleep,
   the Lock button and the lock screen's own timeout are all covered by one
-  line each. Before it, an adult could open Settings, walk away, and whoever
+  line each. Before it, an administrator could open Settings, walk away, and whoever
   touched the panel next had every switch on it with no PIN asked; the lock
   screen does not close that, because it is an accidental-touch guard whose
   hold is deliberately not a secret. It drops on the way *in* rather than on

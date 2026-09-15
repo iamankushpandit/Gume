@@ -183,7 +183,7 @@ private:
      * is active, so a remembered admin selection hands out admin without a
      * PIN. An idle timeout is the same fact arriving a different way -- the
      * console was put down, and who picked it up is not something the device
-     * knows. Leaving admin active across the saver meant an adult could open
+     * knows. Leaving admin active across the saver meant an administrator could open
      * Settings, walk away, and the next person to touch the panel had every
      * switch on it, the per-player game lists and the profile controls, with
      * no PIN asked. The lock screen does not close this: it is an
