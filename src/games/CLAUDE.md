@@ -210,9 +210,9 @@ slot.
 Who can use it:
 
 - **Switching the radio on is admin-only** -- *Settings -> Device -> Beacon*,
-  then *Nearby*. That is a privacy decision and belongs to an adult.
+  then *Nearby*. That is a privacy decision and belongs to an administrator.
 - **Playing is not.** Nothing in `NearbyPlay` or `ChessGame` checks the active
-  profile, so once an adult has switched it on, any player on the console can
+  profile, so once an administrator has switched it on, any player on the console can
   invite and be invited. Do not add a profile check to a play path; the gate is
   the switch.
 - **Saved games are per-profile**, because `saveBlob()` is transparently

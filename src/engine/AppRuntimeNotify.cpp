@@ -38,7 +38,7 @@
  * invisible on a console that spends its life logged in as a child -- which is
  * every console. So the wording carries the instruction instead: it names the
  * version and says who to ask, which is something a seven-year-old can act on
- * and an adult can act on directly.
+ * and an administrator can act on directly.
  *
  * The daily gate and the "have we already said this version" test both live in
  * Board, persisted, because both have to survive a power cycle -- see

@@ -2,6 +2,25 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+**Administrator, not adult.** The nearby-play lobbies told a player that
+"an adult" could switch Beacon and Nearby on, and the docs said the same about
+whoever holds the admin PIN. The role is the administrator -- it is what the
+PIN, the profile and Settings already call it -- so that is the word now,
+everywhere it names the role.
+
+The lobby note could not simply take the longer word. It is drawn in font 1,
+six pixels a character and unfitted, on a 320-pixel canvas, and four of the
+five were already wider than that: "Nobody nearby. An adult can switch Beacon
+and Nearby on." is 336px, so Chess and Sea Battle were losing characters off
+both ends of the panel before this change, and Backgammon and Go at 324px
+were losing one. All five now carry Ludo's shorter wording, "An administrator
+can switch Beacon and Nearby on." -- 294px, inside the canvas with room to
+spare.
+
+Two occurrences are left alone because they are not the role: `adulterate`
+in the GRE word list, and a comment in `ChessGame.h` about chess programs
+written for adults.
+
 **A licence notice may not break the file it is written into.** Three of the
 repository's four SVGs did not parse, and `tools/check_licenses.py` -- the
 tool that exists to protect them -- is what broke them. Two faults: `--`
@@ -170,7 +189,7 @@ somebody makes them look twice, and finally concave against convex with the
 word on the row. Level 4 always deals two of each family, because the word is
 only a lesson when it tells two rows apart.
 
-**Going idle ends an admin session.** An adult who unlocked the admin profile
+**Going idle ends an admin session.** An administrator who unlocked the admin profile
 kept it across the screen saver and across panel sleep, so the console could be
 put down with Settings open and picked up by anybody: every device switch, the
 per-player game lists and the profile controls, with no PIN asked. `begin()`
