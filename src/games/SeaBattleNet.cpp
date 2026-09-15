@@ -45,7 +45,7 @@ void SeaBattleGame::renderLobby(AppContext& host) {
     tft.setTextColor(low ? Ui::warning() : Ui::muted(), Ui::bg());
     const char* note = low             ? "Battery low: a nearby game may not finish."
                        : seatCount_ > 0 ? "Shots travel by Bluetooth. Ships never do."
-                                        : "Nobody nearby. An adult can switch Beacon and Nearby on.";
+                                        : "An administrator can switch Beacon and Nearby on.";
     tft.drawString(note, GAME_CANVAS_WIDTH / 2,
                    static_cast<int16_t>(GAME_CANVAS_HEIGHT - 6), 1);
     tft.setTextDatum(TL_DATUM);

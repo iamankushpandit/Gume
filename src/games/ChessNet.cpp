@@ -90,7 +90,7 @@ void ChessGame::renderLobby(AppContext& host) {
     tft.setTextColor(low ? Ui::warning() : Ui::muted(), Ui::bg());
     const char* note = low             ? "Battery low: a nearby game may not finish."
                        : seatCount_ > 0 ? "Moves travel by Bluetooth. Anyone near hears them."
-                                        : "Nobody nearby. An adult can switch Beacon and Nearby on.";
+                                        : "An administrator can switch Beacon and Nearby on.";
     tft.drawString(note, static_cast<int16_t>(tft.width() / 2),
                    static_cast<int16_t>(tft.height() - 6), 1);
     tft.setTextDatum(TL_DATUM);
