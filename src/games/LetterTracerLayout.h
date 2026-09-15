@@ -91,7 +91,7 @@ constexpr int16_t NEXT_R = 3;
  *
  * They used to sit on the path itself, one at a time, just past whichever turn
  * came next, and jump forward as the finger reached it. User testing with
- * five-year-olds said plainly that this confused them: an arrow on the line
+ * young players said plainly that this confused them: an arrow on the line
  * covers the dots it is pointing along, and one that moves is one more thing
  * on the screen changing while they concentrate.
  *

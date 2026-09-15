@@ -29,7 +29,7 @@ constexpr uint8_t ELEMENT_CATEGORY_COUNT = 10;
 
 /* Index into ELEMENT_CATEGORY_NAMES. "Rare earth" and "Radioactive metal"
  * stand in for lanthanide and actinide: the proper names are jargon for a
- * six-year-old, and these two are what the labels actually mean. */
+ * young player, and these two are what the labels actually mean. */
 enum : uint8_t {
     ELEM_ALKALI = 0,
     ELEM_ALKALINE_EARTH,

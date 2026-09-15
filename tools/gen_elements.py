@@ -15,7 +15,7 @@ Generate src/games/ElementDataTable.cpp for Braino!.
 
 Unlike gen_country_facts.py there is no upstream dataset to pull: the symbols,
 names and atomic numbers are common knowledge and the one-line facts are
-written for a six-year-old who has never met chemistry. So the data lives here,
+written for a young player who has never met chemistry. So the data lives here,
 and what the generator buys is the checking -- grid positions unique and inside
 the table, facts short enough to render, every element covered exactly once,
 and the tier lists naming only real symbols. Those are precisely the mistakes a

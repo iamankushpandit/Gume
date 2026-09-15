@@ -111,7 +111,7 @@ WORD_MIN_STEP = 5
 # about 25 pixels -- well under the 43 of the same letters on the abc tab.
 #
 # So the list is now chosen for the young player rather than taken from the sheets:
-# two- and three-letter words a five-year-old reads or is about to, covering
+# two- and three-letter words a young player reads or is about to, covering
 # the alphabet as far as the font allows. See WORD_WIDTH_CAP for the one letter
 # it does not.
 KID_WORDS = [
@@ -133,7 +133,7 @@ KID_WORDS = [
 #
 # 1400 is where the words for young players live. Going tighter buys a few pixels and loses
 # every word with a b, h, k or r in the middle, which is most of the ones a
-# five-year-old knows. It costs one letter outright: no word with a cursive q
+# young player knows. It costs one letter outright: no word with a cursive q
 # is narrower than 'quiz' at 1765, because q always brings its u, so q is
 # practised on the abc tab and not here.
 #

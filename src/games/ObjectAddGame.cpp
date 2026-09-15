@@ -160,7 +160,7 @@ void ObjectAddGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     /* Keep the "these ones went away" blink looping for as long as the question
-     * is on screen. A 4-year-old who looks away mid-animation would otherwise
+     * is on screen. A young player who looks away mid-animation would otherwise
      * never see it again. Long rest, short blink: the shapes stay gone most of
      * the time so counting what is LEFT is still easy. */
     if (phase_ == Phase::Question && op_ == OpType::Subtract && now >= animNextAt_) {

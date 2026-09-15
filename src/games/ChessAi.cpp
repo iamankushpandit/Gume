@@ -19,7 +19,7 @@
  * took can be taken straight back; Medium searches three plies with alpha-beta
  * and will see a fork coming. Neither is strong, and neither is trying to be:
  * this console is for players who are learning what the pieces do. An engine
- * that wins every game against a seven-year-old is a worse product than one
+ * that wins every game against a young player is a worse product than one
  * that loses half of them.
  *
  * THE FRAME BUDGET IS THE CONSTRAINT, not the strength. 20ms holds touch,
