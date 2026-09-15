@@ -12,7 +12,7 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
-/* The finger-tracing engine, shared by every game that asks a child to draw a
+/* The finger-tracing engine, shared by every game that asks a young player to draw a
  * shape by following dots.
  *
  * It was TraceGame, entirely: the waypoint resampling, the hit testing, the
@@ -51,7 +51,7 @@ public:
      * wrong letter, and a count cannot be off by one without being obviously
      * wrong.
      *
-     * `spacing` is how far apart the dots a child chases are, in pixels. It
+     * `spacing` is how far apart the dots a young player chases are, in pixels. It
      * belongs to the set rather than to the engine because a single letter
      * fills the canvas and wants generous spacing, while a three-letter word
      * is a third of the height and would get two dots per letter at the same
@@ -69,10 +69,10 @@ public:
         /* Open this set at a random entry rather than its first.
          *
          * Right for words and wrong for an alphabet: A B C is the order a
-         * child is learning and shuffling it would be actively unhelpful,
+         * young player is learning and shuffling it would be actively unhelpful,
          * while always being handed the same word first makes fifty words feel
          * like one. Prev and Next still walk in order from wherever it lands,
-         * because a child who wants the word they had a moment ago has to be
+         * because a young player who wants the word they had a moment ago has to be
          * able to get back to it. */
         bool randomStart;
         /* Whether a sharp reversal inside a stroke -- the top of an A, the
@@ -102,8 +102,8 @@ public:
          * Cursive asks for 1. Its letterforms are loops, and inside a tight
          * one -- the eye of an 'l', the crossing of a 'k' -- two runs of dots
          * pass within a few pixels of each other, so at the printed letters'
-         * radius they merge into a blob and the shape a child is copying is
-         * lost. The dot a child is actually aiming at keeps its own size
+         * radius they merge into a blob and the shape a young player is copying is
+         * lost. The dot a young player is actually aiming at keeps its own size
          * whatever this is; see NEXT_R. */
         uint8_t dotRadius;
     };
@@ -284,7 +284,7 @@ private:
     /* THE ONE ARROW THAT MOVES, and why there is one at all.
      *
      * The numbered arrows say how the letter is built; they are a plan, and a
-     * plan that moved would be unreadable. But a child part way along a
+     * plan that moved would be unreadable. But a young player part way along a
      * cursive stroke is not asking "how does this letter go", they are asking
      * "which way now" -- and an arrow that answered that only at the start was
      * reported from the device as an arrow that does not move. So one arrow

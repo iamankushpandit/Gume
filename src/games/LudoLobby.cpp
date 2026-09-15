@@ -54,7 +54,7 @@ static_assert(ROWS_TOP + (ROWS_SHOWN - 1) * ROW_PITCH + ROW_H + Ui::BUTTON_SHADO
 
 Rect LudoGame::seatChipRect(uint8_t seat) {
     /* Laid out like the yards: Red top left, Green top right, Yellow bottom
-     * right, Blue bottom left -- so a child finds a colour where the board
+     * right, Blue bottom left -- so a young player finds a colour where the board
      * keeps it. */
     const int16_t col = (seat == 1 || seat == 2) ? 1 : 0;
     const int16_t row = seat >= 2 ? 1 : 0;

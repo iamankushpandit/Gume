@@ -28,7 +28,7 @@ const AppMetadata& ludoAppMetadata();
  * "At least two" means two seats in play, and at least one of them has to be a
  * person: four computers playing each other is a screensaver, not a game. The
  * default is one player against one computer at Easy, because the owner who
- * opens this for the first time is most often a child on their own, and Nearby
+ * opens this for the first time is most often a young player on their own, and Nearby
  * play -- which is where the other players would come from -- ships switched
  * off.
  *
@@ -79,7 +79,7 @@ private:
     /* Where a turn is.
      *
      *   Roll     the seat to move has to roll: a player taps, a computer waits
-     *            a moment first so a child can see whose turn it became
+     *            a moment first so a young player can see whose turn it became
      *   Choose   a roll is held and at least one token can use it
      *   Moving   a token is hopping square by square
      *   Notice   the roll could not be used -- no move, or a third six -- and
@@ -122,7 +122,7 @@ private:
     bool canStart() const;
     /* A delay, or a quarter of it once every person at the table has
      * finished. The rules still play the computers out for the remaining
-     * places, but a child who came first should not have to sit through two
+     * places, but a young player who came first should not have to sit through two
      * computers doing it at a pace chosen for somebody watching to learn. */
     uint32_t pace(uint32_t ms) const;
     void setMessage(const char* text);
@@ -277,7 +277,7 @@ private:
     void diffPlaces();
     /* Tokens a player may tap right now, as bit (seat * 4 + token). Only a
      * player's own choice is lit: lighting a computer's options would show a
-     * child a decision that is not theirs to make. */
+     * young player a decision that is not theirs to make. */
     uint16_t highlights() const;
 
     // ---- state ------------------------------------------------------------
@@ -310,7 +310,7 @@ private:
     uint32_t turnCueAtMs_ = 0;
     uint32_t cueEndsMs_ = 0;
     /* Said in the lobby after a table ended -- "A4F2 ended the game" -- until
-     * the next tap, so a child whose game vanished is told why. */
+     * the next tap, so a young player whose game vanished is told why. */
     char lobbyNote_[32] = {0};
     bool lastBlink_ = false;
 

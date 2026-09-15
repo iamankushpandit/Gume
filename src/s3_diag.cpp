@@ -116,7 +116,7 @@ static constexpr int     AUDIO_MCLK_HZ = AUDIO_RATE * 384;   /* 6.144 MHz */
  * 80%. This is a ceiling, not a default -- the same kind of constraint as
  * Board::BRIGHTNESS_MIN, which floors the backlight so a player cannot make
  * the screen unreadable. Here the concern points the other way: this is a
- * handheld held close to a child's ears, and the last 20% of a small driver
+ * handheld held close to a young player's ears, and the last 20% of a small driver
  * is mostly distortion anyway. The probe enforces it too, so nothing
  * demonstrated on the bench is louder than what the product will ship.
  *
@@ -448,7 +448,7 @@ static bool esRead(uint8_t reg, uint8_t& value) {
 /* Playback level for the record-and-playback test ONLY.
  *
  * This deliberately exceeds AUDIO_VOLUME_MAX. The ceiling is a product rule
- * about a handheld held near a child's ears; this is a bench instrument being
+ * about a handheld held near a young player's ears; this is a bench instrument being
  * used to judge whether a recording captured anything, and that judgement
  * needs headroom -- a quiet capture played quietly is indistinguishable from
  * no capture at all. It applies to this one playback, is restored afterwards,

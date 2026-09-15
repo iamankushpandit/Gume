@@ -31,7 +31,7 @@ constexpr AppMetadata BACKGAMMON_METADATA = {
 };
 
 /* The computer waits before it plays, then shows its checkers moving one at
- * a time, so a child can follow what it did rather than find the board
+ * a time, so a young player can follow what it did rather than find the board
  * changed. */
 constexpr uint32_t CPU_THINK_MS = 700;
 constexpr uint32_t CPU_MOVE_MS = 450;
@@ -168,7 +168,7 @@ void BackgammonGame::startTurn(AppContext& host, uint8_t side) {
     } else {
         /* The dice are a function of the seed, so the computer's -- and the
          * other console's -- are known the moment the turn begins. Showing
-         * them now is what lets a child follow the moves that come. */
+         * them now is what lets a young player follow the moves that come. */
         Bg::rollDice(seed_, rolls_, dice_);
         rolled_ = dice_;
         refreshLegal();

@@ -25,7 +25,7 @@ const AppMetadata& shapeColorAppMetadata();
  *
  *   1. the four everyone knows, named by colour and shape
  *   2. told apart by SIDE COUNT: pentagon, hexagon, heptagon, octagon
- *   3. lookalikes: oval, rectangle, diamond, trapezium -- the shapes a child
+ *   3. lookalikes: oval, rectangle, diamond, trapezium -- the shapes a young player
  *      calls "circle" and "square" until somebody makes them look twice
  *   4. CONCAVE against CONVEX, with the word on the row, because the
  *      distinction has a name and this is where it is worth learning
@@ -94,7 +94,7 @@ private:
     uint16_t bestTaps_ = 0;
     /* Rounds CLEARED, which is what the level is made of. It resets with the
      * screen rather than persisting: a level is where you are in this sitting,
-     * not a rank, and a child picking the console up should meet the easy
+     * not a rank, and a young player picking the console up should meet the easy
      * round first. */
     uint8_t rounds_ = 0;
 

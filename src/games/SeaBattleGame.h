@@ -38,7 +38,7 @@ const AppMetadata& seaBattleAppMetadata();
  * service carries two six-bit values per turn, which is 0..63, which is exactly
  * a square on an 8x8 grid. Ten by ten would need seven bits and the payload is
  * already full at 31 bytes. Eight also gives 25-pixel cells on the smallest
- * panel, which is what a child's finger on a resistive screen needs.
+ * panel, which is what a young player's finger on a resistive screen needs.
  *
  * WHAT TRAVELS. A turn says "I fire at square S" and "your last shot was a
  * miss / a hit / a hit that sank something". Nothing about the fleet is ever

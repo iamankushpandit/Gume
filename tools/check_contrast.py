@@ -14,7 +14,7 @@ WHY THIS EXISTS
 
 Nine palettes were chosen by eye, and by eye is how a pairing like grey-on-grey
 survives: each colour looks right on its own and the combination is never
-measured. The console is read by children, through a resistive overlay that
+measured. The console is read by young players, through a resistive overlay that
 diffuses everything behind it, so a pairing that is merely "fine" on a monitor
 is not fine here.
 

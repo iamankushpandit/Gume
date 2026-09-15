@@ -26,13 +26,13 @@ const AppMetadata& cursiveAppMetadata();
  * Cursive is a genuinely different skill from print, not a decoration on it.
  * Most of these letters are ONE unbroken stroke, so the dots run from the
  * entry stroke on the baseline all the way to the exit stroke without lifting
- * -- which is the thing a child has to feel to learn it. The printed 'a' in
+ * -- which is the thing a young player has to feel to learn it. The printed 'a' in
  * Trace is a circle and a line; the cursive 'a' is one movement.
  *
  * The letterforms are generated: tools/gen_cursive_glyphs.py holds them as
  * Bezier chains and writes both the table and a preview sheet. A curve typed
  * out as a polyline is forty numbers nobody can check by eye, and a malformed
- * cursive 'q' reads as a perfectly good 9 right up until a child copies it.
+ * cursive 'q' reads as a perfectly good 9 right up until a young player copies it.
  */
 class CursiveGame : public AppGame {
 public:

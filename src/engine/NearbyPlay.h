@@ -179,7 +179,7 @@ uint32_t peerGeneration();
  *
  * A two-player game can be ended in one of two ways, and only one of them
  * arrives as a message. `nearbyEnd()` is somebody pressing End game; the other
- * is a battery going flat, a child walking into the next room, or a console
+ * is a battery going flat, a young player walking into the next room, or a console
  * being sat on. None of those can send anything, so the ONLY evidence is that
  * the beacon stopped -- which means every game has to measure silence itself,
  * and until this existed none of them did: they sat on "their turn" forever,

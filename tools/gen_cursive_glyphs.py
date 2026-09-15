@@ -95,7 +95,7 @@ MIN_STEP = 4
 #     6px   10.4KB   every other dot; the tightest loops, about a 10px radius,
 #                    go visibly faceted -- chords stray ~1.3px off the curve
 #
-# 5 is the step that keeps the shape a child is copying and still gives back
+# 5 is the step that keeps the shape a young player is copying and still gives back
 # most of the growth.
 WORD_MIN_STEP = 5
 
@@ -110,7 +110,7 @@ WORD_MIN_STEP = 5
 # word sets the size of all of them, and at 1900 units that left an x-height of
 # about 25 pixels -- well under the 43 of the same letters on the abc tab.
 #
-# So the list is now chosen for the child rather than taken from the sheets:
+# So the list is now chosen for the young player rather than taken from the sheets:
 # two- and three-letter words a five-year-old reads or is about to, covering
 # the alphabet as far as the font allows. See WORD_WIDTH_CAP for the one letter
 # it does not.
@@ -131,7 +131,7 @@ KID_WORDS = [
 #     cap 1400   (this list, widest 'kit')         35 px
 #     cap 1104   (the abc tab's own scale)         44 px
 #
-# 1400 is where the kid words live. Going tighter buys a few pixels and loses
+# 1400 is where the words for young players live. Going tighter buys a few pixels and loses
 # every word with a b, h, k or r in the middle, which is most of the ones a
 # five-year-old knows. It costs one letter outright: no word with a cursive q
 # is narrower than 'quiz' at 1765, because q always brings its u, so q is
@@ -208,7 +208,7 @@ def order_strokes(strokes):
 
     THE FONT STORES THEM THE OTHER WAY ROUND. Measured: 'i' is a 3-dot stroke
     at y=414 followed by a 26-dot body; 't' is a 5-dot crossbar then the body;
-    same for 'j' and capital 'F'. Drawn in that order a child is asked to place
+    same for 'j' and capital 'F'. Drawn in that order a young player is asked to place
     the dot in mid-air and then hang a stem under it, which is not how anybody
     writes and not what the numbered badges should teach.
 
@@ -232,7 +232,7 @@ def word_strokes(gs, cmap, word):
     """A word as ONE unbroken stroke, plus whatever marks sit above it.
 
     THIS IS THE WHOLE POINT OF CURSIVE and the first version got it wrong. It
-    kept one stroke per letter, so the tracer numbered them and asked the child
+    kept one stroke per letter, so the tracer numbered them and asked the young player
     to lift between every letter -- which is not cursive, it is print in a
     fancy hand, and it was rightly called out as such.
 
@@ -542,7 +542,7 @@ def main():
                      min(x for st in ss for x, _ in st) for _, ss in words)
         print('         widest word %d of %d box units' % (widest, COORD_W))
         # x-height in device pixels, which is the number that decides whether
-        # a child can trace it. LetterTracer maps this box 1:1 when its canvas
+        # a young player can trace it. LetterTracer maps this box 1:1 when its canvas
         # has the same shape.
         tall = [max(y for st in ss for _, y in st) -
                 min(y for st in ss for _, y in st) for _, ss in words]

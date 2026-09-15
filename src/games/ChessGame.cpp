@@ -143,7 +143,7 @@ void ChessGame::recordCapture(int8_t piece) {
 /* Stop a game nobody is going to finish.
  *
  * This is a result, not an escape hatch: it is stored like one, the status
- * line says so, and the button afterwards offers a new game. Two children
+ * line says so, and the button afterwards offers a new game. Two young players
  * abandon games constantly -- one of them loses interest, or the bell goes --
  * and before this the only exit was to leave the screen, which now brings the
  * same stuck position straight back.

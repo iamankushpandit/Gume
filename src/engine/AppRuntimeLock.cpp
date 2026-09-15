@@ -179,7 +179,7 @@ Rect BrainoApp::activeSpeakerRect() {
  * writable only by the admin. But the reason sound is a device setting rather
  * than a per-profile one is already written down -- "the speaker belongs to
  * whoever is in the room" -- and the room is exactly who needs this. A parent
- * on a phone call, a child on a bus, a sibling asleep: none of them has the
+ * on a phone call, a young player on a bus, a sibling asleep: none of them has the
  * PIN to hand, and the alternative to a tap is taking the console away.
  *
  * It is also the safest thing on the device to give away. It changes nothing
@@ -204,7 +204,7 @@ void BrainoApp::toggleMute() {
 }
 
 /* The deliberate way in. Everything else here is reached by a timeout; this is
- * reached by a child, a parent or a bag being packed. */
+ * reached by a young player, a parent or a bag being packed. */
 void BrainoApp::lockAndSleepNow() {
     board_.beepOk();
     lockOnWake_ = true;

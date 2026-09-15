@@ -184,7 +184,7 @@ bool wifiUp();
  *
  * `maxPct` exists because a setting can have a ceiling as well as a floor, and
  * the two must be expressed the same way. Volume is capped at
- * `Board::AUDIO_VOLUME_MAX` for a handheld held near a child's ears; the
+ * `Board::AUDIO_VOLUME_MAX` for a handheld held near a young player's ears; the
  * honest way to show that is a slider whose travel ends at 80 and a readout
  * that says 80, not a full-width slider relabelled so that 80 reads as 100.
  * A control that lies about its range is worse than one with a shorter range. */
@@ -215,7 +215,7 @@ int16_t drawWrappedText(Ui::Renderer& tft, const String& text, const Rect& r, ui
  * a concatenation per word and a reallocation per line. That is fine where it
  * is used (a Backgammon message changes when the game says something), and it
  * is the wrong shape for a quiz, which rewrites its question every few
- * seconds for as long as a child keeps playing. The memory rule in the root
+ * seconds for as long as a young player keeps playing. The memory rule in the root
  * CLAUDE.md is about exactly that: not a leak, but many small allocations of
  * differing sizes made and freed over and over until no large block is left.
  * So this one writes into the caller's fixed buffers and touches no heap.
@@ -277,7 +277,7 @@ bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
  * stay last.
  *
  * Dark and Light are the originals. The rest were chosen for a 2.8-inch panel
- * behind a resistive overlay, read by a child, not ported from editor palettes:
+ * behind a resistive overlay, read by a young player, not ported from editor palettes:
  * the overlay diffuses and slightly greys everything, and RGB565 gives 5-6-5
  * bits, so the low-contrast pairings those themes are admired for turn to mud
  * here. See PALETTES in Ui.cpp. */

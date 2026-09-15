@@ -15,7 +15,7 @@
 namespace {
 
 /* Higher is better, and it never resets. The number is how many letters and
- * words have been finished, so it grows for as long as a child keeps
+ * words have been finished, so it grows for as long as a young player keeps
  * practising -- which is the whole of what this game is for. There is no win
  * condition to score against and inventing one would turn handwriting practice
  * into a test. */
@@ -44,7 +44,7 @@ constexpr AppMetadata CURSIVE_METADATA = {
  * Three modes, and the third is the point of cursive.
  *
  * Letters teach the shapes; words are where joining up actually happens, and a
- * child who can draw a lone 'c' still has to learn that 'cat' is one movement
+ * young player who can draw a lone 'c' still has to learn that 'cat' is one movement
  * across the page. Short words only, two and three letters: see WORD_WIDTH_CAP
  * in tools/gen_cursive_glyphs.py for why that is what makes them big enough.
  *
@@ -102,7 +102,7 @@ void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
     /* One more letter or word finished.
      *
      * Written through on every completion rather than batched on the way out:
-     * a child who traces four letters and then has the console taken off them
+     * a young player who traces four letters and then has the console taken off them
      * should keep the four, and one NVS write per completed letter is nothing
      * -- a completion takes tens of seconds of finger-dragging, so this is
      * about as far from a hot path as this firmware has.

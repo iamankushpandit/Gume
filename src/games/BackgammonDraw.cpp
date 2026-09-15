@@ -324,7 +324,7 @@ void BackgammonGame::drawDice(Ui::Renderer& tft) const {
 void BackgammonGame::drawNews(Ui::Renderer& tft) const {
     tft.fillRect(NEWS_RECT.x, NEWS_RECT.y, NEWS_RECT.w, NEWS_RECT.h, Ui::bg());
     /* The pip count: how far each side still has to go. Watching it fall is
-     * most of what a child learns about racing. */
+     * most of what a young player learns about racing. */
     char pips[20];
     snprintf(pips, sizeof(pips), "W%u B%u", static_cast<unsigned>(Bg::pipCount(pos_, Bg::WHITE)),
              static_cast<unsigned>(Bg::pipCount(pos_, Bg::BLACK)));

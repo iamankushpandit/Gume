@@ -202,14 +202,14 @@ static const TraceGame::Stroke z_strokes[] = {{z_s0,4}};
  *
  * It used to be O_s0 exactly -- the same points, the same width -- with a
  * diagonal stroke added through it. That is the programmer's zero, and it is
- * the wrong thing to put in front of a child learning to form letters: nobody
+ * the wrong thing to put in front of a young player learning to form letters: nobody
  * is taught to draw a line through a nought, and a tracing game teaches the
  * shape it draws.
  *
  * Handwriting separates them by WIDTH instead. A letter O is round and fills
  * its space; a digit zero is a narrow ellipse. So this is O's outline pulled
  * in to x 50..150 against O's 20..180, over the same height, which is the
- * distinction a child is actually taught to make. */
+ * distinction a young player is actually taught to make. */
 static const int16_t D0_s0[] = {100,10, 75,15, 50,60, 50,150, 75,195, 125,195, 150,150, 150,60, 125,15, 100,10};
 static const TraceGame::Stroke D0_strokes[] = {{D0_s0,10}};
 

@@ -28,9 +28,9 @@ const AppMetadata& chessAppMetadata();
  * than the objection -- Go had already shipped exactly it -- so the engine is
  * in ChessRules.h / ChessAi.cpp and the search is stepped a few milliseconds
  * per frame. What was true in that paragraph and is still true is the reason
- * the engine is deliberately weak: two children over one console is the thing
+ * the engine is deliberately weak: two young players over one console is the thing
  * this device is actually good at, and a computer that always wins is a worse
- * product than one a child beats half the time.
+ * product than one a young player beats half the time.
  *
  * Tap a piece and every square it may legally move to is marked. That is the
  * requested behaviour and it is not a convenience: at 26px a square on a
@@ -53,7 +53,7 @@ const AppMetadata& chessAppMetadata();
  *
  * The game is remembered. It is written to NVS after every move and again on
  * the way out, so pressing Lock, going Home or running the battery flat brings
- * the same position back -- which matters because the children this is for put
+ * the same position back -- which matters because the young players this is for put
  * the device down constantly, and a game that evaporated is a game they stop
  * starting. That in turn is why End game exists: once a board survives leaving
  * the screen, walking away is no longer a way to abandon one.
@@ -101,7 +101,7 @@ private:
      * off, so two bare kings is the position they reach constantly. Leaving it
      * undetected meant the console sat there saying "White to move" for a game
      * that was already over by the rules, and the only way out was End game --
-     * which then reported "no result" for what chess calls a draw. A child
+     * which then reported "no result" for what chess calls a draw. A young player
      * learning the game would take that as the truth, which is the worst kind
      * of bug this console can have.
      *

@@ -356,7 +356,7 @@ void AboutApp::renderBuild(Ui::Renderer& tft) {
  * build, the stored result of the last check for the available one, and
  * BRAINO_UPDATE_PAGE_URL -- compiled in -- for the address. The manifest has no
  * field for that address and must never be given one; a response that could
- * choose where to send a child is a different and much worse thing than a
+ * choose where to send a young player is a different and much worse thing than a
  * response that can only be wrong about a number. See include/UpdateChannel.h.
  *
  * The privacy sentence at the bottom is exact, not reassuring. The device does

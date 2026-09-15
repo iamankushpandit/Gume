@@ -171,7 +171,7 @@ enum class Level : uint8_t {
     /* A random legal move, except that it always brings a token out when it
      * can -- a computer that sits in its yard on a 6 looks broken rather than
      * easy. It captures when the move it happened to pick captures, never on
-     * purpose. A young child should win most games. */
+     * purpose. A young player should win most games. */
     Easy = 0,
     /* One step of lookahead and a fixed order of priorities: capture, get
      * home, come out, reach safety, escape a threat, advance the leader. No
@@ -265,7 +265,7 @@ uint32_t tableSeed(uint8_t session, const char (*ids)[5], uint8_t n);
  *
  * Shuffled from the seed, so nobody chooses where they sit and every console
  * deals the same table. The host picks the session and so could, in
- * principle, try sessions until it liked the deal; a child with a Ludo board
+ * principle, try sessions until it liked the deal; a young player with a Ludo board
  * is not the threat model, and the alternative is a second round trip. */
 uint8_t deal(uint32_t seed, uint8_t humans, uint8_t computers, uint8_t out[SEATS]);
 /** Which playing seat moves first, from the seed. */

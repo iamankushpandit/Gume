@@ -29,7 +29,7 @@ constexpr AppMetadata LUDO_METADATA = {
 };
 
 /* One square of a hop. Slow enough to count along with, which is how a
- * child checks that a 5 went five squares. */
+ * young player checks that a 5 went five squares. */
 constexpr uint32_t HOP_MS = 110;
 /* A computer waits before it rolls, and again before it moves, so that
  * whoever is watching sees whose turn it became and what was rolled. Without
