@@ -56,7 +56,7 @@ void LetterTracer::drawArrow(Ui::Renderer& tft, const Arrow& a, uint16_t col) {
         const int16_t hx = static_cast<int16_t>(lroundf(a.tipX - ux * ARROW_HEAD));
         const int16_t hy = static_cast<int16_t>(lroundf(a.tipY - uy * ARROW_HEAD));
         /* A two-pixel shaft: a one-pixel line vanishes on a resistive panel
-         * viewed at arm's length, which is how a five-year-old holds it. */
+         * viewed at arm's length, which is how a young player holds it. */
         tft.drawLine(a.tailX, a.tailY, hx, hy, col);
         tft.drawLine(a.tailX + 1, a.tailY, hx + 1, hy, col);
         tft.drawLine(a.tailX, a.tailY + 1, hx, hy + 1, col);

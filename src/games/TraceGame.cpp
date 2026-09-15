@@ -29,7 +29,7 @@ constexpr AppMetadata TRACE_METADATA = {
 
 /* PRINTED WORDS, AND WHY THESE.
  *
- * Short words a five-year-old reads or is about to: the CVC words a phonics
+ * Short words a young player reads or is about to: the CVC words a phonics
  * scheme starts with (cat, dog, sun), a few sight words (the, and, you, see),
  * and every letter of the alphabet but one, so the tab practises nearly all of
  * them. Two and three letters only.

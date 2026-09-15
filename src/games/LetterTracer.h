@@ -83,7 +83,7 @@ public:
          * abruptly and the dots alone do not say which way the finger goes
          * next. Off for cursive and for words: a joined word is one long
          * stroke full of loops, and arrows at every loop were exactly what
-         * five-year-olds in testing found confusing. */
+         * young players in testing found confusing. */
         bool turnArrows;
         /* Build each entry from its name, letter by letter, instead of
          * reading it from the glyph table.

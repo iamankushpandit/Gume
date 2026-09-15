@@ -59,7 +59,7 @@ constexpr AppMetadata CURSIVE_METADATA = {
  *
  * NO TURN ARROWS, ANYWHERE IN CURSIVE. Each stroke gets one numbered arrow
  * beside its start and nothing more. The arrows that used to appear at every
- * bend were the first thing players in testing -- five-year-olds, most of
+ * bend were the first thing players in testing -- young players, most of
  * whom had never seen joined writing -- said confused them: a cursive letter
  * is loops all the way through, and an arrow at each one is noise. The dots
  * already say where to go next. */

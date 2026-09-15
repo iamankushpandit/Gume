@@ -2,6 +2,14 @@
 
 ## 5.14.0-SNAPSHOT — Unreleased
 
+**No ages.** The documents put numbers on the people using the console: a
+range beside every game in the README, and ages throughout the design notes.
+They are gone. A game's row now says what it is and what it builds. Where a
+note compared two players, it compares a younger player with an older one;
+elsewhere it says young player. The checklist in `CLAUDE.md` and `AGENTS.md`
+no longer asks for an age with a new game. Prose only: nothing on the panel
+ever showed one.
+
 **Players are players.** The comments and documents described the people
 holding the console by age rather than by what they are doing on it. They
 now say player, or young player where the age is the point of the sentence --
@@ -181,7 +189,7 @@ the heat in, that the ozone doing the work is in the stratosphere, that the
 Space Station orbits inside the thermosphere. The atmosphere is in there with
 the planets deliberately -- "where does space start" and "how far up does the
 air go" are one question, and a quiz that answers one and not the other leaves
-the join out. Three levels, so a five-year-old is asked which planet is red and
+the join out. Three levels, so a younger player is asked which planet is red and
 never about the Karman line.
 
 **Roman** runs both ways: read a numeral, or write a number as one. The symbol
@@ -196,7 +204,7 @@ XXXXIV. Five levels, each adding the next letter.
 arrives as a sentence -- "Nia has 21 shells and gives 8 away. How many are
 left?" -- over the same arithmetic, the same four buttons and the same scoring.
 Level 1 stays pure sums on purpose: a young player still working out that 3 + 4 is 7
-is being asked to read as well, and at that age the reading is the harder half.
+is being asked to read as well, and at that stage the reading is the harder half.
 
 **Shapes has four rounds instead of one**, each taking an easy cue away. The
 four everyone knows, then four told apart by side count -- pentagon, hexagon,
@@ -259,7 +267,7 @@ mistaken for a finished one. Easy is one ply plus a look at what can be taken
 straight back, so it will not hang its queen on move four, and it chooses at
 random among moves that score alike so it does not open identically every game.
 
-Both are deliberately weak. A console that beats a seven-year-old every time is
+Both are deliberately weak. A console that beats a young player every time is
 a worse product than one they beat half the time.
 
 **The rules are now pure, and provably.** `ChessRules.cpp` carried a comment
@@ -690,7 +698,7 @@ switch it on and off between each one.
 
 **Trace and Cursive mark each stroke the way a handwriting workbook does.**
 The direction arrow used to sit on the path itself, one at a time, and jump to
-the next turn as the finger reached it. User testing with five-year-olds said
+the next turn as the finger reached it. User testing with young players said
 plainly that it confused them: it covered the dots it was pointing along, and
 it was one more thing moving while they concentrated. Now every stroke has a
 short numbered arrow *beside* it, outside the letter, showing where it starts
@@ -715,7 +723,7 @@ it sits in the same place in both games.
 words too small to follow, and they were: every word shares one scale and the
 widest of the old list -- mostly four- and five-letter sight words -- left an
 x-height of about 25 pixels. The new list is forty-nine two- and
-three-letter words a five-year-old knows, and they are drawn at about 35.
+three-letter words a young player knows, and they are drawn at about 35.
 Nothing with a q fits, so q is practised on the abc tab. The generator also
 stopped measuring its group width from the leftmost point of any word to the
 rightmost of any other, which had been shrinking every word by a further 7%.

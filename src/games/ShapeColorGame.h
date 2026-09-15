@@ -19,8 +19,8 @@ const AppMetadata& shapeColorAppMetadata();
 /* Match four shapes to their outlines, getting harder each round.
  *
  * The ladder is the point. A round of circle / square / triangle / star is
- * solvable by colour alone, which is right for a three-year-old and is
- * nothing at all for a six-year-old -- so the rounds after it take the easy
+ * solvable by colour alone, which is right for a younger player and is
+ * nothing at all for an older player -- so the rounds after it take the easy
  * cues away one at a time:
  *
  *   1. the four everyone knows, named by colour and shape

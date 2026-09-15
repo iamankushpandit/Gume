@@ -253,7 +253,7 @@ one.** `ChessAi` splits its alpha-beta at the root: `stepSearch()` scores one
 root move per call and the screen stops when the frame's microsecond budget is
 spent, so a partial result can never be mistaken for a finished one. Easy is
 one ply plus a recapture check. Both are deliberately weak -- a console that
-beats a seven-year-old every time is a worse product than one they beat half
+beats a young player every time is a worse product than one they beat half
 the time -- and both are deterministic in (position, seed), which is what makes
 a bad move reportable rather than a story about one. Sea Battle
 is `SeaBattleGame.cpp` (the fleet and a shot as well as the screen -- its
@@ -453,7 +453,7 @@ It is four files: `LetterTracer.cpp` (logic), `LetterTracerDraw.cpp`
 
 **The players are as young as five, and user testing has overruled the
 engine twice.** Arrows on the path confused them and cursive words were too
-small to follow. Before making the guide cleverer, ask whether a five-year-old
+small to follow. Before making the guide cleverer, ask whether a young player
 who has never held a pencil to joined writing would read it.
 
 - **The controls are in side columns and must stay there.** A young player tracing the
@@ -494,7 +494,7 @@ who has never held a pencil to joined writing would read it.
   once per glyph by measuring candidates against the strokes: outside the
   letter first, then sliding along the stroke, standing further off, and only
   then inside. They replaced a single arrow on the path that jumped from turn
-  to turn, which five-year-olds in testing could not tell apart from the dots.
+  to turn, which young players in testing could not tell apart from the dots.
   Cursive and all word sets have `turnArrows` off: loops everywhere make an
   arrow at each one noise.
 - **A stroke finishing is a partial repaint.** The start ring is painted out

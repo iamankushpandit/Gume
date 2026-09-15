@@ -233,7 +233,7 @@ void MathGame::newQuestion() {
 
     /* Level 1 is never a story. A player still learning that 3 + 4 is 7 is
      * being asked to read a sentence as well, and the reading is the harder
-     * half at that age -- so the words arrive once the arithmetic is steady,
+     * half at that stage -- so the words arrive once the arithmetic is steady,
      * and then about a third of the time, so a run of them never becomes a
      * reading test. */
     wordProblem_ = currentLevel >= 2 && random(3) == 0;

@@ -380,8 +380,8 @@ contributors both shipping `"quiz"` would share saved data. Therefore:
 
 ### 7.3 This is a players' device
 
-An app ecosystem for four-to-ten-year-olds carries obligations a hobbyist plugin
-system does not: content review before an app enters the index, an age field the
+An app ecosystem for young players carries obligations a hobbyist plugin
+system does not: content review before an app enters the index, a suitability field the
 launcher actually honours, a parental gate for enabling contributed apps, and a
 stated, enforceable content policy. Tier B (data-only) is far easier to review
 than Tier A — a second reason to prioritise it.

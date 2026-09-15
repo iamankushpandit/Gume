@@ -37,7 +37,7 @@
  * person playing, and a notice only the admin profile ever sees would be
  * invisible on a console that spends its life logged in as a young player -- which is
  * every console. So the wording carries the instruction instead: it names the
- * version and says who to ask, which is something a seven-year-old can act on
+ * version and says who to ask, which is something a young player can act on
  * and an administrator can act on directly.
  *
  * The daily gate and the "have we already said this version" test both live in

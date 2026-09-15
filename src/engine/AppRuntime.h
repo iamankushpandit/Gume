@@ -143,7 +143,7 @@ public:
     static constexpr uint32_t SLEEP_POLL_MS = 100;
 
     /* Long enough that a press through a bag cannot complete it, short enough
-     * that a four-year-old holding a button does not give up. */
+     * that a young player holding a button does not give up. */
     static constexpr uint32_t LOCK_HOLD_MS = 900;
     /* Resistive contact drops out mid-hold. Forgive gaps up to this long. */
     static constexpr uint32_t LOCK_CONTACT_GRACE_MS = 150;
