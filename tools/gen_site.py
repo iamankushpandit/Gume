@@ -281,7 +281,7 @@ SCREEN_CAPTIONS = {
 #
 # There were ninety-one: a wall of them at the top, three on every game card,
 # three on every system screen. They were honest and they were exhausting --
-# a reader deciding whether to buy a twelve-pound board does not need to see
+# a reader deciding whether to buy a twelve-dollar board does not need to see
 # the Settings sound tab. These six are the ones that answer a question
 # somebody actually arrives with: what does it look like, what does it teach
 # that nothing else does, is it colourful, is it serious, do two of them
