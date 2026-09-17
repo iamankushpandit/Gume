@@ -12,6 +12,16 @@
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
+<p align="center">
+  <img src="site/assets/lineup.jpg" width="100%" alt="Six Braino consoles in printed cases of different colours and sizes, running Elements, Chess, Cursive, the home screen, Ludo and Sea Battle">
+</p>
+<p align="center">
+  <img src="site/assets/in-hand-flags.jpg" width="360" alt="A Braino console in a pink printed case on a table, showing the home screen">
+</p>
+
+**Discussion is open on Reddit:** [r/gume_braino](https://www.reddit.com/r/gume_braino/) —
+questions, ideas and feedback, in public, where the next person finds them.
+
 A 40-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
