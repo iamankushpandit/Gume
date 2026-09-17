@@ -19,3 +19,8 @@ contact_links:
     about: >-
       Anything that is not yet a bug or a port. Asking before building a
       board port is encouraged rather than merely tolerated.
+  - name: Community discussion on Reddit
+    url: https://www.reddit.com/r/gume_braino/
+    about: >-
+      r/gume_braino -- questions, ideas and feedback from people building
+      and using Braino, out in the open.
