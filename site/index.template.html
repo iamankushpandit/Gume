@@ -291,6 +291,10 @@
   .faq details p{margin-top:10px;color:var(--muted);font-size:16px}
   .fineprint{margin-top:14px;font-size:14px;color:var(--muted);max-width:54rem}
   .privacy .intro{margin-top:22px;max-width:46rem;font-size:clamp(18px,1.6vw,22px);color:var(--muted)}
+  /* The display headings are two lines set tight, at .92. On a phone that reads
+     as one block; at desktop size the descenders of the first line (the y in
+     Privacy, the g in Get started) all but touched the second. */
+  @media (min-width:761px){.chapter h2,.flash h2,.games h2,.videos h2,.poster h2,.privacy h2,.builders h2,.contact h2,.start h2{line-height:1.02}}
 </style>
 </head>
 <body>
