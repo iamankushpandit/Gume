@@ -57,11 +57,17 @@
   .nav ul{display:flex;gap:6px;list-style:none;margin:0;padding:0}
   .nav li a{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;white-space:nowrap}
   .nav li a:hover,.nav li a:focus-visible{background:rgba(255,255,255,.1)}
-  .nav li a.star{background:var(--yellow);color:var(--ink)}
-  /* Narrow screens keep the last two links only, so the markup order puts
-     Flash it and Star there: everything else on this page can be read by
-     scrolling, and flashing is the one thing that cannot. */
-  @media (max-width:640px){.nav li:not(:nth-last-child(-n+2)){display:none}}
+  .nav a.star{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px;white-space:nowrap;background:var(--yellow);color:var(--ink)}
+  .nav li a[aria-selected="true"]{background:rgba(255,255,255,.14);color:#fff}
+  /* Narrow screens: the mark and Star share the first row, and the sections
+     become a row of their own that scrolls sideways -- every tab stays one
+     tap away instead of all but two being hidden. */
+  @media (max-width:760px){
+    .nav{flex-wrap:wrap;row-gap:8px}
+    .nav ul{order:3;flex:1 0 100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .nav ul::-webkit-scrollbar{display:none}
+    .nav a.star{padding:7px 11px;font-size:13px}
+  }
   /* 375px is the measurement that matters, and the bar did not fit it: both
      remaining links wrapped onto two lines each. Every number below is spent
      buying that row back -- a smaller mark, a tighter gutter, and links that
@@ -239,22 +245,75 @@
   footer a{color:#fff}
 
   @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}body{transition:none}.chapter figure img{transform:none}}
+
+  /* get started -- the path for someone who has never heard of a CYD */
+  section[id]{scroll-margin-top:96px}
+  .start{padding:10vh var(--gutter)}
+  .start h2{font-size:clamp(40px,6vw,92px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .start .lede2{margin-top:24px;max-width:46rem;font-size:clamp(18px,1.6vw,22px);color:var(--muted)}
+  .start .lede2 b{color:var(--fg)}
+  .start a{color:var(--yellow)}
+  .start a.btn-solid{color:var(--ink)}
+  .start ol.how{counter-reset:s;list-style:none;margin:40px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .start ol.how li{counter-increment:s;padding:24px;border-radius:22px;background:var(--ink-2);box-shadow:inset 0 0 0 1.5px var(--line);font-size:16px;color:var(--muted)}
+  .start ol.how li::before{content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--yellow);color:var(--ink);font-weight:900;font-size:20px;margin-bottom:14px}
+  .start ol.how b{display:block;font-size:20px;margin-bottom:8px;color:var(--fg)}
+  .start h3.sub{margin-top:64px;font-size:clamp(26px,3vw,40px);font-weight:900;letter-spacing:-.03em}
+  .disclose{margin-top:18px;padding:16px 20px;border-radius:16px;box-shadow:inset 0 0 0 1.5px var(--yellow);max-width:54rem;font-size:16px}
+  .disclose b{color:var(--yellow)}
+  .pickcard{margin-top:20px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start;padding:28px;border-radius:24px;background:var(--ink-2);box-shadow:inset 0 0 0 2px var(--yellow);max-width:54rem}
+  .pickcard .size{font-size:clamp(64px,9vw,120px);font-weight:900;letter-spacing:-.05em;color:var(--yellow);line-height:.85}
+  .pickcard .flag{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
+  .pickcard h3{margin-top:6px;font-size:24px;font-weight:900}
+  .pickcard p{margin-top:8px;font-size:16px;color:var(--muted)}
+  .pickcard .pick b{color:var(--fg)}
+  .pickcard .btn{margin-top:16px}
+  .pickcard .pairs{margin-top:22px;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--fg)}
+  .pickcard .kit{margin:8px 0 0;padding:0;list-style:none}
+  .pickcard .kit li{padding:8px 0;border-top:1px solid var(--line);font-size:15px;color:var(--muted)}
+  .pickcard .kit b{color:var(--fg);margin-right:6px}
+  @media (max-width:640px){.pickcard{grid-template-columns:1fr;gap:10px}}
+  .table-wrap{margin-top:20px;overflow-x:auto;border-radius:18px;box-shadow:inset 0 0 0 1.5px var(--line)}
+  .compare{width:100%;border-collapse:collapse;font-size:15px;min-width:820px}
+  .compare th,.compare td{padding:14px 16px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  .compare th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .compare td:first-child{font-size:24px;font-weight:900;color:var(--yellow);white-space:nowrap}
+  .compare td.model{font-weight:700}
+  .compare tr.rec td{background:rgba(255,214,0,.07)}
+  .compare tbody tr:last-child td{border-bottom:0}
+  .extras{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+  .extras > div{padding:22px;border-radius:20px;box-shadow:inset 0 0 0 1.5px var(--line)}
+  .extras h4{font-size:18px;font-weight:800}
+  .extras p{margin-top:8px;font-size:15px;color:var(--muted)}
+  .faq{margin-top:18px;max-width:54rem}
+  .faq details{border-top:1px solid var(--line);padding:16px 0}
+  .faq summary{cursor:pointer;font-weight:700;font-size:18px}
+  .faq details p{margin-top:10px;color:var(--muted);font-size:16px}
+  .fineprint{margin-top:14px;font-size:14px;color:var(--muted);max-width:54rem}
+  .privacy .intro{margin-top:22px;max-width:46rem;font-size:clamp(18px,1.6vw,22px);color:var(--muted)}
+  /* The display headings are two lines set tight, at .92. On a phone that reads
+     as one block; at desktop size the descenders of the first line (the y in
+     Privacy, the g in Get started) all but touched the second. */
+  @media (min-width:761px){.chapter h2,.flash h2,.games h2,.videos h2,.poster h2,.privacy h2,.builders h2,.contact h2,.start h2{line-height:1.02}}
 </style>
 </head>
 <body>
 
 <nav class="nav" aria-label="Page">
   <a class="mark" href="#top"><img src="assets/braino-mark.svg" alt="" aria-hidden="true">Braino!</a>
-  <ul>
-    <li><a href="#games">Games</a></li>
-    <li><a href="#videos">Videos</a></li>
-    <li><a href="#privacy">Privacy</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#flash">Flash it</a></li>
-    <li><a class="star" href="{{REPO}}">Star on GitHub</a></li>
+  <ul aria-label="Sections">
+    <li><a id="tab-home" href="#top" aria-controls="panel-home">Home</a></li>
+    <li><a id="tab-start" href="#start" aria-controls="panel-start">Get started</a></li>
+    <li><a id="tab-install" href="#flash" aria-controls="panel-install">Install</a></li>
+    <li><a id="tab-games" href="#games" aria-controls="panel-games">Games</a></li>
+    <li><a id="tab-privacy" href="#privacy" aria-controls="panel-privacy">Privacy</a></li>
+    <li><a id="tab-community" href="#community" aria-controls="panel-community">Community</a></li>
   </ul>
+  <a class="star" href="{{REPO}}">Star on GitHub</a>
 </nav>
 
+<main id="tabs-root">
+<div class="tabpanel" id="panel-home" aria-labelledby="tab-home">
 <header class="hero" id="top">
   <div>
     <p class="kicker"><b>Firmware, not a gadget.</b> Nothing here is for sale.</p>
@@ -272,7 +331,7 @@
       GPL-3.0: read it, change it, build your own from it.
     </p>
     <div class="cta">
-      <a class="btn btn-solid" href="#flash">Flash it from your browser</a>
+      <a class="btn btn-solid" href="#start">Get started</a>
       <a class="btn btn-ghost" href="#videos">Watch it running</a>
     </div>
   </div>
@@ -316,7 +375,7 @@
 <section class="chapter" data-bg="#d8336e">
   <div>
     <h2>It is firmware,<br>not a gadget.</h2>
-    <p class="body">Nothing to buy from us. Search &ldquo;ESP32 CYD&rdquo; on AliExpress or Amazon, plug the board into USB, and flash it from this page in about a minute.</p>
+    <p class="body">Nothing to buy from us &mdash; you buy the board from whoever you like. <a href="#start">Get started</a> compares the boards Braino runs on; plug one into a computer and install it from this page in about a minute.</p>
     <ul class="list">
       <li>2.8-inch boards, resistive or capacitive touch</li>
       <li>3.2-inch boards, resistive touch</li>
@@ -370,6 +429,57 @@
   <figure><img src="assets/open-case.jpg" alt="An open Braino case showing the battery, speaker and board" loading="lazy"></figure>
 </section>
 
+</div>
+
+<div class="tabpanel" id="panel-start" aria-labelledby="tab-start">
+<section class="start" id="start">
+  <h2>Get started.<br>Three steps, no soldering.</h2>
+  <p class="lede2">
+    Braino runs on a <b>CYD</b> &mdash; a &ldquo;Cheap Yellow Display&rdquo;: a touchscreen
+    with a small computer, an <b>ESP32</b>, already built onto the back of it. You buy the
+    board, then install Braino onto it from this page. There is nothing to solder, wire
+    or assemble.
+  </p>
+  <ol class="how">
+    <li><b>Get a board.</b>Pick one from the table below. Not sure? Get the 4-inch Hosyond: the biggest screen of the five.</li>
+    <li><b>Plug it into a computer.</b>Use a USB-C cable that carries data &mdash; a charge-only cable looks identical and does nothing. Windows, Mac, Linux or a Chromebook all work.</li>
+    <li><b>Press Install.</b>Open the <a href="#flash">Install</a> tab in Chrome or Edge, pick the same board, and wait about a minute. Phones and tablets cannot install it.</li>
+  </ol>
+
+  <h3 class="sub">Which board to buy</h3>
+  <p class="disclose"><b>Not sponsored.</b> These are the exact listings the maintainer bought and runs Braino on. They are plain links &mdash; no affiliate code, no payment for placement, and nobody here earns anything if you buy. The same board from any other seller works just as well.</p>
+{{BUY_PICK}}
+  <div class="table-wrap">
+    <table class="compare">
+      <thead><tr><th>Screen</th><th>Board</th><th>Touch</th><th>USB</th><th>Good to know</th><th>In the installer</th><th>Listing</th></tr></thead>
+      <tbody>
+{{BUY_TABLE}}
+      </tbody>
+    </table>
+  </div>
+  <p class="fineprint"><b>Resistive or capacitive?</b> A resistive screen responds to a press &mdash; a fingertip, or the stylus that usually comes in the box. A capacitive screen responds to a light touch, like a phone. The two 2.8-inch resistive boards look alike: the classic CYD has a second, micro-USB socket, and it is the one with no battery socket.</p>
+  <p class="fineprint">Sellers sometimes change what they ship under a listing. If your board looks different from the pictures, check the model printed on its back against the list in the <a href="#flash">Install</a> tab: the wrong firmware gives a blank or wrongly coloured screen rather than an error.</p>
+
+  <h3 class="sub">Nice to have, never required</h3>
+  <div class="extras">
+    <div><h4>A small speaker</h4><p>For sound. Most of these boards have a two-pin 1.25&nbsp;mm speaker socket; without a speaker Braino simply plays silently. Either of these works: <a href="https://www.amazon.com/dp/B0D878Q3JH" rel="nofollow noopener">1&nbsp;W, 8&nbsp;&Omega;</a> or <a href="https://www.amazon.com/dp/B0FM3QN15Q" rel="nofollow noopener">3&nbsp;W, 4&nbsp;&Omega;</a> &mdash; also not sponsored.</p></div>
+    <div><h4>A case</h4><p>Prints without supports and needs no screws. The files for the 2.8, 3.2 and 4-inch boards are in the repository, so anyone with a 3D printer can make one. <a href="{{REPO}}/tree/main/cases">The case files</a></p></div>
+    <div><h4>A battery</h4><p>Boards with a battery socket take a single-cell 3.7&nbsp;V lithium battery with a two-pin 1.25&nbsp;mm plug, and charge it over USB. The maintainer uses <a href="https://www.amazon.com/dp/B08T6GT7DV" rel="nofollow noopener">this 3000&nbsp;mAh one</a> &mdash; not sponsored &mdash; the size the printed case has room for. <b>Before plugging any battery in, check that its red wire lines up with the + mark beside the socket:</b> plugs of the same size are sold wired both ways round, and a reversed battery can damage the board. Without one, the board runs from any USB charger or power bank.</p></div>
+  </div>
+
+  <h3 class="sub">Questions people ask first</h3>
+  <div class="faq">
+    <details><summary>Do I need to solder or wire anything?</summary><p>No. The board arrives with the screen and the computer already joined. Plugging in a USB cable is the only connection.</p></details>
+    <details><summary>Can I install it from a phone or a tablet?</summary><p>No. Installing uses Web Serial, which only desktop Chrome, Edge and Opera offer. After that the console needs no computer at all.</p></details>
+    <details><summary>What does &ldquo;flash&rdquo; mean?</summary><p>It is the maker word for installing software onto a board like this one, and the Install tab does it for you. Installing an update later keeps the players, scores and touch calibration already on the console, unless you choose to erase it.</p></details>
+    <details><summary>Do I need a 3D printer?</summary><p>No. Braino runs on the bare board exactly as it arrives; the case is optional.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. Braino is open source under GPL-3.0: nothing to buy from us, no account, no subscription, no ads. The only cost is the board.</p></details>
+    <details><summary>Something went wrong.</summary><p>Ask on <a href="https://www.reddit.com/r/gume_braino/">r/gume_braino</a> or <a href="{{REPO}}/issues">open an issue</a>, and say which board you bought and what the screen shows.</p></details>
+  </div>
+</section>
+</div>
+
+<div class="tabpanel" id="panel-install" aria-labelledby="tab-install">
 <section class="flash" id="flash">
   <h2>Flash it from<br>your browser.</h2>
   <div class="grid">
@@ -450,6 +560,9 @@
   </ol>
 </section>
 
+</div>
+
+<div class="tabpanel" id="panel-games" aria-labelledby="tab-games">
 <section class="games" id="games">
   <h2>Every game,<br>baked into flash.</h2>
   <p class="intro">
@@ -503,8 +616,15 @@
   </div>
 </section>
 
+</div>
+
+<div class="tabpanel" id="panel-privacy" aria-labelledby="tab-privacy">
 <section class="privacy" id="privacy">
-  <h2>What leaves the board.<br>All of it, listed.</h2>
+  <h2>Privacy.<br>What it sends, and why.</h2>
+  <p class="intro">No accounts, no ads, no tracking. Players and scores stay on the
+  console. It only goes online if you give it Wi-Fi &mdash; to set its clock and to
+  check for updates &mdash; and its Bluetooth is off until you switch it on. Every
+  exception is listed below, exactly.</p>
   <div class="cols">
     <div><h3>Wi-Fi</h3><p>Optional, and used for the clock: an NTP server, plus one lookup to ip-api.com to guess the time zone on first connect. A daily check asks whether a newer firmware exists, and that request says nothing whatsoever about this device. Skip Wi-Fi entirely and nothing else changes.</p></div>
     <div><h3>Bluetooth Low Energy</h3><p>Off by default. Switched on, it advertises a device name and two bytes of the factory Bluetooth MAC &mdash; and the device shows you a hex dump of the exact bytes on air, read back from the same buffer that was handed to the radio.</p></div>
@@ -517,7 +637,10 @@
   </div>
 </section>
 
-<section class="builders">
+</div>
+
+<div class="tabpanel" id="panel-community" aria-labelledby="tab-community">
+<section class="builders" id="community">
   <h2>Builders wanted.</h2>
   <div class="asks">
     <a class="g" href="{{REPO}}/blob/main/CONTRIBUTING.md"><b>Add a game.</b><p>The launcher, profiles, scoring, mastery tracking and spaced repetition already exist. You write the activity; Braino does the rest. Not sure yet? <b>Open a discussion</b> and think it through in the open.</p></a>
@@ -560,6 +683,9 @@
     </a>
   </div>
 </section>
+
+</div>
+</main>
 
 <footer>
   <span>Braino! v{{VERSION}} &middot; page generated {{BUILT}}</span>
@@ -722,6 +848,84 @@
   releaseSel.addEventListener('change', apply);
   populateVariants();
   apply();
+</script>
+<script>
+  /* Tabs. The page had grown into one very long scroll, so it is split into
+   * panels and the nav links choose between them. Three things are deliberate:
+   *  - The markup is plain sections and plain links. Roles and hiding are
+   *    added here, so with this script off the page is still one long page and
+   *    every link still jumps to its section.
+   *  - Routing is by hash, and by the element a hash names rather than by a
+   *    list: #flash, #games, #contact and every other old link open the panel
+   *    that holds their target, so nothing linked from outside breaks.
+   *  - It runs after the installer block and touches none of its elements; a
+   *    hidden panel keeps its ids, so the flasher is wired whichever is open. */
+  (function () {
+    var root = document.getElementById('tabs-root');
+    var list = document.querySelector('.nav ul');
+    if (!root || !list) { return; }
+    var panels = Array.prototype.slice.call(root.querySelectorAll('.tabpanel'));
+    var tabs = Array.prototype.slice.call(list.querySelectorAll('a'));
+    var base = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+    var video = document.getElementById('short');
+    list.setAttribute('role', 'tablist');
+    tabs.forEach(function (a) {
+      a.setAttribute('role', 'tab');
+      a.parentNode.setAttribute('role', 'presentation');
+    });
+    panels.forEach(function (p) { p.setAttribute('role', 'tabpanel'); });
+
+    function tabFor(panel) {
+      for (var i = 0; i < tabs.length; i++) {
+        if (tabs[i].getAttribute('aria-controls') === panel.id) { return tabs[i]; }
+      }
+      return null;
+    }
+    function show(panel, target) {
+      panels.forEach(function (p) {
+        var on = p === panel;
+        p.hidden = !on;
+        var tab = tabFor(p);
+        if (tab) { tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1; }
+      });
+      /* The chapter colours belong to Home; every other tab starts on ink. */
+      if (panel.id !== 'panel-home') {
+        document.body.style.backgroundColor = base;
+        if (video) { video.pause(); }
+      } else if (video && video.muted && video.paused) {
+        var played = video.play();
+        if (played && played.catch) { played.catch(function () {}); }
+      }
+      if (target && target !== panel && target !== panel.firstElementChild) {
+        target.scrollIntoView();
+      } else {
+        scrollTo(0, 0);
+      }
+    }
+    function route() {
+      var id = decodeURIComponent(location.hash.slice(1));
+      var el = id ? document.getElementById(id) : null;
+      var panel = el ? (el.classList.contains('tabpanel') ? el : el.closest('.tabpanel')) : null;
+      show(panel || panels[0], panel ? el : null);
+    }
+    addEventListener('hashchange', route);
+    /* Clicking the tab that is already open still takes the reader to its top. */
+    tabs.forEach(function (a) {
+      a.addEventListener('click', function () { if (a.hash === location.hash) { route(); } });
+    });
+    list.addEventListener('keydown', function (e) {
+      var i = tabs.indexOf(document.activeElement);
+      if (i < 0) { return; }
+      var n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1
+            : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+      if (n === null) { return; }
+      e.preventDefault();
+      n = (n + tabs.length) % tabs.length;
+      tabs[n].focus();
+      tabs[n].click();
+    });
+    route();
+  })();
 </script>
 <script>
   /* Everything below is presentation. It must never be the thing that decides

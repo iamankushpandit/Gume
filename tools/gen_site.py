@@ -163,28 +163,59 @@ BOARD_DETAILS = {
     "e32r28t1": {
         "label": "2.8-inch, resistive touch, one USB-C port -- E32R28T-1 / ESP32-32E (ILI9341 + XPT2046)",
         "chip": "ESP32",
-        "buy": "https://www.amazon.com/dp/B0D92C9MMH"
-               "?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1",
+        # The listing the maintainer bought and runs Braino on. A plain
+        # link: no affiliate code, and the page says it is not sponsored.
+        "buy": "https://www.amazon.com/dp/B0D92C9MMH",
+        "shop": "Hosyond 2.8-inch ESP32 display",
+        "extra": "Battery and speaker sockets",
     },
     "esp32_2432s028_inv": {
         "label": "2.8-inch, resistive touch, USB-C plus micro-USB, no battery (USB power) -- ESP32-2432S028 CYD, inverted panel (ILI9341 + XPT2046)",
         "chip": "ESP32",
-        "buy": "https://www.espboards.dev/esp32/cyd-esp32-2432s028/",
+        # The listing the maintainer bought and runs Braino on. A plain
+        # link: no affiliate code, and the page says it is not sponsored.
+        "buy": "https://www.amazon.com/dp/B0FCY1GNXT",
+        "shop": "ESP32-2432S028R, the classic CYD (two-pack)",
+        "extra": "No battery socket, runs on USB power; speaker socket",
     },
     "e32r32p": {
         "label": "3.2-inch, resistive touch, one USB-C port -- E32R32P / ESP32-32E (ST7789P3 + XPT2046)",
         "chip": "ESP32",
-        "buy": "https://www.lcdwiki.com/3.2inch_ESP32-32E_Display",
+        # The listing the maintainer bought and runs Braino on. A plain
+        # link: no affiliate code, and the page says it is not sponsored.
+        "buy": "https://www.amazon.com/dp/B0DRFZ2FP9",
+        "shop": "Hosyond 3.2-inch ESP32 display",
+        "extra": "Battery and speaker sockets",
     },
     "e32r40t": {
         "label": "4-inch, resistive touch, one USB-C port -- E32R40T / ESP32-32E (ST7796 + XPT2046)",
         "chip": "ESP32",
-        "buy": "https://www.lcdwiki.com/4.0inch_ESP32-32E_Display",
+        # The listing the maintainer bought and runs Braino on. A plain
+        # link: no affiliate code, and the page says it is not sponsored.
+        "buy": "https://www.amazon.com/dp/B0FGJJ24S1",
+        "shop": "Hosyond 4-inch ESP32 display",
+        "extra": "The biggest screen, 480 by 320; speaker socket",
+        # The one board the Get started tab recommends.
+        "recommend": "The biggest screen of the five: 480 by 320, exactly twice the pixels of the 2.8-inch boards, so it is the easiest to read and to tap.",
+        # What the maintainer pairs it with. Kept beside the recommendation so
+        # that recommending a different board cannot leave this one's kit behind.
+        "kit": [
+            {"what": "Battery",
+             "name": "MakerFocus 3.7 V 3000 mAh LiPo, 1.25 mm plug (four in the pack)",
+             "buy": "https://www.amazon.com/dp/B08T6GT7DV"},
+            {"what": "Speaker",
+             "name": "3 W, 4 ohm speaker, 1.25 mm plug (ten in the pack)",
+             "buy": "https://www.amazon.com/dp/B0FM3QN15Q"},
+        ],
     },
     "fnk0104b": {
         "label": "2.8-inch, capacitive touch, one USB-C port -- Freenove FNK0104B / LCDWIKI ES3C28P, ESP32-S3 (ILI9341 + FT6336U)",
         "chip": "ESP32-S3",
-        "buy": "https://store.freenove.com/products/fnk0104",
+        # The listing the maintainer bought and runs Braino on. A plain
+        # link: no affiliate code, and the page says it is not sponsored.
+        "buy": "https://www.amazon.com/dp/B0FSQF6FKN",
+        "shop": "Freenove ESP32-S3 CYD, 2.8-inch",
+        "extra": "Touch that works like a phone's; ESP32-S3 chip",
     },
 }
 
@@ -423,6 +454,81 @@ def render_game_wall(apps):
     """
     return "\n".join(
         "    <span>%s</span>" % escape(app.title) for app in apps)
+
+
+def board_facts(board):
+    """Screen, touch, USB and the installer name, read out of the picker label.
+
+    Read rather than restated, so the Get started table cannot describe a
+    board differently from the dropdown the reader then has to choose from.
+    """
+    head, _, model = board["label"].partition(" -- ")
+    parts = [p.strip() for p in head.split(",")]
+    size = re.match(r"([\d.]+)-inch", parts[0])
+    if not size or len(parts) < 3 or not model:
+        die("BOARD_DETAILS label for '%s' is not 'N-inch, touch, USB -- model': %r"
+            % (board["id"], board["label"]))
+    for field in ("buy", "shop", "extra"):
+        if not board.get(field):
+            die("board '%s' has no '%s' in BOARD_DETAILS, so the Get started "
+                "tab cannot say what it is or where to buy it" % (board["id"], field))
+    return {
+        "size": size.group(1),
+        "touch": parts[1].replace(" touch", ""),
+        "usb": parts[2].replace(" port", ""),
+        "model": model.split(" (")[0],
+    }
+
+
+def buy_order(boards):
+    """The recommended board first, then biggest screen to smallest."""
+    return sorted(boards, key=lambda b: (not b.get("recommend"),
+                                         -float(board_facts(b)["size"])))
+
+
+def render_buy_pick(boards):
+    """The one board the Get started tab recommends, with what to pair it with."""
+    picks = [b for b in boards if b.get("recommend")]
+    if len(picks) != 1:
+        die("exactly one board in BOARD_DETAILS must carry 'recommend'; found %d"
+            % len(picks))
+    b = picks[0]
+    f = board_facts(b)
+    kit = ""
+    if b.get("kit"):
+        kit = ('      <p class="pairs">Pair it with &mdash; both optional:</p>\n'
+               '      <ul class="kit">\n%s\n      </ul>\n' % "\n".join(
+                   '        <li><b>%s</b> %s &middot; <a href="%s" rel="nofollow noopener">Amazon</a></li>'
+                   % (escape(k["what"]), escape(k["name"]), escape(k["buy"]))
+                   for k in b["kit"]))
+    return (
+        '  <div class="pickcard">\n'
+        '    <p class="size">%s&Prime;</p>\n'
+        '    <div>\n'
+        '      <p class="flag">Recommended</p>\n'
+        '      <h3>%s</h3>\n'
+        '      <p>%s</p>\n'
+        '      <p class="pick">In the installer: <b>%s</b></p>\n'
+        '      <a class="btn btn-solid" href="%s" rel="nofollow noopener">See it on Amazon</a>\n'
+        '%s'
+        '    </div>\n'
+        '  </div>' % (f["size"], escape(b["shop"]), escape(b["recommend"]),
+                      escape(f["model"]), escape(b["buy"]), kit))
+
+
+def render_buy_table(boards):
+    """Every supported board as one row of the comparison table."""
+    rows = []
+    for b in buy_order(boards):
+        f = board_facts(b)
+        rows.append(
+            '      <tr%s><td>%s&Prime;</td><td>%s</td><td>%s</td><td>%s</td>'
+            '<td>%s</td><td class="model">%s</td>'
+            '<td><a href="%s" rel="nofollow noopener">Amazon</a></td></tr>' % (
+                ' class="rec"' if b.get("recommend") else "",
+                f["size"], escape(b["shop"]), escape(f["touch"]), escape(f["usb"]),
+                escape(b["extra"]), escape(f["model"]), escape(b["buy"])))
+    return "\n".join(rows)
 
 
 def render_still_wall():
@@ -683,6 +789,8 @@ def main():
     # 4-inch board and gets a black screen that looks like a dead device.
     variant_options = ""
     game_wall = render_game_wall(catalog)
+    buy_pick = render_buy_pick(supported)
+    buy_table = render_buy_table(supported)
     still_wall = render_still_wall()
 
     page = read("site", "index.template.html")
@@ -696,6 +804,8 @@ def main():
         ("{{VARIANT_OPTIONS}}", variant_options),
         ("{{STILL_WALL}}", still_wall),
         ("{{GAME_WALL}}", game_wall),
+        ("{{BUY_PICK}}", buy_pick),
+        ("{{BUY_TABLE}}", buy_table),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
