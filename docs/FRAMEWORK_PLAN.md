@@ -291,7 +291,7 @@ already exists. Three ways to turn it into *selection*, in increasing cost:
 3. **On-demand builds** via `workflow_dispatch`, ~3–5 minutes, needing rate
    limiting and some abuse thinking. Only if there is real demand.
 
-Current headroom: **891,571 bytes** (2,254,157 of 3,145,728 used, 71.7%). Room
+Current headroom: **about 550 KB** of the 3 MB app partition, which is over 80% used -- see the README's headline table for today's exact figure. Room
 for a meaningful number of small apps before option 1 stops working — but not
 unlimited, and *shared*, which is why §9 makes it a CI gate.
 
@@ -456,7 +456,7 @@ CI gains three gates:
    catching accidental dependencies on shell internals before they become
    everyone's problem.
 2. **Flash budget report** — per-app flash delta from the `.map`, posted on the
-   PR, failing past a threshold. Flash is global and at 71.7%; this is the only
+   PR, failing past a threshold. Flash is global and over 80% used; this is the only
    scalable defence.
 3. **ABI check** — an app declaring an `sdkAbi` the kernel does not support is
    refused at build time, with a clear message.

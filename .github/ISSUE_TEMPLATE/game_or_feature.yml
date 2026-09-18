@@ -14,7 +14,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Flash is the binding constraint here — roughly 75% of a 3 MB partition
+        Flash is the binding constraint here — over 80% of the 3 MB app partition
         is already used, and artwork and data tables dominate. That is not a
         reason not to propose something; it is the thing your proposal will be
         weighed against, so it is better said up front.
