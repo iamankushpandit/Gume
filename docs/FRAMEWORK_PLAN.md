@@ -456,7 +456,7 @@ CI gains three gates:
    catching accidental dependencies on shell internals before they become
    everyone's problem.
 2. **Flash budget report** — per-app flash delta from the `.map`, posted on the
-   PR, failing past a threshold. Flash is global and at 71.7%; this is the only
+   PR, failing past a threshold. Flash is global and over 80% used; this is the only
    scalable defence.
 3. **ABI check** — an app declaring an `sdkAbi` the kernel does not support is
    refused at build time, with a clear message.
