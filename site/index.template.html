@@ -290,6 +290,7 @@
   .faq summary{cursor:pointer;font-weight:700;font-size:18px}
   .faq details p{margin-top:10px;color:var(--muted);font-size:16px}
   .fineprint{margin-top:14px;font-size:14px;color:var(--muted);max-width:54rem}
+  .privacy .intro{margin-top:22px;max-width:46rem;font-size:clamp(18px,1.6vw,22px);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -615,7 +616,11 @@
 
 <div class="tabpanel" id="panel-privacy" aria-labelledby="tab-privacy">
 <section class="privacy" id="privacy">
-  <h2>What leaves the board.<br>All of it, listed.</h2>
+  <h2>Privacy.<br>What it sends, and why.</h2>
+  <p class="intro">No accounts, no ads, no tracking. Players and scores stay on the
+  console. It only goes online if you give it Wi-Fi &mdash; to set its clock and to
+  check for updates &mdash; and its Bluetooth is off until you switch it on. Every
+  exception is listed below, exactly.</p>
   <div class="cols">
     <div><h3>Wi-Fi</h3><p>Optional, and used for the clock: an NTP server, plus one lookup to ip-api.com to guess the time zone on first connect. A daily check asks whether a newer firmware exists, and that request says nothing whatsoever about this device. Skip Wi-Fi entirely and nothing else changes.</p></div>
     <div><h3>Bluetooth Low Energy</h3><p>Off by default. Switched on, it advertises a device name and two bytes of the factory Bluetooth MAC &mdash; and the device shows you a hex dump of the exact bytes on air, read back from the same buffer that was handed to the radio.</p></div>
