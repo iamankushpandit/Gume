@@ -10,6 +10,8 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+## 5.12.4 — 2026-10-12
+
 **The screen turns to all four positions.** *Settings → Device* offered
 Landscape and Portrait, which are the two positions with the USB socket where
 the board profile puts it. An enclosure that holds the board the other way up
