@@ -649,6 +649,7 @@ One screen per game, in launcher order.
 
 <p align="center">
   <img src="docs/screens/settings-device.png" width="360" alt="Settings: device">
+  <img src="docs/screens/settings-device-180.png" width="360" alt="Settings: the screen turned half a turn">
   <img src="docs/screens/settings-power.png" width="360" alt="Settings: power and sleep">
   <img src="docs/screens/settings-sound.png" width="360" alt="Settings: sound and volume">
   <img src="docs/screens/settings-admin.png" width="360" alt="Settings: the admin PIN">
@@ -716,6 +717,21 @@ describes it; the two marked 180 are the same pictures turned half a turn, for
 an enclosure that holds the board the other way up. A case decides which way
 up a board sits, and there are far more cases for these boards than this
 project will ever draw. Touch follows the screen in all four.
+
+To turn the screen for a case:
+
+1. Choose the admin profile and open **Settings** (the gear).
+2. On the **Device** tab, find the button beside the theme: it reads
+   `< Landscape >` on a console that has never been changed.
+3. Tap its **right half**. Each tap is a quarter turn: Portrait, Landscape 180,
+   Portrait 180, and back to Landscape. The left half goes the other way.
+4. Stop when the picture is the right way up for the case. Settings itself is
+   always landscape, so it turns over on every second tap -- into Landscape
+   180, and back out of Portrait 180 -- and stays put on the taps between.
+5. Leave Settings. The choice is kept across restarts.
+
+A console that is already upside down in its case can still be set this way:
+touch lands where the picture is, whichever way up it is drawn.
 
 **Portrait is for the menus; the half turn is for everything.** Every game is
 authored against the fixed 320×240 landscape canvas, so Portrait changes the

@@ -1849,7 +1849,10 @@ def settings_tabs(d, active_index):
     d.line([(0, 52), (319, 52)], fill=OUTLINE)
 
 
-def settings_device():
+def settings_device(position="Landscape"):
+    """`position` is one of the four names Ui::orientationName() returns. The
+    still is always drawn upright: a picture of the 180 positions turned over
+    would show the same pixels and say nothing the label does not."""
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 0)
     # Four rows of 30px from y=58, under the tab baseline. Network shares a
@@ -1858,7 +1861,7 @@ def settings_device():
     # so with chevrons. The second is the four screen positions; see
     # Ui::orientationName() for the other three labels.
     button(d, (8, 58, 144, 30), "< Dark >")
-    button(d, (164, 58, 144, 30), "< Landscape >")
+    button(d, (164, 58, 144, 30), "< %s >" % position)
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
     button(d, (8, 126, 144, 30), "Network", ACCENT, on_fill(ACCENT))
@@ -1878,6 +1881,15 @@ def settings_device():
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
     d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
     return im
+
+
+def settings_device_180():
+    """The Device tab with the screen turned half a turn -- the position a
+    case that holds the board the other way up wants. It is also the widest
+    label the button ever carries, so this is the still that shows whether it
+    fits its 144px cell. PIL's metrics are not TFT_eSPI's: the measurement
+    that counts is in Ui::orientationName()'s comment, not here."""
+    return settings_device("Landscape 180")
 
 
 def settings_power():
@@ -2384,6 +2396,7 @@ SCREENS = [
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("cinnamon", cinnamon, "Cinnamon Says"),
     ("settings-device", settings_device, "Settings: device"),
+    ("settings-device-180", settings_device_180, "Settings: the screen turned half a turn"),
     ("settings-power", settings_power, "Settings: power and sleep"),
     ("settings-sound", settings_sound, "Settings: sound and volume"),
     ("settings-admin", settings_admin, "Settings: the admin PIN"),
