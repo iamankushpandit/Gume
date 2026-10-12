@@ -52,14 +52,10 @@ static_assert(combine(Op::Mul, 65535, 65535) == 4294836225UL &&
                   combine(Op::Add, 65535, 65535) == 131070UL,
               "combine() must widen its operands before the arithmetic");
 
-// The timings are part of the design, not tuning: a wrong mark has to be seen,
-// an equation has to be read, and a lift is several 20 ms frames -- one or two
-// is a contact dropout. A promotion is one clean nest.
-static_assert(WRONG_MS >= 300 && WRONG_MS < REVEAL_MS, "a wrong mark must be up long enough to see");
-static_assert(REVEAL_MS >= 800 && REVEAL_MS <= 3000, "an equation must be up long enough to read");
-static_assert(RELEASE_MS >= 100 && RELEASE_MS <= SETTLE_MS, "a lift is several frames, not one");
-static_assert(SETTLE_MS >= 200 && SETTLE_MS <= 500, "the settle time");
-static_assert(PROMOTE_RUN == GROUP_SIZE + 1, "a promotion is one clean nest: six answers");
+// The timings and the length of a promotion run are held to their meaning by
+// static_asserts beside their definitions in NumberNestRules.h, where the
+// firmware build sees them as well as this one. Nothing below could: every
+// use of them here is by name.
 
 static const Op OPS[OP_COUNT] = {Op::Add, Op::Mul};
 static const char* const OP_NAME[OP_COUNT] = {"add", "mul"};
@@ -148,8 +144,9 @@ static bool groupHolds(const Group& g, Op op, const Limits& lim, const char* wha
                     OP_NAME[opIndex(op)], (unsigned)level, (unsigned)seed, what);
         ok = false;
     }
-    // Three distinct positions, and the answer larger than either operand.
-    if (v.first == v.second || v.first == v.answer || v.second == v.answer) ok = false;
+    // The answer is larger than either operand. (That the three positions are
+    // distinct is the referee's own construction; testValidators() is where
+    // the rules are held to it.)
     if (g.value[v.answer] <= g.value[v.first] || g.value[v.answer] <= g.value[v.second]) ok = false;
     // The two operands obey the operand limits, not merely the display ones.
     if (g.value[v.first] > lim.operandMax || g.value[v.second] > lim.operandMax ||
@@ -271,13 +268,10 @@ static void testExamples() {
     CHECK(countRelations(Op::Add, twoAnswers, GROUP_SIZE, nullptr) == 2, "two sums");
     CHECK(countRelations(Op::Mul, twoPairs, GROUP_SIZE, nullptr) == 2, "two products");
     CHECK(countRelations(Op::Add, none, GROUP_SIZE, nullptr) == 0, "no sum");
+    // (A group with two answers, and one with a repeated number, are refused
+    // in testValidators(), on groups that break that rule and no other.)
     Group bad{};
-    std::memcpy(bad.value, twoAnswers, sizeof(twoAnswers));
     bad.rel = Relation{0, 1, 2};
-    CHECK(!groupValid(bad, Op::Add, LIMITS[0][1]), "a group with two answers is not valid");
-    const uint16_t repeat[GROUP_SIZE] = {3, 7, 10, 10, 18};
-    std::memcpy(bad.value, repeat, sizeof(repeat));
-    CHECK(!groupValid(bad, Op::Add, LIMITS[0][1]), "a repeated value is not valid");
     const uint16_t tooBig[GROUP_SIZE] = {3, 7, 10, 12, 41};
     std::memcpy(bad.value, tooBig, sizeof(tooBig));
     CHECK(!groupValid(bad, Op::Add, LIMITS[0][1]), "41 is over level 2's limit of 40");
@@ -393,7 +387,7 @@ static void testGeneration() {
                 Puzzle p;
                 std::memset(&p, 0xAA, sizeof(p));   // garbage first: generate must set everything
                 uint32_t spent = 0;
-                const bool made = generateWithin(p, op, level, seed, SEARCH_BUDGET, &spent);
+                const bool made = generate(p, op, level, seed, SEARCH_BUDGET, &spent);
                 if (!made) ++fallbacks;
                 CHECK(made != p.fallback, "the fallback flag disagrees with the return value");
                 CHECK(!made || spent > 0, "a nest was built without examining one candidate");
@@ -534,9 +528,8 @@ static void testGeneration() {
                       OP_NAME[o], (unsigned)level, (unsigned long)repeats, (unsigned long)SEEDS);
             }
             // A number beside its own double: never by the search's choice of
-            // bystander (the third pass of fillGroup may, as a last resort),
-            // and seldom at all.
-            CHECK(bystanderDoubles * 100 <= SEEDS * 6,
+            // bystander, and seldom at all.
+            CHECK(bystanderDoubles == 0,
                   "%s level %u: a bystander makes a double in %lu groups", OP_NAME[o],
                   (unsigned)level, (unsigned long)bystanderDoubles);
             CHECK(doubleGroups * 5 <= SEEDS * 6, "%s level %u: %lu groups show a double",
@@ -612,7 +605,7 @@ static void testFallbacks() {
                     Puzzle p;
                     std::memset(&p, 0xAA, sizeof(p));
                     uint32_t spent = 0xFFFFFFFFu;
-                    const bool made = generateWithin(p, op, level, mix(seed), budget, &spent);
+                    const bool made = generate(p, op, level, mix(seed), budget, &spent);
                     CHECK(spent <= budget, "overspent: %lu of %lu", (unsigned long)spent,
                           (unsigned long)budget);
                     CHECK(puzzleHolds(p, op, level, seed), "%s level %u budget %lu is not a valid nest",
@@ -756,6 +749,19 @@ static void testSession() {
     CHECK(s.op == Op::Add && s.phase == Phase::Play && s.stage == 0 && s.collected == 0,
           "a sitting opens on addition, first group, empty nest");
     CHECK(s.puzzle.level == 1 && !s.armed, "level 1, and not armed until a finger lifts");
+    // The session is filled with garbage before it is reset, and a fresh one
+    // knows nothing about a finger: the screen is one static instance, and a
+    // "finger up since long ago" left over from the last visit would arm the
+    // first group on a single sample off the glass.
+    {
+        Session f = freshSession(91, 7000);
+        tick(f, 7000, false);
+        CHECK(!f.armed, "a fresh session armed on one sample off the glass");
+        tick(f, 7000 + RELEASE_MS - 1, false);
+        CHECK(!f.armed, "a fresh session armed before RELEASE_MS");
+        tick(f, 7000 + RELEASE_MS, false);
+        CHECK(f.armed, "a fresh session never armed");
+    }
 
     // A finger held from before the group appeared answers nothing.
     const uint8_t right = currentGroup(s).rel.answer;
@@ -826,13 +832,11 @@ static void testSession() {
         if (stage < FINAL_STAGE) {
             CHECK(result == Tap::Right && s.phase == Phase::Reveal, "stage %u right", (unsigned)stage);
             CHECK(s.collected == stage + 1, "the nest holds %u", (unsigned)s.collected);
-            // Nothing can be answered while the equation is showing...
-            for (uint8_t i = 0; i < GROUP_SIZE; ++i) {
-                CHECK(tapNumber(s, i, now + 10) == Tap::Ignored, "a tap during the reveal counted");
-            }
+            // (That nothing is answered during the reveal is checked in
+            // testSessionDetails(), by a finger that has lifted and waited.)
             CHECK(!tick(s, now + REVEAL_MS - 1, false) && s.stage == stage, "the next group came early");
-            // ...and a finger resting on the glass as the next group arrives
-            // leaves it unarmed.
+            // A finger resting on the glass as the next group arrives leaves
+            // it unarmed.
             now += REVEAL_MS;
             CHECK(tick(s, now, true), "the next group did not arrive");
             CHECK(s.stage == stage + 1 && s.phase == Phase::Play && !s.armed && s.slips == 0,
@@ -841,7 +845,8 @@ static void testSession() {
                   "the resting finger answered the next group");
         } else {
             CHECK(result == Tap::Finished && s.phase == Phase::Done, "the final group finishes the nest");
-            CHECK(!controlsArmed(s, now), "Play again could be pressed by the tap that finished");
+            CHECK(!s.armed && !controlsArmed(s, now + SETTLE_MS + 10),
+                  "Play again could be pressed by the tap that finished, once the settle time had passed");
             CHECK(tapNumber(s, 0, now + 5000) == Tap::Ignored, "a finished nest took another answer");
         }
     }
@@ -1211,8 +1216,9 @@ static void testRepaint() {
     }
     shown = next;
 
-    // Through to the final group: each step names only what it must.
-    while (s.stage < FINAL_STAGE) {
+    // Through to the final group: each step names only what it must. Bounded,
+    // so that a nest which stops moving on is a failure and not a hang.
+    for (uint8_t guard = 0; s.stage < FINAL_STAGE && guard <= FINAL_STAGE; ++guard) {
         now = ready(s, now);
         tapNumber(s, currentGroup(s).rel.answer, now);
         shown = viewOf(s);
@@ -1223,6 +1229,10 @@ static void testRepaint() {
         CHECK((mask & (REGION_MODE | REGION_LEVEL | REGION_FOOTER)) == 0, "controls repainted mid-nest");
         CHECK(bitsSet(slotsMask(mask)) == 1, "more than the settling slot repainted");
         shown = next;
+    }
+    CHECK(s.stage == FINAL_STAGE, "the nest never reached its final group");
+    if (s.stage != FINAL_STAGE) {
+        return;
     }
     // The final group IS the nest: same numbers, same order, in the buttons.
     for (uint8_t i = 0; i < GROUP_SIZE; ++i) {

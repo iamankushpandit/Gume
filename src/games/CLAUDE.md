@@ -466,10 +466,10 @@ keep them apart). `NumberNestRules.h` states the game.
   player who taps the 6 is told no -- and it avoids a final equation that
   the nest has already asked (`doubles()`, `poorFinal()`, the tiers in
   `makePrelim()`). Bystanders never make a double; operands do only when the
-  target cannot be made another way. Both are preferences of the SEARCH:
-  `countRelations()` is still the only definition of valid, neither is ever
-  traded for uniqueness or a limit, and each gives way before it would send
-  a nest to the stored one. The host test counts both per level.
+  target cannot be made another way. Both belong to the SEARCH:
+  `countRelations()` is still the only definition of valid, and neither is
+  ever traded for uniqueness or a limit. The host test counts both per level
+  and holds the bystander rule at zero.
 - **Level 1 Multiply has three final equations, each asked twice, and that
   is the ten-times table's doing.** A final group's operands are themselves
   products of two different numbers, so inside 2..10 they are 6, 8 and 10;
@@ -483,6 +483,10 @@ keep them apart). `NumberNestRules.h` states the game.
   themselves be products of two different factors, so the smallest final
   answer is 6 x 8 = 48 at any level. Change a limit and re-run the test: it
   checks that every level still deals complete nests without falling back.
+- **The timings and the promotion run are asserted beside their
+  definitions**, in `NumberNestRules.h`, so `pio run` refuses a `REVEAL_MS`
+  nobody could read or a `RELEASE_MS` of one frame. The host test is not run
+  by CI; a `static_assert` in a header the firmware includes is.
 - **The search is bounded by a budget, not by luck.** Every candidate number
   examined spends one unit of `SEARCH_BUDGET`; when it is gone the stored
   nest for that mode and level is used. The stored nests are validated by

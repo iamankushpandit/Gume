@@ -42,9 +42,10 @@
  * and the player who taps the 6 is told no. And it does not ask one equation
  * twice in a nest: a final answer that can only be earned one way is earned
  * by the very equation the final group then asks. Neither is ever traded
- * for uniqueness or a limit, and both give way rather than send a nest to
- * the stored one -- 1 + 2 = 3 has no other way to be made, and inside the
- * ten-times table neither has 6 x 8.
+ * for uniqueness or a limit. The two numbers the search is free to choose,
+ * the bystanders, never make a double; the operands are chosen for it, and
+ * there the preference gives way where it must -- 1 + 2 = 3 has no other
+ * way to be made, and inside the ten-times table neither has 6 x 8.
  *
  * Names to avoid in this namespace: Arduino.h defines round, abs, sq, bit and
  * friends as macros, and the screen includes this header after it. */
@@ -271,11 +272,11 @@ constexpr bool puzzleValid(const Puzzle& p) {
 constexpr uint32_t SEARCH_BUDGET = 6000;
 
 uint32_t mix(uint32_t x);
-bool generate(Puzzle& out, Op op, uint8_t level, uint32_t seed);
-/* The same search with a caller's budget, and how much of it was spent. For
- * the test, which needs to starve it and to measure it. */
-bool generateWithin(Puzzle& out, Op op, uint8_t level, uint32_t seed,
-                    uint32_t budget, uint32_t* spent);
+/* `budget` and `spent` are for the test, which needs to starve the search and
+ * to measure it. The game passes neither. One function rather than two, so
+ * that there is no second call site to hand the wrong budget to. */
+bool generate(Puzzle& out, Op op, uint8_t level, uint32_t seed,
+              uint32_t budget = SEARCH_BUDGET, uint32_t* spent = nullptr);
 const Puzzle& fallbackPuzzle(Op op, uint8_t level);
 
 /* ---- progression -------------------------------------------------------
@@ -309,6 +310,7 @@ const Puzzle& fallbackPuzzle(Op op, uint8_t level);
  *
  * Addition and multiplication each have their own level and their own run. */
 constexpr uint8_t PROMOTE_RUN = 6;
+static_assert(PROMOTE_RUN == GROUP_SIZE + 1, "a promotion is one clean nest: six answers");
 
 struct Progress {
     uint8_t level[OP_COUNT];
@@ -359,6 +361,13 @@ constexpr uint32_t SETTLE_MS = 250;
  * frame after the dropout reads as a fresh press at the same place. The lock
  * screen forgives the same 150 ms for the same reason. */
 constexpr uint32_t RELEASE_MS = 150;
+/* The timings are part of the design, not tuning, and the build holds them to
+ * it: a wrong mark has to be seen, an equation has to be read, and a lift is
+ * several 20 ms frames -- one or two is a contact dropout. */
+static_assert(WRONG_MS >= 300 && WRONG_MS < REVEAL_MS, "a wrong mark must be up long enough to see");
+static_assert(REVEAL_MS >= 800 && REVEAL_MS <= 3000, "an equation must be up long enough to read");
+static_assert(RELEASE_MS >= 100 && RELEASE_MS <= SETTLE_MS, "a lift is several frames, not one");
+static_assert(SETTLE_MS >= 200 && SETTLE_MS <= 500, "a tap already on its way must be let go by");
 
 struct Session {
     Progress progress;

@@ -68,9 +68,9 @@ A valid group can still be an unkind one, so the search has two preferences
 on top of the rule. It keeps a number from sitting beside its own double:
 `3 + 3 = 6` is not an answer, because one number used twice is one number,
 but it is correct arithmetic, and a young player who taps the 6 for it is
-told no. And it avoids asking one equation twice in a nest. Both give way
-before they would cost a nest its uniqueness -- `1 + 2 = 3` cannot be made
-any other way.
+told no. And it avoids asking one equation twice in a nest. Neither is ever
+traded for uniqueness: where a number can only be made from another and its
+double -- `1 + 2 = 3` -- the pair stands.
 
 There is no shared difficulty framework in this firmware, so NumberNest uses
 the two conventions of the games nearest to it: five levels, as Math and

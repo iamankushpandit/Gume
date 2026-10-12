@@ -160,8 +160,6 @@ static_assert(limitsSane(),
               "a level's limits are out of order, or a value would not fit a button");
 static_assert(fallbacksValid(),
               "a stored nest breaks the rules or its level's limits -- regenerate it");
-static_assert(static_cast<uint64_t>(0xFFFFu) * 0xFFFFu <= 0xFFFFFFFFull,
-              "combine() relies on a product of two uint16_t fitting uint32_t");
 
 /* How many times each part of the search may start over before giving the
  * whole nest up. The budget is the real bound; these only stop one unlucky
@@ -217,11 +215,11 @@ struct Search {
  * showing 3 and 6 has no second answer in it. But "3 + 3 = 6" is correct
  * arithmetic, and a young player who taps the 6 for it is told no and loses
  * the run that earns a level. Nothing about the rules page makes that their
- * mistake. So the generator avoids showing a number beside its own double:
- * always for the two bystanders, which it is free to choose, and for the
+ * mistake. So the generator does not show a number beside its own double:
+ * never for the two bystanders, which it is free to choose, and for the
  * operands whenever the target can be made another way. 1 + 2 = 3 cannot,
- * and stands. This is a preference of the search, not part of what makes a
- * group valid -- countRelations() is still the only definition of that. */
+ * and stands. This is a rule of the search, not part of what makes a group
+ * valid -- countRelations() is still the only definition of that. */
 bool doubles(Op op, uint32_t x, uint32_t y) {
     return combine(op, static_cast<uint16_t>(x), static_cast<uint16_t>(x)) == y;
 }
@@ -243,14 +241,14 @@ bool makesDouble(Op op, const uint16_t* have, uint8_t held, uint16_t candidate) 
 
 /* The first value at or after a random start in [lo, hi], wrapping round,
  * that is not in the group already, can be earned if that is asked, and
- * leaves the group with exactly ONE relation -- the one it started with.
- * With `plain`, it is also not the double of anything shown, nor half of it.
- * Stored at have[held].
+ * leaves the group with exactly ONE relation -- the one it started with --
+ * and is not the double of anything shown, nor half of it. Stored at
+ * have[held].
  *
  * A scan rather than repeated guessing, because it cannot miss: if a value
  * that works exists in the window, this finds it in at most one pass. */
 bool scanFor(Search& s, uint16_t* have, uint8_t held, uint16_t lo, uint16_t hi,
-             bool mustEarn, bool plain) {
+             bool mustEarn) {
     if (hi < lo) {
         return false;
     }
@@ -268,7 +266,7 @@ bool scanFor(Search& s, uint16_t* have, uint8_t held, uint16_t lo, uint16_t hi,
             }
         }
         if (taken || (mustEarn && !earnable(s.op, *s.lim, candidate)) ||
-            (plain && makesDouble(s.op, have, held, candidate))) {
+            makesDouble(s.op, have, held, candidate)) {
             continue;
         }
         have[held] = candidate;
@@ -284,22 +282,24 @@ bool scanFor(Search& s, uint16_t* have, uint8_t held, uint16_t lo, uint16_t hi,
  * Tried first in a window near the result, so the bystanders are numbers a
  * player might plausibly take for the answer, and then across everything the
  * level allows. Small sums need the second pass: round 2 + 3 = 5 there is no
- * pair of single digits that does not make a second sum with something. The
- * third pass gives up the preference against doubles, and nothing else: it
- * is there so that a preference can never be what sends a nest to the stored
- * one. */
+ * pair of single digits that does not make a second sum with something.
+ *
+ * A bystander never makes a double (see doubles()), in either pass. There was
+ * a third pass that gave that up as a last resort; in three and a half
+ * million nests it never ran once, so it was a promise no test could keep,
+ * and it is gone. A triple that cannot be filled is given up, as it always
+ * could be, and the search tries another. */
 bool fillGroup(Search& s, uint16_t* have, uint16_t anchor, bool mustEarn) {
     const Limits& lim = *s.lim;
     const uint32_t reach = static_cast<uint32_t>(anchor) + (anchor / 2 > 8 ? anchor / 2 : 8);
     const uint16_t nearTop = static_cast<uint16_t>(reach < lim.resultMax ? reach : lim.resultMax);
-    const uint16_t tops[3] = {nearTop, lim.resultMax, lim.resultMax};
-    for (uint8_t pass = 0; pass < 3; ++pass) {
+    const uint16_t tops[2] = {nearTop, lim.resultMax};
+    for (uint8_t pass = 0; pass < 2; ++pass) {
         if (pass == 1 && tops[1] == tops[0]) {
-            continue;   // the same window twice proves nothing
+            break;   // the same window twice proves nothing
         }
-        const bool plain = pass < 2;
-        if (scanFor(s, have, 3, lim.operandMin, tops[pass], mustEarn, plain) &&
-            scanFor(s, have, 4, lim.operandMin, tops[pass], mustEarn, plain)) {
+        if (scanFor(s, have, 3, lim.operandMin, tops[pass], mustEarn) &&
+            scanFor(s, have, 4, lim.operandMin, tops[pass], mustEarn)) {
             return true;
         }
     }
@@ -544,8 +544,8 @@ const Puzzle& fallbackPuzzle(Op op, uint8_t level) {
     return FALLBACK[opIndex(op)][clampLevel(level) - 1];
 }
 
-bool generateWithin(Puzzle& out, Op op, uint8_t level, uint32_t seed, uint32_t budget,
-                    uint32_t* spent) {
+bool generate(Puzzle& out, Op op, uint8_t level, uint32_t seed, uint32_t budget,
+              uint32_t* spent) {
     const uint8_t useLevel = clampLevel(level);
     Search s{Rng{seed, 0}, op, &limits(op, useLevel), budget};
     bool made = false;
@@ -584,10 +584,6 @@ bool generateWithin(Puzzle& out, Op op, uint8_t level, uint32_t seed, uint32_t b
         out = fallbackPuzzle(op, useLevel);
     }
     return made;
-}
-
-bool generate(Puzzle& out, Op op, uint8_t level, uint32_t seed) {
-    return generateWithin(out, op, level, seed, SEARCH_BUDGET, nullptr);
 }
 
 }  // namespace Nest
