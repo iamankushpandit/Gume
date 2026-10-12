@@ -4,8 +4,8 @@
     "which is GITIGNORED because it holds a Wi-Fi password and player names.",
     "Every key except pin is optional; a key left out is a setting left alone.",
     "settings: any key `get` lists on the board (theme, brightness, layout,",
-    "sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp,",
-    "ntp_hours, timezone); true/false mean on/off.",
+    "flip, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby,",
+    "ntp, ntp_hours, timezone); true/false mean on/off.",
     "wifi may be {\"ssid\": ..., \"password\": ...} or the string \"clear\".",
     "Players are addressed by name. games: {\"all\" or a name: {id: true/false}}."
   ],

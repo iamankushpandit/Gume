@@ -127,6 +127,7 @@ public:
     void openSettings() override;
     void openWifi() override;
     void openProfiles() override;
+    void applyOrientation() override;
 
     /* Lock now: blank the panel immediately, and make the next wake land on
      * the wake lock instead of on the screen underneath.

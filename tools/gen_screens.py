@@ -1849,13 +1849,19 @@ def settings_tabs(d, active_index):
     d.line([(0, 52), (319, 52)], fill=OUTLINE)
 
 
-def settings_device():
+def settings_device(position="Landscape"):
+    """`position` is one of the four names Ui::orientationName() returns. The
+    still is always drawn upright: a picture of the 180 positions turned over
+    would show the same pixels and say nothing the label does not."""
     im, d = blank(); topbar(d, "Settings")
     settings_tabs(d, 0)
     # Four rows of 30px from y=58, under the tab baseline. Network shares a
     # clock-settings row with the NTP resync cadence.
-    button(d, (8, 58, 144, 30), "Theme: Dark")
-    button(d, (164, 58, 144, 30), "Menu: Landscape")
+    # Both are split buttons -- left half back, right half forward -- and say
+    # so with chevrons. The second is the four screen positions; see
+    # Ui::orientationName() for the other three labels.
+    button(d, (8, 58, 144, 30), "< Dark >")
+    button(d, (164, 58, 144, 30), "< %s >" % position)
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
     button(d, (8, 126, 144, 30), "Network", ACCENT, on_fill(ACCENT))
@@ -1875,6 +1881,15 @@ def settings_device():
     d.ellipse([hx - 10, cy - 10, hx + 10, cy + 10], fill=SURFACE, outline=OUTLINE)
     d.ellipse([hx - 6, cy - 6, hx + 6, cy + 6], fill=ACCENT)
     return im
+
+
+def settings_device_180():
+    """The Device tab with the screen turned half a turn -- the position a
+    case that holds the board the other way up wants. It is also the widest
+    label the button ever carries, so this is the still that shows whether it
+    fits its 144px cell. PIL's metrics are not TFT_eSPI's: the measurement
+    that counts is in Ui::orientationName()'s comment, not here."""
+    return settings_device("Landscape 180")
 
 
 def settings_power():
@@ -2381,6 +2396,7 @@ SCREENS = [
     ("fingers-show", fingers_show, "Finger Counting: show me N"),
     ("cinnamon", cinnamon, "Cinnamon Says"),
     ("settings-device", settings_device, "Settings: device"),
+    ("settings-device-180", settings_device_180, "Settings: the screen turned half a turn"),
     ("settings-power", settings_power, "Settings: power and sleep"),
     ("settings-sound", settings_sound, "Settings: sound and volume"),
     ("settings-admin", settings_admin, "Settings: the admin PIN"),
@@ -3418,6 +3434,43 @@ def percent():
     return im
 
 
+def percent_make():
+    """Percent, the round where the player shades the circle themselves.
+
+    Drawn part way to the target on purpose: OK is the same colour here as it
+    is on the right amount. It used to turn green the moment the shading
+    matched, which told the player the answer before they had given one.
+    Rects are PercentCircleGame's own minusRect/valueRect/plusRect/okRect."""
+    import math
+    im, d = blank(); topbar(d, "Percent")
+    q = "Shade 70%"
+    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
+
+    cx, cy, r = 96, 130, 62
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(81, 113, 147), outline=BLUE)
+    for angle in range(-90, -90 + 162, 3):  # 45% of 360 = 162 degrees
+        a, b = math.radians(angle), math.radians(angle + 3)
+        d.polygon([(cx, cy),
+                   (cx + int(r * math.cos(a)), cy + int(r * math.sin(a))),
+                   (cx + int(r * math.cos(b)), cy + int(r * math.sin(b)))],
+                  fill=(255, 202, 84))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=BLUE, width=2)
+    for i in range(10):
+        a = math.radians(-90 + i * 36)
+        d.line([(cx, cy), (cx + int(r * math.cos(a)), cy + int(r * math.sin(a)))],
+               fill=(100, 150, 200), width=1)
+
+    button(d, (164, 152, 34, 34), "-")
+    d.rounded_rectangle([200, 152, 237, 185], 4, fill=PANEL, outline=OUTLINE)
+    v = "45%"
+    d.text((219 - d.textlength(v, font=F1) / 2, 164), v, font=F1, fill=TEXT)
+    button(d, (240, 152, 34, 34), "+")
+    button(d, (276, 152, 34, 34), "OK", ACCENT, on_fill(ACCENT))
+
+    d.text((8, 226), "Score: 7  Streak: 5  Lvl: 2", font=F1, fill=TEXT)
+    return im
+
+
 def grewords():
     """GRE Words, Quiz tab: the word, four glosses, one right."""
     im, d = blank(); topbar(d, "GRE Words")
@@ -3970,7 +4023,7 @@ def settings_tall():
     row_h = min(44, pitch - 4)
     col_w = (PW - 8 - 12 - 12) // 2
     cols = (8, 8 + col_w + 12)
-    grid = [("Theme: Dark", PANEL, TEXT), ("Menu: Tall", PANEL, TEXT),
+    grid = [("< Dark >", PANEL, TEXT), ("< Portrait >", PANEL, TEXT),
             ("Light: On", PANEL, TEXT), ("Beacon: On", PANEL, TEXT),
             ("Network", BLUE, WHITE), ("Sync: 6h", PANEL, TEXT),
             ("Nearby: On", PANEL, TEXT), ("Reset device", (120, 58, 58), WHITE)]
@@ -4200,6 +4253,7 @@ EXTRA_SCREENS = [
     ("calendar", calendar, "Calendar"),
     ("numberline", numberline, "Number Line"),
     ("percent", percent, "Percent: read the circle"),
+    ("percent-make", percent_make, "Percent: shade the circle"),
     ("grewords", grewords, "GRE Words: pick the meaning"),
     ("grewords-study", grewords_study, "GRE Words: study card"),
     ("dice", dice, "Dice: three dice thrown"),

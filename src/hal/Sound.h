@@ -34,9 +34,10 @@
  * Adding a cue is adding a word to that language. Do it when a game has
  * something genuinely new to say, not when an existing cue is nearly right.
  *
- * On a board with no codec these are silent -- `Correct` and `Wrong` still
- * pulse the RGB LED, because that is what they have always done and it is the
- * whole of the feedback there. */
+ * On a board with no audio path -- neither a codec nor the built-in DAC --
+ * these are silent. `Correct` and `Wrong` still pulse the RGB LED, because
+ * that is what they have always done and it is the whole of the feedback
+ * there. No supported board is in that state today. */
 enum class Sound : uint8_t {
     Tap,        // a control was pressed
     Select,     // a choice was committed, or a page turned

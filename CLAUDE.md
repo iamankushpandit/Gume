@@ -223,7 +223,7 @@ call site:
    `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
    than once per screen change gets a write-through RAM mirror in `Board`**:
    the setter updates the mirror and NVS together, so a stale read is not
-   possible. Theme, layout, brightness, idle timeout, active profile, game
+   possible. Theme, layout, screen flip, brightness, idle timeout, active profile, game
    visibility, Wi-Fi credentials and the NTP hot-path settings all work this
    way now. Add to that list rather than reaching for `prefs_` in a hot path.
 2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
@@ -613,7 +613,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,369 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,581,793 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -756,12 +756,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Some boards cannot be supported, and that is a compile error, not a degradation.** Braino needs a panel of at least `GAME_CANVAS_WIDTH`x`GAME_CANVAS_HEIGHT` in landscape, a touch controller, the backlight on a GPIO, and 4 MB of flash. `BoardConfig.h` static_asserts each with a message naming what is missing. Optional hardware -- SD slot, RGB LED, speaker, battery sense -- is `PIN_NONE` plus a `has...()` guard, and the firmware does without it. **Do not blur the two:** turning a requirement into a quiet degradation ships a board that flashes and then cannot be read or pressed.
 - **A supported board must be flashable from the web installer.** `tools/gen_site.py` derives the picker's board list from the `[board_*]` sections rather than a hand-kept list, and refuses to generate until a new board has a `BOARD_DETAILS` label, an offered environment and a CI build behind it. `tools/check_boards.py` reports the same gaps without a build. "Supported" means someone who owns the board can flash it from the page, not that it builds here.
 - **`SCREEN_WIDTH` / `SCREEN_HEIGHT` are derived, not stated.** They come out of `BOARD.screenWidth()` / `screenHeight()`, which rotate the panel's native size by the profile's landscape rotation. Do not reintroduce a literal 320 or 240 next to them; a board that states its size twice will eventually state it two different ways.
+- **Which way up the screen sits is decided in one function, from two facts with two owners.** `BrainoApp::effectiveRotation()` takes the board profile's landscape or portrait rotation -- a fact about where the USB socket is -- and adds half a turn when `Board::screenFlipped()` is set, which is a fact about the enclosure the board was put in and therefore the owner's to state, not the profile's. Every caller goes through it (launch, home, the saver, resume), so no screen calls `setRotation()` and a new caller cannot forget the flip. A screen or console command that changes either setting calls `applyOrientation()`, which turns the screen that is up only when its rotation actually changed -- Settings is always landscape, so choosing Portrait from it must not repaint anything. The flip turns games as well as menus; the layout still turns only the menus. Settings shows the two as ONE four-position control and stores them as two, because the layout is what the launcher and every `followsLayout` screen already read. **Rotations 1 and 2 were never reached by the product before this**, so a new board has to be checked for drawing and touch in all four positions, not two. The touch calibration wizard is the one thing that still draws in a fixed rotation of its own.
 - **Every screen is a `Game`.** Launcher, Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
 - **`end()` is called on every screen change** via `BrainoApp::leaveActiveGame()`, before the next screen's `begin()`. Add new transitions through that funnel, not by assigning `activeGame_` directly. Override `end()` for anything a screen holds that outlives a frame; nothing here runs off a task or timer, and the hook is what keeps that true.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
-- **Device settings are global, not per-profile**: theme, layout, brightness,
+- **Device settings are global, not per-profile**: theme, layout, screen flip, brightness,
   sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone.
   Sound belongs on that list for a reason worth stating: the speaker belongs to
   whoever is in the room, and a console that came back loud because a different
@@ -1568,8 +1569,9 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
   1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
-  `BoardProfile.audio` is 85 for the codec board and 75 for the bare-DAC CYD
-  boards (unamplifed driver distorts above 75%). See `src/hal/CLAUDE.md`.
+  `BoardProfile.audio` is 85 for the codec board and 75 for the built-in-DAC
+  boards, which feed an onboard amplifier (the 1-inch driver distorts above
+  75%). See `src/hal/CLAUDE.md`.
   Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
   whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
   `beginAudio()` powers that channel down and returns the pad to the GPIO

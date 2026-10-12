@@ -55,7 +55,7 @@ private:
     RoundType nextRoundType() const;
     void newRound(AppContext& host);
     void markCorrect(AppContext& host);
-    void markWrong();
+    void markWrong(int8_t pressed);
     void generateOptions();
 
     Rect optionRect(uint8_t index) const {

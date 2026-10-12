@@ -116,9 +116,21 @@ const BrainoApp::ConsoleSetting* BrainoApp::consoleSettings(size_t& count) {
              else return "range layout is horizontal|vertical";
              a.board_.setLayoutMode(m);
              // What launch() does: the screen that is up takes the new rotation.
-             if (a.view_ == View::Game && a.activeGame_) {
-                 a.applyRotation(a.rotationForActiveScreen());
-             }
+             a.applyOrientation();
+             return nullptr;
+         }},
+        /* The other half of "which way up": layout picks landscape or
+         * portrait for the menu, this turns the whole display half a turn.
+         * A key of its own rather than two more values of `layout`, because
+         * tools already send `layout` and its two words must keep meaning
+         * what they meant. */
+        {"flip", "on|off", nullptr,
+         [](BrainoApp& a, char* o, size_t n) { onOff(o, n, a.board_.screenFlipped()); },
+         [](BrainoApp& a, const char* v) -> const char* {
+             bool on = false;
+             if (!parseOnOff(v, on)) return "range flip is on|off";
+             a.board_.setScreenFlipped(on);
+             a.applyOrientation();
              return nullptr;
          }},
         {"sound", "on|off", nullptr,

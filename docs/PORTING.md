@@ -33,8 +33,8 @@ quietly does without — no code change, just `PIN_NONE`:
 | Optional | What the firmware does without it |
 |---|---|
 | SD card slot | `sdReady()` is false; optional SD content simply is not loaded. Everything has defaults |
-| RGB LED | `beepOk()`/`beepError()` become no-ops. There is no audio either way |
-| Speaker | Already stubbed on every board |
+| RGB LED | `beepOk()`/`beepError()` lose their green and red pulse. They still play their sound if the board has an audio path |
+| Speaker | With neither `GUME_HAS_AUDIO_CODEC` nor `GUME_HAS_AUDIO_DAC` set, every `playSound()` is a silent no-op and Settings → Sound says the board cannot make sound. Every board supported today has an audio path |
 | Battery sense | The gauge blanks its digits, which is the honest reading for a board that cannot see a cell |
 
 A larger panel clears the size requirement, but see
@@ -92,6 +92,10 @@ Things worth getting right the first time:
   bottom. `portraitRotation` is a quarter-turn from it, and `BoardConfig.h`
   static_asserts that the two are not the same axis. `Board::pollTouch()`
   compensates for every rotation, so nothing in game code needs adjusting.
+  The owner can turn the display half a turn from either (*Settings →
+  Device*), for a case that holds the board the other way up -- so a new
+  board has to draw and track a finger in **all four** rotations, not only
+  the two its profile names.
 - **The panel size is native (portrait)**, matching `TFT_WIDTH`/`TFT_HEIGHT`.
   The landscape canvas the games draw on is *derived* — `SCREEN_WIDTH` and
   `SCREEN_HEIGHT` come out of `BoardProfile::screenWidth()`. Do not state it
@@ -178,6 +182,8 @@ mode below has actually happened.
    working".
 4. **Touch lands where you tap**, after the calibration wizard. If it is
    mirrored or transposed, that is `landscapeRotation`, not the touch pins.
+   Then step *Settings → Device* through all four screen positions and tap
+   in each: two of them are rotations the profile never mentions.
 5. **The battery percentage matches a meter.** `pio run -e batdiag` is the tool
    for this; page CALIBRATE resolves the real divider ratio.
 6. **The LED shows the colour asked for.** Wrong colour, not no colour, means

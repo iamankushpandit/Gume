@@ -235,10 +235,15 @@ void SettingsApp::renderDeviceTab(GameHost& host) {
     /* LANDSCAPE and PORTRAIT on screen, Horizontal and Vertical in the code.
      * The enum keeps its names -- they are what Board, the console command and
      * every layout test say -- but the two words an owner knows for a screen
-     * turned on its side are the photographer's, not the geometry teacher's. */
-    snprintf(label, sizeof(label), "Menu: %s",
-             board.layoutMode() == Board::LayoutMode::Horizontal ? "Landscape"
-                                                                 : "Portrait");
+     * turned on its side are the photographer's, not the geometry teacher's.
+     *
+     * Chevrons, like the theme button and for its reason: this is four
+     * positions now, and the button is split so a step too far is one tap to
+     * undo rather than three. It lost its "Menu:" prefix when it stopped
+     * being only about the menu -- the 180 positions turn everything. */
+    snprintf(label, sizeof(label), "< %s >",
+             Ui::orientationName(board.layoutMode() == Board::LayoutMode::Vertical,
+                                 board.screenFlipped()));
     Ui::drawButton(tft, layoutRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");

@@ -38,7 +38,7 @@ NVS via `Preferences`, in the legacy application namespace.
 
 Five player slots plus a permanent Guest (`MAX_PLAYERS = 5`, `GUEST_INDEX = 5`, names capped at `PROFILE_NAME_MAX = 9` — `NAME_MAX` is a POSIX macro, hence the odd name). **Guest drops every write** through the scoped setters; that is deliberate, not a bug to fix.
 
-Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Global: theme, layout, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Global: theme, layout, screen flip, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
 
 Deleting a player is a storage operation, not a name-list edit. `removePlayer()` clears the deleted slot's `pN_` keys, moves every later slot down by enumerating NVS entries in the application namespace, copies supported NVS types with fixed static scratch buffers, and clears the old last slot. Deleting the active player switches to Guest; deleting a lower slot shifts the active index down so the same real player stays active.
 
@@ -63,7 +63,7 @@ Deleting a player is a storage operation, not a name-list edit. `removePlayer()`
 
 ### Display
 
-Owns the `TFT_eSPI` instance. Calibration is captured in rotation 1 and derived for other rotations by transform, so `setDisplayRotation()` is safe at runtime. Brightness is PWM on the backlight pin with a floor of `BRIGHTNESS_MIN = 25` — below that the panel is unreadable and a player could not find the slider to undo it.
+Owns the `TFT_eSPI` instance. Calibration is captured in rotation 1 and derived for other rotations by transform, so `setDisplayRotation()` is safe at runtime. All four rotations are reachable: the profile supplies landscape and portrait, and `screenFlipped()` -- an owner's setting, for an enclosure that holds the board the other way up -- adds half a turn to either. That sum is done by the runtime, in `BrainoApp::effectiveRotation()`; nothing in this directory picks a rotation except the calibration wizard, which borrows rotation 1 and puts back what it found. Brightness is PWM on the backlight pin with a floor of `BRIGHTNESS_MIN = 25` — below that the panel is unreadable and a player could not find the slider to undo it.
 
 **Waking a panel is Sleep Out AND Display ON.** `displayWake()` sends `0x11`
 and then `0x29`, unconditionally. Sleep Out alone is enough on the ILI9341 --
@@ -169,7 +169,8 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   which is correct only for a logarithmic register. Samples must be converted
   from signed int16 to unsigned offset-binary: `(sample * vol/100) + 32768`.
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
-  75 on CYD boards (bare DAC, unamplifed 1-inch driver distorts above 75%).
+  75 on these boards (the DAC feeds an onboard amplifier; the 1-inch driver
+  distorts above 75%).
 - Neither defined — no audio. No supported board is in that state today.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
