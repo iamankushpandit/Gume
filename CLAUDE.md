@@ -1568,8 +1568,9 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
   1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
-  `BoardProfile.audio` is 85 for the codec board and 75 for the bare-DAC CYD
-  boards (unamplifed driver distorts above 75%). See `src/hal/CLAUDE.md`.
+  `BoardProfile.audio` is 85 for the codec board and 75 for the built-in-DAC
+  boards, which feed an onboard amplifier (the 1-inch driver distorts above
+  75%). See `src/hal/CLAUDE.md`.
   Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
   whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
   `beginAudio()` powers that channel down and returns the pad to the GPIO

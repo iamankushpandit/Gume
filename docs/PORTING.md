@@ -33,8 +33,8 @@ quietly does without — no code change, just `PIN_NONE`:
 | Optional | What the firmware does without it |
 |---|---|
 | SD card slot | `sdReady()` is false; optional SD content simply is not loaded. Everything has defaults |
-| RGB LED | `beepOk()`/`beepError()` become no-ops. There is no audio either way |
-| Speaker | Already stubbed on every board |
+| RGB LED | `beepOk()`/`beepError()` lose their green and red pulse. They still play their sound if the board has an audio path |
+| Speaker | With neither `GUME_HAS_AUDIO_CODEC` nor `GUME_HAS_AUDIO_DAC` set, every `playSound()` is a silent no-op and Settings → Sound says the board cannot make sound. Every board supported today has an audio path |
 | Battery sense | The gauge blanks its digits, which is the honest reading for a board that cannot see a cell |
 
 A larger panel clears the size requirement, but see

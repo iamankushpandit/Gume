@@ -168,7 +168,7 @@ public:
 
     /* Play one cue from the console's sound vocabulary. See hal/Sound.h for
      * what the words mean and BoardAudio.cpp for how they are synthesised.
-     * Silent on a board with no codec.
+     * Silent on a board with no audio path, codec or built-in DAC.
      *
      * This is the ONLY way a screen makes a noise. `beep()` stays private
      * because a game choosing its own frequency is how a shared vocabulary
@@ -192,10 +192,11 @@ public:
      * bug was fixed; it is -1.4 dB from unity and describes one speaker in
      * one case.
      *
-     * For CYD-family boards (bare DAC on GPIO26, no amplifier), the ceiling
-     * is 75. Above that the 1-inch driver distorts audibly without becoming
-     * meaningfully louder. This was established by ear and should be revisited
-     * if an amplified variant appears.
+     * For the boards that play through the ESP32's built-in DAC on GPIO26,
+     * into an onboard amplifier, the ceiling is 75. Above that the 1-inch
+     * driver distorts audibly without becoming meaningfully louder. This was
+     * established by ear on a 2.8-inch board; each profile says whether its
+     * own 75 has been confirmed by listening or is still inherited.
      *
      * Each board states its own ceiling as `BOARD.audio.maxVolume`; a board
      * with no audio path sets it to 0. AUDIO_VOLUME_MAX reads it from the
