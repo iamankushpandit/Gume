@@ -3,7 +3,7 @@
 [![CI](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/ci.yml)
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
-[![Version](https://img.shields.io/badge/version-5.14.0--SNAPSHOT-9a6700)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.12.4-blue)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,581,793 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -1307,7 +1307,7 @@ owner should be able to see what it is transmitting, from the device itself.**
 
 ## Version
 
-Current release: **5.14.0-SNAPSHOT**. See
+Current release: **5.12.4**. See
 [CHANGELOG.md](CHANGELOG.md) for what has changed since.
 
 ---

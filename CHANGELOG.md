@@ -1,14 +1,6 @@
 # Changelog
 
-## 5.14.0-SNAPSHOT — Unreleased
-
-In development on `dev`. Nothing here has shipped; the version carries the
-`-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
-`release.yml` refuses to publish a tag whose version carries it.
-
-`Board::compareVersions()` sorts a pre-release before the release of the same
-number, so a console on this build is correctly told that nothing newer
-exists rather than being nagged all cycle to install a version it is ahead of.
+## 5.12.4 — 2026-10-12
 
 **The screen turns to all four positions.** *Settings → Device* offered
 Landscape and Portrait, which are the two positions with the USB socket where
