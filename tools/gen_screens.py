@@ -3434,6 +3434,43 @@ def percent():
     return im
 
 
+def percent_make():
+    """Percent, the round where the player shades the circle themselves.
+
+    Drawn part way to the target on purpose: OK is the same colour here as it
+    is on the right amount. It used to turn green the moment the shading
+    matched, which told the player the answer before they had given one.
+    Rects are PercentCircleGame's own minusRect/valueRect/plusRect/okRect."""
+    import math
+    im, d = blank(); topbar(d, "Percent")
+    q = "Shade 70%"
+    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
+
+    cx, cy, r = 96, 130, 62
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(81, 113, 147), outline=BLUE)
+    for angle in range(-90, -90 + 162, 3):  # 45% of 360 = 162 degrees
+        a, b = math.radians(angle), math.radians(angle + 3)
+        d.polygon([(cx, cy),
+                   (cx + int(r * math.cos(a)), cy + int(r * math.sin(a))),
+                   (cx + int(r * math.cos(b)), cy + int(r * math.sin(b)))],
+                  fill=(255, 202, 84))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=BLUE, width=2)
+    for i in range(10):
+        a = math.radians(-90 + i * 36)
+        d.line([(cx, cy), (cx + int(r * math.cos(a)), cy + int(r * math.sin(a)))],
+               fill=(100, 150, 200), width=1)
+
+    button(d, (164, 152, 34, 34), "-")
+    d.rounded_rectangle([200, 152, 237, 185], 4, fill=PANEL, outline=OUTLINE)
+    v = "45%"
+    d.text((219 - d.textlength(v, font=F1) / 2, 164), v, font=F1, fill=TEXT)
+    button(d, (240, 152, 34, 34), "+")
+    button(d, (276, 152, 34, 34), "OK", ACCENT, on_fill(ACCENT))
+
+    d.text((8, 226), "Score: 7  Streak: 5  Lvl: 2", font=F1, fill=TEXT)
+    return im
+
+
 def grewords():
     """GRE Words, Quiz tab: the word, four glosses, one right."""
     im, d = blank(); topbar(d, "GRE Words")
@@ -4216,6 +4253,7 @@ EXTRA_SCREENS = [
     ("calendar", calendar, "Calendar"),
     ("numberline", numberline, "Number Line"),
     ("percent", percent, "Percent: read the circle"),
+    ("percent-make", percent_make, "Percent: shade the circle"),
     ("grewords", grewords, "GRE Words: pick the meaning"),
     ("grewords-study", grewords_study, "GRE Words: study card"),
     ("dice", dice, "Dice: three dice thrown"),

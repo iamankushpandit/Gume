@@ -278,6 +278,7 @@ SCREEN_CAPTIONS = {
     "nearby-name": "Nearby: naming a device, locally",
     "oddone": "Odd One",
     "percent": "Percent Circle",
+    "percent-make": "Percent: shade the circle",
     "profiles": "Profiles",
     "scores-device": "Scores: device best",
     "scores-mine": "Scores: this player",

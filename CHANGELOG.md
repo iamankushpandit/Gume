@@ -31,6 +31,23 @@ serial console, the boot banner prints `flip=`, and System Info's Layout row
 names the position. Nothing about it is transmitted. The touch calibration
 wizard is unchanged and still draws in its own fixed rotation.
 
+**Percent stops announcing the answer.** In the round that asks a player to
+shade the circle, the OK button turned green the moment the shaded amount
+matched the target -- before anybody had pressed it -- so the round could be
+finished by tapping + until a button lit up, and nothing was being asked
+([issue 183](https://github.com/iamankushpandit/Gume/issues/183)). OK is now
+one colour whatever the circle shows. Pressing it on the wrong amount turns it
+red for half a second; before, a wrong press there changed nothing on the panel
+at all. The minus and the tick on that round's buttons were characters the
+panel's font does not carry, so they are now `-` and `OK`.
+
+The same game gave the answer away in two more places, and both are closed.
+The round that asks "25% of 40 = ?" printed 10 in the middle of the circle,
+beside the four buttons asking for it; the circle now carries only its shading.
+And in both multiple-choice rounds a wrong tap flashed the *correct* button --
+in red, so it told the answer and mislabelled it at once. The button that was
+pressed is the one that flashes now.
+
 ## 5.12.3 — 2026-09-15
 
 **No ages.** The documents put numbers on the people using the console: a

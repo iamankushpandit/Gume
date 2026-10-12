@@ -18,6 +18,12 @@ constexpr int16_t CIRCLE_CX = 96;
 constexpr int16_t CIRCLE_CY = 130;
 constexpr int16_t CIRCLE_RADIUS = 62;
 
+/* A flashIndex_ that is not one of the four option buttons: the make round's
+ * OK was pressed on the wrong amount. That round has no option to flash, and
+ * before this a wrong press there changed nothing on the panel at all. Passed
+ * to markWrong() like any other thing a player can press. */
+constexpr int8_t SUBMIT_REFUSED = 4;
+
 constexpr AppScoreInfo PERCENT_SCORE = {
     "percent", "Percent", "pctBest", "pts", false
 };
@@ -180,9 +186,15 @@ void PercentCircleGame::markCorrect(AppContext& host) {
     host.beepOk();
 }
 
-void PercentCircleGame::markWrong() {
+/* `pressed` is what the player touched, and that is what turns red.
+ *
+ * This used to flash correctButton_ instead. One wrong tap and the right
+ * answer lit up for half a second -- in the colour that means wrong, so it
+ * misled as well as told. A wrong answer is information about the answer that
+ * was given; it must not be a second way of being handed the right one. */
+void PercentCircleGame::markWrong(int8_t pressed) {
     streak_ = 0;
-    flashIndex_ = correctButton_;
+    flashIndex_ = pressed;
     flashUntil_ = millis() + 500UL;
 }
 
@@ -273,12 +285,22 @@ void PercentCircleGame::drawMakeCircleMode(Ui::Renderer& tft) const {
     snprintf(valueStr, sizeof(valueStr), "%u%%", currentPercent_);
     tft.drawString(valueStr, 219, 169, 1);
 
-    Ui::drawPagerButton(tft, minusRect(), "âˆ’", currentPercent_ > 0);
+    /* ASCII, because that is all font 2 has. These two labels were a minus
+     * sign and a tick, which TFT_eSPI's built-in fonts do not carry -- so the
+     * buttons a player needed most were drawn with nothing readable on them. */
+    Ui::drawPagerButton(tft, minusRect(), "-", currentPercent_ > 0);
     Ui::drawPagerButton(tft, plusRect(), "+", currentPercent_ < 100);
 
-    uint16_t okFill = currentPercent_ == targetPercent_ ? Ui::success() : Ui::panel();
-    uint16_t okText = currentPercent_ == targetPercent_ ? TFT_BLACK : Ui::text();
-    Ui::drawButton(tft, okRect(), "âœ“", okFill, Ui::outline(), okText, false, 2);
+    /* OK LOOKS THE SAME WHATEVER THE CIRCLE SHOWS.
+     *
+     * It used to turn the success colour the moment the shaded amount matched
+     * the target, before it had been pressed. That made the round a matter of
+     * tapping + until a button lit up: the answer was announced by the control
+     * for submitting it, and nothing was being asked. The only thing that may
+     * change this button is the player pressing it -- red for the half second
+     * after a wrong answer, and the Correct card after a right one. */
+    const uint16_t okFill = flashIndex_ == SUBMIT_REFUSED ? Ui::error() : Ui::accent();
+    Ui::drawButton(tft, okRect(), "OK", okFill, Ui::outline(), Ui::onFill(okFill), false, 2);
 
     tft.setTextDatum(TL_DATUM);
 }
@@ -306,12 +328,11 @@ void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft) const {
         Ui::drawButton(tft, optionRect(i), label, fill, outline, text, false, 2);
     }
 
-    tft.setTextColor(Ui::muted(), Ui::bg());
-    tft.setTextDatum(MC_DATUM);
-    char circleLabel[32];
-    snprintf(circleLabel, sizeof(circleLabel), "%u", (baseNumber_ * targetPercent_) / 100);
-    tft.drawString(circleLabel, CIRCLE_CX, CIRCLE_CY, 2);
-    tft.setTextDatum(TL_DATUM);
+    /* NOTHING IS WRITTEN IN THE CIRCLE. It used to carry
+     * baseNumber_ * targetPercent_ / 100 at its centre -- the answer to the
+     * question printed above it, beside four buttons asking for it. The
+     * shaded share is the picture of the question; the number is the
+     * player's to work out. */
 }
 
 void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
@@ -358,7 +379,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
                 if (i == correctButton_) {
                     markCorrect(host);
                 } else {
-                    markWrong();
+                    markWrong(static_cast<int8_t>(i));
                     host.beepError();
                 }
                 markDirty();
@@ -386,7 +407,7 @@ void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
             if (currentPercent_ == targetPercent_) {
                 markCorrect(host);
             } else {
-                markWrong();
+                markWrong(SUBMIT_REFUSED);
                 host.beepError();
             }
             markDirty();
@@ -433,7 +454,9 @@ void PercentCircleGame::renderDynamic(AppContext& host) {
         tft.drawString("Correct!", 160, 120, 4);
         tft.drawString("Tap next", 160, 150, 2);
         tft.setTextDatum(TL_DATUM);
-    } else if (flashIndex_ >= 0) {
+    } else if (flashIndex_ >= 0 && flashIndex_ != SUBMIT_REFUSED) {
+        /* Not for the make round: its refusal is the OK button itself, and
+         * this line would be written across the middle of "Shade N%". */
         tft.setTextColor(Ui::error(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
         tft.drawString("Try again", 160, 60, 2);
