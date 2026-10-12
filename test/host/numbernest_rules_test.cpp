@@ -749,18 +749,23 @@ static void testSession() {
     CHECK(s.op == Op::Add && s.phase == Phase::Play && s.stage == 0 && s.collected == 0,
           "a sitting opens on addition, first group, empty nest");
     CHECK(s.puzzle.level == 1 && !s.armed, "level 1, and not armed until a finger lifts");
-    // The session is filled with garbage before it is reset, and a fresh one
-    // knows nothing about a finger: the screen is one static instance, and a
-    // "finger up since long ago" left over from the last visit would arm the
+    // A SECOND VISIT KNOWS NOTHING ABOUT THE FIRST ONE'S FINGER. The screen is
+    // one static instance, so the session it resets in begin() is the one the
+    // last visit left: "finger up since long ago" carried over would arm the
     // first group on a single sample off the glass.
     {
-        Session f = freshSession(91, 7000);
+        Session f = freshSession(91, 1000);
+        tick(f, 1000, false);
+        tick(f, 5000, false);                 // the last visit ends: finger up since long ago
+        CHECK(f.armed && f.fingerUp, "set-up: a finger up since long ago");
+        resetSession(f);                      // begin() on the next visit
+        deal(f, 92, 7000);
         tick(f, 7000, false);
-        CHECK(!f.armed, "a fresh session armed on one sample off the glass");
+        CHECK(!f.armed, "a second visit armed on one sample off the glass");
         tick(f, 7000 + RELEASE_MS - 1, false);
-        CHECK(!f.armed, "a fresh session armed before RELEASE_MS");
+        CHECK(!f.armed, "a second visit armed before RELEASE_MS");
         tick(f, 7000 + RELEASE_MS, false);
-        CHECK(f.armed, "a fresh session never armed");
+        CHECK(f.armed, "a second visit never armed");
     }
 
     // A finger held from before the group appeared answers nothing.

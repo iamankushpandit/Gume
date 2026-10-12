@@ -273,8 +273,9 @@ constexpr uint32_t SEARCH_BUDGET = 6000;
 
 uint32_t mix(uint32_t x);
 /* `budget` and `spent` are for the test, which needs to starve the search and
- * to measure it. The game passes neither. One function rather than two, so
- * that there is no second call site to hand the wrong budget to. */
+ * to measure it. The game passes neither, so the default is the budget the
+ * game searches with. No test can see that: the worst search measured spends
+ * under a quarter of it, so a larger default deals the same nests. */
 bool generate(Puzzle& out, Op op, uint8_t level, uint32_t seed,
               uint32_t budget = SEARCH_BUDGET, uint32_t* spent = nullptr);
 const Puzzle& fallbackPuzzle(Op op, uint8_t level);
