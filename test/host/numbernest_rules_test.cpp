@@ -1510,6 +1510,16 @@ static void testPerOperation() {
         s.progress.run[me] = 2;
         CHECK(viewOf(s).op == me && viewOf(s).level == 1 && s.puzzle.op == op,
               "%s: the level on show is not this operation's", name);
+        // A right answer counts toward this operation's run...
+        now = ready(s, now);
+        CHECK(tapNumber(s, currentGroup(s).rel.answer, now) == Tap::Right, "%s: set-up", name);
+        CHECK(s.progress.run[me] == 3 && s.progress.run[other] == 3,
+              "%s: a right answer was counted against the wrong operation (%u, %u)", name,
+              (unsigned)s.progress.run[me], (unsigned)s.progress.run[other]);
+        now += REVEAL_MS;
+        tick(s, now, false);
+        // ...and a wrong tap ends this operation's run and no other.
+        s.progress.run[other] = 3;
         now = ready(s, now);
         CHECK(tapNumber(s, wrongButton(s), now) == Tap::Wrong, "%s: set-up", name);
         CHECK(s.progress.run[me] == 0 && s.progress.run[other] == 3,
@@ -1528,6 +1538,35 @@ static void testPerOperation() {
         CHECK(s.puzzle.level == 4 && viewOf(s).level == 4, "%s: the other operation's level is not 4", name);
         CHECK(chooseOp(s, op, 904, now) && std::memcmp(&before, &s.progress, sizeof(before)) == 0,
               "%s: switching back spent some progress", name);
+
+        // A whole clean nest in this operation promotes THIS operation: the
+        // sixth answer earns it and finishing the nest applies it, here and
+        // nowhere else -- and a promotion the other operation is owed stays
+        // owed.
+        Session t = freshSession(950u + me, now);
+        if (op == Op::Mul) chooseOp(t, Op::Mul, 951, now);
+        t.progress.level[other] = 3;
+        t.progress.earned[other] = true;
+        for (uint8_t stage = 0; stage <= FINAL_STAGE; ++stage) {
+            now = ready(t, now);
+            const Tap result = tapNumber(t, currentGroup(t).rel.answer, now);
+            CHECK(result == (stage < FINAL_STAGE ? Tap::Right : Tap::Finished), "%s: clean stage %u", name,
+                  (unsigned)stage);
+            if (stage < FINAL_STAGE) {
+                now += REVEAL_MS;
+                tick(t, now, false);
+            }
+        }
+        CHECK(t.promoted && t.progress.level[me] == 2 && !t.progress.earned[me],
+              "%s: a clean nest did not promote the operation it was played in", name);
+        CHECK(t.progress.level[other] == 3 && t.progress.earned[other],
+              "%s: a clean nest spent the other operation's promotion", name);
+        CHECK(viewOf(t).status == static_cast<uint8_t>(Status::LevelUp) && viewOf(t).level == 2,
+              "%s: the finished nest does not announce its own level", name);
+        // The tap that finished the nest closes the gate like any other: no
+        // settle time alone lets Play again through while it is still down.
+        CHECK(!t.armed && !controlsArmed(t, now + SETTLE_MS + 10),
+              "%s: the finishing tap left the gate open for Play again", name);
     }
 }
 

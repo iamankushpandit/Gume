@@ -122,6 +122,13 @@ constexpr uint32_t combine(Op op, uint16_t a, uint16_t b) {
     return op == Op::Mul ? static_cast<uint32_t>(a) * static_cast<uint32_t>(b)
                          : static_cast<uint32_t>(a) + static_cast<uint32_t>(b);
 }
+/* Held to that by the compiler that builds the firmware: evaluated as a
+ * constant, a product taken as int overflows, and an overflow in a constant
+ * expression does not compile. A run-time test cannot catch it -- on the
+ * hardware the wrapped bits happen to be the right ones. */
+static_assert(combine(Op::Mul, 0xFFFF, 0xFFFF) == 4294836225UL &&
+                  combine(Op::Add, 0xFFFF, 0xFFFF) == 131070UL,
+              "combine() must widen its operands before the arithmetic");
 
 /* ---- groups ------------------------------------------------------------ */
 
