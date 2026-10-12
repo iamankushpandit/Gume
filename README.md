@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,957 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -556,6 +556,7 @@ One screen per game, in launcher order.
   <img src="docs/screens/fractions.png" width="300" alt="Fractions">
   <img src="docs/screens/money.png" width="300" alt="Money">
   <img src="docs/screens/percent.png" width="300" alt="Percent">
+  <img src="docs/screens/percent-make.png" width="300" alt="Percent: shade the circle">
 </p>
 <p align="center">
   <img src="docs/screens/sorting.png" width="300" alt="Sorting">
