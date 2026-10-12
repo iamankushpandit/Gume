@@ -92,6 +92,10 @@ Things worth getting right the first time:
   bottom. `portraitRotation` is a quarter-turn from it, and `BoardConfig.h`
   static_asserts that the two are not the same axis. `Board::pollTouch()`
   compensates for every rotation, so nothing in game code needs adjusting.
+  The owner can turn the display half a turn from either (*Settings →
+  Device*), for a case that holds the board the other way up -- so a new
+  board has to draw and track a finger in **all four** rotations, not only
+  the two its profile names.
 - **The panel size is native (portrait)**, matching `TFT_WIDTH`/`TFT_HEIGHT`.
   The landscape canvas the games draw on is *derived* — `SCREEN_WIDTH` and
   `SCREEN_HEIGHT` come out of `BoardProfile::screenWidth()`. Do not state it
@@ -178,6 +182,8 @@ mode below has actually happened.
    working".
 4. **Touch lands where you tap**, after the calibration wizard. If it is
    mirrored or transposed, that is `landscapeRotation`, not the touch pins.
+   Then step *Settings → Device* through all four screen positions and tap
+   in each: two of them are rotations the profile never mentions.
 5. **The battery percentage matches a meter.** `pio run -e batdiag` is the tool
    for this; page CALIBRATE resolves the real divider ratio.
 6. **The LED shows the colour asked for.** Wrong colour, not no colour, means

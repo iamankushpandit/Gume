@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,377 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,581,957 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -465,8 +465,8 @@ Deleting a player deletes that player's profile-scoped NVS data and shifts later
 players down with their own scores, mastery and visibility intact; deleting the
 active player switches the device back to Guest.
 
-Device settings — theme, layout, brightness, Wi-Fi, time zone, the BLE beacon —
-stay global.
+Device settings — theme, screen position, brightness, Wi-Fi, time zone, the BLE
+beacon — stay global.
 
 ### Accessibility
 
@@ -649,12 +649,13 @@ One screen per game, in launcher order.
 
 <p align="center">
   <img src="docs/screens/settings-device.png" width="360" alt="Settings: device">
+  <img src="docs/screens/settings-device-180.png" width="360" alt="Settings: the screen turned half a turn">
   <img src="docs/screens/settings-power.png" width="360" alt="Settings: power and sleep">
   <img src="docs/screens/settings-sound.png" width="360" alt="Settings: sound and volume">
   <img src="docs/screens/settings-admin.png" width="360" alt="Settings: the admin PIN">
 </p>
 
-Four tabs. **Device** holds theme, menu layout, the case light, the BLE beacon,
+Four tabs. **Device** holds theme, the screen position, the case light, the BLE beacon,
 the Network button, the NTP resync interval, the Nearby switch, screen
 brightness, and a factory reset behind a two-tap confirm. Nearby greys out and
 reads *needs Beacon* while the radio is off — it rides on that radio, and a
@@ -708,8 +709,36 @@ Brightness floors at **25%, not 0**, deliberately: at lower duty the panel is
 unreadable and a player who dragged the slider to the bottom could not see the
 control needed to undo it.
 
-**Menu layout is launcher-only.** Every game is authored against the fixed
-320×240 landscape canvas, so Tall changes the home screen and nothing else.
+**The screen has four positions**, on one split button: *Landscape*,
+*Portrait*, *Landscape 180* and *Portrait 180*. The right half of the button
+turns the screen a quarter on and the left half a quarter back, so a step too
+far is one tap to undo. The first two are the board the way its profile
+describes it; the two marked 180 are the same pictures turned half a turn, for
+an enclosure that holds the board the other way up. A case decides which way
+up a board sits, and there are far more cases for these boards than this
+project will ever draw. Touch follows the screen in all four.
+
+To turn the screen for a case:
+
+1. Choose the admin profile and open **Settings** (the gear).
+2. On the **Device** tab, find the button beside the theme: it reads
+   `< Landscape >` on a console that has never been changed.
+3. Tap its **right half**. Each tap is a quarter turn: Portrait, Landscape 180,
+   Portrait 180, and back to Landscape. The left half goes the other way.
+4. Stop when the picture is the right way up for the case. Settings itself is
+   always landscape, so it turns over on every second tap -- into Landscape
+   180, and back out of Portrait 180 -- and stays put on the taps between.
+5. Leave Settings. The choice is kept across restarts.
+
+A console that is already upside down in its case can still be set this way:
+touch lands where the picture is, whichever way up it is drawn.
+
+**Portrait is for the menus; the half turn is for everything.** Every game is
+authored against the fixed 320×240 landscape canvas, so Portrait changes the
+home screen and the screens that follow it, and a game still opens in
+landscape. Turning the screen over applies to the games too — landscape turned
+over is still landscape. The setting is kept across restarts and cleared by a
+factory reset; over a cable it is `set flip on` on the serial console.
 
 **Admin** holds the PIN that guards the admin profile. See below.
 
@@ -1358,7 +1387,7 @@ it without being reset. One command per line; every reply is one line,
 
 ```
 identify      ok v="1" device="R28T-9F3A2C71" board="E32R28T-1" version="…" build="…" …
-get           ok v="1" theme="Dark" brightness="80" layout="horizontal" sound="on" …
+get           ok v="1" theme="Dark" brightness="80" layout="horizontal" flip="off" sound="on" …
 get theme     ok key="theme" value="Dark" values="Dark|Light|Midnight|…"
 help          ok commands="identify get set wifi profiles profile-add …"
 ```
@@ -1369,7 +1398,7 @@ PIN: after `unlock <PIN>`,
 
 | What | Commands |
 |---|---|
-| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp, ntp_hours, timezone |
+| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp, ntp_hours, timezone |
 | Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
 | Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
 | Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |

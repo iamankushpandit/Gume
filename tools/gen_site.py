@@ -286,6 +286,7 @@ SCREEN_CAPTIONS = {
     "wakelock": "Hold to unlock",
     "wakelock-tall": "Hold to unlock, Tall layout",
     "settings-device": "Settings: device",
+    "settings-device-180": "Settings: the screen turned half a turn",
     "profiles-games": "Profiles: per-player games",
     "settings-power": "Settings: power",
     "settings-sound": "Settings: sound and volume",

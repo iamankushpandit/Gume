@@ -263,9 +263,37 @@ void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
         markFullDirty(); return;
     }
     if (layoutRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        board.setLayoutMode(board.layoutMode() == Board::LayoutMode::Horizontal
-            ? Board::LayoutMode::Vertical : Board::LayoutMode::Horizontal);
-        markControl(layoutRect()); return;
+        /* Four positions on one button, split like the theme button beside
+         * it: the right half turns the screen a quarter on, the left half a
+         * quarter back.
+         *
+         * It was a two-way toggle, Landscape and Portrait, which is the two
+         * positions with the USB socket where the board profile puts it. The
+         * other two are for an enclosure that holds the board the other way
+         * up. They are one control rather than a second switch because that
+         * is how the owner thinks about it -- "which way round is this
+         * thing" is one question -- and because this grid has no ninth cell
+         * to put a switch in.
+         *
+         * Stored as the layout and a flip, not as a number 0..3: the layout
+         * is what the launcher and every followsLayout screen already read,
+         * and the flip is the half that also turns the games. */
+        const Rect box = layoutRect();
+        const bool back = touch.x < box.x + box.w / 2;
+        const uint8_t current = static_cast<uint8_t>(
+            (board.screenFlipped() ? 2 : 0) +
+            (board.layoutMode() == Board::LayoutMode::Vertical ? 1 : 0));
+        const uint8_t next = static_cast<uint8_t>((current + (back ? 3 : 1)) & 3);
+        board.setLayoutMode((next & 1) ? Board::LayoutMode::Vertical
+                                       : Board::LayoutMode::Horizontal);
+        board.setScreenFlipped((next & 2) != 0);
+        markControl(box);
+        /* This screen is always landscape, so of the four steps only the two
+         * that cross the flip turn what is in front of the owner. The runtime
+         * decides which; when it does turn, it repaints the whole screen and
+         * the control's own repaint above is simply covered by it. */
+        host.applyOrientation();
+        return;
     }
     if (lightRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         board.setRgbEnabled(!board.rgbEnabled()); markControl(lightRect()); return;

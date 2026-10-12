@@ -332,6 +332,24 @@ public:
 
     LayoutMode layoutMode();
     void setLayoutMode(LayoutMode mode);
+    /* Whether the whole display is turned half a turn from the way the board
+     * profile says it sits.
+     *
+     * The profile's rotations put the USB socket at the bottom, which is a
+     * fact about the board. Which way up the board ends up is a fact about
+     * the enclosure it was put in, and plenty of printed cases hold one the
+     * other way round -- so this is an owner's setting, not a profile field.
+     * With layoutMode() it gives the four positions a panel can be read in.
+     *
+     * Unlike the layout it turns EVERYTHING, games included: a game is
+     * authored for landscape and this is still landscape. Touch needs nothing
+     * told to it -- pollTouch() already maps all four rotations.
+     *
+     * Global and RAM-mirrored: it is read on every screen change. Off by
+     * default, so a console that has never seen the setting sits exactly as
+     * it always did. */
+    bool screenFlipped();
+    void setScreenFlipped(bool flipped);
     uint16_t screenSaverSeconds();
     void setScreenSaverSeconds(uint16_t seconds);
     /* What happens when the device has been idle for screenSaverSeconds().
@@ -657,6 +675,8 @@ private:
     uint8_t cachedTheme_ = 0;
     bool layoutCached_ = false;
     uint8_t cachedLayout_ = 0;
+    bool flipCached_ = false;
+    bool cachedFlip_ = false;
     bool idleCached_ = false;
     uint16_t cachedIdleSecs_ = 0;
     bool idleActionCached_ = false;

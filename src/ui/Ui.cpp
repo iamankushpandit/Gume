@@ -231,6 +231,19 @@ const char* themeName(Theme t) {
     return "Dark";
 }
 
+/* "180" rather than "flipped" or "upside down": it is the same word for both
+ * shapes, it says how far rather than passing judgement on a case that holds
+ * the board that way round, and the longest of these still has to fit a
+ * 144px Settings cell at font 2 between two chevrons -- which it does, at
+ * 115px of the 132 the button leaves for a label. Measure a new wording
+ * against that before changing one. */
+const char* orientationName(bool portrait, bool flipped) {
+    if (flipped) {
+        return portrait ? "Portrait 180" : "Landscape 180";
+    }
+    return portrait ? "Portrait" : "Landscape";
+}
+
 Theme currentTheme() {
     return s_theme;
 }

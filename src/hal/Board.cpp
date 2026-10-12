@@ -320,6 +320,20 @@ void Board::setLayoutMode(LayoutMode mode) {
     layoutCached_ = true;
 }
 
+bool Board::screenFlipped() {
+    if (!flipCached_) {
+        cachedFlip_ = prefs_.getBool("screenFlip", false);
+        flipCached_ = true;
+    }
+    return cachedFlip_;
+}
+
+void Board::setScreenFlipped(bool flipped) {
+    prefs_.putBool("screenFlip", flipped);
+    cachedFlip_ = flipped;
+    flipCached_ = true;
+}
+
 uint16_t Board::screenSaverSeconds() {
     if (!idleCached_) {
         const uint16_t stored = prefs_.getUShort("idleSecs", 300);

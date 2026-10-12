@@ -176,7 +176,7 @@ call site:
    `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
    than once per screen change gets a write-through RAM mirror in `Board`**:
    the setter updates the mirror and NVS together, so a stale read is not
-   possible. Theme, layout, brightness, idle timeout, active profile, game
+   possible. Theme, layout, screen flip, brightness, idle timeout, active profile, game
    visibility and the Wi-Fi credentials all work this way now. Add to that list
    rather than reaching for `prefs_` in a hot path.
 2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call

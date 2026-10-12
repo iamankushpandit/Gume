@@ -337,4 +337,8 @@ void setTheme(Theme t);
 Theme currentTheme();
 /** Display name for the Settings label. Never null. */
 const char* themeName(Theme t);
+/** The four positions a panel can be read in, named once. Settings puts this
+ *  on its control and System Info on its row, so the two cannot disagree
+ *  about what the third one is called. Never null. */
+const char* orientationName(bool portrait, bool flipped);
 }
