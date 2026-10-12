@@ -4,11 +4,11 @@
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
 [![Version](https://img.shields.io/badge/version-5.14.0--SNAPSHOT-9a6700)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
+[![Games](https://img.shields.io/badge/games-41-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-82.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-82.4%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -22,7 +22,7 @@
 **Discussion is open on Reddit:** [r/gume_braino](https://www.reddit.com/r/gume_braino/) —
 questions, ideas and feedback, in public, where the next person finds them.
 
-A 40-game educational console for young players, running on an **ESP32-32E
+A 41-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -39,9 +39,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 40 |
-| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
-| RAM | 88,036 / 327,680 bytes (**26.9%**) |
+| Games | 41 |
+| Flash | 2,592,737 / 3,145,728 bytes of the app partition (**82.4%**) |
+| RAM | 88,244 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -362,9 +362,11 @@ touch calibration, the profiles, the scores and the mastery data.
 
 ## The games
 
-Ages are a guide, not a gate. Every game can be hidden from a player's launcher
+Ages are a guide, not a gate. A game can be hidden from a player's launcher
 in **Profiles → Edit → Games**, so you can pare the list down to what one player
-needs without touching anyone else's. Only the admin can change it.
+needs without touching anyone else's. Only the admin can change it. (The first
+thirty-two can; the list a profile keeps has that many places, and the nine
+newest games are always shown for now.)
 
 ### Numbers and early maths
 
@@ -381,6 +383,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Percent** | Read, make and calculate percentages on a circle | Percentage as a portion of a whole, before it is an algorithm |
 | **Sorting** | "Tap smallest to largest" (or the reverse) | Ordering and magnitude comparison |
 | **Roman** | Roman numerals, both ways round: read one, or write a number as one. The symbol key and the rule for the level stay on the screen, and every answer is followed by the number taken apart — `XIV = X + IV = 10 + 4`. The wrong answers are the real mistakes: reading XIV as 10 + 1 + 5, or writing 4 as IIII | Place value in a system that has none, and the habit of checking a smaller symbol before a bigger one. Five levels, each adding the next letter: X, then L, then C, then D and M |
+| **NumberNest** | Five numbers in five circles, and exactly one of them is the sum of two of the others — or, in the other mode, the product: `3 7 10 12 18` hides `3 + 7 = 10`. Tap it. Five answers fill a nest, and the nest is then the last group to solve. **Add** and **Multiply** are always on the screen and each keeps its own level, 1 to 5, saved per player; six answers in a row at the first tap earn the next level, which begins with the next nest, and tapping the level steps it by hand | Arithmetic run backwards: not "what is 3 + 7?" but "which of these was made from two of the rest?" — the searching that mental arithmetic mostly is. Untimed, and a wrong tap marks only the number that was pressed. Best is the longest run of first-tap answers |
 
 ### World knowledge
 
@@ -565,6 +568,12 @@ One screen per game, in launcher order.
 </p>
 <p align="center">
   <img src="docs/screens/roman-write.png" width="300" alt="Roman Numerals: write the number">
+</p>
+<p align="center">
+  <img src="docs/screens/numbernest.png" width="300" alt="NumberNest: a right answer drops into the nest">
+  <img src="docs/screens/numbernest-multiply.png" width="300" alt="NumberNest: the product of two others">
+  <img src="docs/screens/numbernest-final.png" width="300" alt="NumberNest: the nest is the last group">
+  <img src="docs/screens/numbernest-rules.png" width="300" alt="NumberNest: how to play">
 </p>
 
 ### World knowledge

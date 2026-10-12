@@ -631,6 +631,46 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             strokeDiag(tft, cx - 1, cy - 10, cx + 5, cy + 9, ink());
             strokeDiag(tft, cx + 12, cy - 10, cx + 6, cy + 9, ink());
             break;
+        case LauncherIcon::NumberNest:
+            /* A nest with three chicks in it, and the chicks are numbers: 1,
+             * 2 and 3, beaks up. Rule 5: the other groups of discs here are
+             * loose -- Counting's five, Object Add's -- and none of them sits
+             * in anything; the snow bowl under these is the silhouette. One
+             * accent hue, amber, for the chicks.
+             *
+             * The digits are font 1 on purpose, as the atomic number on the
+             * Elements tile is. Lettering was taken off Microku, Money and
+             * Sequence because it was decoration there; here the numbers are
+             * the subject, and no three strokes of geometry say "2". */
+            tft.setTextColor(ink(), amber());
+            tft.setTextDatum(MC_DATUM);
+            for (uint8_t i = 0; i < 3; ++i) {
+                const int16_t hx = static_cast<int16_t>(cx - 12 + i * 12);
+                const int16_t hy = static_cast<int16_t>(cy - (i == 1 ? 7 : 3));
+                /* The beak is two triangles a pixel apart, so that even its
+                 * tip is two pixels wide (rule 4): the head covers everything
+                 * below hy-6, and a single triangle shows as a one-pixel
+                 * spike above it. */
+                tft.fillTriangle(hx - 3, hy - 5, hx + 1, hy - 5, hx - 1, hy - 9, snow());
+                tft.fillTriangle(hx - 2, hy - 5, hx + 2, hy - 5, hx, hy - 9, snow());
+                tft.fillCircle(hx, hy, 6, amber());
+                const char digit[2] = {static_cast<char>('1' + i), '\0'};
+                tft.drawString(digit, hx, hy, 1);
+            }
+            tft.setTextDatum(TL_DATUM);
+            /* Radius 7, not RADIUS: this is not a rounded corner on a card,
+             * it is the bowl's own shape -- half its height, so the ends are
+             * round. At 4 it is a tray. */
+            tft.fillRoundRect(cx - 17, cy + 2, 34, 15, 7, snow());
+            /* Twigs, as one zigzag across the bowl: woven, not ticked. */
+            for (int16_t i = 0; i < 4; ++i) {
+                const int16_t x0 = static_cast<int16_t>(cx - 13 + i * 7);
+                const bool rising = (i % 2) == 0;
+                strokeDiag(tft, x0, static_cast<int16_t>(cy + (rising ? 12 : 6)),
+                           static_cast<int16_t>(x0 + 5),
+                           static_cast<int16_t>(cy + (rising ? 6 : 12)), ink());
+            }
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());
