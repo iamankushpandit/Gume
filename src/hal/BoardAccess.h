@@ -20,6 +20,8 @@ public:
     void setThemeMode(Board::ThemeMode mode) { board_.setThemeMode(mode); }
     Board::LayoutMode layoutMode() { return board_.layoutMode(); }
     void setLayoutMode(Board::LayoutMode mode) { board_.setLayoutMode(mode); }
+    bool screenFlipped() { return board_.screenFlipped(); }
+    void setScreenFlipped(bool flipped) { board_.setScreenFlipped(flipped); }
     uint8_t rotation() const { return board_.displayRotation(); }
     void setRotation(uint8_t rotation) { board_.setDisplayRotation(rotation); }
     uint8_t brightness() { return board_.brightness(); }

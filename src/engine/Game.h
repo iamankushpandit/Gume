@@ -172,6 +172,10 @@ public:
     virtual void openSettings() = 0;
     virtual void openWifi() = 0;
     virtual void openProfiles() = 0;
+    /* Tell the runtime the layout or the flip was just changed, so the screen
+     * that is up turns now. A screen never sets a rotation itself: which one
+     * it gets is the runtime's decision, made in one place. */
+    virtual void applyOrientation() = 0;
 };
 
 class Game {

@@ -10,6 +10,27 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The screen turns to all four positions.** *Settings → Device* offered
+Landscape and Portrait, which are the two positions with the USB socket where
+the board profile puts it. An enclosure that holds the board the other way up
+had no answer, and there are many such enclosures for these boards (asked for
+in [issue 191](https://github.com/iamankushpandit/Gume/issues/191)). The same
+button now steps through four -- Landscape, Portrait, Landscape 180, Portrait
+180 -- split left and right like the theme button beside it, so one tap too
+many is one tap to undo.
+
+Portrait still applies to the menus only, because every game is drawn for
+landscape. The half turn applies to everything, games included: landscape
+turned over is still landscape. Touch needed no change -- `pollTouch()` has
+mapped all four rotations since the first board, and two of them had simply
+never been asked for.
+
+It is one new global setting beside the layout, off by default, so a console
+that upgrades sits exactly as it did. `set flip on|off` sets it from the
+serial console, the boot banner prints `flip=`, and System Info's Layout row
+names the position. Nothing about it is transmitted. The touch calibration
+wizard is unchanged and still draws in its own fixed rotation.
+
 ## 5.12.3 — 2026-09-15
 
 **No ages.** The documents put numbers on the people using the console: a

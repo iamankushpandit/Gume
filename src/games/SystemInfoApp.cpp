@@ -588,7 +588,8 @@ void SystemInfoApp::buildAppStateRows(GameHost& host) {
     rows_.clear();
     rows_.addSection("Device");
     rows_.addRow("Theme", board.themeMode() == Board::ThemeMode::Light ? "Light" : "Dark");
-    rows_.addRow("Layout", board.layoutMode() == Board::LayoutMode::Vertical ? "Portrait" : "Landscape");
+    rows_.addRow("Layout", Ui::orientationName(board.layoutMode() == Board::LayoutMode::Vertical,
+                                               board.screenFlipped()));
     char deviceText[16];
     snprintf(deviceText, sizeof(deviceText), "%u%%", static_cast<unsigned>(board.brightness()));
     rows_.addRow("Brightness", deviceText);

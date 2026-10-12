@@ -1854,8 +1854,11 @@ def settings_device():
     settings_tabs(d, 0)
     # Four rows of 30px from y=58, under the tab baseline. Network shares a
     # clock-settings row with the NTP resync cadence.
-    button(d, (8, 58, 144, 30), "Theme: Dark")
-    button(d, (164, 58, 144, 30), "Menu: Landscape")
+    # Both are split buttons -- left half back, right half forward -- and say
+    # so with chevrons. The second is the four screen positions; see
+    # Ui::orientationName() for the other three labels.
+    button(d, (8, 58, 144, 30), "< Dark >")
+    button(d, (164, 58, 144, 30), "< Landscape >")
     button(d, (8, 92, 144, 30), "Light: On")
     button(d, (164, 92, 144, 30), "Beacon: On")
     button(d, (8, 126, 144, 30), "Network", ACCENT, on_fill(ACCENT))
@@ -3970,7 +3973,7 @@ def settings_tall():
     row_h = min(44, pitch - 4)
     col_w = (PW - 8 - 12 - 12) // 2
     cols = (8, 8 + col_w + 12)
-    grid = [("Theme: Dark", PANEL, TEXT), ("Menu: Tall", PANEL, TEXT),
+    grid = [("< Dark >", PANEL, TEXT), ("< Portrait >", PANEL, TEXT),
             ("Light: On", PANEL, TEXT), ("Beacon: On", PANEL, TEXT),
             ("Network", BLUE, WHITE), ("Sync: 6h", PANEL, TEXT),
             ("Nearby: On", PANEL, TEXT), ("Reset device", (120, 58, 58), WHITE)]

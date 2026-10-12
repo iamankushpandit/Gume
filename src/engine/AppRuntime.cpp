@@ -474,7 +474,35 @@ void BrainoApp::applyRotation(uint8_t rotation) {
 uint8_t BrainoApp::effectiveRotation(bool landscape) {
     /* Which quarter-turn is "landscape" depends on where the board puts its
      * USB socket, so both come from the board profile. */
-    return landscape ? BOARD.panel.landscapeRotation : BOARD.panel.portraitRotation;
+    const uint8_t base = landscape ? BOARD.panel.landscapeRotation
+                                   : BOARD.panel.portraitRotation;
+    /* Which way up the board sits depends on the case it was put in, so that
+     * half comes from the owner. Half a turn keeps landscape landscape and
+     * portrait portrait, which is why it can be added here, underneath every
+     * caller, without any of them learning a third answer. */
+    return board_.screenFlipped() ? static_cast<uint8_t>((base + 2) & 3) : base;
+}
+
+/* The orientation settings changed while a screen is up. Settings and the
+ * serial console both land here, so a flip is seen the moment it is chosen
+ * rather than on the way out of the screen it was chosen on.
+ *
+ * Nothing happens when the screen that is up does not turn: Settings is
+ * always landscape, so choosing Portrait from it changes the launcher it
+ * returns to and nothing in front of the owner. Repainting -- and swallowing
+ * a touch -- for that would be a flash that answers no question. The saver,
+ * sleep and the lock screen are left alone too; resumeUnderlyingScreen()
+ * applies the rotation when they hand back. */
+void BrainoApp::applyOrientation() {
+    if (view_ != View::Game || activeGame_ == nullptr) {
+        return;
+    }
+    const uint8_t rotation = rotationForActiveScreen();
+    if (board_.displayRotation() == rotation) {
+        return;
+    }
+    applyRotation(rotation);
+    activeGame_->requestRender();
 }
 
 /* One place that decides orientation, because it used to be three and one of

@@ -19,10 +19,13 @@
  * proper is not also the place that describes the hardware. */
 void BrainoApp::logBootBanner() {
     logIdentity();
-    Serial.printf("[boot] board=%s rot=%d layout=%s (landscape=%d portrait=%d)\n",
+    /* `flip` sits beside the two profile rotations because it is what
+     * explains a `rot` that matches neither of them. */
+    Serial.printf("[boot] board=%s rot=%d layout=%s flip=%d (landscape=%d portrait=%d)\n",
                   BOARD.name,
                   (int)board_.displayRotation(),
                   board_.layoutMode() == Board::LayoutMode::Vertical ? "Vertical" : "Horizontal",
+                  (int)board_.screenFlipped(),
                   (int)BOARD.panel.landscapeRotation,
                   (int)BOARD.panel.portraitRotation);
     /* Beside the board line, so a serial log pasted into an issue identifies

@@ -28,6 +28,16 @@ cases/
 | [E32R32P](E32R32P/) | Front shell with printed fasteners, back plate with an 8 Ω speaker grille | Printed and fitted; print settings not recorded yet |
 | [E32R40T](E32R40T/) | Front shell, back plate and four printed fasteners on one plate | Printed and fitted; print settings not recorded yet |
 
+## A case that holds the board another way up
+
+The firmware assumes nothing about which way up a board ends up. *Settings →
+Device* turns the screen to any of four positions — landscape, portrait, and
+each of those turned half a turn — and touch follows it. So a case drawn for
+another firmware, or one that puts the USB socket at the top, works as it is:
+choose the position once and it is kept. Games are always landscape, so a case
+that stands the board in portrait gets upright menus and games on their side.
+If your case wants one of the turned positions, say which in its README.
+
 ## Adding a case for your board
 
 0. If a board already has a case that fits it -- the 2.8-inch boards share
