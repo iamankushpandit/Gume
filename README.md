@@ -161,20 +161,20 @@ different image is likely to give a blank or wrongly coloured screen.
 
 **The Freenove FNK0104B** is a 2.8-inch ESP32-S3 board with the same ILI9341
 240×320 panel, an **FT6336U capacitive** touch controller, 16 MB flash and
-8 MB PSRAM. It is flashable from the web installer and every one of the 31
-games works on it. It was brought up on real hardware rather than from a
-published pin map: display, backlight, touch at all four rotations, battery
-sense and the audio path were each confirmed on a device.
+8 MB PSRAM. It is flashable from the web installer and every game works on
+it. It was brought up on real hardware rather than from a published pin map:
+display, backlight, touch at all four rotations, battery sense and the audio
+path were each confirmed on a device.
 
 Its USB-C is on a short edge, so unlike the other boards no landscape rotation
 puts the socket at the bottom — Braino uses rotation 3, which puts the cable on
 the left.
 
-**Sound works**, and on this board it is the whole of the
-[sound vocabulary](#sound) rather than two beeps — including the spoken
-"Let's play Braino!" at boot. It plays through the ES8311 codec, capped at 80%
-volume. **Two things do not work yet, and they are switched off rather than
-broken:**
+**Sound works**, and it is the whole of the [sound vocabulary](#sound) —
+including the spoken "Let's play Braino!" at boot. This is the one board that
+plays it through a codec, the ES8311, rather than the ESP32's built-in DAC,
+and its volume is capped at 85%. **Two things do not work yet, and they are
+switched off rather than broken:**
 
 | Not working | Why | Issue |
 |---|---|---|
@@ -217,13 +217,26 @@ reports a permanent false pen-down. The profile says so (`irqUsable`) and the
 firmware gates on pressure alone, which is clean here: idle noise reads 10–20
 and a real press 2000+.
 
-**Four peripherals are switched off rather than broken**, because nobody has
-measured them on this board yet: the SD slot, the RGB LED, the speaker and
-battery sense. They are plausibly wired like the 2.8-inch board's — and
-"plausibly" is exactly the reasoning that produced a backlight pin nobody had
-checked. `PIN_NONE` costs a feature the firmware already does without; a wrong
-pin costs a fictional battery percentage. If you own one and can measure them,
-that is the most useful thing you can send.
+**One peripheral is switched off rather than broken:** the SD slot, which
+nobody has measured on this board yet. `PIN_NONE` costs a feature the firmware
+already does without.
+
+**Sound is on.** The vendor schematic runs GPIO26 — ESP32 DAC channel 2 —
+into an onboard 8002-series amplifier whose shutdown input is IO4, active low.
+That pin is why the speaker was once silent with the DAC driving it correctly:
+an inherited profile declared IO4 as the green LED, so switching that "LED"
+off on every boot held the amplifier in shutdown. The green channel is
+therefore absent here. The volume ceiling of 75% is inherited from the
+2.8-inch board and has not yet been set by listening on this one.
+
+**The red and blue LED channels and battery sense on GPIO34 are inherited from
+the E32R28T-1 rather than measured here.** The display bus turning out
+identical pin for pin makes that evidence rather than hope — and "plausibly"
+is still exactly the reasoning that produced a backlight pin nobody had
+checked. They fail differently: a wrong LED pin is harmless and self-evident,
+while a wrong battery pin reports a percentage that is fiction and looks
+entirely plausible. If you own one and can check the battery badge against a
+meter, that is the most useful thing you can send.
 
 `pio run -e diag4` is the standalone bring-up probe for this board: panel
 identity over SPI, a backlight sweep, geometry and colour, rotation, both touch
@@ -461,10 +474,10 @@ Cinnamon originally repainted the **whole screen** on every step, producing a
 full-screen flash roughly once a second — uncomfortable generally and a genuine
 risk for photosensitive players. It now repaints only the pads that changed, so
 there is **no full-area luminance change at all**, and mirrors each colour on
-the case LED so the cue doesn't depend on the screen flashing. On a board with
-a codec each pad also has its own fixed note, so the sequence can be followed
-by ear alone — which is the point of the game and, for a player who cannot
-easily tell the four colours apart, the difference between playable and not.
+the case LED so the cue doesn't depend on the screen flashing. Each pad also
+has its own fixed note, so the sequence can be followed by ear alone — which
+is the point of the game and, for a player who cannot easily tell the four
+colours apart, the difference between playable and not.
 
 <p align="center">
   <img src="docs/screens/cinnamon.png" width="360" alt="Cinnamon Says">
@@ -474,19 +487,28 @@ easily tell the four colours apart, the difference between playable and not.
 
 ### Sound
 
-On a board with an audio codec — today that is the
-[Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) — the console has a small
-fixed vocabulary of sounds rather than a beep for yes and a buzz for no. A
-point scored, a tile sliding, a level cleared, a personal best beaten, a mole
-about to vanish and a game lost each sound different, and they sound the same
-in every game that uses them, so a player learns them once.
+The console has a small fixed vocabulary of sounds rather than a beep for yes
+and a buzz for no. A point scored, a tile sliding, a level cleared, a personal
+best beaten, a mole about to vanish and a game lost each sound different, and
+they sound the same in every game that uses them, so a player learns them
+once.
+
+**Every supported board plays all of it**, through whatever speaker is plugged
+into the board's speaker connector — with nothing plugged in, the console
+simply plays silently. One synthesiser feeds two different outputs:
+
+- The [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) plays through an
+  **ES8311 audio codec**.
+- The E32R28T-1, the dual-USB ESP32-2432S028, the E32R32P and the E32R40T have
+  no codec. The **ESP32's built-in DAC** on GPIO26 drives an onboard amplifier
+  directly, which gives 8-bit output — coarser than the codec, and the same
+  cues, pad notes, piano notes and spoken phrase.
 
 **None of it is a recording.** There is no WAV, no MP3 and no sample bank
 anywhere in this firmware, and there is not going to be one: a single second of
 audio would cost more flash than several games. Every sound is generated as it
-plays, from a few oscillators, a noise source and three formant filters. The
-whole vocabulary — fourteen cues, four pad notes and a spoken phrase — costs
-under a kilobyte.
+plays, from a few oscillators, a noise source and three formant filters. A cue
+is a short script for those, and costs about forty bytes.
 
 The formant filters are there because the console says **"Let's play Braino!"**
 when it starts up, in a deliberately robotic voice. That phrase is not a clip
@@ -497,14 +519,19 @@ consonant. It is the same technique that made 1980s home computers talk, which
 is exactly why it sounds like one.
 
 All of it can be turned off. **Settings → Sound** holds a mute switch and a
-volume slider capped at 85% for a device held near a young player's ears, plus two
-buttons to hear the level while you set it — because setting a volume you
-cannot hear while you set it is guesswork.
+volume slider capped for a device held near a young player's ears — at 85% on
+the Freenove and 75% on the built-in-DAC boards — plus two buttons to hear the
+level while you set it, because setting a volume you cannot hear while you set
+it is guesswork.
 
-A board with no codec is unchanged: the RGB case LED still flashes green for
-right and red for wrong, and every call to play a sound is silently a no-op.
-The Sound tab says which of those two situations you are in rather than showing
-a muted switch for a speaker that was never there.
+Sound is in addition to the case LED, not instead of it: on a board with an
+RGB LED, right still flashes green and wrong still flashes red, muted or not.
+
+A speaker remains optional hardware as far as the firmware is concerned. A
+board with no audio path at all would still build and run: every call to play
+a sound becomes a silent no-op, and the Sound tab says the board cannot make
+sound rather than showing a muted switch for a speaker that was never there.
+No supported board is in that state today.
 
 ---
 
@@ -642,16 +669,20 @@ arrived and there was nowhere left to put them.
 rather than volume zero, so the level survives being silenced and comes back
 where it was; muting takes *everything*, including the startup phrase, and
 leaves the case LED still flashing green and red. The volume slider is capped
-at **85%** and says 85 — a control that relabelled its ceiling as 100% would
-read better and lie. That ceiling is a hearing-safety limit for a device held
-near a young player's ears, the counterpart of the 25% brightness floor, and it
-was set by listening on the Freenove's own driver rather than picked as a round
-number. Two test buttons sit under it, because setting a volume
-you cannot hear while you set it is guesswork: one plays a cue, the other says
-"Let's play Braino!". Dragging the slider plays a note at the new level as you
-go. On a board with no audio codec the tab says so plainly rather than offering
-controls that do nothing — "this board cannot" and "you have muted it" are
-different things to tell an owner. See [Sound](#sound).
+below 100% and says so — **85** on the Freenove, **75** on the boards that
+play through the ESP32's built-in DAC — because a control that relabelled its
+ceiling as 100% would read better and lie. That ceiling is a hearing-safety
+limit for a device held near a young player's ears, the counterpart of the 25%
+brightness floor. It is stated per board because it depends on the amplifier
+and the speaker: 85 was set by listening on the Freenove's own driver, and 75
+by ear on the 2.8-inch boards, above which the speaker distorts without
+getting meaningfully louder. Two test buttons sit under it, because setting a
+volume you cannot hear while you set it is guesswork: one plays a cue, the
+other says "Let's play Braino!". Dragging the slider plays a note at the new
+level as you go. On a board with no audio path at all the tab says so plainly
+rather than offering controls that do nothing — "this board cannot" and "you
+have muted it" are different things to tell an owner — though every supported
+board has one today. See [Sound](#sound).
 
 The tab's last row is **Find alert**, which decides whether a *Find* from
 another console makes this one ring. It is the one control here that stays live
