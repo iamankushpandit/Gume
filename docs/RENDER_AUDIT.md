@@ -67,6 +67,7 @@ usually is one.
 | *quiz screens (9 left)* | **half split** | Group A. Safe half done by tools/split_render.py; follow Math. |
 | ShapeColorGame | **converted** | Group A-ish: eight rows tracked by state. See below. |
 | SpaceGame, RomanGame | **born converted** | Group A. Written against this document rather than fixed afterwards. |
+| NumberNestGame | **born converted** | Painted by difference: the screen keeps the `Nest::View` it last painted, `Nest::changedRegions()` names what differs, and each region has one painter. The host test states what each event may repaint. |
 | TicTacToe | **converted** | Group B. |
 | SlidingPuzzle | **converted** | Group B. |
 | Maze | **converted** | Group C. |

@@ -48,6 +48,65 @@ And in both multiple-choice rounds a wrong tap flashed the *correct* button --
 in red, so it told the answer and mislabelled it at once. The button that was
 pressed is the one that flashes now.
 
+**NumberNest, a forty-first game.** Five numbers in five circles; exactly one
+of them is the sum of two of the others, and the player taps it. Five answers
+drop into a nest, and the nest is then the last group to solve. A second mode
+asks for the product instead, and the two are always one tap apart.
+
+The puzzles are built backwards. The final group is chosen first, and each of
+the five groups before it is then built round one of its numbers, so the nest
+is solvable because it was the starting point rather than because it turned
+out that way. Every group is counted, not trusted: all ten pairs of positions
+are tried against every third, and a group stands only when exactly one
+equation holds. The search that builds a nest spends from a fixed budget and
+falls back to a stored nest if it runs out -- one for each mode and level, and
+the compiler checks those with the same function the game uses, so a stored
+nest with two answers is a build error. `test/host/numbernest_rules_test.cpp`
+plays 40,000 nests and 1,500 whole sittings against a referee of its own.
+
+A valid group can still be an unkind one, so the search has two preferences
+on top of the rule. It keeps a number from sitting beside its own double:
+`3 + 3 = 6` is not an answer, because one number used twice is one number,
+but it is correct arithmetic, and a young player who taps the 6 for it is
+told no. And it avoids asking one equation twice in a nest. Both give way
+before they would cost a nest its uniqueness -- `1 + 2 = 3` cannot be made
+any other way.
+
+There is no shared difficulty framework in this firmware, so NumberNest uses
+the two conventions of the games nearest to it: five levels, as Math and
+Multiply have, and a level that is saved per player, promoted by six right
+answers in a row and stepped by hand from the screen, as Flags and States do.
+Add and Multiply each keep their own. An answer counts toward the run only
+when it was right at the first tap. A nest is dealt at one level and is six
+answers long, so a run that reaches six part way through one earns the
+promotion there and the level moves when that nest is finished: the level on
+the screen is always the level of the nest being played. It is saved when it
+is earned, so leaving before the nest ends does not lose it. Level 1
+multiplication stays inside the ten-times table, which leaves it three final
+equations -- 6 x 8, 6 x 10 and 8 x 10 -- each already met earlier in the same
+nest; a level is one clean nest long.
+
+A held finger answers nothing. Every control on the screen sits behind one
+gate, which opens only once a finger has been off the glass for 150ms and
+250ms have passed since the picture last changed -- a resistive panel drops
+out in the middle of a held press, and without the first of those the frame
+after a dropout reads as a second tap.
+
+The screen is drawn by difference. It keeps the picture it last painted, asks
+which regions the next one changes, and repaints those: a wrong tap is one
+circle and one line of text, and an idle screen is not rendered at all. That
+rule is in the pure rules file where the host test can state it, not in the
+renderer where it could only be promised. Feedback sits on a filled pill
+rather than in coloured text, because the theme sheets showed success-coloured
+text all but vanishing on Silver and Pocket before any panel did, and the
+selected mode is drawn in inverted ink rather than the accent colour so that
+it stands apart from the other on every theme.
+
+Landscape, on the fixed canvas, like most of the catalogue: positions and
+circles scale up on the larger panels and text keeps its size. It is the
+forty-first launcher entry, past the thirty-two a profile's hidden-game mask
+can hold, so like the eight before it it cannot be hidden per player yet.
+
 ## 5.12.3 — 2026-09-15
 
 **No ages.** The documents put numbers on the people using the console: a
