@@ -19,6 +19,10 @@
   <img src="site/assets/in-hand-flags.jpg" width="360" alt="A Braino console in a pink printed case on a table, showing the home screen">
 </p>
 
+
+[![Braino Demo](https://img.youtube.com/vi/bESbkhq6tcc/maxresdefault.jpg)](https://www.youtube.com/watch?v=bESbkhq6tcc)
+
+
 **Discussion is open on Reddit:** [r/gume_braino](https://www.reddit.com/r/gume_braino/) —
 questions, ideas and feedback, in public, where the next person finds them.
 
