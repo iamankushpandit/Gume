@@ -218,8 +218,12 @@ without one.
 4. Read the relevant `CLAUDE.md` file before changing a subsystem.
 5. Keep the change scoped. Stage explicit paths; do not use `git add -A` in a
    mixed worktree.
-6. Do not add AI attribution to commits. No `Co-Authored-By` lines naming an
-   AI tool, and no generated-by footers.
+6. The commit author is the person accountable for the change. This project
+   is built with AI tools and says so openly (see "How this is built" in
+   [NOTICE.md](NOTICE.md)); a `Co-Authored-By` trailer is a different thing --
+   a claim of authorship and copyright that a tool cannot hold -- so no
+   `Co-Authored-By` naming a model and no generated-by footers. Say it in the
+   commit body in plain words if it is worth saying.
 7. Update docs in the same commit when behavior, architecture, screens,
    settings, dependencies, build figures or privacy claims change.
 

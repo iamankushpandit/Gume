@@ -10,6 +10,31 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The site has a Featured page.** `featured.html` lists every article, video and
+listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
+and the hubs and lists that accepted it -- each with the date it was
+published, a screenshot taken on a stated date, the SHA-256 of that screenshot
+and a Wayback Machine copy where one could be made, so a piece that later
+moves or disappears is still shown rather than claimed. The data is
+`site/featured.json`, the images are `site/featured/`, `gen_site.py` renders and
+validates both, and `check_docs.py` fails a hash that no longer matches its
+file. The landing page gained a Featured tab and a strip naming the independent
+coverage. Pages the project posted itself are listed too, in their own group,
+labelled as such.
+
+**The attribution rule now says what it is for.** The agent instructions,
+`CONTRIBUTING.md` and the pull-request template told contributors not to name
+an AI tool in a commit's `Co-Authored-By:` trailer, and said it in words --
+"leaves a trace", "records a human author" -- that read, cold, as an
+instruction to hide the tools. A reader asked exactly that, in
+[discussion 199](https://github.com/iamankushpandit/Gume/discussions/199)
+and under the Hackaday article. The rule now states its reason: a trailer is a
+claim of authorship and, under the GPL, of copyright, which a tool cannot
+hold, and the accountable author is the person. The disclosure that the
+project is built with AI tools, which the website already made, is now in
+`NOTICE.md` ("How this is built") and the README as well, and the website
+says it in plainer words.
+
 **The screen turns to all four positions.** *Settings → Device* offered
 Landscape and Portrait, which are the two positions with the USB socket where
 the board profile puts it. An enclosure that holds the board the other way up
