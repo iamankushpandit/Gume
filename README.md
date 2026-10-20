@@ -50,9 +50,16 @@ no data collection.** Two radios exist and both are narrow by design:
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
 a [code of conduct](CODE_OF_CONDUCT.md), a
-[security policy](SECURITY.md) and [NOTICE.md](NOTICE.md) on copyright and
-the one thing a fork is asked to do. What the firmware does *not* do yet is
-written down too, as [open issues](https://github.com/iamankushpandit/Gume/issues).
+[security policy](SECURITY.md) and [NOTICE.md](NOTICE.md) on copyright, on
+how the project is built, and the one thing a fork is asked to do. What the
+firmware does *not* do yet is written down too, as
+[open issues](https://github.com/iamankushpandit/Gume/issues).
+
+**In the press.** Where Braino has been written about, filmed and listed is
+kept on the site's [press page](https://iamankushpandit.github.io/Gume/press.html),
+each piece with the date it was published, a screenshot taken on a stated
+date, that screenshot's SHA-256 and an archived copy, so the record outlives
+the page. The data is [`site/press.json`](site/press.json).
 
 ## Help wanted
 
@@ -1557,6 +1564,13 @@ launchable system apps. That replaced the old split between `CATALOG_KINDS[]`,
 
 Code in this repository is licensed **GPL-3.0-or-later** — see
 [LICENSE](LICENSE). Copyright © 2026 iamankushpandit.
+
+**How it is built.** Most of the code and the documentation was drafted with
+AI coding tools, directed, reviewed and tested on the boards by the author,
+who answers for every line. The project says so openly; what it does not do
+is name a tool in a commit's `Co-Authored-By:` trailer, because that trailer
+is a claim of authorship and copyright that a tool cannot hold.
+[NOTICE.md](NOTICE.md#how-this-is-built) has the full statement.
 
 **Every file carries that notice itself**, as an SPDX header naming the
 licence, the holder and what reuse requires — because the file, not the

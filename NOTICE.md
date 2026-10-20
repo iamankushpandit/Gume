@@ -30,6 +30,26 @@ where a file that has travelled on its own can still be read. Keep them if you
 copy a file; that, and the source obligation above, is the whole of what is
 asked.
 
+## How this is built
+
+Most of the code and documentation in this repository was drafted with AI
+coding tools, directed, reviewed and tested on the hardware by the copyright
+holder above, who is the author of record and answers for every line. That is
+said here, in the README and on the website, because it is a fact a reader is
+entitled to weigh, and a project that asks to be trusted with a young player's
+device does not get to be coy about how it was made.
+
+What the project does *not* do is put a tool's name in a commit's
+`Co-Authored-By:` trailer, and the reason is the section above this one. That
+trailer is a claim of authorship and, under the GPL, of copyright. A tool holds
+neither, cannot accept the licence and cannot answer for a defect, so a trailer
+naming one would record something false in exactly the place that downstream
+tooling and downstream lawyers read literally. The author of each commit is
+the person accountable for it. The rule is written out, with this reasoning,
+in [CONTRIBUTING.md](CONTRIBUTING.md) and in the agent instructions, and it is
+a rule about what a trailer means, not a rule about what may be said: the
+disclosure is this section.
+
 ## Trademarks
 
 **Braino!** is a product of GoodTime Micro Company™. **Braino!**, **GoodTime
