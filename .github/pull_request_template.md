@@ -53,8 +53,11 @@ applied; delete what did not.
       merit. If it changes what is transmitted or stored, the About radio page,
       the README privacy section and the installer page are part of *this*
       commit.
-- [ ] **No AI attribution in the commits.** No `Co-Authored-By:` naming a
-      model, no "Generated with…" footers, in commits or in this description.
+- [ ] **The commit author is the accountable person.** No `Co-Authored-By:`
+      naming a model and no "Generated with…" footers, in commits or in this
+      description -- a trailer is a claim of authorship and copyright that a
+      tool cannot hold. Using AI tools is fine and is disclosed in NOTICE.md;
+      mention it in the commit body in plain words if it is worth saying.
 
 <!--
 Targeting: open against `dev` unless you are a maintainer cutting a release.
