@@ -29,6 +29,16 @@ for offset 0x0, and FLASHING.txt -- and attaches it to the run for 30 days, so
 a tester downloads what the release will ship. Diagnostic probes are built
 and not attached; nobody flashes one from a download.
 
+**The site has an Experimental page.** `experimental.html` offers builds that
+are not releases, for the person holding the board they are for. The
+maintainer lists a pull request's CI run in `site/experimental.json`; the
+Pages workflow downloads that run's attached image, `gen_site.py` publishes
+it under `experimental/<id>/` with a manifest, and the card carries the same
+flash button as the installer, with the issue that asked for it, the branch
+and run it came from, and what to look at. The bytes are the ones CI built,
+never a rebuild. A console never offers to update to one, and the page says
+how to go back to a release. The first entry is the CYD2USB build above.
+
 **The board-port issue form requires photos.** Front, back with the chip
 markings readable, the display's flex label, and the screen under any Braino!
 image already on it. The same name is sold with different glass inside, and

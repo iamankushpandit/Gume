@@ -109,7 +109,9 @@ any Braino! image already on it. The same name is sold with different glass
 inside -- the dual-USB CYD ships with ILI9341 or ST7789 under one listing --
 so a port is written from the pictures, not the name. Every pull request's CI
 run attaches each product image it built, which is how a build reaches the
-owner of a board nobody here has.
+owner of a board nobody here has; when the maintainer wants it flashable from
+the browser, the run goes into `site/experimental.json` and the site's
+Experimental page offers it.
 
 **Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
 in a folder named after the `BOARD_NAME` the firmware reports. A case is

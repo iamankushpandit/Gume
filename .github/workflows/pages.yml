@@ -22,6 +22,9 @@ on:
 
 permissions:
   contents: read
+  # `gh run download` reads another run's artifact: the experimental builds
+  # the page offers come from the CI run that built them.
+  actions: read
   pages: write
   id-token: write
 
@@ -84,6 +87,36 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python tools/fetch_release_firmware.py             --repo "${{ github.repository }}" --keep 4
+
+      # The experimental builds the page offers, each downloaded from the CI
+      # run that built it -- the build job attaches every product image to
+      # its run, packed by tools/pack_release.py, and site/experimental.json
+      # names the run and the artifact. The bytes served are the bytes CI
+      # built; nothing is rebuilt here, so a tester flashes exactly what the
+      # pull request's checks ran against.
+      #
+      # NOT continue-on-error, unlike the release cache above: a release
+      # that is missing drops the page back to the newest build, which is
+      # still a working page, but an experimental card with no image behind
+      # it is a page that fails the one reader who came for it. Artifacts
+      # expire 30 days after the run, so when this step fails on an old
+      # entry the fix is to remove it from site/experimental.json, or to
+      # re-run the branch's CI and point the entry at the new run.
+      - name: Fetch the experimental builds the page offers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          jq -r '.builds[] | "\(.id) \(.run) \(.artifact)"' site/experimental.json |
+          while read -r id run artifact; do
+            echo "experimental/$id <- run $run, artifact $artifact"
+            if ! gh run download "$run" --repo "${{ github.repository }}" \
+                 --name "$artifact" --dir "site/_experimental/$id"; then
+              echo "::error::experimental build '$id': artifact '$artifact' of run $run is not downloadable (expired after 30 days, or the run never attached it). Remove the entry from site/experimental.json or point it at a fresh run."
+              exit 1
+            fi
+            ls -l "site/_experimental/$id"
+          done
 
       # Fail fast. Site generation runs BEFORE the expensive PlatformIO
       # install and the ten-environment firmware build, so a structural
@@ -214,7 +247,12 @@ jobs:
           python - <<'PY'
           import json, os, sys
           missing = []
-          for root, _, files in os.walk("_site/firmware"):
+          # The installer's manifests, and the Experimental page's: a build
+          # from a CI run is still a manifest somebody will flash from.
+          roots = [root for base in ("_site/firmware", "_site/experimental")
+                   for root, _, files in os.walk(base) if "manifest.json" in files]
+          for root in roots:
+              files = os.listdir(root)
               if "manifest.json" not in files:
                   continue
               with open(os.path.join(root, "manifest.json")) as handle:
