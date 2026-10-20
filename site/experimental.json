@@ -5,6 +5,8 @@
       "title": "Dual-USB 2.8-inch CYD with ST7789 glass (the CYD2USB)",
       "board": "esp32_2432s028_st7789",
       "env": "app_esp32_2432s028_st7789",
+      "chip": "ESP32",
+      "label": "2.8-inch, resistive touch, USB-C plus micro-USB, no battery (USB power) -- ESP32-2432S028 CYD, ST7789 panel (ST7789 + XPT2046)",
       "issue": 200,
       "branch": "feat/cyd2usb-st7789",
       "run": 39484199472,

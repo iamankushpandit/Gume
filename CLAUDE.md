@@ -1438,9 +1438,11 @@ page. The flash button will 404 there â€” the binaries only exist in CI.
 `experimental.html` is where a build goes when the maintainer wants somebody
 with a particular board to flash it before it ships -- the first was issue
 200's CYD2USB, held by its reporter and by nobody here. `site/experimental.json`
-lists each one: the board and environment (both must already be ones the
-installer offers), the issue, the branch, the CI run id and the artifact name,
-and what to look at. The Pages workflow runs `gh run download` into
+lists each one: the board and environment, its chip and the installer label
+(carried by the entry, because the board may not be in this tree yet -- the
+first one was a new board on a branch, and the page publishes from `main`;
+when the tree does know the board they must agree with `BOARD_DETAILS`), the
+issue, the branch, the CI run id and the artifact name, and what to look at. The Pages workflow runs `gh run download` into
 `site/_experimental/<id>/`, `gen_site.py` publishes the four parts and a
 manifest under `experimental/<id>/`, and the card gets the same esp-web-tools
 button as the installer. Three things are load-bearing:
