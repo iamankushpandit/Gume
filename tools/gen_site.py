@@ -609,11 +609,10 @@ def validate_assets(template):
 # the piece was published, a screenshot of it taken on a stated date and kept
 # in site/featured/, and the SHA-256 of that screenshot -- so that the image on
 # the page is verifiably the one that was captured, not one swapped in later.
-# A Wayback Machine copy is recorded where one could be made; it is a fourth
-# witness, not a substitute for the first three, because archive.org is also
-# a website.
+# A Wayback Machine copy is recorded where one could be made.
 #
-# Both directions are checked, as with the stills and the assets: an entry
+# Only coverage by people unconnected to the project goes in: the pages the
+# project posts itself are not it being picked up. Both directions are checked, as with the stills and the assets: an entry
 # whose screenshot is missing is a card with a hole in it, and a screenshot
 # nobody references is weight in every clone. A checksum that does not match
 # is the worst of the three, because it means the evidence was replaced.
@@ -621,10 +620,9 @@ def validate_assets(template):
 
 FEATURED_INDEX = os.path.join(ROOT, "site", "featured.json")
 FEATURED_DIR = os.path.join(ROOT, "site", "featured")
-FEATURED_KINDS = ("article", "video", "listing", "forum", "syndication")
-FEATURED_REQUIRED = ("id", "kind", "independent", "outlet", "title", "byline",
-                  "language", "url", "published", "said", "archive",
-                  "screenshot", "captured", "sha256", "width", "height")
+FEATURED_REQUIRED = ("id", "outlet", "title", "byline", "url", "published",
+                     "archive", "screenshot", "captured", "sha256", "width",
+                     "height")
 
 
 def featured_entries():
@@ -650,11 +648,6 @@ def featured_entries():
         if not re.fullmatch(r"[a-z0-9-]+", entry["id"]):
             die("featured entry id %r: lower-case letters, digits and hyphens only"
                 % entry["id"])
-        if entry["kind"] not in FEATURED_KINDS:
-            die("featured entry %r: kind %r is not one of %s"
-                % (entry["id"], entry["kind"], ", ".join(FEATURED_KINDS)))
-        if not isinstance(entry["independent"], bool):
-            die("featured entry %r: `independent` must be true or false" % entry["id"])
         try:
             datetime.date.fromisoformat(entry["published"])
         except ValueError:
@@ -706,9 +699,6 @@ def long_date(iso):
 
 
 def featured_card(entry):
-    kind = entry["kind"]
-    label = {"article": "Article", "video": "Video", "listing": "Listing",
-             "forum": "Forum", "syndication": "Relisted"}[kind]
     alt = ('    <p class="alt">%s</p>\n' % escape(entry["title_en"])
            if entry.get("title_en") else "")
     if entry["archive"]:
@@ -723,14 +713,12 @@ def featured_card(entry):
         '      <img src="featured/%s" width="%d" height="%d" loading="lazy" alt="Screenshot of %s: %s">'
         % (escape(entry["screenshot"]), entry["width"], entry["height"],
            escape(entry["outlet"]), escape(entry["title"])),
-        '      <span class="kind %s">%s</span>' % (kind, label),
         '    </a>',
         '    <div class="body">',
         '    <p class="outlet">%s</p>' % escape(entry["outlet"]),
         '    <h3><a href="%s">%s</a></h3>' % (escape(entry["url"]), escape(entry["title"])),
         alt + '    <p class="by">%s &middot; %s</p>'
         % (escape(entry["byline"]), long_date(entry["published"])),
-        '    <p class="said">%s</p>' % escape(entry["said"]),
         '    <dl>',
         '      <dt>Published</dt><dd><time datetime="%s">%s</time></dd>'
         % (entry["published"], long_date(entry["published"])),
@@ -752,18 +740,13 @@ def render_featured_cards(entries):
 
 
 def render_featured_teaser(entries):
-    """The strip on the landing page: independent coverage only, by name.
-
-    It is deliberately the short version. The landing page sells the thing;
-    the Featured page proves the coverage, and the proof is where the
-    screenshots, dates and checksums belong.
-    """
+    """The strip on the landing page: outlet, title and date, linking to the card."""
     return "\n".join(
         '    <a class="clip" href="featured.html#%s">'
         '<b>%s</b><span>%s</span><time datetime="%s">%s</time></a>'
         % (escape(e["id"]), escape(e["outlet"]), escape(e.get("title_en") or e["title"]),
            e["published"], long_date(e["published"]))
-        for e in entries if e["independent"])
+        for e in entries)
 
 
 def cached_releases():
@@ -969,8 +952,6 @@ def main():
     still_wall = render_still_wall()
 
     featured = featured_entries()
-    independent = [e for e in featured if e["independent"]]
-    own = [e for e in featured if not e["independent"]]
 
     page = read("site", "index.template.html")
     validate_assets(page)
@@ -987,7 +968,6 @@ def main():
         ("{{BUY_TABLE}}", buy_table),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
         ("{{FEATURED_TEASER}}", render_featured_teaser(featured)),
-        ("{{FEATURED_INDEPENDENT}}", str(len(independent))),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
     ):
@@ -1006,11 +986,7 @@ def main():
     featured_page = read("site", "featured.template.html")
     for key, value in (
         ("{{VERSION}}", release),
-        ("{{GAME_COUNT}}", str(len(catalog))),
-        ("{{FEATURED_INDEPENDENT}}", str(len(independent))),
-        ("{{FEATURED_OWN}}", str(len(own))),
-        ("{{FEATURED_INDEPENDENT_CARDS}}", render_featured_cards(independent)),
-        ("{{FEATURED_OWN_CARDS}}", render_featured_cards(own)),
+        ("{{FEATURED_CARDS}}", render_featured_cards(featured)),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
     ):
