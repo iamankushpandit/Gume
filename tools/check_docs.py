@@ -316,12 +316,18 @@ def check_site(problems):
     reimplementing it, so the two cannot drift apart.
     """
     template = read("site", "index.template.html")
+    press_template = read("site", "press.template.html")
     generator = read("tools", "gen_site.py")
 
+    # Two templates share one generator. A placeholder the generator fills
+    # has to appear in at least one of them, or it is a value computed for
+    # nobody; one that appears in a template without being filled is caught
+    # at generation time, so this is the other half.
     for placeholder in sorted(set(re.findall(r'\("(\{\{[A-Z_]+\}\})"', generator))):
-        if placeholder not in template:
-            fail(problems, "gen_site.py substitutes %s but site/"
-                           "index.template.html no longer contains it" % placeholder)
+        if placeholder not in template and placeholder not in press_template:
+            fail(problems, "gen_site.py substitutes %s but neither site/"
+                           "index.template.html nor site/press.template.html "
+                           "contains it" % placeholder)
 
     if re.search(r"\d+\.\d+\.\d+", template):
         fail(problems, "site/index.template.html hardcodes a version number -- "
@@ -353,6 +359,7 @@ def check_site(problems):
 
     check_older_versions(problems)
     check_site_screens(problems)
+    check_press(problems)
 
 
 def check_older_versions(problems):
@@ -411,6 +418,29 @@ def check_site_screens(problems):
         for line in message.splitlines():
             fail(problems, line.replace("gen_site.py: ", "", 1) +
                  " -- fix tools/gen_site.py, or the Pages build fails on main")
+
+
+def check_press(problems):
+    """Every press entry must still have its evidence, unaltered.
+
+    site/press.json describes other people's pages, and each entry is backed
+    by a dated screenshot in site/press/ whose SHA-256 is recorded beside it.
+    gen_site.press_entries() is the authority -- it refuses a missing
+    screenshot, an orphaned one, a hash that no longer matches the file, a
+    capture dated before the piece was published, and an archive link that is
+    not the Wayback Machine. Like the stills, it reports through die(), so it
+    is captured here rather than allowed to end the run.
+    """
+    captured = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(captured):
+            gen_site.validate_press()
+    except SystemExit:
+        message = captured.getvalue().strip() or "gen_site.py rejected site/press.json"
+        for line in message.splitlines():
+            fail(problems, line.replace("gen_site.py: ", "", 1) +
+                 " -- fix site/press.json or site/press/, or the Pages build "
+                 "fails on main")
 
 
 def check_badges(problems):

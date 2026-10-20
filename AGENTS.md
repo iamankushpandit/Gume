@@ -14,21 +14,28 @@ This project keeps its guidance in **`CLAUDE.md`** files. They apply to everyone
 
 ## Two standing rules — you should never have to be told these
 
-**1. No AI attribution in commits, ever -- and no AI in the names either.** Do
-not add `Co-Authored-By: Claude`, `Co-Authored-By: <any AI>`, "Generated
-with..." footers, or any other trailer or sign-off naming an AI tool or model.
-The repository's history records the author, and that is a human. Check your
-commit message before you run `git commit` -- this applies to amends, squashes
-and PR bodies too.
+**1. A commit trailer names who is accountable; a branch name says what
+changed.** This project is built with AI coding tools and says so openly -- in
+the README, in NOTICE.md and on the website. Nothing in this rule hides that,
+and nothing in it may be read as asking you to. It is about what a git trailer
+*means*. `Co-Authored-By:` is a claim of authorship and, under the GPL, of
+copyright; a tool can hold neither, cannot accept the licence and cannot answer
+for a defect. The author of record is the person who directed the change,
+reviewed it, tested it and licenses it. So do not add `Co-Authored-By:` naming
+a model, a "Generated with..." footer, or any sign-off crediting a tool -- in
+commits, amends, squashes or PR bodies. Check the message before `git commit`.
+If a change was substantially drafted by a tool and that is worth recording,
+write it as a plain sentence in the commit body ("drafted with an AI coding
+assistant; reviewed and tested by hand"), which a reader can weigh, rather than
+as a trailer that tooling parses as an author.
 
-The same goes for the word itself. No `claude`, and no other model or vendor
-name, anywhere your contribution leaves a trace: branch names, commit subjects
-and bodies, PR titles and descriptions, file names, identifiers, comments and
-TODOs. A branch called `claude/fix-the-thing` says who typed rather than what
-changed, and it is permanent in a way the session is not -- it lands in the
-merge commit, the pull request and every clone. Name a branch for its work:
-`feat/<game-id>`, `fix/<area>`, `docs/<topic>`. Already on one that breaks this?
-Rename it before opening the PR (`git branch -m <new-name>`).
+Names describe the work, not the workbench: `feat/<game-id>`, `fix/<area>`,
+`docs/<topic>`, never `<tool-name>/fix-the-thing`. A branch named after a tool
+says which one was open that day and nothing about the change, and it is
+permanent -- it lands in the merge commit, the pull request and every clone.
+The same for file names, identifiers and comments: which tool typed a line is
+not information about the line. Already on a branch named after a tool? Rename
+it before opening the PR (`git branch -m <new-name>`).
 
 The `CLAUDE.md` files are the one exception, because that filename is how you
 found these instructions. The rule is about what a *change* carries.

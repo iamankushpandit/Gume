@@ -4,20 +4,30 @@ These rules apply to everyone changing this repository, human or agent. `CONTRIB
 
 ## Two standing rules â€” do these without being asked
 
-**No AI attribution in commits -- and no AI in the names either.** Never add
-`Co-Authored-By: Claude`, `Co-Authored-By:` naming any AI, "Generated with..."
-footers, or any trailer that credits a model or tool. This applies to commits,
-amends, squashes and PR bodies. The history here records a human author.
+**A commit trailer names who is accountable; a branch name says what changed.**
+This project is built with AI coding tools and says so in the open -- in the
+README, in NOTICE.md and on the website -- so nothing in this rule is about
+hiding that, and nothing in it may ever be read that way. It is about what a
+git trailer *means*. `Co-Authored-By:` is a claim of authorship, and under the
+GPL a claim of copyright: a tool cannot hold copyright, cannot accept the
+licence, and cannot answer for a defect. The author of every commit here is
+the person who directed it, reviewed it, tested it on hardware and licenses
+it, and the trailer has to say so, because downstream tooling (and downstream
+lawyers) read it literally. So: no `Co-Authored-By:` naming a model, no
+"Generated with..." footer, no sign-off crediting a tool -- in commits, amends,
+squashes and PR bodies. If it is worth saying that a change was drafted with a
+tool, say it in the commit body in a sentence a reader can weigh ("drafted
+with an AI coding assistant; reviewed and tested by hand"), not in a trailer
+that machines parse as an author.
 
-The same goes for **the word itself**. No `claude`, and no other model or vendor
-name, anywhere a contribution leaves a trace: branch names, commit subjects and
-bodies, PR titles and descriptions, file names, identifiers, comments and TODOs.
-A branch called `claude/fix-the-thing` records who typed rather than what
-changed, and unlike a session it is permanent -- it is in the merge commit, the
-pull request, and every clone, long after anyone remembers which tool was open
-that day. Name a branch for its work instead: `feat/<game-id>`, `fix/<area>`,
-`docs/<topic>`. If you find yourself on a branch that breaks this, rename it
-before you open the pull request (`git branch -m <new-name>`).
+Names describe the work, not the workbench. A branch is `feat/<game-id>`,
+`fix/<area>` or `docs/<topic>`, never `<tool-name>/fix-the-thing`: that says
+which tool was open that day and nothing about the change, and it is permanent
+-- it is in the merge commit, the pull request and every clone. The same goes
+for file names, identifiers and comments: a comment saying which tool typed a
+line is not information about the line. If you find yourself on a branch named
+after a tool, rename it before you open the pull request
+(`git branch -m <new-name>`).
 
 The `CLAUDE.md` files are the one exception, because that filename is how an
 agent finds this rulebook at all. The rule is about what a *change* carries, not
@@ -1304,6 +1314,10 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
 site/                     index.template.html â€” the GitHub Pages landing page;
                           assets/ â€” its photos, hero video and poster PDF,
                           the only part of the page not derived from firmware
+                          press.template.html + press.json + press/ â€” the
+                          press page: every piece of coverage with the
+                          date it ran, a dated screenshot, its SHA-256 and
+                          a Wayback Machine copy
 .github/workflows/        ci.yml validates checks, then builds one job per
                           environment in parallel (`verify` is the required
                           check that judges them); pages.yml publishes
@@ -1403,6 +1417,19 @@ break it, and all three fail in someone else's browser rather than here:
    sitting in the tree (weight in every clone, forever). `gen_site.py` copies
    the folder into the build, so nothing on the page reaches outside the Pages
    origin for a picture.
+
+5. **Adding coverage to `site/press.json`.** The press page shows other
+   people's pages, which move, paywall and vanish, so an entry is not a link:
+   it is the date the piece was published, a screenshot of it in `site/press/`
+   taken on a stated date, that file's SHA-256, and a Wayback Machine copy
+   where one could be made. `gen_site.press_entries()` validates all of it --
+   a missing or orphaned screenshot, a hash that no longer matches, a capture
+   dated before publication -- and `check_docs.py` runs the same validator, so
+   a swapped image fails CI rather than quietly replacing the evidence.
+   Capture with a headless browser at 1280px wide, convert to JPEG, record the
+   capture time in UTC and the hash, and mark `independent` honestly: a page
+   the project posted itself goes in the second group on the page, not among
+   the coverage.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
