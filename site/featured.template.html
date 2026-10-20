@@ -63,9 +63,6 @@
   .head .lede{margin-top:24px;max-width:46rem;font-size:clamp(18px,1.6vw,22px);color:var(--muted)}
   .head .lede b{color:var(--fg)}
   .head .lede a{color:var(--yellow)}
-  .evidence{margin-top:28px;max-width:54rem;padding:18px 22px;border-radius:18px;box-shadow:inset 0 0 0 1.5px var(--yellow);font-size:16px;color:var(--muted)}
-  .evidence b{color:var(--yellow)}
-  .evidence code{font-size:14px;color:var(--fg)}
 
   .group{padding:4vh var(--gutter) 8vh}
   .group h2{font-size:clamp(32px,4.5vw,64px);font-weight:900;letter-spacing:-.04em;line-height:1.02}
@@ -126,26 +123,13 @@
   <h1>Featured in.</h1>
   <p class="lede">
     <b>{{FEATURED_INDEPENDENT}} pieces by people unconnected to the project</b>, and
-    {{FEATURED_OWN}} places the project put itself. Articles, a video, and the lists
-    and hubs that accepted it. Newest first.
+    {{FEATURED_OWN}} places the project put itself. Newest first.
   </p>
-  <div class="evidence">
-    <b>Why every card carries a screenshot, a date and a checksum.</b> Pages move,
-    paywall, get edited or disappear, and an article that cannot be shown is a
-    claim rather than a fact. So each entry here records the date the piece was
-    published, a screenshot of the page taken on a stated date, the SHA-256 of
-    that image so a swapped file is detectable, and a copy in the Internet
-    Archive's Wayback Machine where one could be made. The screenshots are
-    served from this site and never from the outlet, so they stay up when the
-    original does not. The data behind this page is
-    <a href="{{REPO}}/blob/main/site/featured.json" style="color:var(--yellow)">site/featured.json</a>;
-    the images are in <code>site/featured/</code>.
-  </div>
 </header>
 
 <section class="group" id="coverage" aria-labelledby="h-coverage">
   <h2 id="h-coverage">Coverage.</h2>
-  <p class="sub">Written, filmed or curated by someone else. Nothing here was paid for, and no outlet was given hardware.</p>
+  <p class="sub">Written, filmed or curated by someone else.</p>
   <div class="cards">
 {{FEATURED_INDEPENDENT_CARDS}}
   </div>
@@ -153,7 +137,7 @@
 
 <section class="group" id="posted" aria-labelledby="h-posted">
   <h2 id="h-posted">Where the project posted itself.</h2>
-  <p class="sub">Kept separate on purpose: these say where to find Braino, not that anybody else noticed it. The reactions, prints and replies on them belong to other people, though.</p>
+  <p class="sub">Pages the project posted itself.</p>
   <div class="cards">
 {{FEATURED_OWN_CARDS}}
   </div>
@@ -163,16 +147,12 @@
   <h2>If you have written about it.</h2>
   <p>
     Open an issue or write to <a href="mailto:esp32.gume@proton.me">esp32.gume@proton.me</a>
-    with the link and it will be added, with the same screenshot and archive
-    treatment. Corrections to anything on this page are welcome the same way: a
-    date wrong by a day is still wrong.
+    with the link and it will be added.
   </p>
   <p>
-    Please quote accurately. The firmware is called <b>Braino!</b>, the repository is
+    The firmware is called <b>Braino!</b>, the repository is
     <a href="{{REPO}}">Gume</a>, there are {{GAME_COUNT}} games in the current build,
     and the author is <a href="https://github.com/iamankushpandit">iamankushpandit</a>.
-    It is built with AI coding tools, and that is said in the open in the
-    repository's <a href="{{REPO}}/blob/main/NOTICE.md">NOTICE.md</a>.
   </p>
 </section>
 </main>
