@@ -103,7 +103,9 @@ around the code is in
 [AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
 hardware reference first, then the profile and the PlatformIO env, then a
 verification app, then games. The "known issues" section of the board doc is
-not optional.
+not optional. When the maintainer wants a build flashable from the browser before it
+ships, its CI run goes into `site/experimental.json` and the site's
+Experimental page offers it; see `CLAUDE.md`.
 
 **Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
 in a folder named after the `BOARD_NAME` the firmware reports. A case is

@@ -748,6 +748,189 @@ def render_featured_teaser(entries):
            e["published"], long_date(e["published"]))
         for e in entries)
 
+# ---------------------------------------------------------------------------
+# Experimental builds: a build that is not a release, offered from the page
+# because the maintainer wants somebody holding a particular board to test it.
+#
+# site/experimental.json lists them. Each names the CI run and artifact the
+# image comes from -- the build job attaches every product image to its run,
+# packed by tools/pack_release.py -- and the Pages workflow downloads them
+# into site/_experimental/<id>/ before this runs. The bytes offered are the
+# bytes CI built, never a rebuild; the page cannot offer one the run did not
+# produce, because the download fails first.
+EXPERIMENTAL_INDEX = os.path.join(ROOT, "site", "experimental.json")
+EXPERIMENTAL_CACHE = os.path.join(ROOT, "site", "_experimental")
+EXPERIMENTAL_REQUIRED = ("id", "title", "board", "env", "issue", "branch",
+                         "run", "artifact", "added", "test")
+# pack_release.py names every part braino-<version>-<board>-<env>-<part>.bin.
+# The version is read back out of the name so the manifest can say which
+# source the image was built from; the merged image is not a part.
+EXPERIMENTAL_PART = re.compile(
+    r"^braino-(?P<version>.+?)-(?P<board>[a-z0-9_]+)-(?P<env>[a-z0-9_]+)"
+    r"-(?P<part>bootloader|partitions|boot_app0|firmware)\.bin$")
+
+
+def experimental_builds(supported):
+    """Every experimental build, validated, newest first. die()s on a fault.
+
+    Validation lives here, as it does for the Featured page, so the Pages
+    build and check_docs.py cannot disagree about what a well-formed entry
+    is. A build names a board and an environment the page already offers --
+    a build for a board the installer does not know is not a build anybody
+    can be told to flash -- and the run and artifact CI attached it to.
+    """
+    if not os.path.isfile(EXPERIMENTAL_INDEX):
+        die("site/experimental.json is missing")
+    with open(EXPERIMENTAL_INDEX, encoding="utf-8") as handle:
+        builds = json.load(handle)["builds"]
+    by_id = {target["id"]: target for target in supported}
+
+    seen = set()
+    for build in builds:
+        missing = [key for key in EXPERIMENTAL_REQUIRED if key not in build]
+        if missing:
+            die("experimental build %r lacks %s" % (build.get("id"), ", ".join(missing)))
+        if build["id"] in seen:
+            die("experimental build id %r appears twice" % build["id"])
+        seen.add(build["id"])
+        if not re.fullmatch(r"[a-z0-9-]+", build["id"]):
+            die("experimental build id %r: lower-case letters, digits and hyphens only"
+                % build["id"])
+        if build["board"] not in by_id:
+            die("experimental build %r: board %r is not a [board_*] section the "
+                "page offers" % (build["id"], build["board"]))
+        if build["env"] not in by_id[build["board"]]["envs"]:
+            die("experimental build %r: env %r is not one the installer offers "
+                "for board %r" % (build["id"], build["env"], build["board"]))
+        for key in ("issue", "run"):
+            if not isinstance(build[key], int) or build[key] <= 0:
+                die("experimental build %r: %s must be a positive integer"
+                    % (build["id"], key))
+        try:
+            datetime.date.fromisoformat(build["added"])
+        except ValueError:
+            die("experimental build %r: added %r is not an ISO date"
+                % (build["id"], build["added"]))
+        if not build["artifact"].startswith("braino-"):
+            die("experimental build %r: artifact %r is not one CI attaches "
+                "(braino-<env>)" % (build["id"], build["artifact"]))
+        if not build["test"].strip():
+            die("experimental build %r: say what to test" % build["id"])
+
+    return sorted(builds, key=lambda b: (b["added"], b["id"]), reverse=True)
+
+
+def validate_experimental():
+    experimental_builds(boards())
+
+
+def publish_experimental(out, build, target):
+    """Copy one experimental build's four parts into the site, and write its
+    manifest. Returns (directory, version) or None when the download is not
+    there.
+
+    Locally the cache is normally absent and the card says so; in the Pages
+    workflow the download step has already failed if it is, so a card without
+    a button is never published. A build with some parts and not others is
+    refused the same way a cached release is: a partial image fails after the
+    board is already erased.
+    """
+    source = os.path.join(EXPERIMENTAL_CACHE, build["id"])
+    if not os.path.isdir(source):
+        return None
+    found = {}
+    version = None
+    for name in os.listdir(source):
+        match = EXPERIMENTAL_PART.match(name)
+        if not match:
+            continue
+        if match.group("env") != build["env"]:
+            die("experimental build %r: %s is a %s image, not %s -- the wrong "
+                "artifact was downloaded" % (build["id"], name,
+                                             match.group("env"), build["env"]))
+        found[match.group("part") + ".bin"] = os.path.join(source, name)
+        version = match.group("version")
+    missing = [name for name, _ in PARTS if name not in found]
+    if missing:
+        die("experimental build %r: site/_experimental/%s lacks %s -- a build "
+            "with a part missing fails after the board is erased, so it is not "
+            "published" % (build["id"], build["id"], ", ".join(missing)))
+    directory = "experimental/%s" % build["id"]
+    dest = os.path.join(out, *directory.split("/"))
+    os.makedirs(dest, exist_ok=True)
+    for name, _offset in PARTS:
+        shutil.copyfile(found[name], os.path.join(dest, name))
+    manifest = manifest_for(target, {"name": "Braino! (experimental)"},
+                            "%s, %s" % (version, build["branch"]))
+    with open(os.path.join(dest, "manifest.json"), "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+    return directory, version
+
+
+def experimental_card(build, target, published, repo):
+    run_url = "%s/actions/runs/%d" % (repo, build["run"])
+    issue_url = "%s/issues/%d" % (repo, build["issue"])
+    branch_url = "%s/tree/%s" % (repo, build["branch"])
+    chip = target["chip"].lower().replace("-", "")
+    lines = [
+        '  <article class="card" id="%s">' % build["id"],
+        '    <div class="body">',
+        '      <p class="kicker">Not a release &middot; added %s</p>' % long_date(build["added"]),
+        '      <h3>%s</h3>' % escape(build["title"]),
+        '      <p class="board">For: %s</p>' % escape(target["label"]),
+        '      <p class="test"><b>What to look at</b>%s</p>' % escape(build["test"]),
+        '      <dl>',
+        '        <dt>Asked for in</dt><dd><a href="%s">issue %d</a></dd>' % (issue_url, build["issue"]),
+        '        <dt>Built from</dt><dd><a href="%s"><code>%s</code></a>, <a href="%s">CI run %d</a></dd>'
+        % (branch_url, escape(build["branch"]), run_url, build["run"]),
+    ]
+    if published:
+        directory, version = published
+        lines.append('        <dt>Version</dt><dd><code>%s</code></dd>' % escape(version))
+        lines.append('      </dl>')
+        lines += [
+            '      <div class="install">',
+            '        <esp-web-install-button manifest="%s/manifest.json">' % directory,
+            '          <button slot="activate" type="button">Install this build</button>',
+            '          <span slot="unsupported">This browser cannot reach a USB port. Open the page in desktop Chrome, Edge or Opera, or use the terminal route below.</span>',
+            '          <span slot="not-allowed">Web Serial needs HTTPS. Open the page at iamankushpandit.github.io/Gume.</span>',
+            '        </esp-web-install-button>',
+            '      </div>',
+            '      <details>',
+            '        <summary>Use a terminal instead</summary>',
+            '        <ul class="parts">',
+        ]
+        for name, _offset in PARTS:
+            lines.append('          <li><a href="%s/%s" download>%s</a></li>' % (directory, name, name))
+        lines.append('        </ul>')
+        command = "esptool.py --chip %s --baud 460800 write_flash" % chip
+        for name, offset in parts_for(target["chip"]):
+            command += " 0x%x %s" % (offset, name)
+        lines.append('        <pre>%s</pre>' % escape(command))
+        lines.append('      </details>')
+    else:
+        lines.append('      </dl>')
+        lines.append('      <p class="absent">This copy of the page was generated without the '
+                     'image. The build is attached to <a href="%s">its CI run</a> '
+                     'for anyone signed in to GitHub.</p>' % run_url)
+    lines += ['    </div>', '  </article>']
+    return "\n".join(lines)
+
+
+def render_experimental_cards(out, builds, supported, repo):
+    if not builds:
+        return ('  <p class="none">Nothing to try right now. When a build is '
+                'waiting for somebody with a particular board, it appears here '
+                'and in the issue that asked for it. The <a href="index.html#flash">'
+                'installer</a> has every release.</p>')
+    by_id = {target["id"]: target for target in supported}
+    cards = []
+    for build in builds:
+        target = by_id[build["board"]]
+        cards.append(experimental_card(build, target,
+                                       publish_experimental(out, build, target), repo))
+    return '  <div class="cards">\n' + "\n".join(cards) + '\n  </div>'
+
 
 def cached_releases():
     """What fetch_release_firmware.py pulled, newest first. [] if it never ran.
@@ -998,6 +1181,25 @@ def main():
         handle.write(featured_page)
     shutil.copytree(FEATURED_DIR, os.path.join(out, "featured"))
 
+    # The Experimental page: builds that are not releases, each from the CI
+    # run that built it, for the person who offered to test it. Rendering
+    # also publishes each build's parts and manifest under experimental/<id>/
+    # when the Pages workflow has downloaded them.
+    experimental = experimental_builds(supported)
+    experimental_page = read("site", "experimental.template.html")
+    for key, value in (
+        ("{{VERSION}}", release),
+        ("{{EXPERIMENTAL_CARDS}}", render_experimental_cards(out, experimental, supported, args.repo)),
+        ("{{BUILT}}", datetime.date.today().isoformat()),
+        ("{{REPO}}", args.repo),
+    ):
+        experimental_page = experimental_page.replace(key, value)
+    leftover = re.findall(r"\{\{[A-Z_]+\}\}", experimental_page)
+    if leftover:
+        die("experimental template placeholder(s) not filled: %s" % ", ".join(sorted(set(leftover))))
+    with open(os.path.join(out, "experimental.html"), "w", encoding="utf-8") as handle:
+        handle.write(experimental_page)
+
     # Only the stills the page shows. It copied all of docs/screens back when
     # it showed all of docs/screens; publishing the other eighty-five now
     # would be shipping images nothing links to.
@@ -1015,8 +1217,15 @@ def main():
 
     offered = sum(len(b["versions"]) for b in builds)
     print("Site written to %s -- %d games, %d build(s), %d installable "
-          "version(s), %d featured entries, v%s."
-          % (out, len(catalog), len(builds), offered, len(featured), release))
+          "version(s), %d featured entries, %d experimental build(s), v%s."
+          % (out, len(catalog), len(builds), offered, len(featured),
+             len(experimental), release))
+    if experimental:
+        fetched = [b["id"] for b in experimental
+                   if os.path.isdir(os.path.join(EXPERIMENTAL_CACHE, b["id"]))]
+        print("Experimental builds with their image present: %s."
+              % (", ".join(fetched) if fetched else
+                 "none -- the Pages workflow downloads them from CI"))
     if older:
         print("Older releases served from site/_releases: %s."
               % ", ".join(e["version"] for e in older))

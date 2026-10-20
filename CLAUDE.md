@@ -1433,6 +1433,34 @@ break it, and all three fail in someone else's browser rather than here:
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
 
+### The Experimental page offers a CI run's build, and only while the run has it
+
+`experimental.html` is where a build goes when the maintainer wants somebody
+with a particular board to flash it before it ships -- the first was issue
+200's CYD2USB, held by its reporter and by nobody here. `site/experimental.json`
+lists each one: the board and environment (both must already be ones the
+installer offers), the issue, the branch, the CI run id and the artifact name,
+and what to look at. The Pages workflow runs `gh run download` into
+`site/_experimental/<id>/`, `gen_site.py` publishes the four parts and a
+manifest under `experimental/<id>/`, and the card gets the same esp-web-tools
+button as the installer. Three things are load-bearing:
+
+- **The bytes are the run's, never rebuilt here.** A tester flashes exactly
+  what the pull request's checks ran against, which is the point of asking
+  them.
+- **The download step is not `continue-on-error`.** A missing release drops
+  the installer back to the newest build, which is still a working page; a
+  card with no image fails the one reader who came for it. Artifacts expire
+  30 days after the run, so an entry left past that fails every Pages deploy
+  until it is removed or pointed at a fresh run. That is the intended
+  reminder, not a bug.
+- **The page is published from `main`**, like the rest of the site. An entry
+  added on `dev` reaches readers with the next merge to `main`; until then the
+  tester downloads the artifact from the run itself, which needs a GitHub
+  sign-in. `check_docs.py` keeps the three pieces joined -- the workflow
+  step, the generator reading the file, the data validating -- the same way
+  it does for older releases.
+
 ### The page offers older releases, and must keep doing so
 
 The installer used to offer exactly one firmware: whatever `main` last built.
