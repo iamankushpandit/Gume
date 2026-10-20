@@ -51,11 +51,11 @@ how the project is built, and the one thing a fork is asked to do. What the
 firmware does *not* do yet is written down too, as
 [open issues](https://github.com/iamankushpandit/Gume/issues).
 
-**In the press.** Where Braino has been written about, filmed and listed is
-kept on the site's [press page](https://iamankushpandit.github.io/Gume/press.html),
+**Featured in.** Where Braino has been written about, filmed and listed is
+kept on the site's [Featured page](https://iamankushpandit.github.io/Gume/featured.html),
 each piece with the date it was published, a screenshot taken on a stated
 date, that screenshot's SHA-256 and an archived copy, so the record outlives
-the page. The data is [`site/press.json`](site/press.json).
+the page. The data is [`site/featured.json`](site/featured.json).
 
 ## Help wanted
 

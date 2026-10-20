@@ -1314,8 +1314,8 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
 site/                     index.template.html â€” the GitHub Pages landing page;
                           assets/ â€” its photos, hero video and poster PDF,
                           the only part of the page not derived from firmware
-                          press.template.html + press.json + press/ â€” the
-                          press page: every piece of coverage with the
+                          featured.template.html + featured.json + featured/ â€” the
+                          Featured page: every piece of coverage with the
                           date it ran, a dated screenshot, its SHA-256 and
                           a Wayback Machine copy
 .github/workflows/        ci.yml validates checks, then builds one job per
@@ -1418,11 +1418,11 @@ break it, and all three fail in someone else's browser rather than here:
    the folder into the build, so nothing on the page reaches outside the Pages
    origin for a picture.
 
-5. **Adding coverage to `site/press.json`.** The press page shows other
+5. **Adding coverage to `site/featured.json`.** The Featured page shows other
    people's pages, which move, paywall and vanish, so an entry is not a link:
-   it is the date the piece was published, a screenshot of it in `site/press/`
+   it is the date the piece was published, a screenshot of it in `site/featured/`
    taken on a stated date, that file's SHA-256, and a Wayback Machine copy
-   where one could be made. `gen_site.press_entries()` validates all of it --
+   where one could be made. `gen_site.featured_entries()` validates all of it --
    a missing or orphaned screenshot, a hash that no longer matches, a capture
    dated before publication -- and `check_docs.py` runs the same validator, so
    a swapped image fails CI rather than quietly replacing the evidence.

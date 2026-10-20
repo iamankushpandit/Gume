@@ -10,15 +10,15 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
-**The site has a press page.** `press.html` lists every article, video and
+**The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was
 published, a screenshot taken on a stated date, the SHA-256 of that screenshot
 and a Wayback Machine copy where one could be made, so a piece that later
 moves or disappears is still shown rather than claimed. The data is
-`site/press.json`, the images are `site/press/`, `gen_site.py` renders and
+`site/featured.json`, the images are `site/featured/`, `gen_site.py` renders and
 validates both, and `check_docs.py` fails a hash that no longer matches its
-file. The landing page gained a Press tab and a strip naming the independent
+file. The landing page gained a Featured tab and a strip naming the independent
 coverage. Pages the project posted itself are listed too, in their own group,
 labelled as such.
 
