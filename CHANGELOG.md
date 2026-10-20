@@ -18,9 +18,8 @@ and a Wayback Machine copy where one could be made, so a piece that later
 moves or disappears is still shown rather than claimed. The data is
 `site/featured.json`, the images are `site/featured/`, `gen_site.py` renders and
 validates both, and `check_docs.py` fails a hash that no longer matches its
-file. The landing page gained a Featured tab and a strip naming the independent
-coverage. Pages the project posted itself are listed too, in their own group,
-labelled as such.
+file. The landing page gained a Featured tab and a strip naming the
+coverage.
 
 **The attribution rule now says what it is for.** The agent instructions,
 `CONTRIBUTING.md` and the pull-request template told contributors not to name
