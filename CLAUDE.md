@@ -346,7 +346,7 @@ pio device monitor       # serial, 115200 baud
 
 ### An environment is either the product or a bench probe, and it says which
 
-`platformio.ini` declares fifteen environments; five of them are Braino!.
+`platformio.ini` declares sixteen environments; six of them are Braino!.
 Each one states which it is, once, beside itself:
 
 ```ini
@@ -366,8 +366,16 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds the five product environments** on a push to `main` or `dev`,
+- **CI builds the six product environments** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
+- **Every product build is attached to the run**, packed by
+  `pack_release.py --only <env>` exactly as a release would pack it -- four
+  parts, one merged image, FLASHING.txt -- and kept for 30 days. That is how
+  a build reaches the owner of a board nobody here has, before it is
+  released; issue 200's board was the first. `envs.py --matrix` carries
+  each environment's `kind` so the step runs for the product only: a probe
+  is built to prove it still compiles, and nobody flashes one from a
+  download.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is three
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
   installs all the toolchains once into the one cache it alone saves; `build`
@@ -1339,7 +1347,7 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds the five product environments --
+`.github/workflows/release.yml` then builds the six product environments --
 `tools/envs.py --product`, never a list in the YAML -- packs them with
 `tools/pack_release.py`, and publishes a GitHub release with all four parts
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and

@@ -71,9 +71,15 @@ radios confirmed on hardware, with the RGB LED order and the battery
 divider still unverified (see [E32R32P](#e32r32p-32-inch-st7789p3)); and one
 dual-USB CYD variant whose colours come out inverted has been verified on
 hardware (see
-[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel)). A board
+[ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel)); its
+ST7789 twin was written from its owner's report in
+[issue 200](https://github.com/iamankushpandit/Gume/issues/200) and is being
+confirmed by them (see
+[ESP32-2432S028 dual-USB, ST7789](#esp32-2432s028-dual-usb-st7789-panel)). A board
 that is not in that list becomes supported when someone who owns one runs
-it -- that report is the single most useful thing you can send. The CYD
+it -- that report is the single most useful thing you can send, and the
+board-port issue form asks for photos of the board and of its screen because
+the same name is sold with different glass inside. The CYD
 family has many variants whose differences fail silently — backlight on GPIO21 versus GPIO27, GPIO34 as a
 battery sense here but a light sensor on the ESP32-2432S028R. A board is now described in two
 files and nowhere else: a profile header in `include/boards/` and a
@@ -138,8 +144,9 @@ screen rather than an error.
 
 ### Which board do you have?
 
-Five boards are supported, and each has been flashed and run on hardware. Tell
-them apart by screen size, touch type and USB ports:
+Six boards are supported. Five have been flashed and run on hardware by the
+maintainer; the sixth, the ST7789 dual-USB CYD, is being confirmed by its
+owner. Tell them apart by screen size, touch type and USB ports:
 
 | Screen | Touch | USB | Board | Pick in the installer | Vendor page |
 |---|---|---|---|---|---|
@@ -148,13 +155,16 @@ them apart by screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+| 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, ST7789 panel (the CYD2USB) -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB, ST7789](#esp32-2432s028-dual-usb-st7789-panel) | [witnessmenow CYD2USB](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display/tree/main/DisplayConfig/CYD2USB) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to
 recognise it, what has been checked on it, its sources, and a pin table and
 diagram generated from the firmware itself.
 
-The two 2.8-inch resistive boards look alike; the second USB socket is the
-difference -- and so is power. The dual-USB board has **no battery hardware**
+The three 2.8-inch resistive boards look alike; the second USB socket is the
+difference -- and so is power. The two dual-USB boards are told apart only by
+the screen: flash the ST7789 image first, and if every colour is wrong you
+have the inverted ILI9341 glass. The dual-USB board has **no battery hardware**
 the firmware can use: no battery sense line, so no battery badge and no
 low-battery warning. Run it from USB: a wall adapter, a computer, or a USB
 power bank for a portable console (for example
@@ -259,8 +269,9 @@ combinations of panel and backlight behind the same silkscreen, and you cannot
 tell them apart by looking. This firmware supports exactly one of them, the
 dual-USB board with an ILI9341 panel wanting runtime inversion and its
 backlight on GPIO21 (`esp32-2432s028-inv.h`), because that is the one that has
-been run on hardware. Other CYD variants -- the micro-USB ESP32-2432S028R, the
-ST7789 Rv3 -- are not supported.
+been run on hardware -- plus, since 5.14.0, the same board with ST7789 glass
+(see the next section). Other CYD variants -- the micro-USB ESP32-2432S028R
+-- are not supported.
 
 The symptom that identifies this one is specific and easy to misread: the board
 comes up with the backlight on, touch working, the layout correct and a
@@ -295,6 +306,31 @@ green IO16, blue IO17). Inherited and not exercised: the SD card. **Sound** come
 amplifier and the JST 1.25 speaker connector. Its touch clock is GPIO25, the
 other DAC pad -- the conflict that made 5.5.1 switch sound off on the 2.8-inch
 boards -- so the firmware hands GPIO25 back to touch once audio is up.
+
+### ESP32-2432S028 dual-USB (ST7789 panel)
+
+**If your dual-USB 2.8-inch CYD draws correctly under the inverted-panel build
+but the colours are washed out -- flat rather than vivid -- this is your
+build.** Flash `app_esp32_2432s028_st7789`. The community calls this board the
+CYD2USB.
+
+It is the same PCB as the inverted-panel board above, sold under the same
+listings, and nothing on it says which glass is inside: the owner who reported
+it in [issue 200](https://github.com/iamankushpandit/Gume/issues/200) and
+another owner in the same thread had the two controllers from the same
+supplier. The profile (`esp32-2432s028-st7789.h`) is the inverted profile
+with the display told the ST7789 sequence, BGR order and no inversion --
+witnessmenow's `CYD2USB` setup, which is what the reporter runs the board
+with. Every pin is the inverted board's, including the backlight on GPIO21,
+and so is everything measured there: no battery sense, DAC audio on GPIO26,
+the RGB LED order.
+
+**Checked on hardware: not yet by the maintainer, who does not own this
+glass.** The first build was handed to the reporter from the pull request's
+CI run, which attaches every product image to the run for exactly this; this
+paragraph is updated with the result. If the ST7789 image draws every colour
+wrong on your board -- dark theme white, green purple -- you have the ILI9341
+glass and want the inverted-panel build instead.
 
 ### E32R32P (3.2-inch ST7789P3)
 
@@ -342,9 +378,10 @@ at this board's pins.
 **The E32R28T-1 / ESP32-32E** 2.8-inch resistive-touch board is the one this
 firmware is developed and tested against — use
 [this Amazon board](https://www.amazon.com/dp/B0D92C9MMH?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1).
-Every board offered has been flashed and run on hardware: the E32R28T-1, the
-dual-USB ESP32-2432S028 with the inverted panel, the E32R32P, the E32R40T and
-the Freenove FNK0104B. Other ESP32 boards may accept a binary, but their
+Every board offered but one has been flashed and run on hardware: the
+E32R28T-1, the dual-USB ESP32-2432S028 with the inverted panel, the E32R32P,
+the E32R40T and the Freenove FNK0104B; the dual-USB ESP32-2432S028 with the
+ST7789 panel is being confirmed by its owner. Other ESP32 boards may accept a binary, but their
 display and touch pins will not match.
 
 That page is generated by `tools/gen_site.py` and published by
@@ -506,8 +543,8 @@ simply plays silently. One synthesiser feeds two different outputs:
 
 - The [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) plays through an
   **ES8311 audio codec**.
-- The E32R28T-1, the dual-USB ESP32-2432S028, the E32R32P and the E32R40T have
-  no codec. The **ESP32's built-in DAC** on GPIO26 drives an onboard amplifier
+- The E32R28T-1, both dual-USB ESP32-2432S028 boards, the E32R32P and the
+  E32R40T have no codec. The **ESP32's built-in DAC** on GPIO26 drives an onboard amplifier
   directly, which gives 8-bit output — coarser than the codec, and the same
   cues, pad notes, piano notes and spoken phrase.
 

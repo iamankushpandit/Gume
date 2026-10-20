@@ -103,7 +103,13 @@ around the code is in
 [AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
 hardware reference first, then the profile and the PlatformIO env, then a
 verification app, then games. The "known issues" section of the board doc is
-not optional.
+not optional. **Nor are the photos in the board-port issue form**: the front
+and back of the board with the chip markings readable, and the screen under
+any Braino! image already on it. The same name is sold with different glass
+inside -- the dual-USB CYD ships with ILI9341 or ST7789 under one listing --
+so a port is written from the pictures, not the name. Every pull request's CI
+run attaches each product image it built, which is how a build reaches the
+owner of a board nobody here has.
 
 **Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
 in a folder named after the `BOARD_NAME` the firmware reports. A case is

@@ -6,6 +6,34 @@ In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
 `release.yml` refuses to publish a tag whose version carries it.
 
+**A sixth board: the dual-USB 2.8-inch CYD with ST7789 glass, the CYD2USB.**
+The same board as the inverted-panel ESP32-2432S028, sold under the same
+listings, with a different display controller inside -- and under the
+inverted-panel image it draws correctly but washed out
+([issue 200](https://github.com/iamankushpandit/Gume/issues/200)). The new
+`app_esp32_2432s028_st7789` image tells the panel the ST7789 sequence, BGR
+order and no inversion, which is the `CYD2USB` setup the reporter runs it
+with; every pin is the inverted board's. The maintainer does not own this
+glass, so the profile was written from the report and the first build sent to
+the reporter to confirm; `docs/boards/ESP32-2432S028-st7789.md` says what has
+been checked. The installer offers it beside the inverted image, and both
+pages say how to tell the two apart: flash the ST7789 image first, and every
+colour wrong means the ILI9341 glass.
+
+**Every pull request attaches its product builds to the run.** A board port
+comes from somebody holding a board nobody here has, and until now the only
+way to hand them a build to test was to compile it on a laptop and zip it
+into a comment. Each `build` job in CI now packs its image the way a release
+is packed -- `pack_release.py --only <env>`: the four parts, one merged image
+for offset 0x0, and FLASHING.txt -- and attaches it to the run for 30 days, so
+a tester downloads what the release will ship. Diagnostic probes are built
+and not attached; nobody flashes one from a download.
+
+**The board-port issue form requires photos.** Front, back with the chip
+markings readable, the display's flex label, and the screen under any Braino!
+image already on it. The same name is sold with different glass inside, and
+the pictures are what a port is written from.
+
 `Board::compareVersions()` sorts a pre-release before the release of the same
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
