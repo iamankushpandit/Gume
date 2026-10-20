@@ -777,8 +777,8 @@ def render_featured_teaser(entries):
 # produce, because the download fails first.
 EXPERIMENTAL_INDEX = os.path.join(ROOT, "site", "experimental.json")
 EXPERIMENTAL_CACHE = os.path.join(ROOT, "site", "_experimental")
-EXPERIMENTAL_REQUIRED = ("id", "title", "board", "env", "issue", "branch",
-                         "run", "artifact", "added", "test")
+EXPERIMENTAL_REQUIRED = ("id", "title", "board", "env", "chip", "label",
+                         "issue", "branch", "run", "artifact", "added", "test")
 # pack_release.py names every part braino-<version>-<board>-<env>-<part>.bin.
 # The version is read back out of the name so the manifest can say which
 # source the image was built from; the merged image is not a part.
@@ -792,9 +792,15 @@ def experimental_builds(supported):
 
     Validation lives here, as it does for the Featured page, so the Pages
     build and check_docs.py cannot disagree about what a well-formed entry
-    is. A build names a board and an environment the page already offers --
-    a build for a board the installer does not know is not a build anybody
-    can be told to flash -- and the run and artifact CI attached it to.
+    is.
+
+    An entry carries its own `chip` and `label`, because the board it is for
+    may not be in this tree yet: the first experimental build was a NEW
+    board, on a branch, and the page is published from main, which did not
+    have it. When the tree does know the board, the entry's chip and label
+    have to agree with BOARD_DETAILS and its env has to be one the installer
+    offers -- the same board described two ways is how an image ends up
+    mislabelled. The run and artifact are what CI attached the build to.
     """
     if not os.path.isfile(EXPERIMENTAL_INDEX):
         die("site/experimental.json is missing")
@@ -813,12 +819,30 @@ def experimental_builds(supported):
         if not re.fullmatch(r"[a-z0-9-]+", build["id"]):
             die("experimental build id %r: lower-case letters, digits and hyphens only"
                 % build["id"])
-        if build["board"] not in by_id:
-            die("experimental build %r: board %r is not a [board_*] section the "
-                "page offers" % (build["id"], build["board"]))
-        if build["env"] not in by_id[build["board"]]["envs"]:
-            die("experimental build %r: env %r is not one the installer offers "
-                "for board %r" % (build["id"], build["env"], build["board"]))
+        if not re.fullmatch(r"[a-z0-9_]+", build["board"]):
+            die("experimental build %r: board %r is not a [board_*] section id"
+                % (build["id"], build["board"]))
+        if not re.fullmatch(r"[a-z0-9_]+", build["env"]):
+            die("experimental build %r: env %r is not an environment name"
+                % (build["id"], build["env"]))
+        if build["chip"] not in BOOTLOADER_OFFSET:
+            die("experimental build %r: chip %r has no bootloader offset -- "
+                "one of %s" % (build["id"], build["chip"],
+                               ", ".join(sorted(BOOTLOADER_OFFSET))))
+        if not build["label"].strip():
+            die("experimental build %r: say which board it is for (label)"
+                % build["id"])
+        known = by_id.get(build["board"])
+        if known:
+            if build["env"] not in known["envs"]:
+                die("experimental build %r: env %r is not one the installer "
+                    "offers for board %r" % (build["id"], build["env"], build["board"]))
+            if build["chip"] != known["chip"]:
+                die("experimental build %r: chip %r disagrees with BOARD_DETAILS "
+                    "(%r)" % (build["id"], build["chip"], known["chip"]))
+            if build["label"] != known["label"]:
+                die("experimental build %r: label disagrees with BOARD_DETAILS "
+                    "for board %r -- copy it" % (build["id"], build["board"]))
         for key in ("issue", "run"):
             if not isinstance(build[key], int) or build[key] <= 0:
                 die("experimental build %r: %s must be a positive integer"
@@ -940,10 +964,11 @@ def render_experimental_cards(out, builds, supported, repo):
                 'waiting for somebody with a particular board, it appears here '
                 'and in the issue that asked for it. The <a href="index.html#flash">'
                 'installer</a> has every release.</p>')
-    by_id = {target["id"]: target for target in supported}
     cards = []
     for build in builds:
-        target = by_id[build["board"]]
+        # What the card and the manifest need from the board, from the entry
+        # itself: the board may not be in this tree. See experimental_builds().
+        target = {"id": build["board"], "chip": build["chip"], "label": build["label"]}
         cards.append(experimental_card(build, target,
                                        publish_experimental(out, build, target), repo))
     return '  <div class="cards">\n' + "\n".join(cards) + '\n  </div>'
