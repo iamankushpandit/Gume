@@ -1426,10 +1426,9 @@ break it, and all three fail in someone else's browser rather than here:
    a missing or orphaned screenshot, a hash that no longer matches, a capture
    dated before publication -- and `check_docs.py` runs the same validator, so
    a swapped image fails CI rather than quietly replacing the evidence.
-   Capture with a headless browser at 1280px wide, convert to JPEG, record the
-   capture time in UTC and the hash, and mark `independent` honestly: a page
-   the project posted itself goes in the second group on the page, not among
-   the coverage.
+   Capture with a headless browser at 1280px wide, convert to JPEG, and record
+   the capture time in UTC and the hash. Only pieces by people unconnected to
+   the project go in; a page the project posted itself is not coverage.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
