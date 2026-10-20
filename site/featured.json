@@ -1,5 +1,5 @@
 {
-  "_comment": "Press coverage and listings, one entry per page. Every entry is backed by a screenshot in site/press/ taken on the date in `captured`, whose SHA-256 is recorded here so a swapped image is detectable, and by a Wayback Machine copy where one could be made. tools/gen_site.py validates all of it and renders press.html. `independent` is true when someone unconnected to the project wrote it; false means the project posted it itself. Dates are ISO 8601, UTC.",
+  "_comment": "Coverage and listings, one entry per page. Every entry is backed by a screenshot in site/featured/ taken on the date in `captured`, whose SHA-256 is recorded here so a swapped image is detectable, and by a Wayback Machine copy where one could be made. tools/gen_site.py validates all of it and renders featured.html. `independent` is true when someone unconnected to the project wrote it; false means the project posted it itself. Dates are ISO 8601, UTC.",
   "entries": [
     {
       "id": "hackaday",

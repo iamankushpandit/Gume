@@ -22,10 +22,10 @@ README.md, the board name and the firmware environments from platformio.ini.
 Writes, into DIR (default `site/_build`, which is not committed):
 
     index.html                             the page, from site/index.template.html
-    press.html                             the press page, from
-                                           site/press.template.html and
-                                           site/press.json
-    press/*.jpg                            a copy of site/press -- the dated
+    featured.html                             the Featured page, from
+                                           site/featured.template.html and
+                                           site/featured.json
+    featured/*.jpg                            a copy of site/featured -- the dated
                                            screenshots that back each entry
     firmware/<board>/<env>/manifest.json   an esp-web-tools manifest per build
     screens/*.png                          a copy of docs/screens
@@ -600,14 +600,14 @@ def validate_assets(template):
 
 
 # ---------------------------------------------------------------------------
-# The press page.
+# The Featured page.
 #
 # Coverage is the one part of the site that describes other people's pages,
 # and other people's pages move, paywall, get edited and disappear. A list of
-# links would rot into a list of claims. So every entry in site/press.json is
+# links would rot into a list of claims. So every entry in site/featured.json is
 # backed by three things that stay true after the original has gone: the date
 # the piece was published, a screenshot of it taken on a stated date and kept
-# in site/press/, and the SHA-256 of that screenshot -- so that the image on
+# in site/featured/, and the SHA-256 of that screenshot -- so that the image on
 # the page is verifiably the one that was captured, not one swapped in later.
 # A Wayback Machine copy is recorded where one could be made; it is a fourth
 # witness, not a substitute for the first three, because archive.org is also
@@ -619,85 +619,85 @@ def validate_assets(template):
 # is the worst of the three, because it means the evidence was replaced.
 # ---------------------------------------------------------------------------
 
-PRESS_INDEX = os.path.join(ROOT, "site", "press.json")
-PRESS_DIR = os.path.join(ROOT, "site", "press")
-PRESS_KINDS = ("article", "video", "listing", "forum", "syndication")
-PRESS_REQUIRED = ("id", "kind", "independent", "outlet", "title", "byline",
+FEATURED_INDEX = os.path.join(ROOT, "site", "featured.json")
+FEATURED_DIR = os.path.join(ROOT, "site", "featured")
+FEATURED_KINDS = ("article", "video", "listing", "forum", "syndication")
+FEATURED_REQUIRED = ("id", "kind", "independent", "outlet", "title", "byline",
                   "language", "url", "published", "said", "archive",
                   "screenshot", "captured", "sha256", "width", "height")
 
 
-def press_entries():
-    """Every press entry, validated, newest first. die()s on the first fault.
+def featured_entries():
+    """Every featured entry, validated, newest first. die()s on the first fault.
 
     Validation lives here rather than in check_docs.py so that the Pages build
     and the local check cannot disagree about what a well-formed entry is --
     the same reason validate_site_screens() is the authority for the stills.
     """
-    if not os.path.isfile(PRESS_INDEX):
-        die("site/press.json is missing")
-    with open(PRESS_INDEX, encoding="utf-8") as handle:
+    if not os.path.isfile(FEATURED_INDEX):
+        die("site/featured.json is missing")
+    with open(FEATURED_INDEX, encoding="utf-8") as handle:
         entries = json.load(handle)["entries"]
 
     seen = set()
     for entry in entries:
-        missing = [key for key in PRESS_REQUIRED if key not in entry]
+        missing = [key for key in FEATURED_REQUIRED if key not in entry]
         if missing:
-            die("press entry %r lacks %s" % (entry.get("id"), ", ".join(missing)))
+            die("featured entry %r lacks %s" % (entry.get("id"), ", ".join(missing)))
         if entry["id"] in seen:
-            die("press entry id %r appears twice" % entry["id"])
+            die("featured entry id %r appears twice" % entry["id"])
         seen.add(entry["id"])
         if not re.fullmatch(r"[a-z0-9-]+", entry["id"]):
-            die("press entry id %r: lower-case letters, digits and hyphens only"
+            die("featured entry id %r: lower-case letters, digits and hyphens only"
                 % entry["id"])
-        if entry["kind"] not in PRESS_KINDS:
-            die("press entry %r: kind %r is not one of %s"
-                % (entry["id"], entry["kind"], ", ".join(PRESS_KINDS)))
+        if entry["kind"] not in FEATURED_KINDS:
+            die("featured entry %r: kind %r is not one of %s"
+                % (entry["id"], entry["kind"], ", ".join(FEATURED_KINDS)))
         if not isinstance(entry["independent"], bool):
-            die("press entry %r: `independent` must be true or false" % entry["id"])
+            die("featured entry %r: `independent` must be true or false" % entry["id"])
         try:
             datetime.date.fromisoformat(entry["published"])
         except ValueError:
-            die("press entry %r: published %r is not an ISO date"
+            die("featured entry %r: published %r is not an ISO date"
                 % (entry["id"], entry["published"]))
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", entry["captured"]):
-            die("press entry %r: captured %r is not an ISO UTC timestamp"
+            die("featured entry %r: captured %r is not an ISO UTC timestamp"
                 % (entry["id"], entry["captured"]))
         if entry["captured"][:10] < entry["published"]:
-            die("press entry %r: captured before it was published" % entry["id"])
+            die("featured entry %r: captured before it was published" % entry["id"])
         if not entry["url"].startswith("https://"):
-            die("press entry %r: url must be https" % entry["id"])
+            die("featured entry %r: url must be https" % entry["id"])
         if entry["archive"] is not None and not entry["archive"].startswith(
                 "https://web.archive.org/web/"):
-            die("press entry %r: archive must be a Wayback Machine URL or null"
+            die("featured entry %r: archive must be a Wayback Machine URL or null"
                 % entry["id"])
         if entry["screenshot"] != entry["id"] + ".jpg":
-            die("press entry %r: screenshot must be <id>.jpg" % entry["id"])
-        path = os.path.join(PRESS_DIR, entry["screenshot"])
+            die("featured entry %r: screenshot must be <id>.jpg" % entry["id"])
+        path = os.path.join(FEATURED_DIR, entry["screenshot"])
         if not os.path.isfile(path):
-            die("press entry %r: site/press/%s is missing"
+            die("featured entry %r: site/featured/%s is missing"
                 % (entry["id"], entry["screenshot"]))
         with open(path, "rb") as handle:
             digest = hashlib.sha256(handle.read()).hexdigest()
         if digest != entry["sha256"]:
-            die("press entry %r: site/press/%s does not match its recorded "
+            die("featured entry %r: site/featured/%s does not match its recorded "
                 "SHA-256 -- the evidence was replaced; recapture it and record "
                 "the new hash and date" % (entry["id"], entry["screenshot"]))
 
     on_disk = set()
-    if os.path.isdir(PRESS_DIR):
-        on_disk = {name for name in os.listdir(PRESS_DIR)
-                   if os.path.isfile(os.path.join(PRESS_DIR, name))}
+    if os.path.isdir(FEATURED_DIR):
+        on_disk = {name for name in os.listdir(FEATURED_DIR)
+                   if os.path.isfile(os.path.join(FEATURED_DIR, name))}
     orphans = on_disk - {e["screenshot"] for e in entries}
     if orphans:
-        die("site/press file(s) no press entry references: %s -- add the entry "
+        die("site/featured file(s) no featured entry references: %s -- add the entry "
             "or delete them" % ", ".join(sorted(orphans)))
 
     return sorted(entries, key=lambda e: (e["published"], e["id"]), reverse=True)
 
 
-def validate_press():
-    press_entries()
+def validate_featured():
+    featured_entries()
 
 
 def long_date(iso):
@@ -705,7 +705,7 @@ def long_date(iso):
     return "%d %s %d" % (d.day, d.strftime("%B"), d.year)
 
 
-def press_card(entry):
+def featured_card(entry):
     kind = entry["kind"]
     label = {"article": "Article", "video": "Video", "listing": "Listing",
              "forum": "Forum", "syndication": "Relisted"}[kind]
@@ -718,9 +718,9 @@ def press_card(entry):
     captured = datetime.datetime.strptime(entry["captured"], "%Y-%m-%dT%H:%M:%SZ")
     return "\n".join([
         '  <article class="card" id="%s">' % escape(entry["id"]),
-        '    <a class="shot" href="press/%s" aria-label="Screenshot of %s, full size">'
+        '    <a class="shot" href="featured/%s" aria-label="Screenshot of %s, full size">'
         % (escape(entry["screenshot"]), escape(entry["outlet"])),
-        '      <img src="press/%s" width="%d" height="%d" loading="lazy" alt="Screenshot of %s: %s">'
+        '      <img src="featured/%s" width="%d" height="%d" loading="lazy" alt="Screenshot of %s: %s">'
         % (escape(entry["screenshot"]), entry["width"], entry["height"],
            escape(entry["outlet"]), escape(entry["title"])),
         '      <span class="kind %s">%s</span>' % (kind, label),
@@ -747,19 +747,19 @@ def press_card(entry):
     ])
 
 
-def render_press_cards(entries):
-    return "\n".join(press_card(e) for e in entries)
+def render_featured_cards(entries):
+    return "\n".join(featured_card(e) for e in entries)
 
 
-def render_press_teaser(entries):
+def render_featured_teaser(entries):
     """The strip on the landing page: independent coverage only, by name.
 
     It is deliberately the short version. The landing page sells the thing;
-    the press page proves the coverage, and the proof is where the
+    the Featured page proves the coverage, and the proof is where the
     screenshots, dates and checksums belong.
     """
     return "\n".join(
-        '    <a class="clip" href="press.html#%s">'
+        '    <a class="clip" href="featured.html#%s">'
         '<b>%s</b><span>%s</span><time datetime="%s">%s</time></a>'
         % (escape(e["id"]), escape(e["outlet"]), escape(e.get("title_en") or e["title"]),
            e["published"], long_date(e["published"]))
@@ -968,9 +968,9 @@ def main():
     buy_table = render_buy_table(supported)
     still_wall = render_still_wall()
 
-    press = press_entries()
-    independent = [e for e in press if e["independent"]]
-    own = [e for e in press if not e["independent"]]
+    featured = featured_entries()
+    independent = [e for e in featured if e["independent"]]
+    own = [e for e in featured if not e["independent"]]
 
     page = read("site", "index.template.html")
     validate_assets(page)
@@ -986,8 +986,8 @@ def main():
         ("{{BUY_PICK}}", buy_pick),
         ("{{BUY_TABLE}}", buy_table),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
-        ("{{PRESS_TEASER}}", render_press_teaser(press)),
-        ("{{PRESS_INDEPENDENT}}", str(len(independent))),
+        ("{{FEATURED_TEASER}}", render_featured_teaser(featured)),
+        ("{{FEATURED_INDEPENDENT}}", str(len(independent))),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
     ):
@@ -1000,27 +1000,27 @@ def main():
     with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as handle:
         handle.write(page)
 
-    # The press page: a second template over the same version, repo and date,
+    # The Featured page: a second template over the same version, repo and date,
     # plus the entries. Its screenshots are copied beside it so that the
     # evidence is served from this origin and outlives the outlet.
-    press_page = read("site", "press.template.html")
+    featured_page = read("site", "featured.template.html")
     for key, value in (
         ("{{VERSION}}", release),
         ("{{GAME_COUNT}}", str(len(catalog))),
-        ("{{PRESS_INDEPENDENT}}", str(len(independent))),
-        ("{{PRESS_OWN}}", str(len(own))),
-        ("{{PRESS_INDEPENDENT_CARDS}}", render_press_cards(independent)),
-        ("{{PRESS_OWN_CARDS}}", render_press_cards(own)),
+        ("{{FEATURED_INDEPENDENT}}", str(len(independent))),
+        ("{{FEATURED_OWN}}", str(len(own))),
+        ("{{FEATURED_INDEPENDENT_CARDS}}", render_featured_cards(independent)),
+        ("{{FEATURED_OWN_CARDS}}", render_featured_cards(own)),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
     ):
-        press_page = press_page.replace(key, value)
-    leftover = re.findall(r"\{\{[A-Z_]+\}\}", press_page)
+        featured_page = featured_page.replace(key, value)
+    leftover = re.findall(r"\{\{[A-Z_]+\}\}", featured_page)
     if leftover:
-        die("press template placeholder(s) not filled: %s" % ", ".join(sorted(set(leftover))))
-    with open(os.path.join(out, "press.html"), "w", encoding="utf-8") as handle:
-        handle.write(press_page)
-    shutil.copytree(PRESS_DIR, os.path.join(out, "press"))
+        die("featured template placeholder(s) not filled: %s" % ", ".join(sorted(set(leftover))))
+    with open(os.path.join(out, "featured.html"), "w", encoding="utf-8") as handle:
+        handle.write(featured_page)
+    shutil.copytree(FEATURED_DIR, os.path.join(out, "featured"))
 
     # Only the stills the page shows. It copied all of docs/screens back when
     # it showed all of docs/screens; publishing the other eighty-five now
@@ -1039,8 +1039,8 @@ def main():
 
     offered = sum(len(b["versions"]) for b in builds)
     print("Site written to %s -- %d games, %d build(s), %d installable "
-          "version(s), %d press entries, v%s."
-          % (out, len(catalog), len(builds), offered, len(press), release))
+          "version(s), %d featured entries, v%s."
+          % (out, len(catalog), len(builds), offered, len(featured), release))
     if older:
         print("Older releases served from site/_releases: %s."
               % ", ".join(e["version"] for e in older))

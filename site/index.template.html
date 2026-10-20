@@ -241,20 +241,20 @@
   .contact .cards b{display:block;font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--yellow);word-break:break-word}
   .contact .cards span{display:block;margin-top:10px;font-size:16px;color:var(--muted)}
 
-  /* in the press -- the landing page names the coverage; press.html proves it,
+  /* featured in -- the landing page names the coverage; featured.html proves it,
      with a dated screenshot and a checksum per entry, which is why this strip
      is names and dates and nothing heavier. */
-  .press{padding:12vh var(--gutter);background:var(--ink-2)}
-  .press h2{font-size:clamp(40px,5.5vw,84px);font-weight:900;letter-spacing:-.045em;line-height:.92}
-  .press .intro{margin-top:22px;max-width:40rem;font-size:20px;color:var(--muted)}
-  .press .clips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:40px}
-  .press .clip{display:flex;flex-direction:column;gap:6px;padding:22px;border-radius:22px;text-decoration:none;background:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
-  .press .clip:hover{background:#1b1e26}
-  .press .clip:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
-  .press .clip b{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
-  .press .clip span{font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
-  .press .clip time{margin-top:auto;padding-top:8px;font-size:14px;color:var(--muted)}
-  .press .cta{margin-top:34px}
+  .featured{padding:12vh var(--gutter);background:var(--ink-2)}
+  .featured h2{font-size:clamp(40px,5.5vw,84px);font-weight:900;letter-spacing:-.045em;line-height:.92}
+  .featured .intro{margin-top:22px;max-width:40rem;font-size:20px;color:var(--muted)}
+  .featured .clips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:40px}
+  .featured .clip{display:flex;flex-direction:column;gap:6px;padding:22px;border-radius:22px;text-decoration:none;background:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
+  .featured .clip:hover{background:#1b1e26}
+  .featured .clip:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+  .featured .clip b{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
+  .featured .clip span{font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+  .featured .clip time{margin-top:auto;padding-top:8px;font-size:14px;color:var(--muted)}
+  .featured .cta{margin-top:34px}
 
   footer{padding:60px var(--gutter) 80px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;font-size:15px;color:var(--muted)}
   footer a{color:#fff}
@@ -323,7 +323,7 @@
     <li><a id="tab-games" href="#games" aria-controls="panel-games">Games</a></li>
     <li><a id="tab-privacy" href="#privacy" aria-controls="panel-privacy">Privacy</a></li>
     <li><a id="tab-community" href="#community" aria-controls="panel-community">Community</a></li>
-    <li><a href="press.html">Press</a></li>
+    <li><a href="featured.html">Featured</a></li>
   </ul>
   <a class="star" href="{{REPO}}">Star on GitHub</a>
 </nav>
@@ -436,13 +436,13 @@
   <figure class="tall"><img src="assets/chess-two.jpg" alt="Two Braino consoles playing chess against each other" loading="lazy"></figure>
 </section>
 
-<section class="press" id="press" aria-labelledby="h-press">
-  <h2 id="h-press">Picked up by.</h2>
-  <p class="intro">{{PRESS_INDEPENDENT}} pieces so far by people with no connection to the project. Each one is kept with a dated screenshot, a checksum and an archived copy, so the record stays even if the page goes.</p>
+<section class="featured" id="featured" aria-labelledby="h-featured">
+  <h2 id="h-featured">Picked up by.</h2>
+  <p class="intro">{{FEATURED_INDEPENDENT}} pieces so far by people with no connection to the project. Each one is kept with a dated screenshot, a checksum and an archived copy, so the record stays even if the page goes.</p>
   <div class="clips">
-{{PRESS_TEASER}}
+{{FEATURED_TEASER}}
   </div>
-  <div class="cta"><a class="btn btn-ghost" href="press.html">The press page, with the evidence</a></div>
+  <div class="cta"><a class="btn btn-ghost" href="featured.html">The Featured page, with the evidence</a></div>
 </section>
 
 <section class="chapter amber" data-bg="#f2a900">
