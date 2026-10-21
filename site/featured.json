@@ -99,6 +99,21 @@
       "sha256": "ee986dacf3f4f48862bd3ec8e92fce0d8d2e0d5f78552a523adb3d88259831af",
       "width": 1024,
       "height": 1120
+    },
+    {
+      "id": "mechanoticias",
+      "outlet": "MechaNoticias",
+      "title": "Braino convierte la Cheap Yellow Display en un juguete educativo",
+      "title_en": "Braino turns the Cheap Yellow Display into an educational toy",
+      "byline": "Daniela Díaz Gutiérrez",
+      "url": "https://noticias.mechatronicstore.cl/electronica/braino-convierte-la-cheap-yellow-display-en-un-juguete-educativo",
+      "published": "2026-10-16",
+      "archive": "https://web.archive.org/web/20261021135916/https://noticias.mechatronicstore.cl/electronica/braino-convierte-la-cheap-yellow-display-en-un-juguete-educativo",
+      "screenshot": "mechanoticias.jpg",
+      "captured": "2026-10-21T13:58:15Z",
+      "sha256": "5674246022a24cb361bcfa4517ae2023570fdb6aa1b19e9688d17ab1cc910bf9",
+      "width": 1024,
+      "height": 1440
     }
   ]
 }
