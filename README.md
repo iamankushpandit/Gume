@@ -319,18 +319,22 @@ listings, and nothing on it says which glass is inside: the owner who reported
 it in [issue 200](https://github.com/iamankushpandit/Gume/issues/200) and
 another owner in the same thread had the two controllers from the same
 supplier. The profile (`esp32-2432s028-st7789.h`) is the inverted profile
-with the display told the ST7789 sequence, BGR order and no inversion --
-witnessmenow's `CYD2USB` setup, which is what the reporter runs the board
-with. Every pin is the inverted board's, including the backlight on GPIO21,
-and so is everything measured there: no battery sense, DAC audio on GPIO26,
-the RGB LED order.
+with the display told the ST7789 sequence and no inversion -- witnessmenow's
+`CYD2USB` setup, which is what the reporter runs the board with -- and the
+colour order measured rather than copied: that setup says BGR, and under it
+the reporter's board drew red as blue with everything else right, which is
+the colour-order bit alone, so the profile says RGB. Every pin is the
+inverted board's, including the backlight on GPIO21, and so is everything
+measured there: no battery sense, DAC audio on GPIO26, the RGB LED order.
 
-**Checked on hardware: not yet by the maintainer, who does not own this
-glass.** The first build was handed to the reporter from the pull request's
-CI run, which attaches every product image to the run for exactly this; this
-paragraph is updated with the result. If the ST7789 image draws every colour
-wrong on your board -- dark theme white, green purple -- you have the ILI9341
-glass and want the inverted-panel build instead.
+**Checked on hardware by the reporter, not by the maintainer, who does not
+own this glass.** The first build was handed to the reporter from the pull
+request's CI run, which attaches every product image to the run for exactly
+this: vivid colours, dark theme dark, touch and all four rotations right,
+red and blue exchanged. The second build, with the order corrected, is what
+this paragraph will be updated against. If the ST7789 image draws every
+colour wrong on your board -- dark theme white, green purple -- you have the
+ILI9341 glass and want the inverted-panel build instead.
 
 ### E32R32P (3.2-inch ST7789P3)
 

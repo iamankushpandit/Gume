@@ -35,13 +35,15 @@
  * the display.
  *
  * HOW THIS ONE WAS ESTABLISHED. Reported in issue 200 by an owner of the
- * board: the inverted image draws it correctly but washed out, and the
- * ST7789 sequence with BGR order and no inversion -- the CYD2USB setup in
- * witnessmenow's ESP32-Cheap-Yellow-Display repository -- gives it its
- * colours. The display flags in platformio.ini are exactly that setup. The
- * maintainer does not own this glass, so the first build was sent to the
- * reporter to confirm rather than measured on a desk here; the docs page
- * says what has been confirmed and when.
+ * board: the inverted image draws it correctly but washed out. The first
+ * build sent to the reporter used the CYD2USB setup from witnessmenow's
+ * ESP32-Cheap-Yellow-Display repository as it stands -- the ST7789
+ * sequence, BGR order, no inversion -- and the reporter measured it: vivid
+ * colours, the dark theme dark, touch and all four rotations right, and red
+ * drawn as blue. That is the colour-order bit alone, so the order is RGB
+ * (platformio.ini says why) and the rest of that setup stands. The
+ * maintainer does not own this glass; every display fact here is the
+ * reporter's measurement, and the docs page says what was confirmed when.
  *
  * NOT TO BE CONFUSED WITH the Rv3 profile that existed until 5.10.0, which
  * also said ST7789 but put the backlight on IO27 and used rotation 1. That
