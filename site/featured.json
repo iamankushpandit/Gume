@@ -114,6 +114,48 @@
       "sha256": "5674246022a24cb361bcfa4517ae2023570fdb6aa1b19e9688d17ab1cc910bf9",
       "width": 1024,
       "height": 1440
+    },
+    {
+      "id": "bugoutbandit",
+      "outlet": "Instagram",
+      "title": "CYD for the kids! GRUME or braino firmware to keep the little ones occupied and actually develop there mind!",
+      "byline": "Bugout bandit (@bugoutbandit69)",
+      "url": "https://www.instagram.com/reel/DeXPLWatBNR/",
+      "published": "2026-10-11",
+      "archive": "https://web.archive.org/web/20261022173330/https://www.instagram.com/reel/DeXPLWatBNR/",
+      "screenshot": "bugoutbandit.jpg",
+      "captured": "2026-10-22T17:32:32Z",
+      "sha256": "39c32a9205f60ed131103f44f7830051dc43dc24b62313cdd0b2bb7ab3d36981",
+      "width": 1024,
+      "height": 1440
+    },
+    {
+      "id": "tdsheridanlab",
+      "outlet": "Threads",
+      "title": "Someone built Braino!, open-source learning software you flash onto a cheap ESP32 \"Cheap Yellow Display.\"",
+      "byline": "TDSheridan Lab (@tdsheridanlab)",
+      "url": "https://www.threads.com/@tdsheridanlab/post/DeuDQatkaKf/",
+      "published": "2026-10-20",
+      "archive": "https://web.archive.org/web/20261022173451/https://www.threads.com/@tdsheridanlab/post/DeuDQatkaKf/",
+      "screenshot": "tdsheridanlab.jpg",
+      "captured": "2026-10-22T17:32:32Z",
+      "sha256": "36da8e3d4eaeed731e4753265257b1f6de24c0b7be8a90ab10bee82637fad5c3",
+      "width": 1024,
+      "height": 1440
+    },
+    {
+      "id": "hector6872",
+      "outlet": "awesome-esp32 (hector6872)",
+      "title": "Listed under Handheld Gaming & Retro Emulation in hector6872/awesome-esp32",
+      "byline": "Curated list; the entry was added by its maintainer",
+      "url": "https://github.com/hector6872/awesome-esp32",
+      "published": "2026-10-20",
+      "archive": "https://web.archive.org/web/20261022173652/https://github.com/hector6872/awesome-esp32",
+      "screenshot": "hector6872.jpg",
+      "captured": "2026-10-22T17:36:47Z",
+      "sha256": "cd008209124e909e3910279fea10232c241b2f2849299341e39cf0756de6a4e9",
+      "width": 1024,
+      "height": 1120
     }
   ]
 }
