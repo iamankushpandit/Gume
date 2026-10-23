@@ -138,8 +138,10 @@ screen rather than an error.
 
 ### Which board do you have?
 
-Five boards are supported, and each has been flashed and run on hardware. Tell
-them apart by screen size, touch type and USB ports:
+Six boards are supported. Five have been flashed and run on hardware; the
+Attaky Core was ported from its maker's documents before a device was
+available, and its page says what still has to be checked. Tell them apart by
+screen size, touch type and USB ports:
 
 | Screen | Touch | USB | Board | Pick in the installer | Vendor page |
 |---|---|---|---|---|---|
@@ -148,6 +150,7 @@ them apart by screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus -- **not yet run on hardware** | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to
 recognise it, what has been checked on it, its sources, and a pin table and

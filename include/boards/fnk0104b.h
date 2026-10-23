@@ -86,6 +86,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ 16,
         /* scl                */ 15,
         /* reset              */ 18,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0x38,
         /* i2cHz              */ 400000,
         /* pressureThreshold  */ 0,

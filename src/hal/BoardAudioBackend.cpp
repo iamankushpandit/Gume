@@ -222,8 +222,12 @@ void fillDacIdle(TickType_t wait) {
 #endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
 
 /* The Board:: members below are the public face of all this; they reach the
- * synthesiser by name, as they did when it was one file. */
+ * synthesiser by name, as they did when it was one file. Guarded like the
+ * namespace itself: on a board with no audio path there is no `audio` to
+ * name, and every member below compiles to its silent arm. */
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
 using namespace audio;
+#endif
 
 void Board::beginAudio() {
 #if GUME_HAS_AUDIO_CODEC

@@ -203,6 +203,14 @@ static_assert(BOARD.touch.isCapacitive()
                   : true,
               "capacitive touch board is missing an I2C line, address or rate");
 
+/* A touch reset is a GPIO or an expander port, never both -- two owners of
+ * one line is a reset that one of them releases while the other holds it. */
+static_assert(BOARD.touch.resetExpanderAddress == 0
+                  || (BOARD.touch.isCapacitive() && BOARD.touch.reset == PIN_NONE
+                      && BOARD.touch.resetExpanderPort < 16),
+              "touch reset on an expander needs a capacitive board, no GPIO "
+              "reset as well, and a port in 0..15");
+
 /* The one thing both kinds owe, and the thing that decides supportability: a
  * controller at all. `irq` is common to both -- pen-down on the XPT2046, INT
  * on the FT6336U. */

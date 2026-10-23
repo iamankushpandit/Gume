@@ -45,6 +45,53 @@ void configureResistiveTouchPins() {
 }  // namespace
 #endif
 
+#if GUME_TOUCH_CAPACITIVE
+namespace {
+/* A touch reset that lives on an AW9523 I2C expander rather than a GPIO --
+ * the Attaky Core. Used twice in Board::begin(), at boot only: once to assert
+ * reset, once to release it. Nothing on a frame path touches the expander.
+ *
+ * Every register this board's state depends on is written outright rather
+ * than trusted, because the AW9523 does not power up as inputs: at 0x59 it
+ * drives P0_4..P0_7 LOW, and a previous firmware may have left any port in
+ * any state, the reset line included. A software reset would also do it, but
+ * the part wants a settle after one and a boot-time delay() is exactly what
+ * check_frame_rules.py keeps out of this file; five plain writes leave the
+ * same pins in the same state without one.
+ *
+ * Only the reset port is made an output. Every other port -- the Core's
+ * buttons, its LED cathodes, the lines passed through to the modules -- is an
+ * input, which is high-impedance and therefore the safest thing this
+ * firmware can leave them, since it reads none of them. */
+constexpr uint8_t AW9523_OUTPUT_P0 = 0x02;
+constexpr uint8_t AW9523_CONFIG_P0 = 0x04;   // 1 = input, 0 = output
+constexpr uint8_t AW9523_MODE_P0   = 0x12;   // 1 = GPIO, 0 = LED current
+constexpr uint8_t AW9523_MODE_P1   = 0x13;
+
+void aw9523Write(uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(BOARD.touch.resetExpanderAddress);
+    Wire.write(reg);
+    Wire.write(value);
+    Wire.endTransmission();
+}
+
+void driveExpanderTouchReset(bool released) {
+    const uint8_t bank = BOARD.touch.resetExpanderPort / 8;   // 0 = P0, 1 = P1
+    const uint8_t bit = static_cast<uint8_t>(1u << (BOARD.touch.resetExpanderPort % 8));
+    /* Level first, then direction, so the line is never driven to a value
+     * nobody chose. The other ports' output bits are don't-cares: they are
+     * inputs. */
+    aw9523Write(AW9523_OUTPUT_P0 + bank, released ? 0xFF : static_cast<uint8_t>(~bit));
+    if (!released) {
+        aw9523Write(AW9523_MODE_P0, 0xFF);
+        aw9523Write(AW9523_MODE_P1, 0xFF);
+        aw9523Write(AW9523_CONFIG_P0 + bank, static_cast<uint8_t>(~bit));
+        aw9523Write(AW9523_CONFIG_P0 + (1 - bank), 0xFF);
+    }
+}
+}  // namespace
+#endif
+
 void Board::begin() {
     Serial.begin(115200);
     delay(100);
@@ -119,6 +166,12 @@ void Board::begin() {
             pinMode(BOARD.touch.reset, OUTPUT);
             digitalWrite(BOARD.touch.reset, LOW);
         }
+        /* The same hold, through an expander. That needs the bus up now,
+         * rather than after the panel as on a board with a GPIO reset. */
+        if (BOARD.touch.resetExpanderAddress != 0) {
+            Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+            driveExpanderTouchReset(false);
+        }
     }
 #else
     configureResistiveTouchPins();
@@ -152,7 +205,11 @@ void Board::begin() {
     if (BOARD.touch.reset != PIN_NONE) {
         digitalWrite(BOARD.touch.reset, HIGH);
     }
-    Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    if (BOARD.touch.resetExpanderAddress != 0) {
+        driveExpanderTouchReset(true);       // the bus is already up
+    } else {
+        Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }
 #endif
 
     prefs_.begin("cydkids", false);

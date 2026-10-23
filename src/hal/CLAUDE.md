@@ -171,7 +171,11 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
   75 on these boards (the DAC feeds an onboard amplifier; the 1-inch driver
   distorts above 75%).
-- Neither defined — no audio. No supported board is in that state today.
+- Neither defined — no audio. The Attaky Core is in that state until its
+  NS4168 has a plain-I2S backend, and it was the first board to compile
+  this arm at all: three `using namespace audio;` directives sat outside
+  the guard that defines the namespace, and every build failed. They are
+  guarded now. Build a no-audio board after touching these files.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
 `BoardProfile`. A board that gains a louder amplifier sets its own ceiling;

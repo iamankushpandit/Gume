@@ -126,6 +126,17 @@ struct TouchProfile {
     int8_t   sda;                 // capacitive only
     int8_t   scl;                 // capacitive only
     int8_t   reset;               // capacitive only; held low then released
+    /* Where the reset line is when it is NOT a GPIO.
+     *
+     * The Attaky Core routes its touch controller's reset through an AW9523
+     * I2C GPIO expander rather than to the ESP32, so `reset` above has no pin
+     * to name and stays PIN_NONE. These two say which expander and which of
+     * its sixteen ports -- 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7 -- and
+     * Board::begin() drives it exactly as it drives a GPIO reset: held low
+     * through the panel's init, then released. Active low, like every reset
+     * here. 0 for the address means there is no such expander. */
+    uint8_t  resetExpanderAddress; // capacitive only; an AW9523, or 0
+    uint8_t  resetExpanderPort;    // capacitive only; 0..15
     uint8_t  i2cAddress;          // capacitive only
     uint32_t i2cHz;               // capacitive only
     uint16_t pressureThreshold;   // resistive: below this, with IRQ high, noise
