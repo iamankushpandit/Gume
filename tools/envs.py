@@ -252,7 +252,7 @@ def main():
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
     parser.add_argument("--matrix", action="store_true",
-                        help="print a JSON list of {env, board, name} for a CI "
+                        help="print a JSON list of {env, board, kind, name} for a CI "
                              "matrix; name is what the job is called")
     args = parser.parse_args()
 
@@ -270,10 +270,14 @@ def main():
         # "E32R28T-1 (app)": the board first, because that is what a person
         # reading a red job needs; the environment beside it, because that is
         # what they type to reproduce it. A boardless probe is its env alone.
+        # `kind` rides along so a job can tell a product build, worth
+        # attaching to the run for a tester, from a probe nobody downloads.
+        kinds = dict(classify(ini))
         rows = []
         for env in envs:
             board = board_name(env, ini)
             rows.append({"env": env, "board": board or "",
+                         "kind": kinds.get(env, ""),
                          "name": "%s (%s)" % (board, env) if board else env})
         print(json.dumps(rows))
     elif args.pio_args:
