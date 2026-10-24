@@ -1499,6 +1499,7 @@ src/
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
+    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
