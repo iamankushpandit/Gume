@@ -166,7 +166,7 @@ Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t scr
      * Bigger tiles are the point on a larger panel, not a side effect: this
      * board exists to give players who need one a plainer, easier screen, and
      * a target that grows with the glass is easier to hit as well as to read. */
-    constexpr int16_t GAP = 8;
+    constexpr int16_t GAP = TILE_GAP;
     constexpr int16_t FOOTER_H = 32;  // the pager row
 
     const bool tall = mode == Board::LayoutMode::Vertical;

@@ -10,6 +10,39 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
+run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8
+module as the Freenove board) with a 2.0-inch ST7789 at 240x320 and an FT6636
+capacitive touch controller, so Braino's four hard requirements are met as
+they stand. The profile, `include/boards/attaky-core.h`, was written from
+Attaky's published datasheets and hardware catalog before a device was
+available here, and every pin agrees with the two firmwares Attaky ship for
+it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
+has to confirm. Touch, the display and the SD slot are wired. Sound waits for
+a plain-I2S backend for its NS4168 amplifier, the battery gauge for a MAX17048
+reader, the status LED for an expander driver, and the keyboard and gamepad
+are not read: touch stays the input on every board.
+
+One thing about it was new to the board contract. Its touch reset is a port
+on an AW9523 I2C expander rather than a GPIO, so `TouchProfile` gained
+`resetExpanderAddress` and `resetExpanderPort`, every board fills them in,
+and `Board::begin()` drives the reset through the expander with the same
+hold-then-release a GPIO reset gets. Every CI build of a product environment
+is now also packed as a release would be and attached to its run for 30
+days, so someone holding a board nobody here has can flash the build its
+pull request was checked against.
+
+**The Attaky Core's D-pad drives the launcher.** On a board with navigation
+keys, the D-pad moves a focus ring across the tiles in reading order, turning
+the page at either end; Enter opens the tile, and Back puts the ring away, or
+goes Home from any other screen as BOOT does. The ring stays hidden until the
+first key, so nothing changes for anyone who only touches, and a touch hides
+it again. It is drawn in the gap round a tile, so moving it never repaints a
+tile. The keys come through a new `KeysProfile` and `Board::pollNavKey()`,
+which turns each direction for the current screen rotation the way touch
+already is; boards without keys compile the key paths away. Not yet run on a
+device.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was

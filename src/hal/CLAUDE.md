@@ -171,7 +171,11 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
   75 on these boards (the DAC feeds an onboard amplifier; the 1-inch driver
   distorts above 75%).
-- Neither defined — no audio. No supported board is in that state today.
+- Neither defined — no audio. The Attaky Core is in that state until its
+  NS4168 has a plain-I2S backend, and it was the first board to compile
+  this arm at all: three `using namespace audio;` directives sat outside
+  the guard that defines the namespace, and every build failed. They are
+  guarded now. Build a no-audio board after touching these files.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
 `BoardProfile`. A board that gains a louder amplifier sets its own ceiling;
@@ -239,6 +243,14 @@ The BOOT key — the only input on these boards that is not the touchscreen. A G
 Two things it deliberately does not do. It never reads the key during boot — BOOT is a strapping pin, the ROM samples it at reset to choose serial download mode, and that decision is made before `setup()` runs. And it does not time the press: a hold is not a gesture this firmware recognises, and a `heldMs` nobody reads would claim otherwise. The runtime acts on the press edge, so anyone adding a hold has to move that to the release edge first — you cannot both go home on the press and later decide the same press was the start of something longer.
 
 `PIN_NONE` is a supported profile. The event is all-false on a board with no key, so callers need no `hasBootButton()` guard of their own.
+
+## BoardKeys.cpp + BoardExpander.cpp
+
+Navigation keys -- a D-pad, Enter and Back -- on the boards that have them, which today is the Attaky Core, whose face keys are ports of an AW9523 I2C expander on the touch bus. `KeysProfile` names the expander and each key's port; `pollNavKey()` reads one input register per frame from the loop, beside the BOOT key and for the same reason touch is read there: it is input, a few bytes on a bus that already carries a touch read every frame, not a sensor whose sampling belongs on a task. A failed read keeps the last state, so a bus glitch cannot invent a press. A held direction repeats (400 ms, then every 140 ms); Enter and Back never do. One event per frame.
+
+**The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns them by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Not yet seen on a device with keys**: if portrait or flipped is wrong and landscape is right, the sign in that one function is the whole fix.
+
+`BoardExpander.cpp` holds the AW9523 writes, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
 
 ## Clock.{h,cpp}
 

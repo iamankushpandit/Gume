@@ -310,6 +310,36 @@ jobs:
       - name: Build ${{ matrix.target.name }}
         run: pio run -e ${{ matrix.target.env }}
 
+      # The build is attached to the run so that somebody who owns the board
+      # and not the toolchain can test it before it is released. A board port
+      # arrives as an issue from a person holding a board nobody here has
+      # (issue 200 was one), and until this step the only way to hand them
+      # the image was to build it on a laptop and zip it into a comment.
+      # Packed exactly as a release is -- the four parts, one merged image
+      # written at 0x0, FLASHING.txt saying how -- by the same tool, so what
+      # a tester flashes is what the release will ship. --only packs this
+      # job's environment alone; a release still packs every one.
+      #
+      # Only a product environment is worth attaching: nobody flashes a
+      # bench probe from a download, and a release does not ship one.
+      - name: Pack ${{ matrix.target.name }} for testers
+        if: matrix.target.kind == 'product'
+        run: >-
+          python tools/pack_release.py
+          --only ${{ matrix.target.env }}
+          --out dist
+          --built "CI build of ${{ github.head_ref || github.ref_name }}
+          (commit $(git rev-parse --short=7 HEAD)), not a release"
+
+      - name: Attach ${{ matrix.target.name }} to the run
+        if: matrix.target.kind == 'product'
+        uses: actions/upload-artifact@v4
+        with:
+          name: braino-${{ matrix.target.env }}
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
   # `verify` is the required status check in the "Protect main" and "Protect
   # dev" rulesets, so it must report on EVERY pull request, including
   # documentation-only ones -- a required check that does not run is not

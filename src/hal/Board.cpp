@@ -25,6 +25,7 @@
 #endif
 
 #include "BleBeacon.h"
+#include "BoardExpander.h"
 #include "ui/Ui.h"
 
 Board::Board() : sdSpi_(VSPI) {}
@@ -119,6 +120,12 @@ void Board::begin() {
             pinMode(BOARD.touch.reset, OUTPUT);
             digitalWrite(BOARD.touch.reset, LOW);
         }
+        /* The same hold, through an expander. That needs the bus up now,
+         * rather than after the panel as on a board with a GPIO reset. */
+        if (BOARD.touch.resetExpanderAddress != 0) {
+            Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+            BoardExpander::driveTouchReset(false);
+        }
     }
 #else
     configureResistiveTouchPins();
@@ -152,7 +159,14 @@ void Board::begin() {
     if (BOARD.touch.reset != PIN_NONE) {
         digitalWrite(BOARD.touch.reset, HIGH);
     }
-    Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    if (BOARD.touch.resetExpanderAddress != 0) {
+        BoardExpander::driveTouchReset(true);       // the bus is already up
+    } else {
+        Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }
+    if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
+        BoardExpander::allInputs(BOARD.keys.keyExpander);
+    }
 #endif
 
     prefs_.begin("cydkids", false);

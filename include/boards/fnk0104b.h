@@ -86,6 +86,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ 16,
         /* scl                */ 15,
         /* reset              */ 18,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0x38,
         /* i2cHz              */ 400000,
         /* pressureThreshold  */ 0,
@@ -98,6 +100,18 @@ inline constexpr BoardProfile BOARD = {
     ButtonProfile{
         /* bootPin   */ 0,
         /* activeLow */ true,
+    },
+
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keysActiveLow */ true,
     },
 
     /* No SD, deliberately, for now.

@@ -151,7 +151,8 @@ def pin_uses(b, p):
     if p["capacitive"]:
         add(touch.get("sda"), "Touch", "I2C SDA")
         add(touch.get("scl"), "Touch", "I2C SCL")
-        add(touch.get("irq"), "Touch", "interrupt")
+        irq_used = touch.get("irqUsable", "true") == "true"
+        add(touch.get("irq"), "Touch", "interrupt" + ("" if irq_used else " (not used)"))
         add(touch.get("reset"), "Touch", "reset")
     else:
         shared = " (shared with the display)" if b["touch_on_display_bus"] else ""
@@ -186,6 +187,15 @@ def pin_uses(b, p):
     return sorted(uses, key=lambda u: (u[0], [g for g, _ in GROUPS].index(u[1])))
 
 
+def expander_reset(touch):
+    """Where a touch reset lives when it is not a GPIO, for the facts table."""
+    addr = touch.get("resetExpanderAddress", "0")
+    if addr in ("0", "0x00", ""):
+        return ""
+    port = int(touch.get("resetExpanderPort", "0"), 0)
+    return "; reset on port P%d_%d of the I2C expander at %s" % (port // 8, port % 8, addr)
+
+
 def facts(b, p):
     panel = p.get("PanelProfile", {})
     touch = p.get("TouchProfile", {})
@@ -206,12 +216,12 @@ def facts(b, p):
         ("Panel", "%s x %s, %s driver%s" % (panel.get("nativeWidth"), panel.get("nativeHeight"),
                                            b["driver"], ", colours inverted at runtime"
                                            if panel.get("invertColours") == "true" else "")),
-        ("Touch", "capacitive, I2C" if p["capacitive"] else
+        ("Touch", ("capacitive, I2C" + expander_reset(touch)) if p["capacitive"] else
          "resistive XPT2046, %s" % ("on the display's SPI bus" if b["touch_on_display_bus"]
                                     else "its own bit-banged SPI bus")),
         ("Sound", sound),
         ("Battery sense", "GPIO%d" % batt if batt is not None
-         else "**none** -- no battery badge; run it from USB power"),
+         else "**none read** -- no battery badge"),
         ("Flash", "%s MB" % mb.group(1) if mb else flash or "?"),
     ]
     return rows

@@ -15,6 +15,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "hal/NavKeys.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 
@@ -162,6 +163,11 @@ public:
         bool justReleased = false;
     };
     ButtonEvent pollBootButton();
+
+    /* This frame's navigation key, in screen directions, or None. Called once
+     * per frame by the runtime, beside pollBootButton(). Always None on a
+     * board without keys. See hal/BoardKeys.cpp. */
+    NavKey pollNavKey();
 
     void beepOk();
     void beepError();
@@ -618,6 +624,11 @@ private:
     TouchPoint lastTouch_;
     /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
     bool bootButtonDown_ = false;
+    /* Navigation keys: which were down last frame (one bit per NavKey), and
+     * the held direction's next auto-repeat, for pollNavKey(). */
+    uint8_t navDown_ = 0;
+    NavKey navHeld_ = NavKey::None;
+    uint32_t navRepeatAtMs_ = 0;
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
 

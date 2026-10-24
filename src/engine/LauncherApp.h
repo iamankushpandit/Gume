@@ -11,6 +11,8 @@
 
 #include "engine/Game.h"
 
+struct Rect;
+
 class LauncherApp : public Game {
 public:
     const char* title() const override;
@@ -33,6 +35,28 @@ private:
      * and renderChrome() so the two cannot drift; it paints its own background
      * and assumes nothing about what was underneath. */
     void drawHeader(GameHost& host);
+
+    /* One tile's icon and labels, over a fill already painted. In
+     * AppRuntimeLauncherTiles.cpp. */
+    void drawTileContents(Ui::Renderer& tft, const AppDefinition& entry,
+                          const Rect& r, uint16_t fill, bool tall,
+                          uint8_t pageTextScale, bool wrapSubtitles);
+
+    /* Navigation keys, on the boards that have them (AppRuntimeLauncher.cpp).
+     *
+     * focus_ is the focused slot on this page, or -1. It stays -1 until the
+     * first key press, so a board without keys never shows a ring; a touch
+     * puts it back to -1. The ring is drawn in the gap round the tile, so
+     * moving it erases one outline and draws another and never repaints a
+     * tile -- focusOnly_ is how update() asks renderDynamic() for exactly
+     * that, and ringShown_ is where an outline is currently on the panel. */
+    void handleNavKey(GameHost& host, NavKey key);
+    void requestFocusPaint();
+    void requestGridPaint();
+    void paintFocus(GameHost& host);
+    int8_t focus_ = -1;
+    int8_t ringShown_ = -1;
+    bool focusOnly_ = false;
 
     uint8_t page_ = 0;
 

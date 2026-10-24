@@ -126,6 +126,17 @@ struct TouchProfile {
     int8_t   sda;                 // capacitive only
     int8_t   scl;                 // capacitive only
     int8_t   reset;               // capacitive only; held low then released
+    /* Where the reset line is when it is NOT a GPIO.
+     *
+     * The Attaky Core routes its touch controller's reset through an AW9523
+     * I2C GPIO expander rather than to the ESP32, so `reset` above has no pin
+     * to name and stays PIN_NONE. These two say which expander and which of
+     * its sixteen ports -- 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7 -- and
+     * Board::begin() drives it exactly as it drives a GPIO reset: held low
+     * through the panel's init, then released. Active low, like every reset
+     * here. 0 for the address means there is no such expander. */
+    uint8_t  resetExpanderAddress; // capacitive only; an AW9523, or 0
+    uint8_t  resetExpanderPort;    // capacitive only; 0..15
     uint8_t  i2cAddress;          // capacitive only
     uint32_t i2cHz;               // capacitive only
     uint16_t pressureThreshold;   // resistive: below this, with IRQ high, noise
@@ -160,6 +171,33 @@ struct ButtonProfile {
      * than assumed, because a board that wired it the other way would read as
      * a button held down forever. */
     bool   activeLow;
+};
+
+/* Navigation keys -- a D-pad, Enter and Back -- where a board has them.
+ *
+ * Only behind an AW9523 I2C expander for now, because that is the only way
+ * any supported board wires them (the Attaky Core's face keys). The fields
+ * are that expander's address and, for each key, one of its sixteen ports:
+ * 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7, PIN_NONE for a key the board
+ * does not have. The expander shares the touch controller's I2C bus, which
+ * is why BoardConfig.h requires a capacitive board.
+ *
+ * The directions are PHYSICAL: Up is the key that points up when the board
+ * is held at its landscape rotation. Board::pollNavKey() turns them into
+ * screen directions for whatever rotation is current.
+ *
+ * Optional, like the BOOT key: keyExpander 0 is a board without them, every
+ * caller is guarded by hasNavKeys(), and nothing may become reachable only
+ * through a key. */
+struct KeysProfile {
+    uint8_t keyExpander;          // an AW9523's I2C address, or 0
+    int8_t  keyUp;
+    int8_t  keyDown;
+    int8_t  keyLeft;
+    int8_t  keyRight;
+    int8_t  keyEnter;
+    int8_t  keyBack;
+    bool    keysActiveLow;        // pulled up, shorted to ground when pressed
 };
 
 struct SdProfile {
@@ -255,6 +293,7 @@ struct BoardProfile {
     PanelProfile  panel;
     TouchProfile  touch;
     ButtonProfile button;         // beside touch: both are how a person acts
+    KeysProfile   keys;           // and so are these, on the boards that have them
     SdProfile     sd;
     RgbLedProfile rgb;
     AudioProfile  audio;
@@ -272,6 +311,7 @@ struct BoardProfile {
     }
 
     constexpr bool hasBootButton() const { return button.bootPin != PIN_NONE; }
+    constexpr bool hasNavKeys() const { return keys.keyExpander != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }

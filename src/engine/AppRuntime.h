@@ -128,6 +128,7 @@ public:
     void openWifi() override;
     void openProfiles() override;
     void applyOrientation() override;
+    NavKey navKey() override { return frameNav_; }
 
     /* Lock now: blank the panel immediately, and make the next wake land on
      * the wake lock instead of on the screen underneath.
@@ -324,6 +325,9 @@ private:
     bool ssav_initialized_ = false;
     View ssavPrevView_ = View::Game;
     bool swallowTouch_ = false;
+    /* The navigation key handed to the active screen's update(), and only
+     * during it; None at every other moment. See navKey(). */
+    NavKey frameNav_ = NavKey::None;
 
     /* Lock-screen state.
      *

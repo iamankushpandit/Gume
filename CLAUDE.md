@@ -346,7 +346,7 @@ pio device monitor       # serial, 115200 baud
 
 ### An environment is either the product or a bench probe, and it says which
 
-`platformio.ini` declares fifteen environments; five of them are Braino!.
+`platformio.ini` declares sixteen environments; six of them are Braino!.
 Each one states which it is, once, beside itself:
 
 ```ini
@@ -366,7 +366,7 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds the five product environments** on a push to `main` or `dev`,
+- **CI builds the six product environments** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is three
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
@@ -623,9 +623,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,817 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,581,869 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
+at 88,044 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -745,6 +745,24 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `BOARD.hasBootButton()` can be false and the console has to remain complete.
   It fires on the press edge, which is what a hold gesture would have to
   change first; see `src/hal/BoardButton.cpp`.
+- **Navigation keys are a second route, on the boards that have them, and
+  only the launcher takes them so far.** The Attaky Core's D-pad, Enter and
+  L1 (as Back) sit on an AW9523 expander; `KeysProfile` names its ports and
+  `Board::pollNavKey()` reads one byte per frame beside the BOOT key and
+  hands back one `NavKey`, already turned for the screen's rotation -- the
+  same job `pollTouch()` does for a finger, so no screen corrects for it.
+  The runtime treats any key as BOOT for activity, the saver and sleep,
+  ignores keys on the lock screen for BOOT's reason, consumes Back as Home
+  everywhere but the launcher, and passes the rest to the active screen's
+  `update()` through `GameHost::navKey()`. The launcher draws a focus ring
+  in the gap round a tile -- erased in the background colour, never by
+  repainting a tile, with `static_assert`s proving it clears every shadow --
+  that stays hidden until the first key and goes away at the next touch.
+  Every key path is gated on the compile-time `BOARD.hasNavKeys()`, so the
+  boards without keys carry 176 bytes for it, not the kilobyte the launcher
+  code is. **Nothing may become reachable only by key**, exactly as with
+  BOOT. The direction mapping has not been seen on a device; the sign to
+  change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -1339,7 +1357,7 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds the five product environments --
+`.github/workflows/release.yml` then builds the six product environments --
 `tools/envs.py --product`, never a list in the YAML -- packs them with
 `tools/pack_release.py`, and publishes a GitHub release with all four parts
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
@@ -1586,6 +1604,17 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
   is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
   3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
+- **A touch reset can be an expander port rather than a GPIO.** The Attaky
+  Core wires its FT6636's reset to port P1_3 of an AW9523 at 0x59, so
+  `TouchProfile` carries `resetExpanderAddress` and `resetExpanderPort` beside
+  `reset`, and `Board::begin()` brings I2C up early to hold it through the
+  panel init and release it after -- the same pulse a GPIO reset gets. It
+  writes every AW9523 register it depends on rather than issuing a software
+  reset, because that part wants a settle and a boot-time `delay()` is what
+  `check_frame_rules.py` refuses here; and it leaves every other port an
+  input, since the firmware reads none of them. That board was ported from
+  Attaky's documents before a device existed here -- see
+  `docs/boards/Attaky-Core.md` for what is still unchecked.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
 - `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
   variant, E32R32P and E32R40T

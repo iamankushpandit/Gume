@@ -152,6 +152,16 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon. This board has no SD, no status LED and no sound yet -- "
                 "everything else works. See the README for what is missing and why.",
     },
+    {
+        "env": "app_attaky_core",
+        "label": "Braino! (the games) -- Attaky Core (ESP32-S3, capacitive touch)",
+        "name": "Braino!",
+        "note": "The full console for the Attaky Core, as built into the Cyber Deck Plus: {count} games, "
+                "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch, plus the Core's "
+                "D-pad on the home screen; the keyboard and gamepad are not read yet, and there is no "
+                "sound, battery gauge or status LED yet. "
+                "Needs the Media I/O module for the SD slot.",
+    },
 )
 
 # The pin map, screen rotation and touch controller are compile-time constants,
@@ -222,6 +232,20 @@ BOARD_DETAILS = {
         "buy": "https://www.amazon.com/dp/B0FSQF6FKN",
         "shop": "Freenove ESP32-S3 CYD, 2.8-inch",
         "extra": "Touch that works like a phone's; ESP32-S3 chip",
+    },
+    "attaky_core": {
+        "label": "2.0-inch, capacitive touch, one USB-C port -- Attaky Core 1.0 in a Cyber Deck Plus, ESP32-S3 (ST7789 + FT6636)",
+        "chip": "ESP32-S3",
+        # NOT LIKE THE OTHERS, AND NOT READY FOR main. The Get started tab
+        # says every board here is one the maintainer bought and runs Braino
+        # on. Neither half was true of this one when the port was written: it
+        # was written from documents, before a device was on the bench.
+        # Before this reaches main, the disclosure paragraph in
+        # site/index.template.html has to be true of it, or the board waits
+        # until it is. A plain link, no affiliate code.
+        "buy": "https://shop.attaky.com/products/attaky-cyber-deck-plus",
+        "shop": "Attaky Cyber Deck Plus",
+        "extra": "A handheld in a case, battery included; keyboard and gamepad (not used by Braino yet)",
     },
 }
 
