@@ -11,6 +11,8 @@
 
 #include "engine/Game.h"
 
+struct Rect;
+
 class LauncherApp : public Game {
 public:
     const char* title() const override;
@@ -33,6 +35,12 @@ private:
      * and renderChrome() so the two cannot drift; it paints its own background
      * and assumes nothing about what was underneath. */
     void drawHeader(GameHost& host);
+
+    /* One tile's icon and labels, over a fill already painted. In
+     * AppRuntimeLauncherTiles.cpp. */
+    void drawTileContents(Ui::Renderer& tft, const AppDefinition& entry,
+                          const Rect& r, uint16_t fill, bool tall,
+                          uint8_t pageTextScale, bool wrapSubtitles);
 
     uint8_t page_ = 0;
 

@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,581,693 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -1460,7 +1460,8 @@ src/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
     AppRuntime.cpp      runtime loop, transitions, view state
-    AppRuntimeLauncher.cpp  LauncherApp paging, tiles, header UI
+    AppRuntimeLauncher.cpp  LauncherApp paging, grid, header UI
+    AppRuntimeLauncherTiles.cpp  one tile's icon and labels
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeNotify.cpp  the header banner: battery, update, nearby
