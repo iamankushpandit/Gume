@@ -156,6 +156,21 @@
       "sha256": "cd008209124e909e3910279fea10232c241b2f2849299341e39cf0756de6a4e9",
       "width": 1024,
       "height": 1120
+    },
+    {
+      "id": "einkcn",
+      "outlet": "einkCN",
+      "title": "Braino! 把「廉价黄屏」开发板变成儿童学习机",
+      "title_en": "Braino! turns the \"cheap yellow screen\" dev board into a children's learning machine",
+      "byline": "einkCN, translated from Hackaday",
+      "url": "https://www.einkcn.com/html/product_6ad2d333507586710.html",
+      "published": "2026-10-17",
+      "archive": "https://web.archive.org/web/20261024180530/https://www.einkcn.com/html/product_6ad2d333507586710.html",
+      "screenshot": "einkcn.jpg",
+      "captured": "2026-10-24T18:02:39Z",
+      "sha256": "d86faf3a59a252b18d6578394759db756c4e36070d2099d180cb3b79da3b4bec",
+      "width": 1024,
+      "height": 1440
     }
   ]
 }
