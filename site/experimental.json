@@ -13,6 +13,20 @@
       "artifact": "braino-app_esp32_2432s028_st7789",
       "added": "2026-10-21",
       "test": "Flash it on a dual-USB CYD that draws washed-out colours under the inverted-panel image. Check that the colours are right in every theme (Settings, Device, Theme), that touch lands where you tap after the calibration wizard, and that the picture is the right way up in all four positions of the Layout button. Reply in the issue with a photo of the launcher under this build, and of anything that looks wrong."
+    },
+    {
+      "id": "attaky-core",
+      "title": "Attaky Core, as built into the Cyber Deck Plus",
+      "board": "attaky_core",
+      "env": "app_attaky_core",
+      "chip": "ESP32-S3",
+      "label": "2.0-inch, capacitive touch, one USB-C port -- Attaky Core 1.0 in a Cyber Deck Plus, ESP32-S3 (ST7789 + FT6636)",
+      "issue": 214,
+      "branch": "feat/board-attaky-core",
+      "run": 40118645125,
+      "artifact": "braino-app_attaky_core",
+      "added": "2026-10-23",
+      "test": "This port was written from Attaky's documents and has never run on a device, so everything is worth checking. Flash it on a Cyber Deck Plus (or any Attaky Core wearing the Media I/O module) and check that the picture is the right way up in all four positions of Settings, Device, Layout; that touch lands where you tap in each of them; that the colours are right in every theme (a photo-negative picture or red and blue swapped is worth a photo); and that an SD card is seen. On the home screen the D-pad should move a ring between the tiles in the direction each key points, in landscape and in portrait; Enter opens the tile, and the top-left shoulder key goes back home from a game. It is silent and shows no battery level on purpose. Reply in the issue with a photo of the launcher and of anything that looks wrong."
     }
   ]
 }
