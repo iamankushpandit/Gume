@@ -346,7 +346,7 @@ pio device monitor       # serial, 115200 baud
 
 ### An environment is either the product or a bench probe, and it says which
 
-`platformio.ini` declares fifteen environments; five of them are Braino!.
+`platformio.ini` declares sixteen environments; six of them are Braino!.
 Each one states which it is, once, beside itself:
 
 ```ini
@@ -366,8 +366,16 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds the five product environments** on a push to `main` or `dev`,
+- **CI builds the six product environments** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
+- **Every product build is attached to the run**, packed by
+  `pack_release.py --only <env>` exactly as a release would pack it -- four
+  parts, one merged image, FLASHING.txt -- and kept for 30 days. That is how
+  a build reaches the owner of a board nobody here has, before it is
+  released; issue 200's board was the first. `envs.py --matrix` carries
+  each environment's `kind` so the step runs for the product only: a probe
+  is built to prove it still compiles, and nobody flashes one from a
+  download.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is three
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
   installs all the toolchains once into the one cache it alone saves; `build`
@@ -1339,7 +1347,7 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds the five product environments --
+`.github/workflows/release.yml` then builds the six product environments --
 `tools/envs.py --product`, never a list in the YAML -- packs them with
 `tools/pack_release.py`, and publishes a GitHub release with all four parts
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
@@ -1432,6 +1440,36 @@ break it, and all three fail in someone else's browser rather than here:
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
+
+### The Experimental page offers a CI run's build, and only while the run has it
+
+`experimental.html` is where a build goes when the maintainer wants somebody
+with a particular board to flash it before it ships -- the first was issue
+200's CYD2USB, held by its reporter and by nobody here. `site/experimental.json`
+lists each one: the board and environment, its chip and the installer label
+(carried by the entry, because the board may not be in this tree yet -- the
+first one was a new board on a branch, and the page publishes from `main`;
+when the tree does know the board they must agree with `BOARD_DETAILS`), the
+issue, the branch, the CI run id and the artifact name, and what to look at. The Pages workflow runs `gh run download` into
+`site/_experimental/<id>/`, `gen_site.py` publishes the four parts and a
+manifest under `experimental/<id>/`, and the card gets the same esp-web-tools
+button as the installer. Three things are load-bearing:
+
+- **The bytes are the run's, never rebuilt here.** A tester flashes exactly
+  what the pull request's checks ran against, which is the point of asking
+  them.
+- **The download step is not `continue-on-error`.** A missing release drops
+  the installer back to the newest build, which is still a working page; a
+  card with no image fails the one reader who came for it. Artifacts expire
+  30 days after the run, so an entry left past that fails every Pages deploy
+  until it is removed or pointed at a fresh run. That is the intended
+  reminder, not a bug.
+- **The page is published from `main`**, like the rest of the site. An entry
+  added on `dev` reaches readers with the next merge to `main`; until then the
+  tester downloads the artifact from the run itself, which needs a GitHub
+  sign-in. `check_docs.py` keeps the three pieces joined -- the workflow
+  step, the generator reading the file, the data validating -- the same way
+  it does for older releases.
 
 ### The page offers older releases, and must keep doing so
 
