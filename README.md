@@ -1460,6 +1460,7 @@ src/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
     AppRuntime.cpp      runtime loop, transitions, view state
+    AppRuntimeContext.cpp  what screens call: storage, sound, capabilities
     AppRuntimeLauncher.cpp  LauncherApp paging, grid, header UI
     AppRuntimeLauncherTiles.cpp  one tile's icon and labels
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
