@@ -115,13 +115,32 @@ inline constexpr BoardProfile BOARD = {
         /* hitSlop              */ 8,
     },
 
-    /* BOOT on IO38, a direct GPIO with a pull-up. It is the one key of the
-     * Core's nine the firmware reads; the D-pad, Enter, L1, R1 and the power
-     * key's short press are on the 0x59 expander and are not read. Touch stays
-     * the input this console is built around. */
+    /* BOOT on IO38, a direct GPIO with a pull-up -- the one key of the Core's
+     * nine that is not behind the 0x59 expander. The D-pad, Enter and L1 are
+     * read through it as navigation keys, below. Touch stays the input this
+     * console is built around. */
     ButtonProfile{
         /* bootPin   */ 38,
         /* activeLow */ true,
+    },
+
+    /* keys: the Core's D-pad and Enter, on the same AW9523 at 0x59 as the
+     * touch reset, port bank P0, active low with external pull-ups -- Attaky's
+     * catalog and the Core datasheet: DOWN P0_0, LEFT P0_1, ENTER P0_2,
+     * RIGHT P0_3, UP P0_4. Back is the top-left shoulder key, L1, on P0_5.
+     * Board::begin() already leaves every port but the touch reset an input.
+     * R1 (P0_6) and the power key's short press (P0_7) are not read. Which
+     * key is which has not been seen on a device; the directions are stated
+     * as the catalog states them. */
+    KeysProfile{
+        /* keyExpander   */ 0x59,
+        /* keyUp         */ 4,
+        /* keyDown       */ 0,
+        /* keyLeft       */ 1,
+        /* keyRight      */ 3,
+        /* keyEnter      */ 2,
+        /* keyBack       */ 5,
+        /* keysActiveLow */ true,
     },
 
     /* microSD on the Expand: Media I/O module, in SPI mode: CS (the card's

@@ -24,5 +24,10 @@ namespace BoardExpander {
  * the expander's every other port to an input. */
 void driveTouchReset(bool released);
 
+/* Every port of the AW9523 at `address` an input, in GPIO mode. For
+ * navigation keys on an expander the touch reset has not already set up --
+ * on the Attaky Core they share it, and driveTouchReset() has done this. */
+void allInputs(uint8_t address);
+
 }  // namespace BoardExpander
 #endif

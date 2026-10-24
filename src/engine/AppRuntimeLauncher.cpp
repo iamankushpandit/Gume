@@ -17,6 +17,7 @@
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
 
+
 uint8_t BrainoApp::launcherEntryCount() {
     return appVisibleCount(board_);
 }
@@ -94,8 +95,23 @@ void LauncherApp::clampPage(GameHost& host) {
 }
 
 void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
+    /* BOARD.hasNavKeys() is a compile-time constant, so on a board without
+     * keys this and the ring below compile away, and the key handling in
+     * AppRuntimeLauncherKeys.cpp costs that board nothing. */
+    const NavKey key = BOARD.hasNavKeys() ? host.navKey() : NavKey::None;
+    if (key != NavKey::None) {
+        handleNavKey(host, key);
+        return;
+    }
     if (!touch.justPressed) {
         return;
+    }
+    /* A touch puts the keys away. Whoever is touching the screen is looking
+     * at where their finger goes, and a ring somewhere else is a distraction
+     * from that -- and the touch below still does what it always did. */
+    if (BOARD.hasNavKeys() && focus_ >= 0) {
+        focus_ = -1;
+        requestFocusPaint();
     }
 
     Board& board = host.board();
@@ -121,14 +137,14 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     if (Rect{8, pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
         --page_;
         host.playSound(Sound::Tap);
-        markDirty();
+        requestGridPaint();
         return;
     }
     if (Rect{static_cast<int16_t>(lW - 82), pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
         page_ + 1 < pages) {
         ++page_;
         host.playSound(Sound::Tap);
-        markDirty();
+        requestGridPaint();
         return;
     }
 
@@ -297,6 +313,7 @@ void LauncherApp::renderStatic(GameHost& host) {
     for (uint8_t i = 0; i < MAX_TILES; ++i) {
         slotHasButton_[i] = false;
     }
+    ringShown_ = -1;   /* and no focus ring either */
 }
 
 /* The tile grid and the pager. This is what next/previous changes, and it is
@@ -307,6 +324,13 @@ void LauncherApp::renderStatic(GameHost& host) {
  * erases the tile that was there. The two things that do NOT self-erase are
  * handled explicitly below: a slot with no entry on it, and the pager. */
 void LauncherApp::renderDynamic(GameHost& host) {
+    /* Only the focus moved: one outline off, one on, and nothing else. */
+    if (BOARD.hasNavKeys() && focusOnly_ && !needsFullRender()) {
+        focusOnly_ = false;
+        paintFocus(host);
+        return;
+    }
+    focusOnly_ = false;
     clampPage(host);
 
     Board& board = host.board();
@@ -456,4 +480,10 @@ void LauncherApp::renderDynamic(GameHost& host) {
         tft.drawString(pageText, lW / 2, static_cast<int16_t>(pY + 12), 2);
     }
     tft.setTextDatum(TL_DATUM);
+    /* After the tiles, so a page turned by a key arrives with its ring. The
+     * tiles never paint the gap, so an outline from the page before is still
+     * there to be erased. */
+    if (BOARD.hasNavKeys()) {
+        paintFocus(host);
+    }
 }

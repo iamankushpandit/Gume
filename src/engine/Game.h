@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include "engine/AppCapabilities.h"
+#include "hal/NavKeys.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 #include "ui/Renderer.h"
@@ -176,6 +177,12 @@ public:
      * that is up turns now. A screen never sets a rotation itself: which one
      * it gets is the runtime's decision, made in one place. */
     virtual void applyOrientation() = 0;
+    /* This frame's navigation key for the active screen, already in screen
+     * directions, or None -- None on every board without keys, and None when
+     * the runtime consumed the key itself (Back is Home, as BOOT is). Read it
+     * in update(), beside the touch; it is only valid during that call. Not
+     * on AppContext yet: the launcher is the only screen that takes keys. */
+    virtual NavKey navKey() = 0;
 };
 
 class Game {

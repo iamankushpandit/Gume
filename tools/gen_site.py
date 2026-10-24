@@ -157,8 +157,9 @@ VARIANTS = (
         "label": "Braino! (the games) -- Attaky Core (ESP32-S3, capacitive touch)",
         "name": "Braino!",
         "note": "The full console for the Attaky Core, as built into the Cyber Deck Plus: {count} games, "
-                "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch only for now -- the "
-                "keyboard and gamepad are not read -- and no sound, battery gauge or status LED yet. "
+                "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch, plus the Core's "
+                "D-pad on the home screen; the keyboard and gamepad are not read yet, and there is no "
+                "sound, battery gauge or status LED yet. "
                 "Needs the Media I/O module for the SD slot.",
     },
 )

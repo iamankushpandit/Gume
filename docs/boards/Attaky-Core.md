@@ -37,10 +37,16 @@ claim, and the four things most likely to need changing as:
   the order is.
 - **The SD card**, which is wired in SPI mode on lines the Expand modules share.
 
+**The Core's own keys drive the launcher:** the D-pad moves a ring between
+the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
+from any other screen, as BOOT is. Worth checking that each direction moves
+the way it points, in landscape and in portrait.
+
 Left out on purpose, not broken: sound (the NS4168 amplifier needs a plain-I2S
 backend the firmware does not have yet), the battery gauge (a MAX17048 fuel
-gauge rather than a voltage divider), the status LED (on the I2C expander), and
-every key except BOOT. Touch is the console's input on every board.
+gauge rather than a voltage divider), the status LED (on the I2C expander), the
+keyboard and the gamepad, and keys on any screen but the launcher. Touch is the
+console's input on every board.
 
 ## Sources
 

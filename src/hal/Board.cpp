@@ -164,6 +164,9 @@ void Board::begin() {
     } else {
         Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
     }
+    if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
+        BoardExpander::allInputs(BOARD.keys.keyExpander);
+    }
 #endif
 
     prefs_.begin("cydkids", false);

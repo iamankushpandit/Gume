@@ -139,6 +139,11 @@ void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
+    const NavKey nav = board_.pollNavKey();
+    /* For the idle, saver and sleep paths below a key is a key: any of them
+     * does exactly what BOOT does there. Which key it was matters only to the
+     * active screen. */
+    const bool keyPress = boot.justPressed || nav != NavKey::None;
     const uint32_t nowMs = millis();
 
     TouchPoint touch = rawTouch;
@@ -187,7 +192,7 @@ void BrainoApp::loop() {
      * ending an alert -- a touch, the BOOT key, or its own timeout in
      * NearbyPlay::tick() -- runs the same restore of the mute switch. */
     if (NearbyPlay::alertActive() &&
-        (rawTouch.justPressed || rawTouch.down || boot.justPressed)) {
+        (rawTouch.justPressed || rawTouch.down || keyPress)) {
         NearbyPlay::dismissAlert(board_);
     }
     if (NearbyPlay::alertActive() && view_ == View::Asleep) {
@@ -199,7 +204,7 @@ void BrainoApp::loop() {
      * because as far as the idle timer was concerned nobody had touched the
      * device since before the press. */
     if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased ||
-        boot.down || boot.justPressed || boot.justReleased) {
+        boot.down || boot.justPressed || boot.justReleased || nav != NavKey::None) {
         lastActivityMs_ = nowMs;
     }
 
@@ -247,7 +252,7 @@ void BrainoApp::loop() {
     }
 
     if (view_ == View::Asleep) {
-        if (rawTouch.justPressed || rawTouch.down || boot.justPressed) {
+        if (rawTouch.justPressed || rawTouch.down || keyPress) {
             wakeFromSleep();
         }
     } else if (view_ == View::Locked) {
@@ -261,7 +266,7 @@ void BrainoApp::loop() {
          * stays the deliberate hold on the panel. */
         updateLock(touch, nowMs);
     } else if (view_ == View::ScreenSaver) {
-        if (touch.justPressed || boot.justPressed) {
+        if (touch.justPressed || keyPress) {
             exitScreenSaver();
         } else if (nowMs - ssav_lastFrameMs_ >= 40) {
             ssav_lastFrameMs_ = nowMs;
@@ -292,7 +297,11 @@ void BrainoApp::loop() {
          * that a future hold gesture cannot be layered on top without moving
          * this to the release edge first; hal/BoardButton.cpp says the same
          * thing from the other end. */
-        const bool bootHome = boot.justPressed && activeGame_ != &launcher_;
+        /* Back is Home too, on the boards with keys, and for the same reasons.
+         * Every other key goes to the active screen through navKey(). */
+        const bool bootHome = (boot.justPressed || nav == NavKey::Back) &&
+                              activeGame_ != &launcher_;
+        frameNav_ = bootHome ? NavKey::None : nav;
         if (bootHome) {
             goHome();
         } else if (activeGame_ != &launcher_ &&
@@ -338,6 +347,7 @@ void BrainoApp::loop() {
         } else {
             activeGame_->update(*this, touch);
         }
+        frameNav_ = NavKey::None;
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();

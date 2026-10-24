@@ -244,6 +244,14 @@ Two things it deliberately does not do. It never reads the key during boot — B
 
 `PIN_NONE` is a supported profile. The event is all-false on a board with no key, so callers need no `hasBootButton()` guard of their own.
 
+## BoardKeys.cpp + BoardExpander.cpp
+
+Navigation keys -- a D-pad, Enter and Back -- on the boards that have them, which today is the Attaky Core, whose face keys are ports of an AW9523 I2C expander on the touch bus. `KeysProfile` names the expander and each key's port; `pollNavKey()` reads one input register per frame from the loop, beside the BOOT key and for the same reason touch is read there: it is input, a few bytes on a bus that already carries a touch read every frame, not a sensor whose sampling belongs on a task. A failed read keeps the last state, so a bus glitch cannot invent a press. A held direction repeats (400 ms, then every 140 ms); Enter and Back never do. One event per frame.
+
+**The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns them by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Not yet seen on a device with keys**: if portrait or flipped is wrong and landscape is right, the sign in that one function is the whole fix.
+
+`BoardExpander.cpp` holds the AW9523 writes, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
+
 ## Clock.{h,cpp}
 
 Time/date formatting and sync-state helpers over the ESP32 RTC.

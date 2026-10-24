@@ -119,6 +119,18 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
     /* Inherited from the E32R28T-1; not exercised on this board. */
     SdProfile{
         /* cs    */ 5,

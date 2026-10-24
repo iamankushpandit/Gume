@@ -128,6 +128,18 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
     /* Vendor-documented: the MicroSD slot shares its bus with the SPI
      * peripheral header, which is why IO18/19/23 appear in both places in the
      * pin table. Only the card select is the slot's alone. */

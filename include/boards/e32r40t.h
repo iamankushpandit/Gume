@@ -119,6 +119,18 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
     /* Not characterised on this board. See the header comment. */
     SdProfile{
         /* cs    */ PIN_NONE,

@@ -36,8 +36,8 @@ constexpr uint8_t AW9523_CONFIG_P0 = 0x04;   // 1 = input, 0 = output
 constexpr uint8_t AW9523_MODE_P0   = 0x12;   // 1 = GPIO, 0 = LED current
 constexpr uint8_t AW9523_MODE_P1   = 0x13;
 
-void aw9523Write(uint8_t reg, uint8_t value) {
-    Wire.beginTransmission(BOARD.touch.resetExpanderAddress);
+void aw9523Write(uint8_t address, uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(address);
     Wire.write(reg);
     Wire.write(value);
     Wire.endTransmission();
@@ -51,13 +51,21 @@ void driveTouchReset(bool released) {
     /* Level first, then direction, so the line is never driven to a value
      * nobody chose. The other ports' output bits are don't-cares: they are
      * inputs. */
-    aw9523Write(AW9523_OUTPUT_P0 + bank, released ? 0xFF : static_cast<uint8_t>(~bit));
+    const uint8_t at = BOARD.touch.resetExpanderAddress;
+    aw9523Write(at, AW9523_OUTPUT_P0 + bank, released ? 0xFF : static_cast<uint8_t>(~bit));
     if (!released) {
-        aw9523Write(AW9523_MODE_P0, 0xFF);
-        aw9523Write(AW9523_MODE_P1, 0xFF);
-        aw9523Write(AW9523_CONFIG_P0 + bank, static_cast<uint8_t>(~bit));
-        aw9523Write(AW9523_CONFIG_P0 + (1 - bank), 0xFF);
+        aw9523Write(at, AW9523_MODE_P0, 0xFF);
+        aw9523Write(at, AW9523_MODE_P1, 0xFF);
+        aw9523Write(at, AW9523_CONFIG_P0 + bank, static_cast<uint8_t>(~bit));
+        aw9523Write(at, AW9523_CONFIG_P0 + (1 - bank), 0xFF);
     }
+}
+
+void allInputs(uint8_t address) {
+    aw9523Write(address, AW9523_MODE_P0, 0xFF);
+    aw9523Write(address, AW9523_MODE_P1, 0xFF);
+    aw9523Write(address, AW9523_CONFIG_P0, 0xFF);
+    aw9523Write(address, AW9523_CONFIG_P0 + 1, 0xFF);
 }
 
 }  // namespace BoardExpander

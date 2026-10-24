@@ -623,9 +623,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,693 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,581,869 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
+at 88,044 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -745,6 +745,24 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `BOARD.hasBootButton()` can be false and the console has to remain complete.
   It fires on the press edge, which is what a hold gesture would have to
   change first; see `src/hal/BoardButton.cpp`.
+- **Navigation keys are a second route, on the boards that have them, and
+  only the launcher takes them so far.** The Attaky Core's D-pad, Enter and
+  L1 (as Back) sit on an AW9523 expander; `KeysProfile` names its ports and
+  `Board::pollNavKey()` reads one byte per frame beside the BOOT key and
+  hands back one `NavKey`, already turned for the screen's rotation -- the
+  same job `pollTouch()` does for a finger, so no screen corrects for it.
+  The runtime treats any key as BOOT for activity, the saver and sleep,
+  ignores keys on the lock screen for BOOT's reason, consumes Back as Home
+  everywhere but the launcher, and passes the rest to the active screen's
+  `update()` through `GameHost::navKey()`. The launcher draws a focus ring
+  in the gap round a tile -- erased in the background colour, never by
+  repainting a tile, with `static_assert`s proving it clears every shadow --
+  that stays hidden until the first key and goes away at the next touch.
+  Every key path is gated on the compile-time `BOARD.hasNavKeys()`, so the
+  boards without keys carry 176 bytes for it, not the kilobyte the launcher
+  code is. **Nothing may become reachable only by key**, exactly as with
+  BOOT. The direction mapping has not been seen on a device; the sign to
+  change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
 
 | Layer | Where | Responsibility |
 |---|---|---|

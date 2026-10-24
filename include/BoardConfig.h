@@ -211,6 +211,17 @@ static_assert(BOARD.touch.resetExpanderAddress == 0
               "touch reset on an expander needs a capacitive board, no GPIO "
               "reset as well, and a port in 0..15");
 
+/* Navigation keys ride the touch controller's I2C bus, so only a capacitive
+ * board has one to put them on; and every key is a port of that expander or
+ * absent. */
+constexpr bool gumeKeyPortOk(int8_t port) { return port == PIN_NONE || (port >= 0 && port < 16); }
+static_assert(!BOARD.hasNavKeys()
+                  || (BOARD.touch.isCapacitive()
+                      && gumeKeyPortOk(BOARD.keys.keyUp) && gumeKeyPortOk(BOARD.keys.keyDown)
+                      && gumeKeyPortOk(BOARD.keys.keyLeft) && gumeKeyPortOk(BOARD.keys.keyRight)
+                      && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)),
+              "navigation keys need a capacitive board's I2C bus and ports in 0..15");
+
 /* The one thing both kinds owe, and the thing that decides supportability: a
  * controller at all. `irq` is common to both -- pen-down on the XPT2046, INT
  * on the FT6336U. */

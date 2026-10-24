@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,693 / 3,145,728 bytes of the app partition (**82.1%**) |
-| RAM | 88,036 / 327,680 bytes (**26.9%**) |
+| Flash | 2,581,869 / 3,145,728 bytes of the app partition (**82.1%**) |
+| RAM | 88,044 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1463,6 +1463,7 @@ src/
     AppRuntimeContext.cpp  what screens call: storage, sound, capabilities
     AppRuntimeLauncher.cpp  LauncherApp paging, grid, header UI
     AppRuntimeLauncherTiles.cpp  one tile's icon and labels
+    AppRuntimeLauncherKeys.cpp  D-pad focus on the launcher's tiles
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeNotify.cpp  the header banner: battery, update, nearby
@@ -1501,6 +1502,8 @@ src/
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
     BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset
+    BoardKeys.cpp       navigation keys (D-pad, Enter, Back) on an expander
+    NavKeys.h           the key event screens read, already in screen terms
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)

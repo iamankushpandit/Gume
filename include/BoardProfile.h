@@ -173,6 +173,33 @@ struct ButtonProfile {
     bool   activeLow;
 };
 
+/* Navigation keys -- a D-pad, Enter and Back -- where a board has them.
+ *
+ * Only behind an AW9523 I2C expander for now, because that is the only way
+ * any supported board wires them (the Attaky Core's face keys). The fields
+ * are that expander's address and, for each key, one of its sixteen ports:
+ * 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7, PIN_NONE for a key the board
+ * does not have. The expander shares the touch controller's I2C bus, which
+ * is why BoardConfig.h requires a capacitive board.
+ *
+ * The directions are PHYSICAL: Up is the key that points up when the board
+ * is held at its landscape rotation. Board::pollNavKey() turns them into
+ * screen directions for whatever rotation is current.
+ *
+ * Optional, like the BOOT key: keyExpander 0 is a board without them, every
+ * caller is guarded by hasNavKeys(), and nothing may become reachable only
+ * through a key. */
+struct KeysProfile {
+    uint8_t keyExpander;          // an AW9523's I2C address, or 0
+    int8_t  keyUp;
+    int8_t  keyDown;
+    int8_t  keyLeft;
+    int8_t  keyRight;
+    int8_t  keyEnter;
+    int8_t  keyBack;
+    bool    keysActiveLow;        // pulled up, shorted to ground when pressed
+};
+
 struct SdProfile {
     int8_t   cs;
     int8_t   mosi;
@@ -266,6 +293,7 @@ struct BoardProfile {
     PanelProfile  panel;
     TouchProfile  touch;
     ButtonProfile button;         // beside touch: both are how a person acts
+    KeysProfile   keys;           // and so are these, on the boards that have them
     SdProfile     sd;
     RgbLedProfile rgb;
     AudioProfile  audio;
@@ -283,6 +311,7 @@ struct BoardProfile {
     }
 
     constexpr bool hasBootButton() const { return button.bootPin != PIN_NONE; }
+    constexpr bool hasNavKeys() const { return keys.keyExpander != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }

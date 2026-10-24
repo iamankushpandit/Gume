@@ -32,6 +32,17 @@ is now also packed as a release would be and attached to its run for 30
 days, so someone holding a board nobody here has can flash the build its
 pull request was checked against.
 
+**The Attaky Core's D-pad drives the launcher.** On a board with navigation
+keys, the D-pad moves a focus ring across the tiles in reading order, turning
+the page at either end; Enter opens the tile, and Back puts the ring away, or
+goes Home from any other screen as BOOT does. The ring stays hidden until the
+first key, so nothing changes for anyone who only touches, and a touch hides
+it again. It is drawn in the gap round a tile, so moving it never repaints a
+tile. The keys come through a new `KeysProfile` and `Board::pollNavKey()`,
+which turns each direction for the current screen rotation the way touch
+already is; boards without keys compile the key paths away. Not yet run on a
+device.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was
