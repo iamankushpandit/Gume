@@ -171,6 +171,20 @@
       "sha256": "d86faf3a59a252b18d6578394759db756c4e36070d2099d180cb3b79da3b4bec",
       "width": 1024,
       "height": 1440
+    },
+    {
+      "id": "hacktuber2",
+      "outlet": "Hacktuber (YouTube)",
+      "title": "7 NEW Aliexpress Finds That Shouldn't Be This Great...",
+      "byline": "Hacktuber, 1.49M subscribers; Braino is item 3, from 18:47",
+      "url": "https://www.youtube.com/watch?v=ZpfdmdIt8Js&t=1127",
+      "published": "2026-09-15",
+      "archive": "https://web.archive.org/web/20261025051818/https://www.youtube.com/watch?v=ZpfdmdIt8Js",
+      "screenshot": "hacktuber2.jpg",
+      "captured": "2026-10-25T05:18:43Z",
+      "sha256": "42615dafa03b11fd41f65c2a58c692b5c3d7a07621e8decdecbb31127e0803ae",
+      "width": 1024,
+      "height": 1120
     }
   ]
 }
