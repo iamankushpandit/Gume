@@ -18,9 +18,8 @@ they stand. The profile, `include/boards/attaky-core.h`, was written from
 Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
-has to confirm. Touch, the display and the SD slot are wired. The status LED
-waits for an expander driver, and the gamepad is not read: touch stays the
-input on every board.
+has to confirm. Touch, the display and the SD slot are wired, and the
+gamepad is not read: touch stays the input on every board.
 
 **The Attaky Core's battery badge reads its fuel gauge.** It has no divider:
 the Power: Standard Cell module reports the cell through a MAX17048 on the
@@ -74,6 +73,43 @@ clips off, so the firmware probes for it at boot. The keyboard is read in
 the loop at one register a half while nobody types. Boards without one carry
 400 bytes for it. Not yet run on a device. The Wi-Fi and Profiles screens
 were each split into two files first, past the size CLAUDE.md allows.
+
+**The Attaky Core's power key locks it.** A short press of the power key
+does what the on-screen Lock button does: the panel goes dark and wakes to
+Hold to unlock. It is read beside the D-pad, from P0_7 of the same expander,
+through a new `KeysProfile::keyPower`, and follows BOOT's rules -- it wakes
+the panel and stops the saver like any key, does nothing on the lock screen,
+and reaches nothing touch cannot. The long press is Attaky's hardware power
+switch and is left alone. Not yet run on a device.
+
+**The Attaky Core's status LED lights.** The LED is on the same AW9523 as
+the keys (red P1_0, green P1_1, blue P1_2, common anode), so `RgbLedProfile`
+gained `expander`: 0 for an LED on GPIOs, as every other board has, or the
+expander's address, in which case `r`/`g`/`b` are its ports. It is driven in
+the expander's GPIO mode, each channel on or off, so a colour shows as the
+channels at least half as bright as its brightest; the `beepOk()`/
+`beepError()` pulses and the saver's rally colour work as on the other
+boards. The driver reads, modifies and writes only those three bits, and
+`BoardConfig.h` refuses an LED port that is the touch reset, which sits
+beside them on P1_3. The bus is written only when the colour changes. Not
+yet run on a device.
+
+**The Attaky Core leaves the SD slot and the speaker alone if another module
+owns their lines.** Three of Attaky's Expand modules share IO5-8, and this build is for
+Media I/O, so on a Core wearing the LoRa/GPS or FM/AM module the SD slot's
+bring-up would clock someone else's chip. Before the slot -- and before
+audio -- the firmware now looks for both, without driving anything they own,
+as Attaky's module-detection guide sets out: the FM/AM tuner answers at 0x64
+on that module's own I2C bus, and the GPS sends checksummed NMEA on IO17
+unasked, which is listened to for 1.5 s with the pin an input. Finding either,
+or being unable to ask, skips the SD slot and the I2S amplifier for the boot
+-- the amplifier's IO17/IO18/IO21 are the GPS UART and LoRa interrupt on one
+module and the tuner's I2S on the other -- and logs `[expand] module=...
+sd=skipped audio=skipped`, so the firmware runs on Attaky's LoRa and radio
+builds of the Core, silent and without SD. Media I/O cannot be recognised, so
+finding neither brings both up as before. A new `ExpandProbeProfile` says what to look
+for; every other board fills it with nothing and pays nothing. It adds 1.5 s
+to the Core's boot. Not yet run on a device.
 
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,

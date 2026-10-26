@@ -113,6 +113,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ PIN_NONE,
         /* keyEnter      */ PIN_NONE,
         /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
         /* keysActiveLow */ true,
     },
 
@@ -132,6 +133,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* RGB LED, common anode (drive LOW to light a channel). From the vendor's
      * table: red IO22, green IO16, blue IO17.
      *
@@ -145,6 +155,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* GPIO26 is ESP32 DAC channel 2, driven through I2S_DAC_BUILT_IN into an

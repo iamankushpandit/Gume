@@ -32,4 +32,7 @@ enum class NavKey : uint8_t {
     Right,
     Enter,
     Back,
+    /* A power key's short press. The runtime consumes it as the Lock button
+     * and no screen ever sees it -- see BrainoApp::loop(). */
+    Power,
 };

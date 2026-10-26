@@ -128,6 +128,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ PIN_NONE,
         /* keyEnter      */ PIN_NONE,
         /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
         /* keysActiveLow */ true,
     },
 
@@ -146,6 +147,15 @@ inline constexpr BoardProfile BOARD = {
         /* miso  */ PIN_NONE,
         /* sclk  */ PIN_NONE,
         /* spiHz */ 0,
+    },
+
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
     },
 
     /* Red and blue are inherited from the E32R28T-1 and are still unverified
@@ -173,6 +183,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* Vendor-documented, not inferred. The LCDWIKI schematic for this board

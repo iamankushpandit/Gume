@@ -12,11 +12,20 @@ chip. The ESP32-S3 module inside is the same N16R8 part as the Freenove board.
 Core 1.0 in a Cyber Deck Plus".
 
 **Which modules this build expects:** the Core, and Media I/O on the back for
-the SD slot. The Expand modules share their pins, so a Core wearing the
-LoRa/GPS or FM/AM module instead would have this firmware driving that
-module's lines as an SD card. The gamepad is harmless either way: the
-firmware does not talk to it. The keyboard is read when it is clipped on, and
-the battery module's fuel gauge whenever it answers.
+the SD slot and the speaker. The Expand modules share their pins, so before
+either is brought up the firmware looks for the two others, without driving
+anything they own: the FM/AM module's tuner on that module's own I2C bus (IO42/IO41),
+and the LoRa/GPS module's GPS, which sends position sentences on IO17
+unasked and is listened to for a second and a half. Finding either leaves
+the SD slot alone and the console silent for that boot -- the speaker's I2S
+lines are that module's GPS, radio or tuner lines -- and the serial log says
+`[expand] module=FM-AM` or `module=LoRa-GPS`, `sd=skipped audio=skipped`.
+So this firmware runs on Attaky's LoRa and radio builds of the Core too,
+without SD or sound. Media I/O cannot be recognised -- it has nothing a host
+can ask -- so finding neither (`module=none-or-media`) brings both up as
+before. The gamepad is harmless
+either way: the firmware does not talk to it. The keyboard is read when it
+is clipped on, and the battery module's fuel gauge whenever it answers.
 
 ## What has been checked on this board
 
@@ -36,7 +45,10 @@ claim, and the four things most likely to need changing as:
 - **The colours.** Inversion on and RGB order follow Attaky's Retro-Go init. A
   photo-negative picture means inversion is wrong; red and blue exchanged means
   the order is.
-- **The SD card**, which is wired in SPI mode on lines the Expand modules share.
+- **The SD card**, which is wired in SPI mode on lines the Expand modules share
+  -- and the boot line `[expand] module=none-or-media sd=allowed audio=allowed`
+  before it, which should read that way with Media I/O fitted. On a LoRa or
+  radio build it should name that module and say `skipped` twice.
 
 **Sound comes from the Media I/O module's NS4168 amplifier**, driven as plain
 I2S with no codec: BCLK IO17, word select IO21, data IO18, at 16 kHz. None of
@@ -78,6 +90,17 @@ warning, never an empty battery. Worth checking on a device:
 - touch is not slowed or disturbed while the gauge is being read -- the two
   share one I2C bus from two tasks, with Wire's own lock between them.
 
+**A short press of the power key locks the console**, as the on-screen Lock
+button does. Its long press is Attaky's hardware power switch and the
+firmware never sees it. Worth checking that a short press goes dark and
+wakes to Hold to unlock, and that a long press still switches off.
+
+**The status LED answers as it does on the other boards** -- green and red
+with the right and wrong sounds, the screen saver's rally colour -- through
+the same I2C expander as the keys. Each colour is on or off there, so it shows
+seven colours rather than a blend. Worth checking that green is green: red,
+green and blue are stated as the catalog states them.
+
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
 doing what DEL and OK do. The name fields take capitals, digits and spaces, as
@@ -85,7 +108,7 @@ their on-screen keypad does; the password takes exactly what is typed, with
 Shift for capitals. The on-screen keypad stays: the module clips off, and the
 firmware checks for it at boot.
 
-Left out on purpose, not broken: the status LED (on the I2C expander), the
+Left out on purpose, not broken: the
 gamepad, and the D-pad on any screen but the launcher. Touch is the console's
 input on every board.
 
@@ -117,6 +140,7 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | Panel | 240 x 320, ST7789 driver |
 | Touch | capacitive, I2C; reset on port P1_3 of the I2C expander at 0x59 |
 | Sound | I2S amplifier with no codec (BCLK GPIO17, WS GPIO21, data GPIO18) |
+| RGB LED | ports P1_0 red, P1_1 green, P1_2 blue of the I2C expander at 0x59, each channel on or off |
 | Battery sense | MAX17048 fuel gauge, I2C address 0x36 on the touch bus |
 | Flash | 16 MB |
 
@@ -134,10 +158,12 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | 12 | Display: data/command |
 | 13 | Display: SPI MOSI |
 | 14 | Display: backlight |
-| 17 | Audio: I2S BCLK |
+| 17 | Audio: I2S BCLK; Module check: LoRa/GPS module's NMEA, listened to (input only) at boot |
 | 18 | Audio: I2S data out |
 | 21 | Audio: I2S LRCK |
 | 38 | Key: BOOT, which the firmware uses as Home |
+| 41 | Module check: FM/AM module's own I2C SCL, probed once at boot |
+| 42 | Module check: FM/AM module's own I2C SDA, probed once at boot |
 | 45 | Display: chip select |
 
 ![GPIO use on the Attaky-Core](img/Attaky-Core-pins.png)

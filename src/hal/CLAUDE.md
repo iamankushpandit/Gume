@@ -238,6 +238,8 @@ reach the speaker? Is output level audible? Where does distortion begin?
 
 LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
+**On an I2C expander it is on or off.** When `BOARD.rgb.expander` is set -- the Attaky Core, red P1_0, green P1_1, blue P1_2 on the AW9523 at 0x59 -- `r`/`g`/`b` are that expander's ports and there is no LEDC: `Board::begin()` calls `BoardExpander::setupLed()` once the touch reset has been released (that release writes the whole bank), and `setRgb()`/`setRgbColor()` go through `driveExpanderRgb()`. A colour is shown as the channels at least half as bright as its brightest (`litAtAll()`), so grey is white and orange is red. Every write is a read-modify-write of the LED's own bits -- P1_3 beside them is the touch reset -- and a failed read writes nothing rather than guessing the rest of the byte. `rgbExpanderBits_` skips the bus entirely when the colour has not changed, which matters because the saver sets one per rally and the lock screen clears it on entry. GPIO mode, not the AW9523's LED current mode: dimming would be a register per channel and a second way to get the anode wrong, for a status light.
+
 The E32R28T-1's LED is red IO22, green IO16, blue IO17, per the vendor's table; IO4 is the amplifier enable, active low. It used to be declared `rgb.r = 16`, `rgb.g = 4` as "crossed" -- the evidence for that was IO16 being green, and driving IO4 as an LED held the amplifier in shutdown.
 
 ### Wi-Fi and time
@@ -264,7 +266,13 @@ Two things it deliberately does not do. It never reads the key during boot — B
 
 Navigation keys -- a D-pad, Enter and Back -- on the boards that have them, which today is the Attaky Core, whose face keys are ports of an AW9523 I2C expander on the touch bus. `KeysProfile` names the expander and each key's port; `pollNavKey()` reads one input register per frame from the loop, beside the BOOT key and for the same reason touch is read there: it is input, a few bytes on a bus that already carries a touch read every frame, not a sensor whose sampling belongs on a task. A failed read keeps the last state, so a bus glitch cannot invent a press. A held direction repeats (400 ms, then every 140 ms); Enter and Back never do. One event per frame.
 
+`keyPower` is the same kind of port, for a power key's short press; it comes back as `NavKey::Power`, never repeats, and wins over every other key in the same frame. The runtime consumes it as the Lock button, so no screen sees it. A long press that switches the power in hardware is invisible to this code by construction.
+
 **The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns them by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Not yet seen on a device with keys**: if portrait or flipped is wrong and landscape is right, the sign in that one function is the whole fix.
+
+## BoardExpandProbe.cpp
+
+Which Attaky Expand module sits on the SD slot's lines, asked once in `Board::begin()` before audio and the slot. `ExpandProbeProfile` names what to look for; every board but the Attaky Core fills it with nothing and pays nothing. Passive-first, after Attaky's `shared/module-detection-and-safe-boot.md`: one address write to the FM/AM tuner (0x64) on that module's private bus (`Wire1`, IO42/IO41), which is then torn down and left as inputs; then the UART receiver alone on IO17 for `GPS_LISTEN_MS` (1.5 s), looking for one NMEA sentence whose checksum adds up -- not just a `$`, because on Media I/O that line is the amplifier's idle bit clock. It leaves IO17 `INPUT_PULLDOWN`, Attaky's park for that line. A found module, or a radio bus that would not start, sets `expandModule_`, and then `mountSd()` refuses and the I2S branch of `beginAudio()` installs nothing -- the amplifier's IO17/IO18/IO21 are the GPS UART and LoRa interrupt on one module and the tuner's I2S on the other. The console is then silent exactly as after an I2S install failure, so nothing downstream needed a new state. Capacitive-only, like everything that links Wire. **Keep it ahead of `beginAudio()`**: an I2S backend clocking IO17 while this listens would be both a wrong answer and a noise through the speaker.
 
 ## BoardKeyboard.cpp
 
@@ -274,7 +282,7 @@ A typing keyboard, where one is clipped on: Attaky's two-half module, each half 
 
 One character a frame: a letter (lower case, upper while Shift is held), a digit, space or the punctuation on the keys as itself, `'\b'` for Delete (repeating while held) and `'\n'` for Enter. A failed read keeps the last state, as the D-pad's does. Not yet seen on a device.
 
-`BoardExpander.cpp` holds the AW9523 writes, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
+`BoardExpander.cpp` holds the AW9523 writes -- the status LED's (see RGB LED above) and these, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
 
 ## Clock.{h,cpp}
 

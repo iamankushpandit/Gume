@@ -135,9 +135,11 @@ inline constexpr BoardProfile BOARD = {
      * catalog and the Core datasheet: DOWN P0_0, LEFT P0_1, ENTER P0_2,
      * RIGHT P0_3, UP P0_4. Back is the top-left shoulder key, L1, on P0_5.
      * Board::begin() already leaves every port but the touch reset an input.
-     * R1 (P0_6) and the power key's short press (P0_7) are not read. Which
-     * key is which has not been seen on a device; the directions are stated
-     * as the catalog states them. */
+     * The power key's SHORT press is P0_7 and locks the console, as the Lock
+     * button does; its long press switches the power in hardware and never
+     * reaches the firmware. R1 (P0_6) is not read. Which key is which has not
+     * been seen on a device; the directions are stated as the catalog states
+     * them. */
     KeysProfile{
         /* keyExpander   */ 0x59,
         /* keyUp         */ 4,
@@ -146,6 +148,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ 3,
         /* keyEnter      */ 2,
         /* keyBack       */ 5,
+        /* keyPower      */ 7,
         /* keysActiveLow */ true,
     },
 
@@ -168,7 +171,8 @@ inline constexpr BoardProfile BOARD = {
      * CD/DAT3) on IO8, MOSI (CMD) IO6, MISO (DAT0) IO7, SCLK IO5. Those lines
      * belong to whichever Expand module is fitted -- the LoRa/GPS module puts
      * its radio on the same four -- so this build is for a Core wearing Media
-     * I/O, which the Cyber Deck Plus does. */
+     * I/O, which the Cyber Deck Plus does -- and Board::begin() looks for the
+     * other two before bringing the slot up; see expandProbe below. */
     SdProfile{
         /* cs    */ 8,
         /* mosi  */ 6,
@@ -177,15 +181,37 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
-    /* The RGB LED is on the 0x59 expander (red P1_0, green P1_1, blue P1_2,
-     * common anode), not on GPIOs, so RgbLedProfile cannot describe it. Left
-     * dark: beepOk()/beepError() lose their pulse and nothing else changes.
-     * Driving it through the expander is its own change. */
+    /* Two Expand modules other than Media I/O reuse the SD lines (IO5-8): the
+     * LoRa/GPS module puts its radio's SPI there and the FM/AM module a GPIO,
+     * so a Core wearing either would have them driven as an SD card -- and
+     * the speaker's I2S below is their GPS UART, radio interrupt or tuner
+     * I2S. Board::begin() looks for both before beginAudio() and mountSd(),
+     * and skips both if it finds one; passive-first, as
+     * Attaky's shared/module-detection-and-safe-boot.md lays out: the FM/AM
+     * module's TEF6687 answers at 0x64 on that module's own I2C bus (SDA
+     * IO42, SCL IO41), and the LoRa/GPS module's AT6558 streams NMEA at 9600
+     * baud into IO17 unasked, which is listened to with the pin an input.
+     * Media I/O has no identity to find; finding neither is what lets the SD
+     * slot and the speaker come up. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0x64,
+        /* fmSda          */ 42,
+        /* fmScl          */ 41,
+        /* gpsRx          */ 17,
+        /* gpsBaud        */ 9600,
+    },
+
+    /* The RGB LED is on the 0x59 expander, not on GPIOs: red P1_0, green
+     * P1_1, blue P1_2 -- ports 8, 9 and 10 -- common anode, so a channel
+     * lights when its port is driven LOW. Driven in the expander's GPIO mode,
+     * so each channel is on or off: seven colours, no dimming. P1_3 beside
+     * them is the touch reset, and the LED driver never writes it. */
     RgbLedProfile{
-        /* r           */ PIN_NONE,
-        /* g           */ PIN_NONE,
-        /* b           */ PIN_NONE,
+        /* r           */ 8,
+        /* g           */ 9,
+        /* b           */ 10,
         /* commonAnode */ true,
+        /* expander    */ 0x59,
     },
 
     /* audio: Media I/O's NS4168 I2S class-D amplifier -- BCLK IO17, word

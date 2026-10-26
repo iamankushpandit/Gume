@@ -70,7 +70,8 @@ void Board::begin() {
         digitalWrite(BOARD.panel.backlightPin, BOARD.panel.backlightActiveHigh ? HIGH : LOW);
     }
 
-    if (BOARD.hasRgbLed()) {
+    /* An LED on an expander waits for the I2C bus, below. */
+    if (BOARD.hasRgbLed() && BOARD.rgb.expander == 0) {
         if (BOARD.rgb.r != PIN_NONE) pinMode(BOARD.rgb.r, OUTPUT);
         if (BOARD.rgb.g != PIN_NONE) pinMode(BOARD.rgb.g, OUTPUT);
         if (BOARD.rgb.b != PIN_NONE) pinMode(BOARD.rgb.b, OUTPUT);
@@ -174,6 +175,12 @@ void Board::begin() {
     if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
         BoardExpander::allInputs(BOARD.keys.keyExpander);
     }
+    /* After the reset is released, because that writes the whole bank; this
+     * then touches only the LED's own bits. */
+    if (BOARD.rgb.expander != 0) {
+        BoardExpander::setupLed();
+        setRgb(false, false, false);
+    }
     /* Both halves or neither: half a keyboard types half the alphabet. */
     if (BOARD.hasKeyboard()) {
         keyboardPresent_ = BoardExpander::setupKeyboardHalf(BOARD.keyboard.keyboardLeft) &&
@@ -189,6 +196,9 @@ void Board::begin() {
     loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
+    /* Before audio as well as before the SD slot: on Media I/O the GPS's
+     * line is the amplifier's bit clock, and this listens to it. */
+    probeExpandModule();
     beginAudio();
 #if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
     /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
@@ -215,6 +225,12 @@ bool Board::sdReady() const {
 
 bool Board::mountSd() {
     if (!BOARD.hasSdSlot()) {
+        sdMounted_ = false;
+        return false;
+    }
+    /* Another module owns these lines this boot; probeExpandModule() has
+     * already said which. Driving them as an SD card is what it prevents. */
+    if (expandModule_ != ExpandModule::NoneOrMedia) {
         sdMounted_ = false;
         return false;
     }

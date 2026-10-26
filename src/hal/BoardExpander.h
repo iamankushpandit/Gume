@@ -12,10 +12,12 @@
 #include "BoardConfig.h"
 
 /* The AW9523 I2C GPIO expanders some boards hang lines off instead of GPIOs
- * -- on the Attaky Core, the touch controller's reset. Boot-time only:
- * Board::begin() calls these once each, after Wire is up, and nothing on a
- * frame path touches an expander through here. Capacitive builds only,
- * because only they carry Wire. */
+ * -- on the Attaky Core, the touch controller's reset and the status LED.
+ * Everything but driveLed() is boot-time only: Board::begin() calls it once,
+ * after Wire is up. driveLed() runs when the LED's colour changes, which
+ * Board::setRgbColor() decides -- never merely because it was called. All
+ * of it from the loop task, as the touch and key reads are. Capacitive builds
+ * only, because only they carry Wire. */
 #if GUME_TOUCH_CAPACITIVE
 namespace BoardExpander {
 
@@ -33,6 +35,15 @@ void allInputs(uint8_t address);
  * (P1_0..P1_4) outputs driven LOW, the LED (P1_5..P1_7) off. False if the
  * expander did not answer -- the module is not attached. */
 bool setupKeyboardHalf(uint8_t address);
+
+/* The status LED on BOARD.rgb.expander: its ports made outputs, driven to
+ * off. After driveTouchReset(true), because that writes the whole bank. */
+void setupLed();
+
+/* Each channel on or off, honouring BOARD.rgb.commonAnode. Read-modify-write
+ * of the output register, so only the LED's own bits change -- the touch
+ * reset beside them on the Attaky Core is never written from here. */
+void driveLed(bool red, bool green, bool blue);
 
 }  // namespace BoardExpander
 #endif

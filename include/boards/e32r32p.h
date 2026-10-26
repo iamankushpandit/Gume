@@ -137,6 +137,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ PIN_NONE,
         /* keyEnter      */ PIN_NONE,
         /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
         /* keysActiveLow */ true,
     },
 
@@ -159,6 +160,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* Vendor pin table: IO22 red, IO16 green, IO17 blue, common anode (low
      * level on). UNVERIFIED ON HARDWARE -- and this is the one field in this
      * file where a vendor table has already been wrong once. The E32R28T-1's
@@ -175,6 +185,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* Vendor-documented: IO26 is "Audio signal DAC output" and IO4 is "Audio

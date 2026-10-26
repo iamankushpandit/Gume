@@ -623,7 +623,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,582,449 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,517 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,068 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -763,6 +763,39 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   code is. **Nothing may become reachable only by key**, exactly as with
   BOOT. The direction mapping has not been seen on a device; the sign to
   change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
+- **An LED can live on an I2C expander, and then it is on or off.**
+  `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)
+  or an AW9523's address, with `r`/`g`/`b` as its ports -- the Attaky Core's
+  P1_0..P1_2. `BoardExpander::driveLed()` reads, modifies and writes only
+  those bits, because P1_3 beside them is the touch reset, and
+  `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
+  the channels at least half as bright as its brightest, and the bus is
+  written only when that changes -- the saver sets a colour per rally.
+- **Neither the SD slot nor the speaker is brought up over another
+  module's lines.** On the Attaky Core three Expand modules share IO5-8, and
+  the speaker's I2S (IO17/IO18/IO21) is the LoRa/GPS module's GPS UART and
+  radio interrupt and the FM/AM module's I2S; this firmware is built for
+  Media I/O. `Board::probeExpandModule()` runs once in `begin()`, before
+  `beginAudio()` and `mountSd()`, from `ExpandProbeProfile`: an address
+  write to the FM/AM tuner on that module's own bus, then a passive
+  `GPS_LISTEN_MS` (1.5 s) listen for a checksummed NMEA sentence on IO17,
+  the UART's receiver only. Either found, or the radio's bus failing to
+  start, leaves the slot down and the I2S backend uninstalled for the boot
+  -- `mountSd()` and `beginAudio()` both check `expandModule_` -- and logs
+  `[expand] module=... sd=skipped audio=skipped`. Silent is the state an I2S
+  install failure already produced, so nothing downstream is new. Media I/O
+  has no host-readable identity, so finding neither is the only answer that
+  brings either up. Nothing it touches is driven, and it must stay ahead of
+  `beginAudio()`: on Media I/O, IO17 is the amplifier's bit clock.
+- **A power key's short press is the Lock button.** `KeysProfile::keyPower`
+  names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
+  `NavKey::Power`, which the runtime consumes above the active screen --
+  on the launcher too -- and turns into `lockAndSleepNow()`; no screen ever
+  sees it. It follows BOOT's rules: it counts as activity, wakes a sleeping
+  panel and dismisses the saver like any key, does nothing on the lock
+  screen, and reaches nothing the padlock does not. The long press switches
+  the power in hardware and never reaches the firmware -- build nothing on
+  it.
 - **A physical keyboard types into the text fields, beside the on-screen
   keypad and never instead of it.** `KeyboardProfile` names the two halves
   of Attaky's clip-on keyboard and spells out each half's 25 positions;
@@ -1316,7 +1349,8 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage
-                          maintenance, TouchTypes,
+                          maintenance, TouchTypes, BoardExpandProbe (is
+                          another module on the SD lines? asked at boot),
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product

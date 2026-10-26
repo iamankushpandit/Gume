@@ -246,8 +246,44 @@ static_assert(!BOARD.hasNavKeys()
                   || (BOARD.touch.isCapacitive()
                       && gumeKeyPortOk(BOARD.keys.keyUp) && gumeKeyPortOk(BOARD.keys.keyDown)
                       && gumeKeyPortOk(BOARD.keys.keyLeft) && gumeKeyPortOk(BOARD.keys.keyRight)
-                      && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)),
+                      && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)
+                      && gumeKeyPortOk(BOARD.keys.keyPower)),
               "navigation keys need a capacitive board's I2C bus and ports in 0..15");
+
+/* An LED on an expander rides the same bus, and must keep off the touch
+ * reset: the LED driver rewrites its own ports' bits, and a reset port among
+ * them would be a touch controller held in reset by a colour. */
+constexpr bool gumeLedPortOk(int8_t port) {
+    return port == PIN_NONE ||
+           (port >= 0 && port < 16 &&
+            !(BOARD.rgb.expander == BOARD.touch.resetExpanderAddress &&
+              port == BOARD.touch.resetExpanderPort));
+}
+static_assert(BOARD.rgb.expander == 0
+                  || (BOARD.touch.isCapacitive() && gumeLedPortOk(BOARD.rgb.r)
+                      && gumeLedPortOk(BOARD.rgb.g) && gumeLedPortOk(BOARD.rgb.b)),
+              "an RGB LED on an expander needs a capacitive board's I2C bus, "
+              "ports in 0..15, and none of them the touch reset");
+
+/* The Expand-module probe guards an SD slot, uses Wire1 -- which only the
+ * capacitive builds link -- and needs each half it names complete.
+ *
+ * The fields are spelled out rather than read through hasExpandProbe() and
+ * hasSdSlot() ON PURPOSE. The toolchain's GCC 8, at -Os and only in a full
+ * translation unit, reported "non-constant condition" for those member
+ * calls here, and for the same expression wrapped in a constexpr function --
+ * while the comparisons written straight into the assert pass, and the
+ * members pass in a three-line test. Bisected to -Os and not further. */
+static_assert((BOARD.expandProbe.fmRadioAddress == 0 && BOARD.expandProbe.gpsRx == PIN_NONE)
+                  || (BOARD.touch.kind == TouchKind::CapacitiveFt6336u
+                      && BOARD.sd.cs != PIN_NONE
+                      && (BOARD.expandProbe.fmRadioAddress == 0
+                          || (BOARD.expandProbe.fmSda != PIN_NONE
+                              && BOARD.expandProbe.fmScl != PIN_NONE))
+                      && (BOARD.expandProbe.gpsRx == PIN_NONE
+                          || BOARD.expandProbe.gpsBaud != 0)),
+              "an Expand-module probe needs a capacitive build, an SD slot to "
+              "guard, both lines of the radio's bus and a GPS baud rate");
 
 /* A keyboard rides the same I2C bus, and each layout is exactly the 25
  * positions of one half's matrix -- a short string would read past its end

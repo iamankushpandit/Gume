@@ -111,6 +111,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ PIN_NONE,
         /* keyEnter      */ PIN_NONE,
         /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
         /* keysActiveLow */ true,
     },
 
@@ -138,6 +139,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* No RGB LED that this firmware can drive, for now.
      *
      * The board has ONE WS2812 addressable pixel on GPIO42 -- a timed
@@ -150,6 +160,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ PIN_NONE,
         /* commonAnode */ false,
+        /* expander    */ 0,
     },
 
     /* ES8311 codec on the SAME I2C bus as touch, at 0x18, plus a five-wire

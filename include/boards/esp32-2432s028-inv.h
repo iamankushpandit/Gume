@@ -128,6 +128,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ PIN_NONE,
         /* keyEnter      */ PIN_NONE,
         /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
         /* keysActiveLow */ true,
     },
 
@@ -148,12 +149,22 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* The CYD's published order -- see the note above. Common anode. */
     RgbLedProfile{
         /* r           */ 4,
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* GPIO26 (DAC channel 2) feeds an onboard SC8002B amplifier and the JST

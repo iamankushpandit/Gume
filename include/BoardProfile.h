@@ -186,6 +186,10 @@ struct ButtonProfile {
  * is held at its landscape rotation. Board::pollNavKey() turns them into
  * screen directions for whatever rotation is current.
  *
+ * `keyPower` is a power key's SHORT press, where the board reports one to
+ * the firmware at all -- the runtime treats it as the Lock button. A long
+ * press that switches the power in hardware is not the firmware's to see.
+ *
  * Optional, like the BOOT key: keyExpander 0 is a board without them, every
  * caller is guarded by hasNavKeys(), and nothing may become reachable only
  * through a key. */
@@ -197,6 +201,7 @@ struct KeysProfile {
     int8_t  keyRight;
     int8_t  keyEnter;
     int8_t  keyBack;
+    int8_t  keyPower;             // a power key's short press: Lock
     bool    keysActiveLow;        // pulled up, shorted to ground when pressed
 };
 
@@ -236,14 +241,42 @@ struct SdProfile {
     uint32_t spiHz;
 };
 
+/* Plug-in modules that would reuse the SD slot's lines, and how to notice
+ * one before the slot is brought up.
+ *
+ * Only the Attaky Core needs it: its Expand modules share IO5-8, so the SD
+ * card's SPI lines belong to Media I/O on one module and to a LoRa radio or
+ * an FM tuner's GPIO on the others. Two of them can be found without driving
+ * anything they own: an I2C device at `fmRadioAddress` on its own bus
+ * (`fmSda`/`fmScl`), and a GPS that sends NMEA sentences at `gpsBaud` into
+ * `gpsRx` without being asked, heard with that pin an input. Finding either
+ * means the SD slot is left alone this boot.
+ *
+ * Optional: 0 and PIN_NONE throughout is a board with nothing to look for,
+ * which is every other board. */
+struct ExpandProbeProfile {
+    uint8_t  fmRadioAddress;      // an I2C address on its own bus, or 0
+    int8_t   fmSda;
+    int8_t   fmScl;
+    int8_t   gpsRx;               // a GPS's TX, as this board's RX; or PIN_NONE
+    uint32_t gpsBaud;
+};
+
 /* Status LED. `commonAnode` boards sink current, so a channel lights when the
  * line is driven LOW -- getting this backwards is a lit LED that never goes
- * out, not a dark one. */
+ * out, not a dark one.
+ *
+ * `expander` 0 means r/g/b are GPIOs, dimmed by LEDC PWM. Otherwise it is
+ * the I2C address of the AW9523 the LED hangs off -- the Attaky Core's -- and
+ * r/g/b are its ports, 0..15 as in KeysProfile. Those are driven in the
+ * expander's GPIO mode, so each channel is simply on or off: a colour asked
+ * for is shown as the channels at least half as bright as its brightest. */
 struct RgbLedProfile {
-    int8_t r;
-    int8_t g;
-    int8_t b;
-    bool   commonAnode;
+    int8_t  r;
+    int8_t  g;
+    int8_t  b;
+    bool    commonAnode;
+    uint8_t expander;             // an AW9523's I2C address, or 0 for GPIOs
 };
 
 /* How a board makes a sound, if it can.
@@ -338,6 +371,7 @@ struct BoardProfile {
     KeysProfile   keys;           // and so are these, on the boards that have them
     KeyboardProfile keyboard;     // and this, when one is attached
     SdProfile     sd;
+    ExpandProbeProfile expandProbe; // what else might be on the SD lines
     RgbLedProfile rgb;
     AudioProfile  audio;
     BatteryProfile battery;
@@ -358,6 +392,9 @@ struct BoardProfile {
     constexpr bool hasKeyboard() const { return keyboard.keyboardLeft != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
+    constexpr bool hasExpandProbe() const {
+        return expandProbe.fmRadioAddress != 0 || expandProbe.gpsRx != PIN_NONE;
+    }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }
     constexpr bool hasSpeaker() const { return audio.speakerPin != PIN_NONE; }
     constexpr bool hasBatteryAdc() const { return battery.adcPin != PIN_NONE; }
