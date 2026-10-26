@@ -346,7 +346,10 @@ pio device monitor       # serial, 115200 baud
 
 ### An environment is either the product or a bench probe, and it says which
 
-`platformio.ini` declares sixteen environments; six of them are Braino!.
+`platformio.ini` declares one product environment per supported board, and
+diagnostic ones besides. No document states how many: two branches that each
+add a board make the same edit to such a number, git merges the two edits
+silently, and the count goes stale with no conflict to say so.
 Each one states which it is, once, beside itself:
 
 ```ini
@@ -366,7 +369,7 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds the six product environments** on a push to `main` or `dev`,
+- **CI builds every product environment** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is three
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
@@ -1451,7 +1454,7 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds the six product environments --
+`.github/workflows/release.yml` then builds every product environment --
 `tools/envs.py --product`, never a list in the YAML -- packs them with
 `tools/pack_release.py`, and publishes a GitHub release with all four parts
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and

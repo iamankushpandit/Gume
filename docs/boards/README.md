@@ -13,7 +13,7 @@ firmware itself -- every pin the firmware uses.
 | 2.8-inch | capacitive | one USB-C | yes | Freenove FNK0104B / LCDWIKI ES3C28P | [Freenove-FNK0104B](Freenove-FNK0104B.md) |
 | 2.8-inch | resistive | one USB-C | yes | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](E32R28T-1.md) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | **no** -- run it from USB power | ESP32-2432S028, inverted panel | [ESP32-2432S028-inv](ESP32-2432S028-inv.md) |
-| 2.0-inch | capacitive | one USB-C | yes, not read yet | Attaky Core 1.0 (Cyber Deck Plus) -- not yet run on hardware | [Attaky-Core](Attaky-Core.md) |
+| 2.0-inch | capacitive | one USB-C | yes, from the Power module's fuel gauge | Attaky Core 1.0 (Cyber Deck Plus) -- not yet run on hardware | [Attaky-Core](Attaky-Core.md) |
 
 The two 2.8-inch resistive boards look alike; the second USB socket is the
 difference. A board that is not in this table is not supported: a mismatched

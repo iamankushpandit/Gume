@@ -10,8 +10,8 @@
 
 """Which PlatformIO environments are the product, and which are bench tools.
 
-`platformio.ini` declares sixteen environments and only six of them are
-Braino!. The other ten are hardware probes -- bringup, batdiag, audiodiag,
+`platformio.ini` declares one product environment per supported board and
+rather more besides. The rest are hardware probes -- bringup, batdiag, audiodiag,
 wifidiag, s3diag, diag4, diag32p and their per-board copies -- and they exist to
 be flashed at a board on a desk when something is wrong with it. Nobody
 downloads one from the installer, and nobody wants one in a release.
