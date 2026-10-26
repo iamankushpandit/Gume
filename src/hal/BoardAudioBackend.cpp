@@ -484,7 +484,20 @@ void Board::beginAudio() {
      * Volume is linear and in software, applied as each sample is generated:
      * there is no register to write. maxVolume is the whole of the protection
      * the speaker gets, which is why it starts low on a board nobody has
-     * listened to yet. */
+     * listened to yet.
+     *
+     * NOT when another Expand module owns these lines. BCLK, WS and DOUT are
+     * IO17, IO21 and IO18 -- the LoRa/GPS module's GPS UART (IO17 is the GPS
+     * chip's TX, an output this would fight) and its radio's DIO1, or the
+     * FM/AM module's own I2S. probeExpandModule() has already looked, and
+     * anything but Media I/O-or-nothing leaves the console silent for the
+     * boot, exactly as it leaves the SD slot down. Silent is the state an
+     * install failure already produces, so nothing downstream is new. */
+    if (expandModule_ != ExpandModule::NoneOrMedia) {
+        Serial.printf("[audio] I2S amp not started: Expand module %s owns its lines; "
+                      "console will be silent\n", expandModuleName(expandModule_));
+        return;
+    }
     if (BOARD.audio.ampEnablePin != PIN_NONE) {
         pinMode(BOARD.audio.ampEnablePin, OUTPUT);
         ampOn = true;

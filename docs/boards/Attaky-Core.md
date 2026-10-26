@@ -12,15 +12,18 @@ chip. The ESP32-S3 module inside is the same N16R8 part as the Freenove board.
 Core 1.0 in a Cyber Deck Plus".
 
 **Which modules this build expects:** the Core, and Media I/O on the back for
-the SD slot. The Expand modules share their pins, so before the SD slot is
-brought up the firmware looks for the two others, without driving anything
-they own: the FM/AM module's tuner on that module's own I2C bus (IO42/IO41),
+the SD slot and the speaker. The Expand modules share their pins, so before
+either is brought up the firmware looks for the two others, without driving
+anything they own: the FM/AM module's tuner on that module's own I2C bus (IO42/IO41),
 and the LoRa/GPS module's GPS, which sends position sentences on IO17
 unasked and is listened to for a second and a half. Finding either leaves
-the SD slot alone for that boot, and the serial log says
-`[expand] module=FM-AM` or `module=LoRa-GPS`, `sd=skipped`. Media I/O cannot
-be recognised -- it has nothing a host can ask -- so finding neither
-(`module=none-or-media`) brings the slot up as before. The keyboard, gamepad
+the SD slot alone and the console silent for that boot -- the speaker's I2S
+lines are that module's GPS, radio or tuner lines -- and the serial log says
+`[expand] module=FM-AM` or `module=LoRa-GPS`, `sd=skipped audio=skipped`.
+So this firmware runs on Attaky's LoRa and radio builds of the Core too,
+without SD or sound. Media I/O cannot be recognised -- it has nothing a host
+can ask -- so finding neither (`module=none-or-media`) brings both up as
+before. The keyboard, gamepad
 and battery modules are harmless either way: the firmware does not talk to
 them.
 
@@ -43,8 +46,9 @@ claim, and the four things most likely to need changing as:
   photo-negative picture means inversion is wrong; red and blue exchanged means
   the order is.
 - **The SD card**, which is wired in SPI mode on lines the Expand modules share
-  -- and the boot line `[expand] module=none-or-media sd=allowed` before it,
-  which should read that way with Media I/O fitted.
+  -- and the boot line `[expand] module=none-or-media sd=allowed audio=allowed`
+  before it, which should read that way with Media I/O fitted. On a LoRa or
+  radio build it should name that module and say `skipped` twice.
 
 **Sound comes from the Media I/O module's NS4168 amplifier**, driven as plain
 I2S with no codec: BCLK IO17, word select IO21, data IO18, at 16 kHz. None of

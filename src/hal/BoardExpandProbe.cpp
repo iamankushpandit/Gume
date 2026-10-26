@@ -15,9 +15,11 @@
  * IO5-8: Media I/O for its microSD slot, LoRa/GPS for its radio's SPI, and
  * FM/AM for a tuner GPIO. This firmware is built for Media I/O, so on a Core
  * wearing either of the others, mountSd() would clock those lines as an SD
- * card into somebody else's chip. This runs once in Board::begin(), before
- * the slot and before audio, and if it finds either module the slot stays
- * down for the boot.
+ * card into somebody else's chip -- and beginAudio() would clock the Media
+ * I/O amplifier's I2S on IO17/IO18/IO21, which are the LoRa/GPS module's GPS
+ * UART and radio interrupt and the FM/AM module's I2S. This runs once in
+ * Board::begin(), before both, and if it finds either module the SD slot
+ * stays down and the console stays silent for the boot.
  *
  * Passive first, in the order Attaky's shared/module-detection-and-safe-
  * boot.md gives, and nothing here drives a line any Expand module owns:
@@ -34,9 +36,9 @@
  *
  * Media I/O has no identity a host can read, so it is found by elimination,
  * and finding nothing reads the same as no module at all -- both mean the
- * slot comes up exactly as it did before this existed. A probe that could
- * not run (the radio's bus would not start) is not a negative answer: the
- * slot stays down, which is Attaky's rule and the safe one.
+ * slot and the speaker come up exactly as they did before this existed. A
+ * probe that could not run (the radio's bus would not start) is not a
+ * negative answer: both stay down, which is Attaky's rule and the safe one.
  *
  * It costs GPS_LISTEN_MS of every boot on a board that has it, and nothing on
  * any other: hasExpandProbe() is a compile-time constant, and the whole body
@@ -147,14 +149,25 @@ bool gpsSpeaks() {
     }
     Serial1.end();   // detaches the pin and deletes the driver
     /* Pulled down rather than floating: on Media I/O this is the amplifier's
-     * bit clock, and that is how Attaky park it. beginAudio() takes it from
-     * here on a board that drives it. */
-    pinMode(p.gpsRx, INPUT_PULLDOWN);
+     * bit clock, and that is how Attaky park it; beginAudio() takes it from
+     * here. With a GPS on it, a plain input -- the GPS drives it, and a pull
+     * against an output it owns is a load for no reason. */
+    pinMode(p.gpsRx, found ? INPUT : INPUT_PULLDOWN);
     return found;
 }
 
 }  // namespace
 #endif  /* GUME_TOUCH_CAPACITIVE */
+
+const char* Board::expandModuleName(ExpandModule module) {
+    switch (module) {
+        case ExpandModule::FmAm:       return "FM-AM";
+        case ExpandModule::LoraGps:    return "LoRa-GPS";
+        case ExpandModule::ProbeError: return "probe-error";
+        case ExpandModule::NoneOrMedia:
+        default:                       return "none-or-media";
+    }
+}
 
 void Board::probeExpandModule() {
     expandModule_ = ExpandModule::NoneOrMedia;
@@ -167,24 +180,22 @@ void Board::probeExpandModule() {
      * necessity -- and it stays right if the probe is ever called later. */
     const Watchdog::Pause wdtPause;
 
-    const char* found = "none-or-media";
     if (BOARD.expandProbe.fmRadioAddress != 0) {
         const int fm = fmRadioAnswers();
         if (fm < 0) {
             expandModule_ = ExpandModule::ProbeError;
-            found = "probe-error";
         } else if (fm > 0) {
             expandModule_ = ExpandModule::FmAm;
-            found = "FM-AM";
         }
     }
     if (expandModule_ == ExpandModule::NoneOrMedia &&
         BOARD.expandProbe.gpsRx != PIN_NONE && gpsSpeaks()) {
         expandModule_ = ExpandModule::LoraGps;
-        found = "LoRa-GPS";
     }
-    Serial.printf("[expand] module=%s sd=%s\n", found,
-                  expandModule_ == ExpandModule::NoneOrMedia
-                      ? "allowed" : "skipped (another module owns its lines)");
+    /* mountSd() and beginAudio() both act on this; the line says so once. */
+    const bool clear = expandModule_ == ExpandModule::NoneOrMedia;
+    Serial.printf("[expand] module=%s sd=%s audio=%s\n",
+                  expandModuleName(expandModule_),
+                  clear ? "allowed" : "skipped", clear ? "allowed" : "skipped");
 #endif
 }

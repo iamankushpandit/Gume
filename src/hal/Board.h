@@ -648,6 +648,7 @@ private:
     enum class ExpandModule : uint8_t { NoneOrMedia, FmAm, LoraGps, ProbeError };
     ExpandModule expandModule_ = ExpandModule::NoneOrMedia;
     void probeExpandModule();
+    static const char* expandModuleName(ExpandModule module);
     uint8_t displayRotation_ = 1;
 
     enum class TimeSyncState : uint8_t { Idle, Connecting, Syncing, Synced };

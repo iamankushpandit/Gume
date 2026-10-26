@@ -181,14 +181,16 @@ inline constexpr BoardProfile BOARD = {
 
     /* Two Expand modules other than Media I/O reuse the SD lines (IO5-8): the
      * LoRa/GPS module puts its radio's SPI there and the FM/AM module a GPIO,
-     * so a Core wearing either would have them driven as an SD card.
-     * Board::begin() looks for both before mountSd(), passive-first, as
+     * so a Core wearing either would have them driven as an SD card -- and
+     * the speaker's I2S below is their GPS UART, radio interrupt or tuner
+     * I2S. Board::begin() looks for both before beginAudio() and mountSd(),
+     * and skips both if it finds one; passive-first, as
      * Attaky's shared/module-detection-and-safe-boot.md lays out: the FM/AM
      * module's TEF6687 answers at 0x64 on that module's own I2C bus (SDA
      * IO42, SCL IO41), and the LoRa/GPS module's AT6558 streams NMEA at 9600
      * baud into IO17 unasked, which is listened to with the pin an input.
      * Media I/O has no identity to find; finding neither is what lets the SD
-     * slot come up. */
+     * slot and the speaker come up. */
     ExpandProbeProfile{
         /* fmRadioAddress */ 0x64,
         /* fmSda          */ 42,
