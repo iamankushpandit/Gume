@@ -131,6 +131,14 @@ inline constexpr BoardProfile BOARD = {
         /* keysActiveLow */ true,
     },
 
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
     /* Inherited from the E32R28T-1; not exercised on this board. */
     SdProfile{
         /* cs    */ 5,

@@ -29,5 +29,10 @@ void driveTouchReset(bool released);
  * on the Attaky Core they share it, and driveTouchReset() has done this. */
 void allInputs(uint8_t address);
 
+/* Set up one half of a keyboard matrix: columns (P0_0..P0_4) inputs, rows
+ * (P1_0..P1_4) outputs driven LOW, the LED (P1_5..P1_7) off. False if the
+ * expander did not answer -- the module is not attached. */
+bool setupKeyboardHalf(uint8_t address);
+
 }  // namespace BoardExpander
 #endif

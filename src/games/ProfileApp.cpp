@@ -143,8 +143,20 @@ uint8_t ProfileApp::profileForRow(Board& board, uint8_t row) const {
 }
 
 void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
-    if (!touch.justPressed) return;
+    const char typed = (BOARD.hasKeyboard() ? host.typedChar() : static_cast<char>(0));
+    if (!touch.justPressed && typed == 0) return;
     if (!host.requireCapability(APP_CAP_PROFILES, "manage profiles")) {
+        return;
+    }
+    /* A typed character goes to the two phases with a field, and never
+     * through the touch tests below: on its frame the touch coordinates are
+     * the last touch's, and would press that again. */
+    if (typed != 0) {
+        if (phase_ == Phase::PinEntry) {
+            typePinChar(host, typed);
+        } else if (phase_ == Phase::Rename) {
+            typeRenameChar(host, typed);
+        }
         return;
     }
     Board& board = host.board();

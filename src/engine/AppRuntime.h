@@ -129,6 +129,7 @@ public:
     void openProfiles() override;
     void applyOrientation() override;
     NavKey navKey() override { return frameNav_; }
+    char typedChar() override { return frameTyped_; }
 
     /* Lock now: blank the panel immediately, and make the next wake land on
      * the wake lock instead of on the screen underneath.
@@ -328,6 +329,7 @@ private:
     /* The navigation key handed to the active screen's update(), and only
      * during it; None at every other moment. See navKey(). */
     NavKey frameNav_ = NavKey::None;
+    char frameTyped_ = 0;     /* the same, for a typed character */
 
     /* Lock-screen state.
      *

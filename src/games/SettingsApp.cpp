@@ -73,6 +73,16 @@ void SettingsApp::syncPanel(GameHost& host) {
 
 void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
     syncPanel(host);
+    /* A keyboard types into the PIN pad and nowhere else on this screen, and
+     * never runs the touch tests below. The pad is only up for an admin, as
+     * it is for a touch. */
+    const char typed = (BOARD.hasKeyboard() ? host.typedChar() : static_cast<char>(0));
+    if (typed != 0) {
+        if (pinTask_ != PinTask::None) {
+            typePinChar(host, typed);
+        }
+        return;
+    }
     if (!touch.justPressed) return;
 
     Board& board = host.board();

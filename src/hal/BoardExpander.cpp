@@ -61,6 +61,23 @@ void driveTouchReset(bool released) {
     }
 }
 
+bool setupKeyboardHalf(uint8_t address) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() != 0) {
+        return false;
+    }
+    /* Rows held LOW between scans, so one read of the columns says whether
+     * any key on this half is down -- the scan only walks the rows when one
+     * is. Level before direction, so a row is never driven to a value nobody
+     * chose; the LED bits high, which is off on this common-anode part. */
+    aw9523Write(address, AW9523_MODE_P0, 0xFF);
+    aw9523Write(address, AW9523_MODE_P1, 0xFF);
+    aw9523Write(address, AW9523_OUTPUT_P0 + 1, 0xE0);
+    aw9523Write(address, AW9523_CONFIG_P0, 0xFF);
+    aw9523Write(address, AW9523_CONFIG_P0 + 1, 0x00);
+    return true;
+}
+
 void allInputs(uint8_t address) {
     aw9523Write(address, AW9523_MODE_P0, 0xFF);
     aw9523Write(address, AW9523_MODE_P1, 0xFF);

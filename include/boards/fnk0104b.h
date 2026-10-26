@@ -114,6 +114,14 @@ inline constexpr BoardProfile BOARD = {
         /* keysActiveLow */ true,
     },
 
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
     /* No SD, deliberately, for now.
      *
      * The slot exists, but it is SDMMC 4-bit (CLK 38, CMD 40, D0 39, D1 41,

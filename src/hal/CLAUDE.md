@@ -250,6 +250,14 @@ Navigation keys -- a D-pad, Enter and Back -- on the boards that have them, whic
 
 **The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns them by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Not yet seen on a device with keys**: if portrait or flipped is wrong and landscape is right, the sign in that one function is the whole fix.
 
+## BoardKeyboard.cpp
+
+A typing keyboard, where one is clipped on: Attaky's two-half module, each half an AW9523 scanning a 5x5 matrix. `KeyboardProfile` gives both addresses and a 25-character layout per half, with four codes for keys that type nothing (`^` Shift, `<` Delete, `>` Enter, `~` unused). `Board::begin()` probes both halves through `BoardExpander::setupKeyboardHalf()`, which leaves every row driven LOW; the keyboard is off for the session unless both answered, and `[keyboard] attached|absent` says which.
+
+**Idle, it costs one register read a half.** With every row low, any key pulls its column down, so `pollTypedChar()` reads the five columns and stops there when they are all high. Only when one is low does it walk the rows -- one low at a time, five writes and five reads -- and put them all back low, about a millisecond while a key is held. Read in the loop beside touch and the keys, for the same reason as they are.
+
+One character a frame: a letter (lower case, upper while Shift is held), a digit, space or the punctuation on the keys as itself, `'\b'` for Delete (repeating while held) and `'\n'` for Enter. A failed read keeps the last state, as the D-pad's does. Not yet seen on a device.
+
 `BoardExpander.cpp` holds the AW9523 writes, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
 
 ## Clock.{h,cpp}

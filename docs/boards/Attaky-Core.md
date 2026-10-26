@@ -42,11 +42,18 @@ the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
 from any other screen, as BOOT is. Worth checking that each direction moves
 the way it points, in landscape and in portrait.
 
+**The keyboard types into every text field:** a player's name, a Nearby
+peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
+doing what DEL and OK do. The name fields take capitals, digits and spaces, as
+their on-screen keypad does; the password takes exactly what is typed, with
+Shift for capitals. The on-screen keypad stays: the module clips off, and the
+firmware checks for it at boot.
+
 Left out on purpose, not broken: sound (the NS4168 amplifier needs a plain-I2S
 backend the firmware does not have yet), the battery gauge (a MAX17048 fuel
 gauge rather than a voltage divider), the status LED (on the I2C expander), the
-keyboard and the gamepad, and keys on any screen but the launcher. Touch is the
-console's input on every board.
+gamepad, and the D-pad on any screen but the launcher. Touch is the console's
+input on every board.
 
 ## Sources
 

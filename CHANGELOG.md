@@ -43,6 +43,17 @@ which turns each direction for the current screen rotation the way touch
 already is; boards without keys compile the key paths away. Not yet run on a
 device.
 
+**A clip-on keyboard types into the text fields.** On a board that can carry
+one -- the Attaky Core, with Attaky's keyboard module -- a player's name, a
+Nearby peer's name, both admin PIN pads and the Wi-Fi password take typing,
+with Delete and Enter as DEL and OK. The name fields accept what their
+on-screen keypad offers, capitals, digits and spaces; the password takes
+exactly what is typed. The on-screen keypad stays everywhere: the module
+clips off, so the firmware probes for it at boot. The keyboard is read in
+the loop at one register a half while nobody types. Boards without one carry
+400 bytes for it. Not yet run on a device. The Wi-Fi and Profiles screens
+were each split into two files first, past the size CLAUDE.md allows.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was

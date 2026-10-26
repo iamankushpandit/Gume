@@ -140,6 +140,14 @@ inline constexpr BoardProfile BOARD = {
         /* keysActiveLow */ true,
     },
 
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
     /* Vendor-documented: the MicroSD slot shares its bus with the SPI
      * peripheral header, which is why IO18/19/23 appear in both places in the
      * pin table. Only the card select is the slot's alone. */

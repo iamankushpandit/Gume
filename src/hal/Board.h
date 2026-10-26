@@ -169,6 +169,12 @@ public:
      * board without keys. See hal/BoardKeys.cpp. */
     NavKey pollNavKey();
 
+    /* This frame's typed character from an attached keyboard, or 0: a
+     * printable ASCII character, '\b' for Delete or '\n' for Enter. Always 0
+     * on a board without one, or with the module unclipped. See
+     * hal/BoardKeyboard.cpp. */
+    char pollTypedChar();
+
     void beepOk();
     void beepError();
 
@@ -629,6 +635,11 @@ private:
     uint8_t navDown_ = 0;
     NavKey navHeld_ = NavKey::None;
     uint32_t navRepeatAtMs_ = 0;
+    /* The keyboard: whether both halves answered at boot, which positions
+     * were down last frame (25 bits a half), and Delete's auto-repeat. */
+    bool keyboardPresent_ = false;
+    uint32_t keyboardDown_[2] = {0, 0};
+    uint32_t keyboardRepeatAtMs_ = 0;
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
 

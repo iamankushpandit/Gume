@@ -91,6 +91,26 @@ Rect WifiApp::keyRect(uint8_t row, uint8_t col) const {
                     static_cast<int16_t>(96 + row * 28), 28, 24);
 }
 
+/* The password, from a physical keyboard. Unlike the name fields this
+ * takes exactly what was typed -- a password is case-sensitive and may
+ * hold the punctuation on the keys -- with the same 63-character limit as
+ * the on-screen keys. Delete and Enter are DEL and JOIN. A symbol the
+ * keyboard does not have is still on the on-screen symbol page. */
+void WifiApp::typePassword(GameHost& host, char typed) {
+    if (typed == '\n') {
+        startConnect(host);
+        return;
+    }
+    if (typed == '\b') {
+        if (password_.length() > 0) password_.remove(password_.length() - 1);
+    } else if (typed >= 0x20 && typed <= 0x7E) {
+        if (password_.length() < 63) password_ += typed;
+    } else {
+        return;
+    }
+    markDirty();
+}
+
 void WifiApp::update(GameHost& host, const TouchPoint& touch) {
     syncPanel(host);
     if (phase_ == Phase::Idle) {
@@ -114,6 +134,17 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
     if (phase_ == Phase::Connecting) { checkConnect(host); return; }
+
+    /* A keyboard types into the password and nowhere else, and never runs
+     * the touch tests below, whose coordinates are stale on its frame. */
+    const char typed = (BOARD.hasKeyboard() ? host.typedChar() : static_cast<char>(0));
+    if (typed != 0) {
+        if (phase_ == Phase::Keyboard &&
+            host.requireCapability(APP_CAP_NETWORK, "change wifi settings")) {
+            typePassword(host, typed);
+        }
+        return;
+    }
 
     if (!touch.justPressed) return;
     if (!host.requireCapability(APP_CAP_NETWORK, "change wifi settings")) {

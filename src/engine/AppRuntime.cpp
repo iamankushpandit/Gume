@@ -140,10 +140,11 @@ void BrainoApp::loop() {
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
     const NavKey nav = board_.pollNavKey();
+    const char typed = board_.pollTypedChar();
     /* For the idle, saver and sleep paths below a key is a key: any of them
      * does exactly what BOOT does there. Which key it was matters only to the
      * active screen. */
-    const bool keyPress = boot.justPressed || nav != NavKey::None;
+    const bool keyPress = boot.justPressed || nav != NavKey::None || typed != 0;
     const uint32_t nowMs = millis();
 
     TouchPoint touch = rawTouch;
@@ -204,7 +205,7 @@ void BrainoApp::loop() {
      * because as far as the idle timer was concerned nobody had touched the
      * device since before the press. */
     if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased ||
-        boot.down || boot.justPressed || boot.justReleased || nav != NavKey::None) {
+        boot.down || boot.justPressed || boot.justReleased || keyPress) {
         lastActivityMs_ = nowMs;
     }
 
@@ -302,6 +303,7 @@ void BrainoApp::loop() {
         const bool bootHome = (boot.justPressed || nav == NavKey::Back) &&
                               activeGame_ != &launcher_;
         frameNav_ = bootHome ? NavKey::None : nav;
+        frameTyped_ = bootHome ? 0 : typed;
         if (bootHome) {
             goHome();
         } else if (activeGame_ != &launcher_ &&
@@ -348,6 +350,7 @@ void BrainoApp::loop() {
             activeGame_->update(*this, touch);
         }
         frameNav_ = NavKey::None;
+        frameTyped_ = 0;
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();

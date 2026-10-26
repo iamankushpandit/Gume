@@ -167,6 +167,12 @@ void Board::begin() {
     if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
         BoardExpander::allInputs(BOARD.keys.keyExpander);
     }
+    /* Both halves or neither: half a keyboard types half the alphabet. */
+    if (BOARD.hasKeyboard()) {
+        keyboardPresent_ = BoardExpander::setupKeyboardHalf(BOARD.keyboard.keyboardLeft) &&
+                           BoardExpander::setupKeyboardHalf(BOARD.keyboard.keyboardRight);
+        Serial.printf("[keyboard] %s\n", keyboardPresent_ ? "attached" : "absent");
+    }
 #endif
 
     prefs_.begin("cydkids", false);

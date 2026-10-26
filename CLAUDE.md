@@ -623,9 +623,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,969 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,369 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 88,044 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
+at 88,060 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -763,6 +763,23 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   code is. **Nothing may become reachable only by key**, exactly as with
   BOOT. The direction mapping has not been seen on a device; the sign to
   change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
+- **A physical keyboard types into the text fields, beside the on-screen
+  keypad and never instead of it.** `KeyboardProfile` names the two halves
+  of Attaky's clip-on keyboard and spells out each half's 25 positions;
+  `Board::begin()` probes both and the keyboard is off unless both answer,
+  because the module is detachable. `Board::pollTypedChar()` reads one
+  register a half per frame while nobody types -- the rows are held low,
+  so any key shows on the columns -- and walks the rows only while a key
+  is down. The runtime hands the character to the active screen through
+  `GameHost::typedChar()`, beside `navKey()`. Five fields take it: a
+  player's name and a Nearby peer's (through `Ui::Keypad::fromTyped()`,
+  so they accept exactly the keypad's capitals, digits and space), both
+  admin PIN pads (digits, Delete, Enter), and the Wi-Fi password (what was
+  typed, case and punctuation included). **A screen must handle a typed
+  character apart from the touch**: on its frame the touch coordinates are
+  the last touch's, and running the hit tests would press that again.
+  Each screen reads it through `BOARD.hasKeyboard()`, so the boards
+  without one carry 400 bytes for all of this.
 
 | Layer | Where | Responsibility |
 |---|---|---|

@@ -80,7 +80,6 @@ void ProfileApp::beginPinEntry(uint8_t profile, PinPurpose purpose) {
  * is up; the screen-wide guards (a press, the profiles capability) have
  * already passed. */
 void ProfileApp::updatePinEntry(GameHost& host, const TouchPoint& touch) {
-    Board& board = host.board();
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
 
@@ -92,36 +91,7 @@ void ProfileApp::updatePinEntry(GameHost& host, const TouchPoint& touch) {
         return;
     }
     if (pinConfirmRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        /* Judge only a complete entry, so a wrong-length attempt cannot be
-         * used to probe whether a shorter prefix is accepted. */
-        if (adminPinDigitCount_ != PIN_LENGTH) {
-            board.beepError();
-            return;
-        }
-        const bool ok = (adminPinAttempt_ == board.adminPin());
-        adminPinAttempt_ = 0;
-        adminPinDigitCount_ = 0;
-
-        if (!ok) {
-            board.beepError();
-            /* The entered digits have just been reset, so all four dots go
-             * back to empty. That is a content change and nothing else on
-             * the pad moves, so it is markDirty() -- and the dots erase
-             * themselves, each fill covering its own predecessor exactly.
-             * A rejected PIN is the moment somebody is about to type four
-             * more digits, so it is the last place to want a full wipe. */
-            markDirty();
-            return;
-        }
-        board.beepOk();
-        if (pinPurpose_ == PinPurpose::OpenMenu) {
-            menuFor_ = profileToSwitchTo_;
-            phase_ = Phase::Menu;
-            markFullDirty();
-        } else {
-            board.setActiveProfile(profileToSwitchTo_);
-            host.goHome();
-        }
+        confirmPin(host);
         return;
     }
     if (pinDeleteRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -143,6 +113,54 @@ void ProfileApp::updatePinEntry(GameHost& host, const TouchPoint& touch) {
         return;
     }
     return;
+}
+
+/* OK, from the pad or from a keyboard's Enter. */
+void ProfileApp::confirmPin(GameHost& host) {
+    Board& board = host.board();
+    /* Judge only a complete entry, so a wrong-length attempt cannot be
+     * used to probe whether a shorter prefix is accepted. */
+    if (adminPinDigitCount_ != PIN_LENGTH) {
+        board.beepError();
+        return;
+    }
+    const bool ok = (adminPinAttempt_ == board.adminPin());
+    adminPinAttempt_ = 0;
+    adminPinDigitCount_ = 0;
+
+    if (!ok) {
+        board.beepError();
+        /* The entered digits have just been reset, so all four dots go
+         * back to empty. That is a content change and nothing else on
+         * the pad moves, so it is markDirty() -- and the dots erase
+         * themselves, each fill covering its own predecessor exactly.
+         * A rejected PIN is the moment somebody is about to type four
+         * more digits, so it is the last place to want a full wipe. */
+        markDirty();
+        return;
+    }
+    board.beepOk();
+    if (pinPurpose_ == PinPurpose::OpenMenu) {
+        menuFor_ = profileToSwitchTo_;
+        phase_ = Phase::Menu;
+        markFullDirty();
+    } else {
+        board.setActiveProfile(profileToSwitchTo_);
+        host.goHome();
+    }
+    return;
+}
+
+/* A digit types a digit, Delete and Enter are DEL and OK; anything else on
+ * the keyboard is not on this pad and does nothing. */
+void ProfileApp::typePinChar(GameHost& host, char typed) {
+    if (typed >= '0' && typed <= '9') {
+        appendPinDigit(static_cast<uint8_t>(typed - '0'));
+    } else if (typed == '\b') {
+        deletePinDigit();
+    } else if (typed == '\n') {
+        confirmPin(host);
+    }
 }
 
 /* markDirty(), not markFullDirty(): a digit moves four dots and nothing else,

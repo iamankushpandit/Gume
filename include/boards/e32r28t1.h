@@ -116,6 +116,14 @@ inline constexpr BoardProfile BOARD = {
         /* keysActiveLow */ true,
     },
 
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
     SdProfile{
         /* cs    */ 5,
         /* mosi  */ 23,

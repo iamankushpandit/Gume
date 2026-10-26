@@ -183,6 +183,14 @@ public:
      * in update(), beside the touch; it is only valid during that call. Not
      * on AppContext yet: the launcher is the only screen that takes keys. */
     virtual NavKey navKey() = 0;
+    /* This frame's character from an attached keyboard, or 0: printable
+     * ASCII, '\b' for Delete, '\n' for Enter (hal/BoardKeyboard.cpp). Valid
+     * only during update(), like navKey(). A screen with a text field takes
+     * it as a second way to press the keys it already draws, and must handle
+     * it apart from the touch: on a frame with a typed character the touch's
+     * coordinates are the LAST touch's, and testing them would press again
+     * whatever was tapped last. */
+    virtual char typedChar() = 0;
 };
 
 class Game {

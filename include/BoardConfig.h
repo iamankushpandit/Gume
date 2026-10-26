@@ -222,6 +222,17 @@ static_assert(!BOARD.hasNavKeys()
                       && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)),
               "navigation keys need a capacitive board's I2C bus and ports in 0..15");
 
+/* A keyboard rides the same I2C bus, and each layout is exactly the 25
+ * positions of one half's matrix -- a short string would read past its end
+ * at the first key in a row it did not cover. */
+constexpr int gumeLayoutLength(const char* s) { return (s == nullptr || *s == 0) ? 0 : 1 + gumeLayoutLength(s + 1); }
+static_assert(!BOARD.hasKeyboard()
+                  || (BOARD.touch.isCapacitive() && BOARD.keyboard.keyboardRight != 0
+                      && gumeLayoutLength(BOARD.keyboard.leftLayout) == 25
+                      && gumeLayoutLength(BOARD.keyboard.rightLayout) == 25),
+              "a keyboard needs a capacitive board's I2C bus, both halves' addresses "
+              "and two 25-character layouts");
+
 /* The one thing both kinds owe, and the thing that decides supportability: a
  * controller at all. `irq` is common to both -- pen-down on the XPT2046, INT
  * on the FT6336U. */

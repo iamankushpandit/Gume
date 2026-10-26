@@ -200,6 +200,34 @@ struct KeysProfile {
     bool    keysActiveLow;        // pulled up, shorted to ground when pressed
 };
 
+/* A typing keyboard, where a board can carry one.
+ *
+ * Only as two AW9523 expanders scanning a 5x5 matrix each, because that is
+ * the only keyboard any supported board takes: Attaky's Control: Keyboard
+ * (Bottom) module, which clips onto the Attaky Core. Each expander reads its
+ * five columns on P0_0..P0_4 and drives its five rows on P1_0..P1_4, low to
+ * select; P1_5..P1_7 are that half's LED, which the firmware leaves off.
+ *
+ * The layouts say what is at each of the 25 positions, row by row, columns
+ * left to right -- a fact about the keyboard module, so it lives here with
+ * the addresses rather than in the driver. Letters, digits and the
+ * punctuation printed on the keys stand for themselves; four characters are
+ * codes, because the keys they stand for do not type anything:
+ *
+ *   ^  Shift      <  Delete      >  Enter      ~  no key, or one not used
+ *
+ * Optional twice over: a board without one says keyboardLeft 0, and a board
+ * that can carry one may not have it attached -- the module is detachable,
+ * so Board::begin() probes both addresses and the keyboard is off unless
+ * both answer. Nothing may become reachable only by typing; every text field
+ * keeps its on-screen keypad. */
+struct KeyboardProfile {
+    uint8_t     keyboardLeft;     // the left half's AW9523, or 0
+    uint8_t     keyboardRight;    // the right half's AW9523
+    const char* leftLayout;       // 25 characters, ROW0 COL0 first
+    const char* rightLayout;
+};
+
 struct SdProfile {
     int8_t   cs;
     int8_t   mosi;
@@ -294,6 +322,7 @@ struct BoardProfile {
     TouchProfile  touch;
     ButtonProfile button;         // beside touch: both are how a person acts
     KeysProfile   keys;           // and so are these, on the boards that have them
+    KeyboardProfile keyboard;     // and this, when one is attached
     SdProfile     sd;
     RgbLedProfile rgb;
     AudioProfile  audio;
@@ -312,6 +341,7 @@ struct BoardProfile {
 
     constexpr bool hasBootButton() const { return button.bootPin != PIN_NONE; }
     constexpr bool hasNavKeys() const { return keys.keyExpander != 0; }
+    constexpr bool hasKeyboard() const { return keyboard.keyboardLeft != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }

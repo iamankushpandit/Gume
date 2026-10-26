@@ -143,6 +143,21 @@ inline constexpr BoardProfile BOARD = {
         /* keysActiveLow */ true,
     },
 
+    /* keyboard: Attaky's Control: Keyboard (Bottom) 1.0, when it is clipped
+     * on -- which it is on the Cyber Deck Plus, and which Board::begin()
+     * checks rather than assumes. Left half at 0x5A, right at 0x5B, on the
+     * shared I2C bus through the module's FPC. Layout from Attaky's hardware
+     * catalog. Left: 1-5, Q-T, A-G, Shift Z-V, then LAG TAB ALT (not used)
+     * , and Space. Right: 6-0, Y-P, H-L and Delete, B N M, an empty position
+     * and Enter, then an empty position, the full stop, MIC (not used), # and
+     * Fn (not used). Not yet seen on a device. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0x5A,
+        /* keyboardRight */ 0x5B,
+        /* leftLayout    */ "12345" "QWERT" "ASDFG" "^ZXCV" "~~~, ",
+        /* rightLayout   */ "67890" "YUIOP" "HJKL<" "BNM~>" "~.~#~",
+    },
+
     /* microSD on the Expand: Media I/O module, in SPI mode: CS (the card's
      * CD/DAT3) on IO8, MOSI (CMD) IO6, MISO (DAT0) IO7, SCLK IO5. Those lines
      * belong to whichever Expand module is fitted -- the LoRa/GPS module puts
