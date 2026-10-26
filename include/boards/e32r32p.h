@@ -176,6 +176,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* Vendor-documented: IO26 is "Audio signal DAC output" and IO4 is "Audio

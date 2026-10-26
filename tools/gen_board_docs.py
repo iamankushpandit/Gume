@@ -170,8 +170,9 @@ def pin_uses(b, p):
                     ("mosi", "SPI MOSI"), ("miso", "SPI MISO")):
         add(sd.get(k), "SD card", what)
     rgb = p.get("RgbLedProfile", {})
-    for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):
-        add(rgb.get(k), "RGB LED", what)
+    if not on_expander(rgb):   # expander ports are not GPIOs; see facts()
+        for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):
+            add(rgb.get(k), "RGB LED", what)
     audio = p.get("AudioProfile", {})
     add(audio.get("speakerPin"), "Audio", "speaker (DAC out)")
     for k, what in (("i2sMclk", "I2S MCLK"), ("i2sBclk", "I2S BCLK"),
@@ -186,6 +187,23 @@ def pin_uses(b, p):
     add(batt.get("adcPin"), "Battery", "voltage sense (%s:1 divider)" % ratio.rstrip("0").rstrip(".")
         if ratio else "voltage sense")
     return sorted(uses, key=lambda u: (u[0], [g for g, _ in GROUPS].index(u[1])))
+
+
+def on_expander(rgb):
+    return rgb.get("expander", "0") not in ("0", "0x00", "")
+
+
+def expander_led(rgb):
+    """The facts-table line for an RGB LED on an I2C expander, or None."""
+    if not on_expander(rgb):
+        return None
+    ports = []
+    for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):
+        port = pin(rgb.get(k))
+        if port is not None:
+            ports.append("P%d_%d %s" % (port // 8, port % 8, what))
+    return "ports %s of the I2C expander at %s, each channel on or off" % (
+        ", ".join(ports), rgb.get("expander"))
 
 
 def expander_reset(touch):
@@ -224,6 +242,8 @@ def facts(b, p):
          "resistive XPT2046, %s" % ("on the display's SPI bus" if b["touch_on_display_bus"]
                                     else "its own bit-banged SPI bus")),
         ("Sound", sound),
+    ] + ([("RGB LED", expander_led(p.get("RgbLedProfile", {})))]
+         if expander_led(p.get("RgbLedProfile", {})) else []) + [
         ("Battery sense", "GPIO%d" % batt if batt is not None
          else "**none read** -- no battery badge"),
         ("Flash", "%s MB" % mb.group(1) if mb else flash or "?"),

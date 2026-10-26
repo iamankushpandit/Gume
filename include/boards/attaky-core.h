@@ -178,15 +178,17 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
-    /* The RGB LED is on the 0x59 expander (red P1_0, green P1_1, blue P1_2,
-     * common anode), not on GPIOs, so RgbLedProfile cannot describe it. Left
-     * dark: beepOk()/beepError() lose their pulse and nothing else changes.
-     * Driving it through the expander is its own change. */
+    /* The RGB LED is on the 0x59 expander, not on GPIOs: red P1_0, green
+     * P1_1, blue P1_2 -- ports 8, 9 and 10 -- common anode, so a channel
+     * lights when its port is driven LOW. Driven in the expander's GPIO mode,
+     * so each channel is on or off: seven colours, no dimming. P1_3 beside
+     * them is the touch reset, and the LED driver never writes it. */
     RgbLedProfile{
-        /* r           */ PIN_NONE,
-        /* g           */ PIN_NONE,
-        /* b           */ PIN_NONE,
+        /* r           */ 8,
+        /* g           */ 9,
+        /* b           */ 10,
         /* commonAnode */ true,
+        /* expander    */ 0x59,
     },
 
     /* audio: Media I/O's NS4168 I2S class-D amplifier -- BCLK IO17, word

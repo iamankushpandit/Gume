@@ -19,9 +19,8 @@ Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
 has to confirm. Touch, the display and the SD slot are wired. The battery
-gauge waits for a MAX17048
-reader, the status LED for an expander driver, and the keyboard and gamepad
-are not read: touch stays the input on every board.
+gauge waits for a MAX17048 reader, and the gamepad is not read: touch stays
+the input on every board.
 
 One thing about it was new to the board contract. Its touch reset is a port
 on an AW9523 I2C expander rather than a GPIO, so `TouchProfile` gained
@@ -72,6 +71,18 @@ through a new `KeysProfile::keyPower`, and follows BOOT's rules -- it wakes
 the panel and stops the saver like any key, does nothing on the lock screen,
 and reaches nothing touch cannot. The long press is Attaky's hardware power
 switch and is left alone. Not yet run on a device.
+
+**The Attaky Core's status LED lights.** The LED is on the same AW9523 as
+the keys (red P1_0, green P1_1, blue P1_2, common anode), so `RgbLedProfile`
+gained `expander`: 0 for an LED on GPIOs, as every other board has, or the
+expander's address, in which case `r`/`g`/`b` are its ports. It is driven in
+the expander's GPIO mode, each channel on or off, so a colour shows as the
+channels at least half as bright as its brightest; the `beepOk()`/
+`beepError()` pulses and the saver's rally colour work as on the other
+boards. The driver reads, modifies and writes only those three bits, and
+`BoardConfig.h` refuses an LED port that is the touch reset, which sits
+beside them on P1_3. The bus is written only when the colour changes. Not
+yet run on a device.
 
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,

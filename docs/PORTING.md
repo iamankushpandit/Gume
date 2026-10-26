@@ -102,6 +102,9 @@ Things worth getting right the first time:
   twice; the second statement would eventually be the wrong one.
 - **`commonAnode`** on the LED means a channel lights when its line is driven
   LOW. Get it backwards and the LED is on and stays on.
+- **`expander`** on the LED is 0 when `r`/`g`/`b` are GPIOs. A board whose
+  LED hangs off an AW9523 I2C expander puts that expander's address here,
+  and `r`/`g`/`b` become its ports (0..15); each channel is then on or off.
 - **`bootPin`** is the BOOT key, which nearly every ESP32 board brings out on
   GPIO0 because the ROM needs it for serial download mode. The firmware reads
   it only at runtime, as a shortcut to Home; holding it while the board starts

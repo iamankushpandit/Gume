@@ -526,9 +526,10 @@ public:
 
     void setRgb(bool red, bool green, bool blue);
 
-    /* RGB backlight LED (GPIO 4/16/17, common anode so the drive is inverted).
-     * Driven by LEDC PWM for full-brightness colour mixing -- bright enough to
-     * light a translucent case. setRgbColor() holds a colour; pulseRgb() shows
+    /* The RGB case LED, wherever BOARD.rgb puts it. On GPIOs it is driven by
+     * LEDC PWM for full-brightness colour mixing -- bright enough to light a
+     * translucent case; on an I2C expander each channel is on or off, and
+     * only a change of colour reaches the bus. setRgbColor() holds a colour; pulseRgb() shows
      * one for a moment and then fades out via tickRgb(), which the main loop
      * calls every frame. */
     void setRgbColor(uint8_t r, uint8_t g, uint8_t b);
@@ -823,6 +824,10 @@ private:
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;
+    /* What an expander LED was last driven to, one bit a channel; 0xFF until
+     * the first write, so that one is never skipped. */
+    uint8_t rgbExpanderBits_ = 0xFF;
+    void driveExpanderRgb(bool red, bool green, bool blue);
     uint32_t lastTimeSyncMs_ = 0;
     time_t lastTimeSyncEpoch_ = 0;
     static constexpr uint8_t NETWORK_ACTIVITY_CAP = 8;

@@ -763,6 +763,14 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   code is. **Nothing may become reachable only by key**, exactly as with
   BOOT. The direction mapping has not been seen on a device; the sign to
   change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
+- **An LED can live on an I2C expander, and then it is on or off.**
+  `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)
+  or an AW9523's address, with `r`/`g`/`b` as its ports -- the Attaky Core's
+  P1_0..P1_2. `BoardExpander::driveLed()` reads, modifies and writes only
+  those bits, because P1_3 beside them is the touch reset, and
+  `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
+  the channels at least half as bright as its brightest, and the bus is
+  written only when that changes -- the saver sets a colour per rally.
 - **A power key's short press is the Lock button.** `KeysProfile::keyPower`
   names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
   `NavKey::Power`, which the runtime consumes above the active screen --

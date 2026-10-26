@@ -146,6 +146,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* GPIO26 is ESP32 DAC channel 2, driven through I2S_DAC_BUILT_IN into an

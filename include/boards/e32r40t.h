@@ -174,6 +174,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* Vendor-documented, not inferred. The LCDWIKI schematic for this board

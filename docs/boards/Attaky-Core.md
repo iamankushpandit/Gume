@@ -65,6 +65,12 @@ button does. Its long press is Attaky's hardware power switch and the
 firmware never sees it. Worth checking that a short press goes dark and
 wakes to Hold to unlock, and that a long press still switches off.
 
+**The status LED answers as it does on the other boards** -- green and red
+with the right and wrong sounds, the screen saver's rally colour -- through
+the same I2C expander as the keys. Each colour is on or off there, so it shows
+seven colours rather than a blend. Worth checking that green is green: red,
+green and blue are stated as the catalog states them.
+
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
 doing what DEL and OK do. The name fields take capitals, digits and spaces, as
@@ -73,7 +79,7 @@ Shift for capitals. The on-screen keypad stays: the module clips off, and the
 firmware checks for it at boot.
 
 Left out on purpose, not broken: the battery gauge (a MAX17048 fuel
-gauge rather than a voltage divider), the status LED (on the I2C expander), the
+gauge rather than a voltage divider), the
 gamepad, and the D-pad on any screen but the launcher. Touch is the console's
 input on every board.
 
@@ -105,6 +111,7 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | Panel | 240 x 320, ST7789 driver |
 | Touch | capacitive, I2C; reset on port P1_3 of the I2C expander at 0x59 |
 | Sound | I2S amplifier with no codec (BCLK GPIO17, WS GPIO21, data GPIO18) |
+| RGB LED | ports P1_0 red, P1_1 green, P1_2 blue of the I2C expander at 0x59, each channel on or off |
 | Battery sense | **none read** -- no battery badge |
 | Flash | 16 MB |
 

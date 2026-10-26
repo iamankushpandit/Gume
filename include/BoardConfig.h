@@ -250,6 +250,21 @@ static_assert(!BOARD.hasNavKeys()
                       && gumeKeyPortOk(BOARD.keys.keyPower)),
               "navigation keys need a capacitive board's I2C bus and ports in 0..15");
 
+/* An LED on an expander rides the same bus, and must keep off the touch
+ * reset: the LED driver rewrites its own ports' bits, and a reset port among
+ * them would be a touch controller held in reset by a colour. */
+constexpr bool gumeLedPortOk(int8_t port) {
+    return port == PIN_NONE ||
+           (port >= 0 && port < 16 &&
+            !(BOARD.rgb.expander == BOARD.touch.resetExpanderAddress &&
+              port == BOARD.touch.resetExpanderPort));
+}
+static_assert(BOARD.rgb.expander == 0
+                  || (BOARD.touch.isCapacitive() && gumeLedPortOk(BOARD.rgb.r)
+                      && gumeLedPortOk(BOARD.rgb.g) && gumeLedPortOk(BOARD.rgb.b)),
+              "an RGB LED on an expander needs a capacitive board's I2C bus, "
+              "ports in 0..15, and none of them the touch reset");
+
 /* A keyboard rides the same I2C bus, and each layout is exactly the 25
  * positions of one half's matrix -- a short string would read past its end
  * at the first key in a row it did not cover. */

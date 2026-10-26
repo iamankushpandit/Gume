@@ -243,12 +243,19 @@ struct SdProfile {
 
 /* Status LED. `commonAnode` boards sink current, so a channel lights when the
  * line is driven LOW -- getting this backwards is a lit LED that never goes
- * out, not a dark one. */
+ * out, not a dark one.
+ *
+ * `expander` 0 means r/g/b are GPIOs, dimmed by LEDC PWM. Otherwise it is
+ * the I2C address of the AW9523 the LED hangs off -- the Attaky Core's -- and
+ * r/g/b are its ports, 0..15 as in KeysProfile. Those are driven in the
+ * expander's GPIO mode, so each channel is simply on or off: a colour asked
+ * for is shown as the channels at least half as bright as its brightest. */
 struct RgbLedProfile {
-    int8_t r;
-    int8_t g;
-    int8_t b;
-    bool   commonAnode;
+    int8_t  r;
+    int8_t  g;
+    int8_t  b;
+    bool    commonAnode;
+    uint8_t expander;             // an AW9523's I2C address, or 0 for GPIOs
 };
 
 /* How a board makes a sound, if it can.

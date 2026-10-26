@@ -1511,7 +1511,7 @@ src/
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
-    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset
+    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED
     BoardKeys.cpp       navigation keys (D-pad, Enter, Back) on an expander
     BoardKeyboard.cpp   a clip-on typing keyboard, scanned as two matrices
     NavKeys.h           the key event screens read, already in screen terms

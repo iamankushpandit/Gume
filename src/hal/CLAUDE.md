@@ -238,6 +238,8 @@ reach the speaker? Is output level audible? Where does distortion begin?
 
 LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
 
+**On an I2C expander it is on or off.** When `BOARD.rgb.expander` is set -- the Attaky Core, red P1_0, green P1_1, blue P1_2 on the AW9523 at 0x59 -- `r`/`g`/`b` are that expander's ports and there is no LEDC: `Board::begin()` calls `BoardExpander::setupLed()` once the touch reset has been released (that release writes the whole bank), and `setRgb()`/`setRgbColor()` go through `driveExpanderRgb()`. A colour is shown as the channels at least half as bright as its brightest (`litAtAll()`), so grey is white and orange is red. Every write is a read-modify-write of the LED's own bits -- P1_3 beside them is the touch reset -- and a failed read writes nothing rather than guessing the rest of the byte. `rgbExpanderBits_` skips the bus entirely when the colour has not changed, which matters because the saver sets one per rally and the lock screen clears it on entry. GPIO mode, not the AW9523's LED current mode: dimming would be a register per channel and a second way to get the anode wrong, for a status light.
+
 The E32R28T-1's LED is red IO22, green IO16, blue IO17, per the vendor's table; IO4 is the amplifier enable, active low. It used to be declared `rgb.r = 16`, `rgb.g = 4` as "crossed" -- the evidence for that was IO16 being green, and driving IO4 as an LED held the amplifier in shutdown.
 
 ### Wi-Fi and time
@@ -276,7 +278,7 @@ A typing keyboard, where one is clipped on: Attaky's two-half module, each half 
 
 One character a frame: a letter (lower case, upper while Shift is held), a digit, space or the punctuation on the keys as itself, `'\b'` for Delete (repeating while held) and `'\n'` for Enter. A failed read keeps the last state, as the D-pad's does. Not yet seen on a device.
 
-`BoardExpander.cpp` holds the AW9523 writes, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
+`BoardExpander.cpp` holds the AW9523 writes -- the status LED's (see RGB LED above) and these, all at boot: the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Attaky's keys need nothing more) and `allInputs()` for a key expander that is not the reset's. All of it is capacitive-only, because only those builds carry Wire.
 
 ## Clock.{h,cpp}
 

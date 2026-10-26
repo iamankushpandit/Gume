@@ -155,6 +155,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* GPIO26 (DAC channel 2) feeds an onboard SC8002B amplifier and the JST

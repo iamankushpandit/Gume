@@ -151,6 +151,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ PIN_NONE,
         /* commonAnode */ false,
+        /* expander    */ 0,
     },
 
     /* ES8311 codec on the SAME I2C bus as touch, at 0x18, plus a five-wire
