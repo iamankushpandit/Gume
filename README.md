@@ -1019,6 +1019,11 @@ long before this firmware runs. **RESET**, beside it, cannot be given a job at
 all: it pulls the chip's enable line, so there is no software on either side of
 it to notice.
 
+On the **Attaky Core** the power key's short press does what the on-screen
+Lock button does: the screen goes dark and comes back to **Hold to unlock**.
+Its long press switches the console off in hardware, as Attaky built it; the
+firmware never sees that press and does nothing with it.
+
 ### Scores, Profiles, About and System Info
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:

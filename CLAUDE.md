@@ -763,6 +763,15 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   code is. **Nothing may become reachable only by key**, exactly as with
   BOOT. The direction mapping has not been seen on a device; the sign to
   change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
+- **A power key's short press is the Lock button.** `KeysProfile::keyPower`
+  names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
+  `NavKey::Power`, which the runtime consumes above the active screen --
+  on the launcher too -- and turns into `lockAndSleepNow()`; no screen ever
+  sees it. It follows BOOT's rules: it counts as activity, wakes a sleeping
+  panel and dismisses the saver like any key, does nothing on the lock
+  screen, and reaches nothing the padlock does not. The long press switches
+  the power in hardware and never reaches the firmware -- build nothing on
+  it.
 - **A physical keyboard types into the text fields, beside the on-screen
   keypad and never instead of it.** `KeyboardProfile` names the two halves
   of Attaky's clip-on keyboard and spells out each half's 25 positions;

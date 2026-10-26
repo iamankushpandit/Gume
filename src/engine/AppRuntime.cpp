@@ -299,12 +299,23 @@ void BrainoApp::loop() {
          * this to the release edge first; hal/BoardButton.cpp says the same
          * thing from the other end. */
         /* Back is Home too, on the boards with keys, and for the same reasons.
-         * Every other key goes to the active screen through navKey(). */
-        const bool bootHome = (boot.justPressed || nav == NavKey::Back) &&
+         * Every other key goes to the active screen through navKey().
+         *
+         * A power key's short press is the Lock button, consumed up here for
+         * the reason Lock's tap is, and on the launcher too, which has a Lock
+         * badge of its own. Like BOOT it is a shortcut and nothing more: it
+         * wakes a sleeping panel and dismisses the saver exactly as any key
+         * does (above), and it does nothing on the lock screen, which takes no
+         * key at all. */
+        const bool powerLock = nav == NavKey::Power;
+        const bool bootHome = !powerLock &&
+                              (boot.justPressed || nav == NavKey::Back) &&
                               activeGame_ != &launcher_;
-        frameNav_ = bootHome ? NavKey::None : nav;
-        frameTyped_ = bootHome ? 0 : typed;
-        if (bootHome) {
+        frameNav_ = (bootHome || powerLock) ? NavKey::None : nav;
+        frameTyped_ = (bootHome || powerLock) ? 0 : typed;
+        if (powerLock) {
+            lockAndSleepNow();
+        } else if (bootHome) {
             goHome();
         } else if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {

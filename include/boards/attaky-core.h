@@ -133,9 +133,11 @@ inline constexpr BoardProfile BOARD = {
      * catalog and the Core datasheet: DOWN P0_0, LEFT P0_1, ENTER P0_2,
      * RIGHT P0_3, UP P0_4. Back is the top-left shoulder key, L1, on P0_5.
      * Board::begin() already leaves every port but the touch reset an input.
-     * R1 (P0_6) and the power key's short press (P0_7) are not read. Which
-     * key is which has not been seen on a device; the directions are stated
-     * as the catalog states them. */
+     * The power key's SHORT press is P0_7 and locks the console, as the Lock
+     * button does; its long press switches the power in hardware and never
+     * reaches the firmware. R1 (P0_6) is not read. Which key is which has not
+     * been seen on a device; the directions are stated as the catalog states
+     * them. */
     KeysProfile{
         /* keyExpander   */ 0x59,
         /* keyUp         */ 4,
@@ -144,6 +146,7 @@ inline constexpr BoardProfile BOARD = {
         /* keyRight      */ 3,
         /* keyEnter      */ 2,
         /* keyBack       */ 5,
+        /* keyPower      */ 7,
         /* keysActiveLow */ true,
     },
 

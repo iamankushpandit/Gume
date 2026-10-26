@@ -65,6 +65,14 @@ the loop at one register a half while nobody types. Boards without one carry
 400 bytes for it. Not yet run on a device. The Wi-Fi and Profiles screens
 were each split into two files first, past the size CLAUDE.md allows.
 
+**The Attaky Core's power key locks it.** A short press of the power key
+does what the on-screen Lock button does: the panel goes dark and wakes to
+Hold to unlock. It is read beside the D-pad, from P0_7 of the same expander,
+through a new `KeysProfile::keyPower`, and follows BOOT's rules -- it wakes
+the panel and stops the saver like any key, does nothing on the lock screen,
+and reaches nothing touch cannot. The long press is Attaky's hardware power
+switch and is left alone. Not yet run on a device.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was

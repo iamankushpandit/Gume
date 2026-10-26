@@ -60,6 +60,11 @@ the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
 from any other screen, as BOOT is. Worth checking that each direction moves
 the way it points, in landscape and in portrait.
 
+**A short press of the power key locks the console**, as the on-screen Lock
+button does. Its long press is Attaky's hardware power switch and the
+firmware never sees it. Worth checking that a short press goes dark and
+wakes to Hold to unlock, and that a long press still switches off.
+
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
 doing what DEL and OK do. The name fields take capitals, digits and spaces, as

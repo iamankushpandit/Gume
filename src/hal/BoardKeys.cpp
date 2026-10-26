@@ -30,7 +30,7 @@
  *
  *  - A held direction repeats, after NAV_REPEAT_DELAY_MS and then every
  *    NAV_REPEAT_EVERY_MS, because walking a 47-tile launcher one press per
- *    tile is tiresome. Enter and Back never repeat: a held Enter opening one
+ *    tile is tiresome. Enter, Back and Power never repeat: a held Enter opening one
  *    screen after another is not something anybody means.
  *  - At most one event per frame. Two keys pressed in the same 20ms are rare
  *    enough that the second simply waits; inventing a queue for it would be
@@ -49,6 +49,8 @@ constexpr uint8_t AW9523_INPUT_P0 = 0x00;   // P1 is the register after it
 uint8_t bitOf(NavKey key) {
     return static_cast<uint8_t>(1u << static_cast<uint8_t>(key));
 }
+static_assert(static_cast<uint8_t>(NavKey::Power) < 8,
+              "navDown_ holds one bit per NavKey in a byte");
 
 bool isDirection(NavKey key) {
     return key == NavKey::Up || key == NavKey::Right ||
@@ -93,8 +95,11 @@ NavKey Board::pollNavKey() {
         NavKey key;
         int8_t port;
     } wiring[] = {
-        /* Enter and Back first: if one lands in the same frame as a direction,
-         * it is the one that means something. */
+        /* Power, Enter and Back first: if one lands in the same frame as a
+         * direction, it is the one that means something -- and locking wins
+         * over everything, because it is the one a person reaches for in a
+         * hurry. */
+        {NavKey::Power, BOARD.keys.keyPower},
         {NavKey::Enter, BOARD.keys.keyEnter}, {NavKey::Back, BOARD.keys.keyBack},
         {NavKey::Up, BOARD.keys.keyUp},       {NavKey::Down, BOARD.keys.keyDown},
         {NavKey::Left, BOARD.keys.keyLeft},   {NavKey::Right, BOARD.keys.keyRight},

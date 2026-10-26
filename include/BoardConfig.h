@@ -246,7 +246,8 @@ static_assert(!BOARD.hasNavKeys()
                   || (BOARD.touch.isCapacitive()
                       && gumeKeyPortOk(BOARD.keys.keyUp) && gumeKeyPortOk(BOARD.keys.keyDown)
                       && gumeKeyPortOk(BOARD.keys.keyLeft) && gumeKeyPortOk(BOARD.keys.keyRight)
-                      && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)),
+                      && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)
+                      && gumeKeyPortOk(BOARD.keys.keyPower)),
               "navigation keys need a capacitive board's I2C bus and ports in 0..15");
 
 /* A keyboard rides the same I2C bus, and each layout is exactly the 25

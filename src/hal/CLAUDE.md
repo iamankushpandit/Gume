@@ -264,6 +264,8 @@ Two things it deliberately does not do. It never reads the key during boot — B
 
 Navigation keys -- a D-pad, Enter and Back -- on the boards that have them, which today is the Attaky Core, whose face keys are ports of an AW9523 I2C expander on the touch bus. `KeysProfile` names the expander and each key's port; `pollNavKey()` reads one input register per frame from the loop, beside the BOOT key and for the same reason touch is read there: it is input, a few bytes on a bus that already carries a touch read every frame, not a sensor whose sampling belongs on a task. A failed read keeps the last state, so a bus glitch cannot invent a press. A held direction repeats (400 ms, then every 140 ms); Enter and Back never do. One event per frame.
 
+`keyPower` is the same kind of port, for a power key's short press; it comes back as `NavKey::Power`, never repeats, and wins over every other key in the same frame. The runtime consumes it as the Lock button, so no screen sees it. A long press that switches the power in hardware is invisible to this code by construction.
+
 **The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns them by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Not yet seen on a device with keys**: if portrait or flipped is wrong and landscape is right, the sign in that one function is the whole fix.
 
 ## BoardKeyboard.cpp

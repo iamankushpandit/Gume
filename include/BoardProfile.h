@@ -186,6 +186,10 @@ struct ButtonProfile {
  * is held at its landscape rotation. Board::pollNavKey() turns them into
  * screen directions for whatever rotation is current.
  *
+ * `keyPower` is a power key's SHORT press, where the board reports one to
+ * the firmware at all -- the runtime treats it as the Lock button. A long
+ * press that switches the power in hardware is not the firmware's to see.
+ *
  * Optional, like the BOOT key: keyExpander 0 is a board without them, every
  * caller is guarded by hasNavKeys(), and nothing may become reachable only
  * through a key. */
@@ -197,6 +201,7 @@ struct KeysProfile {
     int8_t  keyRight;
     int8_t  keyEnter;
     int8_t  keyBack;
+    int8_t  keyPower;             // a power key's short press: Lock
     bool    keysActiveLow;        // pulled up, shorted to ground when pressed
 };
 
