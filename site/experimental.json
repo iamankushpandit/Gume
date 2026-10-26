@@ -13,6 +13,20 @@
       "artifact": "braino-app_esp32_2432s028_st7789",
       "added": "2026-10-26",
       "test": "Flash it on a dual-USB CYD that draws washed-out colours under the inverted-panel image. Check that the colours are right in every theme (Settings, Device, Theme), that touch lands where you tap after the calibration wizard, and that the picture is the right way up in all four positions of the Layout button. Reply in the issue with a photo of the launcher under this build, and of anything that looks wrong."
+    },
+    {
+      "id": "attaky-core",
+      "title": "Attaky Core, as built into the Cyber Deck Plus",
+      "board": "attaky_core",
+      "env": "app_attaky_core",
+      "chip": "ESP32-S3",
+      "label": "2.0-inch, capacitive touch, one USB-C port -- Attaky Core 1.0 in a Cyber Deck Plus, ESP32-S3 (ST7789 + FT6636)",
+      "issue": 214,
+      "branch": "feat/board-attaky-core",
+      "run": 40390886553,
+      "artifact": "braino-app_attaky_core",
+      "added": "2026-10-23",
+      "test": "This port was written from Attaky's documents and has never run on a device, so everything is worth checking. Flash it on a Cyber Deck Plus (or any Attaky Core build) and check that the picture is the right way up in all four positions of Settings, Device, Layout; that touch lands where you tap in each of them; that the colours are right in every theme; and that an SD card is seen. With the Media I/O module it should speak at boot and make its sounds; say whether the volume is too loud or too quiet. The battery badge should show a percentage close to what Attaky's own firmware shows. A short press of the power key should lock it, and the status LED should flash green on a right answer and red on a wrong one. On the home screen the D-pad should move a ring between the tiles in the direction each key points, in landscape and in portrait; Enter opens the tile, and the top-left shoulder key goes back home. With the keyboard clipped on, type a new player's name, the admin PIN and a Wi-Fi password. On a LoRa or radio build it should run silently without the SD card. System Info should give the firmware as 1.0.0-SNAPSHOT with a Braino row beneath it. Reply in the issue with a photo of the launcher and of anything that looks wrong."
     }
   ]
 }
