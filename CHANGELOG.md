@@ -11,13 +11,14 @@ The same board as the inverted-panel ESP32-2432S028, sold under the same
 listings, with a different display controller inside -- and under the
 inverted-panel image it draws correctly but washed out
 ([issue 200](https://github.com/iamankushpandit/Gume/issues/200)). The new
-`app_esp32_2432s028_st7789` image tells the panel the ST7789 sequence and no
-inversion, from the `CYD2USB` setup the reporter runs it with, and the colour
-order the reporter measured: that setup's BGR drew red as blue on the board,
-so the profile says RGB. Every pin is the inverted board's. The maintainer
-does not own this glass, so the profile was written from the report and each
-build sent to the reporter to confirm; `docs/boards/ESP32-2432S028-st7789.md`
-says what has been checked. The installer offers it beside the inverted image, and both
+`app_esp32_2432s028_st7789` image tells the panel the ST7789 sequence in
+BGR order, from the `CYD2USB` setup the reporter runs it with, plus the
+runtime inversion the inverted-panel board already uses -- measured from the
+reporter's photographs over three builds, because a written "the colours are
+swapped" cannot tell inversion from colour order. Every pin is the inverted
+board's; the two profiles differ in the driver line alone. The maintainer
+does not own this glass, so each build was sent to the reporter to confirm;
+`docs/boards/ESP32-2432S028-st7789.md` says what has been checked. The installer offers it beside the inverted image, and both
 pages say how to tell the two apart: flash the ST7789 image first, and every
 colour wrong means the ILI9341 glass.
 

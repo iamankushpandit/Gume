@@ -35,14 +35,23 @@
  * the display.
  *
  * HOW THIS ONE WAS ESTABLISHED. Reported in issue 200 by an owner of the
- * board: the inverted image draws it correctly but washed out. The first
- * build sent to the reporter used the CYD2USB setup from witnessmenow's
- * ESP32-Cheap-Yellow-Display repository as it stands -- the ST7789
- * sequence, BGR order, no inversion -- and the reporter measured it: vivid
- * colours, the dark theme dark, touch and all four rotations right, and red
- * drawn as blue. That is the colour-order bit alone, so the order is RGB
- * (platformio.ini says why) and the rest of that setup stands. The
- * maintainer does not own this glass; every display fact here is the
+ * board: the inverted image draws it correctly but washed out. Three builds
+ * went to the reporter, and the answer came from their photographs, not
+ * from the words:
+ *
+ *   ST7789, BGR, no inversion     every colour inverted (described as
+ *                                 "vivid but red is blue")
+ *   ST7789, RGB, no inversion     inverted AND red/blue exchanged: the
+ *                                 launcher's blue, teal and coral tiles
+ *                                 drew blue, blue and yellow, and the
+ *                                 Dark theme drew white where black is
+ *   ST7789, BGR + invertColours   this file
+ *
+ * The lesson is the inverted sibling's again: a report that the colours
+ * are "swapped" cannot tell inversion from colour order, because inverted
+ * red IS cyan. Ask for a photograph of the launcher, whose three tile
+ * fills and two themes are known values, and read the mapping off it.
+ * The maintainer does not own this glass; every display fact here is the
  * reporter's measurement, and the docs page says what was confirmed when.
  *
  * NOT TO BE CONFUSED WITH the Rv3 profile that existed until 5.10.0, which
@@ -72,7 +81,7 @@ inline constexpr BoardProfile BOARD = {
         /* portraitRotation     */ 0,
         /* backlightPin         */ 21,
         /* backlightActiveHigh  */ true,
-        /* invertColours        */ false,
+        /* invertColours        */ true,
     },
 
     /* Measured working on this board. */

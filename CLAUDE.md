@@ -1523,6 +1523,14 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   that was tried on the bench and looked like the flag being ignored. The fix
   is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
   `invertDisplay()` after `init()` and before anything is drawn.
+- **A colour report in words cannot tell inversion from colour order.**
+  Inverted red is cyan, which a person calls "blue", so "red comes out blue"
+  is read as the BGR bit and is just as likely the inversion. Issue 200's
+  board took three builds for that reason: the first report in words was
+  fitted to the wrong fault, and the photographs that followed fitted every
+  colour on the screen to inversion plus a red/blue swap at once. Ask for a
+  photograph of the launcher -- its three tile fills and two themes are
+  known values -- and read the mapping off it before changing a flag.
 - **The boot log states what the board IS.** `[boot] device=...` is the
   firmware's own id (`Board::deviceId()`), never the MAC -- see "No identifiers
   in this repository". `board=` and `panel=` are compiled in and therefore
