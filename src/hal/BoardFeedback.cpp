@@ -40,7 +40,7 @@ void writeRgbChannel(int8_t pin, uint8_t channel, uint8_t level) {
     ledcWrite(channel, BOARD.rgb.commonAnode ? 255 - level : level);
 }
 
-#if GUME_TOUCH_CAPACITIVE
+#if GUME_HAS_IO_EXPANDER
 /* An LED on an expander is on or off per channel, so a colour becomes the
  * channels at least half as bright as its brightest: the lock pulse's grey
  * stays white, the saver's orange becomes red rather than yellow, and black
@@ -55,7 +55,7 @@ bool litAtAll(uint8_t level, uint8_t brightest) {
  * driven LOW. A board that wires the LED the other way says so in its profile
  * rather than needing this inverted here. */
 void Board::setRgb(bool red, bool green, bool blue) {
-#if GUME_TOUCH_CAPACITIVE
+#if GUME_HAS_IO_EXPANDER
     if (BOARD.rgb.expander != 0) {
         driveExpanderRgb(red, green, blue);
         return;
@@ -207,22 +207,18 @@ bool Board::setPeerName(const char* deviceId, const char* name) {
 /* Only when the colour changes: the saver sets one per rally and the lock
  * screen clears it on entry, and each would otherwise be two I2C
  * transactions to write what is already there. */
+#if GUME_HAS_IO_EXPANDER
 void Board::driveExpanderRgb(bool red, bool green, bool blue) {
-#if GUME_TOUCH_CAPACITIVE
     const uint8_t bits = static_cast<uint8_t>((red ? 4 : 0) | (green ? 2 : 0) | (blue ? 1 : 0));
     if (bits == rgbExpanderBits_) return;
     rgbExpanderBits_ = bits;
     BoardExpander::driveLed(red, green, blue);
-#else
-    (void)red;
-    (void)green;
-    (void)blue;
-#endif
 }
+#endif
 
 void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {
     if (!BOARD.hasRgbLed()) return;
-#if GUME_TOUCH_CAPACITIVE
+#if GUME_HAS_IO_EXPANDER
     if (BOARD.rgb.expander != 0) {
         rgbR_ = r;
         rgbG_ = g;

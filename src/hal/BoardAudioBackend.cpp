@@ -19,6 +19,10 @@
 #include <string.h>
 #endif
 
+#if GUME_HAS_AUDIO_I2S
+#include "modules/Modules.h"
+#endif
+
 #if GUME_HAS_AUDIO_DAC
 #include <driver/dac_common.h>
 #include <driver/rtc_io.h>
@@ -489,13 +493,14 @@ void Board::beginAudio() {
      * NOT when another Expand module owns these lines. BCLK, WS and DOUT are
      * IO17, IO21 and IO18 -- the LoRa/GPS module's GPS UART (IO17 is the GPS
      * chip's TX, an output this would fight) and its radio's DIO1, or the
-     * FM/AM module's own I2S. probeExpandModule() has already looked, and
-     * anything but Media I/O-or-nothing leaves the console silent for the
-     * boot, exactly as it leaves the SD slot down. Silent is the state an
-     * install failure already produces, so nothing downstream is new. */
-    if (expandModule_ != ExpandModule::NoneOrMedia) {
-        Serial.printf("[audio] I2S amp not started: Expand module %s owns its lines; "
-                      "console will be silent\n", expandModuleName(expandModule_));
+     * FM/AM module's own I2S. The module table has already decided the
+     * Expand slot (hal/modules/), and anything but Media I/O-or-nothing
+     * leaves the console silent for the boot, exactly as it leaves the SD
+     * slot down. Silent is the state an install failure already produces, so
+     * nothing downstream is new. */
+    if (!Modules::allows(ModuleCapability::Sound)) {
+        Serial.printf("[audio] I2S amp not started: another Expand module owns its "
+                      "lines (see [expand]); console will be silent\n");
         return;
     }
     if (BOARD.audio.ampEnablePin != PIN_NONE) {

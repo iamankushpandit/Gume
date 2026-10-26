@@ -18,8 +18,33 @@ they stand. The profile, `include/boards/attaky-core.h`, was written from
 Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
-has to confirm. Touch, the display and the SD slot are wired, and the
-gamepad is not read: touch stays the input on every board.
+has to confirm. Touch, the display and the SD slot are wired.
+
+**One firmware for every Attaky build: what is clipped on is found at boot.**
+Every Attaky module this firmware knows -- the keyboard, the gamepad, the
+Power module's fuel gauge, and each Expand module (Media I/O, LoRa/GPS,
+FM/AM) -- is now one entry in a module table (`src/hal/modules/`), with a
+name, a boot-time probe and what it gives the console. The board profile says
+where each module could be; boot decides whether it is there, and nothing a
+module gives is used unless its probe found it. The keyboard, gauge and
+Expand checks moved behind the table and behave as they did -- the same
+probes, the same `[keyboard]`, `[battery]` and `[expand]` log lines -- and a
+module Attaky adds later is one driver file plus its addresses in the profile,
+with nothing else changed. **System Info -> Board** and a new **About ->
+Modules** page list every module and whether it was found, read from the
+table. Not yet run on a device.
+
+**The Attaky Core reads its gamepad.** Its D-pad, A and B join the Core's own
+D-pad as navigation keys -- A is Enter, B is Back -- so they move the
+launcher's ring, repeat when held and turn with the screen exactly as the
+Core's keys do. One register a half per frame, from the two TCA9555s at 0x22
+and 0x26, and only when the module answered at boot. Not yet run on a device.
+
+**No Attaky code in any other image.** The key routing, the keyboard and
+gamepad, the expander LED, the fuel gauge and the module table are behind
+board-header macros defined only for the Attaky Core, so the other five
+product images carry none of it: no symbol of it in their ELF, and their RAM
+is back to `dev`'s figure.
 
 **The Attaky Core's battery badge reads its fuel gauge.** It has no divider:
 the Power: Standard Cell module reports the cell through a MAX17048 on the

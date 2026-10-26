@@ -149,6 +149,18 @@ inline constexpr BoardProfile BOARD = {
         /* rightLayout   */ nullptr,
     },
 
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padUp            */ PIN_NONE,
+        /* padDown          */ PIN_NONE,
+        /* padLeft          */ PIN_NONE,
+        /* padRight         */ PIN_NONE,
+        /* padA             */ PIN_NONE,
+        /* padB             */ PIN_NONE,
+    },
+
     /* Vendor-documented: the MicroSD slot shares its bus with the SPI
      * peripheral header, which is why IO18/19/23 appear in both places in the
      * pin table. Only the card select is the slot's alone. */

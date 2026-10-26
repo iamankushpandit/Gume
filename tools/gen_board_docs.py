@@ -116,6 +116,17 @@ def profile(header):
             "dac": bool(re.search(r"#define\s+GUME_HAS_AUDIO_DAC\s+1", text)),
             "codec": bool(re.search(r"#define\s+GUME_HAS_AUDIO_CODEC\s+1", text)),
             "i2s": bool(re.search(r"#define\s+GUME_HAS_AUDIO_I2S\s+1", text))}
+    # A field written from a board-header macro -- `(GUME_HAS_X ? 0x22 : 0)`,
+    # the way the touch kind is -- is resolved against that header's own
+    # #defines, so the document states the value the build gets.
+    defines = dict(re.findall(r"#define\s+(GUME_\w+)\s+(\d+)", text))
+
+    def resolve(value):
+        t = re.fullmatch(r"\(\s*(GUME_\w+)\s*\?\s*([^:]+?)\s*:\s*([^)]+?)\s*\)", value)
+        if not t:
+            return value
+        return t.group(2) if defines.get(t.group(1), "0") != "0" else t.group(3)
+
     section = None
     for line in text.splitlines():
         s = next((x for x in SECTIONS if re.match(r"\s*%s\s*\{" % x, line)), None)
@@ -125,7 +136,7 @@ def profile(header):
             continue
         f = re.match(r"\s*/\*\s*(\w+)\s*\*/\s*(.+?),?\s*(//.*)?$", line)
         if f and section:
-            prof[section][f.group(1)] = f.group(2).rstrip(",").strip()
+            prof[section][f.group(1)] = resolve(f.group(2).rstrip(",").strip())
     return prof
 
 

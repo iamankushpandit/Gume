@@ -164,16 +164,21 @@ public:
     };
     ButtonEvent pollBootButton();
 
-    /* This frame's navigation key, in screen directions, or None. Called once
-     * per frame by the runtime, beside pollBootButton(). Always None on a
-     * board without keys. See hal/BoardKeys.cpp. */
+#if GUME_HAS_NAV_KEYS
+    /* This frame's navigation key, in screen directions, or None: the board's
+     * own D-pad and any clipped-on module's, as one stream. Called once per
+     * frame by the runtime, beside pollBootButton(). Only on a board with
+     * GUME_HAS_NAV_KEYS; no other image has it. See hal/BoardKeys.cpp. */
     NavKey pollNavKey();
+#endif
 
+#if GUME_HAS_KEYBOARD
     /* This frame's typed character from an attached keyboard, or 0: a
      * printable ASCII character, '\b' for Delete or '\n' for Enter. Always 0
-     * on a board without one, or with the module unclipped. See
-     * hal/BoardKeyboard.cpp. */
+     * with the module unclipped. Only on a board with GUME_HAS_KEYBOARD. See
+     * hal/modules/KeyboardModule.cpp. */
     char pollTypedChar();
+#endif
 
     void beepOk();
     void beepError();
@@ -632,23 +637,14 @@ private:
     TouchPoint lastTouch_;
     /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
     bool bootButtonDown_ = false;
+#if GUME_HAS_NAV_KEYS
     /* Navigation keys: which were down last frame (one bit per NavKey), and
      * the held direction's next auto-repeat, for pollNavKey(). */
     uint8_t navDown_ = 0;
     NavKey navHeld_ = NavKey::None;
     uint32_t navRepeatAtMs_ = 0;
-    /* The keyboard: whether both halves answered at boot, which positions
-     * were down last frame (25 bits a half), and Delete's auto-repeat. */
-    bool keyboardPresent_ = false;
-    uint32_t keyboardDown_[2] = {0, 0};
-    uint32_t keyboardRepeatAtMs_ = 0;
+#endif
     bool sdMounted_ = false;
-    /* What probeExpandModule() found on a board whose SD lines an Expand
-     * module may own. Anything but NoneOrMedia leaves the SD slot alone. */
-    enum class ExpandModule : uint8_t { NoneOrMedia, FmAm, LoraGps, ProbeError };
-    ExpandModule expandModule_ = ExpandModule::NoneOrMedia;
-    void probeExpandModule();
-    static const char* expandModuleName(ExpandModule module);
     uint8_t displayRotation_ = 1;
 
     enum class TimeSyncState : uint8_t { Idle, Connecting, Syncing, Synced };
@@ -805,15 +801,14 @@ private:
 
     void beginBatteryMonitor();
     void sampleBattery();
-    /* The MAX17048 path of sampleBattery(), on a board whose profile names a
-     * fuel gauge. Defined only in capacitive builds, which carry Wire. */
-    void sampleFuelGauge();
+#if GUME_HAS_ATTAKY_MODULES
+    /* The battery module's path of sampleBattery(): whatever the module table
+     * reads, on a board whose profile names a fuel gauge. BoardModules.cpp. */
+    void sampleModuleBattery();
+#endif
     /* The deadband both paths share: moves displayPct_ towards a fresh raw
      * percentage only when it has genuinely moved. Battery task only. */
     void settleDisplayPercent(int8_t raw);
-    /* Whether the gauge answered last time: -1 not yet asked, 0 no, 1 yes.
-     * Battery task only; it exists so the log says when that changes. */
-    int8_t fuelGaugeAnswered_ = -1;
     BatteryPublic batterySnapshot();
     static void batteryTask(void* arg);
 
@@ -839,10 +834,12 @@ private:
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;
+#if GUME_HAS_IO_EXPANDER
     /* What an expander LED was last driven to, one bit a channel; 0xFF until
      * the first write, so that one is never skipped. */
     uint8_t rgbExpanderBits_ = 0xFF;
     void driveExpanderRgb(bool red, bool green, bool blue);
+#endif
     uint32_t lastTimeSyncMs_ = 0;
     time_t lastTimeSyncEpoch_ = 0;
     static constexpr uint8_t NETWORK_ACTIVITY_CAP = 8;

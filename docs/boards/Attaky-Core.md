@@ -23,9 +23,20 @@ lines are that module's GPS, radio or tuner lines -- and the serial log says
 So this firmware runs on Attaky's LoRa and radio builds of the Core too,
 without SD or sound. Media I/O cannot be recognised -- it has nothing a host
 can ask -- so finding neither (`module=none-or-media`) brings both up as
-before. The gamepad is harmless
-either way: the firmware does not talk to it. The keyboard is read when it
-is clipped on, and the battery module's fuel gauge whenever it answers.
+before. The keyboard and the gamepad are read when they are clipped on, and
+the battery module's fuel gauge whenever it answers.
+
+**One image for every Attaky build.** Which modules are on is not something
+the firmware is told: the board profile says where each one would be, and boot
+looks. Every module -- keyboard, gamepad, the Power module's fuel gauge, and
+each Expand module -- is one entry in a module table with its own probe and a
+statement of what it gives the console (keys, typing, a battery reading, the
+SD slot, sound); nothing a module gives is used unless its probe found it. The
+serial log says what was found, one `[module]` line each plus the `[expand]`
+line, and **System Info -> Board -> Module** and **About -> Modules** list
+every module with "Found", "Not found", or "Assumed" for Media I/O, which can
+only be inferred. Supporting a module Attaky adds later is one driver file in
+`src/hal/modules/` and its addresses in `include/boards/attaky-core.h`.
 
 ## What has been checked on this board
 
@@ -73,6 +84,21 @@ the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
 from any other screen, as BOOT is. Worth checking that each direction moves
 the way it points, in landscape and in portrait.
 
+**So does the gamepad, when it is clipped on.** Its D-pad, A (Enter) and B
+(Back) feed the same keys as the Core's, so they move the same ring, repeat
+the same way when held, and turn with the screen the same way. It is two
+TCA9555 expanders, left half at 0x22 and right at 0x26, from Attaky's Gamepad
+(Bottom) datasheet: Up P0_5, Down P0_2, Left P0_4, Right P0_3; A P0_3, B P0_4.
+X, Y, the shoulders and the FN keys are not read, and each half's LED is left
+off. Worth checking on a device:
+
+- the boot log says `[module] gamepad present` with it on and `absent` with
+  it off, and System Info -> Board -> Module agrees;
+- each direction on the gamepad moves the ring the way the same direction on
+  the Core's D-pad does, in landscape, portrait and flipped -- the gamepad's
+  directions are taken to share the Core's frame, which nobody has seen yet;
+- A opens a tile and B goes Home from a game.
+
 **The battery badge reads the Power module's fuel gauge**, a MAX17048 at 0x36
 on the touch bus, rather than a voltage divider -- the Core has none. The
 battery task reads its cell voltage and state of charge every two seconds and
@@ -108,9 +134,9 @@ their on-screen keypad does; the password takes exactly what is typed, with
 Shift for capitals. The on-screen keypad stays: the module clips off, and the
 firmware checks for it at boot.
 
-Left out on purpose, not broken: the
-gamepad, and the D-pad on any screen but the launcher. Touch is the console's
-input on every board.
+Left out on purpose, not broken: the D-pad and the gamepad on any screen but
+the launcher, and the gamepad's other eight keys. Touch is the console's input
+on every board.
 
 ## Sources
 

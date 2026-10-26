@@ -267,7 +267,7 @@ void NearbyApp::updateName(GameHost& host, const TouchPoint& touch) {
     /* A keyboard's character is a press of the keypad key it maps to, and
      * skips the touch tests entirely -- the touch's coordinates are stale on
      * its frame. */
-    char ch = Ui::Keypad::fromTyped((BOARD.hasKeyboard() ? host.typedChar() : static_cast<char>(0)));
+    char ch = Ui::Keypad::fromTyped(hostTypedChar(host));
     if (ch == 0) {
         if (!touch.justPressed) {
             return;

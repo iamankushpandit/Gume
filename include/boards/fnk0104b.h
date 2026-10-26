@@ -123,6 +123,18 @@ inline constexpr BoardProfile BOARD = {
         /* rightLayout   */ nullptr,
     },
 
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padUp            */ PIN_NONE,
+        /* padDown          */ PIN_NONE,
+        /* padLeft          */ PIN_NONE,
+        /* padRight         */ PIN_NONE,
+        /* padA             */ PIN_NONE,
+        /* padB             */ PIN_NONE,
+    },
+
     /* No SD, deliberately, for now.
      *
      * The slot exists, but it is SDMMC 4-bit (CLK 38, CMD 40, D0 39, D1 41,

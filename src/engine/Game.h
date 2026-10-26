@@ -10,6 +10,12 @@
 #pragma once
 
 #include <Arduino.h>
+/* For the GUME_HAS_* macros that decide which of GameHost's virtuals exist.
+ * Every file that sees GameHost has to see the same answer, or two
+ * translation units disagree about its vtable -- so the macros come from the
+ * one header that defines them, never from whatever happened to be included
+ * first. BoardConfig.h is the board profile and its checks; no driver. */
+#include "BoardConfig.h"
 #include "engine/AppCapabilities.h"
 #include "hal/NavKeys.h"
 #include "hal/Sound.h"
@@ -177,21 +183,48 @@ public:
      * that is up turns now. A screen never sets a rotation itself: which one
      * it gets is the runtime's decision, made in one place. */
     virtual void applyOrientation() = 0;
+#if GUME_HAS_NAV_KEYS
     /* This frame's navigation key for the active screen, already in screen
-     * directions, or None -- None on every board without keys, and None when
-     * the runtime consumed the key itself (Back is Home, as BOOT is). Read it
-     * in update(), beside the touch; it is only valid during that call. Not
-     * on AppContext yet: the launcher is the only screen that takes keys. */
+     * directions, or None -- None when the runtime consumed the key itself
+     * (Back is Home, as BOOT is). Read it in update(), beside the touch; it is
+     * only valid during that call. Not on AppContext yet: the launcher is the
+     * only screen that takes keys. Only on a board with GUME_HAS_NAV_KEYS;
+     * screens read it through hostNavKey() below, which is None elsewhere. */
     virtual NavKey navKey() = 0;
+#endif
+#if GUME_HAS_KEYBOARD
     /* This frame's character from an attached keyboard, or 0: printable
-     * ASCII, '\b' for Delete, '\n' for Enter (hal/BoardKeyboard.cpp). Valid
-     * only during update(), like navKey(). A screen with a text field takes
-     * it as a second way to press the keys it already draws, and must handle
-     * it apart from the touch: on a frame with a typed character the touch's
-     * coordinates are the LAST touch's, and testing them would press again
-     * whatever was tapped last. */
+     * ASCII, '\b' for Delete, '\n' for Enter (hal/modules/KeyboardModule.cpp).
+     * Valid only during update(), like navKey(). A screen with a text field
+     * takes it as a second way to press the keys it already draws, and must
+     * handle it apart from the touch: on a frame with a typed character the
+     * touch's coordinates are the LAST touch's, and testing them would press
+     * again whatever was tapped last. Only on a board with GUME_HAS_KEYBOARD;
+     * screens read it through hostTypedChar() below, which is 0 elsewhere. */
     virtual char typedChar() = 0;
+#endif
 };
+
+/* The two above, for a screen to call on every board. Where the board has no
+ * keys or no keyboard they are constants, so the screen's key path folds away
+ * at compile time and that image carries none of it -- the screen needs no
+ * #if of its own. */
+inline NavKey hostNavKey(GameHost& host) {
+#if GUME_HAS_NAV_KEYS
+    return host.navKey();
+#else
+    (void)host;
+    return NavKey::None;
+#endif
+}
+inline char hostTypedChar(GameHost& host) {
+#if GUME_HAS_KEYBOARD
+    return host.typedChar();
+#else
+    (void)host;
+    return 0;
+#endif
+}
 
 class Game {
 public:

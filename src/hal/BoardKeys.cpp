@@ -9,17 +9,24 @@
 
 #include "Board.h"
 
-#if GUME_TOUCH_CAPACITIVE
+#if GUME_HAS_NAV_KEYS
 #include <Wire.h>
-#endif
+
+#include "modules/Modules.h"
 
 /* Navigation keys: a D-pad, Enter and Back, on the boards that have them.
  *
  * Today that is the Attaky Core, whose face keys hang off an AW9523 I2C
- * expander on the touch controller's bus. Board::begin() has already left
- * every port of that expander an input except the touch reset, so all this
- * file does is read the input register, find what changed, and say what it
- * means on the screen.
+ * expander on the touch controller's bus, and any module that provides
+ * NavKeys -- the clip-on gamepad (hal/modules/GamepadModule.cpp). Board::begin()
+ * has already left every port of the Core's expander an input except the
+ * touch reset, so all this file does is read the input register, OR in what
+ * the modules hold, find what changed, and say what it means on the screen.
+ * The Core's keys and a gamepad's are one set from here up: one edge, one
+ * repeat, one turn for the rotation.
+ *
+ * Built only where GUME_HAS_NAV_KEYS is set; no other board's image has
+ * pollNavKey() at all.
  *
  * Sampled once per frame from the loop, like touch -- which is the honest
  * comparison: touch is also a few bytes over this same bus every frame, and
@@ -38,7 +45,6 @@
  *  - The direction is turned into SCREEN terms here, never in a screen.
  */
 
-#if GUME_TOUCH_CAPACITIVE
 namespace {
 
 constexpr uint32_t NAV_REPEAT_DELAY_MS = 400;
@@ -83,14 +89,8 @@ NavKey turnForScreen(NavKey physical, uint8_t rotation) {
 }
 
 }  // namespace
-#endif  /* GUME_TOUCH_CAPACITIVE */
 
 NavKey Board::pollNavKey() {
-#if GUME_TOUCH_CAPACITIVE
-    if (!BOARD.hasNavKeys()) {
-        return NavKey::None;
-    }
-
     const struct {
         NavKey key;
         int8_t port;
@@ -108,28 +108,34 @@ NavKey Board::pollNavKey() {
     /* One register per bank that has a key on it -- one byte, on the boards
      * there are. A failed read is not a key released: keep the last state, so
      * a glitch on the bus cannot manufacture a press when it clears. */
-    bool needBank[2] = {false, false};
-    for (const auto& w : wiring) {
-        if (w.port != PIN_NONE) needBank[w.port / 8] = true;
-    }
-    uint8_t bank[2] = {0, 0};
-    for (uint8_t b = 0; b < 2; ++b) {
-        if (!needBank[b]) continue;
-        Wire.beginTransmission(BOARD.keys.keyExpander);
-        Wire.write(static_cast<uint8_t>(AW9523_INPUT_P0 + b));
-        if (Wire.endTransmission(false) != 0 ||
-            Wire.requestFrom(static_cast<int>(BOARD.keys.keyExpander), 1) != 1) {
-            return NavKey::None;
-        }
-        bank[b] = static_cast<uint8_t>(Wire.read());
-    }
-
     uint8_t down = 0;
-    for (const auto& w : wiring) {
-        if (w.port == PIN_NONE) continue;
-        const bool high = (bank[w.port / 8] >> (w.port % 8)) & 1;
-        if (high != BOARD.keys.keysActiveLow) down |= bitOf(w.key);
+    if (BOARD.hasNavKeys()) {
+        bool needBank[2] = {false, false};
+        for (const auto& w : wiring) {
+            if (w.port != PIN_NONE) needBank[w.port / 8] = true;
+        }
+        uint8_t bank[2] = {0, 0};
+        for (uint8_t b = 0; b < 2; ++b) {
+            if (!needBank[b]) continue;
+            Wire.beginTransmission(BOARD.keys.keyExpander);
+            Wire.write(static_cast<uint8_t>(AW9523_INPUT_P0 + b));
+            if (Wire.endTransmission(false) != 0 ||
+                Wire.requestFrom(static_cast<int>(BOARD.keys.keyExpander), 1) != 1) {
+                return NavKey::None;
+            }
+            bank[b] = static_cast<uint8_t>(Wire.read());
+        }
+        for (const auto& w : wiring) {
+            if (w.port == PIN_NONE) continue;
+            const bool high = (bank[w.port / 8] >> (w.port % 8)) & 1;
+            if (high != BOARD.keys.keysActiveLow) down |= bitOf(w.key);
+        }
     }
+#if GUME_HAS_ATTAKY_MODULES
+    /* Every clipped-on module that provides keys, as they are physically held.
+     * Each keeps its own last state across a failed read, as above. */
+    down |= Modules::heldNavKeys();
+#endif
     const uint8_t pressed = static_cast<uint8_t>(down & ~navDown_);
     navDown_ = down;
 
@@ -150,7 +156,6 @@ NavKey Board::pollNavKey() {
         }
     }
     return NavKey::None;
-#else
-    return NavKey::None;
-#endif
 }
+
+#endif  /* GUME_HAS_NAV_KEYS */

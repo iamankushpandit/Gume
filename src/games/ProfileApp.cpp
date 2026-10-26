@@ -143,7 +143,7 @@ uint8_t ProfileApp::profileForRow(Board& board, uint8_t row) const {
 }
 
 void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
-    const char typed = (BOARD.hasKeyboard() ? host.typedChar() : static_cast<char>(0));
+    const char typed = hostTypedChar(host);
     if (!touch.justPressed && typed == 0) return;
     if (!host.requireCapability(APP_CAP_PROFILES, "manage profiles")) {
         return;

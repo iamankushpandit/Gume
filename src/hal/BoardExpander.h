@@ -16,9 +16,11 @@
  * Everything but driveLed() is boot-time only: Board::begin() calls it once,
  * after Wire is up. driveLed() runs when the LED's colour changes, which
  * Board::setRgbColor() decides -- never merely because it was called. All
- * of it from the loop task, as the touch and key reads are. Capacitive builds
- * only, because only they carry Wire. */
-#if GUME_TOUCH_CAPACITIVE
+ * of it from the loop task, as the touch and key reads are. Built only where
+ * GUME_HAS_IO_EXPANDER is set -- the Attaky Core. A keyboard module's own
+ * AW9523s are its driver's business (hal/modules/KeyboardModule.cpp), since
+ * the module is not the board. */
+#if GUME_HAS_IO_EXPANDER
 namespace BoardExpander {
 
 /* Hold (false) or release (true) the touch reset named by
@@ -30,11 +32,6 @@ void driveTouchReset(bool released);
  * navigation keys on an expander the touch reset has not already set up --
  * on the Attaky Core they share it, and driveTouchReset() has done this. */
 void allInputs(uint8_t address);
-
-/* Set up one half of a keyboard matrix: columns (P0_0..P0_4) inputs, rows
- * (P1_0..P1_4) outputs driven LOW, the LED (P1_5..P1_7) off. False if the
- * expander did not answer -- the module is not attached. */
-bool setupKeyboardHalf(uint8_t address);
 
 /* The status LED on BOARD.rgb.expander: its ports made outputs, driven to
  * off. After driveTouchReset(true), because that writes the whole bank. */

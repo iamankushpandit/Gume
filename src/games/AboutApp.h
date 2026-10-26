@@ -32,6 +32,13 @@ private:
     /* Only reached on a board whose profile wires a BOOT key; see
      * CONTROLS_PAGES in the .cpp. */
     void renderControls(Ui::Renderer& tft);
+    /* Only on a board with a module table; see MODULE_PAGES in the .cpp and
+     * AboutModules.cpp. */
+#if GUME_HAS_ATTAKY_MODULES
+    void renderModules(Ui::Renderer& tft);
+#else
+    void renderModules(Ui::Renderer&) {}
+#endif
     void renderCredits(Ui::Renderer& tft);
     void renderBuild(Ui::Renderer& tft);
     /* Takes the board because every value on it is read from the device --

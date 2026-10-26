@@ -128,8 +128,12 @@ public:
     void openWifi() override;
     void openProfiles() override;
     void applyOrientation() override;
+#if GUME_HAS_NAV_KEYS
     NavKey navKey() override { return frameNav_; }
+#endif
+#if GUME_HAS_KEYBOARD
     char typedChar() override { return frameTyped_; }
+#endif
 
     /* Lock now: blank the panel immediately, and make the next wake land on
      * the wake lock instead of on the screen underneath.
@@ -326,10 +330,86 @@ private:
     bool ssav_initialized_ = false;
     View ssavPrevView_ = View::Game;
     bool swallowTouch_ = false;
+    /* This frame's keys, polled once at the top of loop(): the navigation key
+     * and the typed character, on the boards that have them. On every other
+     * board the struct is empty and each question below is a constant false,
+     * so loop() reads the same everywhere and the routing folds away where
+     * there is nothing to route -- no #if in loop() itself. */
+    struct FrameKeys {
+#if GUME_HAS_NAV_KEYS
+        NavKey nav = NavKey::None;
+#endif
+#if GUME_HAS_KEYBOARD
+        char typed = 0;
+#endif
+        /* Any key at all: for the idle, saver, sleep and alert paths a key is
+         * a key, and does exactly what BOOT does there. */
+        bool any() const {
+            bool pressed = false;
+#if GUME_HAS_NAV_KEYS
+            pressed = pressed || nav != NavKey::None;
+#endif
+#if GUME_HAS_KEYBOARD
+            pressed = pressed || typed != 0;
+#endif
+            return pressed;
+        }
+        /* Back is Home, as BOOT is. */
+        bool back() const {
+#if GUME_HAS_NAV_KEYS
+            return nav == NavKey::Back;
+#else
+            return false;
+#endif
+        }
+        /* A power key's short press is the Lock button. */
+        bool power() const {
+#if GUME_HAS_NAV_KEYS
+            return nav == NavKey::Power;
+#else
+            return false;
+#endif
+        }
+    };
+    FrameKeys pollKeys() {
+        FrameKeys keys;
+#if GUME_HAS_NAV_KEYS
+        keys.nav = board_.pollNavKey();
+#endif
+#if GUME_HAS_KEYBOARD
+        keys.typed = board_.pollTypedChar();
+#endif
+        return keys;
+    }
+    /* Hand the keys to the active screen for its update(), unless the runtime
+     * consumed them itself; and take them back after, so navKey() and
+     * typedChar() answer None and 0 at every other moment. */
+    void offerKeys(const FrameKeys& keys, bool consumed) {
+#if GUME_HAS_NAV_KEYS
+        frameNav_ = consumed ? NavKey::None : keys.nav;
+#endif
+#if GUME_HAS_KEYBOARD
+        frameTyped_ = consumed ? 0 : keys.typed;
+#endif
+        (void)keys;
+        (void)consumed;
+    }
+    void withdrawKeys() {
+#if GUME_HAS_NAV_KEYS
+        frameNav_ = NavKey::None;
+#endif
+#if GUME_HAS_KEYBOARD
+        frameTyped_ = 0;
+#endif
+    }
+#if GUME_HAS_NAV_KEYS
     /* The navigation key handed to the active screen's update(), and only
      * during it; None at every other moment. See navKey(). */
     NavKey frameNav_ = NavKey::None;
+#endif
+#if GUME_HAS_KEYBOARD
     char frameTyped_ = 0;     /* the same, for a typed character */
+#endif
 
     /* Lock-screen state.
      *

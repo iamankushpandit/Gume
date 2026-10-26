@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,582,505 / 3,145,728 bytes of the app partition (**82.1%**) |
-| RAM | 88,068 / 327,680 bytes (**26.9%**) |
+| Flash | 2,582,121 / 3,145,728 bytes of the app partition (**82.1%**) |
+| RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1519,9 +1519,16 @@ src/
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
     BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED
-    BoardKeys.cpp       navigation keys (D-pad, Enter, Back) on an expander
-    BoardKeyboard.cpp   a clip-on typing keyboard, scanned as two matrices
-    BoardExpandProbe.cpp  which Attaky Expand module owns the SD lines, at boot
+    BoardKeys.cpp       navigation keys (D-pad, Enter, Back): the board's and a gamepad's
+    BoardModules.cpp    Board's side of the module table: battery, typed keys
+    modules/            what is clipped on, found at boot -- one file a module
+      Modules.cpp         the module table: probes, slots, what each provides
+      KeyboardModule.cpp  a clip-on typing keyboard, scanned as two matrices
+      GamepadModule.cpp   a clip-on gamepad: D-pad, A and B, as navigation keys
+      FuelGaugeModule.cpp the battery module's MAX17048 fuel gauge
+      ExpandFmAm.cpp      Expand: FM/AM, found by its tuner on its own bus
+      ExpandLoraGps.cpp   Expand: LoRa/GPS, found by its GPS's sentences
+      ExpandMediaIo.cpp   Expand: Media I/O (SD, sound), found by elimination
     NavKeys.h           the key event screens read, already in screen terms
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync

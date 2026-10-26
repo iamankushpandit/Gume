@@ -233,6 +233,34 @@ struct KeyboardProfile {
     const char* rightLayout;
 };
 
+/* A clip-on gamepad, where a board can carry one: its D-pad and two face
+ * keys, read into the same navigation-key stream as a D-pad on the board.
+ *
+ * Only as two TCA9555 I2C expanders, one per half, because that is the only
+ * gamepad any supported board takes: Attaky's Control: Gamepad (Bottom)
+ * module. The fields are each half's address and, for each key, a port of
+ * that half's expander -- 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7 -- with
+ * the directions on the left half and A and B on the right. Every key is
+ * active low against the expander's own pull-up.
+ *
+ * The directions are PHYSICAL, as KeysProfile's are, and in the same frame:
+ * Up is the key that points up when the console is held at its landscape
+ * rotation. A is Enter and B is Back.
+ *
+ * Optional twice over, like the keyboard: padLeftExpander 0 is a board that
+ * cannot carry one, and a board that can may not have it clipped on, which
+ * the module table finds at boot. */
+struct GamepadProfile {
+    uint8_t padLeftExpander;      // the left half's TCA9555, or 0
+    uint8_t padRightExpander;     // the right half's TCA9555
+    int8_t  padUp;                // left half's ports
+    int8_t  padDown;
+    int8_t  padLeft;
+    int8_t  padRight;
+    int8_t  padA;                 // right half's ports: Enter
+    int8_t  padB;                 // and Back
+};
+
 struct SdProfile {
     int8_t   cs;
     int8_t   mosi;
@@ -370,6 +398,7 @@ struct BoardProfile {
     ButtonProfile button;         // beside touch: both are how a person acts
     KeysProfile   keys;           // and so are these, on the boards that have them
     KeyboardProfile keyboard;     // and this, when one is attached
+    GamepadProfile gamepad;       // and this, likewise
     SdProfile     sd;
     ExpandProbeProfile expandProbe; // what else might be on the SD lines
     RgbLedProfile rgb;
@@ -390,6 +419,7 @@ struct BoardProfile {
     constexpr bool hasBootButton() const { return button.bootPin != PIN_NONE; }
     constexpr bool hasNavKeys() const { return keys.keyExpander != 0; }
     constexpr bool hasKeyboard() const { return keyboard.keyboardLeft != 0; }
+    constexpr bool hasGamepad() const { return gamepad.padLeftExpander != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
     constexpr bool hasExpandProbe() const {

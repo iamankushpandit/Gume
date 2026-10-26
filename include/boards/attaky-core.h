@@ -19,6 +19,26 @@
  * nor the built-in DAC backend -- see the audio block below. */
 #define GUME_HAS_AUDIO_I2S 1
 
+/* What this board compiles in that no other board does, as macros the
+ * preprocessor can act on, for the reason GUME_TOUCH_CAPACITIVE is one: a
+ * profile field can switch code off but cannot take it out of the image, and
+ * every other board's image is meant to carry none of this. BoardConfig.h
+ * defaults each to 0 and static_asserts that the profile below agrees with
+ * them, and the fields that depend on them are written from them, as the
+ * touch kind is.
+ *
+ *   GUME_HAS_IO_EXPANDER     AW9523s on the Core: the touch reset, the LED,
+ *                            the face keys (hal/BoardExpander.cpp)
+ *   GUME_HAS_NAV_KEYS        a navigation-key stream: the Core's D-pad and a
+ *                            gamepad's (hal/BoardKeys.cpp)
+ *   GUME_HAS_KEYBOARD        typed characters from a clip-on keyboard
+ *   GUME_HAS_ATTAKY_MODULES  the module table: what is clipped on, found at
+ *                            boot (hal/modules/) */
+#define GUME_HAS_IO_EXPANDER 1
+#define GUME_HAS_NAV_KEYS 1
+#define GUME_HAS_KEYBOARD 1
+#define GUME_HAS_ATTAKY_MODULES 1
+
 /* Attaky Core 1.0 -- the ESP32-S3 module at the heart of every Attaky modular
  * handheld, here as the Cyber Deck Plus: Core + Expand: Media I/O + Control:
  * Keyboard (Bottom) + Control: Gamepad (Bottom) + Power: Standard Cell.
@@ -87,7 +107,7 @@ inline constexpr BoardProfile BOARD = {
      * MAX17048 fuel gauge (0x36). The touch controller, the 0x59 expander
      * and the fuel gauge are spoken to -- the gauge from the battery task on
      * core 0, which Wire's own bus lock keeps out of the touch read's way --
-     * and the keyboard halves when one is clipped on.
+     * and the keyboard's and gamepad's halves when they are clipped on.
      *
      * RESET is port P1_3 of the AW9523 at 0x59 -- port 11 in the 0..15
      * numbering -- active low. Board::begin() drives it through the expander,
@@ -141,7 +161,7 @@ inline constexpr BoardProfile BOARD = {
      * been seen on a device; the directions are stated as the catalog states
      * them. */
     KeysProfile{
-        /* keyExpander   */ 0x59,
+        /* keyExpander   */ (GUME_HAS_NAV_KEYS ? 0x59 : 0),
         /* keyUp         */ 4,
         /* keyDown       */ 0,
         /* keyLeft       */ 1,
@@ -161,10 +181,33 @@ inline constexpr BoardProfile BOARD = {
      * and Enter, then an empty position, the full stop, MIC (not used), # and
      * Fn (not used). Not yet seen on a device. */
     KeyboardProfile{
-        /* keyboardLeft  */ 0x5A,
+        /* keyboardLeft  */ (GUME_HAS_KEYBOARD ? 0x5A : 0),
         /* keyboardRight */ 0x5B,
         /* leftLayout    */ "12345" "QWERT" "ASDFG" "^ZXCV" "~~~, ",
         /* rightLayout   */ "67890" "YUIOP" "HJKL<" "BNM~>" "~.~#~",
+    },
+
+    /* gamepad: Attaky's Control: Gamepad (Bottom) 1.0, when it is clipped on
+     * -- which it is on the Cyber Deck Plus, and which the module table checks
+     * at boot rather than assumes. Two TCA9555 expanders on the shared I2C bus
+     * through the module's FPC, left half at 0x22, right at 0x26, every key
+     * active low against the part's own pull-up. From Attaky's Gamepad
+     * (Bottom) datasheet: left half Up P0_5, Down P0_2, Left P0_4, Right
+     * P0_3; right half A P0_3, B P0_4. A is Enter and B is Back; X, Y, the
+     * shoulders and the two FN keys a side are not read, and the RGB LED each
+     * half carries on P1_5..P1_7 is left an input, which is off. The
+     * directions are assumed to share the Core's landscape frame -- the
+     * module clips on below the screen, held the same way up. Not yet seen on
+     * a device. */
+    GamepadProfile{
+        /* padLeftExpander  */ (GUME_HAS_ATTAKY_MODULES ? 0x22 : 0),
+        /* padRightExpander */ 0x26,
+        /* padUp            */ 5,
+        /* padDown          */ 2,
+        /* padLeft          */ 4,
+        /* padRight         */ 3,
+        /* padA             */ 3,
+        /* padB             */ 4,
     },
 
     /* microSD on the Expand: Media I/O module, in SPI mode: CS (the card's
@@ -194,10 +237,10 @@ inline constexpr BoardProfile BOARD = {
      * Media I/O has no identity to find; finding neither is what lets the SD
      * slot and the speaker come up. */
     ExpandProbeProfile{
-        /* fmRadioAddress */ 0x64,
+        /* fmRadioAddress */ (GUME_HAS_ATTAKY_MODULES ? 0x64 : 0),
         /* fmSda          */ 42,
         /* fmScl          */ 41,
-        /* gpsRx          */ 17,
+        /* gpsRx          */ (GUME_HAS_ATTAKY_MODULES ? 17 : PIN_NONE),
         /* gpsBaud        */ 9600,
     },
 
@@ -251,7 +294,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ PIN_NONE,
         /* dividerRatio  */ 0.0f,
         /* sensorMaxVolts*/ 0.0f,
-        /* fuelGaugeAddress */ 0x36,
+        /* fuelGaugeAddress */ (GUME_HAS_ATTAKY_MODULES ? 0x36 : 0),
     },
 
     /* 16 MB QuadSPI flash on the N16R8; partitioned huge_app.csv like every

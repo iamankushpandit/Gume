@@ -95,12 +95,10 @@ void LauncherApp::clampPage(GameHost& host) {
 }
 
 void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
-    /* BOARD.hasNavKeys() is a compile-time constant, so on a board without
-     * keys this and the ring below compile away, and the key handling in
-     * AppRuntimeLauncherKeys.cpp costs that board nothing. */
-    const NavKey key = BOARD.hasNavKeys() ? host.navKey() : NavKey::None;
-    if (key != NavKey::None) {
-        handleNavKey(host, key);
+    /* On a board without keys this and the ring hooks below are empty
+     * inlines (LauncherApp.h), and AppRuntimeLauncherKeys.cpp compiles to
+     * nothing, so keys cost that board nothing. */
+    if (takeNavKey(host)) {
         return;
     }
     if (!touch.justPressed) {
@@ -109,10 +107,7 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     /* A touch puts the keys away. Whoever is touching the screen is looking
      * at where their finger goes, and a ring somewhere else is a distraction
      * from that -- and the touch below still does what it always did. */
-    if (BOARD.hasNavKeys() && focus_ >= 0) {
-        focus_ = -1;
-        requestFocusPaint();
-    }
+    dropFocusForTouch();
 
     Board& board = host.board();
     const int16_t lW = host.display().width();
@@ -313,7 +308,7 @@ void LauncherApp::renderStatic(GameHost& host) {
     for (uint8_t i = 0; i < MAX_TILES; ++i) {
         slotHasButton_[i] = false;
     }
-    ringShown_ = -1;   /* and no focus ring either */
+    forgetRing();   /* and no focus ring either */
 }
 
 /* The tile grid and the pager. This is what next/previous changes, and it is
@@ -325,12 +320,9 @@ void LauncherApp::renderStatic(GameHost& host) {
  * handled explicitly below: a slot with no entry on it, and the pager. */
 void LauncherApp::renderDynamic(GameHost& host) {
     /* Only the focus moved: one outline off, one on, and nothing else. */
-    if (BOARD.hasNavKeys() && focusOnly_ && !needsFullRender()) {
-        focusOnly_ = false;
-        paintFocus(host);
+    if (paintFocusOnly(host)) {
         return;
     }
-    focusOnly_ = false;
     clampPage(host);
 
     Board& board = host.board();
@@ -483,7 +475,5 @@ void LauncherApp::renderDynamic(GameHost& host) {
     /* After the tiles, so a page turned by a key arrives with its ring. The
      * tiles never paint the gap, so an outline from the page before is still
      * there to be erased. */
-    if (BOARD.hasNavKeys()) {
-        paintFocus(host);
-    }
+    paintFocusAfterGrid(host);
 }

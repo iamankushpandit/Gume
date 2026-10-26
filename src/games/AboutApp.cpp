@@ -35,7 +35,11 @@ constexpr uint8_t PAGE_FIRST_GAME = 1;
  * hardware: ask the profile rather than typing in what this board has. */
 constexpr uint8_t CONTROLS_PAGES = BOARD.hasBootButton() ? 1 : 0;
 constexpr uint8_t PAGE_CONTROLS = PAGE_FIRST_GAME + GAME_PAGES;
-constexpr uint8_t PAGE_RADIOS = PAGE_CONTROLS + CONTROLS_PAGES;
+/* The modules page likewise exists only on a board that takes plug-in
+ * modules, and what it lists is the module table, read at render time. */
+constexpr uint8_t MODULE_PAGES = GUME_HAS_ATTAKY_MODULES ? 1 : 0;
+constexpr uint8_t PAGE_MODULES = PAGE_CONTROLS + CONTROLS_PAGES;
+constexpr uint8_t PAGE_RADIOS = PAGE_MODULES + MODULE_PAGES;
 /* And then what the radio LEAVES BEHIND, which is the question the radio page
  * raises and does not answer: the network password is kept on the device. It
  * is two pages because it is two things -- what is true, and what the owner is
@@ -419,6 +423,8 @@ void AboutApp::render(GameHost& host) {
      * and would otherwise swallow this one. */
     } else if (CONTROLS_PAGES != 0 && page_ == PAGE_CONTROLS) {
         renderControls(tft);
+    } else if (MODULE_PAGES != 0 && page_ == PAGE_MODULES) {
+        renderModules(tft);
     } else if (page_ < PAGE_RADIOS) {
         renderGames(tft, w);
     } else if (page_ == PAGE_RADIOS) {

@@ -325,6 +325,8 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
         rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
     }
 
+    addModuleRows();
+
     rows_.addSection("Flash");
     rows_.addRow("Chip size", formatBytes(ESP.getFlashChipSize()));
     rows_.addRow("Clock", String(ESP.getFlashChipSpeed() / 1000000UL) + " MHz");

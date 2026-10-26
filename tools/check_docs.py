@@ -123,8 +123,8 @@ def check_source_tree(problems):
         return
     listed = block.group(1)
 
-    for folder in ("", "engine", "hal", "ui"):
-        directory = os.path.join(ROOT, "src", folder)
+    for folder in ("", "engine", "hal", "hal/modules", "ui"):
+        directory = os.path.join(ROOT, "src", *folder.split("/"))
         for name in sorted(os.listdir(directory)):
             if not name.endswith(".cpp"):
                 continue

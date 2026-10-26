@@ -139,12 +139,11 @@ void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
-    const NavKey nav = board_.pollNavKey();
-    const char typed = board_.pollTypedChar();
+    const FrameKeys keys = pollKeys();
     /* For the idle, saver and sleep paths below a key is a key: any of them
      * does exactly what BOOT does there. Which key it was matters only to the
      * active screen. */
-    const bool keyPress = boot.justPressed || nav != NavKey::None || typed != 0;
+    const bool keyPress = boot.justPressed || keys.any();
     const uint32_t nowMs = millis();
 
     TouchPoint touch = rawTouch;
@@ -307,12 +306,11 @@ void BrainoApp::loop() {
          * wakes a sleeping panel and dismisses the saver exactly as any key
          * does (above), and it does nothing on the lock screen, which takes no
          * key at all. */
-        const bool powerLock = nav == NavKey::Power;
+        const bool powerLock = keys.power();
         const bool bootHome = !powerLock &&
-                              (boot.justPressed || nav == NavKey::Back) &&
+                              (boot.justPressed || keys.back()) &&
                               activeGame_ != &launcher_;
-        frameNav_ = (bootHome || powerLock) ? NavKey::None : nav;
-        frameTyped_ = (bootHome || powerLock) ? 0 : typed;
+        offerKeys(keys, bootHome || powerLock);
         if (powerLock) {
             lockAndSleepNow();
         } else if (bootHome) {
@@ -360,8 +358,7 @@ void BrainoApp::loop() {
         } else {
             activeGame_->update(*this, touch);
         }
-        frameNav_ = NavKey::None;
-        frameTyped_ = 0;
+        withdrawKeys();
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();

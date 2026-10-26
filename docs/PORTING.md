@@ -122,6 +122,17 @@ Things worth getting right the first time:
   the other, never both. Only a capacitive build can have one. `batdiag`
   does not read a gauge; check it against the serial log's `[battery] fuel
   gauge` line and System Info's Power rows instead.
+- **Keys, a keyboard, a gamepad, a fuel gauge and plug-in modules each come
+  with a board-header macro** -- `GUME_HAS_IO_EXPANDER`, `GUME_HAS_NAV_KEYS`,
+  `GUME_HAS_KEYBOARD`, `GUME_HAS_ATTAKY_MODULES` -- and `BoardConfig.h`
+  refuses a profile and macros that disagree. A board with none of that
+  hardware defines none of them and fills the fields with 0 and `PIN_NONE`
+  (`KeysProfile`, `KeyboardProfile`, `GamepadProfile`, `ExpandProbeProfile`,
+  `fuelGaugeAddress`), and its image then carries none of the code. For a
+  board that takes plug-in modules, **the profile says where a module could
+  be; boot decides whether it is there**: state the addresses, never assume
+  the module is attached, and see `src/hal/modules/` for the driver a new
+  module needs.
 - **Use the vendor's pin table, not a generic ESP32 pinout, and never another
   CYD variant's.** GPIO34 is battery sense on the E32R28T-1 and the light
   sensor on the classic ESP32-2432S028R. They look like the same board.

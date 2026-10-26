@@ -42,21 +42,48 @@ private:
                           const Rect& r, uint16_t fill, bool tall,
                           uint8_t pageTextScale, bool wrapSubtitles);
 
-    /* Navigation keys, on the boards that have them (AppRuntimeLauncher.cpp).
+    /* A page turned: repaint the grid and the pager, and the ring with them. */
+    void requestGridPaint() {
+#if GUME_HAS_NAV_KEYS
+        focusOnly_ = false;
+#endif
+        markDirty();
+    }
+
+    /* Navigation keys, on the boards that have them
+     * (AppRuntimeLauncherKeys.cpp, which compiles to nothing elsewhere).
      *
      * focus_ is the focused slot on this page, or -1. It stays -1 until the
-     * first key press, so a board without keys never shows a ring; a touch
-     * puts it back to -1. The ring is drawn in the gap round the tile, so
-     * moving it erases one outline and draws another and never repaints a
+     * first key press, so keys that are never pressed never show a ring; a
+     * touch puts it back to -1. The ring is drawn in the gap round the tile,
+     * so moving it erases one outline and draws another and never repaints a
      * tile -- focusOnly_ is how update() asks renderDynamic() for exactly
-     * that, and ringShown_ is where an outline is currently on the panel. */
+     * that, and ringShown_ is where an outline is currently on the panel.
+     *
+     * The five hooks are what AppRuntimeLauncher.cpp calls, at the five
+     * places keys touch the grid. On a board without keys they are the empty
+     * inlines below, so that file needs no #if and the image carries none of
+     * this. */
+#if GUME_HAS_NAV_KEYS
+    bool takeNavKey(GameHost& host);          // update(): true if a key was handled
+    void dropFocusForTouch();                 // update(): a touch puts the ring away
+    void forgetRing() { ringShown_ = -1; }    // renderStatic(): the panel was wiped
+    bool paintFocusOnly(GameHost& host);      // renderDynamic(): true if that was all
+    void paintFocusAfterGrid(GameHost& host); // renderDynamic(): the ring on a new page
+
     void handleNavKey(GameHost& host, NavKey key);
     void requestFocusPaint();
-    void requestGridPaint();
     void paintFocus(GameHost& host);
     int8_t focus_ = -1;
     int8_t ringShown_ = -1;
     bool focusOnly_ = false;
+#else
+    bool takeNavKey(GameHost&) { return false; }
+    void dropFocusForTouch() {}
+    void forgetRing() {}
+    bool paintFocusOnly(GameHost&) { return false; }
+    void paintFocusAfterGrid(GameHost&) {}
+#endif
 
     uint8_t page_ = 0;
 

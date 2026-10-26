@@ -137,7 +137,7 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
 
     /* A keyboard types into the password and nowhere else, and never runs
      * the touch tests below, whose coordinates are stale on its frame. */
-    const char typed = (BOARD.hasKeyboard() ? host.typedChar() : static_cast<char>(0));
+    const char typed = hostTypedChar(host);
     if (typed != 0) {
         if (phase_ == Phase::Keyboard &&
             host.requireCapability(APP_CAP_NETWORK, "change wifi settings")) {

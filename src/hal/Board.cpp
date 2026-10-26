@@ -26,6 +26,7 @@
 
 #include "BleBeacon.h"
 #include "BoardExpander.h"
+#include "modules/Modules.h"
 #include "ui/Ui.h"
 
 Board::Board() : sdSpi_(VSPI) {}
@@ -125,12 +126,14 @@ void Board::begin() {
             pinMode(BOARD.touch.reset, OUTPUT);
             digitalWrite(BOARD.touch.reset, LOW);
         }
+#if GUME_HAS_IO_EXPANDER
         /* The same hold, through an expander. That needs the bus up now,
          * rather than after the panel as on a board with a GPIO reset. */
         if (BOARD.touch.resetExpanderAddress != 0) {
             Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
             BoardExpander::driveTouchReset(false);
         }
+#endif
     }
 #else
     configureResistiveTouchPins();
@@ -164,13 +167,11 @@ void Board::begin() {
     if (BOARD.touch.reset != PIN_NONE) {
         digitalWrite(BOARD.touch.reset, HIGH);
     }
+#if GUME_HAS_IO_EXPANDER
     if (BOARD.touch.resetExpanderAddress != 0) {
         BoardExpander::driveTouchReset(true);       // the bus is already up
     } else {
         Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
-    }
-    if (BOARD.hasFuelGauge()) {
-        beginBatteryMonitor();                      // the gauge's bus is up now
     }
     if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
         BoardExpander::allInputs(BOARD.keys.keyExpander);
@@ -181,11 +182,11 @@ void Board::begin() {
         BoardExpander::setupLed();
         setRgb(false, false, false);
     }
-    /* Both halves or neither: half a keyboard types half the alphabet. */
-    if (BOARD.hasKeyboard()) {
-        keyboardPresent_ = BoardExpander::setupKeyboardHalf(BOARD.keyboard.keyboardLeft) &&
-                           BoardExpander::setupKeyboardHalf(BOARD.keyboard.keyboardRight);
-        Serial.printf("[keyboard] %s\n", keyboardPresent_ ? "attached" : "absent");
+#else
+    Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+#endif
+    if (BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();                      // the gauge's bus is up now
     }
 #endif
 
@@ -196,9 +197,12 @@ void Board::begin() {
     loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
-    /* Before audio as well as before the SD slot: on Media I/O the GPS's
-     * line is the amplifier's bit clock, and this listens to it. */
-    probeExpandModule();
+    /* What is clipped on: the profile says where each module could be, and
+     * this decides whether it is there (hal/modules/Modules.h). Before audio
+     * as well as before the SD slot: on Media I/O the GPS's line is the
+     * amplifier's bit clock, and the LoRa/GPS probe listens to it. Nothing on
+     * a board without modules. */
+    Modules::probeAll();
     beginAudio();
 #if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
     /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
@@ -228,9 +232,11 @@ bool Board::mountSd() {
         sdMounted_ = false;
         return false;
     }
-    /* Another module owns these lines this boot; probeExpandModule() has
-     * already said which. Driving them as an SD card is what it prevents. */
-    if (expandModule_ != ExpandModule::NoneOrMedia) {
+    /* On a board with modules, the slot is used only if the module wearing
+     * its lines provides it; the table has already said which module that
+     * is. Driving somebody else's lines as an SD card is what it prevents.
+     * A constant true on every other board. */
+    if (!Modules::allows(ModuleCapability::Storage)) {
         sdMounted_ = false;
         return false;
     }

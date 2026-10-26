@@ -123,7 +123,9 @@ bool releasing = false;
 
 bool codecUp = false;
 bool dacUp = false;
+#if GUME_HAS_AUDIO_I2S
 bool i2sUp = false;
+#endif
 bool ampOn = false;
 
 /* A two-pole resonator. The input coefficient is sin(theta) rather than the

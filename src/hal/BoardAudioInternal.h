@@ -81,7 +81,13 @@ struct Segment {
 
 extern bool codecUp;
 extern bool dacUp;
+/* Only a bare-I2S board can bring that backend up, so everywhere else it is
+ * a constant and the image carries no flag for it. */
+#if GUME_HAS_AUDIO_I2S
 extern bool i2sUp;
+#else
+constexpr bool i2sUp = false;
+#endif
 extern bool ampOn;
 extern bool playing;
 extern bool releasing;

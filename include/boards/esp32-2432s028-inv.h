@@ -140,6 +140,18 @@ inline constexpr BoardProfile BOARD = {
         /* rightLayout   */ nullptr,
     },
 
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padUp            */ PIN_NONE,
+        /* padDown          */ PIN_NONE,
+        /* padLeft          */ PIN_NONE,
+        /* padRight         */ PIN_NONE,
+        /* padA             */ PIN_NONE,
+        /* padB             */ PIN_NONE,
+    },
+
     /* Inherited from the E32R28T-1; not exercised on this board. */
     SdProfile{
         /* cs    */ 5,

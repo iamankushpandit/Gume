@@ -9,12 +9,14 @@
 
 #include "AppRuntime.h"
 
-#include "ui/LauncherLayout.h"
-
 /* The launcher's navigation keys: focus, the ring that shows it, and what
  * each key does. Apart from AppRuntimeLauncher.cpp, which owns the grid,
  * the paging and touch; this file only moves a ring around that grid and
- * asks it to turn a page. On a board without keys none of it runs. */
+ * asks it to turn a page. Built only where GUME_HAS_NAV_KEYS is set; on every
+ * other board LauncherApp.h's hooks are empty inlines and this is nothing. */
+
+#if GUME_HAS_NAV_KEYS
+#include "ui/LauncherLayout.h"
 
 namespace {
 /* The key-focus ring: a RING_W outline in the gap round a tile.
@@ -135,11 +137,6 @@ void LauncherApp::requestFocusPaint() {
     markDirty();
 }
 
-void LauncherApp::requestGridPaint() {
-    focusOnly_ = false;
-    markDirty();
-}
-
 void LauncherApp::paintFocus(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t lW = static_cast<int16_t>(tft.width());
@@ -169,3 +166,37 @@ void LauncherApp::paintFocus(GameHost& host) {
     }
     ringShown_ = focus_;
 }
+
+/* ------------------------------------------------------------ the hooks
+ *
+ * What AppRuntimeLauncher.cpp calls, at the places keys touch the grid. */
+bool LauncherApp::takeNavKey(GameHost& host) {
+    const NavKey key = hostNavKey(host);
+    if (key == NavKey::None) {
+        return false;
+    }
+    handleNavKey(host, key);
+    return true;
+}
+
+void LauncherApp::dropFocusForTouch() {
+    if (focus_ >= 0) {
+        focus_ = -1;
+        requestFocusPaint();
+    }
+}
+
+bool LauncherApp::paintFocusOnly(GameHost& host) {
+    const bool only = focusOnly_ && !needsFullRender();
+    focusOnly_ = false;
+    if (only) {
+        paintFocus(host);
+    }
+    return only;
+}
+
+void LauncherApp::paintFocusAfterGrid(GameHost& host) {
+    paintFocus(host);
+}
+
+#endif  /* GUME_HAS_NAV_KEYS */

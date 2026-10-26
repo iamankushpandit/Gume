@@ -439,7 +439,7 @@ every environment gets it. It writes the branch and the abbreviated commit into
 a generated `GumeBuildStamp.h` in the build directory, `src/BuildStamp.cpp` is
 the only file that includes it, and the firmware reads the values through
 `BuildStamp::` -- never the macros directly, outside `include/BuildStamp.h`.
-About's last page, System Info's Device tab and the `[boot] build=` serial line
+About's last page, System Info's Board tab and the `[boot] build=` serial line
 all read the same three accessors, so the answer to "which firmware is on this
 board?" is one fact with three viewers.
 
@@ -623,9 +623,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,582,505 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,121 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 88,068 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
+at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -748,9 +748,11 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Navigation keys are a second route, on the boards that have them, and
   only the launcher takes them so far.** The Attaky Core's D-pad, Enter and
   L1 (as Back) sit on an AW9523 expander; `KeysProfile` names its ports and
-  `Board::pollNavKey()` reads one byte per frame beside the BOOT key and
-  hands back one `NavKey`, already turned for the screen's rotation -- the
-  same job `pollTouch()` does for a finger, so no screen corrects for it.
+  `Board::pollNavKey()` reads one byte per frame beside the BOOT key, ORs in
+  what any clipped-on module with `NavKeys` holds -- the gamepad's D-pad, A
+  as Enter and B as Back -- and hands back one `NavKey`, already turned for
+  the screen's rotation -- the same job `pollTouch()` does for a finger, so
+  no screen corrects for it, and the gamepad turns exactly as the Core does.
   The runtime treats any key as BOOT for activity, the saver and sleep,
   ignores keys on the lock screen for BOOT's reason, consumes Back as Home
   everywhere but the launcher, and passes the rest to the active screen's
@@ -758,9 +760,8 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   in the gap round a tile -- erased in the background colour, never by
   repainting a tile, with `static_assert`s proving it clears every shadow --
   that stays hidden until the first key and goes away at the next touch.
-  Every key path is gated on the compile-time `BOARD.hasNavKeys()`, so the
-  boards without keys carry 176 bytes for it, not the kilobyte the launcher
-  code is. **Nothing may become reachable only by key**, exactly as with
+  Every key path is behind `GUME_HAS_NAV_KEYS`, so the boards without keys
+  carry none of it -- see the next invariant. **Nothing may become reachable only by key**, exactly as with
   BOOT. The direction mapping has not been seen on a device; the sign to
   change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
 - **An LED can live on an I2C expander, and then it is on or off.**
@@ -775,13 +776,15 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   module's lines.** On the Attaky Core three Expand modules share IO5-8, and
   the speaker's I2S (IO17/IO18/IO21) is the LoRa/GPS module's GPS UART and
   radio interrupt and the FM/AM module's I2S; this firmware is built for
-  Media I/O. `Board::probeExpandModule()` runs once in `begin()`, before
-  `beginAudio()` and `mountSd()`, from `ExpandProbeProfile`: an address
-  write to the FM/AM tuner on that module's own bus, then a passive
-  `GPS_LISTEN_MS` (1.5 s) listen for a checksummed NMEA sentence on IO17,
-  the UART's receiver only. Either found, or the radio's bus failing to
-  start, leaves the slot down and the I2S backend uninstalled for the boot
-  -- `mountSd()` and `beginAudio()` both check `expandModule_` -- and logs
+  Media I/O. The three are the module table's `expand` slot, decided once
+  in `begin()` by `Modules::probeAll()`, before `beginAudio()` and
+  `mountSd()`, from `ExpandProbeProfile`: an address write to the FM/AM
+  tuner on that module's own bus, then a passive `GPS_LISTEN_MS` (1.5 s)
+  listen for a checksummed NMEA sentence on IO17, the UART's receiver only.
+  Either found, or the radio's bus failing to start, leaves the slot down
+  and the I2S backend uninstalled for the boot -- `mountSd()` and
+  `beginAudio()` ask `Modules::allows()` for Storage and Sound, which only
+  Media I/O provides -- and logs
   `[expand] module=... sd=skipped audio=skipped`. Silent is the state an I2S
   install failure already produced, so nothing downstream is new. Media I/O
   has no host-readable identity, so finding neither is the only answer that
@@ -799,8 +802,8 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **A physical keyboard types into the text fields, beside the on-screen
   keypad and never instead of it.** `KeyboardProfile` names the two halves
   of Attaky's clip-on keyboard and spells out each half's 25 positions;
-  `Board::begin()` probes both and the keyboard is off unless both answer,
-  because the module is detachable. `Board::pollTypedChar()` reads one
+  the module table probes both at boot and the keyboard is off unless both
+  answer, because the module is detachable. `Board::pollTypedChar()` reads one
   register a half per frame while nobody types -- the rows are held low,
   so any key shows on the columns -- and walks the rows only while a key
   is down. The runtime hands the character to the active screen through
@@ -811,8 +814,41 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   typed, case and punctuation included). **A screen must handle a typed
   character apart from the touch**: on its frame the touch coordinates are
   the last touch's, and running the hit tests would press that again.
-  Each screen reads it through `BOARD.hasKeyboard()`, so the boards
-  without one carry 400 bytes for all of this.
+  Each screen reads it through `hostTypedChar()`, a constant 0 where
+  `GUME_HAS_KEYBOARD` is off, so the boards without one carry none of this.
+- **The profile says where a module could be; boot decides whether it is
+  there.** A board that takes plug-in modules -- the Attaky Core's keyboard,
+  gamepad, Power module and Expand modules all come off -- states in its
+  profile what it would need to know about each one it can carry, and
+  nothing about whether one is attached. `src/hal/modules/` holds one driver
+  file per module: a `Modules::Driver` (name, the `ModuleCapability` bits it
+  provides, a boot probe, per-frame or battery hooks, a slot for modules that
+  share lines) and a `Modules::Registration` that puts it in the table from
+  its own file. `Modules::probeAll()` runs every probe once in
+  `Board::begin()`, and nothing a module provides is used unless its probe
+  found it. **Supporting a new module is one driver file plus its facts in
+  the profile**: the boot sequence, the navigation-key stream, typing, the
+  battery path, the SD and speaker gates, System Info's Board tab and
+  About's Modules page all read the table, so none of them changes. See
+  `src/hal/CLAUDE.md`.
+- **Attaky code compiles only into the Attaky image.** Five board-header
+  macros -- `GUME_TOUCH_CAPACITIVE`, `GUME_HAS_IO_EXPANDER`,
+  `GUME_HAS_NAV_KEYS`, `GUME_HAS_KEYBOARD`, `GUME_HAS_ATTAKY_MODULES` -- are
+  defined only in `include/boards/attaky-core.h` (the first also in
+  `fnk0104b.h`), default to 0 in `BoardConfig.h`, which static_asserts the
+  profile agrees with them both ways, and preprocess out everything behind
+  them: whole files, `Board`'s members and accessors, `GameHost`'s
+  `navKey()`/`typedChar()` virtuals, the runtime's key routing, the
+  launcher's focus ring, the screens' typed paths, the gauge and the module
+  table. **Prefer a whole file that compiles to nothing** over an `#if` in a
+  shared file, and where shared code must call across, an inline no-op
+  beside the declaration (`hostTypedChar()`, `Modules::allows()`, the
+  launcher's key hooks). A `BOARD.hasX()` test is not enough -- both arms
+  still compile and its declarations stay in every class. Checked rather
+  than hoped: on each other product environment `xtensa-esp32-elf-nm -C
+  firmware.elf` finds none of `pollNavKey`, `pollTypedChar`, `navKey`,
+  `typedChar`, `BoardExpander`, `sampleModuleBattery`, `handleNavKey`,
+  `paintFocus`, `Modules::` or `i2sUp`, and its RAM is `dev`'s figure.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -1349,9 +1385,12 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage
-                          maintenance, TouchTypes, BoardExpandProbe (is
-                          another module on the SD lines? asked at boot),
-                          Clock, Watchdog
+                          maintenance, TouchTypes, BoardKeys (navigation
+                          keys), BoardExpander (the Core's AW9523s),
+                          BoardModules + modules/ (what is clipped on,
+                          found at boot: the module table and one driver
+                          file a module -- keyboard, gamepad, fuel gauge,
+                          the three Expand modules), Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product
                           mark, as a one-bit silhouette)

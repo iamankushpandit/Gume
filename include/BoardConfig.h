@@ -55,6 +55,56 @@ static_assert((GUME_HAS_AUDIO_CODEC ? 1 : 0) + (GUME_HAS_AUDIO_DAC ? 1 : 0) +
     "A board states at most one audio backend: GUME_HAS_AUDIO_CODEC, "
     "GUME_HAS_AUDIO_DAC or GUME_HAS_AUDIO_I2S. They drive the same I2S port.");
 
+/* ---- Code only some boards carry ------------------------------------------
+ *
+ * A board header defines these to 1 for what it has; every other board gets 0
+ * here, and the code behind each one -- whole files, members, virtuals, the
+ * runtime's routing -- is preprocessed out of its image rather than switched
+ * off inside it. A profile field alone cannot do that: `if (BOARD.hasX())` on
+ * a constant still compiles both arms, and the declarations they need stay in
+ * every class. The Attaky Core is the only board that defines any of them
+ * today; see include/boards/attaky-core.h for what each covers.
+ *
+ * The profile and the macro state one fact twice, so they are checked against
+ * each other below in both directions -- a macro with nothing in the profile
+ * is code with nothing to drive, and a profile entry with no macro is
+ * hardware the image silently cannot see. */
+#ifndef GUME_HAS_IO_EXPANDER
+#define GUME_HAS_IO_EXPANDER 0
+#endif
+#ifndef GUME_HAS_NAV_KEYS
+#define GUME_HAS_NAV_KEYS 0
+#endif
+#ifndef GUME_HAS_KEYBOARD
+#define GUME_HAS_KEYBOARD 0
+#endif
+#ifndef GUME_HAS_ATTAKY_MODULES
+#define GUME_HAS_ATTAKY_MODULES 0
+#endif
+
+/* Fields spelled out rather than read through the has...() members, for the
+ * GCC 8 -Os reason given at the Expand-probe assert further down. */
+static_assert(((BOARD.touch.resetExpanderAddress != 0 || BOARD.rgb.expander != 0 ||
+                BOARD.keys.keyExpander != 0) ? 1 : 0) == (GUME_HAS_IO_EXPANDER ? 1 : 0),
+    "GUME_HAS_IO_EXPANDER must be 1 exactly when the profile puts the touch "
+    "reset, the RGB LED or the navigation keys on an AW9523");
+static_assert(((BOARD.keys.keyExpander != 0 || BOARD.gamepad.padLeftExpander != 0) ? 1 : 0) ==
+                  (GUME_HAS_NAV_KEYS ? 1 : 0),
+    "GUME_HAS_NAV_KEYS must be 1 exactly when the profile has navigation keys "
+    "or a gamepad that could be clipped on");
+static_assert((BOARD.keyboard.keyboardLeft != 0 ? 1 : 0) == (GUME_HAS_KEYBOARD ? 1 : 0),
+    "GUME_HAS_KEYBOARD must be 1 exactly when the profile has a keyboard");
+static_assert(((BOARD.keyboard.keyboardLeft != 0 || BOARD.gamepad.padLeftExpander != 0 ||
+                BOARD.battery.fuelGaugeAddress != 0 || BOARD.expandProbe.fmRadioAddress != 0 ||
+                BOARD.expandProbe.gpsRx != PIN_NONE) ? 1 : 0) ==
+                  (GUME_HAS_ATTAKY_MODULES ? 1 : 0),
+    "GUME_HAS_ATTAKY_MODULES must be 1 exactly when the profile names a module "
+    "that may be clipped on: a keyboard, a gamepad, a fuel gauge or an Expand "
+    "module to look for");
+static_assert(!(GUME_HAS_IO_EXPANDER || GUME_HAS_ATTAKY_MODULES) || GUME_TOUCH_CAPACITIVE,
+    "expanders and modules ride the capacitive touch controller's I2C bus, "
+    "which only a capacitive build brings up");
+
 #if GUME_HAS_AUDIO_I2S
 static_assert(BOARD.audio.i2sBclk != PIN_NONE && BOARD.audio.i2sWordSelect != PIN_NONE &&
                   BOARD.audio.i2sDataOut != PIN_NONE,
