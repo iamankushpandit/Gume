@@ -189,6 +189,9 @@ void Board::begin() {
     loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
+    /* Before audio as well as before the SD slot: on Media I/O the GPS's
+     * line is the amplifier's bit clock, and this listens to it. */
+    probeExpandModule();
     beginAudio();
 #if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
     /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
@@ -215,6 +218,12 @@ bool Board::sdReady() const {
 
 bool Board::mountSd() {
     if (!BOARD.hasSdSlot()) {
+        sdMounted_ = false;
+        return false;
+    }
+    /* Another module owns these lines this boot; probeExpandModule() has
+     * already said which. Driving them as an SD card is what it prevents. */
+    if (expandModule_ != ExpandModule::NoneOrMedia) {
         sdMounted_ = false;
         return false;
     }

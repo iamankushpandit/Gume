@@ -133,6 +133,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* RGB LED, common anode (drive LOW to light a channel). From the vendor's
      * table: red IO22, green IO16, blue IO17.
      *

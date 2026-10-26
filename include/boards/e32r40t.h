@@ -149,6 +149,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* Red and blue are inherited from the E32R28T-1 and are still unverified
      * on this board. Green is NOT: this board's green channel is PIN_NONE
      * because IO4 is not an LED here at all.

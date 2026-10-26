@@ -160,6 +160,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* Vendor pin table: IO22 red, IO16 green, IO17 blue, common anode (low
      * level on). UNVERIFIED ON HARDWARE -- and this is the one field in this
      * file where a vendor table has already been wrong once. The E32R28T-1's

@@ -12,10 +12,17 @@ chip. The ESP32-S3 module inside is the same N16R8 part as the Freenove board.
 Core 1.0 in a Cyber Deck Plus".
 
 **Which modules this build expects:** the Core, and Media I/O on the back for
-the SD slot. The Expand modules share their pins, so a Core wearing the
-LoRa/GPS or FM/AM module instead would have this firmware driving that
-module's lines as an SD card. The keyboard, gamepad and battery modules are
-harmless either way: the firmware does not talk to them.
+the SD slot. The Expand modules share their pins, so before the SD slot is
+brought up the firmware looks for the two others, without driving anything
+they own: the FM/AM module's tuner on that module's own I2C bus (IO42/IO41),
+and the LoRa/GPS module's GPS, which sends position sentences on IO17
+unasked and is listened to for a second and a half. Finding either leaves
+the SD slot alone for that boot, and the serial log says
+`[expand] module=FM-AM` or `module=LoRa-GPS`, `sd=skipped`. Media I/O cannot
+be recognised -- it has nothing a host can ask -- so finding neither
+(`module=none-or-media`) brings the slot up as before. The keyboard, gamepad
+and battery modules are harmless either way: the firmware does not talk to
+them.
 
 ## What has been checked on this board
 
@@ -35,7 +42,9 @@ claim, and the four things most likely to need changing as:
 - **The colours.** Inversion on and RGB order follow Attaky's Retro-Go init. A
   photo-negative picture means inversion is wrong; red and blue exchanged means
   the order is.
-- **The SD card**, which is wired in SPI mode on lines the Expand modules share.
+- **The SD card**, which is wired in SPI mode on lines the Expand modules share
+  -- and the boot line `[expand] module=none-or-media sd=allowed` before it,
+  which should read that way with Media I/O fitted.
 
 **Sound comes from the Media I/O module's NS4168 amplifier**, driven as plain
 I2S with no codec: BCLK IO17, word select IO21, data IO18, at 16 kHz. None of
@@ -129,10 +138,12 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | 12 | Display: data/command |
 | 13 | Display: SPI MOSI |
 | 14 | Display: backlight |
-| 17 | Audio: I2S BCLK |
+| 17 | Audio: I2S BCLK; Module check: LoRa/GPS module's NMEA, listened to (input only) at boot |
 | 18 | Audio: I2S data out |
 | 21 | Audio: I2S LRCK |
 | 38 | Key: BOOT, which the firmware uses as Home |
+| 41 | Module check: FM/AM module's own I2C SCL, probed once at boot |
+| 42 | Module check: FM/AM module's own I2C SDA, probed once at boot |
 | 45 | Display: chip select |
 
 ![GPIO use on the Attaky-Core](img/Attaky-Core-pins.png)

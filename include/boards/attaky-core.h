@@ -169,13 +169,32 @@ inline constexpr BoardProfile BOARD = {
      * CD/DAT3) on IO8, MOSI (CMD) IO6, MISO (DAT0) IO7, SCLK IO5. Those lines
      * belong to whichever Expand module is fitted -- the LoRa/GPS module puts
      * its radio on the same four -- so this build is for a Core wearing Media
-     * I/O, which the Cyber Deck Plus does. */
+     * I/O, which the Cyber Deck Plus does -- and Board::begin() looks for the
+     * other two before bringing the slot up; see expandProbe below. */
     SdProfile{
         /* cs    */ 8,
         /* mosi  */ 6,
         /* miso  */ 7,
         /* sclk  */ 5,
         /* spiHz */ 16000000,
+    },
+
+    /* Two Expand modules other than Media I/O reuse the SD lines (IO5-8): the
+     * LoRa/GPS module puts its radio's SPI there and the FM/AM module a GPIO,
+     * so a Core wearing either would have them driven as an SD card.
+     * Board::begin() looks for both before mountSd(), passive-first, as
+     * Attaky's shared/module-detection-and-safe-boot.md lays out: the FM/AM
+     * module's TEF6687 answers at 0x64 on that module's own I2C bus (SDA
+     * IO42, SCL IO41), and the LoRa/GPS module's AT6558 streams NMEA at 9600
+     * baud into IO17 unasked, which is listened to with the pin an input.
+     * Media I/O has no identity to find; finding neither is what lets the SD
+     * slot come up. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0x64,
+        /* fmSda          */ 42,
+        /* fmScl          */ 41,
+        /* gpsRx          */ 17,
+        /* gpsBaud        */ 9600,
     },
 
     /* The RGB LED is on the 0x59 expander, not on GPIOs: red P1_0, green

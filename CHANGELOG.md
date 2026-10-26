@@ -84,6 +84,20 @@ boards. The driver reads, modifies and writes only those three bits, and
 beside them on P1_3. The bus is written only when the colour changes. Not
 yet run on a device.
 
+**The Attaky Core leaves the SD slot alone if another module owns its
+lines.** Three of Attaky's Expand modules share IO5-8, and this build is for
+Media I/O, so on a Core wearing the LoRa/GPS or FM/AM module the SD slot's
+bring-up would clock someone else's chip. Before the slot -- and before
+audio -- the firmware now looks for both, without driving anything they own,
+as Attaky's module-detection guide sets out: the FM/AM tuner answers at 0x64
+on that module's own I2C bus, and the GPS sends checksummed NMEA on IO17
+unasked, which is listened to for 1.5 s with the pin an input. Finding either,
+or being unable to ask, skips the SD slot for the boot and logs
+`[expand] module=... sd=skipped`. Media I/O cannot be recognised, so finding
+neither mounts the slot as before. A new `ExpandProbeProfile` says what to look
+for; every other board fills it with nothing and pays nothing. It adds 1.5 s
+to the Core's boot. Not yet run on a device.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was

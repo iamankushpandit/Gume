@@ -623,7 +623,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,582,449 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,517 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,060 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -771,6 +771,18 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
   the channels at least half as bright as its brightest, and the bus is
   written only when that changes -- the saver sets a colour per rally.
+- **The SD slot is not brought up over another module's lines.** On the
+  Attaky Core three Expand modules share IO5-8, and this firmware is built
+  for Media I/O. `Board::probeExpandModule()` runs once in `begin()`, before
+  `beginAudio()` and `mountSd()`, from `ExpandProbeProfile`: an address
+  write to the FM/AM tuner on that module's own bus, then a passive
+  `GPS_LISTEN_MS` (1.5 s) listen for a checksummed NMEA sentence on IO17,
+  the UART's receiver only. Either found, or the radio's bus failing to
+  start, leaves the slot down for the boot and logs `[expand] module=...
+  sd=skipped`. Media I/O has no host-readable identity, so finding neither
+  is the only answer that mounts it. Nothing it touches is driven, and it
+  must stay ahead of `beginAudio()`: on Media I/O, IO17 is the amplifier's
+  bit clock.
 - **A power key's short press is the Lock button.** `KeysProfile::keyPower`
   names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
   `NavKey::Power`, which the runtime consumes above the active screen --
@@ -1333,7 +1345,8 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage
-                          maintenance, TouchTypes,
+                          maintenance, TouchTypes, BoardExpandProbe (is
+                          another module on the SD lines? asked at boot),
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product

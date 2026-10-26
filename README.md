@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,582,449 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,582,517 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,060 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -1514,6 +1514,7 @@ src/
     BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED
     BoardKeys.cpp       navigation keys (D-pad, Enter, Back) on an expander
     BoardKeyboard.cpp   a clip-on typing keyboard, scanned as two matrices
+    BoardExpandProbe.cpp  which Attaky Expand module owns the SD lines, at boot
     NavKeys.h           the key event screens read, already in screen terms
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync

@@ -59,6 +59,7 @@ END = "<!-- END GENERATED -->"
 DRIVERS = {"ILI9341_2_DRIVER": "ILI9341", "ILI9341_DRIVER": "ILI9341",
            "ST7789_DRIVER": "ST7789", "ST7796_DRIVER": "ST7796"}
 SECTIONS = ("PanelProfile", "TouchProfile", "ButtonProfile", "SdProfile",
+            "ExpandProbeProfile",
             "RgbLedProfile", "AudioProfile", "BatteryProfile", "MemoryProfile")
 
 # Colour per subsystem, for the diagram. Fixed art colours, not a theme.
@@ -70,6 +71,7 @@ GROUPS = [
     ("SD card", (110, 110, 110)),
     ("Battery", (160, 60, 50)),
     ("Key", (90, 90, 160)),
+    ("Module check", (120, 120, 40)),
 ]
 
 
@@ -169,6 +171,13 @@ def pin_uses(b, p):
     for k, what in (("cs", "chip select"), ("sclk", "SPI clock"),
                     ("mosi", "SPI MOSI"), ("miso", "SPI MISO")):
         add(sd.get(k), "SD card", what)
+    probe = p.get("ExpandProbeProfile", {})
+    add(probe.get("fmSda"), "Module check",
+        "FM/AM module's own I2C SDA, probed once at boot")
+    add(probe.get("fmScl"), "Module check",
+        "FM/AM module's own I2C SCL, probed once at boot")
+    add(probe.get("gpsRx"), "Module check",
+        "LoRa/GPS module's NMEA, listened to (input only) at boot")
     rgb = p.get("RgbLedProfile", {})
     if not on_expander(rgb):   # expander ports are not GPIOs; see facts()
         for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):

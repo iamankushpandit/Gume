@@ -643,6 +643,11 @@ private:
     uint32_t keyboardDown_[2] = {0, 0};
     uint32_t keyboardRepeatAtMs_ = 0;
     bool sdMounted_ = false;
+    /* What probeExpandModule() found on a board whose SD lines an Expand
+     * module may own. Anything but NoneOrMedia leaves the SD slot alone. */
+    enum class ExpandModule : uint8_t { NoneOrMedia, FmAm, LoraGps, ProbeError };
+    ExpandModule expandModule_ = ExpandModule::NoneOrMedia;
+    void probeExpandModule();
     uint8_t displayRotation_ = 1;
 
     enum class TimeSyncState : uint8_t { Idle, Connecting, Syncing, Synced };

@@ -241,6 +241,27 @@ struct SdProfile {
     uint32_t spiHz;
 };
 
+/* Plug-in modules that would reuse the SD slot's lines, and how to notice
+ * one before the slot is brought up.
+ *
+ * Only the Attaky Core needs it: its Expand modules share IO5-8, so the SD
+ * card's SPI lines belong to Media I/O on one module and to a LoRa radio or
+ * an FM tuner's GPIO on the others. Two of them can be found without driving
+ * anything they own: an I2C device at `fmRadioAddress` on its own bus
+ * (`fmSda`/`fmScl`), and a GPS that sends NMEA sentences at `gpsBaud` into
+ * `gpsRx` without being asked, heard with that pin an input. Finding either
+ * means the SD slot is left alone this boot.
+ *
+ * Optional: 0 and PIN_NONE throughout is a board with nothing to look for,
+ * which is every other board. */
+struct ExpandProbeProfile {
+    uint8_t  fmRadioAddress;      // an I2C address on its own bus, or 0
+    int8_t   fmSda;
+    int8_t   fmScl;
+    int8_t   gpsRx;               // a GPS's TX, as this board's RX; or PIN_NONE
+    uint32_t gpsBaud;
+};
+
 /* Status LED. `commonAnode` boards sink current, so a channel lights when the
  * line is driven LOW -- getting this backwards is a lit LED that never goes
  * out, not a dark one.
@@ -339,6 +360,7 @@ struct BoardProfile {
     KeysProfile   keys;           // and so are these, on the boards that have them
     KeyboardProfile keyboard;     // and this, when one is attached
     SdProfile     sd;
+    ExpandProbeProfile expandProbe; // what else might be on the SD lines
     RgbLedProfile rgb;
     AudioProfile  audio;
     BatteryProfile battery;
@@ -359,6 +381,9 @@ struct BoardProfile {
     constexpr bool hasKeyboard() const { return keyboard.keyboardLeft != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
+    constexpr bool hasExpandProbe() const {
+        return expandProbe.fmRadioAddress != 0 || expandProbe.gpsRx != PIN_NONE;
+    }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }
     constexpr bool hasSpeaker() const { return audio.speakerPin != PIN_NONE; }
     constexpr bool hasBatterySense() const { return battery.adcPin != PIN_NONE; }

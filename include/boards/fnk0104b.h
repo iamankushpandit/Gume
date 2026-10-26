@@ -139,6 +139,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* No RGB LED that this firmware can drive, for now.
      *
      * The board has ONE WS2812 addressable pixel on GPIO42 -- a timed

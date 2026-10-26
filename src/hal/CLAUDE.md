@@ -270,6 +270,10 @@ Navigation keys -- a D-pad, Enter and Back -- on the boards that have them, whic
 
 **The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns them by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Not yet seen on a device with keys**: if portrait or flipped is wrong and landscape is right, the sign in that one function is the whole fix.
 
+## BoardExpandProbe.cpp
+
+Which Attaky Expand module sits on the SD slot's lines, asked once in `Board::begin()` before audio and the slot. `ExpandProbeProfile` names what to look for; every board but the Attaky Core fills it with nothing and pays nothing. Passive-first, after Attaky's `shared/module-detection-and-safe-boot.md`: one address write to the FM/AM tuner (0x64) on that module's private bus (`Wire1`, IO42/IO41), which is then torn down and left as inputs; then the UART receiver alone on IO17 for `GPS_LISTEN_MS` (1.5 s), looking for one NMEA sentence whose checksum adds up -- not just a `$`, because on Media I/O that line is the amplifier's idle bit clock. It leaves IO17 `INPUT_PULLDOWN`, Attaky's park for that line. A found module, or a radio bus that would not start, sets `expandModule_` and `mountSd()` refuses. Capacitive-only, like everything that links Wire. **Keep it ahead of `beginAudio()`**: an I2S backend clocking IO17 while this listens would be both a wrong answer and a noise through the speaker.
+
 ## BoardKeyboard.cpp
 
 A typing keyboard, where one is clipped on: Attaky's two-half module, each half an AW9523 scanning a 5x5 matrix. `KeyboardProfile` gives both addresses and a 25-character layout per half, with four codes for keys that type nothing (`^` Shift, `<` Delete, `>` Enter, `~` unused). `Board::begin()` probes both halves through `BoardExpander::setupKeyboardHalf()`, which leaves every row driven LOW; the keyboard is off for the session unless both answered, and `[keyboard] attached|absent` says which.

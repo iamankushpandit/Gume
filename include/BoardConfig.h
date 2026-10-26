@@ -265,6 +265,26 @@ static_assert(BOARD.rgb.expander == 0
               "an RGB LED on an expander needs a capacitive board's I2C bus, "
               "ports in 0..15, and none of them the touch reset");
 
+/* The Expand-module probe guards an SD slot, uses Wire1 -- which only the
+ * capacitive builds link -- and needs each half it names complete.
+ *
+ * The fields are spelled out rather than read through hasExpandProbe() and
+ * hasSdSlot() ON PURPOSE. The toolchain's GCC 8, at -Os and only in a full
+ * translation unit, reported "non-constant condition" for those member
+ * calls here, and for the same expression wrapped in a constexpr function --
+ * while the comparisons written straight into the assert pass, and the
+ * members pass in a three-line test. Bisected to -Os and not further. */
+static_assert((BOARD.expandProbe.fmRadioAddress == 0 && BOARD.expandProbe.gpsRx == PIN_NONE)
+                  || (BOARD.touch.kind == TouchKind::CapacitiveFt6336u
+                      && BOARD.sd.cs != PIN_NONE
+                      && (BOARD.expandProbe.fmRadioAddress == 0
+                          || (BOARD.expandProbe.fmSda != PIN_NONE
+                              && BOARD.expandProbe.fmScl != PIN_NONE))
+                      && (BOARD.expandProbe.gpsRx == PIN_NONE
+                          || BOARD.expandProbe.gpsBaud != 0)),
+              "an Expand-module probe needs a capacitive build, an SD slot to "
+              "guard, both lines of the radio's bus and a GPS baud rate");
+
 /* A keyboard rides the same I2C bus, and each layout is exactly the 25
  * positions of one half's matrix -- a short string would read past its end
  * at the first key in a row it did not cover. */
