@@ -112,7 +112,8 @@ def profile(header):
     prof = {"tag": m.group(2) if m else "?",
             "capacitive": bool(re.search(r"#define\s+GUME_TOUCH_CAPACITIVE\s+1", text)),
             "dac": bool(re.search(r"#define\s+GUME_HAS_AUDIO_DAC\s+1", text)),
-            "codec": bool(re.search(r"#define\s+GUME_HAS_AUDIO_CODEC\s+1", text))}
+            "codec": bool(re.search(r"#define\s+GUME_HAS_AUDIO_CODEC\s+1", text)),
+            "i2s": bool(re.search(r"#define\s+GUME_HAS_AUDIO_I2S\s+1", text))}
     section = None
     for line in text.splitlines():
         s = next((x for x in SECTIONS if re.match(r"\s*%s\s*\{" % x, line)), None)
@@ -206,6 +207,9 @@ def facts(b, p):
         sound = "ES8311 codec over I2S (I2C address %s)" % audio.get("codecI2cAddress", "?")
     elif p["dac"]:
         sound = "built-in DAC on GPIO%s, into an onboard amplifier" % audio.get("speakerPin")
+    elif p["i2s"]:
+        sound = "I2S amplifier with no codec (BCLK GPIO%s, WS GPIO%s, data GPIO%s)" % (
+            audio.get("i2sBclk"), audio.get("i2sWordSelect"), audio.get("i2sDataOut"))
     else:
         sound = "none"
     batt = pin(p.get("BatteryProfile", {}).get("adcPin"))

@@ -15,6 +15,10 @@
  * fnk0104b.h, which explains why this cannot be the profile field alone. */
 #define GUME_TOUCH_CAPACITIVE 1
 
+/* A bare I2S amplifier (the Media I/O module's NS4168), so neither the codec
+ * nor the built-in DAC backend -- see the audio block below. */
+#define GUME_HAS_AUDIO_I2S 1
+
 /* Attaky Core 1.0 -- the ESP32-S3 module at the heart of every Attaky modular
  * handheld, here as the Cyber Deck Plus: Core + Expand: Media I/O + Control:
  * Keyboard (Bottom) + Control: Gamepad (Bottom) + Power: Standard Cell.
@@ -182,24 +186,30 @@ inline constexpr BoardProfile BOARD = {
         /* commonAnode */ true,
     },
 
-    /* SILENT, for now. Media I/O has an NS4168 I2S class-D amplifier -- BCLK
-     * IO17, word select IO21, data IO18 -- with no codec, no MCLK and no
-     * enable line. Neither audio backend fits it: GUME_HAS_AUDIO_CODEC drives
-     * an ES8311 over I2C, GUME_HAS_AUDIO_DAC the ESP32's built-in DAC, which
-     * the S3 does not have. A plain-I2S backend is the codec path without its
-     * register writes, and it is its own change; until then every
-     * playSound() is a no-op and Settings says the board cannot make sound. */
+    /* audio: Media I/O's NS4168 I2S class-D amplifier -- BCLK IO17, word
+     * select IO21, data IO18, from Attaky's hardware catalog, and the same
+     * three Attaky's Retro-Go target drives. No codec, no MCLK and no enable
+     * line, so GUME_HAS_AUDIO_I2S: standard I2S at 16kHz with volume applied
+     * in software. See BoardAudioBackend.cpp.
+     *
+     * maxVolume is 50, and that is caution rather than a measurement: nobody
+     * has heard this amplifier or its speaker yet. The ceilings that exist
+     * were set by ear -- 85 on the FNK0104B's codec, 75 on the CYD DAC boards,
+     * whose speaker distorts above it -- and a class-D part fed full-scale
+     * samples has nothing behind it to soften a wrong guess. Raise it on the
+     * device, listening to the boot phrase and the piano at the top of the
+     * slider, and record what was heard here. */
     AudioProfile{
         /* speakerPin          */ PIN_NONE,
         /* codecI2cAddress     */ 0,
         /* i2sMclk             */ PIN_NONE,
-        /* i2sBclk             */ PIN_NONE,
-        /* i2sWordSelect       */ PIN_NONE,
-        /* i2sDataOut          */ PIN_NONE,
+        /* i2sBclk             */ 17,
+        /* i2sWordSelect       */ 21,
+        /* i2sDataOut          */ 18,
         /* i2sDataIn           */ PIN_NONE,
         /* ampEnablePin        */ PIN_NONE,
         /* ampEnableActiveLow  */ false,
-        /* maxVolume           */ 0,
+        /* maxVolume           */ 50,
     },
 
     /* No ADC battery sense. The Standard Cell module reports the cell through

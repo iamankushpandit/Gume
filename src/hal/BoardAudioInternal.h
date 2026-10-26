@@ -11,7 +11,7 @@
 
 #include "Board.h"
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -22,7 +22,8 @@
  * BoardAudio.cpp is the synthesiser -- the script, the oscillator, the
  * resonators, and the task that turns them into samples. BoardAudioBackend.cpp
  * is the hardware underneath it: the ES8311's registers, the I2S peripheral,
- * the amplifier enable and the built-in DAC's idle level. BoardAudioCues.cpp
+ * the amplifier enable, the built-in DAC's idle level and the bare I2S
+ * amplifier's plain setup. BoardAudioCues.cpp
  * is the vocabulary: every sound the console can make, and the spoken boot
  * phrase, as const tables.
  *
@@ -37,7 +38,9 @@
  */
 namespace audio {
 
-/* See BoardAudio.cpp for why the two backends generate at different rates. */
+/* See BoardAudioBackend.cpp for why the backends generate at different
+ * rates: 24000 on the built-in DAC, 16000 on the codec and on a bare I2S
+ * amplifier. */
 #if GUME_HAS_AUDIO_DAC
 constexpr int AUDIO_RATE = 24000;
 #else
@@ -78,6 +81,7 @@ struct Segment {
 
 extern bool codecUp;
 extern bool dacUp;
+extern bool i2sUp;
 extern bool ampOn;
 extern bool playing;
 extern bool releasing;
@@ -114,4 +118,4 @@ void fillDacIdle(TickType_t wait);
 
 }   // namespace audio
 
-#endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
+#endif  /* GUME_HAS_AUDIO */

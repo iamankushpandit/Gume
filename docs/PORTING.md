@@ -34,7 +34,7 @@ quietly does without — no code change, just `PIN_NONE`:
 |---|---|
 | SD card slot | `sdReady()` is false; optional SD content simply is not loaded. Everything has defaults |
 | RGB LED | `beepOk()`/`beepError()` lose their green and red pulse. They still play their sound if the board has an audio path |
-| Speaker | With neither `GUME_HAS_AUDIO_CODEC` nor `GUME_HAS_AUDIO_DAC` set, every `playSound()` is a silent no-op and Settings → Sound says the board cannot make sound. Every board supported today has an audio path |
+| Speaker | With none of `GUME_HAS_AUDIO_CODEC`, `GUME_HAS_AUDIO_DAC` or `GUME_HAS_AUDIO_I2S` (a bare I2S amplifier with no codec) set, every `playSound()` is a silent no-op and Settings → Sound says the board cannot make sound. Every board supported today has an audio path |
 | Battery sense | The gauge blanks its digits, which is the honest reading for a board that cannot see a cell |
 
 A larger panel clears the size requirement, but see

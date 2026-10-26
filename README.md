@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,582,369 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,582,449 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,060 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -505,7 +505,7 @@ once.
 
 **Every supported board plays all of it**, through whatever speaker is plugged
 into the board's speaker connector — with nothing plugged in, the console
-simply plays silently. One synthesiser feeds two different outputs:
+simply plays silently. One synthesiser feeds three different outputs:
 
 - The [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) plays through an
   **ES8311 audio codec**.
@@ -513,6 +513,9 @@ simply plays silently. One synthesiser feeds two different outputs:
   no codec. The **ESP32's built-in DAC** on GPIO26 drives an onboard amplifier
   directly, which gives 8-bit output — coarser than the codec, and the same
   cues, pad notes, piano notes and spoken phrase.
+- The [Attaky Core](docs/boards/Attaky-Core.md) has no codec either: its
+  Media I/O module carries an **NS4168 I2S amplifier**, which is sent plain
+  I2S and does its own conversion. Not yet heard on a device.
 
 **None of it is a recording.** There is no WAV, no MP3 and no sample bank
 anywhere in this firmware, and there is not going to be one: a single second of
@@ -530,7 +533,8 @@ is exactly why it sounds like one.
 
 All of it can be turned off. **Settings → Sound** holds a mute switch and a
 volume slider capped for a device held near a young player's ears — at 85% on
-the Freenove and 75% on the built-in-DAC boards — plus two buttons to hear the
+the Freenove, 75% on the built-in-DAC boards and a provisional 50% on the
+Attaky Core — plus two buttons to hear the
 level while you set it, because setting a volume you cannot hear while you set
 it is guesswork.
 
@@ -682,7 +686,8 @@ rather than volume zero, so the level survives being silenced and comes back
 where it was; muting takes *everything*, including the startup phrase, and
 leaves the case LED still flashing green and red. The volume slider is capped
 below 100% and says so — **85** on the Freenove, **75** on the boards that
-play through the ESP32's built-in DAC — because a control that relabelled its
+play through the ESP32's built-in DAC, **50** on the Attaky Core until
+somebody has listened to it — because a control that relabelled its
 ceiling as 100% would read better and lie. That ceiling is a hearing-safety
 limit for a device held near a young player's ears, the counterpart of the 25%
 brightness floor. It is stated per board because it depends on the amplifier

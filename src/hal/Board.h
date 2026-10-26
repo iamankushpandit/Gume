@@ -243,10 +243,11 @@ public:
      * could not, and a settings screen has to say which of the two it is
      * looking at rather than offering controls that do nothing.
      *
-     * Covers both the codec (GUME_HAS_AUDIO_CODEC) and the built-in DAC
-     * (GUME_HAS_AUDIO_DAC) backends. */
+     * Covers all three backends -- the codec (GUME_HAS_AUDIO_CODEC), the
+     * built-in DAC (GUME_HAS_AUDIO_DAC) and a bare I2S amplifier
+     * (GUME_HAS_AUDIO_I2S) -- through GUME_HAS_AUDIO in BoardConfig.h. */
     static constexpr bool hasSound() {
-        return GUME_HAS_AUDIO_CODEC != 0 || GUME_HAS_AUDIO_DAC != 0;
+        return GUME_HAS_AUDIO != 0;
     }
 
     /* Feeds queued audio to the I2S DMA without blocking. Called once per

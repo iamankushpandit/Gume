@@ -37,6 +37,24 @@ claim, and the four things most likely to need changing as:
   the order is.
 - **The SD card**, which is wired in SPI mode on lines the Expand modules share.
 
+**Sound comes from the Media I/O module's NS4168 amplifier**, driven as plain
+I2S with no codec: BCLK IO17, word select IO21, data IO18, at 16 kHz. None of
+it has been heard. What to listen for:
+
+- **Is there any sound at all?** The boot phrase, "Let's play Braino!", is the
+  first test. Silence with `[audio] I2S amp up ...` in the serial log points at
+  the pins or the frame format, not the synthesiser.
+- **Is it the right pitch and length?** A cue that sounds like a click, or the
+  phrase coming out fast and high, means the I2S clock is not running at the
+  rate it was asked for -- the fault the CYD boards' DAC had. Timing the drain
+  of a known number of frames is the check; `i2s_get_clk()` is not.
+- **How loud is the top of the slider?** The volume ceiling is 50% because
+  nobody has heard this speaker yet. Play the boot phrase and the piano at the
+  top of the slider and raise `maxVolume` in `include/boards/attaky-core.h`
+  until just below where it distorts, as the other boards' ceilings were set.
+- **Does anything pop or hiss when idle?** The amplifier has no enable line, so
+  it is powered for as long as the board is.
+
 **The Core's own keys drive the launcher:** the D-pad moves a ring between
 the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
 from any other screen, as BOOT is. Worth checking that each direction moves
@@ -49,8 +67,7 @@ their on-screen keypad does; the password takes exactly what is typed, with
 Shift for capitals. The on-screen keypad stays: the module clips off, and the
 firmware checks for it at boot.
 
-Left out on purpose, not broken: sound (the NS4168 amplifier needs a plain-I2S
-backend the firmware does not have yet), the battery gauge (a MAX17048 fuel
+Left out on purpose, not broken: the battery gauge (a MAX17048 fuel
 gauge rather than a voltage divider), the status LED (on the I2C expander), the
 gamepad, and the D-pad on any screen but the launcher. Touch is the console's
 input on every board.
@@ -82,7 +99,7 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | Device-id tag | `ATK-...` |
 | Panel | 240 x 320, ST7789 driver |
 | Touch | capacitive, I2C; reset on port P1_3 of the I2C expander at 0x59 |
-| Sound | none |
+| Sound | I2S amplifier with no codec (BCLK GPIO17, WS GPIO21, data GPIO18) |
 | Battery sense | **none read** -- no battery badge |
 | Flash | 16 MB |
 
@@ -100,6 +117,9 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | 12 | Display: data/command |
 | 13 | Display: SPI MOSI |
 | 14 | Display: backlight |
+| 17 | Audio: I2S BCLK |
+| 18 | Audio: I2S data out |
+| 21 | Audio: I2S LRCK |
 | 38 | Key: BOOT, which the firmware uses as Home |
 | 45 | Display: chip select |
 

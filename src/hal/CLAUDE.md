@@ -157,7 +157,7 @@ sounding, because Mute is the control somebody reaches for *while* the boot
 phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
 `BOARD.audio.maxVolume`).
 
-**The audio backend is now three-state, not binary.**
+**The audio backend is one of three, or none.**
 
 - `GUME_HAS_AUDIO_CODEC 1` — ES8311 codec (Freenove FNK0104B). Requires
   `Wire` + `driver/i2s.h`. Volume via register 0x32 (logarithmic — see
@@ -171,19 +171,35 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
   75 on these boards (the DAC feeds an onboard amplifier; the 1-inch driver
   distorts above 75%).
-- Neither defined — no audio. The Attaky Core is in that state until its
-  NS4168 has a plain-I2S backend, and it was the first board to compile
-  this arm at all: three `using namespace audio;` directives sat outside
-  the guard that defines the namespace, and every build failed. They are
-  guarded now. Build a no-audio board after touching these files.
+- `GUME_HAS_AUDIO_I2S 1` — a bare I2S amplifier with no codec (Attaky
+  Core: the Media I/O module's NS4168). The codec path with the codec taken
+  out: no Wire, no register writes, no MCLK (`i2sMclk = PIN_NONE` routes
+  none), the same 16-bit `STAND_I2S` frame on both slots that is known good on
+  the FNK0104B, so whichever slot the amplifier's CTRL strap picks carries the
+  sound. Volume is the DAC's linear multiplier, applied to the signed sample in
+  `generateBlock()` -- not the codec's dB maths. `tx_desc_auto_clear` is on,
+  because signed zero is silence here. `AUDIO_RATE` is 16000, **chosen rather
+  than measured**: the S3's I2S clock is 160 MHz through a fractional divider
+  and 16000 x 256 is 39 1/16 of it, exact on paper, but the drain timing the
+  DAC's table came from has not been done on this board. `maxVolume` = 50,
+  provisional until set by ear.
+- None defined — no audio. No supported board is in that state now, but the
+  Attaky Core was until it had the I2S backend, and it was the first board
+  to compile this arm at all: three `using namespace audio;` directives sat
+  outside the guard that defines the namespace, and every build failed. They
+  are guarded now. If you touch these files, build with the board header's
+  audio macro removed as well.
+
+Every guard here tests `GUME_HAS_AUDIO` -- defined in `BoardConfig.h` as any of
+the three -- rather than a list of backends, and `BoardConfig.h` static_asserts
+that a board states at most one.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
 `BoardProfile`. A board that gains a louder amplifier sets its own ceiling;
 a board with no speaker path sets it to 0.
 
-`Board::hasSound()` covers both codec and DAC: a settings screen can offer
-the mute switch and volume slider on any audio-capable board, not just
-codec boards.
+`Board::hasSound()` is `GUME_HAS_AUDIO`: a settings screen can offer the mute
+switch and volume slider on any audio-capable board, not just codec boards.
 
 **Register 0x32 is logarithmic and was being driven as if it were linear.**
 Half a decibel per step, `0xBF` unity, `0x00` silence -- so scaling the

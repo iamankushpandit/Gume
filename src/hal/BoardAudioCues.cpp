@@ -23,7 +23,7 @@
  * frequencies is exactly how that stops being true. That is also why
  * Board::beep() is private and every screen goes through playSound().
  */
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 namespace {
 using namespace audio;
 
@@ -308,18 +308,18 @@ void armCue(const Segment (&segments)[N]) {
 }
 
 }  // namespace
-#endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
+#endif  /* GUME_HAS_AUDIO */
 
 /* The Board:: members below are the public face of all this; they reach the
  * synthesiser by name, as they did when it was one file. Guarded like the
  * namespace itself: on a board with no audio path there is no `audio` to
  * name, and every member below compiles to its silent arm. */
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 using namespace audio;
 #endif
 
 void Board::beep(uint16_t frequency, uint16_t ms) {
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
     if (!soundEnabled()) return;
     const Segment one[] = {tone(frequency, ms, 90)};
     armCue(one);
@@ -336,7 +336,7 @@ void Board::beep(uint16_t frequency, uint16_t ms) {
  * case on purpose -- adding a Sound without a cue is then a build warning
  * rather than a screen that silently makes no noise. */
 void Board::playSound(Sound cue) {
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
     /* The mute gate is here, at the one door every sound goes through --
      * including the boot phrase and both beeps. A switch labelled Mute that
      * left something still audible would be exactly the kind of half-truth

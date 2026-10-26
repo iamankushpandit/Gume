@@ -251,14 +251,17 @@ struct RgbLedProfile {
  * `speakerPin` is a bare transducer on a GPIO -- what the CYD boards wire.
  * On those boards GPIO26 is ESP32 DAC channel 2, so the I2S peripheral can
  * drive it directly (I2S_DAC_BUILT_IN) without a codec. GUME_HAS_AUDIO_DAC
- * selects that backend; GUME_HAS_AUDIO_CODEC selects the ES8311 backend.
- * Both pull in driver/i2s.h; the codec path additionally needs Wire. Neither
- * macro is present on a board with no audio path at all.
+ * selects that backend; GUME_HAS_AUDIO_CODEC selects the ES8311 backend;
+ * GUME_HAS_AUDIO_I2S selects a bare I2S amplifier with no codec (the Attaky
+ * Core's NS4168), which needs i2sBclk, i2sWordSelect and i2sDataOut and
+ * nothing else. All three pull in driver/i2s.h; the codec path additionally
+ * needs Wire. None is present on a board with no audio path at all.
  *
  * `maxVolume` is the ceiling for the volume slider. It lives here because it
  * is set by listening on real hardware and differs by amplifier: the codec
- * board's ES8311 + class-D amp peaks at 85, and the bare-pin DAC path is
- * limited to 100 (pure linear gain -- there is no register to write). A board
+ * board's ES8311 + class-D amp peaks at 85, the CYD DAC boards at 75, and the
+ * unheard Attaky Core starts at a cautious 50 (both of those last two apply
+ * it as linear gain -- there is no register to write). A board
  * without audio sets it to 0; that is guarded in setVolume() so nothing
  * crashes if the default NVS value exceeds 0 on a boardless build.
  *

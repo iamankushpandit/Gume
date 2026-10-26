@@ -13,7 +13,7 @@
 #include <Wire.h>
 #endif
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 #include <driver/i2s.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -108,7 +108,7 @@
  *     add capture will lose an afternoon to it.
  */
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 namespace audio {
 /* ---------------------------------------------------------------- engine */
 
@@ -123,6 +123,7 @@ bool releasing = false;
 
 bool codecUp = false;
 bool dacUp = false;
+bool i2sUp = false;
 bool ampOn = false;
 
 /* A two-pole resonator. The input coefficient is sin(theta) rather than the
@@ -343,8 +344,8 @@ uint32_t ampIdleSinceMs = 0;
 SemaphoreHandle_t audioLock = nullptr;
 TaskHandle_t audioTask = nullptr;
 
-/* The DAC backend scales amplitude in software, so the generator needs the
- * volume without a Board& to read it from. Mirrored rather than read through
+/* The DAC and bare-I2S backends scale amplitude in software, so the
+ * generator needs the volume without a Board& to read it from. Mirrored rather than read through
  * Preferences for the usual reason: this is on the path of every sample. */
 /* [[maybe_unused]] rather than a tighter guard, deliberately. Its reads and
  * writes sit in a mix of GUME_HAS_AUDIO_CODEC and GUME_HAS_AUDIO_DAC blocks
@@ -375,7 +376,7 @@ size_t pendingAt = 0;
  * frame would be a use-after-free waiting for someone to write a cue with a
  * local table. */
 void arm(const Segment* segments, uint8_t count) {
-    if ((!codecUp && !dacUp) || count == 0) return;
+    if ((!codecUp && !dacUp && !i2sUp) || count == 0) return;
     if (count > MAX_SEGMENTS) count = MAX_SEGMENTS;
 
     if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
@@ -441,12 +442,22 @@ void arm(const Segment* segments, uint8_t count) {
  * is the DAC's offset-binary word format. The caller holds audioLock. */
 size_t generateBlock(uint8_t* dst, int frames) {
     if (!playing) return 0;
-#if GUME_HAS_AUDIO_CODEC
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_I2S
+    /* Signed 16-bit, both slots. The codec applies volume in its own register;
+     * a bare I2S amplifier has no register, so the level is a LINEAR
+     * multiplier here, exactly as on the DAC -- not applyCodecVolume()'s dB
+     * conversion, which is right only for a logarithmic register. */
+#if GUME_HAS_AUDIO_I2S
+    const int32_t vol = outputVolume;
+#endif
     int16_t* slots = reinterpret_cast<int16_t*>(dst);
     int n = 0;
     for (; n < frames; ++n) {
         int16_t sample = 0;
         if (!nextSample(sample)) break;
+#if GUME_HAS_AUDIO_I2S
+        sample = static_cast<int16_t>(static_cast<int32_t>(sample) * vol / 100);
+#endif
         slots[n * 2] = sample;
         slots[n * 2 + 1] = sample;   // one mono stream on both slots
     }
@@ -535,13 +546,13 @@ void startAudioTask() {
 }
 
 }  // namespace audio
-#endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
+#endif  /* GUME_HAS_AUDIO */
 
 /* The Board:: members below are the public face of all this; they reach the
  * synthesiser by name, as they did when it was one file. Guarded like the
  * namespace itself: on a board with no audio path there is no `audio` to
  * name, and every member below compiles to its silent arm. */
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 using namespace audio;
 #endif
 
@@ -570,7 +581,7 @@ void Board::setSoundEnabled(bool on) {
     cachedSound_ = on;
     soundCached_ = true;
     prefs_.putBool("sndOn", on);
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
     /* Muting stops what is already sounding rather than letting it finish.
      * The boot phrase is a second and a half long and Mute is exactly the
      * control somebody reaches for while it is playing; "it will stop shortly"

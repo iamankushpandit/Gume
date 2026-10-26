@@ -38,6 +38,33 @@
 #ifndef GUME_HAS_AUDIO_DAC
 #define GUME_HAS_AUDIO_DAC 0
 #endif
+/* A bare I2S amplifier: no codec to configure and no built-in DAC, just BCLK,
+ * word select and data into a part such as the NS4168 that decodes standard
+ * I2S on its own. The Attaky Core's Media I/O module is the first. */
+#ifndef GUME_HAS_AUDIO_I2S
+#define GUME_HAS_AUDIO_I2S 0
+#endif
+
+/* "Does this board have an audio path at all", as one macro, so that the
+ * synthesiser and the Board:: entry points guard on the question they mean
+ * rather than on a list of backends that has to grow in a dozen places. */
+#define GUME_HAS_AUDIO (GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC || GUME_HAS_AUDIO_I2S)
+
+static_assert((GUME_HAS_AUDIO_CODEC ? 1 : 0) + (GUME_HAS_AUDIO_DAC ? 1 : 0) +
+                  (GUME_HAS_AUDIO_I2S ? 1 : 0) <= 1,
+    "A board states at most one audio backend: GUME_HAS_AUDIO_CODEC, "
+    "GUME_HAS_AUDIO_DAC or GUME_HAS_AUDIO_I2S. They drive the same I2S port.");
+
+#if GUME_HAS_AUDIO_I2S
+static_assert(BOARD.audio.i2sBclk != PIN_NONE && BOARD.audio.i2sWordSelect != PIN_NONE &&
+                  BOARD.audio.i2sDataOut != PIN_NONE,
+    "GUME_HAS_AUDIO_I2S needs i2sBclk, i2sWordSelect and i2sDataOut in the "
+    "board's AudioProfile -- an amplifier with no codec is clocked by those "
+    "three lines and nothing else.");
+static_assert(!BOARD.audio.hasCodec(),
+    "GUME_HAS_AUDIO_I2S is the backend for an amplifier with NO codec. A board "
+    "with codecI2cAddress set wants GUME_HAS_AUDIO_CODEC.");
+#endif
 
 /* ---- The built-in DAC claims BOTH of its pads, not just the one you asked for
  *

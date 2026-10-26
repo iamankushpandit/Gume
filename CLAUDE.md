@@ -623,7 +623,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,582,369 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,449 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,060 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1644,10 +1644,18 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
-  1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
-  `BoardProfile.audio` is 85 for the codec board and 75 for the built-in-DAC
-  boards, which feed an onboard amplifier (the 1-inch driver distorts above
-  75%). See `src/hal/CLAUDE.md`.
+  1` (FNK0104B only). The third is `GUME_HAS_AUDIO_I2S 1` (Attaky Core only):
+  a bare I2S amplifier, the Media I/O module's NS4168, on BCLK IO17, word
+  select IO21 and data IO18 with no codec, no MCLK and no enable line -- the
+  codec path without the I2C, standard I2S at 16 kHz, volume as a linear
+  multiplier in software like the DAC's. `GUME_HAS_AUDIO` (`BoardConfig.h`)
+  is the one "has any audio path" test, every audio guard uses it, and a board
+  stating two backends fails to compile; boards with none have no audio.
+  `maxVolume` in `BoardProfile.audio` is 85 for the codec board and 75 for the
+  built-in-DAC boards, which feed an onboard amplifier (the 1-inch driver
+  distorts above 75%), and a provisional 50 on the Attaky Core, which nobody
+  has heard yet -- it is to be set by ear on the device, as the others were.
+  See `src/hal/CLAUDE.md`.
   Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
   whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
   `beginAudio()` powers that channel down and returns the pad to the GPIO

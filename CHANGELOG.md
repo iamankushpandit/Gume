@@ -18,8 +18,8 @@ they stand. The profile, `include/boards/attaky-core.h`, was written from
 Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
-has to confirm. Touch, the display and the SD slot are wired. Sound waits for
-a plain-I2S backend for its NS4168 amplifier, the battery gauge for a MAX17048
+has to confirm. Touch, the display and the SD slot are wired. The battery
+gauge waits for a MAX17048
 reader, the status LED for an expander driver, and the keyboard and gamepad
 are not read: touch stays the input on every board.
 
@@ -42,6 +42,17 @@ tile. The keys come through a new `KeysProfile` and `Board::pollNavKey()`,
 which turns each direction for the current screen rotation the way touch
 already is; boards without keys compile the key paths away. Not yet run on a
 device.
+
+**The Attaky Core makes sound -- not yet heard.** Its Media I/O module has an
+NS4168 class-D amplifier that decodes I2S itself, with no codec, no MCLK and no
+enable line, which neither audio backend could drive. A third,
+`GUME_HAS_AUDIO_I2S`, is the codec path with the codec taken out: the same
+synthesiser, the same `braino-audio` task and the same `generateBlock()`, into
+standard 16-bit I2S on BCLK IO17, word select IO21 and data IO18 at 16 kHz,
+with volume applied as a linear multiplier in software as the built-in DAC
+does. The volume ceiling is a cautious 50% until it has been set by ear on
+the device. `GUME_HAS_AUDIO` now answers "does this board have sound?" in one
+place, and `BoardConfig.h` refuses a board that states two backends.
 
 **A clip-on keyboard types into the text fields.** On a board that can carry
 one -- the Attaky Core, with Attaky's keyboard module -- a player's name, a

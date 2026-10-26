@@ -159,8 +159,8 @@ VARIANTS = (
         "note": "The full console for the Attaky Core, as built into the Cyber Deck Plus: {count} games, "
                 "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch, the Core's D-pad "
                 "on the home screen, and the keyboard in every text field; the gamepad is not read "
-                "yet, and there is no sound, battery gauge or status LED yet. "
-                "Needs the Media I/O module for the SD slot.",
+                "yet, and there is no battery gauge or status LED yet. "
+                "Needs the Media I/O module for the SD slot and the speaker.",
     },
 )
 
