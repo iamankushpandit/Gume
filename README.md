@@ -1096,6 +1096,13 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
+**The Attaky Core is the exception: it has a fuel gauge, not a divider.** Its
+Power module reports the cell through a MAX17048 on the I²C bus, and the badge
+shows that chip's own state of charge rather than a percentage worked out from
+a voltage, with the same thresholds and the same steadying. Unclip the module
+and the gauge stops answering, so the badge disappears and no warning is raised
+-- the console does not mistake a missing module for an empty battery.
+
 The icon is deliberately **not** a fixed size: it grows with its digits, widest
 at `100`, and the status rows around it are laid
 out from its measured width rather than a constant offset.

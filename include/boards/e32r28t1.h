@@ -178,6 +178,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 34,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 4 MB part, partitioned huge_app.csv: 3 MB for the app. */

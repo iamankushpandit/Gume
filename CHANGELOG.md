@@ -18,10 +18,20 @@ they stand. The profile, `include/boards/attaky-core.h`, was written from
 Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
-has to confirm. Touch, the display and the SD slot are wired. The battery
-gauge waits for a MAX17048
-reader, the status LED for an expander driver, and the keyboard and gamepad
-are not read: touch stays the input on every board.
+has to confirm. Touch, the display and the SD slot are wired. The status LED
+waits for an expander driver, and the gamepad is not read: touch stays the
+input on every board.
+
+**The Attaky Core's battery badge reads its fuel gauge.** It has no divider:
+the Power: Standard Cell module reports the cell through a MAX17048 on the
+touch bus. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
+board), and on a board that names one the battery task reads the gauge's
+cell voltage and state of charge instead of the ADC, and shows the state of
+charge directly rather than through the LiPo curve -- with the same deadband
+and the same low and critical thresholds. A gauge that does not answer, which
+is what an unclipped power module looks like, is no reading: no badge and no
+warning, never an empty cell. The five ADC boards sample, filter and display
+exactly as before. Not yet run on a device.
 
 One thing about it was new to the board contract. Its touch reset is a port
 on an AW9523 I2C expander rather than a GPIO, so `TouchProfile` gained

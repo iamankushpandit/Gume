@@ -294,6 +294,23 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
      * volts that reads as a flat pack or a sensor fault. */
     if (!BOARD.hasBatterySense()) {
         rows_.addRow("Battery", "None - use USB power");
+    } else if (BOARD.hasFuelGauge()) {
+        /* A gauge reports charge itself, so there is no ADC to show; and one
+         * that does not answer is most likely a power module that is not
+         * clipped on, not a faulty sensor. */
+        if (pct < 0) {
+            rows_.addRow("Battery", "No reading");
+            rows_.addRow("Fuel gauge", "Not answering");
+        } else {
+            char text[24];
+            snprintf(text, sizeof(text), "%.2f V (%d%%)",
+                     static_cast<double>(battery.batteryVoltage), static_cast<int>(pct));
+            rows_.addRow("Battery", text);
+            rows_.addRow("Charge level", board.isBatteryCritical() ? "Critical - charge now"
+                                        : board.isBatteryLow() ? "Low - charge soon"
+                                        : "OK");
+            rows_.addRow("Fuel gauge", "MAX17048");
+        }
     } else {
         /* A negative percentage means the ADC read outside a plausible range, not
          * that the pack is missing: this board cannot tell whether one is fitted

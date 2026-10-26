@@ -113,6 +113,12 @@ Things worth getting right the first time:
   voltage at the cell. Read it off the vendor's own documentation, then confirm
   it against a meter with `pio run -e batdiag` — that tool reads the same
   profile, so what it measures is what the product will report.
+- **`fuelGaugeAddress`** is 0 unless the board reports its cell through a
+  MAX17048 fuel gauge on the touch controller's I2C bus, in which case it is
+  that chip's address and the ADC fields are `PIN_NONE` and zero -- one or
+  the other, never both. Only a capacitive build can have one. `batdiag`
+  does not read a gauge; check it against the serial log's `[battery] fuel
+  gauge` line and System Info's Power rows instead.
 - **Use the vendor's pin table, not a generic ESP32 pinout, and never another
   CYD variant's.** GPIO34 is battery sense on the E32R28T-1 and the light
   sensor on the classic ESP32-2432S028R. They look like the same board.

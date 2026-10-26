@@ -291,14 +291,25 @@ struct MemoryProfile {
     uint32_t flashBytes;
 };
 
-/* Battery sense. `dividerRatio` is the multiplier from the voltage at the ADC
- * to the voltage at the cell; `sensorMaxVolts` is a plausibility ceiling on
- * the reading, above which the divider or the ADC is faulty. Neither is a
- * "is a pack fitted?" test -- see the comment block in hal/BoardPower.cpp. */
+/* Battery sense, in one of two shapes, never both.
+ *
+ * An ADC divider: `adcPin` is the sense line, `dividerRatio` the multiplier
+ * from the voltage at the ADC to the voltage at the cell, and `sensorMaxVolts`
+ * a plausibility ceiling on the reading, above which the divider or the ADC is
+ * faulty. Neither is a "is a pack fitted?" test -- see the comment block in
+ * hal/BoardPower.cpp.
+ *
+ * A fuel gauge: `fuelGaugeAddress` is a MAX17048's I2C address on the touch
+ * controller's bus (so only a capacitive build, which carries Wire, can have
+ * one), or 0 for none. The gauge reports state of charge itself, so the ADC
+ * fields are PIN_NONE and zero and the LiPo curve is not used. A gauge that
+ * stops answering -- the module is detachable on the board that has one --
+ * reads as no reading, never as an empty cell. */
 struct BatteryProfile {
-    int8_t adcPin;
-    float  dividerRatio;
-    float  sensorMaxVolts;
+    int8_t  adcPin;
+    float   dividerRatio;
+    float   sensorMaxVolts;
+    uint8_t fuelGaugeAddress;     // a MAX17048 on the touch bus, or 0
 };
 
 struct BoardProfile {
@@ -349,5 +360,7 @@ struct BoardProfile {
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }
     constexpr bool hasSpeaker() const { return audio.speakerPin != PIN_NONE; }
-    constexpr bool hasBatterySense() const { return battery.adcPin != PIN_NONE; }
+    constexpr bool hasBatteryAdc() const { return battery.adcPin != PIN_NONE; }
+    constexpr bool hasFuelGauge() const { return battery.fuelGaugeAddress != 0; }
+    constexpr bool hasBatterySense() const { return hasBatteryAdc() || hasFuelGauge(); }
 };
