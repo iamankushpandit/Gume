@@ -9,9 +9,9 @@
       "label": "2.8-inch, resistive touch, USB-C plus micro-USB, no battery (USB power) -- ESP32-2432S028 CYD, ST7789 panel (ST7789 + XPT2046)",
       "issue": 200,
       "branch": "feat/cyd2usb-st7789",
-      "run": 39677465096,
+      "run": 40331989547,
       "artifact": "braino-app_esp32_2432s028_st7789",
-      "added": "2026-10-21",
+      "added": "2026-10-26",
       "test": "Flash it on a dual-USB CYD that draws washed-out colours under the inverted-panel image. Check that the colours are right in every theme (Settings, Device, Theme), that touch lands where you tap after the calibration wizard, and that the picture is the right way up in all four positions of the Layout button. Reply in the issue with a photo of the launcher under this build, and of anything that looks wrong."
     }
   ]
