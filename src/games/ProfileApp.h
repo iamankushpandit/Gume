@@ -68,6 +68,7 @@ private:
      * thing a keypress touches. See the note in ProfileApp.cpp. */
     void renderPinPadChrome(GameHost& host);
     void renderPinDots(GameHost& host);
+    void updatePinEntry(GameHost& host, const TouchPoint& touch);
     void updateRename(GameHost& host, const TouchPoint& touch);
     void renderRename(GameHost& host);
 

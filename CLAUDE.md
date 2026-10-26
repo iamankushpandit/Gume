@@ -623,7 +623,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,869 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,581,969 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,044 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1259,6 +1259,10 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Cursive share: logic, Draw, Arrows, Words and a
                           Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
+                          Wi-Fi is WifiApp (phases, input, drawing) and
+                          WifiConnect (scan, join, rejoin); Profiles is
+                          ProfileApp, ProfileRename and ProfilePin (the
+                          admin PIN pad).
                           Settings is three .cpp against one header --
                           SettingsApp (tabs + routing), SettingsPanels
                           (the tab bodies), SettingsPin (the PIN pad).

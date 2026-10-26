@@ -145,13 +145,18 @@
       "heap": 0
     },
     "src/games/WifiApp.cpp": {
-      "String": 18,
-      "delay": 2,
+      "String": 15,
+      "delay": 0,
       "heap": 0
     },
     "src/games/WifiApp.h": {
       "String": 3,
       "delay": 0,
+      "heap": 0
+    },
+    "src/games/WifiConnect.cpp": {
+      "String": 3,
+      "delay": 2,
       "heap": 0
     },
     "src/hal/BleBeacon.cpp": {
