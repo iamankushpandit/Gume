@@ -11,6 +11,11 @@ chip. The ESP32-S3 module inside is the same N16R8 part as the Freenove board.
 **In the installer:** "2.0-inch, capacitive touch, one USB-C port -- Attaky
 Core 1.0 in a Cyber Deck Plus".
 
+**Its own releases:** this board ships as Braino! for Attaky, with its own
+version (`ATTAKY_VERSION`, starting at 1.0.0) and its own tags
+(`attaky-v<version>`). System Info and the `[boot]` line also say which
+Braino version it is built from. A generic `v*` release does not include it.
+
 **Which modules this build expects:** the Core, and Media I/O on the back for
 the SD slot and the speaker. The Expand modules share their pins, so before
 either is brought up the firmware looks for the two others, without driving

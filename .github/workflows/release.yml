@@ -28,7 +28,9 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    # v<BRAINO_VERSION> releases the generic boards; attaky-v<ATTAKY_VERSION>
+    # releases the Attaky Core alone. See include/FirmwareLine.h.
+    tags: ["v*", "attaky-v*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -114,12 +116,19 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ steps.which.outputs.tag }}"
-          version="$(python -c "import re,io; print(re.search(r'BRAINO_VERSION\s+\"([^\"]+)\"', io.open('include/AppVersion.h', encoding='utf-8').read()).group(1))")"
-          echo "tag=$tag  BRAINO_VERSION=$version"
-          if [ "$tag" != "v$version" ]; then
-            echo "::error::Tag $tag does not match BRAINO_VERSION $version (expected v$version). Fix AppVersion.h, or delete and re-cut the tag."
+          case "$tag" in
+            attaky-v*) line=attaky; constant=ATTAKY_VERSION; prefix=attaky-v; title="Braino! for Attaky" ;;
+            v*)        line=braino; constant=BRAINO_VERSION; prefix=v;        title="Braino!" ;;
+            *) echo "::error::$tag is neither v<version> nor attaky-v<version>"; exit 1 ;;
+          esac
+          version="$(python -c "import re,io,sys; print(re.search(sys.argv[1] + r'\s+\"([^\"]+)\"', io.open('include/AppVersion.h', encoding='utf-8').read()).group(1))" "$constant")"
+          echo "tag=$tag  line=$line  $constant=$version"
+          if [ "$tag" != "$prefix$version" ]; then
+            echo "::error::Tag $tag does not match $constant $version (expected $prefix$version). Fix AppVersion.h, or delete and re-cut the tag."
             exit 1
           fi
+          echo "line=$line" >> "$GITHUB_ENV"
+          echo "title=$title" >> "$GITHUB_ENV"
           case "$version" in
             *-SNAPSHOT*|*-snapshot*)
               echo "::error::$version is a snapshot and must not be released. Bump AppVersion.h to a real version first."
@@ -157,7 +166,7 @@ jobs:
       - name: Build the firmware this release publishes
         run: |
           set -euo pipefail
-          envs="$(python tools/envs.py --product --pio-args)"
+          envs="$(python tools/envs.py --product --line "$line" --pio-args)"
           echo "Building: $envs"
           pio run $envs
 
@@ -165,6 +174,7 @@ jobs:
         run: |
           set -euo pipefail
           python tools/pack_release.py \
+            --line "$line" \
             --out dist \
             --strict \
             --built "${{ steps.which.outputs.tag }} (commit $(git rev-parse --short=7 HEAD))"
@@ -218,10 +228,15 @@ jobs:
             gh release edit "$tag" --notes-file release-notes.md
             gh release upload "$tag" dist/*.bin dist/SHA256SUMS.txt dist/FLASHING.txt --clobber
           else
+            # An Attaky release is never the repository's "Latest": that
+            # badge, and the generic boards' installer, belong to the braino
+            # line.
+            latest=""
+            if [ "$line" != "braino" ]; then latest="--latest=false"; fi
             gh release create "$tag" \
-              --title "${{ env.version }} — Braino!" \
+              --title "${{ env.version }} — ${{ env.title }}" \
               --notes-file release-notes.md \
-              $draft \
+              $draft $latest \
               dist/*.bin dist/SHA256SUMS.txt dist/FLASHING.txt
           fi
           echo "Published: $(gh release view "$tag" --json url --jq .url)"

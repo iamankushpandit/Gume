@@ -9,6 +9,7 @@
 
 #include "SystemInfoApp.h"
 #include "AppVersion.h"
+#include "FirmwareLine.h"
 #include "BuildStamp.h"
 #include "engine/AppRegistry.h"
 #include "engine/NearbyPlay.h"
@@ -270,7 +271,12 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
     rows_.addRow("Chip", String(ESP.getChipModel()) + " r" + ESP.getChipRevision());
     rows_.addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
     rows_.addRow("SDK", ESP.getSdkVersion());
-    rows_.addRow("Firmware", BRAINO_VERSION);
+    rows_.addRow("Firmware", FIRMWARE_VERSION);
+#ifdef FIRMWARE_BASE_VERSION
+    /* An Attaky image has its own version; this says which Braino code
+     * it is. See include/FirmwareLine.h. */
+    rows_.addRow("Braino", FIRMWARE_BASE_VERSION);
+#endif
     /* Which build, not just which release: BRAINO_VERSION is identical
      * across every flash of 5.0.0.
      *

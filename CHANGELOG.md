@@ -10,6 +10,91 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The Attaky Core is ported, and released on its own line.** Its entries
+are under `attaky-1.0.0` below, because that build ships as
+`attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. Four
+things in that work change every board's tree: each CI build of a product
+environment is packed and attached to its run for 30 days, so a tester can
+flash a pull request's build; a board with no audio path compiles again
+(three `using namespace audio;` directives sat outside their guard); the
+launcher, Wi-Fi, Profiles, `Board.cpp` and the runtime loop were each split
+into smaller files past the size CLAUDE.md allows; and no document states
+how many environments there are any more, because two branches adding a
+board each changed that number the same way and git merged the two edits
+silently. None of the Attaky code is in these images: the only cost to them
+is a few hundred bytes of flash from the file splits, and their RAM is
+unchanged.
+
+**The site has a Featured page.** `featured.html` lists every article, video and
+listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
+and the hubs and lists that accepted it -- each with the date it was
+published, a screenshot taken on a stated date, the SHA-256 of that screenshot
+and a Wayback Machine copy where one could be made, so a piece that later
+moves or disappears is still shown rather than claimed. The data is
+`site/featured.json`, the images are `site/featured/`, `gen_site.py` renders and
+validates both, and `check_docs.py` fails a hash that no longer matches its
+file. The landing page gained a Featured tab and a strip naming the
+coverage.
+
+**The attribution rule now says what it is for.** The agent instructions,
+`CONTRIBUTING.md` and the pull-request template told contributors not to name
+an AI tool in a commit's `Co-Authored-By:` trailer, and said it in words --
+"leaves a trace", "records a human author" -- that read, cold, as an
+instruction to hide the tools. A reader asked exactly that, in
+[discussion 199](https://github.com/iamankushpandit/Gume/discussions/199)
+and under the Hackaday article. The rule now states its reason: a trailer is a
+claim of authorship and, under the GPL, of copyright, which a tool cannot
+hold, and the accountable author is the person. The disclosure that the
+project is built with AI tools, which the website already made, is now in
+`NOTICE.md` ("How this is built") and the README as well, and the website
+says it in plainer words.
+
+**The screen turns to all four positions.** *Settings → Device* offered
+Landscape and Portrait, which are the two positions with the USB socket where
+the board profile puts it. An enclosure that holds the board the other way up
+had no answer, and there are many such enclosures for these boards (asked for
+in [issue 191](https://github.com/iamankushpandit/Gume/issues/191)). The same
+button now steps through four -- Landscape, Portrait, Landscape 180, Portrait
+180 -- split left and right like the theme button beside it, so one tap too
+many is one tap to undo.
+
+Portrait still applies to the menus only, because every game is drawn for
+landscape. The half turn applies to everything, games included: landscape
+turned over is still landscape. Touch needed no change -- `pollTouch()` has
+mapped all four rotations since the first board, and two of them had simply
+never been asked for.
+
+It is one new global setting beside the layout, off by default, so a console
+that upgrades sits exactly as it did. `set flip on|off` sets it from the
+serial console, the boot banner prints `flip=`, and System Info's Layout row
+names the position. Nothing about it is transmitted. The touch calibration
+wizard is unchanged and still draws in its own fixed rotation.
+
+**Percent stops announcing the answer.** In the round that asks a player to
+shade the circle, the OK button turned green the moment the shaded amount
+matched the target -- before anybody had pressed it -- so the round could be
+finished by tapping + until a button lit up, and nothing was being asked
+([issue 183](https://github.com/iamankushpandit/Gume/issues/183)). OK is now
+one colour whatever the circle shows. Pressing it on the wrong amount turns it
+red for half a second; before, a wrong press there changed nothing on the panel
+at all. The minus and the tick on that round's buttons were characters the
+panel's font does not carry, so they are now `-` and `OK`.
+
+The same game gave the answer away in two more places, and both are closed.
+The round that asks "25% of 40 = ?" printed 10 in the middle of the circle,
+beside the four buttons asking for it; the circle now carries only its shading.
+And in both multiple-choice rounds a wrong tap flashed the *correct* button --
+in red, so it told the answer and mislabelled it at once. The button that was
+pressed is the one that flashes now.
+
+## attaky-1.0.0-SNAPSHOT — Unreleased
+
+Braino! for Attaky: the same console on Attaky's modular handhelds, released
+on its own line. `ATTAKY_VERSION` is what these images report and
+`attaky-v<version>` is the tag that publishes them; the Braino code each one
+is built from is on System Info and the `[boot]` line. Nothing here has run
+on a device yet.
+
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
 run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8
 module as the Freenove board) with a 2.0-inch ST7789 at 240x320 and an FT6636
@@ -135,68 +220,6 @@ builds of the Core, silent and without SD. Media I/O cannot be recognised, so
 finding neither brings both up as before. A new `ExpandProbeProfile` says what to look
 for; every other board fills it with nothing and pays nothing. It adds 1.5 s
 to the Core's boot. Not yet run on a device.
-
-**The site has a Featured page.** `featured.html` lists every article, video and
-listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
-and the hubs and lists that accepted it -- each with the date it was
-published, a screenshot taken on a stated date, the SHA-256 of that screenshot
-and a Wayback Machine copy where one could be made, so a piece that later
-moves or disappears is still shown rather than claimed. The data is
-`site/featured.json`, the images are `site/featured/`, `gen_site.py` renders and
-validates both, and `check_docs.py` fails a hash that no longer matches its
-file. The landing page gained a Featured tab and a strip naming the
-coverage.
-
-**The attribution rule now says what it is for.** The agent instructions,
-`CONTRIBUTING.md` and the pull-request template told contributors not to name
-an AI tool in a commit's `Co-Authored-By:` trailer, and said it in words --
-"leaves a trace", "records a human author" -- that read, cold, as an
-instruction to hide the tools. A reader asked exactly that, in
-[discussion 199](https://github.com/iamankushpandit/Gume/discussions/199)
-and under the Hackaday article. The rule now states its reason: a trailer is a
-claim of authorship and, under the GPL, of copyright, which a tool cannot
-hold, and the accountable author is the person. The disclosure that the
-project is built with AI tools, which the website already made, is now in
-`NOTICE.md` ("How this is built") and the README as well, and the website
-says it in plainer words.
-
-**The screen turns to all four positions.** *Settings → Device* offered
-Landscape and Portrait, which are the two positions with the USB socket where
-the board profile puts it. An enclosure that holds the board the other way up
-had no answer, and there are many such enclosures for these boards (asked for
-in [issue 191](https://github.com/iamankushpandit/Gume/issues/191)). The same
-button now steps through four -- Landscape, Portrait, Landscape 180, Portrait
-180 -- split left and right like the theme button beside it, so one tap too
-many is one tap to undo.
-
-Portrait still applies to the menus only, because every game is drawn for
-landscape. The half turn applies to everything, games included: landscape
-turned over is still landscape. Touch needed no change -- `pollTouch()` has
-mapped all four rotations since the first board, and two of them had simply
-never been asked for.
-
-It is one new global setting beside the layout, off by default, so a console
-that upgrades sits exactly as it did. `set flip on|off` sets it from the
-serial console, the boot banner prints `flip=`, and System Info's Layout row
-names the position. Nothing about it is transmitted. The touch calibration
-wizard is unchanged and still draws in its own fixed rotation.
-
-**Percent stops announcing the answer.** In the round that asks a player to
-shade the circle, the OK button turned green the moment the shaded amount
-matched the target -- before anybody had pressed it -- so the round could be
-finished by tapping + until a button lit up, and nothing was being asked
-([issue 183](https://github.com/iamankushpandit/Gume/issues/183)). OK is now
-one colour whatever the circle shows. Pressing it on the wrong amount turns it
-red for half a second; before, a wrong press there changed nothing on the panel
-at all. The minus and the tick on that round's buttons were characters the
-panel's font does not carry, so they are now `-` and `OK`.
-
-The same game gave the answer away in two more places, and both are closed.
-The round that asks "25% of 40 = ?" printed 10 in the middle of the circle,
-beside the four buttons asking for it; the circle now carries only its shading.
-And in both multiple-choice rounds a wrong tap flashed the *correct* button --
-in red, so it told the answer and mislabelled it at once. The button that was
-pressed is the one that flashes now.
 
 ## 5.12.3 — 2026-09-15
 

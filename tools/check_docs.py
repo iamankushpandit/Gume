@@ -48,6 +48,43 @@ def fail(problems, message):
     problems.append(message)
 
 
+# Each release line, the constant its images report and how its CHANGELOG
+# heading spells the version. tools/pack_release.py's LINES is the release
+# side of the same table.
+RELEASE_LINES = {"braino": ("BRAINO_VERSION", "%s"),
+                 "attaky": ("ATTAKY_VERSION", "attaky-%s")}
+
+
+def check_release_lines(problems):
+    """Every release line a product environment ships on has a version and
+    a CHANGELOG section for it.
+
+    The release workflow lifts its notes from that section and fails on the
+    tag without one -- after the tag is pushed, which is the worst moment to
+    learn it. So the section has to exist on every commit, not on the day.
+    """
+    header = read("include", "AppVersion.h")
+    changelog = read("CHANGELOG.md")
+    ini = read("platformio.ini")
+    lines = {envs_tool.release_line(env, ini)
+             for env in envs_tool.of_kind(envs_tool.PRODUCT, ini)}
+    for line in sorted(lines):
+        if line not in RELEASE_LINES:
+            fail(problems, "an environment ships on release line '%s', which "
+                           "no tool knows how to version" % line)
+            continue
+        constant, heading = RELEASE_LINES[line]
+        match = re.search(r'%s\s+"([^"]+)"' % constant, header)
+        if not match:
+            fail(problems, "AppVersion.h: %s not found, and the %s line "
+                           "needs it" % (constant, line))
+            continue
+        wanted = heading % match.group(1)
+        if not re.search(r"^##\s+%s\b" % re.escape(wanted), changelog, re.M):
+            fail(problems, "CHANGELOG.md has no '## %s' section; the %s "
+                           "release notes are lifted from it" % (wanted, line))
+
+
 def check_version(problems):
     """README's stated release must match the firmware constant."""
     header = read("include", "AppVersion.h")
@@ -191,7 +228,7 @@ def check_about_is_derived(problems):
     CLAUDE.md; this catches the specific regression of hardcoding again.
     """
     about = read("src", "games", "AboutApp.cpp")
-    for symbol in ("playableAppAt", "playableAppCount", "BRAINO_VERSION",
+    for symbol in ("playableAppAt", "playableAppCount", "FIRMWARE_VERSION",
                    "BRAINO_COPYRIGHT",
                    "BOARD_NAME", "BleBeacon::active"):
         if symbol not in about:
@@ -574,6 +611,7 @@ def main():
 
     problems = []
     check_version(problems)
+    check_release_lines(problems)
     check_game_count(problems)
     check_source_tree(problems)
     check_size_agreement(problems)

@@ -1365,6 +1365,11 @@ attached to releases: they are bench tools, built from source by whoever is
 holding the board, and a copy frozen into a release would only ever be older
 than the one in the tree.
 
+The Attaky Core is released on its own line, as Braino! for Attaky: tags
+`attaky-v<version>`, versioned by `ATTAKY_VERSION`, so it can ship when it has
+been tested on its hardware without holding up the other boards. A `v*`
+release carries the other boards only.
+
 To check the page itself before pushing:
 
 ```bash

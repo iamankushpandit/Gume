@@ -160,6 +160,28 @@ def board_name(env, ini=None):
     return name.group(1) if name else None
 
 
+LINE_FLAG_RE = re.compile(r"-D\s*GUME_LINE_([A-Z0-9_]+)\s*=\s*1\b")
+DEFAULT_LINE = "braino"
+
+
+def release_line(env, ini=None):
+    """Which release line an environment ships on.
+
+    `braino` unless its build_flags carry `-D GUME_LINE_<NAME>=1`, which is
+    the same flag include/FirmwareLine.h reads -- so the firmware and the
+    tools cannot disagree about which version an image reports or which tag
+    releases it.
+    """
+    ini = read_ini() if ini is None else ini
+    for name, body in sections(ini):
+        if name == env:
+            found = LINE_FLAG_RE.findall(body)
+            if len(found) > 1:
+                raise SystemExit("[env:%s] names more than one release line" % env)
+            return found[0].lower() if found else DEFAULT_LINE
+    raise SystemExit("no [env:%s] in platformio.ini" % env)
+
+
 def of_kind(kind, ini=None):
     kinds = classify(ini)
     return [env for env, value in kinds.items() if value == kind]
@@ -249,6 +271,9 @@ def main():
     parser.add_argument("--with-product", action="store_true",
                         help="with --for-changes: union in every product "
                              "environment, whatever the change was")
+    parser.add_argument("--line", metavar="NAME",
+                        help="only environments on this release line "
+                             "(braino, attaky); see release_line()")
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
     parser.add_argument("--matrix", action="store_true",
@@ -265,6 +290,8 @@ def main():
         envs = for_changes(paths, ini, with_product=args.with_product)
     else:
         envs = of_kind(args.kind, ini)
+    if args.line:
+        envs = [env for env in envs if release_line(env, ini) == args.line]
 
     if args.matrix:
         # "E32R28T-1 (app)": the board first, because that is what a person

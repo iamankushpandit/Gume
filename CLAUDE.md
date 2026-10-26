@@ -1498,6 +1498,42 @@ The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
 not. That check exists because a published release cannot be quietly
 corrected: people have already downloaded it.
 
+### The Attaky Core is its own release line
+
+Braino! for Attaky ships from the same codebase and the same `main`, on its
+own cadence: it is released when it has passed testing on Attaky hardware,
+without moving the generic boards, and the other way round.
+
+```bash
+git tag -a attaky-v1.0.0 -m "Braino! for Attaky 1.0.0" && git push origin attaky-v1.0.0
+```
+
+- **The line is stated once, on the environment**: `-D GUME_LINE_ATTAKY=1` in
+  `[env:app_attaky_core]`. `include/FirmwareLine.h` reads it to pick
+  `FIRMWARE_VERSION`, and `tools/envs.py`'s `release_line()` reads the same
+  flag, so the firmware and the tools cannot disagree.
+- **`ATTAKY_VERSION` in `AppVersion.h` is that line's version**, with its own
+  sequence starting at 1.0.0. Everything that reports a version -- the
+  `[boot]` line, `identify`, About, System Info, the update comparison --
+  reads `FIRMWARE_VERSION`, never either constant directly. An Attaky image
+  also reports the Braino it is built from, on System Info and as
+  `braino=` on the `[boot]` line.
+- **`v*` tags release the `braino` line and `attaky-v*` tags the `attaky`
+  line.** `release.yml` derives the line from the tag, checks the tag against
+  that line's constant, and builds and packs `envs.py --product --line <line>`
+  only. A generic release therefore carries no Attaky image, and an Attaky
+  release is published with `--latest=false`, so the repository's Latest and
+  the installer's older-releases list stay the generic boards'.
+- **Its notes are `## attaky-<version>` in `CHANGELOG.md`**, and
+  `check_docs.py` fails while a line's current version has no section, so
+  the tag cannot be the moment that is found out. That section sits after the
+  Braino section, so `main`'s first-heading check is unaffected.
+- **The update manifest tells each board its own line's version.** A board
+  whose line has no release yet gets no line in `latest.txt` at all, and an
+  image on any line but `braino` never reads the `*` fallback, which is the
+  braino line's number: before its first release an Attaky console reports
+  nothing to update to, rather than Braino's version as if it were newer.
+
 Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
 flashed from `dev` cannot be mistaken for the release it is ahead of.
 

@@ -14,6 +14,7 @@
 #include <WiFiClientSecure.h>
 
 #include "AppVersion.h"
+#include "FirmwareLine.h"
 #include "UpdateChannel.h"
 #include "Watchdog.h"
 
@@ -143,7 +144,9 @@ time_t Board::lastUpdateCheckEpoch() {
 bool Board::updateAvailable() {
     loadUpdateState();
     if (latestVersion_[0] == '\0') return false;
-    return compareVersions(latestVersion_, BRAINO_VERSION) > 0;
+    /* This image's own line's version: the manifest gives each board the
+     * newest release of the line it ships on (tools/gen_site.py). */
+    return compareVersions(latestVersion_, FIRMWARE_VERSION) > 0;
 }
 
 /* Read the manifest and pick this board's line out of it.
@@ -263,7 +266,17 @@ bool Board::fetchUpdateManifest() {
         line = next;
     }
 
+#if GUME_LINE_ATTAKY
+    /* The `*` fallback is the braino line's number. An image on its own
+     * release line takes only its own entry: before that line's first
+     * release the manifest has none, and "nothing to report" is the true
+     * answer -- the fallback would tell an Attaky 1.0.0 that Braino 5.14.0
+     * is an update for it. See include/FirmwareLine.h. */
+    (void)fallback;
+    const char* picked = mine;
+#else
     const char* picked = (mine[0] != '\0') ? mine : fallback;
+#endif
     if (picked[0] == '\0') {
         Serial.println("[update] manifest had no entry for this board");
         logNetworkActivity("HTTP update no entry");
@@ -280,7 +293,7 @@ bool Board::fetchUpdateManifest() {
                     static_cast<uint32_t>(lastUpdateCheckEpoch_));
 
     Serial.printf("[update] latest for %s is %s (running %s)%s\n",
-                  BOARD_NAME, latestVersion_, BRAINO_VERSION,
+                  BOARD_NAME, latestVersion_, FIRMWARE_VERSION,
                   updateAvailable() ? " -- newer available" : "");
     logNetworkActivity("HTTP update ok %s", latestVersion_);
     return true;

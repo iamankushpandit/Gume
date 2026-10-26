@@ -819,6 +819,16 @@ def manifest_for(board, variant, release):
     }
 
 
+def line_version(env):
+    """The version an environment's image reports: its release line's."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import envs                              # the one list of environments
+    line = envs.release_line(env)
+    constant = {"braino": "BRAINO_VERSION", "attaky": "ATTAKY_VERSION"}[line]
+    return find(r'%s\s+"([^"]+)"' % constant,
+                read("include", "AppVersion.h"), constant).group(1)
+
+
 def write_update_manifest(out, supported, release):
     """Write firmware/latest.txt -- what a console reads to learn a newer
     firmware exists.
@@ -858,7 +868,15 @@ def write_update_manifest(out, supported, release):
         "* %s" % release,
     ]
     for target in sorted(supported, key=lambda t: t["name"]):
-        lines.append("%s %s" % (target["name"], release))
+        # Each board is told its own release line's version -- the Attaky
+        # Core ships as attaky-v<ATTAKY_VERSION> -- and a board whose line
+        # has no release yet gets no line at all. The firmware of a line other
+        # than braino never reads the `*` fallback, which is braino's number
+        # (BoardUpdate.cpp), so leaving the line out means "nothing yet".
+        own = line_version(target["envs"][0])
+        if "-" in own:
+            continue
+        lines.append("%s %s" % (target["name"], own))
     with open(os.path.join(firmware, "latest.txt"), "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
 
@@ -912,14 +930,15 @@ def main():
             # unversioned path CI writes into; older ones are copies of the
             # bytes that were actually published under that tag, so an old
             # version cannot silently become a new build of old source.
+            current = line_version(env)
             versions = [{
-                "version": release,
+                "version": current,
                 # Say plainly when the newest build is not a release. Somebody
                 # choosing a pre-release from a dropdown has decided to; a
                 # console being told to update has not, which is why the
                 # manifest above refuses outright while this merely labels.
-                "label": "%s (%s)" % (release,
-                                      "pre-release" if "-" in release else "latest"),
+                "label": "%s (%s)" % (current,
+                                      "pre-release" if "-" in current else "latest"),
                 "dir": directory,
                 "manifest": directory + "/manifest.json",
             }]

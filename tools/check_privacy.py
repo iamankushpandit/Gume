@@ -364,7 +364,8 @@ def check_update_channel_is_anonymous():
     if "?" in url or "&" in url:
         found.append("the update URL carries a query string (%s): the request "
                      "must say nothing about this device" % url)
-    for token in ("BOARD_NAME", "BRAINO_VERSION", "%s", "%d"):
+    for token in ("BOARD_NAME", "BRAINO_VERSION", "ATTAKY_VERSION",
+                  "FIRMWARE_VERSION", "%s", "%d"):
         if token in url:
             found.append("the update URL is parameterised with '%s': it must "
                          "be one static path, byte-identical from every board"
