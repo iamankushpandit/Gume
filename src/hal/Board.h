@@ -797,6 +797,15 @@ private:
 
     void beginBatteryMonitor();
     void sampleBattery();
+    /* The MAX17048 path of sampleBattery(), on a board whose profile names a
+     * fuel gauge. Defined only in capacitive builds, which carry Wire. */
+    void sampleFuelGauge();
+    /* The deadband both paths share: moves displayPct_ towards a fresh raw
+     * percentage only when it has genuinely moved. Battery task only. */
+    void settleDisplayPercent(int8_t raw);
+    /* Whether the gauge answered last time: -1 not yet asked, 0 no, 1 yes.
+     * Battery task only; it exists so the log says when that changes. */
+    int8_t fuelGaugeAnswered_ = -1;
     BatteryPublic batterySnapshot();
     static void batteryTask(void* arg);
 

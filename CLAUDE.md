@@ -623,9 +623,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,582,369 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,477 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 88,060 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
+at 88,068 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1636,6 +1636,16 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   input, since the firmware reads none of them. That board was ported from
   Attaky's documents before a device existed here -- see
   `docs/boards/Attaky-Core.md` for what is still unchecked.
+- **A battery can be a fuel gauge rather than a divider.** The Attaky Core's
+  Power module reports the cell through a MAX17048 at 0x36 on the touch bus, so
+  `BatteryProfile` carries `fuelGaugeAddress` (0 on every other board) beside
+  the ADC fields, and a board states one or the other, never both.
+  `hasBatterySense()` covers either; `hasBatteryAdc()` is what guards the ADC
+  pin. The gauge is read on the same battery task and published through the
+  same snapshot, its state of charge going to the percentage directly instead
+  of through the LiPo curve, with the same deadband and thresholds. **A gauge
+  that does not answer is no reading** -- -1, no badge, no warning -- never an
+  empty cell, because the module unclips. See `src/hal/CLAUDE.md`.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
 - `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
   variant, E32R32P and E32R40T

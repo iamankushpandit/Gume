@@ -266,6 +266,45 @@ Time/date formatting and sync-state helpers over the ESP32 RTC.
 
 ## Battery sensing
 
+A board describes its battery in one of two shapes, never both (`BoardConfig.h`
+asserts it): an ADC sense line behind a divider, which is everything below, or
+a **fuel gauge** -- `BOARD.battery.fuelGaugeAddress`, a MAX17048 on the touch
+controller's I2C bus, which only the Attaky Core has. `hasBatterySense()` is
+true for either; `hasBatteryAdc()` and `hasFuelGauge()` say which, and
+anything that touches the ADC pin keys on the first.
+
+**The fuel gauge rides the same task and publishes the same snapshot.**
+`sampleFuelGauge()` replaces the ADC branch of `sampleBattery()` on such a
+board: it reads VCELL (0x02, 78.125 uV per LSB) and SOC (0x04, whole percent in
+the high byte, 1/256 in the low) and feeds SOC to `settleDisplayPercent()`, the
+deadband the ADC path uses too. There is no LiPo curve and no gauge filter on
+this path -- they exist to make a percentage out of a noisy voltage, and the
+chip has already done that with a better model. SOC above 100 (it can, just
+after a full charge) is clamped. Four things are load-bearing:
+
+- **A gauge that does not answer publishes what a board with no sense line
+  publishes**: a zeroed sample and -1. The module is detachable, so a NACK is
+  an ordinary state, and the two tempting answers are both wrong -- a zeroed
+  SOC is 0% and raises the critical banner on a console running from USB, and
+  holding the last reading claims a charge nobody is measuring. Every reader
+  already treats -1 as "nothing to show". `[battery] fuel gauge at 0x36
+  answering|not answering` is logged on each change, from the task.
+- **It shares the bus with touch, from another task.** The battery task is on
+  core 0, `pollTouch()` on the loop on core 1. Arduino-ESP32 2.0's `TwoWire`
+  holds its own mutex from `beginTransmission()` through the repeated-start
+  `requestFrom()`, so the two transactions cannot interleave; the cost to a
+  frame is waiting out one few-byte gauge read at 400 kHz. Do not add a second
+  lock, and do not read the gauge from the loop instead.
+- **The monitor starts after Wire is up**, later in `Board::begin()` than on an
+  ADC board, because the first sample is synchronous and the bus is not
+  brought up until the touch reset is released. ADC boards still start it
+  where they always did.
+- **Everything is under `#if GUME_TOUCH_CAPACITIVE`**, because only those
+  builds carry Wire, for the reason the Touch section gives. A resistive board
+  cannot name a gauge -- `BoardConfig.h` refuses it.
+
+The rest of this section is the ADC path.
+
 `BOARD.battery.adcPin` is GPIO34 on this board = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
 
 **Sampling runs on its own task and never on a render path.** `sampleBattery()` is called every `BATTERY_SAMPLE_MS` (2s) by a priority-1 task pinned to core 0 — the same shape as Watchdog's monitor, and away from the Arduino loop task on core 1. It takes the eight ADC reads, advances both filters, applies the display deadband, and publishes `batteryPublished_` under a `portMUX`. Every accessor — `readBatteryTelemetry()`, `getBatteryVoltage()`, `getBatteryPercent()`, `isBatteryLow()`, `isBatteryCritical()` — does nothing but copy that snapshot. **Keep it that way.**

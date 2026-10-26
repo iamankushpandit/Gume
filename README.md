@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,582,369 / 3,145,728 bytes of the app partition (**82.1%**) |
-| RAM | 88,060 / 327,680 bytes (**26.9%**) |
+| Flash | 2,582,477 / 3,145,728 bytes of the app partition (**82.1%**) |
+| RAM | 88,068 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1090,6 +1090,13 @@ separate them in either direction. With no pack fitted the gauge therefore
 reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
+
+**The Attaky Core is the exception: it has a fuel gauge, not a divider.** Its
+Power module reports the cell through a MAX17048 on the I²C bus, and the badge
+shows that chip's own state of charge rather than a percentage worked out from
+a voltage, with the same thresholds and the same steadying. Unclip the module
+and the gauge stops answering, so the badge disappears and no warning is raised
+-- the console does not mistake a missing module for an empty battery.
 
 The icon is deliberately **not** a fixed size: it grows with its digits, widest
 at `100`, and the status rows around it are laid

@@ -53,13 +53,17 @@ void Board::begin() {
     /* Every peripheral below is optional in the profile. A board that does not
      * wire one sets PIN_NONE and skips it here -- that is what makes a port a
      * header rather than a patch. Touch and the panel are not optional. */
-    if (BOARD.hasBatterySense()) {
+    if (BOARD.hasBatteryAdc()) {
         pinMode(BOARD.battery.adcPin, INPUT);
     }
     /* Takes the first reading synchronously and then hands the gauge to its own
      * task, so no frame ever pays for a conversion. Safe on a board with no
-     * sense line: it publishes the zeroed snapshot and starts nothing. */
-    beginBatteryMonitor();
+     * sense line: it publishes the zeroed snapshot and starts nothing. A fuel
+     * gauge is on the touch bus, which is not up yet, so that board starts its
+     * monitor below, once Wire is. */
+    if (!BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();
+    }
 
     if (BOARD.hasBacklightControl()) {
         pinMode(BOARD.panel.backlightPin, OUTPUT);
@@ -163,6 +167,9 @@ void Board::begin() {
         BoardExpander::driveTouchReset(true);       // the bus is already up
     } else {
         Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }
+    if (BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();                      // the gauge's bus is up now
     }
     if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
         BoardExpander::allInputs(BOARD.keys.keyExpander);

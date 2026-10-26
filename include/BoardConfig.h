@@ -256,8 +256,14 @@ static_assert(BOARD.memory.flashBytes >= 4u * 1024u * 1024u,
               "not fit, so this board cannot be supported");
 
 /* ---- Optional hardware: stated so the guards cannot be forgotten ------- */
-static_assert(!BOARD.hasBatterySense() || BOARD.battery.dividerRatio > 0.0f,
-              "a board with battery sense must state its divider ratio");
+static_assert(!BOARD.hasBatteryAdc() || BOARD.battery.dividerRatio > 0.0f,
+              "a board with ADC battery sense must state its divider ratio");
+static_assert(!(BOARD.hasBatteryAdc() && BOARD.hasFuelGauge()),
+              "a board states its battery as an ADC divider or a fuel gauge, "
+              "not both -- the badge can only believe one of them");
+static_assert(!BOARD.hasFuelGauge() || GUME_TOUCH_CAPACITIVE,
+              "a fuel gauge sits on the capacitive touch controller's I2C bus, "
+              "and only a capacitive build brings that bus up");
 static_assert(!BOARD.hasSdSlot()
                   || (BOARD.sd.mosi != PIN_NONE && BOARD.sd.miso != PIN_NONE
                       && BOARD.sd.sclk != PIN_NONE),

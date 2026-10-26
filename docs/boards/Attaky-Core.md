@@ -14,8 +14,9 @@ Core 1.0 in a Cyber Deck Plus".
 **Which modules this build expects:** the Core, and Media I/O on the back for
 the SD slot. The Expand modules share their pins, so a Core wearing the
 LoRa/GPS or FM/AM module instead would have this firmware driving that
-module's lines as an SD card. The keyboard, gamepad and battery modules are
-harmless either way: the firmware does not talk to them.
+module's lines as an SD card. The gamepad is harmless either way: the
+firmware does not talk to it. The keyboard is read when it is clipped on, and
+the battery module's fuel gauge whenever it answers.
 
 ## What has been checked on this board
 
@@ -42,6 +43,23 @@ the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
 from any other screen, as BOOT is. Worth checking that each direction moves
 the way it points, in landscape and in portrait.
 
+**The battery badge reads the Power module's fuel gauge**, a MAX17048 at 0x36
+on the touch bus, rather than a voltage divider -- the Core has none. The
+battery task reads its cell voltage and state of charge every two seconds and
+the badge shows the state of charge as the gauge reports it, through the same
+deadband and the same 15% / 5% warnings as every other board. A gauge that
+does not answer -- the module unclipped -- is no reading: no badge and no
+warning, never an empty battery. Worth checking on a device:
+
+- the serial log says `[battery] fuel gauge at 0x36 answering` at boot, and
+  System Info -> Board -> Power shows a voltage near the cell's and
+  "Fuel gauge MAX17048";
+- the percentage agrees roughly with Attaky's own firmware on the same charge;
+- unclipping the Power module (on USB) takes the badge away within a couple of
+  seconds and logs `not answering`, and clipping it back brings it back;
+- touch is not slowed or disturbed while the gauge is being read -- the two
+  share one I2C bus from two tasks, with Wire's own lock between them.
+
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
 doing what DEL and OK do. The name fields take capitals, digits and spaces, as
@@ -50,8 +68,7 @@ Shift for capitals. The on-screen keypad stays: the module clips off, and the
 firmware checks for it at boot.
 
 Left out on purpose, not broken: sound (the NS4168 amplifier needs a plain-I2S
-backend the firmware does not have yet), the battery gauge (a MAX17048 fuel
-gauge rather than a voltage divider), the status LED (on the I2C expander), the
+backend the firmware does not have yet), the status LED (on the I2C expander), the
 gamepad, and the D-pad on any screen but the launcher. Touch is the console's
 input on every board.
 
@@ -83,7 +100,7 @@ and its Retro-Go overlay GPL-2.0; only facts are taken from either.
 | Panel | 240 x 320, ST7789 driver |
 | Touch | capacitive, I2C; reset on port P1_3 of the I2C expander at 0x59 |
 | Sound | none |
-| Battery sense | **none read** -- no battery badge |
+| Battery sense | MAX17048 fuel gauge, I2C address 0x36 on the touch bus |
 | Flash | 16 MB |
 
 | GPIO | Used for |

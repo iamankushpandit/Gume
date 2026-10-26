@@ -209,6 +209,9 @@ def facts(b, p):
     else:
         sound = "none"
     batt = pin(p.get("BatteryProfile", {}).get("adcPin"))
+    gauge = p.get("BatteryProfile", {}).get("fuelGaugeAddress", "0")
+    if gauge in ("0", "0x00", ""):
+        gauge = None
     rows = [
         ("Firmware name (`BOARD_NAME`)", "`%s`" % b["name"]),
         ("Installer / PlatformIO environment", "`%s`" % b["env"] if b["env"] else "none"),
@@ -221,6 +224,7 @@ def facts(b, p):
                                     else "its own bit-banged SPI bus")),
         ("Sound", sound),
         ("Battery sense", "GPIO%d" % batt if batt is not None
+         else "MAX17048 fuel gauge, I2C address %s on the touch bus" % gauge if gauge
          else "**none read** -- no battery badge"),
         ("Flash", "%s MB" % mb.group(1) if mb else flash or "?"),
     ]

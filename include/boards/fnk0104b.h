@@ -188,6 +188,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 9,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 16 MB part, read off the chip. Partitioned huge_app.csv for now, which

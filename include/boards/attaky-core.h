@@ -80,8 +80,10 @@ inline constexpr BoardProfile BOARD = {
      * registers the FT6336U path already reads. Shared I2C bus on SDA IO2,
      * SCL IO1, 400 kHz, with two AW9523 expanders (0x58, 0x59), a QMI8658A IMU
      * (0x6B), an STK3311 light sensor (0x48) and, on the Power module, a
-     * MAX17048 fuel gauge (0x36). Only the touch controller and the 0x59
-     * expander are spoken to.
+     * MAX17048 fuel gauge (0x36). The touch controller, the 0x59 expander
+     * and the fuel gauge are spoken to -- the gauge from the battery task on
+     * core 0, which Wire's own bus lock keeps out of the touch read's way --
+     * and the keyboard halves when one is clipped on.
      *
      * RESET is port P1_3 of the AW9523 at 0x59 -- port 11 in the 0..15
      * numbering -- active low. Board::begin() drives it through the expander,
@@ -202,15 +204,18 @@ inline constexpr BoardProfile BOARD = {
         /* maxVolume           */ 0,
     },
 
-    /* No ADC battery sense. The Standard Cell module reports the cell through
-     * a MAX17048 fuel gauge at 0x36 on the shared bus and wires no divider to
-     * any GPIO, so the gauge blanks its digits. Reading the fuel gauge is its
-     * own change, and a better answer than a divider: it reports charge, not
-     * a voltage to be guessed from. */
+    /* A fuel gauge, not a divider. The Power: Standard Cell module reports
+     * the cell through a MAX17048 at 0x36 on the shared touch bus and wires
+     * no divider to any GPIO. The battery task reads its VCELL and SOC
+     * registers and the badge shows SOC directly -- charge as the gauge
+     * models it, not a voltage to be guessed from. The module can be
+     * detached; a gauge that does not answer is no reading and no badge,
+     * never an empty cell. Not yet seen on a device. */
     BatteryProfile{
         /* adcPin        */ PIN_NONE,
         /* dividerRatio  */ 0.0f,
         /* sensorMaxVolts*/ 0.0f,
+        /* fuelGaugeAddress */ 0x36,
     },
 
     /* 16 MB QuadSPI flash on the N16R8; partitioned huge_app.csv like every

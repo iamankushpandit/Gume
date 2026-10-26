@@ -10,6 +10,9 @@
 #include "Board.h"
 
 #include <esp_adc_cal.h>
+#if GUME_TOUCH_CAPACITIVE
+#include <Wire.h>
+#endif
 
 namespace {
 esp_adc_cal_characteristics_t s_adcChars;
@@ -59,6 +62,49 @@ constexpr uint8_t LIPO_CURVE_COUNT = sizeof(LIPO_CURVE) / sizeof(LIPO_CURVE[0]);
  * ignores SPI bursts and backlight steps but still follows real discharge. */
 constexpr float GAUGE_SMOOTH_ALPHA = 0.05f;    // low-pass on displayed percentage
 
+#if GUME_TOUCH_CAPACITIVE
+/* ---- MAX17048 fuel gauge ---------------------------------------------
+ * Register map from the MAX17048/MAX17049 datasheet. Every register is a
+ * 16-bit word, most significant byte first.
+ *
+ *   VCELL 0x02  cell voltage, 78.125 uV per LSB (12 bits of result over 16,
+ *               which is the datasheet's 1.25 mV per count)
+ *   SOC   0x04  state of charge: the high byte is whole percent, the low byte
+ *               1/256 percent
+ *
+ * SOC is the gauge's ModelGauge estimate, already filtered over minutes, so it
+ * goes to the percentage as it is: no LiPo curve and no gauge filter, which
+ * exist to make a percentage out of a noisy voltage and would only be guessing
+ * at what the chip has already worked out. The deadband stays, because the
+ * badge must not twitch whoever computed the number.
+ *
+ * SOC is allowed to read above 100 shortly after a full charge, while the
+ * model settles; the badge clamps it. */
+constexpr uint8_t MAX17048_REG_VCELL = 0x02;
+constexpr uint8_t MAX17048_REG_SOC = 0x04;
+constexpr float MAX17048_VOLTS_PER_LSB = 78.125e-6f;
+
+/* One register read: the register pointer, a repeated start, two bytes. Wire's
+ * own bus lock is held from beginTransmission() to the end of requestFrom(), so
+ * the touch read on the loop task cannot interleave with it. A gauge that is
+ * not there NACKs its address and requestFrom() returns 0 at once. */
+bool readFuelGaugeWord(uint8_t reg, uint16_t& out) {
+    const int address = BOARD.battery.fuelGaugeAddress;
+    Wire.beginTransmission(static_cast<uint8_t>(address));
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) {
+        return false;
+    }
+    if (Wire.requestFrom(address, 2) != 2) {
+        return false;
+    }
+    const uint8_t hi = static_cast<uint8_t>(Wire.read());
+    const uint8_t lo = static_cast<uint8_t>(Wire.read());
+    out = static_cast<uint16_t>((hi << 8) | lo);
+    return true;
+}
+#endif
+
 constexpr uint8_t BL_CHANNEL = 4;
 constexpr uint32_t BL_PWM_HZ = 5000;
 constexpr uint8_t BL_PWM_BITS = 8;
@@ -100,6 +146,13 @@ void Board::sampleBattery() {
         return;
     }
 
+#if GUME_TOUCH_CAPACITIVE
+    if (BOARD.hasFuelGauge()) {
+        sampleFuelGauge();
+        return;
+    }
+#endif
+
     if (!s_adcCharacterised) {
         analogSetPinAttenuation(BOARD.battery.adcPin, ADC_11db);
         esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12,
@@ -127,12 +180,7 @@ void Board::sampleBattery() {
     if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
         displayPct_ = -1;   // a fault is reported at once, never held back
     } else {
-        const int8_t raw = curvePercent(vBat);
-        const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
-                                                                   : displayPct_ - raw);
-        if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
-            displayPct_ = raw;
-        }
+        settleDisplayPercent(curvePercent(vBat));
     }
 
     portENTER_CRITICAL(&batteryMux_);
@@ -140,6 +188,59 @@ void Board::sampleBattery() {
     batteryPublished_.pct = displayPct_;
     portEXIT_CRITICAL(&batteryMux_);
 }
+
+/* Both endpoints are exempt; getBatteryPercent() says why. */
+void Board::settleDisplayPercent(int8_t raw) {
+    const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
+                                                               : displayPct_ - raw);
+    if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
+        displayPct_ = raw;
+    }
+}
+
+#if GUME_TOUCH_CAPACITIVE
+/* A gauge that does not answer is NO READING, not an empty cell.
+ *
+ * The board that has one carries it on a detachable power module, so "the
+ * chip did not ACK" is an ordinary state rather than a fault, and the two
+ * wrong answers to it are both easy to write: a zeroed SOC is 0%, which is the
+ * critical-battery banner on a console that may be on USB with no module at
+ * all; and keeping the last good reading is a badge that goes on claiming a
+ * charge nobody is measuring. So it publishes what a board with no sense line
+ * publishes -- a zeroed sample and -1 -- and every reader already treats that
+ * as "nothing to show": no badge, no low or critical warning. When the module
+ * comes back, the next sample shows it, with no deadband to climb through. */
+void Board::sampleFuelGauge() {
+    uint16_t vcell = 0;
+    uint16_t soc = 0;
+    const bool answered = readFuelGaugeWord(MAX17048_REG_VCELL, vcell)
+                          && readFuelGaugeWord(MAX17048_REG_SOC, soc);
+
+    const int8_t answeredNow = answered ? 1 : 0;
+    if (answeredNow != fuelGaugeAnswered_) {
+        fuelGaugeAnswered_ = answeredNow;
+        Serial.printf("[battery] fuel gauge at 0x%02X %s\n",
+                      static_cast<unsigned>(BOARD.battery.fuelGaugeAddress),
+                      answered ? "answering" : "not answering");
+    }
+
+    BatteryTelemetry sample;
+    if (!answered) {
+        displayPct_ = -1;
+    } else {
+        sample.batteryVoltage = static_cast<float>(vcell) * MAX17048_VOLTS_PER_LSB;
+        /* Whole percent, rounded on the 1/256 byte rather than truncated. */
+        uint16_t pct = static_cast<uint16_t>((static_cast<uint32_t>(soc) + 128u) >> 8);
+        if (pct > 100) pct = 100;
+        settleDisplayPercent(static_cast<int8_t>(pct));
+    }
+
+    portENTER_CRITICAL(&batteryMux_);
+    batteryPublished_.sample = sample;
+    batteryPublished_.pct = displayPct_;
+    portEXIT_CRITICAL(&batteryMux_);
+}
+#endif
 
 Board::BatteryPublic Board::batterySnapshot() {
     portENTER_CRITICAL(&batteryMux_);
@@ -169,8 +270,10 @@ void Board::beginBatteryMonitor() {
     if (!BOARD.hasBatterySense()) {
         return;   // nothing to poll; the zeroed snapshot above is the answer
     }
-    xTaskCreatePinnedToCore(batteryTask, "battery", 2560, this, 1,
-                            &batteryTaskHandle_, 0);
+    /* The gauge path prints when the module comes or goes, and a printf wants
+     * more stack than eight analogRead()s. */
+    xTaskCreatePinnedToCore(batteryTask, "battery", BOARD.hasFuelGauge() ? 3584 : 2560,
+                            this, 1, &batteryTaskHandle_, 0);
 }
 
 Board::BatteryTelemetry Board::readBatteryTelemetry() {

@@ -179,6 +179,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ PIN_NONE,
         /* dividerRatio  */ 0.0f,
         /* sensorMaxVolts*/ 0.0f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 4 MB part, huge_app.csv: 3 MB for the app. Read back from the chip at
