@@ -10,9 +10,11 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
-**The Attaky Core is ported, and released on its own line.** Its entries
-are under `attaky-1.0.0` below, because that build ships as
-`attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. Four
+**The Attaky Core is ported, on its own release line, and not published.**
+Its entries are under `attaky-1.0.0` below, because that build is tagged
+`attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. The
+installer does not list it and its tags make draft releases; `tools/envs.py`
+`PUBLISHED_LINES` is the switch, and only `braino` is on it. Four
 things in that work change every board's tree: each CI build of a product
 environment is packed and attached to its run for 30 days, so a tester can
 flash a pull request's build; a board with no audio path compiles again
@@ -91,9 +93,10 @@ pressed is the one that flashes now.
 
 Braino! for Attaky: the same console on Attaky's modular handhelds, released
 on its own line. `ATTAKY_VERSION` is what these images report and
-`attaky-v<version>` is the tag that publishes them; the Braino code each one
+`attaky-v<version>` is the tag that builds them; the Braino code each one
 is built from is on System Info and the `[boot]` line. Nothing here has run
-on a device yet.
+on a device yet, and nothing here is published: the tag makes a draft
+release and the web installer does not list the board.
 
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
 run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8

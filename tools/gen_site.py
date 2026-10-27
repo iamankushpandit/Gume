@@ -390,6 +390,8 @@ def boards():
     """
     ini = read("platformio.ini")
     offered = {entry["env"] for entry in VARIANTS}
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import envs as env_kinds                 # the one list of environments
 
     found = []
     for section in re.findall(r"^\[board_(\w+)\]", ini, re.M):
@@ -401,6 +403,13 @@ def boards():
         envs = tuple(env for env in re.findall(
             r"^\[env:(\w+)\](?:(?!^\[).)*?\$\{board_%s\.build_flags\}"
             % re.escape(section), ini, re.M | re.S) if env in offered)
+        # A board whose every offered image is on an unpublished release
+        # line (envs.PUBLISHED_LINES) is supported and built, and not on the
+        # page: not in the picker, the buying table or latest.txt.
+        if envs and not any(env_kinds.published(env, ini) for env in envs):
+            print("not offering board %s: release line %s is unpublished"
+                  % (section, env_kinds.release_line(envs[0], ini)))
+            continue
         if not envs:
             die("platformio.ini declares [board_%s] but no environment builds "
                 "the games firmware for it, so the site cannot offer it. A "

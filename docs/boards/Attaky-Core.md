@@ -8,13 +8,18 @@ Media I/O module (microSD, speaker, microphone) on the back and a 1000 mAh
 battery module. One USB-C socket, on the Core, through a CH340X USB-serial
 chip. The ESP32-S3 module inside is the same N16R8 part as the Freenove board.
 
-**In the installer:** "2.0-inch, capacitive touch, one USB-C port -- Attaky
+**Not in the installer.** This build is not published: the web installer
+does not list the board, and its update check is told of no version. Build
+and flash it from source with `pio run -e app_attaky_core -t upload`; CI also
+keeps each run's image as a downloadable artifact. When it is published, the
+installer will label it "2.0-inch, capacitive touch, one USB-C port -- Attaky
 Core 1.0 in a Cyber Deck Plus".
 
-**Its own releases:** this board ships as Braino! for Attaky, with its own
+**Its own releases:** this board is Braino! for Attaky, with its own
 version (`ATTAKY_VERSION`, starting at 1.0.0) and its own tags
 (`attaky-v<version>`). System Info and the `[boot]` line also say which
-Braino version it is built from. A generic `v*` release does not include it.
+Braino version it is built from. A generic `v*` release does not include it,
+and an `attaky-v*` tag makes a draft release, not a public one.
 
 **Which modules this build expects:** the Core, and Media I/O on the back for
 the SD slot and the speaker. The Expand modules share their pins, so before

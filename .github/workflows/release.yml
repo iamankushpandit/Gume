@@ -233,6 +233,12 @@ jobs:
             # line.
             latest=""
             if [ "$line" != "braino" ]; then latest="--latest=false"; fi
+            # A line that is not published (tools/envs.py PUBLISHED_LINES)
+            # is built, packed and attached to a DRAFT, which only the
+            # repository's maintainers can see.
+            if [ -z "$(python tools/envs.py --product --line "$line" --published)" ]; then
+              draft="--draft"
+            fi
             gh release create "$tag" \
               --title "${{ env.version }} — ${{ env.title }}" \
               --notes-file release-notes.md \

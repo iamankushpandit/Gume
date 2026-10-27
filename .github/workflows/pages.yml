@@ -152,7 +152,9 @@ jobs:
       # platformio.ini moves, which is the change that can break it; the page
       # deploy has no business compiling a bench tool at all.
       - name: Build the firmware the installer offers
-        run: pio run $(python tools/envs.py --product --pio-args)
+        # --published: an unpublished release line (tools/envs.py's
+        # PUBLISHED_LINES) is not on the page, so it is not built for it.
+        run: pio run $(python tools/envs.py --product --published --pio-args)
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.
@@ -163,7 +165,7 @@ jobs:
             echo
             echo '| Environment | firmware.bin | of 3,145,728 |'
             echo '|---|---:|---:|'
-            for env in $(python tools/envs.py --product); do
+            for env in $(python tools/envs.py --product --published); do
               bytes=$(stat -c%s ".pio/build/$env/firmware.bin")
               printf '| %s | %s | %.1f%% |\n' "$env" "$bytes" \
                 "$(python -c "print($bytes / 3145728 * 100)")"

@@ -163,6 +163,14 @@ def board_name(env, ini=None):
 LINE_FLAG_RE = re.compile(r"-D\s*GUME_LINE_([A-Z0-9_]+)\s*=\s*1\b")
 DEFAULT_LINE = "braino"
 
+# The release lines whose images are offered to the public: on the web
+# installer, in the update manifest, and as a published GitHub release. A
+# line not listed here is still built by CI and still packed by its tag,
+# but its release is a draft and the installer does not list its boards.
+# The attaky line is kept unpublished by the maintainer's decision; adding
+# it here is the whole of publishing it.
+PUBLISHED_LINES = ("braino",)
+
 
 def release_line(env, ini=None):
     """Which release line an environment ships on.
@@ -180,6 +188,12 @@ def release_line(env, ini=None):
                 raise SystemExit("[env:%s] names more than one release line" % env)
             return found[0].lower() if found else DEFAULT_LINE
     raise SystemExit("no [env:%s] in platformio.ini" % env)
+
+
+def published(env, ini=None):
+    """Whether an environment's image is offered publicly -- see
+    PUBLISHED_LINES."""
+    return release_line(env, ini) in PUBLISHED_LINES
 
 
 def of_kind(kind, ini=None):
@@ -274,6 +288,9 @@ def main():
     parser.add_argument("--line", metavar="NAME",
                         help="only environments on this release line "
                              "(braino, attaky); see release_line()")
+    parser.add_argument("--published", action="store_true",
+                        help="only environments on a published release "
+                             "line; see PUBLISHED_LINES")
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
     parser.add_argument("--matrix", action="store_true",
@@ -292,6 +309,8 @@ def main():
         envs = of_kind(args.kind, ini)
     if args.line:
         envs = [env for env in envs if release_line(env, ini) == args.line]
+    if args.published:
+        envs = [env for env in envs if published(env, ini)]
 
     if args.matrix:
         # "E32R28T-1 (app)": the board first, because that is what a person
