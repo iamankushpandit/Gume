@@ -25,6 +25,7 @@ Output: docs/screens/*.png
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import sys
@@ -35,9 +36,25 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "screens"
 
-# map-n-flag pixel data, if the library checkout is available
-MNF_TOOLS = Path(r"C:\Users\Ankus\CppEsp32Lib\tools")
-HAVE_ART = MNF_TOOLS.exists()
+def _linked_library(libdeps: Path, name: str) -> Path:
+    """Where a `symlink://` lib_deps entry points. PlatformIO copies nothing
+    for one, and leaves a <name>.pio-link file naming the folder instead."""
+    try:
+        uri = json.loads((libdeps / (name + ".pio-link")).read_text())["spec"]["uri"]
+    except (OSError, ValueError, KeyError):
+        return libdeps / name
+    return Path(uri.removeprefix("symlink://")) if uri.startswith("symlink://") else libdeps / name
+
+
+# map-n-flag pixel data. The copy `pio run` resolved for env:app comes first,
+# because that is the library the firmware actually links -- a separate
+# checkout can be a version behind and draw artwork the device does not have.
+MNF_TOOLS = next((p for p in (ROOT / ".pio" / "libdeps" / "app" / "map-n-flag" / "tools",
+                              _linked_library(ROOT / ".pio" / "libdeps" / "app",
+                                              "map-n-flag") / "tools",
+                              Path(r"C:\Users\Ankus\CppEsp32Lib\tools"))
+                  if (p / "verify.py").exists()), Path("."))
+HAVE_ART = (MNF_TOOLS / "verify.py").exists()
 if HAVE_ART:
     sys.path.insert(0, str(MNF_TOOLS))
     from verify import decode_i4, parse_generated  # noqa: E402
@@ -2634,6 +2651,114 @@ def roman_write():
                          "Tap the answer", WARN, note_big=True)
 
 
+# --- Sign ABC ----------------------------------------------------------------
+#
+# Geometry restated from SignDraw.cpp's constants, which derive it from the
+# hand size: a 2x hand card at the left (8,54,144,180), letter keys 72x71 in a
+# 2x2 from (160,84), in a Find question four 74x98 hand cards along the bottom
+# at y=136, and on the Lessons screen two rows of four 70x58 tiles from y=60,
+# 82 apart. The hands are the real map-n-flag artwork, tinted in the theme's
+# ink on its panel the way Ui::drawCountryImageTintedScaled() paints them.
+
+F_SIGN_BIG = font(44, True)
+
+
+def _sign_chrome(d, header, chip=True):
+    topbar(d, "Sign ABC")
+    d.text((8, 33), header, font=F2, fill=TEXT)
+    if chip:
+        button(d, (248, 31, 64, 18), "Lessons")
+
+
+def _sign_card(im, d, rect, letter, scale):
+    x, y, w, h = rect
+    d.rectangle([x, y, x + w - 1, y + h - 1], fill=PANEL, outline=OUTLINE)
+    hand = tinted("mnf_asl_%s" % letter.lower(), TEXT)
+    if hand:
+        hand = hand.resize((hand.width * scale, hand.height * scale), Image.NEAREST)
+        im.paste(hand, (x + (w - hand.width) // 2, y + (h - hand.height) // 2), hand)
+
+
+def _sign_letter(d, letter, cx, cy):
+    d.text((cx - d.textlength(letter, font=F_SIGN_BIG) / 2, cy - 26), letter,
+           font=F_SIGN_BIG, fill=TEXT)
+
+
+def _sign_centred(d, text, cx, cy, col, f=F2):
+    d.text((cx - d.textlength(text, font=f) / 2, cy - f.size / 2 - 1), text, font=f, fill=col)
+
+
+def _sign_key(i):
+    return (160 + (i % 2) * 80, 84 + (i // 2) * 79, 72, 71)
+
+
+def signs_lessons():
+    """Sign ABC: the course. Two lessons passed, the third is next."""
+    im, d = blank(); _sign_chrome(d, "2 of 7 lessons done", chip=False)
+    passed = 2
+    for i in range(8):
+        x, y = 8 + (i % 4) * 78, 60 + (i // 4) * 82
+        if i == 7:
+            label, status, is_open = "Practice", "all you know", True
+            fill, ink = PANEL, TEXT
+        else:
+            label = " ".join(chr(65 + c) for c in range(i * 4, min(26, i * 4 + 4)))
+            done, nxt = i < passed, i == passed
+            status = "done" if done else "next" if nxt else "locked"
+            is_open = i <= passed
+            fill = SUCCESS if done else ACCENT if nxt else PANEL
+            ink = (0, 0, 0) if done else (255, 255, 255) if nxt else MUTED
+        button(d, (x, y, 70, 58), label, fill, ink)
+        _sign_centred(d, status, x + 35, y + 58 + 9, TEXT if is_open else MUTED, F1)
+    return im
+
+
+def signs_teach():
+    """Sign ABC: a lesson teaching its new hands before any question."""
+    im, d = blank(); _sign_chrome(d, "Lesson 3: I to L")
+    _sign_card(im, d, (8, 54, 144, 180), "J", 2)
+    _sign_letter(d, "J", 236, 82)
+    for text, y, col in (("New hand 2 of 4", 118, MUTED), ("This one moves:", 136, ACCENT),
+                         ("draw it in the air", 152, ACCENT)):
+        _sign_centred(d, text, 236, y, col)
+    button(d, _sign_key(2), "< Back")
+    button(d, _sign_key(3), "Next >")
+    return im
+
+
+def signs_quiz():
+    """Sign ABC: the lesson's quiz, which letter is this hand? Answered
+    wrongly, so the right one is lit and the prompt says which it was."""
+    im, d = blank(); _sign_chrome(d, "Lesson 4 quiz: 3 of 6")
+    _sign_card(im, d, (8, 54, 144, 180), "M", 2)
+    _sign_centred(d, "That's M", 236, 66, WARN)
+    for i, (lab, state) in enumerate((("N", 2), ("M", 1), ("A", 0), ("P", 0))):
+        fill = SUCCESS if state == 1 else ERROR if state == 2 else PANEL
+        button(d, _sign_key(i), lab, fill, (0, 0, 0) if state else TEXT, F_SIGN_BIG)
+    return im
+
+
+def signs_find():
+    """Sign ABC: the other way round, which hand is this letter?"""
+    im, d = blank(); _sign_chrome(d, "Lesson 6 quiz: 4 of 6")
+    _sign_centred(d, "Which hand is this letter?", W // 2, 66, TEXT)
+    _sign_letter(d, "V", W // 2, 105)
+    for i, letter in enumerate("KVRU"):
+        _sign_card(im, d, (6 + i * 78, 136, 74, 98), letter, 1)
+    return im
+
+
+def signs_result():
+    """Sign ABC: a lesson passed, the next one open."""
+    im, d = blank(); _sign_chrome(d, "Lesson 3")
+    _sign_centred(d, "Well done!", W // 2, 84, SUCCESS, F4)
+    _sign_centred(d, "6 of 6 right", W // 2, 116, TEXT)
+    _sign_centred(d, "Lesson 4 is open", W // 2, 140, MUTED)
+    button(d, (20, 166, 132, 54), "Next lesson", ACCENT, (255, 255, 255))
+    button(d, (168, 166, 132, 54), "Lessons")
+    return im
+
+
 # ------------------------------------------------------------- Shape & Color
 #
 # The point tables are the ones in ShapeColorGame.cpp, as hundredths of the
@@ -4265,6 +4390,11 @@ EXTRA_SCREENS = [
     ("space-answered", space_answered, "Space: the fact after an answer"),
     ("roman", roman, "Roman Numerals: read the numeral"),
     ("roman-write", roman_write, "Roman Numerals: write the number"),
+    ("signs", signs_lessons, "Sign ABC: seven lessons, each opened by passing the last"),
+    ("signs-teach", signs_teach, "Sign ABC: a lesson shows each new hand first"),
+    ("signs-quiz", signs_quiz, "Sign ABC: the lesson quiz, which letter is this hand?"),
+    ("signs-find", signs_find, "Sign ABC: the lesson quiz, which hand is this letter?"),
+    ("signs-result", signs_result, "Sign ABC: a lesson passed, the next one open"),
     ("piano", piano, "Piano: one octave"),
     ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
     ("seabattle", sea_battle, "Sea Battle: hunting the fleet, your sea beside it"),

@@ -492,6 +492,20 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
             strokeDiag(tft, cx - 1, cy - 10, cx + 5, cy + 9, ink());
             strokeDiag(tft, cx + 12, cy - 10, cx + 6, cy + 9, ink());
             break;
+        case LauncherIcon::Signs:
+            /* The ASL "L": index finger up, thumb out, the rest folded. Rule 5:
+             * Finger Counting is three fingers up with the thumb ACROSS the
+             * palm; one finger and a thumb at a right angle is a different
+             * silhouette, and it is a real letter of the alphabet the game
+             * teaches. The folded knuckles are the INK detail, the cuff the
+             * one accent. */
+            tft.fillRoundRect(cx - 10, cy - 18, 7, 22, 3, snow());
+            tft.fillRoundRect(cx - 12, cy - 4, 20, 18, RADIUS, snow());
+            tft.fillRoundRect(cx + 2, cy - 2, 16, 7, 3, snow());
+            strokeH(tft, static_cast<int16_t>(cx - 3), static_cast<int16_t>(cy + 3), 9, ink());
+            strokeH(tft, static_cast<int16_t>(cx - 3), static_cast<int16_t>(cy + 8), 9, ink());
+            tft.fillRoundRect(cx - 12, cy + 14, 20, 4, 2, amber());
+            break;
         case LauncherIcon::Profiles:
             tft.fillCircle(cx - 7, cy - 6, 6, snow());
             tft.fillCircle(cx - 7, cy + 8, 10, snow());

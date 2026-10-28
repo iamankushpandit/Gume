@@ -4,11 +4,11 @@
 [![Pages](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml/badge.svg)](https://github.com/iamankushpandit/Gume/actions/workflows/pages.yml)
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
 [![Version](https://img.shields.io/badge/version-5.14.0--SNAPSHOT-9a6700)](CHANGELOG.md)
-[![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
+[![Games](https://img.shields.io/badge/games-41-2d7d9a)](#the-games)
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-82.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-84.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -22,7 +22,7 @@
 **Discussion is open on Reddit:** [r/gume_braino](https://www.reddit.com/r/gume_braino/) —
 questions, ideas and feedback, in public, where the next person finds them.
 
-A 40-game educational console for young players, running on an **ESP32-32E
+A 41-game educational console for young players, running on an **ESP32-32E
 board** (E32R28T-1 — ILI9341 320×240 resistive
 touchscreen, 4 MB flash, no PSRAM).
 
@@ -39,9 +39,9 @@ no data collection.** Two radios exist and both are narrow by design:
 
 | | |
 |---|---|
-| Games | 40 |
-| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
-| RAM | 88,036 / 327,680 bytes (**26.9%**) |
+| Games | 41 |
+| Flash | 2,644,397 / 3,145,728 bytes of the app partition (**84.1%**) |
+| RAM | 88,468 / 327,680 bytes (**27.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -409,7 +409,9 @@ needs without touching anyone else's. Only the admin can change it.
 | **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk |
 | **Go** | The oldest board game there is, on a 9x9 board (19x19 on the 4-inch console), for two on one console, against the computer at Easy or Medium, or against another console in the room over Bluetooth. Five rule sets, chosen before the game: *Capture 1*, *3* or *5* -- first to take that many stones wins, the way it is taught in schools -- *Area*, and *Territory*, which ends with both players marking the groups that cannot live. A stone is placed in two taps, the first a ghost so a misplaced finger costs nothing, and on 19x19 the panel magnifies the five-by-five around it. Undo takes back your move and the computer's reply; the game is remembered if you put the device down | Surrounding rather than attacking, and the idea that a group lives or dies by its liberties -- the computer never fills its own eye, and a young player who watches it learns why |
 
-Flags, Elements and the three US States games all use **spaced repetition**; Flags also
+| **Sign ABC** | The American Sign Language (ASL) hand alphabet as a course of seven short lessons, A–D to Y–Z. Each lesson first **teaches** its new hands one at a time, big, beside their letters, then **quizzes** them six times -- a hand, which letter? and a letter, which hand? -- with two questions from earlier lessons from the second lesson on. Five right opens the next lesson; fewer offers the cards again. **Practice** quizzes every letter learnt so far, for as long as you like. J and Z are signed by moving the hand, and their drawings carry the motion as an arrow | Fingerspelling, the way into signing, taught before it is tested. The wrong answers are only ever hands the player has been shown, and more often the ones that look alike -- the six fists A E M N S T, the raised fingers of K R U V -- as the alphabet is learnt |
+
+Flags, Elements, Sign ABC and the three US States games all use **spaced repetition**; Flags also
 uses **adaptive difficulty** — see below.
 
 ### Logic, memory and attention
@@ -603,6 +605,15 @@ One screen per game, in launcher order.
   <img src="docs/screens/chess.png" width="300" alt="Chess: legal moves ringed, captures beside the board">
   <img src="docs/screens/seabattle.png" width="300" alt="Sea Battle: hunting the fleet, your sea beside it">
   <img src="docs/screens/cursive.png" width="300" alt="Cursive: tracing the word dog">
+</p>
+<p align="center">
+  <img src="docs/screens/signs.png" width="300" alt="Sign ABC: seven lessons, each opened by passing the last">
+  <img src="docs/screens/signs-teach.png" width="300" alt="Sign ABC: a lesson shows each new hand first">
+  <img src="docs/screens/signs-quiz.png" width="300" alt="Sign ABC: the lesson quiz, which letter is this hand?">
+</p>
+<p align="center">
+  <img src="docs/screens/signs-find.png" width="300" alt="Sign ABC: the lesson quiz, which hand is this letter?">
+  <img src="docs/screens/signs-result.png" width="300" alt="Sign ABC: a lesson passed, the next one open">
 </p>
 <p align="center">
   <img src="docs/screens/ludo.png" width="300" alt="Ludo: tokens racing round the board, the die beside it">
@@ -1336,7 +1347,7 @@ Dependencies resolve automatically:
 | `bodmer/TFT_eSPI` | Display and touch |
 | `bblanchon/ArduinoJson` | Optional SD content configs |
 | `h2zero/NimBLE-Arduino` | BLE beacon -- ~192 KB for host plus controller, against several times that for the core's Bluedroid stack |
-| [`map-n-flag`](https://github.com/iamankushpandit/map-n-flag) | Flag and outline artwork |
+| [`map-n-flag`](https://github.com/iamankushpandit/map-n-flag) | Flag, outline and ASL hand artwork |
 
 The console is on the [web installer](#install-it-without-a-toolchain), one
 firmware per supported board — useful when the board is not on the machine that
@@ -1603,6 +1614,7 @@ them under GPL-3.0 does not relicense them; it licenses *this* work.
 | US state outlines | [Natural Earth](https://www.naturalearthdata.com/) | Public domain (ODC PDDL) |
 | Capitals / regions | [mledoze/countries](https://github.com/mledoze/countries) | ODbL |
 | Chess piece silhouettes | [svgsilh.com](https://svgsilh.com/image/26774.html) | CC0 (public domain) |
+| ASL hand alphabet | WPClipart, via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Sign_language_A.svg), in map-n-flag | Public domain (CC0) |
 | Cursive letterforms | FRB American Cursive ArrowPath, by Fredrick R. Brennan | GPLv3 — same licence as this project |
 
 **Every asset compiled into this firmware is MIT or public domain.**

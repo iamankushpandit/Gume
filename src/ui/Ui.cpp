@@ -1405,9 +1405,12 @@ bool drawCountryImageTinted(Ui::Renderer& tft, const void* img, const Rect& r,
     return true;
 }
 
-bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
-                            uint16_t bgColor, uint8_t scale) {
-    const mnf_img_t* im = static_cast<const mnf_img_t*>(img);
+/* Shared by the plain and the tinted scaled draws. `tinted` decodes each row
+ * through mnf_row_rgb565_tint() in `inkColor`, as the native-size tinted draw
+ * does, so the two scaled forms differ only in which decoder fills a row. */
+static bool drawScaledImpl(Ui::Renderer& tft, const mnf_img_t* im, const Rect& r,
+                           uint16_t bgColor, bool tinted, uint16_t inkColor,
+                           uint8_t scale) {
     if (im == nullptr) return false;
     if (scale < 1) scale = 1;
 
@@ -1419,15 +1422,14 @@ bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
     const int16_t availW = static_cast<int16_t>(r.w * tft.imageScaleX());
     const int16_t availH = static_cast<int16_t>(r.h * tft.imageScaleY());
     while (scale > 1 && (im->w * scale > availW || im->h * scale > availH)) --scale;
-    if (scale == 1) return drawCountryImageCentred(tft, im, r, bgColor);
-
     const int16_t outW = static_cast<int16_t>(im->w * scale);
     const int16_t outH = static_cast<int16_t>(im->h * scale);
 
     uint16_t src[MNF_MAX_ROW];
     uint16_t dst[MNF_MAX_ROW * 3];   // scale is clamped to 3 by the rect check below
-    if (outW > static_cast<int16_t>(sizeof(dst) / sizeof(dst[0]))) {
-        return drawCountryImageCentred(tft, im, r, bgColor);
+    if (scale == 1 || outW > static_cast<int16_t>(sizeof(dst) / sizeof(dst[0]))) {
+        return tinted ? drawCountryImageTinted(tft, im, r, bgColor, inkColor)
+                      : drawCountryImageCentred(tft, im, r, bgColor);
     }
 
     Ui::Renderer* phys = nullptr;
@@ -1439,7 +1441,8 @@ bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
     phys->setSwapBytes(true);
     phys->startWrite();
     for (uint16_t yy = 0; yy < im->h; ++yy) {
-        mnf_row_rgb565(im, yy, src, bgColor);
+        if (tinted) mnf_row_rgb565_tint(im, yy, src, bgColor, inkColor);
+        else        mnf_row_rgb565(im, yy, src, bgColor);
         for (uint16_t xx = 0; xx < im->w; ++xx) {
             for (uint8_t s = 0; s < scale; ++s) dst[xx * scale + s] = src[xx];
         }
@@ -1454,6 +1457,18 @@ bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
     phys->endWrite();
     phys->setSwapBytes(prevSwap);
     return true;
+}
+
+bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
+                            uint16_t bgColor, uint8_t scale) {
+    return drawScaledImpl(tft, static_cast<const mnf_img_t*>(img), r, bgColor,
+                          false, 0, scale);
+}
+
+bool drawCountryImageTintedScaled(Ui::Renderer& tft, const void* img, const Rect& r,
+                                  uint16_t bgColor, uint16_t inkColor, uint8_t scale) {
+    return drawScaledImpl(tft, static_cast<const mnf_img_t*>(img), r, bgColor,
+                          true, inkColor, scale);
 }
 
 }
