@@ -318,18 +318,20 @@ def check_site(problems):
     template = read("site", "index.template.html")
     featured_template = read("site", "featured.template.html")
     experimental_template = read("site", "experimental.template.html")
+    works_template = read("site", "in-the-works.template.html")
     generator = read("tools", "gen_site.py")
 
-    # Three templates share one generator. A placeholder the generator fills
+    # Four templates share one generator. A placeholder the generator fills
     # has to appear in at least one of them, or it is a value computed for
     # nobody; one that appears in a template without being filled is caught
     # at generation time, so this is the other half.
-    templates = (template, featured_template, experimental_template)
+    templates = (template, featured_template, experimental_template, works_template)
     for placeholder in sorted(set(re.findall(r'\("(\{\{[A-Z_]+\}\})"', generator))):
         if not any(placeholder in text for text in templates):
             fail(problems, "gen_site.py substitutes %s but none of site/"
-                           "index.template.html, site/featured.template.html "
-                           "and site/experimental.template.html contains it"
+                           "index.template.html, site/featured.template.html, "
+                           "site/experimental.template.html and "
+                           "site/in-the-works.template.html contains it"
                            % placeholder)
 
     if re.search(r"\d+\.\d+\.\d+", template):
@@ -363,6 +365,7 @@ def check_site(problems):
     check_older_versions(problems)
     check_site_screens(problems)
     check_featured(problems)
+    check_works(problems)
 
 
 def check_older_versions(problems):
@@ -446,6 +449,24 @@ def check_site_screens(problems):
         for line in message.splitlines():
             fail(problems, line.replace("gen_site.py: ", "", 1) +
                  " -- fix tools/gen_site.py, or the Pages build fails on main")
+
+
+def check_works(problems):
+    """Every In the works card must have its pictures, and every picture a card.
+
+    gen_site.works_entries() is the authority, as for the Featured page; a
+    fault there would otherwise surface only when Pages builds on main.
+    """
+    captured = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(captured):
+            gen_site.validate_works()
+    except SystemExit:
+        message = captured.getvalue().strip() or "gen_site.py rejected site/in-the-works.json"
+        for line in message.splitlines():
+            fail(problems, line.replace("gen_site.py: ", "", 1) +
+                 " -- fix site/in-the-works.json or site/in-the-works/, or the "
+                 "Pages build fails on main")
 
 
 def check_featured(problems):

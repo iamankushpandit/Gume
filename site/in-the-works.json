@@ -1,0 +1,98 @@
+{
+  "items": [
+    {
+      "id": "sleep-battery-drain",
+      "kind": "defect",
+      "title": "The battery runs down overnight while the console is asleep",
+      "status": "Investigating",
+      "updated": "2026-10-28",
+      "summary": [
+        "Reported on 28 October 2026: a 4-inch E32R40T build on 5.12.4, with a 3000 mAh pack and Wi-Fi set up, went from full to about 10% overnight with the screen dark.",
+        "Asleep, Braino turns the backlight off and puts the panel to sleep. The processor keeps running and Wi-Fi stays connected.",
+        "Next: measure the current drawn while asleep, then cut it."
+      ],
+      "images": [
+        {"file": "sleep-lock-screen.png", "alt": "The Braino! lock screen, shown on waking, with the battery badge at the top right"}
+      ],
+      "links": [
+        {"label": "The report on r/gume_braino", "url": "https://www.reddit.com/r/gume_braino/comments/1xh4rar/"}
+      ]
+    },
+    {
+      "id": "cyd2usb-colours",
+      "kind": "defect",
+      "title": "Washed-out colours on the dual-USB CYD (CYD2USB)",
+      "status": "Build waiting on a test",
+      "updated": "2026-10-26",
+      "summary": [
+        "The dual-USB 2.8-inch CYD has ST7789 glass. Today it runs the inverted-panel image, which drives it as an ILI9341: it works, and the colours come out washed out.",
+        "A new board profile drives it as an ST7789. The build is on the Experimental page, waiting for the person who reported it to try it on their board."
+      ],
+      "images": [
+        {"file": "cyd2usb-st7789-pins.png", "alt": "GPIO table for the ESP32-2432S028 with ST7789 glass: display, touch, audio, RGB LED, SD card and BOOT key pins"}
+      ],
+      "links": [
+        {"label": "Try the build", "url": "experimental.html#cyd2usb-st7789"},
+        {"label": "Issue 200", "url": "https://github.com/iamankushpandit/Gume/issues/200"},
+        {"label": "Pull request 207", "url": "https://github.com/iamankushpandit/Gume/pull/207"}
+      ]
+    },
+    {
+      "id": "numbernest",
+      "kind": "game",
+      "title": "NumberNest",
+      "status": "In review",
+      "updated": "2026-10-12",
+      "summary": [
+        "Five numbers in five circles. One of them is the sum of two of the others, or in Multiply their product: tap it. Five answers fill a nest, and the nest is the last group to solve.",
+        "Five levels for adding and five for multiplying, saved per player. Six right first time in a row earns the next level."
+      ],
+      "images": [
+        {"file": "numbernest.png", "alt": "NumberNest in Add mode: five circles, with 4 + 9 = 13 solved and 13 placed in the nest"},
+        {"file": "numbernest-multiply.png", "alt": "NumberNest in Multiply mode: tap the product of two others"},
+        {"file": "numbernest-rules.png", "alt": "NumberNest's How to play card, with one example for Add and one for Multiply"},
+        {"file": "numbernest-final.png", "alt": "NumberNest's final group, made of the five answers from the nest"}
+      ],
+      "links": [
+        {"label": "Pull request 197", "url": "https://github.com/iamankushpandit/Gume/pull/197"}
+      ]
+    },
+    {
+      "id": "sign-abc",
+      "kind": "game",
+      "title": "Sign ABC",
+      "status": "In development",
+      "updated": "2026-10-28",
+      "summary": [
+        "The American Sign Language hand alphabet, A to Z, as a course. Seven lessons of four letters: each shows its new hands one at a time, beside the letter, then asks six questions, a hand for a letter and a letter for a hand.",
+        "J and Z are signed by moving the hand, so they carry the movement as an arrow. Practice quizzes every letter learnt so far, and the letters a player misses come back sooner.",
+        "Hand artwork from WPClipart's public-domain set."
+      ],
+      "images": [
+        {"file": "signs.png", "alt": "Sign ABC's lesson list: A to D and E to H done, I to L next, the rest locked, and Practice"},
+        {"file": "signs-teach.png", "alt": "Sign ABC teaching the letter J, with an arrow showing how the hand moves"},
+        {"file": "signs-quiz.png", "alt": "Sign ABC asking which of four hands is the letter V"},
+        {"file": "signs-find.png", "alt": "Sign ABC showing a hand and four letters to choose from, with M marked right"}
+      ],
+      "links": []
+    },
+    {
+      "id": "attaky-core",
+      "kind": "board",
+      "title": "Attaky Core",
+      "status": "Port in progress",
+      "updated": "2026-10-26",
+      "summary": [
+        "An ESP32-S3 board with a 2.0-inch 240x320 ST7789 panel and capacitive touch. The port adds the D-pad to the launcher and typing from the clip-on keyboard in every text field.",
+        "Written from the published pin map, and not yet run on a device."
+      ],
+      "images": [
+        {"file": "attaky-core-pins.png", "alt": "GPIO table for the Attaky Core: touch, SD card, display, audio, module check and BOOT key pins"}
+      ],
+      "links": [
+        {"label": "Issue 214", "url": "https://github.com/iamankushpandit/Gume/issues/214"},
+        {"label": "Pull request 215", "url": "https://github.com/iamankushpandit/Gume/pull/215"}
+      ]
+    }
+  ]
+}

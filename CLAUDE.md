@@ -1318,6 +1318,10 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           Featured page: every piece of coverage with the
                           date it ran, a dated screenshot, its SHA-256 and
                           a Wayback Machine copy
+                          in-the-works.template.html + in-the-works.json +
+                          in-the-works/ -- the In the works page: defects
+                          being fixed, games being built, boards being
+                          ported, with pictures copied from their branches
 .github/workflows/        ci.yml validates checks, then builds one job per
                           environment in parallel (`verify` is the required
                           check that judges them); pages.yml publishes
@@ -1432,6 +1436,23 @@ break it, and all three fail in someone else's browser rather than here:
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
 page. The flash button will 404 there â€” the binaries only exist in CI.
+
+### The In the works page is kept by hand, and its pictures are checked
+
+`in-the-works.html` lists what is being fixed, built and ported, from
+`site/in-the-works.json`. Unlike the game list it cannot be derived: the work
+it describes lives on branches and in reports, not in this tree. So it goes
+stale the way any hand-kept list does -- **when a game merges, a board ships or
+a defect is fixed, take its entry out in the same change** (it is now on the
+landing page, the installer or in the changelog instead). The pictures are
+copied into `site/in-the-works/` from the branch the work is on, because a
+branch's `docs/screens/` does not reach `main` until it merges.
+`gen_site.works_entries()` refuses a missing picture and a picture no entry
+references, and `check_docs.py` runs it.
+
+The site's nav now has nine links, which do not fit on one row below about
+1400px; every template wraps the links onto their own scrolling row below
+that width. A tenth link needs the same check at 1440px and 1280px.
 
 ### The Experimental page offers a CI run's build, and only while the run has it
 

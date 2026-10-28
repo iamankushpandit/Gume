@@ -1,0 +1,148 @@
+<!doctype html>
+<!--
+     SPDX-License-Identifier: GPL-3.0-or-later
+     SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+
+     Part of Braino! - https://github.com/iamankushpandit/Gume
+     Free software under GPL-3.0-or-later. Reusing any part of this file, in
+     any work, must keep this notice, credit iamankushpandit as the
+     author, and stay under the same licence with corresponding source
+     offered. See LICENSE and NOTICE.md.
+-->
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Braino! in the works</title>
+<meta name="description" content="What is being fixed, built and ported for Braino! right now, and where each one stands.">
+<meta property="og:title" content="Braino! in the works">
+<meta property="og:description" content="The defects being fixed, the games being built and the boards being ported for Braino!.">
+<meta property="og:image" content="https://iamankushpandit.github.io/Gume/assets/social-preview.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/braino-mark.svg" type="image/svg+xml">
+<style>
+  :root{
+    --ink:#0b0c10; --ink-2:#14161c; --line:rgba(255,255,255,.14);
+    --yellow:#ffd600; --teal:#0e7c7b; --pink:#d8336e; --green:#1f8a4c;
+    --fg:#fff; --muted:rgba(255,255,255,.66);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --gutter:clamp(20px,5vw,72px);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--font);font-size:18px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  img{display:block;max-width:100%;height:auto}
+  h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.02em;line-height:1}
+  p{margin:0}
+
+  .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px var(--gutter);background:rgba(11,12,16,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .nav .mark{display:inline-flex;align-items:center;gap:11px;font-weight:900;font-size:38px;letter-spacing:-.03em;color:var(--yellow);text-decoration:none}
+  .nav .mark img{height:46px;width:auto;display:block}
+  .nav ul{display:flex;gap:6px;list-style:none;margin:0;padding:0}
+  .nav li a{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;white-space:nowrap}
+  .nav li a:hover,.nav li a:focus-visible{background:rgba(255,255,255,.1)}
+  .nav li a[aria-current="page"]{background:rgba(255,255,255,.14)}
+  .nav a.star{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px;white-space:nowrap;background:var(--yellow);color:var(--ink)}
+  /* Nine links and the mark do not fit on one row below about 1400px. */
+  @media (max-width:1400px){
+    .nav{flex-wrap:wrap;row-gap:8px}
+    .nav ul{order:3;flex:1 0 100%;overflow-x:auto;scrollbar-width:none}
+    .nav ul::-webkit-scrollbar{display:none}
+  }
+  @media (max-width:760px){
+    .nav{flex-wrap:wrap;row-gap:8px}
+    .nav ul{order:3;flex:1 0 100%;overflow-x:auto;scrollbar-width:none}
+    .nav ul::-webkit-scrollbar{display:none}
+  }
+  @media (max-width:640px){
+    .nav{padding:12px clamp(14px,4vw,20px);gap:10px}
+    .nav .mark{font-size:26px;gap:7px}
+    .nav .mark img{height:34px}
+    .nav li a{padding:7px 11px;font-size:13px}
+    .nav a.star{padding:7px 11px;font-size:13px}
+  }
+
+  .head{padding:10vh var(--gutter) 2vh;max-width:1100px}
+  .head h1{font-size:clamp(44px,8vw,128px);font-weight:900;letter-spacing:-.05em;line-height:.92;color:var(--yellow)}
+  .head p{margin-top:28px;font-size:clamp(18px,1.6vw,22px);color:var(--muted);max-width:760px}
+  .head p a{color:var(--fg)}
+  .head ul.jump{display:flex;flex-wrap:wrap;gap:10px;list-style:none;margin:28px 0 0;padding:0}
+  .head ul.jump a{display:inline-block;padding:8px 16px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px;box-shadow:inset 0 0 0 1.5px var(--line)}
+  .head ul.jump a:hover,.head ul.jump a:focus-visible{background:rgba(255,255,255,.1)}
+
+  .group{padding:6vh var(--gutter) 2vh;scroll-margin-top:80px}
+  .group h2{font-size:clamp(30px,4vw,52px);font-weight:900;letter-spacing:-.04em;margin-bottom:22px}
+  .card{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);border-radius:22px;background:var(--ink-2);box-shadow:inset 0 0 0 1.5px var(--line);overflow:hidden;margin-bottom:18px;scroll-margin-top:80px}
+  .card .body{padding:26px 28px 28px;display:flex;flex-direction:column;gap:12px}
+  .card .kicker{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
+  .card h3{font-size:clamp(24px,2.4vw,32px);font-weight:800;letter-spacing:-.02em;line-height:1.15}
+  .card .body > p:not(.kicker):not(.links){font-size:17px;color:rgba(255,255,255,.86)}
+  .card .links{margin-top:auto;padding-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+  .card .links a{display:inline-block;padding:7px 14px;border-radius:999px;text-decoration:none;font-weight:700;font-size:14px;box-shadow:inset 0 0 0 1.5px var(--line)}
+  .card .links a:first-child{background:var(--yellow);color:var(--ink);box-shadow:none}
+  .card .links a:hover,.card .links a:focus-visible{background:rgba(255,255,255,.12)}
+  .card .links a:first-child:hover,.card .links a:first-child:focus-visible{background:#ffe14d}
+  .card .shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:18px;align-content:start;background:#0f1116}
+  .card .shots:has(> a:only-child){grid-template-columns:1fr}
+  .card .shots a{display:block;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line)}
+  .card .shots a:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+  .card .shots img{width:100%}
+  @media (max-width:900px){
+    .card{grid-template-columns:1fr}
+  }
+
+  footer{margin-top:8vh;padding:60px var(--gutter) 80px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;font-size:15px;color:var(--muted)}
+  footer a{color:#fff}
+  @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Page">
+  <a class="mark" href="index.html"><img src="assets/braino-mark.svg" alt="">Braino!</a>
+  <ul>
+    <li><a href="index.html#top">Home</a></li>
+    <li><a href="index.html#start">Get started</a></li>
+    <li><a href="index.html#flash">Install</a></li>
+    <li><a href="index.html#games">Games</a></li>
+    <li><a href="index.html#privacy">Privacy</a></li>
+    <li><a href="index.html#community">Community</a></li>
+    <li><a href="featured.html">Featured</a></li>
+    <li><a href="in-the-works.html" aria-current="page">In the works</a></li>
+    <li><a href="experimental.html">Experimental</a></li>
+  </ul>
+  <a class="star" href="{{REPO}}">Star on GitHub</a>
+</nav>
+
+<main>
+<header class="head">
+  <h1>In the works.</h1>
+  <p>
+    What is being fixed, built and ported right now, and where each one
+    stands. None of it has shipped. Builds ready to try are on the
+    <a href="experimental.html">Experimental</a> page.
+  </p>
+  <ul class="jump">
+    <li><a href="#defect">Being fixed</a></li>
+    <li><a href="#game">New games</a></li>
+    <li><a href="#board">New hardware</a></li>
+  </ul>
+</header>
+
+{{WORKS_SECTIONS}}
+</main>
+
+<footer>
+  <span>Braino! v{{VERSION}} &middot; page generated {{BUILT}}</span>
+  <span>
+    <a href="index.html">Home</a> &middot;
+    <a href="{{REPO}}">Source on GitHub</a> &middot;
+    <a href="{{REPO}}/blob/main/CHANGELOG.md">Changelog</a> &middot;
+    <a href="{{REPO}}/issues">Open an issue</a> &middot;
+    <a href="https://github.com/iamankushpandit">iamankushpandit</a> &middot;
+    <a href="mailto:esp32.gume@proton.me">esp32.gume@proton.me</a> &middot; GPL-3.0-or-later
+  </span>
+</footer>
+</body>
+</html>
