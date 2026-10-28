@@ -1516,6 +1516,7 @@ src/
     Renderer.h          app-facing drawing interface, no TFT driver include
     TftRenderer.h       TFT_eSPI adapter used by firmware runtime
     LauncherIcons.cpp   launcher tile icon drawing
+    LauncherIconArt.cpp the icons' shared palette and stroke helpers
     LogoMask.cpp        the product mark, generated -- see tools/gen_logo_mask.py
     LauncherLayout.cpp  launcher header, profile and tile geometry
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
