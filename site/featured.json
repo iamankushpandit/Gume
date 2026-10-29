@@ -200,6 +200,20 @@
       "sha256": "f333163296ff022e68b19519955dffe92a888f8c49f3c7f9803d4c0754105b05",
       "width": 1024,
       "height": 1440
+    },
+    {
+      "id": "jovkovski",
+      "outlet": "Threads",
+      "title": "Braino! — an entire learning console in 4 MB",
+      "byline": "Kristofer Jovkovski (@kristofer.jovkovski)",
+      "url": "https://www.threads.com/@kristofer.jovkovski/post/Dekc120ESlB/",
+      "published": "2026-10-16",
+      "archive": "https://web.archive.org/web/20261029135216/https://www.threads.com/@kristofer.jovkovski/post/Dekc120ESlB/",
+      "screenshot": "jovkovski.jpg",
+      "captured": "2026-10-29T13:52:05Z",
+      "sha256": "5fdadd78f270ca3f6fa3fa9d86365601d7f60c74eda527bc6401a2657454f074",
+      "width": 1024,
+      "height": 880
     }
   ]
 }
