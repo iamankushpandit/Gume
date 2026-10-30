@@ -27,6 +27,12 @@ Writes, into DIR (default `site/_build`, which is not committed):
                                            site/featured.json
     featured/*.jpg                            a copy of site/featured -- the dated
                                            screenshots that back each entry
+    experimental.html                      the Experimental page, from
+                                           site/experimental.json
+    in-the-works.html                      the In the works page, from
+                                           site/in-the-works.template.html and
+                                           site/in-the-works.json
+    in-the-works/*.png                     a copy of site/in-the-works
     firmware/<board>/<env>/manifest.json   an esp-web-tools manifest per build
     screens/*.png                          a copy of docs/screens
     assets/*                               a copy of site/assets --
@@ -956,6 +962,143 @@ def render_experimental_cards(out, builds, supported, repo):
                                        publish_experimental(out, build, target), repo))
     return '  <div class="cards">\n' + "\n".join(cards) + '\n  </div>'
 
+# ---------------------------------------------------------------------------
+# In the works: the defects being fixed, the games being built and the boards
+# being ported, each with where it stands.
+#
+# site/in-the-works.json lists them and site/in-the-works/ holds their
+# pictures -- renders and pin diagrams copied out of the branch the work is
+# on, since a branch's docs/screens never reach main until it merges. Both
+# directions are checked, as with the stills, the assets and the Featured
+# screenshots: a card whose picture is missing has a hole in it, and a picture
+# no card references is weight in every clone.
+# ---------------------------------------------------------------------------
+
+WORKS_INDEX = os.path.join(ROOT, "site", "in-the-works.json")
+WORKS_DIR = os.path.join(ROOT, "site", "in-the-works")
+WORKS_REQUIRED = ("id", "kind", "title", "status", "updated", "summary",
+                  "images", "links")
+# The page's sections, in the order it shows them.
+WORKS_KINDS = (
+    ("defect", "Being fixed"),
+    ("game", "New games"),
+    ("board", "New hardware"),
+)
+
+
+def works_entries():
+    """Every in-the-works entry, validated, in file order. die()s on a fault."""
+    if not os.path.isfile(WORKS_INDEX):
+        die("site/in-the-works.json is missing")
+    with open(WORKS_INDEX, encoding="utf-8") as handle:
+        entries = json.load(handle)["items"]
+
+    kinds = {kind for kind, _ in WORKS_KINDS}
+    seen = set()
+    referenced = set()
+    for entry in entries:
+        missing = [key for key in WORKS_REQUIRED if key not in entry]
+        if missing:
+            die("in-the-works entry %r lacks %s" % (entry.get("id"), ", ".join(missing)))
+        if entry["id"] in seen:
+            die("in-the-works entry id %r appears twice" % entry["id"])
+        seen.add(entry["id"])
+        if not re.fullmatch(r"[a-z0-9-]+", entry["id"]):
+            die("in-the-works entry id %r: lower-case letters, digits and hyphens only"
+                % entry["id"])
+        if entry["kind"] not in kinds:
+            die("in-the-works entry %r: kind %r is not one of %s"
+                % (entry["id"], entry["kind"], ", ".join(sorted(kinds))))
+        try:
+            datetime.date.fromisoformat(entry["updated"])
+        except ValueError:
+            die("in-the-works entry %r: updated %r is not an ISO date"
+                % (entry["id"], entry["updated"]))
+        if not isinstance(entry["summary"], list) or not entry["summary"]:
+            die("in-the-works entry %r: summary must be a list of paragraphs" % entry["id"])
+        for image in entry["images"]:
+            if not image.get("file") or not image.get("alt"):
+                die("in-the-works entry %r: every image needs a file and alt text"
+                    % entry["id"])
+            path = os.path.join(WORKS_DIR, image["file"])
+            if not os.path.isfile(path):
+                die("in-the-works entry %r: site/in-the-works/%s is missing"
+                    % (entry["id"], image["file"]))
+            png_size(path)
+            referenced.add(image["file"])
+        for link in entry["links"]:
+            if not link.get("label") or not link.get("url"):
+                die("in-the-works entry %r: every link needs a label and a url"
+                    % entry["id"])
+            if not (link["url"].startswith("https://") or
+                    re.fullmatch(r"[a-z-]+\.html(#[a-z0-9-]+)?", link["url"])):
+                die("in-the-works entry %r: link %r must be https or a page on "
+                    "this site" % (entry["id"], link["url"]))
+
+    on_disk = set()
+    if os.path.isdir(WORKS_DIR):
+        on_disk = {name for name in os.listdir(WORKS_DIR)
+                   if os.path.isfile(os.path.join(WORKS_DIR, name))}
+    orphans = on_disk - referenced
+    if orphans:
+        die("site/in-the-works file(s) no entry references: %s -- reference "
+            "them or delete them" % ", ".join(sorted(orphans)))
+
+    return entries
+
+
+def validate_works():
+    works_entries()
+
+
+def png_size(path):
+    """Width and height from a PNG's IHDR. The Pages job has no Pillow."""
+    with open(path, "rb") as handle:
+        head = handle.read(24)
+    if head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        die("%s is not a PNG" % os.path.relpath(path, ROOT))
+    return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+
+
+def works_card(entry):
+    lines = [
+        '  <article class="card" id="%s">' % escape(entry["id"]),
+        '    <div class="body">',
+        '      <p class="kicker">%s &middot; updated <time datetime="%s">%s</time></p>'
+        % (escape(entry["status"]), entry["updated"], long_date(entry["updated"])),
+        '      <h3>%s</h3>' % escape(entry["title"]),
+    ]
+    lines += ['      <p>%s</p>' % escape(text) for text in entry["summary"]]
+    if entry["links"]:
+        lines.append('      <p class="links">%s</p>' % " ".join(
+            '<a href="%s">%s</a>' % (escape(link["url"]), escape(link["label"]))
+            for link in entry["links"]))
+    lines.append('    </div>')
+    if entry["images"]:
+        lines.append('    <div class="shots">')
+        for image in entry["images"]:
+            width, height = png_size(os.path.join(WORKS_DIR, image["file"]))
+            lines.append(
+                '      <a href="in-the-works/%s"><img src="in-the-works/%s" width="%d" '
+                'height="%d" loading="lazy" alt="%s"></a>'
+                % (escape(image["file"]), escape(image["file"]), width, height,
+                   escape(image["alt"])))
+        lines.append('    </div>')
+    lines.append('  </article>')
+    return "\n".join(lines)
+
+
+def render_works_sections(entries):
+    sections = []
+    for kind, heading in WORKS_KINDS:
+        cards = [works_card(e) for e in entries if e["kind"] == kind]
+        if not cards:
+            continue
+        sections.append('<section class="group" id="%s" aria-label="%s">\n'
+                        '  <h2>%s</h2>\n%s\n</section>'
+                        % (kind, heading, heading, "\n".join(cards)))
+    return "\n\n".join(sections)
+
 
 def cached_releases():
     """What fetch_release_firmware.py pulled, newest first. [] if it never ran.
@@ -1225,6 +1368,24 @@ def main():
     with open(os.path.join(out, "experimental.html"), "w", encoding="utf-8") as handle:
         handle.write(experimental_page)
 
+    # In the works: what is being fixed, built and ported, with its pictures
+    # copied beside it.
+    works = works_entries()
+    works_page = read("site", "in-the-works.template.html")
+    for key, value in (
+        ("{{VERSION}}", release),
+        ("{{WORKS_SECTIONS}}", render_works_sections(works)),
+        ("{{BUILT}}", datetime.date.today().isoformat()),
+        ("{{REPO}}", args.repo),
+    ):
+        works_page = works_page.replace(key, value)
+    leftover = re.findall(r"\{\{[A-Z_]+\}\}", works_page)
+    if leftover:
+        die("in-the-works template placeholder(s) not filled: %s" % ", ".join(sorted(set(leftover))))
+    with open(os.path.join(out, "in-the-works.html"), "w", encoding="utf-8") as handle:
+        handle.write(works_page)
+    shutil.copytree(WORKS_DIR, os.path.join(out, "in-the-works"))
+
     # Only the stills the page shows. It copied all of docs/screens back when
     # it showed all of docs/screens; publishing the other eighty-five now
     # would be shipping images nothing links to.
@@ -1242,9 +1403,10 @@ def main():
 
     offered = sum(len(b["versions"]) for b in builds)
     print("Site written to %s -- %d games, %d build(s), %d installable "
-          "version(s), %d featured entries, %d experimental build(s), v%s."
+          "version(s), %d featured entries, %d experimental build(s), "
+          "%d in-the-works entries, v%s."
           % (out, len(catalog), len(builds), offered, len(featured),
-             len(experimental), release))
+             len(experimental), len(works), release))
     if experimental:
         fetched = [b["id"] for b in experimental
                    if os.path.isdir(os.path.join(EXPERIMENTAL_CACHE, b["id"]))]

@@ -45,6 +45,12 @@
   .nav li a:hover,.nav li a:focus-visible{background:rgba(255,255,255,.1)}
   .nav li a[aria-current="page"]{background:rgba(255,255,255,.14)}
   .nav a.star{display:inline-block;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px;white-space:nowrap;background:var(--yellow);color:var(--ink)}
+  /* Nine links and the mark do not fit on one row below about 1400px. */
+  @media (max-width:1400px){
+    .nav{flex-wrap:wrap;row-gap:8px}
+    .nav ul{order:3;flex:1 0 100%;overflow-x:auto;scrollbar-width:none}
+    .nav ul::-webkit-scrollbar{display:none}
+  }
   @media (max-width:760px){
     .nav{flex-wrap:wrap;row-gap:8px}
     .nav ul{order:3;flex:1 0 100%;overflow-x:auto;scrollbar-width:none}
@@ -99,6 +105,7 @@
     <li><a href="index.html#privacy">Privacy</a></li>
     <li><a href="index.html#community">Community</a></li>
     <li><a href="featured.html" aria-current="page">Featured</a></li>
+    <li><a href="in-the-works.html">In the works</a></li>
     <li><a href="experimental.html">Experimental</a></li>
   </ul>
   <a class="star" href="{{REPO}}">Star on GitHub</a>
