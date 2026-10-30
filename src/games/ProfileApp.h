@@ -68,6 +68,13 @@ private:
      * thing a keypress touches. See the note in ProfileApp.cpp. */
     void renderPinPadChrome(GameHost& host);
     void renderPinDots(GameHost& host);
+    void updatePinEntry(GameHost& host, const TouchPoint& touch);
+    /* A physical keyboard's character, for the PIN pad and the name
+     * field; both reach the same functions a touch does. */
+    void typePinChar(GameHost& host, char typed);
+    void confirmPin(GameHost& host);
+    void typeRenameChar(GameHost& host, char typed);
+    void applyRenameKey(GameHost& host, char ch);
     void updateRename(GameHost& host, const TouchPoint& touch);
     void renderRename(GameHost& host);
 

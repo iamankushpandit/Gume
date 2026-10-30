@@ -126,6 +126,17 @@ struct TouchProfile {
     int8_t   sda;                 // capacitive only
     int8_t   scl;                 // capacitive only
     int8_t   reset;               // capacitive only; held low then released
+    /* Where the reset line is when it is NOT a GPIO.
+     *
+     * The Attaky Core routes its touch controller's reset through an AW9523
+     * I2C GPIO expander rather than to the ESP32, so `reset` above has no pin
+     * to name and stays PIN_NONE. These two say which expander and which of
+     * its sixteen ports -- 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7 -- and
+     * Board::begin() drives it exactly as it drives a GPIO reset: held low
+     * through the panel's init, then released. Active low, like every reset
+     * here. 0 for the address means there is no such expander. */
+    uint8_t  resetExpanderAddress; // capacitive only; an AW9523, or 0
+    uint8_t  resetExpanderPort;    // capacitive only; 0..15
     uint8_t  i2cAddress;          // capacitive only
     uint32_t i2cHz;               // capacitive only
     uint16_t pressureThreshold;   // resistive: below this, with IRQ high, noise
@@ -162,6 +173,94 @@ struct ButtonProfile {
     bool   activeLow;
 };
 
+/* Navigation keys -- a D-pad, Enter and Back -- where a board has them.
+ *
+ * Only behind an AW9523 I2C expander for now, because that is the only way
+ * any supported board wires them (the Attaky Core's face keys). The fields
+ * are that expander's address and, for each key, one of its sixteen ports:
+ * 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7, PIN_NONE for a key the board
+ * does not have. The expander shares the touch controller's I2C bus, which
+ * is why BoardConfig.h requires a capacitive board.
+ *
+ * The directions are PHYSICAL: Up is the key that points up when the board
+ * is held at its landscape rotation. Board::pollNavKey() turns them into
+ * screen directions for whatever rotation is current.
+ *
+ * `keyPower` is a power key's SHORT press, where the board reports one to
+ * the firmware at all -- the runtime treats it as the Lock button. A long
+ * press that switches the power in hardware is not the firmware's to see.
+ *
+ * Optional, like the BOOT key: keyExpander 0 is a board without them, every
+ * caller is guarded by hasNavKeys(), and nothing may become reachable only
+ * through a key. */
+struct KeysProfile {
+    uint8_t keyExpander;          // an AW9523's I2C address, or 0
+    int8_t  keyUp;
+    int8_t  keyDown;
+    int8_t  keyLeft;
+    int8_t  keyRight;
+    int8_t  keyEnter;
+    int8_t  keyBack;
+    int8_t  keyPower;             // a power key's short press: Lock
+    bool    keysActiveLow;        // pulled up, shorted to ground when pressed
+};
+
+/* A typing keyboard, where a board can carry one.
+ *
+ * Only as two AW9523 expanders scanning a 5x5 matrix each, because that is
+ * the only keyboard any supported board takes: Attaky's Control: Keyboard
+ * (Bottom) module, which clips onto the Attaky Core. Each expander reads its
+ * five columns on P0_0..P0_4 and drives its five rows on P1_0..P1_4, low to
+ * select; P1_5..P1_7 are that half's LED, which the firmware leaves off.
+ *
+ * The layouts say what is at each of the 25 positions, row by row, columns
+ * left to right -- a fact about the keyboard module, so it lives here with
+ * the addresses rather than in the driver. Letters, digits and the
+ * punctuation printed on the keys stand for themselves; four characters are
+ * codes, because the keys they stand for do not type anything:
+ *
+ *   ^  Shift      <  Delete      >  Enter      ~  no key, or one not used
+ *
+ * Optional twice over: a board without one says keyboardLeft 0, and a board
+ * that can carry one may not have it attached -- the module is detachable,
+ * so Board::begin() probes both addresses and the keyboard is off unless
+ * both answer. Nothing may become reachable only by typing; every text field
+ * keeps its on-screen keypad. */
+struct KeyboardProfile {
+    uint8_t     keyboardLeft;     // the left half's AW9523, or 0
+    uint8_t     keyboardRight;    // the right half's AW9523
+    const char* leftLayout;       // 25 characters, ROW0 COL0 first
+    const char* rightLayout;
+};
+
+/* A clip-on gamepad, where a board can carry one: its D-pad and two face
+ * keys, read into the same navigation-key stream as a D-pad on the board.
+ *
+ * Only as two TCA9555 I2C expanders, one per half, because that is the only
+ * gamepad any supported board takes: Attaky's Control: Gamepad (Bottom)
+ * module. The fields are each half's address and, for each key, a port of
+ * that half's expander -- 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7 -- with
+ * the directions on the left half and A and B on the right. Every key is
+ * active low against the expander's own pull-up.
+ *
+ * The directions are PHYSICAL, as KeysProfile's are, and in the same frame:
+ * Up is the key that points up when the console is held at its landscape
+ * rotation. A is Enter and B is Back.
+ *
+ * Optional twice over, like the keyboard: padLeftExpander 0 is a board that
+ * cannot carry one, and a board that can may not have it clipped on, which
+ * the module table finds at boot. */
+struct GamepadProfile {
+    uint8_t padLeftExpander;      // the left half's TCA9555, or 0
+    uint8_t padRightExpander;     // the right half's TCA9555
+    int8_t  padUp;                // left half's ports
+    int8_t  padDown;
+    int8_t  padLeft;
+    int8_t  padRight;
+    int8_t  padA;                 // right half's ports: Enter
+    int8_t  padB;                 // and Back
+};
+
 struct SdProfile {
     int8_t   cs;
     int8_t   mosi;
@@ -170,14 +269,42 @@ struct SdProfile {
     uint32_t spiHz;
 };
 
+/* Plug-in modules that would reuse the SD slot's lines, and how to notice
+ * one before the slot is brought up.
+ *
+ * Only the Attaky Core needs it: its Expand modules share IO5-8, so the SD
+ * card's SPI lines belong to Media I/O on one module and to a LoRa radio or
+ * an FM tuner's GPIO on the others. Two of them can be found without driving
+ * anything they own: an I2C device at `fmRadioAddress` on its own bus
+ * (`fmSda`/`fmScl`), and a GPS that sends NMEA sentences at `gpsBaud` into
+ * `gpsRx` without being asked, heard with that pin an input. Finding either
+ * means the SD slot is left alone this boot.
+ *
+ * Optional: 0 and PIN_NONE throughout is a board with nothing to look for,
+ * which is every other board. */
+struct ExpandProbeProfile {
+    uint8_t  fmRadioAddress;      // an I2C address on its own bus, or 0
+    int8_t   fmSda;
+    int8_t   fmScl;
+    int8_t   gpsRx;               // a GPS's TX, as this board's RX; or PIN_NONE
+    uint32_t gpsBaud;
+};
+
 /* Status LED. `commonAnode` boards sink current, so a channel lights when the
  * line is driven LOW -- getting this backwards is a lit LED that never goes
- * out, not a dark one. */
+ * out, not a dark one.
+ *
+ * `expander` 0 means r/g/b are GPIOs, dimmed by LEDC PWM. Otherwise it is
+ * the I2C address of the AW9523 the LED hangs off -- the Attaky Core's -- and
+ * r/g/b are its ports, 0..15 as in KeysProfile. Those are driven in the
+ * expander's GPIO mode, so each channel is simply on or off: a colour asked
+ * for is shown as the channels at least half as bright as its brightest. */
 struct RgbLedProfile {
-    int8_t r;
-    int8_t g;
-    int8_t b;
-    bool   commonAnode;
+    int8_t  r;
+    int8_t  g;
+    int8_t  b;
+    bool    commonAnode;
+    uint8_t expander;             // an AW9523's I2C address, or 0 for GPIOs
 };
 
 /* How a board makes a sound, if it can.
@@ -185,14 +312,17 @@ struct RgbLedProfile {
  * `speakerPin` is a bare transducer on a GPIO -- what the CYD boards wire.
  * On those boards GPIO26 is ESP32 DAC channel 2, so the I2S peripheral can
  * drive it directly (I2S_DAC_BUILT_IN) without a codec. GUME_HAS_AUDIO_DAC
- * selects that backend; GUME_HAS_AUDIO_CODEC selects the ES8311 backend.
- * Both pull in driver/i2s.h; the codec path additionally needs Wire. Neither
- * macro is present on a board with no audio path at all.
+ * selects that backend; GUME_HAS_AUDIO_CODEC selects the ES8311 backend;
+ * GUME_HAS_AUDIO_I2S selects a bare I2S amplifier with no codec (the Attaky
+ * Core's NS4168), which needs i2sBclk, i2sWordSelect and i2sDataOut and
+ * nothing else. All three pull in driver/i2s.h; the codec path additionally
+ * needs Wire. None is present on a board with no audio path at all.
  *
  * `maxVolume` is the ceiling for the volume slider. It lives here because it
  * is set by listening on real hardware and differs by amplifier: the codec
- * board's ES8311 + class-D amp peaks at 85, and the bare-pin DAC path is
- * limited to 100 (pure linear gain -- there is no register to write). A board
+ * board's ES8311 + class-D amp peaks at 85, the CYD DAC boards at 75, and the
+ * unheard Attaky Core starts at a cautious 50 (both of those last two apply
+ * it as linear gain -- there is no register to write). A board
  * without audio sets it to 0; that is guarded in setVolume() so nothing
  * crashes if the default NVS value exceeds 0 on a boardless build.
  *
@@ -222,14 +352,25 @@ struct MemoryProfile {
     uint32_t flashBytes;
 };
 
-/* Battery sense. `dividerRatio` is the multiplier from the voltage at the ADC
- * to the voltage at the cell; `sensorMaxVolts` is a plausibility ceiling on
- * the reading, above which the divider or the ADC is faulty. Neither is a
- * "is a pack fitted?" test -- see the comment block in hal/BoardPower.cpp. */
+/* Battery sense, in one of two shapes, never both.
+ *
+ * An ADC divider: `adcPin` is the sense line, `dividerRatio` the multiplier
+ * from the voltage at the ADC to the voltage at the cell, and `sensorMaxVolts`
+ * a plausibility ceiling on the reading, above which the divider or the ADC is
+ * faulty. Neither is a "is a pack fitted?" test -- see the comment block in
+ * hal/BoardPower.cpp.
+ *
+ * A fuel gauge: `fuelGaugeAddress` is a MAX17048's I2C address on the touch
+ * controller's bus (so only a capacitive build, which carries Wire, can have
+ * one), or 0 for none. The gauge reports state of charge itself, so the ADC
+ * fields are PIN_NONE and zero and the LiPo curve is not used. A gauge that
+ * stops answering -- the module is detachable on the board that has one --
+ * reads as no reading, never as an empty cell. */
 struct BatteryProfile {
-    int8_t adcPin;
-    float  dividerRatio;
-    float  sensorMaxVolts;
+    int8_t  adcPin;
+    float   dividerRatio;
+    float   sensorMaxVolts;
+    uint8_t fuelGaugeAddress;     // a MAX17048 on the touch bus, or 0
 };
 
 struct BoardProfile {
@@ -255,7 +396,11 @@ struct BoardProfile {
     PanelProfile  panel;
     TouchProfile  touch;
     ButtonProfile button;         // beside touch: both are how a person acts
+    KeysProfile   keys;           // and so are these, on the boards that have them
+    KeyboardProfile keyboard;     // and this, when one is attached
+    GamepadProfile gamepad;       // and this, likewise
     SdProfile     sd;
+    ExpandProbeProfile expandProbe; // what else might be on the SD lines
     RgbLedProfile rgb;
     AudioProfile  audio;
     BatteryProfile battery;
@@ -272,9 +417,17 @@ struct BoardProfile {
     }
 
     constexpr bool hasBootButton() const { return button.bootPin != PIN_NONE; }
+    constexpr bool hasNavKeys() const { return keys.keyExpander != 0; }
+    constexpr bool hasKeyboard() const { return keyboard.keyboardLeft != 0; }
+    constexpr bool hasGamepad() const { return gamepad.padLeftExpander != 0; }
     constexpr bool hasBacklightControl() const { return panel.backlightPin != PIN_NONE; }
     constexpr bool hasSdSlot() const { return sd.cs != PIN_NONE; }
+    constexpr bool hasExpandProbe() const {
+        return expandProbe.fmRadioAddress != 0 || expandProbe.gpsRx != PIN_NONE;
+    }
     constexpr bool hasRgbLed() const { return rgb.r != PIN_NONE || rgb.g != PIN_NONE || rgb.b != PIN_NONE; }
     constexpr bool hasSpeaker() const { return audio.speakerPin != PIN_NONE; }
-    constexpr bool hasBatterySense() const { return battery.adcPin != PIN_NONE; }
+    constexpr bool hasBatteryAdc() const { return battery.adcPin != PIN_NONE; }
+    constexpr bool hasFuelGauge() const { return battery.fuelGaugeAddress != 0; }
+    constexpr bool hasBatterySense() const { return hasBatteryAdc() || hasFuelGauge(); }
 };

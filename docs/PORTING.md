@@ -34,7 +34,7 @@ quietly does without — no code change, just `PIN_NONE`:
 |---|---|
 | SD card slot | `sdReady()` is false; optional SD content simply is not loaded. Everything has defaults |
 | RGB LED | `beepOk()`/`beepError()` lose their green and red pulse. They still play their sound if the board has an audio path |
-| Speaker | With neither `GUME_HAS_AUDIO_CODEC` nor `GUME_HAS_AUDIO_DAC` set, every `playSound()` is a silent no-op and Settings → Sound says the board cannot make sound. Every board supported today has an audio path |
+| Speaker | With none of `GUME_HAS_AUDIO_CODEC`, `GUME_HAS_AUDIO_DAC` or `GUME_HAS_AUDIO_I2S` (a bare I2S amplifier with no codec) set, every `playSound()` is a silent no-op and Settings → Sound says the board cannot make sound. Every board supported today has an audio path |
 | Battery sense | The gauge blanks its digits, which is the honest reading for a board that cannot see a cell |
 
 A larger panel clears the size requirement, but see
@@ -102,6 +102,9 @@ Things worth getting right the first time:
   twice; the second statement would eventually be the wrong one.
 - **`commonAnode`** on the LED means a channel lights when its line is driven
   LOW. Get it backwards and the LED is on and stays on.
+- **`expander`** on the LED is 0 when `r`/`g`/`b` are GPIOs. A board whose
+  LED hangs off an AW9523 I2C expander puts that expander's address here,
+  and `r`/`g`/`b` become its ports (0..15); each channel is then on or off.
 - **`bootPin`** is the BOOT key, which nearly every ESP32 board brings out on
   GPIO0 because the ROM needs it for serial download mode. The firmware reads
   it only at runtime, as a shortcut to Home; holding it while the board starts
@@ -113,6 +116,23 @@ Things worth getting right the first time:
   voltage at the cell. Read it off the vendor's own documentation, then confirm
   it against a meter with `pio run -e batdiag` — that tool reads the same
   profile, so what it measures is what the product will report.
+- **`fuelGaugeAddress`** is 0 unless the board reports its cell through a
+  MAX17048 fuel gauge on the touch controller's I2C bus, in which case it is
+  that chip's address and the ADC fields are `PIN_NONE` and zero -- one or
+  the other, never both. Only a capacitive build can have one. `batdiag`
+  does not read a gauge; check it against the serial log's `[battery] fuel
+  gauge` line and System Info's Power rows instead.
+- **Keys, a keyboard, a gamepad, a fuel gauge and plug-in modules each come
+  with a board-header macro** -- `GUME_HAS_IO_EXPANDER`, `GUME_HAS_NAV_KEYS`,
+  `GUME_HAS_KEYBOARD`, `GUME_HAS_ATTAKY_MODULES` -- and `BoardConfig.h`
+  refuses a profile and macros that disagree. A board with none of that
+  hardware defines none of them and fills the fields with 0 and `PIN_NONE`
+  (`KeysProfile`, `KeyboardProfile`, `GamepadProfile`, `ExpandProbeProfile`,
+  `fuelGaugeAddress`), and its image then carries none of the code. For a
+  board that takes plug-in modules, **the profile says where a module could
+  be; boot decides whether it is there**: state the addresses, never assume
+  the module is attached, and see `src/hal/modules/` for the driver a new
+  module needs.
 - **Use the vendor's pin table, not a generic ESP32 pinout, and never another
   CYD variant's.** GPIO34 is battery sense on the E32R28T-1 and the light
   sensor on the classic ESP32-2432S028R. They look like the same board.

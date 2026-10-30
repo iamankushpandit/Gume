@@ -10,8 +10,8 @@
 
 """Which PlatformIO environments are the product, and which are bench tools.
 
-`platformio.ini` declares fifteen environments and only five of them are
-Braino!. The other ten are hardware probes -- bringup, batdiag, audiodiag,
+`platformio.ini` declares one product environment per supported board and
+rather more besides. The rest are hardware probes -- bringup, batdiag, audiodiag,
 wifidiag, s3diag, diag4, diag32p and their per-board copies -- and they exist to
 be flashed at a board on a desk when something is wrong with it. Nobody
 downloads one from the installer, and nobody wants one in a release.
@@ -160,6 +160,42 @@ def board_name(env, ini=None):
     return name.group(1) if name else None
 
 
+LINE_FLAG_RE = re.compile(r"-D\s*GUME_LINE_([A-Z0-9_]+)\s*=\s*1\b")
+DEFAULT_LINE = "braino"
+
+# The release lines whose images are offered to the public: on the web
+# installer, in the update manifest, and as a published GitHub release. A
+# line not listed here is still built by CI and still packed by its tag,
+# but its release is a draft and the installer does not list its boards.
+# The attaky line is kept unpublished by the maintainer's decision; adding
+# it here is the whole of publishing it.
+PUBLISHED_LINES = ("braino",)
+
+
+def release_line(env, ini=None):
+    """Which release line an environment ships on.
+
+    `braino` unless its build_flags carry `-D GUME_LINE_<NAME>=1`, which is
+    the same flag include/FirmwareLine.h reads -- so the firmware and the
+    tools cannot disagree about which version an image reports or which tag
+    releases it.
+    """
+    ini = read_ini() if ini is None else ini
+    for name, body in sections(ini):
+        if name == env:
+            found = LINE_FLAG_RE.findall(body)
+            if len(found) > 1:
+                raise SystemExit("[env:%s] names more than one release line" % env)
+            return found[0].lower() if found else DEFAULT_LINE
+    raise SystemExit("no [env:%s] in platformio.ini" % env)
+
+
+def published(env, ini=None):
+    """Whether an environment's image is offered publicly -- see
+    PUBLISHED_LINES."""
+    return release_line(env, ini) in PUBLISHED_LINES
+
+
 def of_kind(kind, ini=None):
     kinds = classify(ini)
     return [env for env, value in kinds.items() if value == kind]
@@ -249,10 +285,16 @@ def main():
     parser.add_argument("--with-product", action="store_true",
                         help="with --for-changes: union in every product "
                              "environment, whatever the change was")
+    parser.add_argument("--line", metavar="NAME",
+                        help="only environments on this release line "
+                             "(braino, attaky); see release_line()")
+    parser.add_argument("--published", action="store_true",
+                        help="only environments on a published release "
+                             "line; see PUBLISHED_LINES")
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
     parser.add_argument("--matrix", action="store_true",
-                        help="print a JSON list of {env, board, name} for a CI "
+                        help="print a JSON list of {env, board, kind, name} for a CI "
                              "matrix; name is what the job is called")
     args = parser.parse_args()
 
@@ -265,15 +307,23 @@ def main():
         envs = for_changes(paths, ini, with_product=args.with_product)
     else:
         envs = of_kind(args.kind, ini)
+    if args.line:
+        envs = [env for env in envs if release_line(env, ini) == args.line]
+    if args.published:
+        envs = [env for env in envs if published(env, ini)]
 
     if args.matrix:
         # "E32R28T-1 (app)": the board first, because that is what a person
         # reading a red job needs; the environment beside it, because that is
         # what they type to reproduce it. A boardless probe is its env alone.
+        # `kind` rides along so a job can tell a product build, worth
+        # attaching to the run for a tester, from a probe nobody downloads.
+        kinds = dict(classify(ini))
         rows = []
         for env in envs:
             board = board_name(env, ini)
             rows.append({"env": env, "board": board or "",
+                         "kind": kinds.get(env, ""),
                          "name": "%s (%s)" % (board, env) if board else env})
         print(json.dumps(rows))
     elif args.pio_args:

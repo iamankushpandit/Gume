@@ -346,7 +346,10 @@ pio device monitor       # serial, 115200 baud
 
 ### An environment is either the product or a bench probe, and it says which
 
-`platformio.ini` declares fifteen environments; five of them are Braino!.
+`platformio.ini` declares one product environment per supported board, and
+diagnostic ones besides. No document states how many: two branches that each
+add a board make the same edit to such a number, git merges the two edits
+silently, and the count goes stale with no conflict to say so.
 Each one states which it is, once, beside itself:
 
 ```ini
@@ -366,7 +369,7 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds the five product environments** on a push to `main` or `dev`,
+- **CI builds every product environment** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is three
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
@@ -439,7 +442,7 @@ every environment gets it. It writes the branch and the abbreviated commit into
 a generated `GumeBuildStamp.h` in the build directory, `src/BuildStamp.cpp` is
 the only file that includes it, and the firmware reads the values through
 `BuildStamp::` -- never the macros directly, outside `include/BuildStamp.h`.
-About's last page, System Info's Device tab and the `[boot] build=` serial line
+About's last page, System Info's Board tab and the `[boot] build=` serial line
 all read the same three accessors, so the answer to "which firmware is on this
 board?" is one fact with three viewers.
 
@@ -623,7 +626,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,581,817 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,582,121 / 3,145,728 bytes,
 **82.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 88,036 / 327,680 (26.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -745,6 +748,110 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `BOARD.hasBootButton()` can be false and the console has to remain complete.
   It fires on the press edge, which is what a hold gesture would have to
   change first; see `src/hal/BoardButton.cpp`.
+- **Navigation keys are a second route, on the boards that have them, and
+  only the launcher takes them so far.** The Attaky Core's D-pad, Enter and
+  L1 (as Back) sit on an AW9523 expander; `KeysProfile` names its ports and
+  `Board::pollNavKey()` reads one byte per frame beside the BOOT key, ORs in
+  what any clipped-on module with `NavKeys` holds -- the gamepad's D-pad, A
+  as Enter and B as Back -- and hands back one `NavKey`, already turned for
+  the screen's rotation -- the same job `pollTouch()` does for a finger, so
+  no screen corrects for it, and the gamepad turns exactly as the Core does.
+  The runtime treats any key as BOOT for activity, the saver and sleep,
+  ignores keys on the lock screen for BOOT's reason, consumes Back as Home
+  everywhere but the launcher, and passes the rest to the active screen's
+  `update()` through `GameHost::navKey()`. The launcher draws a focus ring
+  in the gap round a tile -- erased in the background colour, never by
+  repainting a tile, with `static_assert`s proving it clears every shadow --
+  that stays hidden until the first key and goes away at the next touch.
+  Every key path is behind `GUME_HAS_NAV_KEYS`, so the boards without keys
+  carry none of it -- see the next invariant. **Nothing may become reachable only by key**, exactly as with
+  BOOT. The direction mapping has not been seen on a device; the sign to
+  change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
+- **An LED can live on an I2C expander, and then it is on or off.**
+  `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)
+  or an AW9523's address, with `r`/`g`/`b` as its ports -- the Attaky Core's
+  P1_0..P1_2. `BoardExpander::driveLed()` reads, modifies and writes only
+  those bits, because P1_3 beside them is the touch reset, and
+  `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
+  the channels at least half as bright as its brightest, and the bus is
+  written only when that changes -- the saver sets a colour per rally.
+- **Neither the SD slot nor the speaker is brought up over another
+  module's lines.** On the Attaky Core three Expand modules share IO5-8, and
+  the speaker's I2S (IO17/IO18/IO21) is the LoRa/GPS module's GPS UART and
+  radio interrupt and the FM/AM module's I2S; this firmware is built for
+  Media I/O. The three are the module table's `expand` slot, decided once
+  in `begin()` by `Modules::probeAll()`, before `beginAudio()` and
+  `mountSd()`, from `ExpandProbeProfile`: an address write to the FM/AM
+  tuner on that module's own bus, then a passive `GPS_LISTEN_MS` (1.5 s)
+  listen for a checksummed NMEA sentence on IO17, the UART's receiver only.
+  Either found, or the radio's bus failing to start, leaves the slot down
+  and the I2S backend uninstalled for the boot -- `mountSd()` and
+  `beginAudio()` ask `Modules::allows()` for Storage and Sound, which only
+  Media I/O provides -- and logs
+  `[expand] module=... sd=skipped audio=skipped`. Silent is the state an I2S
+  install failure already produced, so nothing downstream is new. Media I/O
+  has no host-readable identity, so finding neither is the only answer that
+  brings either up. Nothing it touches is driven, and it must stay ahead of
+  `beginAudio()`: on Media I/O, IO17 is the amplifier's bit clock.
+- **A power key's short press is the Lock button.** `KeysProfile::keyPower`
+  names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
+  `NavKey::Power`, which the runtime consumes above the active screen --
+  on the launcher too -- and turns into `lockAndSleepNow()`; no screen ever
+  sees it. It follows BOOT's rules: it counts as activity, wakes a sleeping
+  panel and dismisses the saver like any key, does nothing on the lock
+  screen, and reaches nothing the padlock does not. The long press switches
+  the power in hardware and never reaches the firmware -- build nothing on
+  it.
+- **A physical keyboard types into the text fields, beside the on-screen
+  keypad and never instead of it.** `KeyboardProfile` names the two halves
+  of Attaky's clip-on keyboard and spells out each half's 25 positions;
+  the module table probes both at boot and the keyboard is off unless both
+  answer, because the module is detachable. `Board::pollTypedChar()` reads one
+  register a half per frame while nobody types -- the rows are held low,
+  so any key shows on the columns -- and walks the rows only while a key
+  is down. The runtime hands the character to the active screen through
+  `GameHost::typedChar()`, beside `navKey()`. Five fields take it: a
+  player's name and a Nearby peer's (through `Ui::Keypad::fromTyped()`,
+  so they accept exactly the keypad's capitals, digits and space), both
+  admin PIN pads (digits, Delete, Enter), and the Wi-Fi password (what was
+  typed, case and punctuation included). **A screen must handle a typed
+  character apart from the touch**: on its frame the touch coordinates are
+  the last touch's, and running the hit tests would press that again.
+  Each screen reads it through `hostTypedChar()`, a constant 0 where
+  `GUME_HAS_KEYBOARD` is off, so the boards without one carry none of this.
+- **The profile says where a module could be; boot decides whether it is
+  there.** A board that takes plug-in modules -- the Attaky Core's keyboard,
+  gamepad, Power module and Expand modules all come off -- states in its
+  profile what it would need to know about each one it can carry, and
+  nothing about whether one is attached. `src/hal/modules/` holds one driver
+  file per module: a `Modules::Driver` (name, the `ModuleCapability` bits it
+  provides, a boot probe, per-frame or battery hooks, a slot for modules that
+  share lines) and a `Modules::Registration` that puts it in the table from
+  its own file. `Modules::probeAll()` runs every probe once in
+  `Board::begin()`, and nothing a module provides is used unless its probe
+  found it. **Supporting a new module is one driver file plus its facts in
+  the profile**: the boot sequence, the navigation-key stream, typing, the
+  battery path, the SD and speaker gates, System Info's Board tab and
+  About's Modules page all read the table, so none of them changes. See
+  `src/hal/CLAUDE.md`.
+- **Attaky code compiles only into the Attaky image.** Five board-header
+  macros -- `GUME_TOUCH_CAPACITIVE`, `GUME_HAS_IO_EXPANDER`,
+  `GUME_HAS_NAV_KEYS`, `GUME_HAS_KEYBOARD`, `GUME_HAS_ATTAKY_MODULES` -- are
+  defined only in `include/boards/attaky-core.h` (the first also in
+  `fnk0104b.h`), default to 0 in `BoardConfig.h`, which static_asserts the
+  profile agrees with them both ways, and preprocess out everything behind
+  them: whole files, `Board`'s members and accessors, `GameHost`'s
+  `navKey()`/`typedChar()` virtuals, the runtime's key routing, the
+  launcher's focus ring, the screens' typed paths, the gauge and the module
+  table. **Prefer a whole file that compiles to nothing** over an `#if` in a
+  shared file, and where shared code must call across, an inline no-op
+  beside the declaration (`hostTypedChar()`, `Modules::allows()`, the
+  launcher's key hooks). A `BOARD.hasX()` test is not enough -- both arms
+  still compile and its declarations stay in every class. Checked rather
+  than hoped: on each other product environment `xtensa-esp32-elf-nm -C
+  firmware.elf` finds none of `pollNavKey`, `pollTypedChar`, `navKey`,
+  `typedChar`, `BoardExpander`, `sampleModuleBattery`, `handleNavKey`,
+  `paintFocus`, `Modules::` or `i2sUp`, and its RAM is `dev`'s figure.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -764,7 +871,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 
 - **The board is described in two files and nowhere else.** `include/boards/<id>.h` holds the whole board -- pins, rotations, the battery divider, which peripherals exist; the `[board_<id>]` section in `platformio.ini` holds only what TFT_eSPI must be told at compile time. **No file under `src/` may name a GPIO number, a panel size or a divider ratio.** If you need one, read it off `BOARD`; if `BOARD` does not have it, add the field to `include/BoardProfile.h` and fill it in for every existing board in the same commit. `tools/check_boards.py` enforces the completeness, and `BoardConfig.h` static_asserts the overlap with TFT_eSPI. See `docs/PORTING.md`.
 - **Some boards cannot be supported, and that is a compile error, not a degradation.** Braino needs a panel of at least `GAME_CANVAS_WIDTH`x`GAME_CANVAS_HEIGHT` in landscape, a touch controller, the backlight on a GPIO, and 4 MB of flash. `BoardConfig.h` static_asserts each with a message naming what is missing. Optional hardware -- SD slot, RGB LED, speaker, battery sense -- is `PIN_NONE` plus a `has...()` guard, and the firmware does without it. **Do not blur the two:** turning a requirement into a quiet degradation ships a board that flashes and then cannot be read or pressed.
-- **A supported board must be flashable from the web installer.** `tools/gen_site.py` derives the picker's board list from the `[board_*]` sections rather than a hand-kept list, and refuses to generate until a new board has a `BOARD_DETAILS` label, an offered environment and a CI build behind it. `tools/check_boards.py` reports the same gaps without a build. "Supported" means someone who owns the board can flash it from the page, not that it builds here.
+- **A supported board must be flashable from the web installer.** `tools/gen_site.py` derives the picker's board list from the `[board_*]` sections rather than a hand-kept list, and refuses to generate until a new board has a `BOARD_DETAILS` label, an offered environment and a CI build behind it. `tools/check_boards.py` reports the same gaps without a build. "Supported" means someone who owns the board can flash it from the page, not that it builds here. The one exception is a board on an unpublished release line (`tools/envs.py` `PUBLISHED_LINES`): it keeps its label and offered environment so publishing is one word, and `gen_site.py` skips it -- today, the Attaky Core.
 - **`SCREEN_WIDTH` / `SCREEN_HEIGHT` are derived, not stated.** They come out of `BOARD.screenWidth()` / `screenHeight()`, which rotate the panel's native size by the profile's landscape rotation. Do not reintroduce a literal 320 or 240 next to them; a board that states its size twice will eventually state it two different ways.
 - **Which way up the screen sits is decided in one function, from two facts with two owners.** `BrainoApp::effectiveRotation()` takes the board profile's landscape or portrait rotation -- a fact about where the USB socket is -- and adds half a turn when `Board::screenFlipped()` is set, which is a fact about the enclosure the board was put in and therefore the owner's to state, not the profile's. Every caller goes through it (launch, home, the saver, resume), so no screen calls `setRotation()` and a new caller cannot forget the flip. A screen or console command that changes either setting calls `applyOrientation()`, which turns the screen that is up only when its rotation actually changed -- Settings is always landscape, so choosing Portrait from it must not repaint anything. The flip turns games as well as menus; the layout still turns only the menus. Settings shows the two as ONE four-position control and stores them as two, because the layout is what the launcher and every `followsLayout` screen already read. **Rotations 1 and 2 were never reached by the product before this**, so a new board has to be checked for drawing and touch in all four positions, not two. The touch calibration wizard is the one thing that still draws in a fixed rotation of its own.
 - **Every screen is a `Game`.** Launcher, Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
@@ -1241,6 +1348,10 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Cursive share: logic, Draw, Arrows, Words and a
                           Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
+                          Wi-Fi is WifiApp (phases, input, drawing) and
+                          WifiConnect (scan, join, rejoin); Profiles is
+                          ProfileApp, ProfileRename and ProfilePin (the
+                          admin PIN pad).
                           Settings is three .cpp against one header --
                           SettingsApp (tabs + routing), SettingsPanels
                           (the tab bodies), SettingsPin (the PIN pad).
@@ -1277,8 +1388,12 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
                           a notice, never an OTA), BoardStorage, storage
-                          maintenance, TouchTypes,
-                          Clock, Watchdog
+                          maintenance, TouchTypes, BoardKeys (navigation
+                          keys), BoardExpander (the Core's AW9523s),
+                          BoardModules + modules/ (what is clipped on,
+                          found at boot: the module table and one driver
+                          file a module -- keyboard, gamepad, fuel gauge,
+                          the three Expand modules), Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product
                           mark, as a one-bit silhouette)
@@ -1339,7 +1454,7 @@ A release is a tag. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` then builds the five product environments --
+`.github/workflows/release.yml` then builds every product environment --
 `tools/envs.py --product`, never a list in the YAML -- packs them with
 `tools/pack_release.py`, and publishes a GitHub release with all four parts
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
@@ -1382,6 +1497,52 @@ Before tagging, on `main`:
 The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
 not. That check exists because a published release cannot be quietly
 corrected: people have already downloaded it.
+
+### The Attaky Core is its own release line
+
+Braino! for Attaky ships from the same codebase and the same `main`, on its
+own cadence: it is released when it has passed testing on Attaky hardware,
+without moving the generic boards, and the other way round.
+
+```bash
+git tag -a attaky-v1.0.0 -m "Braino! for Attaky 1.0.0" && git push origin attaky-v1.0.0
+```
+
+- **The line is stated once, on the environment**: `-D GUME_LINE_ATTAKY=1` in
+  `[env:app_attaky_core]`. `include/FirmwareLine.h` reads it to pick
+  `FIRMWARE_VERSION`, and `tools/envs.py`'s `release_line()` reads the same
+  flag, so the firmware and the tools cannot disagree.
+- **`ATTAKY_VERSION` in `AppVersion.h` is that line's version**, with its own
+  sequence starting at 1.0.0. Everything that reports a version -- the
+  `[boot]` line, `identify`, About, System Info, the update comparison --
+  reads `FIRMWARE_VERSION`, never either constant directly. An Attaky image
+  also reports the Braino it is built from, on System Info and as
+  `braino=` on the `[boot]` line.
+- **The `attaky` line is not published, by the maintainer's decision.**
+  `tools/envs.py`'s `PUBLISHED_LINES` lists the lines offered to the public
+  and holds only `braino`. A board whose images are all on an unpublished
+  line is skipped by `gen_site.py` -- not in the picker, the buying table or
+  `latest.txt` -- and the Pages workflow builds `--product --published`, so
+  it does not compile it either; `release.yml` makes that line's tag a
+  `--draft`. CI still builds the environment and attaches its image to the
+  run. Do not put it on the Experimental page or anywhere else public.
+  Publishing it is adding `"attaky"` to that tuple, and is the
+  maintainer's call.
+- **`v*` tags release the `braino` line and `attaky-v*` tags the `attaky`
+  line.** `release.yml` derives the line from the tag, checks the tag against
+  that line's constant, and builds and packs `envs.py --product --line <line>`
+  only. A generic release therefore carries no Attaky image, and an Attaky
+  release is published with `--latest=false`, so the repository's Latest and
+  the installer's older-releases list stay the generic boards'.
+- **Its notes are `## attaky-<version>` in `CHANGELOG.md`**, and
+  `check_docs.py` fails while a line's current version has no section, so
+  the tag cannot be the moment that is found out. That section sits after the
+  Braino section, so `main`'s first-heading check is unaffected.
+- **The update manifest tells each board its own line's version.** A board
+  whose line has no release yet gets no line in `latest.txt` at all, and an
+  image on any line but `braino` never reads the `*` fallback, which is the
+  braino line's number: before its first release an Attaky console reports
+  nothing to update to, rather than Braino's version as if it were newer.
 
 Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
 flashed from `dev` cannot be mistaken for the release it is ahead of.
@@ -1586,6 +1747,27 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
   is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
   3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
+- **A touch reset can be an expander port rather than a GPIO.** The Attaky
+  Core wires its FT6636's reset to port P1_3 of an AW9523 at 0x59, so
+  `TouchProfile` carries `resetExpanderAddress` and `resetExpanderPort` beside
+  `reset`, and `Board::begin()` brings I2C up early to hold it through the
+  panel init and release it after -- the same pulse a GPIO reset gets. It
+  writes every AW9523 register it depends on rather than issuing a software
+  reset, because that part wants a settle and a boot-time `delay()` is what
+  `check_frame_rules.py` refuses here; and it leaves every other port an
+  input, since the firmware reads none of them. That board was ported from
+  Attaky's documents before a device existed here -- see
+  `docs/boards/Attaky-Core.md` for what is still unchecked.
+- **A battery can be a fuel gauge rather than a divider.** The Attaky Core's
+  Power module reports the cell through a MAX17048 at 0x36 on the touch bus, so
+  `BatteryProfile` carries `fuelGaugeAddress` (0 on every other board) beside
+  the ADC fields, and a board states one or the other, never both.
+  `hasBatterySense()` covers either; `hasBatteryAdc()` is what guards the ADC
+  pin. The gauge is read on the same battery task and published through the
+  same snapshot, its state of charge going to the percentage directly instead
+  of through the LiPo curve, with the same deadband and thresholds. **A gauge
+  that does not answer is no reading** -- -1, no badge, no warning -- never an
+  empty cell, because the module unclips. See `src/hal/CLAUDE.md`.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
 - `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
   variant, E32R32P and E32R40T
@@ -1594,10 +1776,18 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
   codec. The full cue vocabulary and the spoken boot phrase play from the same
   synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
-  1` (FNK0104B only); boards with neither macro have no audio. `maxVolume` in
-  `BoardProfile.audio` is 85 for the codec board and 75 for the built-in-DAC
-  boards, which feed an onboard amplifier (the 1-inch driver distorts above
-  75%). See `src/hal/CLAUDE.md`.
+  1` (FNK0104B only). The third is `GUME_HAS_AUDIO_I2S 1` (Attaky Core only):
+  a bare I2S amplifier, the Media I/O module's NS4168, on BCLK IO17, word
+  select IO21 and data IO18 with no codec, no MCLK and no enable line -- the
+  codec path without the I2C, standard I2S at 16 kHz, volume as a linear
+  multiplier in software like the DAC's. `GUME_HAS_AUDIO` (`BoardConfig.h`)
+  is the one "has any audio path" test, every audio guard uses it, and a board
+  stating two backends fails to compile; boards with none have no audio.
+  `maxVolume` in `BoardProfile.audio` is 85 for the codec board and 75 for the
+  built-in-DAC boards, which feed an onboard amplifier (the 1-inch driver
+  distorts above 75%), and a provisional 50 on the Attaky Core, which nobody
+  has heard yet -- it is to be set by ear on the device, as the others were.
+  See `src/hal/CLAUDE.md`.
   Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
   whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
   `beginAudio()` powers that channel down and returns the pad to the GPIO

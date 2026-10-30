@@ -188,11 +188,22 @@ def read(*parts):
         return handle.read()
 
 
-def firmware_version():
-    """The version the firmware reports, which is the release's identity."""
-    match = re.search(r'BRAINO_VERSION\s+"([^"]+)"', read("include", "AppVersion.h"))
+# Each release line, the version constant it reports and its tag prefix.
+# include/FirmwareLine.h is the firmware's half of this table.
+LINES = {
+    "braino": {"constant": "BRAINO_VERSION", "tag": "v",
+               "title": "Braino!", "notes": "%s"},
+    "attaky": {"constant": "ATTAKY_VERSION", "tag": "attaky-v",
+               "title": "Braino! for Attaky", "notes": "attaky-%s"},
+}
+
+
+def firmware_version(line="braino"):
+    """The version a line's firmware reports, which is the release's identity."""
+    constant = LINES[line]["constant"]
+    match = re.search(r'%s\s+"([^"]+)"' % constant, read("include", "AppVersion.h"))
     if not match:
-        die("include/AppVersion.h: BRAINO_VERSION not found")
+        die("include/AppVersion.h: %s not found" % constant)
     return match.group(1)
 
 
@@ -277,9 +288,10 @@ def merge(env_dir, parts, out_path, chip, bootloader_offset):
             % (env_dir, result.stdout.decode("utf-8", "replace")))
 
 
-def changelog_section(version):
+def changelog_section(version, line="braino"):
     """The CHANGELOG entry for this version, verbatim, without its heading."""
     changelog = read("CHANGELOG.md")
+    version = LINES[line]["notes"] % version
     match = re.search(
         r"^##\s+%s\b[^\n]*\n(.*?)(?=^##\s|\Z)" % re.escape(version),
         changelog, re.M | re.S)
@@ -297,9 +309,9 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def flashing_notes(version, built, entries):
+def flashing_notes(version, built, entries, line="braino"):
     lines = [
-        "Braino! %s -- firmware images" % version,
+        "%s %s -- firmware images" % (LINES[line]["title"], version),
         "",
     ]
     lines += textwrap.wrap(
@@ -409,7 +421,16 @@ def flashing_notes(version, built, entries):
     return "\n".join(lines)
 
 
-def pack(version, out_dir, built, strict):
+def pack(version, out_dir, built, strict, only=None, line="braino"):
+    """Pack every product environment, or with `only` just that one.
+
+    `only` is for a build that is not a release: a CI job that built one
+    environment and wants to hand that one image to a tester, in the same
+    four-parts-plus-merged shape a release ships, with the same FLASHING.txt.
+    The release workflow never passes it -- a release missing a board is
+    exactly what the "every product environment has to be built" refusal
+    below exists to catch.
+    """
     ini = read("platformio.ini")
     stock_boot_app0 = boot_app0()
     os.makedirs(out_dir, exist_ok=True)
@@ -417,6 +438,10 @@ def pack(version, out_dir, built, strict):
     entries = []
     missing_blurb = []
     for env, board in environments(ini):
+        if only and env != only:
+            continue
+        if not only and env_kinds.release_line(env, ini) != line:
+            continue   # another line's image, released under its own tag
         env_dir = os.path.join(ROOT, ".pio", "build", env)
         if not os.path.isdir(env_dir):
             die("no build for [env:%s] at %s -- every product environment in "
@@ -425,7 +450,8 @@ def pack(version, out_dir, built, strict):
                 "`pio run $(python tools/envs.py --product --pio-args)`."
                 % (env, env_dir))
 
-        label = "-".join(filter(None, ("braino", version, board, env)))
+        label = "-".join(filter(None, ("braino", None if line == "braino" else line,
+                                       version, board, env)))
         parts = {}
         for name in PART_NAMES:
             source = (stock_boot_app0 if name == "boot_app0.bin"
@@ -449,6 +475,10 @@ def pack(version, out_dir, built, strict):
             missing_blurb.append(env)
         entries.append((env, board, parts))
 
+    if only and not entries:
+        die("--only %s names no product environment in platformio.ini"
+            % only)
+
     if missing_blurb and strict:
         die("no description in ENV_BLURBS for: %s -- a release that offers a "
             "firmware nobody can identify is worse than one that omits it"
@@ -463,11 +493,11 @@ def pack(version, out_dir, built, strict):
 
     with open(os.path.join(out_dir, "FLASHING.txt"), "w",
               encoding="utf-8", newline="\n") as handle:
-        handle.write(flashing_notes(version, built, entries))
+        handle.write(flashing_notes(version, built, entries, line))
 
     with open(os.path.join(out_dir, "NOTES.md"), "w",
               encoding="utf-8", newline="\n") as handle:
-        handle.write(changelog_section(version) + "\n")
+        handle.write(changelog_section(version, line) + "\n")
 
     return entries, binaries
 
@@ -481,17 +511,32 @@ def main():
                         help="how the binaries were built, for FLASHING.txt")
     parser.add_argument("--strict", action="store_true",
                         help="fail if an environment has no description")
+    parser.add_argument("--only", metavar="ENV",
+                        help="pack this one product environment rather than "
+                             "all of them -- for handing a CI build to a "
+                             "tester, never for a release")
+    parser.add_argument("--line", choices=sorted(LINES), default=None,
+                        help="the release line to pack; with --only it is "
+                             "that environment's own line")
     args = parser.parse_args()
 
-    version = args.version or firmware_version()
-    stated = firmware_version()
+    line = args.line
+    if args.only:
+        own = env_kinds.release_line(args.only, read("platformio.ini"))
+        if line and line != own:
+            die("--only %s is on the %s line, not %s" % (args.only, own, line))
+        line = own
+    line = line or "braino"
+    version = args.version or firmware_version(line)
+    stated = firmware_version(line)
     if version != stated:
         die("asked to pack %s but include/AppVersion.h says %s -- the "
             "firmware's own version is the release's identity"
             % (version, stated))
 
     out_dir = args.out if os.path.isabs(args.out) else os.path.join(ROOT, args.out)
-    entries, binaries = pack(version, out_dir, args.built, args.strict)
+    entries, binaries = pack(version, out_dir, args.built, args.strict,
+                             args.only, line)
 
     print("Packed %s: %d environment(s), %d binaries -> %s"
           % (version, len(entries), len(binaries), out_dir))

@@ -130,6 +130,8 @@ private:
     /* Shared by the unlock screen and the change-PIN flow. Returns true if the
      * touch landed on the pad, so callers can stop looking. */
     bool handlePinPadTouch(GameHost& host, const TouchPoint& touch);
+    void typePinChar(GameHost& host, char typed);   /* a keyboard's key */
+    void confirmPin(GameHost& host);
 
     /* True when the Sleep-after row is inert: SaverOnly never blanks, and
      * SleepOnly blanks at the idle delay instead. A live-looking control that

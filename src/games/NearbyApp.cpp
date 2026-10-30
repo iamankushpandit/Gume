@@ -264,21 +264,25 @@ void NearbyApp::updateName(GameHost& host, const TouchPoint& touch) {
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
 
-    if (!touch.justPressed) {
-        return;
-    }
-    if (nameCancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        phase_ = Phase::List;
-        clearDraft();
-        rowsStale_ = true;
-        markFullDirty();
-        return;
-    }
-
-    const char ch = Ui::Keypad::hit(touch.x, touch.y, W, H,
-                                    Ui::Keypad::FOOTER_BUTTON);
+    /* A keyboard's character is a press of the keypad key it maps to, and
+     * skips the touch tests entirely -- the touch's coordinates are stale on
+     * its frame. */
+    char ch = Ui::Keypad::fromTyped(hostTypedChar(host));
     if (ch == 0) {
-        return;
+        if (!touch.justPressed) {
+            return;
+        }
+        if (nameCancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            phase_ = Phase::List;
+            clearDraft();
+            rowsStale_ = true;
+            markFullDirty();
+            return;
+        }
+        ch = Ui::Keypad::hit(touch.x, touch.y, W, H, Ui::Keypad::FOOTER_BUTTON);
+        if (ch == 0) {
+            return;
+        }
     }
     if (ch == Ui::Keypad::BACKSPACE) {
         if (draftLen_ > 0) {

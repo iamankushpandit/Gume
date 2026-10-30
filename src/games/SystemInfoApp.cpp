@@ -9,6 +9,7 @@
 
 #include "SystemInfoApp.h"
 #include "AppVersion.h"
+#include "FirmwareLine.h"
 #include "BuildStamp.h"
 #include "engine/AppRegistry.h"
 #include "engine/NearbyPlay.h"
@@ -270,7 +271,12 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
     rows_.addRow("Chip", String(ESP.getChipModel()) + " r" + ESP.getChipRevision());
     rows_.addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
     rows_.addRow("SDK", ESP.getSdkVersion());
-    rows_.addRow("Firmware", BRAINO_VERSION);
+    rows_.addRow("Firmware", FIRMWARE_VERSION);
+#ifdef FIRMWARE_BASE_VERSION
+    /* An Attaky image has its own version; this says which Braino code
+     * it is. See include/FirmwareLine.h. */
+    rows_.addRow("Braino", FIRMWARE_BASE_VERSION);
+#endif
     /* Which build, not just which release: BRAINO_VERSION is identical
      * across every flash of 5.0.0.
      *
@@ -294,6 +300,23 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
      * volts that reads as a flat pack or a sensor fault. */
     if (!BOARD.hasBatterySense()) {
         rows_.addRow("Battery", "None - use USB power");
+    } else if (BOARD.hasFuelGauge()) {
+        /* A gauge reports charge itself, so there is no ADC to show; and one
+         * that does not answer is most likely a power module that is not
+         * clipped on, not a faulty sensor. */
+        if (pct < 0) {
+            rows_.addRow("Battery", "No reading");
+            rows_.addRow("Fuel gauge", "Not answering");
+        } else {
+            char text[24];
+            snprintf(text, sizeof(text), "%.2f V (%d%%)",
+                     static_cast<double>(battery.batteryVoltage), static_cast<int>(pct));
+            rows_.addRow("Battery", text);
+            rows_.addRow("Charge level", board.isBatteryCritical() ? "Critical - charge now"
+                                        : board.isBatteryLow() ? "Low - charge soon"
+                                        : "OK");
+            rows_.addRow("Fuel gauge", "MAX17048");
+        }
     } else {
         /* A negative percentage means the ADC read outside a plausible range, not
          * that the pack is missing: this board cannot tell whether one is fitted
@@ -307,6 +330,8 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
         rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
         rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
     }
+
+    addModuleRows();
 
     rows_.addSection("Flash");
     rows_.addRow("Chip size", formatBytes(ESP.getFlashChipSize()));

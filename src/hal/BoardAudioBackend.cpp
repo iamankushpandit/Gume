@@ -13,10 +13,14 @@
 #include <Wire.h>
 #endif
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 #include <driver/i2s.h>
 #include <math.h>
 #include <string.h>
+#endif
+
+#if GUME_HAS_AUDIO_I2S
+#include "modules/Modules.h"
 #endif
 
 #if GUME_HAS_AUDIO_DAC
@@ -27,11 +31,11 @@
 
 /* The hardware under the synthesiser.
  *
- * The ES8311's registers, the I2S peripheral, the amplifier enable line and
- * the built-in DAC's idle level -- everything whose correctness is a fact
- * about a board rather than about a sound. The synthesiser next door does not
- * know which of the two backends it is feeding, and nothing here knows what a
- * cue is.
+ * The ES8311's registers, the I2S peripheral, the amplifier enable line, the
+ * built-in DAC's idle level and the bare I2S amplifier's setup -- everything
+ * whose correctness is a fact about a board rather than about a sound. The
+ * synthesiser next door knows only which word format its backend wants, and
+ * nothing here knows what a cue is.
  *
  * Two things in here are the scars of real bench failures and are commented
  * where they sit: the sample rate the built-in DAC actually produces (see
@@ -39,10 +43,10 @@
  * of the CYD boards, which beginAudio() powers down and hands back to the GPIO
  * matrix before Board::begin() re-applies the touch pins.
  */
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 namespace audio {
 
-/* WHY THE TWO BACKENDS GENERATE AT DIFFERENT SAMPLE RATES.
+/* WHY THE BACKENDS GENERATE AT DIFFERENT SAMPLE RATES.
  *
  * AUDIO_RATE is declared in BoardAudioInternal.h because all three files
  * need it; the measurement that chose its value is a fact about this
@@ -95,7 +99,20 @@ namespace audio {
  * done exactly that.
  *
  * If the platform is ever bumped to IDF 5.x the built-in DAC driver is
- * rewritten wholesale and this measurement must be repeated, not assumed. */
+ * rewritten wholesale and this measurement must be repeated, not assumed.
+ *
+ * The bare I2S amplifier (GUME_HAS_AUDIO_I2S) is at 16000 too, and that is a
+ * choice rather than a measurement, because no such board has been on the
+ * bench. The reasons: the DAC's wrapping divider is a property of
+ * I2S_MODE_DAC_BUILT_IN on the original ESP32, which this path does not use
+ * and the S3 does not have; on the S3 the I2S clock is 160MHz through a
+ * fractional divider, and 16000 x 256 = 4.096MHz is 39 1/16 of that -- a
+ * ratio it states exactly. BCLK comes out at 512kHz, comfortably inside what
+ * an NS4168 decodes. It is the rate the synthesiser was voiced at, on the one
+ * other S3 path that is known good, and it costs two thirds of the generation
+ * work of 24000. What it still needs is the RATE check the DAC got: time the
+ * drain of a known number of frames on the device, because i2s_get_clk() will
+ * report 16000 whether or not it is true. */
 
 /* Generation runs AHEAD of playback, and that is the whole point of the DMA:
  * tickAudio() fills it as fast as it will take samples, so `playing` goes
@@ -219,11 +236,15 @@ void fillDacIdle(TickType_t wait) {
 #endif
 
 }  // namespace audio
-#endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
+#endif  /* GUME_HAS_AUDIO */
 
 /* The Board:: members below are the public face of all this; they reach the
- * synthesiser by name, as they did when it was one file. */
+ * synthesiser by name, as they did when it was one file. Guarded like the
+ * namespace itself: on a board with no audio path there is no `audio` to
+ * name, and every member below compiles to its silent arm. */
+#if GUME_HAS_AUDIO
 using namespace audio;
+#endif
 
 void Board::beginAudio() {
 #if GUME_HAS_AUDIO_CODEC
@@ -450,18 +471,97 @@ void Board::beginAudio() {
                   AUDIO_RATE, static_cast<int>(BOARD.audio.speakerPin),
                   BOARD.audio.speakerPin == DAC2_GPIO ? 2 : 1,
                   volume(), soundEnabled() ? "" : " (muted)");
+
+#elif GUME_HAS_AUDIO_I2S
+    /* A bare I2S amplifier -- an NS4168 on the Attaky Core's Media I/O module.
+     * It is the codec path with everything that talks to the codec taken out:
+     * no I2C, no register writes, no MCLK. The part decodes standard
+     * (Philips) I2S from BCLK and word select alone and drives the speaker
+     * itself, so the only facts here are three pins and a frame format.
+     *
+     * The frame is the codec's own -- 16-bit, both slots, STAND_I2S -- because
+     * that configuration is already known good on an S3 (the FNK0104B). The
+     * NS4168's CTRL pin picks which slot it plays; generateBlock() writes the
+     * mono stream into both, so the answer does not matter, and nothing on
+     * this side needs to know how the module strapped it.
+     *
+     * Volume is linear and in software, applied as each sample is generated:
+     * there is no register to write. maxVolume is the whole of the protection
+     * the speaker gets, which is why it starts low on a board nobody has
+     * listened to yet.
+     *
+     * NOT when another Expand module owns these lines. BCLK, WS and DOUT are
+     * IO17, IO21 and IO18 -- the LoRa/GPS module's GPS UART (IO17 is the GPS
+     * chip's TX, an output this would fight) and its radio's DIO1, or the
+     * FM/AM module's own I2S. The module table has already decided the
+     * Expand slot (hal/modules/), and anything but Media I/O-or-nothing
+     * leaves the console silent for the boot, exactly as it leaves the SD
+     * slot down. Silent is the state an install failure already produces, so
+     * nothing downstream is new. */
+    if (!Modules::allows(ModuleCapability::Sound)) {
+        Serial.printf("[audio] I2S amp not started: another Expand module owns its "
+                      "lines (see [expand]); console will be silent\n");
+        return;
+    }
+    if (BOARD.audio.ampEnablePin != PIN_NONE) {
+        pinMode(BOARD.audio.ampEnablePin, OUTPUT);
+        ampOn = true;
+        setAmp(false);
+    }
+
+    i2s_config_t cfg = {};
+    cfg.mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX);
+    cfg.sample_rate = AUDIO_RATE;
+    cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+    cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
+    cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+    cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
+    cfg.dma_buf_count = DMA_BUF_COUNT;
+    cfg.dma_buf_len = DMA_BUF_LEN;
+    /* On, as on the codec: a cleared buffer is signed zero, which IS silence
+     * here. Only the built-in DAC's offset-binary needs it off. */
+    cfg.tx_desc_auto_clear = true;
+    cfg.use_apll = false;          /* no MCLK leaves the chip to be exact for */
+
+    if (i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr) != ESP_OK) {
+        Serial.println("[audio] I2S install failed; console will be silent");
+        return;
+    }
+
+    i2s_pin_config_t pins = {};
+    pins.mck_io_num = BOARD.audio.i2sMclk == PIN_NONE ? I2S_PIN_NO_CHANGE
+                                                      : BOARD.audio.i2sMclk;
+    pins.bck_io_num = BOARD.audio.i2sBclk;
+    pins.ws_io_num = BOARD.audio.i2sWordSelect;
+    pins.data_out_num = BOARD.audio.i2sDataOut;
+    pins.data_in_num = I2S_PIN_NO_CHANGE;
+    if (i2s_set_pin(I2S_NUM_0, &pins) != ESP_OK) {
+        Serial.println("[audio] I2S pins rejected; console will be silent");
+        i2s_driver_uninstall(I2S_NUM_0);
+        return;
+    }
+
+    i2s_zero_dma_buffer(I2S_NUM_0);
+    i2sUp = true;
+    /* Pins from the profile, for the same reason the DAC line names its pin:
+     * this is the line read when the speaker is silent. */
+    Serial.printf("[audio] I2S amp up at %d Hz (BCLK %d, WS %d, DOUT %d), volume %u%%%s\n",
+                  AUDIO_RATE, static_cast<int>(BOARD.audio.i2sBclk),
+                  static_cast<int>(BOARD.audio.i2sWordSelect),
+                  static_cast<int>(BOARD.audio.i2sDataOut),
+                  volume(), soundEnabled() ? "" : " (muted)");
 #endif
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
     /* Last, and only if a backend actually installed: a generator with nothing
      * to drive would sit awake polling a driver that is not there. */
-    if (codecUp || dacUp) startAudioTask();
+    if (codecUp || dacUp || i2sUp) startAudioTask();
 #endif
 }
 
 void Board::tickAudio() {
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
-    if (!codecUp && !dacUp) return;
+#if GUME_HAS_AUDIO
+    if (!codecUp && !dacUp && !i2sUp) return;
 
     /* The generator task does this work now, and does it during a long frame
      * as well as a short one -- which is the whole reason it exists. See the
@@ -520,7 +620,7 @@ uint8_t Board::volume() {
         if (stored > AUDIO_VOLUME_MAX) stored = AUDIO_VOLUME_MAX;
         cachedVolume_ = stored;
         volumeCached_ = true;
-#if GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO_DAC || GUME_HAS_AUDIO_I2S
         outputVolume = stored;
 #endif
     }
@@ -534,9 +634,10 @@ void Board::setVolume(uint8_t percent) {
     prefs_.putUChar("sndVol", percent);
 #if GUME_HAS_AUDIO_CODEC
     if (codecUp) applyCodecVolume(percent);
-#elif GUME_HAS_AUDIO_DAC
-    /* DAC backend: volume is a linear multiplier applied while generating, so
-     * there is no register to write -- only this mirror, which is what the
+#elif GUME_HAS_AUDIO_DAC || GUME_HAS_AUDIO_I2S
+    /* DAC and bare-I2S backends: volume is a linear multiplier applied while
+     * generating, so there is no register to write -- only this mirror, which
+     * is what the
      * generator reads. It is a plain byte written by the loop and read by the
      * audio task; a torn read is not possible and the worst a race can do is
      * leave one block of samples at the previous level. */

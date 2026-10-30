@@ -12,6 +12,7 @@
 #include <esp_chip_info.h>
 #include <string.h>
 #include "AppVersion.h"
+#include "FirmwareLine.h"
 #include "BuildStamp.h"
 
 /* The boot banner: what this board is and which firmware it is running,
@@ -31,8 +32,14 @@ void BrainoApp::logBootBanner() {
     /* Beside the board line, so a serial log pasted into an issue identifies
      * the firmware that produced it. "Which build was that?" has cost more
      * than one round trip on a bug report. */
+#ifdef FIRMWARE_BASE_VERSION
+    Serial.printf("[boot] build=%s built=%s version=%s line=%s braino=%s\n",
+                  BuildStamp::describe(), BuildStamp::builtAt(), FIRMWARE_VERSION,
+                  FIRMWARE_LINE, FIRMWARE_BASE_VERSION);
+#else
     Serial.printf("[boot] build=%s built=%s version=%s\n",
-                  BuildStamp::describe(), BuildStamp::builtAt(), BRAINO_VERSION);
+                  BuildStamp::describe(), BuildStamp::builtAt(), FIRMWARE_VERSION);
+#endif
     /* The saved SSID is deliberately absent from this line, and from every
      * other Serial write in the tree. A serial log is the one artifact of
      * this device that routinely leaves the house -- pasted into a bug
@@ -176,7 +183,7 @@ void BrainoApp::logIdentity() {
 void BrainoApp::replyIdentify(Print& out) {
     out.printf("ok v=\"1\" device=\"%s\" board=\"%s\" version=\"%s\" "
                "build=\"%s\" built=\"%s\" chip=\"%s\" panel=\"%s%s\" up=\"%lu\"\n",
-               board_.deviceId(), BOARD.name, BRAINO_VERSION,
+               board_.deviceId(), BOARD.name, FIRMWARE_VERSION,
                BuildStamp::describe(), BuildStamp::builtAt(),
                ESP.getChipModel(),
                GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",

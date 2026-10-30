@@ -86,6 +86,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ 16,
         /* scl                */ 15,
         /* reset              */ 18,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0x38,
         /* i2cHz              */ 400000,
         /* pressureThreshold  */ 0,
@@ -98,6 +100,39 @@ inline constexpr BoardProfile BOARD = {
     ButtonProfile{
         /* bootPin   */ 0,
         /* activeLow */ true,
+    },
+
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padUp            */ PIN_NONE,
+        /* padDown          */ PIN_NONE,
+        /* padLeft          */ PIN_NONE,
+        /* padRight         */ PIN_NONE,
+        /* padA             */ PIN_NONE,
+        /* padB             */ PIN_NONE,
     },
 
     /* No SD, deliberately, for now.
@@ -116,6 +151,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* No RGB LED that this firmware can drive, for now.
      *
      * The board has ONE WS2812 addressable pixel on GPIO42 -- a timed
@@ -128,6 +172,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ PIN_NONE,
         /* commonAnode */ false,
+        /* expander    */ 0,
     },
 
     /* ES8311 codec on the SAME I2C bus as touch, at 0x18, plus a five-wire
@@ -166,6 +211,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 9,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 16 MB part, read off the chip. Partitioned huge_app.csv for now, which

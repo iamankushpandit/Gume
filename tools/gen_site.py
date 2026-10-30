@@ -152,6 +152,17 @@ VARIANTS = (
                 "Wi-Fi clock and the BLE beacon. This board has no SD, no status LED and no sound yet -- "
                 "everything else works. See the README for what is missing and why.",
     },
+    {
+        "env": "app_attaky_core",
+        "label": "Braino! (the games) -- Attaky Core (ESP32-S3, capacitive touch)",
+        "name": "Braino!",
+        "note": "The full console for the Attaky Core, as built into the Cyber Deck Plus: {count} games, "
+                "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch, the Core's D-pad "
+                "on the home screen, and the keyboard in every text field; the gamepad is not read "
+                "yet, and there is no status LED yet. The battery badge reads the "
+                "Power module's fuel gauge. "
+                "Needs the Media I/O module for the SD slot and the speaker.",
+    },
 )
 
 # The pin map, screen rotation and touch controller are compile-time constants,
@@ -222,6 +233,20 @@ BOARD_DETAILS = {
         "buy": "https://www.amazon.com/dp/B0FSQF6FKN",
         "shop": "Freenove ESP32-S3 CYD, 2.8-inch",
         "extra": "Touch that works like a phone's; ESP32-S3 chip",
+    },
+    "attaky_core": {
+        "label": "2.0-inch, capacitive touch, one USB-C port -- Attaky Core 1.0 in a Cyber Deck Plus, ESP32-S3 (ST7789 + FT6636)",
+        "chip": "ESP32-S3",
+        # NOT LIKE THE OTHERS, AND NOT READY FOR main. The Get started tab
+        # says every board here is one the maintainer bought and runs Braino
+        # on. Neither half was true of this one when the port was written: it
+        # was written from documents, before a device was on the bench.
+        # Before this reaches main, the disclosure paragraph in
+        # site/index.template.html has to be true of it, or the board waits
+        # until it is. A plain link, no affiliate code.
+        "buy": "https://shop.attaky.com/products/attaky-cyber-deck-plus",
+        "shop": "Attaky Cyber Deck Plus",
+        "extra": "A handheld in a case, battery included; keyboard and gamepad (not used by Braino yet)",
     },
 }
 
@@ -365,6 +390,8 @@ def boards():
     """
     ini = read("platformio.ini")
     offered = {entry["env"] for entry in VARIANTS}
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import envs as env_kinds                 # the one list of environments
 
     found = []
     for section in re.findall(r"^\[board_(\w+)\]", ini, re.M):
@@ -376,6 +403,13 @@ def boards():
         envs = tuple(env for env in re.findall(
             r"^\[env:(\w+)\](?:(?!^\[).)*?\$\{board_%s\.build_flags\}"
             % re.escape(section), ini, re.M | re.S) if env in offered)
+        # A board whose every offered image is on an unpublished release
+        # line (envs.PUBLISHED_LINES) is supported and built, and not on the
+        # page: not in the picker, the buying table or latest.txt.
+        if envs and not any(env_kinds.published(env, ini) for env in envs):
+            print("not offering board %s: release line %s is unpublished"
+                  % (section, env_kinds.release_line(envs[0], ini)))
+            continue
         if not envs:
             die("platformio.ini declares [board_%s] but no environment builds "
                 "the games firmware for it, so the site cannot offer it. A "
@@ -794,6 +828,16 @@ def manifest_for(board, variant, release):
     }
 
 
+def line_version(env):
+    """The version an environment's image reports: its release line's."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import envs                              # the one list of environments
+    line = envs.release_line(env)
+    constant = {"braino": "BRAINO_VERSION", "attaky": "ATTAKY_VERSION"}[line]
+    return find(r'%s\s+"([^"]+)"' % constant,
+                read("include", "AppVersion.h"), constant).group(1)
+
+
 def write_update_manifest(out, supported, release):
     """Write firmware/latest.txt -- what a console reads to learn a newer
     firmware exists.
@@ -833,7 +877,15 @@ def write_update_manifest(out, supported, release):
         "* %s" % release,
     ]
     for target in sorted(supported, key=lambda t: t["name"]):
-        lines.append("%s %s" % (target["name"], release))
+        # Each board is told its own release line's version -- the Attaky
+        # Core ships as attaky-v<ATTAKY_VERSION> -- and a board whose line
+        # has no release yet gets no line at all. The firmware of a line other
+        # than braino never reads the `*` fallback, which is braino's number
+        # (BoardUpdate.cpp), so leaving the line out means "nothing yet".
+        own = line_version(target["envs"][0])
+        if "-" in own:
+            continue
+        lines.append("%s %s" % (target["name"], own))
     with open(os.path.join(firmware, "latest.txt"), "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
 
@@ -887,14 +939,15 @@ def main():
             # unversioned path CI writes into; older ones are copies of the
             # bytes that were actually published under that tag, so an old
             # version cannot silently become a new build of old source.
+            current = line_version(env)
             versions = [{
-                "version": release,
+                "version": current,
                 # Say plainly when the newest build is not a release. Somebody
                 # choosing a pre-release from a dropdown has decided to; a
                 # console being told to update has not, which is why the
                 # manifest above refuses outright while this merely labels.
-                "label": "%s (%s)" % (release,
-                                      "pre-release" if "-" in release else "latest"),
+                "label": "%s (%s)" % (current,
+                                      "pre-release" if "-" in current else "latest"),
                 "dir": directory,
                 "manifest": directory + "/manifest.json",
             }]

@@ -59,6 +59,7 @@ END = "<!-- END GENERATED -->"
 DRIVERS = {"ILI9341_2_DRIVER": "ILI9341", "ILI9341_DRIVER": "ILI9341",
            "ST7789_DRIVER": "ST7789", "ST7796_DRIVER": "ST7796"}
 SECTIONS = ("PanelProfile", "TouchProfile", "ButtonProfile", "SdProfile",
+            "ExpandProbeProfile",
             "RgbLedProfile", "AudioProfile", "BatteryProfile", "MemoryProfile")
 
 # Colour per subsystem, for the diagram. Fixed art colours, not a theme.
@@ -70,6 +71,7 @@ GROUPS = [
     ("SD card", (110, 110, 110)),
     ("Battery", (160, 60, 50)),
     ("Key", (90, 90, 160)),
+    ("Module check", (120, 120, 40)),
 ]
 
 
@@ -112,7 +114,19 @@ def profile(header):
     prof = {"tag": m.group(2) if m else "?",
             "capacitive": bool(re.search(r"#define\s+GUME_TOUCH_CAPACITIVE\s+1", text)),
             "dac": bool(re.search(r"#define\s+GUME_HAS_AUDIO_DAC\s+1", text)),
-            "codec": bool(re.search(r"#define\s+GUME_HAS_AUDIO_CODEC\s+1", text))}
+            "codec": bool(re.search(r"#define\s+GUME_HAS_AUDIO_CODEC\s+1", text)),
+            "i2s": bool(re.search(r"#define\s+GUME_HAS_AUDIO_I2S\s+1", text))}
+    # A field written from a board-header macro -- `(GUME_HAS_X ? 0x22 : 0)`,
+    # the way the touch kind is -- is resolved against that header's own
+    # #defines, so the document states the value the build gets.
+    defines = dict(re.findall(r"#define\s+(GUME_\w+)\s+(\d+)", text))
+
+    def resolve(value):
+        t = re.fullmatch(r"\(\s*(GUME_\w+)\s*\?\s*([^:]+?)\s*:\s*([^)]+?)\s*\)", value)
+        if not t:
+            return value
+        return t.group(2) if defines.get(t.group(1), "0") != "0" else t.group(3)
+
     section = None
     for line in text.splitlines():
         s = next((x for x in SECTIONS if re.match(r"\s*%s\s*\{" % x, line)), None)
@@ -122,7 +136,7 @@ def profile(header):
             continue
         f = re.match(r"\s*/\*\s*(\w+)\s*\*/\s*(.+?),?\s*(//.*)?$", line)
         if f and section:
-            prof[section][f.group(1)] = f.group(2).rstrip(",").strip()
+            prof[section][f.group(1)] = resolve(f.group(2).rstrip(",").strip())
     return prof
 
 
@@ -151,7 +165,8 @@ def pin_uses(b, p):
     if p["capacitive"]:
         add(touch.get("sda"), "Touch", "I2C SDA")
         add(touch.get("scl"), "Touch", "I2C SCL")
-        add(touch.get("irq"), "Touch", "interrupt")
+        irq_used = touch.get("irqUsable", "true") == "true"
+        add(touch.get("irq"), "Touch", "interrupt" + ("" if irq_used else " (not used)"))
         add(touch.get("reset"), "Touch", "reset")
     else:
         shared = " (shared with the display)" if b["touch_on_display_bus"] else ""
@@ -167,9 +182,17 @@ def pin_uses(b, p):
     for k, what in (("cs", "chip select"), ("sclk", "SPI clock"),
                     ("mosi", "SPI MOSI"), ("miso", "SPI MISO")):
         add(sd.get(k), "SD card", what)
+    probe = p.get("ExpandProbeProfile", {})
+    add(probe.get("fmSda"), "Module check",
+        "FM/AM module's own I2C SDA, probed once at boot")
+    add(probe.get("fmScl"), "Module check",
+        "FM/AM module's own I2C SCL, probed once at boot")
+    add(probe.get("gpsRx"), "Module check",
+        "LoRa/GPS module's NMEA, listened to (input only) at boot")
     rgb = p.get("RgbLedProfile", {})
-    for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):
-        add(rgb.get(k), "RGB LED", what)
+    if not on_expander(rgb):   # expander ports are not GPIOs; see facts()
+        for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):
+            add(rgb.get(k), "RGB LED", what)
     audio = p.get("AudioProfile", {})
     add(audio.get("speakerPin"), "Audio", "speaker (DAC out)")
     for k, what in (("i2sMclk", "I2S MCLK"), ("i2sBclk", "I2S BCLK"),
@@ -186,6 +209,32 @@ def pin_uses(b, p):
     return sorted(uses, key=lambda u: (u[0], [g for g, _ in GROUPS].index(u[1])))
 
 
+def on_expander(rgb):
+    return rgb.get("expander", "0") not in ("0", "0x00", "")
+
+
+def expander_led(rgb):
+    """The facts-table line for an RGB LED on an I2C expander, or None."""
+    if not on_expander(rgb):
+        return None
+    ports = []
+    for k, what in (("r", "red"), ("g", "green"), ("b", "blue")):
+        port = pin(rgb.get(k))
+        if port is not None:
+            ports.append("P%d_%d %s" % (port // 8, port % 8, what))
+    return "ports %s of the I2C expander at %s, each channel on or off" % (
+        ", ".join(ports), rgb.get("expander"))
+
+
+def expander_reset(touch):
+    """Where a touch reset lives when it is not a GPIO, for the facts table."""
+    addr = touch.get("resetExpanderAddress", "0")
+    if addr in ("0", "0x00", ""):
+        return ""
+    port = int(touch.get("resetExpanderPort", "0"), 0)
+    return "; reset on port P%d_%d of the I2C expander at %s" % (port // 8, port % 8, addr)
+
+
 def facts(b, p):
     panel = p.get("PanelProfile", {})
     touch = p.get("TouchProfile", {})
@@ -196,9 +245,15 @@ def facts(b, p):
         sound = "ES8311 codec over I2S (I2C address %s)" % audio.get("codecI2cAddress", "?")
     elif p["dac"]:
         sound = "built-in DAC on GPIO%s, into an onboard amplifier" % audio.get("speakerPin")
+    elif p["i2s"]:
+        sound = "I2S amplifier with no codec (BCLK GPIO%s, WS GPIO%s, data GPIO%s)" % (
+            audio.get("i2sBclk"), audio.get("i2sWordSelect"), audio.get("i2sDataOut"))
     else:
         sound = "none"
     batt = pin(p.get("BatteryProfile", {}).get("adcPin"))
+    gauge = p.get("BatteryProfile", {}).get("fuelGaugeAddress", "0")
+    if gauge in ("0", "0x00", ""):
+        gauge = None
     rows = [
         ("Firmware name (`BOARD_NAME`)", "`%s`" % b["name"]),
         ("Installer / PlatformIO environment", "`%s`" % b["env"] if b["env"] else "none"),
@@ -206,12 +261,15 @@ def facts(b, p):
         ("Panel", "%s x %s, %s driver%s" % (panel.get("nativeWidth"), panel.get("nativeHeight"),
                                            b["driver"], ", colours inverted at runtime"
                                            if panel.get("invertColours") == "true" else "")),
-        ("Touch", "capacitive, I2C" if p["capacitive"] else
+        ("Touch", ("capacitive, I2C" + expander_reset(touch)) if p["capacitive"] else
          "resistive XPT2046, %s" % ("on the display's SPI bus" if b["touch_on_display_bus"]
                                     else "its own bit-banged SPI bus")),
         ("Sound", sound),
+    ] + ([("RGB LED", expander_led(p.get("RgbLedProfile", {})))]
+         if expander_led(p.get("RgbLedProfile", {})) else []) + [
         ("Battery sense", "GPIO%d" % batt if batt is not None
-         else "**none** -- no battery badge; run it from USB power"),
+         else "MAX17048 fuel gauge, I2C address %s on the touch bus" % gauge if gauge
+         else "**none read** -- no battery badge"),
         ("Flash", "%s MB" % mb.group(1) if mb else flash or "?"),
     ]
     return rows

@@ -38,6 +38,83 @@
 #ifndef GUME_HAS_AUDIO_DAC
 #define GUME_HAS_AUDIO_DAC 0
 #endif
+/* A bare I2S amplifier: no codec to configure and no built-in DAC, just BCLK,
+ * word select and data into a part such as the NS4168 that decodes standard
+ * I2S on its own. The Attaky Core's Media I/O module is the first. */
+#ifndef GUME_HAS_AUDIO_I2S
+#define GUME_HAS_AUDIO_I2S 0
+#endif
+
+/* "Does this board have an audio path at all", as one macro, so that the
+ * synthesiser and the Board:: entry points guard on the question they mean
+ * rather than on a list of backends that has to grow in a dozen places. */
+#define GUME_HAS_AUDIO (GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC || GUME_HAS_AUDIO_I2S)
+
+static_assert((GUME_HAS_AUDIO_CODEC ? 1 : 0) + (GUME_HAS_AUDIO_DAC ? 1 : 0) +
+                  (GUME_HAS_AUDIO_I2S ? 1 : 0) <= 1,
+    "A board states at most one audio backend: GUME_HAS_AUDIO_CODEC, "
+    "GUME_HAS_AUDIO_DAC or GUME_HAS_AUDIO_I2S. They drive the same I2S port.");
+
+/* ---- Code only some boards carry ------------------------------------------
+ *
+ * A board header defines these to 1 for what it has; every other board gets 0
+ * here, and the code behind each one -- whole files, members, virtuals, the
+ * runtime's routing -- is preprocessed out of its image rather than switched
+ * off inside it. A profile field alone cannot do that: `if (BOARD.hasX())` on
+ * a constant still compiles both arms, and the declarations they need stay in
+ * every class. The Attaky Core is the only board that defines any of them
+ * today; see include/boards/attaky-core.h for what each covers.
+ *
+ * The profile and the macro state one fact twice, so they are checked against
+ * each other below in both directions -- a macro with nothing in the profile
+ * is code with nothing to drive, and a profile entry with no macro is
+ * hardware the image silently cannot see. */
+#ifndef GUME_HAS_IO_EXPANDER
+#define GUME_HAS_IO_EXPANDER 0
+#endif
+#ifndef GUME_HAS_NAV_KEYS
+#define GUME_HAS_NAV_KEYS 0
+#endif
+#ifndef GUME_HAS_KEYBOARD
+#define GUME_HAS_KEYBOARD 0
+#endif
+#ifndef GUME_HAS_ATTAKY_MODULES
+#define GUME_HAS_ATTAKY_MODULES 0
+#endif
+
+/* Fields spelled out rather than read through the has...() members, for the
+ * GCC 8 -Os reason given at the Expand-probe assert further down. */
+static_assert(((BOARD.touch.resetExpanderAddress != 0 || BOARD.rgb.expander != 0 ||
+                BOARD.keys.keyExpander != 0) ? 1 : 0) == (GUME_HAS_IO_EXPANDER ? 1 : 0),
+    "GUME_HAS_IO_EXPANDER must be 1 exactly when the profile puts the touch "
+    "reset, the RGB LED or the navigation keys on an AW9523");
+static_assert(((BOARD.keys.keyExpander != 0 || BOARD.gamepad.padLeftExpander != 0) ? 1 : 0) ==
+                  (GUME_HAS_NAV_KEYS ? 1 : 0),
+    "GUME_HAS_NAV_KEYS must be 1 exactly when the profile has navigation keys "
+    "or a gamepad that could be clipped on");
+static_assert((BOARD.keyboard.keyboardLeft != 0 ? 1 : 0) == (GUME_HAS_KEYBOARD ? 1 : 0),
+    "GUME_HAS_KEYBOARD must be 1 exactly when the profile has a keyboard");
+static_assert(((BOARD.keyboard.keyboardLeft != 0 || BOARD.gamepad.padLeftExpander != 0 ||
+                BOARD.battery.fuelGaugeAddress != 0 || BOARD.expandProbe.fmRadioAddress != 0 ||
+                BOARD.expandProbe.gpsRx != PIN_NONE) ? 1 : 0) ==
+                  (GUME_HAS_ATTAKY_MODULES ? 1 : 0),
+    "GUME_HAS_ATTAKY_MODULES must be 1 exactly when the profile names a module "
+    "that may be clipped on: a keyboard, a gamepad, a fuel gauge or an Expand "
+    "module to look for");
+static_assert(!(GUME_HAS_IO_EXPANDER || GUME_HAS_ATTAKY_MODULES) || GUME_TOUCH_CAPACITIVE,
+    "expanders and modules ride the capacitive touch controller's I2C bus, "
+    "which only a capacitive build brings up");
+
+#if GUME_HAS_AUDIO_I2S
+static_assert(BOARD.audio.i2sBclk != PIN_NONE && BOARD.audio.i2sWordSelect != PIN_NONE &&
+                  BOARD.audio.i2sDataOut != PIN_NONE,
+    "GUME_HAS_AUDIO_I2S needs i2sBclk, i2sWordSelect and i2sDataOut in the "
+    "board's AudioProfile -- an amplifier with no codec is clocked by those "
+    "three lines and nothing else.");
+static_assert(!BOARD.audio.hasCodec(),
+    "GUME_HAS_AUDIO_I2S is the backend for an amplifier with NO codec. A board "
+    "with codecI2cAddress set wants GUME_HAS_AUDIO_CODEC.");
+#endif
 
 /* ---- The built-in DAC claims BOTH of its pads, not just the one you asked for
  *
@@ -203,6 +280,72 @@ static_assert(BOARD.touch.isCapacitive()
                   : true,
               "capacitive touch board is missing an I2C line, address or rate");
 
+/* A touch reset is a GPIO or an expander port, never both -- two owners of
+ * one line is a reset that one of them releases while the other holds it. */
+static_assert(BOARD.touch.resetExpanderAddress == 0
+                  || (BOARD.touch.isCapacitive() && BOARD.touch.reset == PIN_NONE
+                      && BOARD.touch.resetExpanderPort < 16),
+              "touch reset on an expander needs a capacitive board, no GPIO "
+              "reset as well, and a port in 0..15");
+
+/* Navigation keys ride the touch controller's I2C bus, so only a capacitive
+ * board has one to put them on; and every key is a port of that expander or
+ * absent. */
+constexpr bool gumeKeyPortOk(int8_t port) { return port == PIN_NONE || (port >= 0 && port < 16); }
+static_assert(!BOARD.hasNavKeys()
+                  || (BOARD.touch.isCapacitive()
+                      && gumeKeyPortOk(BOARD.keys.keyUp) && gumeKeyPortOk(BOARD.keys.keyDown)
+                      && gumeKeyPortOk(BOARD.keys.keyLeft) && gumeKeyPortOk(BOARD.keys.keyRight)
+                      && gumeKeyPortOk(BOARD.keys.keyEnter) && gumeKeyPortOk(BOARD.keys.keyBack)
+                      && gumeKeyPortOk(BOARD.keys.keyPower)),
+              "navigation keys need a capacitive board's I2C bus and ports in 0..15");
+
+/* An LED on an expander rides the same bus, and must keep off the touch
+ * reset: the LED driver rewrites its own ports' bits, and a reset port among
+ * them would be a touch controller held in reset by a colour. */
+constexpr bool gumeLedPortOk(int8_t port) {
+    return port == PIN_NONE ||
+           (port >= 0 && port < 16 &&
+            !(BOARD.rgb.expander == BOARD.touch.resetExpanderAddress &&
+              port == BOARD.touch.resetExpanderPort));
+}
+static_assert(BOARD.rgb.expander == 0
+                  || (BOARD.touch.isCapacitive() && gumeLedPortOk(BOARD.rgb.r)
+                      && gumeLedPortOk(BOARD.rgb.g) && gumeLedPortOk(BOARD.rgb.b)),
+              "an RGB LED on an expander needs a capacitive board's I2C bus, "
+              "ports in 0..15, and none of them the touch reset");
+
+/* The Expand-module probe guards an SD slot, uses Wire1 -- which only the
+ * capacitive builds link -- and needs each half it names complete.
+ *
+ * The fields are spelled out rather than read through hasExpandProbe() and
+ * hasSdSlot() ON PURPOSE. The toolchain's GCC 8, at -Os and only in a full
+ * translation unit, reported "non-constant condition" for those member
+ * calls here, and for the same expression wrapped in a constexpr function --
+ * while the comparisons written straight into the assert pass, and the
+ * members pass in a three-line test. Bisected to -Os and not further. */
+static_assert((BOARD.expandProbe.fmRadioAddress == 0 && BOARD.expandProbe.gpsRx == PIN_NONE)
+                  || (BOARD.touch.kind == TouchKind::CapacitiveFt6336u
+                      && BOARD.sd.cs != PIN_NONE
+                      && (BOARD.expandProbe.fmRadioAddress == 0
+                          || (BOARD.expandProbe.fmSda != PIN_NONE
+                              && BOARD.expandProbe.fmScl != PIN_NONE))
+                      && (BOARD.expandProbe.gpsRx == PIN_NONE
+                          || BOARD.expandProbe.gpsBaud != 0)),
+              "an Expand-module probe needs a capacitive build, an SD slot to "
+              "guard, both lines of the radio's bus and a GPS baud rate");
+
+/* A keyboard rides the same I2C bus, and each layout is exactly the 25
+ * positions of one half's matrix -- a short string would read past its end
+ * at the first key in a row it did not cover. */
+constexpr int gumeLayoutLength(const char* s) { return (s == nullptr || *s == 0) ? 0 : 1 + gumeLayoutLength(s + 1); }
+static_assert(!BOARD.hasKeyboard()
+                  || (BOARD.touch.isCapacitive() && BOARD.keyboard.keyboardRight != 0
+                      && gumeLayoutLength(BOARD.keyboard.leftLayout) == 25
+                      && gumeLayoutLength(BOARD.keyboard.rightLayout) == 25),
+              "a keyboard needs a capacitive board's I2C bus, both halves' addresses "
+              "and two 25-character layouts");
+
 /* The one thing both kinds owe, and the thing that decides supportability: a
  * controller at all. `irq` is common to both -- pen-down on the XPT2046, INT
  * on the FT6336U. */
@@ -226,8 +369,14 @@ static_assert(BOARD.memory.flashBytes >= 4u * 1024u * 1024u,
               "not fit, so this board cannot be supported");
 
 /* ---- Optional hardware: stated so the guards cannot be forgotten ------- */
-static_assert(!BOARD.hasBatterySense() || BOARD.battery.dividerRatio > 0.0f,
-              "a board with battery sense must state its divider ratio");
+static_assert(!BOARD.hasBatteryAdc() || BOARD.battery.dividerRatio > 0.0f,
+              "a board with ADC battery sense must state its divider ratio");
+static_assert(!(BOARD.hasBatteryAdc() && BOARD.hasFuelGauge()),
+              "a board states its battery as an ADC divider or a fuel gauge, "
+              "not both -- the badge can only believe one of them");
+static_assert(!BOARD.hasFuelGauge() || GUME_TOUCH_CAPACITIVE,
+              "a fuel gauge sits on the capacitive touch controller's I2C bus, "
+              "and only a capacitive build brings that bus up");
 static_assert(!BOARD.hasSdSlot()
                   || (BOARD.sd.mosi != PIN_NONE && BOARD.sd.miso != PIN_NONE
                       && BOARD.sd.sclk != PIN_NONE),

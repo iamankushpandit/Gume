@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
+| Flash | 2,582,121 / 3,145,728 bytes of the app partition (**82.1%**) |
 | RAM | 88,036 / 327,680 bytes (**26.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -138,8 +138,10 @@ screen rather than an error.
 
 ### Which board do you have?
 
-Five boards are supported, and each has been flashed and run on hardware. Tell
-them apart by screen size, touch type and USB ports:
+Six boards are supported. Five have been flashed and run on hardware; the
+Attaky Core was ported from its maker's documents before a device was
+available, and its page says what still has to be checked. Tell them apart by
+screen size, touch type and USB ports:
 
 | Screen | Touch | USB | Board | Pick in the installer | Vendor page |
 |---|---|---|---|---|---|
@@ -148,6 +150,7 @@ them apart by screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus -- **not yet run on hardware** | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to
 recognise it, what has been checked on it, its sources, and a pin table and
@@ -502,7 +505,7 @@ once.
 
 **Every supported board plays all of it**, through whatever speaker is plugged
 into the board's speaker connector — with nothing plugged in, the console
-simply plays silently. One synthesiser feeds two different outputs:
+simply plays silently. One synthesiser feeds three different outputs:
 
 - The [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) plays through an
   **ES8311 audio codec**.
@@ -510,6 +513,9 @@ simply plays silently. One synthesiser feeds two different outputs:
   no codec. The **ESP32's built-in DAC** on GPIO26 drives an onboard amplifier
   directly, which gives 8-bit output — coarser than the codec, and the same
   cues, pad notes, piano notes and spoken phrase.
+- The [Attaky Core](docs/boards/Attaky-Core.md) has no codec either: its
+  Media I/O module carries an **NS4168 I2S amplifier**, which is sent plain
+  I2S and does its own conversion. Not yet heard on a device.
 
 **None of it is a recording.** There is no WAV, no MP3 and no sample bank
 anywhere in this firmware, and there is not going to be one: a single second of
@@ -527,7 +533,8 @@ is exactly why it sounds like one.
 
 All of it can be turned off. **Settings → Sound** holds a mute switch and a
 volume slider capped for a device held near a young player's ears — at 85% on
-the Freenove and 75% on the built-in-DAC boards — plus two buttons to hear the
+the Freenove, 75% on the built-in-DAC boards and a provisional 50% on the
+Attaky Core — plus two buttons to hear the
 level while you set it, because setting a volume you cannot hear while you set
 it is guesswork.
 
@@ -679,7 +686,8 @@ rather than volume zero, so the level survives being silenced and comes back
 where it was; muting takes *everything*, including the startup phrase, and
 leaves the case LED still flashing green and red. The volume slider is capped
 below 100% and says so — **85** on the Freenove, **75** on the boards that
-play through the ESP32's built-in DAC — because a control that relabelled its
+play through the ESP32's built-in DAC, **50** on the Attaky Core until
+somebody has listened to it — because a control that relabelled its
 ceiling as 100% would read better and lie. That ceiling is a hearing-safety
 limit for a device held near a young player's ears, the counterpart of the 25%
 brightness floor. It is stated per board because it depends on the amplifier
@@ -1011,6 +1019,11 @@ long before this firmware runs. **RESET**, beside it, cannot be given a job at
 all: it pulls the chip's enable line, so there is no software on either side of
 it to notice.
 
+On the **Attaky Core** the power key's short press does what the on-screen
+Lock button does: the screen goes dark and comes back to **Hold to unlock**.
+Its long press switches the console off in hardware, as Attaky built it; the
+firmware never sees that press and does nothing with it.
+
 ### Scores, Profiles, About and System Info
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:
@@ -1087,6 +1100,13 @@ separate them in either direction. With no pack fitted the gauge therefore
 reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
+
+**The Attaky Core is the exception: it has a fuel gauge, not a divider.** Its
+Power module reports the cell through a MAX17048 on the I²C bus, and the badge
+shows that chip's own state of charge rather than a percentage worked out from
+a voltage, with the same thresholds and the same steadying. Unclip the module
+and the gauge stops answering, so the badge disappears and no warning is raised
+-- the console does not mistake a missing module for an empty battery.
 
 The icon is deliberately **not** a fixed size: it grows with its digits, widest
 at `100`, and the status rows around it are laid
@@ -1345,6 +1365,13 @@ attached to releases: they are bench tools, built from source by whoever is
 holding the board, and a copy frozen into a release would only ever be older
 than the one in the tree.
 
+The Attaky Core has its own release line, Braino! for Attaky: tags
+`attaky-v<version>`, versioned by `ATTAKY_VERSION`, so it can ship when it has
+been tested on its hardware without holding up the other boards. A `v*`
+release carries the other boards only. That line is not published yet: an
+`attaky-v*` tag makes a draft release, and the web installer does not list
+the board, so it is built from source.
+
 To check the page itself before pushing:
 
 ```bash
@@ -1457,7 +1484,10 @@ src/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
     AppRuntime.cpp      runtime loop, transitions, view state
-    AppRuntimeLauncher.cpp  LauncherApp paging, tiles, header UI
+    AppRuntimeContext.cpp  what screens call: storage, sound, capabilities
+    AppRuntimeLauncher.cpp  LauncherApp paging, grid, header UI
+    AppRuntimeLauncherTiles.cpp  one tile's icon and labels
+    AppRuntimeLauncherKeys.cpp  D-pad focus on the launcher's tiles
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeNotify.cpp  the header banner: battery, update, nearby
@@ -1495,6 +1525,18 @@ src/
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
+    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED
+    BoardKeys.cpp       navigation keys (D-pad, Enter, Back): the board's and a gamepad's
+    BoardModules.cpp    Board's side of the module table: battery, typed keys
+    modules/            what is clipped on, found at boot -- one file a module
+      Modules.cpp         the module table: probes, slots, what each provides
+      KeyboardModule.cpp  a clip-on typing keyboard, scanned as two matrices
+      GamepadModule.cpp   a clip-on gamepad: D-pad, A and B, as navigation keys
+      FuelGaugeModule.cpp the battery module's MAX17048 fuel gauge
+      ExpandFmAm.cpp      Expand: FM/AM, found by its tuner on its own bus
+      ExpandLoraGps.cpp   Expand: LoRa/GPS, found by its GPS's sentences
+      ExpandMediaIo.cpp   Expand: Media I/O (SD, sound), found by elimination
+    NavKeys.h           the key event screens read, already in screen terms
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)

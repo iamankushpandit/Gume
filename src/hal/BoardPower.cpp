@@ -100,6 +100,13 @@ void Board::sampleBattery() {
         return;
     }
 
+#if GUME_HAS_ATTAKY_MODULES
+    if (BOARD.hasFuelGauge()) {
+        sampleModuleBattery();
+        return;
+    }
+#endif
+
     if (!s_adcCharacterised) {
         analogSetPinAttenuation(BOARD.battery.adcPin, ADC_11db);
         esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12,
@@ -127,18 +134,22 @@ void Board::sampleBattery() {
     if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
         displayPct_ = -1;   // a fault is reported at once, never held back
     } else {
-        const int8_t raw = curvePercent(vBat);
-        const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
-                                                                   : displayPct_ - raw);
-        if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
-            displayPct_ = raw;
-        }
+        settleDisplayPercent(curvePercent(vBat));
     }
 
     portENTER_CRITICAL(&batteryMux_);
     batteryPublished_.sample = sample;
     batteryPublished_.pct = displayPct_;
     portEXIT_CRITICAL(&batteryMux_);
+}
+
+/* Both endpoints are exempt; getBatteryPercent() says why. */
+void Board::settleDisplayPercent(int8_t raw) {
+    const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
+                                                               : displayPct_ - raw);
+    if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
+        displayPct_ = raw;
+    }
 }
 
 Board::BatteryPublic Board::batterySnapshot() {
@@ -169,8 +180,10 @@ void Board::beginBatteryMonitor() {
     if (!BOARD.hasBatterySense()) {
         return;   // nothing to poll; the zeroed snapshot above is the answer
     }
-    xTaskCreatePinnedToCore(batteryTask, "battery", 2560, this, 1,
-                            &batteryTaskHandle_, 0);
+    /* The gauge path prints when the module comes or goes, and a printf wants
+     * more stack than eight analogRead()s. */
+    xTaskCreatePinnedToCore(batteryTask, "battery", BOARD.hasFuelGauge() ? 3584 : 2560,
+                            this, 1, &batteryTaskHandle_, 0);
 }
 
 Board::BatteryTelemetry Board::readBatteryTelemetry() {

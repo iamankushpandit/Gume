@@ -64,6 +64,7 @@ private:
     void checkScan();
     void runScan();
     void startConnect(GameHost& host);
+    void typePassword(GameHost& host, char typed);
     /** Reconnect to the network already in NVS, if there is one. */
     void rejoinSaved(GameHost& host);
     void checkConnect(GameHost& host);

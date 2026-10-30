@@ -66,83 +66,6 @@ Ui::Renderer& BrainoApp::display() {
     return renderer_;
 }
 
-Board& BrainoApp::board() {
-    return board_;
-}
-
-bool BrainoApp::hasCapability(uint32_t capability) const {
-    return activeApp_ != nullptr && activeApp_->hasCapability(capability);
-}
-
-bool BrainoApp::requireCapability(uint32_t capability, const char* action) {
-    if (hasCapability(capability)) {
-        return true;
-    }
-    Serial.printf("[auth] denied '%s' for app '%s' (need 0x%08lx, has 0x%08lx)\n",
-                  action != nullptr ? action : "?",
-                  activeApp_ != nullptr ? activeApp_->id() : "none",
-                  static_cast<unsigned long>(capability),
-                  static_cast<unsigned long>(activeApp_ != nullptr ? activeApp_->capabilities : 0));
-    board_.beepError();
-    return false;
-}
-
-ContentLoader& BrainoApp::content() {
-    return content_;
-}
-
-uint32_t BrainoApp::getScore(const char* key, uint32_t fallback) {
-    return board_.getScore(key, fallback);
-}
-
-void BrainoApp::setScore(const char* key, uint32_t value) {
-    board_.setScore(key, value);
-}
-
-bool BrainoApp::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
-    const bool improved = board_.saveBestScore(key, value, lowerIsBetter);
-    if (improved) {
-        /* Peers should see the number that is true now, not the one that was
-         * current when the screen opened. */
-        NearbyPlay::refreshScore(board_);
-    }
-    return improved;
-}
-
-void BrainoApp::loadBlob(const char* key, void* dst, size_t len) {
-    board_.loadBlob(key, dst, len);
-}
-
-void BrainoApp::saveBlob(const char* key, const void* src, size_t len) {
-    board_.saveBlob(key, src, len);
-}
-
-void BrainoApp::beepOk() {
-    board_.beepOk();
-}
-
-void BrainoApp::beepError() {
-    board_.beepError();
-}
-
-void BrainoApp::playSound(Sound cue) {
-    board_.playSound(cue);
-}
-
-bool BrainoApp::batteryLow() {
-    /* isBatteryLow() reads the snapshot the sampling task publishes -- no
-     * conversion on this path. A board with no battery sense is never low. */
-    return BOARD.hasBatterySense() && board_.isBatteryLow();
-}
-
-void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
-    board_.pulseRgb(r, g, b, ms);
-}
-
-void BrainoApp::drawTopBar(const char* title) {
-    Ui::drawTopBar(board_, title);
-}
-
 void BrainoApp::begin() {
     board_.begin();
     /* Games always render landscape, so the panel's landscape extent is the
@@ -216,6 +139,11 @@ void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
+    const FrameKeys keys = pollKeys();
+    /* For the idle, saver and sleep paths below a key is a key: any of them
+     * does exactly what BOOT does there. Which key it was matters only to the
+     * active screen. */
+    const bool keyPress = boot.justPressed || keys.any();
     const uint32_t nowMs = millis();
 
     TouchPoint touch = rawTouch;
@@ -264,7 +192,7 @@ void BrainoApp::loop() {
      * ending an alert -- a touch, the BOOT key, or its own timeout in
      * NearbyPlay::tick() -- runs the same restore of the mute switch. */
     if (NearbyPlay::alertActive() &&
-        (rawTouch.justPressed || rawTouch.down || boot.justPressed)) {
+        (rawTouch.justPressed || rawTouch.down || keyPress)) {
         NearbyPlay::dismissAlert(board_);
     }
     if (NearbyPlay::alertActive() && view_ == View::Asleep) {
@@ -276,7 +204,7 @@ void BrainoApp::loop() {
      * because as far as the idle timer was concerned nobody had touched the
      * device since before the press. */
     if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased ||
-        boot.down || boot.justPressed || boot.justReleased) {
+        boot.down || boot.justPressed || boot.justReleased || keyPress) {
         lastActivityMs_ = nowMs;
     }
 
@@ -324,7 +252,7 @@ void BrainoApp::loop() {
     }
 
     if (view_ == View::Asleep) {
-        if (rawTouch.justPressed || rawTouch.down || boot.justPressed) {
+        if (rawTouch.justPressed || rawTouch.down || keyPress) {
             wakeFromSleep();
         }
     } else if (view_ == View::Locked) {
@@ -338,7 +266,7 @@ void BrainoApp::loop() {
          * stays the deliberate hold on the panel. */
         updateLock(touch, nowMs);
     } else if (view_ == View::ScreenSaver) {
-        if (touch.justPressed || boot.justPressed) {
+        if (touch.justPressed || keyPress) {
             exitScreenSaver();
         } else if (nowMs - ssav_lastFrameMs_ >= 40) {
             ssav_lastFrameMs_ = nowMs;
@@ -369,8 +297,23 @@ void BrainoApp::loop() {
          * that a future hold gesture cannot be layered on top without moving
          * this to the release edge first; hal/BoardButton.cpp says the same
          * thing from the other end. */
-        const bool bootHome = boot.justPressed && activeGame_ != &launcher_;
-        if (bootHome) {
+        /* Back is Home too, on the boards with keys, and for the same reasons.
+         * Every other key goes to the active screen through navKey().
+         *
+         * A power key's short press is the Lock button, consumed up here for
+         * the reason Lock's tap is, and on the launcher too, which has a Lock
+         * badge of its own. Like BOOT it is a shortcut and nothing more: it
+         * wakes a sleeping panel and dismisses the saver exactly as any key
+         * does (above), and it does nothing on the lock screen, which takes no
+         * key at all. */
+        const bool powerLock = keys.power();
+        const bool bootHome = !powerLock &&
+                              (boot.justPressed || keys.back()) &&
+                              activeGame_ != &launcher_;
+        offerKeys(keys, bootHome || powerLock);
+        if (powerLock) {
+            lockAndSleepNow();
+        } else if (bootHome) {
             goHome();
         } else if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -415,6 +358,7 @@ void BrainoApp::loop() {
         } else {
             activeGame_->update(*this, touch);
         }
+        withdrawKeys();
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();

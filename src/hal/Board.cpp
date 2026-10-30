@@ -25,6 +25,8 @@
 #endif
 
 #include "BleBeacon.h"
+#include "BoardExpander.h"
+#include "modules/Modules.h"
 #include "ui/Ui.h"
 
 Board::Board() : sdSpi_(VSPI) {}
@@ -52,20 +54,25 @@ void Board::begin() {
     /* Every peripheral below is optional in the profile. A board that does not
      * wire one sets PIN_NONE and skips it here -- that is what makes a port a
      * header rather than a patch. Touch and the panel are not optional. */
-    if (BOARD.hasBatterySense()) {
+    if (BOARD.hasBatteryAdc()) {
         pinMode(BOARD.battery.adcPin, INPUT);
     }
     /* Takes the first reading synchronously and then hands the gauge to its own
      * task, so no frame ever pays for a conversion. Safe on a board with no
-     * sense line: it publishes the zeroed snapshot and starts nothing. */
-    beginBatteryMonitor();
+     * sense line: it publishes the zeroed snapshot and starts nothing. A fuel
+     * gauge is on the touch bus, which is not up yet, so that board starts its
+     * monitor below, once Wire is. */
+    if (!BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();
+    }
 
     if (BOARD.hasBacklightControl()) {
         pinMode(BOARD.panel.backlightPin, OUTPUT);
         digitalWrite(BOARD.panel.backlightPin, BOARD.panel.backlightActiveHigh ? HIGH : LOW);
     }
 
-    if (BOARD.hasRgbLed()) {
+    /* An LED on an expander waits for the I2C bus, below. */
+    if (BOARD.hasRgbLed() && BOARD.rgb.expander == 0) {
         if (BOARD.rgb.r != PIN_NONE) pinMode(BOARD.rgb.r, OUTPUT);
         if (BOARD.rgb.g != PIN_NONE) pinMode(BOARD.rgb.g, OUTPUT);
         if (BOARD.rgb.b != PIN_NONE) pinMode(BOARD.rgb.b, OUTPUT);
@@ -119,6 +126,14 @@ void Board::begin() {
             pinMode(BOARD.touch.reset, OUTPUT);
             digitalWrite(BOARD.touch.reset, LOW);
         }
+#if GUME_HAS_IO_EXPANDER
+        /* The same hold, through an expander. That needs the bus up now,
+         * rather than after the panel as on a board with a GPIO reset. */
+        if (BOARD.touch.resetExpanderAddress != 0) {
+            Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+            BoardExpander::driveTouchReset(false);
+        }
+#endif
     }
 #else
     configureResistiveTouchPins();
@@ -152,7 +167,27 @@ void Board::begin() {
     if (BOARD.touch.reset != PIN_NONE) {
         digitalWrite(BOARD.touch.reset, HIGH);
     }
+#if GUME_HAS_IO_EXPANDER
+    if (BOARD.touch.resetExpanderAddress != 0) {
+        BoardExpander::driveTouchReset(true);       // the bus is already up
+    } else {
+        Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }
+    if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
+        BoardExpander::allInputs(BOARD.keys.keyExpander);
+    }
+    /* After the reset is released, because that writes the whole bank; this
+     * then touches only the LED's own bits. */
+    if (BOARD.rgb.expander != 0) {
+        BoardExpander::setupLed();
+        setRgb(false, false, false);
+    }
+#else
     Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+#endif
+    if (BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();                      // the gauge's bus is up now
+    }
 #endif
 
     prefs_.begin("cydkids", false);
@@ -162,6 +197,12 @@ void Board::begin() {
     loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
+    /* What is clipped on: the profile says where each module could be, and
+     * this decides whether it is there (hal/modules/Modules.h). Before audio
+     * as well as before the SD slot: on Media I/O the GPS's line is the
+     * amplifier's bit clock, and the LoRa/GPS probe listens to it. Nothing on
+     * a board without modules. */
+    Modules::probeAll();
     beginAudio();
 #if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
     /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
@@ -188,6 +229,14 @@ bool Board::sdReady() const {
 
 bool Board::mountSd() {
     if (!BOARD.hasSdSlot()) {
+        sdMounted_ = false;
+        return false;
+    }
+    /* On a board with modules, the slot is used only if the module wearing
+     * its lines provides it; the table has already said which module that
+     * is. Driving somebody else's lines as an SD card is what it prevents.
+     * A constant true on every other board. */
+    if (!Modules::allows(ModuleCapability::Storage)) {
         sdMounted_ = false;
         return false;
     }

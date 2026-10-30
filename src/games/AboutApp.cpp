@@ -9,6 +9,7 @@
 
 #include "AboutApp.h"
 #include "AppVersion.h"
+#include "FirmwareLine.h"
 #include "BuildStamp.h"
 #include "UpdateChannel.h"
 #include "engine/AppRegistry.h"
@@ -35,7 +36,11 @@ constexpr uint8_t PAGE_FIRST_GAME = 1;
  * hardware: ask the profile rather than typing in what this board has. */
 constexpr uint8_t CONTROLS_PAGES = BOARD.hasBootButton() ? 1 : 0;
 constexpr uint8_t PAGE_CONTROLS = PAGE_FIRST_GAME + GAME_PAGES;
-constexpr uint8_t PAGE_RADIOS = PAGE_CONTROLS + CONTROLS_PAGES;
+/* The modules page likewise exists only on a board that takes plug-in
+ * modules, and what it lists is the module table, read at render time. */
+constexpr uint8_t MODULE_PAGES = GUME_HAS_ATTAKY_MODULES ? 1 : 0;
+constexpr uint8_t PAGE_MODULES = PAGE_CONTROLS + CONTROLS_PAGES;
+constexpr uint8_t PAGE_RADIOS = PAGE_MODULES + MODULE_PAGES;
 /* And then what the radio LEAVES BEHIND, which is the question the radio page
  * raises and does not answer: the network password is kept on the device. It
  * is two pages because it is two things -- what is true, and what the owner is
@@ -141,7 +146,7 @@ void AboutApp::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 84, String("Educational games for the ") + BOARD_NAME + ".", 1);
     drawLine(tft, 98, "Copyright 2026.", 1);
     tft.setTextColor(Ui::text(), Ui::surface());
-    drawLine(tft, 116, String("Version ") + BRAINO_VERSION, 2);
+    drawLine(tft, 116, String("Version ") + FIRMWARE_VERSION, 2);
     drawLine(tft, 140, String(playableAppCount()) + " games built in", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     /* The last three sit clear of the panel's bottom edge, which is at
@@ -352,7 +357,7 @@ void AboutApp::renderBuild(Ui::Renderer& tft) {
 /* What is installed, what the last check saw, and where a person goes to do
  * something about it.
  *
- * Everything here is read from the device: BRAINO_VERSION for the installed
+ * Everything here is read from the device: FIRMWARE_VERSION for the installed
  * build, the stored result of the last check for the available one, and
  * BRAINO_UPDATE_PAGE_URL -- compiled in -- for the address. The manifest has no
  * field for that address and must never be given one; a response that could
@@ -373,7 +378,7 @@ void AboutApp::renderUpdates(Ui::Renderer& tft, Board& board) {
     tft.setTextColor(Ui::text(), Ui::surface());
     drawLine(tft, 94, "Installed", 1);
     tft.setTextColor(Ui::muted(), Ui::surface());
-    drawLine(tft, 108, BRAINO_VERSION, 2);
+    drawLine(tft, 108, FIRMWARE_VERSION, 2);
 
     tft.setTextColor(Ui::text(), Ui::surface());
     drawLine(tft, 132, "Latest available", 1);
@@ -419,6 +424,8 @@ void AboutApp::render(GameHost& host) {
      * and would otherwise swallow this one. */
     } else if (CONTROLS_PAGES != 0 && page_ == PAGE_CONTROLS) {
         renderControls(tft);
+    } else if (MODULE_PAGES != 0 && page_ == PAGE_MODULES) {
+        renderModules(tft);
     } else if (page_ < PAGE_RADIOS) {
         renderGames(tft, w);
     } else if (page_ == PAGE_RADIOS) {

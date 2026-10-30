@@ -44,6 +44,10 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW);
  * the header and pager correctly reached the edges. A default of 320/240 here
  * would be that same literal, just hidden where nobody would look for it. */
 Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH);
+/* The space between tiles, and between the outer tiles and the panel edge.
+ * Named because the key-focus ring is drawn in it and has to be proved to
+ * fit there; see LauncherApp's focus ring. */
+constexpr int16_t TILE_GAP = 8;
 
 /* How many columns and rows of tiles the launcher shows. One answer, read by
  * tileRect(), pageSize() and the tile colouring, so the grid that is drawn,

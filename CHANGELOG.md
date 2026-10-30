@@ -10,6 +10,23 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The Attaky Core is ported, on its own release line, and not published.**
+Its entries are under `attaky-1.0.0` below, because that build is tagged
+`attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. The
+installer does not list it and its tags make draft releases; `tools/envs.py`
+`PUBLISHED_LINES` is the switch, and only `braino` is on it. Four
+things in that work change every board's tree: each CI build of a product
+environment is packed and attached to its run for 30 days, so a tester can
+flash a pull request's build; a board with no audio path compiles again
+(three `using namespace audio;` directives sat outside their guard); the
+launcher, Wi-Fi, Profiles, `Board.cpp` and the runtime loop were each split
+into smaller files past the size CLAUDE.md allows; and no document states
+how many environments there are any more, because two branches adding a
+board each changed that number the same way and git merged the two edits
+silently. None of the Attaky code is in these images: the only cost to them
+is a few hundred bytes of flash from the file splits, and their RAM is
+unchanged.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was
@@ -71,6 +88,141 @@ beside the four buttons asking for it; the circle now carries only its shading.
 And in both multiple-choice rounds a wrong tap flashed the *correct* button --
 in red, so it told the answer and mislabelled it at once. The button that was
 pressed is the one that flashes now.
+
+## attaky-1.0.0-SNAPSHOT — Unreleased
+
+Braino! for Attaky: the same console on Attaky's modular handhelds, released
+on its own line. `ATTAKY_VERSION` is what these images report and
+`attaky-v<version>` is the tag that builds them; the Braino code each one
+is built from is on System Info and the `[boot]` line. Nothing here has run
+on a device yet, and nothing here is published: the tag makes a draft
+release and the web installer does not list the board.
+
+**A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
+run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8
+module as the Freenove board) with a 2.0-inch ST7789 at 240x320 and an FT6636
+capacitive touch controller, so Braino's four hard requirements are met as
+they stand. The profile, `include/boards/attaky-core.h`, was written from
+Attaky's published datasheets and hardware catalog before a device was
+available here, and every pin agrees with the two firmwares Attaky ship for
+it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
+has to confirm. Touch, the display and the SD slot are wired.
+
+**One firmware for every Attaky build: what is clipped on is found at boot.**
+Every Attaky module this firmware knows -- the keyboard, the gamepad, the
+Power module's fuel gauge, and each Expand module (Media I/O, LoRa/GPS,
+FM/AM) -- is now one entry in a module table (`src/hal/modules/`), with a
+name, a boot-time probe and what it gives the console. The board profile says
+where each module could be; boot decides whether it is there, and nothing a
+module gives is used unless its probe found it. The keyboard, gauge and
+Expand checks moved behind the table and behave as they did -- the same
+probes, the same `[keyboard]`, `[battery]` and `[expand]` log lines -- and a
+module Attaky adds later is one driver file plus its addresses in the profile,
+with nothing else changed. **System Info -> Board** and a new **About ->
+Modules** page list every module and whether it was found, read from the
+table. Not yet run on a device.
+
+**The Attaky Core reads its gamepad.** Its D-pad, A and B join the Core's own
+D-pad as navigation keys -- A is Enter, B is Back -- so they move the
+launcher's ring, repeat when held and turn with the screen exactly as the
+Core's keys do. One register a half per frame, from the two TCA9555s at 0x22
+and 0x26, and only when the module answered at boot. Not yet run on a device.
+
+**No Attaky code in any other image.** The key routing, the keyboard and
+gamepad, the expander LED, the fuel gauge and the module table are behind
+board-header macros defined only for the Attaky Core, so the other five
+product images carry none of it: no symbol of it in their ELF, and their RAM
+is back to `dev`'s figure.
+
+**The Attaky Core's battery badge reads its fuel gauge.** It has no divider:
+the Power: Standard Cell module reports the cell through a MAX17048 on the
+touch bus. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
+board), and on a board that names one the battery task reads the gauge's
+cell voltage and state of charge instead of the ADC, and shows the state of
+charge directly rather than through the LiPo curve -- with the same deadband
+and the same low and critical thresholds. A gauge that does not answer, which
+is what an unclipped power module looks like, is no reading: no badge and no
+warning, never an empty cell. The five ADC boards sample, filter and display
+exactly as before. Not yet run on a device.
+
+One thing about it was new to the board contract. Its touch reset is a port
+on an AW9523 I2C expander rather than a GPIO, so `TouchProfile` gained
+`resetExpanderAddress` and `resetExpanderPort`, every board fills them in,
+and `Board::begin()` drives the reset through the expander with the same
+hold-then-release a GPIO reset gets. Every CI build of a product environment
+is now also packed as a release would be and attached to its run for 30
+days, so someone holding a board nobody here has can flash the build its
+pull request was checked against.
+
+**The Attaky Core's D-pad drives the launcher.** On a board with navigation
+keys, the D-pad moves a focus ring across the tiles in reading order, turning
+the page at either end; Enter opens the tile, and Back puts the ring away, or
+goes Home from any other screen as BOOT does. The ring stays hidden until the
+first key, so nothing changes for anyone who only touches, and a touch hides
+it again. It is drawn in the gap round a tile, so moving it never repaints a
+tile. The keys come through a new `KeysProfile` and `Board::pollNavKey()`,
+which turns each direction for the current screen rotation the way touch
+already is; boards without keys compile the key paths away. Not yet run on a
+device.
+
+**The Attaky Core makes sound -- not yet heard.** Its Media I/O module has an
+NS4168 class-D amplifier that decodes I2S itself, with no codec, no MCLK and no
+enable line, which neither audio backend could drive. A third,
+`GUME_HAS_AUDIO_I2S`, is the codec path with the codec taken out: the same
+synthesiser, the same `braino-audio` task and the same `generateBlock()`, into
+standard 16-bit I2S on BCLK IO17, word select IO21 and data IO18 at 16 kHz,
+with volume applied as a linear multiplier in software as the built-in DAC
+does. The volume ceiling is a cautious 50% until it has been set by ear on
+the device. `GUME_HAS_AUDIO` now answers "does this board have sound?" in one
+place, and `BoardConfig.h` refuses a board that states two backends.
+
+**A clip-on keyboard types into the text fields.** On a board that can carry
+one -- the Attaky Core, with Attaky's keyboard module -- a player's name, a
+Nearby peer's name, both admin PIN pads and the Wi-Fi password take typing,
+with Delete and Enter as DEL and OK. The name fields accept what their
+on-screen keypad offers, capitals, digits and spaces; the password takes
+exactly what is typed. The on-screen keypad stays everywhere: the module
+clips off, so the firmware probes for it at boot. The keyboard is read in
+the loop at one register a half while nobody types. Boards without one carry
+400 bytes for it. Not yet run on a device. The Wi-Fi and Profiles screens
+were each split into two files first, past the size CLAUDE.md allows.
+
+**The Attaky Core's power key locks it.** A short press of the power key
+does what the on-screen Lock button does: the panel goes dark and wakes to
+Hold to unlock. It is read beside the D-pad, from P0_7 of the same expander,
+through a new `KeysProfile::keyPower`, and follows BOOT's rules -- it wakes
+the panel and stops the saver like any key, does nothing on the lock screen,
+and reaches nothing touch cannot. The long press is Attaky's hardware power
+switch and is left alone. Not yet run on a device.
+
+**The Attaky Core's status LED lights.** The LED is on the same AW9523 as
+the keys (red P1_0, green P1_1, blue P1_2, common anode), so `RgbLedProfile`
+gained `expander`: 0 for an LED on GPIOs, as every other board has, or the
+expander's address, in which case `r`/`g`/`b` are its ports. It is driven in
+the expander's GPIO mode, each channel on or off, so a colour shows as the
+channels at least half as bright as its brightest; the `beepOk()`/
+`beepError()` pulses and the saver's rally colour work as on the other
+boards. The driver reads, modifies and writes only those three bits, and
+`BoardConfig.h` refuses an LED port that is the touch reset, which sits
+beside them on P1_3. The bus is written only when the colour changes. Not
+yet run on a device.
+
+**The Attaky Core leaves the SD slot and the speaker alone if another module
+owns their lines.** Three of Attaky's Expand modules share IO5-8, and this build is for
+Media I/O, so on a Core wearing the LoRa/GPS or FM/AM module the SD slot's
+bring-up would clock someone else's chip. Before the slot -- and before
+audio -- the firmware now looks for both, without driving anything they own,
+as Attaky's module-detection guide sets out: the FM/AM tuner answers at 0x64
+on that module's own I2C bus, and the GPS sends checksummed NMEA on IO17
+unasked, which is listened to for 1.5 s with the pin an input. Finding either,
+or being unable to ask, skips the SD slot and the I2S amplifier for the boot
+-- the amplifier's IO17/IO18/IO21 are the GPS UART and LoRa interrupt on one
+module and the tuner's I2S on the other -- and logs `[expand] module=...
+sd=skipped audio=skipped`, so the firmware runs on Attaky's LoRa and radio
+builds of the Core, silent and without SD. Media I/O cannot be recognised, so
+finding neither brings both up as before. A new `ExpandProbeProfile` says what to look
+for; every other board fills it with nothing and pays nothing. It adds 1.5 s
+to the Core's boot. Not yet run on a device.
 
 ## 5.12.3 — 2026-09-15
 

@@ -93,44 +93,62 @@ void SettingsApp::deletePinDigit() {
 /* One pad, three jobs: unlock, enter a new PIN, confirm it. Keeping the hit
  * testing in a single place is what stops the renderer and the handler
  * disagreeing about which cell is which. */
-bool SettingsApp::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
+/* OK, from the pad or from a keyboard's Enter. */
+void SettingsApp::confirmPin(GameHost& host) {
     Board& board = host.board();
+    if (enteredPinDigits_ != PIN_LENGTH) {
+        host.beepError();          // partial entry: nothing to judge yet
+        return;
+    }
+    const uint16_t value = enteredPin_;
+    enteredPin_ = 0;
+    enteredPinDigits_ = 0;
+
+    switch (pinTask_) {
+        case PinTask::None:
+            break;      // pad is not in use
+        case PinTask::SetNew:
+            pendingPin_ = value;
+            pinTask_ = PinTask::ConfirmNew;
+            host.beepOk();
+            break;
+        case PinTask::ConfirmNew:
+            /* Only commit when both entries agree -- a mistyped new PIN
+             * that is stored anyway locks the owner out of their own
+             * device, and there is no recovery path short of a factory
+             * reset. */
+            if (value == pendingPin_) {
+                board.setAdminPin(value);
+                host.beepOk();
+            } else {
+                host.beepError();
+            }
+            pendingPin_ = 0;
+            pinTask_ = PinTask::None;
+            break;
+    }
+    markFullDirty();
+    return;
+}
+
+/* A digit types a digit, Delete and Enter are DEL and OK; any other key
+ * is not on this pad and does nothing. */
+void SettingsApp::typePinChar(GameHost& host, char typed) {
+    if (typed >= '0' && typed <= '9') {
+        appendPinDigit(static_cast<uint8_t>(typed - '0'));
+    } else if (typed == '\b') {
+        deletePinDigit();
+    } else if (typed == '\n') {
+        confirmPin(host);
+    }
+}
+
+bool SettingsApp::handlePinPadTouch(GameHost& host, const TouchPoint& touch) {
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
 
     if (pinConfirmRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        if (enteredPinDigits_ != PIN_LENGTH) {
-            host.beepError();          // partial entry: nothing to judge yet
-            return true;
-        }
-        const uint16_t value = enteredPin_;
-        enteredPin_ = 0;
-        enteredPinDigits_ = 0;
-
-        switch (pinTask_) {
-            case PinTask::None:
-                break;      // pad is not in use
-            case PinTask::SetNew:
-                pendingPin_ = value;
-                pinTask_ = PinTask::ConfirmNew;
-                host.beepOk();
-                break;
-            case PinTask::ConfirmNew:
-                /* Only commit when both entries agree -- a mistyped new PIN
-                 * that is stored anyway locks the owner out of their own
-                 * device, and there is no recovery path short of a factory
-                 * reset. */
-                if (value == pendingPin_) {
-                    board.setAdminPin(value);
-                    host.beepOk();
-                } else {
-                    host.beepError();
-                }
-                pendingPin_ = 0;
-                pinTask_ = PinTask::None;
-                break;
-        }
-        markFullDirty();
+        confirmPin(host);
         return true;
     }
 

@@ -113,6 +113,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ PIN_NONE,
         /* scl                */ PIN_NONE,
         /* reset              */ PIN_NONE,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0,
         /* i2cHz              */ 0,
         /* pressureThreshold  */ 350,
@@ -126,6 +128,39 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padUp            */ PIN_NONE,
+        /* padDown          */ PIN_NONE,
+        /* padLeft          */ PIN_NONE,
+        /* padRight         */ PIN_NONE,
+        /* padA             */ PIN_NONE,
+        /* padB             */ PIN_NONE,
+    },
+
     /* Vendor-documented: the MicroSD slot shares its bus with the SPI
      * peripheral header, which is why IO18/19/23 appear in both places in the
      * pin table. Only the card select is the slot's alone. */
@@ -135,6 +170,15 @@ inline constexpr BoardProfile BOARD = {
         /* miso  */ 19,
         /* sclk  */ 18,
         /* spiHz */ 16000000,
+    },
+
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
     },
 
     /* Vendor pin table: IO22 red, IO16 green, IO17 blue, common anode (low
@@ -153,6 +197,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* Vendor-documented: IO26 is "Audio signal DAC output" and IO4 is "Audio
@@ -198,6 +243,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 34,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 4 MB part, partitioned huge_app.csv: 3 MB for the app. */

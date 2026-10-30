@@ -101,6 +101,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ PIN_NONE,
         /* scl                */ PIN_NONE,
         /* reset              */ PIN_NONE,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0,
         /* i2cHz              */ 0,
         /* pressureThreshold  */ 350,
@@ -117,6 +119,39 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padUp            */ PIN_NONE,
+        /* padDown          */ PIN_NONE,
+        /* padLeft          */ PIN_NONE,
+        /* padRight         */ PIN_NONE,
+        /* padA             */ PIN_NONE,
+        /* padB             */ PIN_NONE,
+    },
+
     /* Not characterised on this board. See the header comment. */
     SdProfile{
         /* cs    */ PIN_NONE,
@@ -124,6 +159,15 @@ inline constexpr BoardProfile BOARD = {
         /* miso  */ PIN_NONE,
         /* sclk  */ PIN_NONE,
         /* spiHz */ 0,
+    },
+
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
     },
 
     /* Red and blue are inherited from the E32R28T-1 and are still unverified
@@ -151,6 +195,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* Vendor-documented, not inferred. The LCDWIKI schematic for this board
@@ -199,6 +244,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 34,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 4 MB part, partitioned huge_app.csv: 3 MB for the app. */

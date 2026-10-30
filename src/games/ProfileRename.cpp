@@ -24,7 +24,6 @@ Rect ProfileApp::renameCancelRect(int16_t screenW, int16_t screenH) const {
 }
 
 void ProfileApp::updateRename(GameHost& host, const TouchPoint& touch) {
-    Board& board = host.board();
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
 
@@ -46,6 +45,12 @@ void ProfileApp::updateRename(GameHost& host, const TouchPoint& touch) {
     if (ch == 0) {
         return;
     }
+    applyRenameKey(host, ch);
+}
+
+/* One key of the name field, from the keypad or a keyboard. */
+void ProfileApp::applyRenameKey(GameHost& host, char ch) {
+    Board& board = host.board();
     if (ch == Ui::Keypad::BACKSPACE) {
         if (draft_.length() > 0) draft_.remove(draft_.length() - 1);
     } else if (ch == Ui::Keypad::ACCEPT) {
@@ -66,6 +71,15 @@ void ProfileApp::updateRename(GameHost& host, const TouchPoint& touch) {
         draft_ += ch;
     }
     markDirty();
+}
+
+/* A keyboard's character, as the keypad key it presses -- so the field
+ * takes capitals, digits and spaces from either, and nothing else. */
+void ProfileApp::typeRenameChar(GameHost& host, char typed) {
+    const char ch = Ui::Keypad::fromTyped(typed);
+    if (ch != 0) {
+        applyRenameKey(host, ch);
+    }
 }
 
 void ProfileApp::renderRename(GameHost& host) {

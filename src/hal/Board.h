@@ -15,6 +15,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "hal/NavKeys.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 
@@ -163,6 +164,22 @@ public:
     };
     ButtonEvent pollBootButton();
 
+#if GUME_HAS_NAV_KEYS
+    /* This frame's navigation key, in screen directions, or None: the board's
+     * own D-pad and any clipped-on module's, as one stream. Called once per
+     * frame by the runtime, beside pollBootButton(). Only on a board with
+     * GUME_HAS_NAV_KEYS; no other image has it. See hal/BoardKeys.cpp. */
+    NavKey pollNavKey();
+#endif
+
+#if GUME_HAS_KEYBOARD
+    /* This frame's typed character from an attached keyboard, or 0: a
+     * printable ASCII character, '\b' for Delete or '\n' for Enter. Always 0
+     * with the module unclipped. Only on a board with GUME_HAS_KEYBOARD. See
+     * hal/modules/KeyboardModule.cpp. */
+    char pollTypedChar();
+#endif
+
     void beepOk();
     void beepError();
 
@@ -231,10 +248,11 @@ public:
      * could not, and a settings screen has to say which of the two it is
      * looking at rather than offering controls that do nothing.
      *
-     * Covers both the codec (GUME_HAS_AUDIO_CODEC) and the built-in DAC
-     * (GUME_HAS_AUDIO_DAC) backends. */
+     * Covers all three backends -- the codec (GUME_HAS_AUDIO_CODEC), the
+     * built-in DAC (GUME_HAS_AUDIO_DAC) and a bare I2S amplifier
+     * (GUME_HAS_AUDIO_I2S) -- through GUME_HAS_AUDIO in BoardConfig.h. */
     static constexpr bool hasSound() {
-        return GUME_HAS_AUDIO_CODEC != 0 || GUME_HAS_AUDIO_DAC != 0;
+        return GUME_HAS_AUDIO != 0;
     }
 
     /* Feeds queued audio to the I2S DMA without blocking. Called once per
@@ -513,9 +531,10 @@ public:
 
     void setRgb(bool red, bool green, bool blue);
 
-    /* RGB backlight LED (GPIO 4/16/17, common anode so the drive is inverted).
-     * Driven by LEDC PWM for full-brightness colour mixing -- bright enough to
-     * light a translucent case. setRgbColor() holds a colour; pulseRgb() shows
+    /* The RGB case LED, wherever BOARD.rgb puts it. On GPIOs it is driven by
+     * LEDC PWM for full-brightness colour mixing -- bright enough to light a
+     * translucent case; on an I2C expander each channel is on or off, and
+     * only a change of colour reaches the bus. setRgbColor() holds a colour; pulseRgb() shows
      * one for a moment and then fades out via tickRgb(), which the main loop
      * calls every frame. */
     void setRgbColor(uint8_t r, uint8_t g, uint8_t b);
@@ -618,6 +637,13 @@ private:
     TouchPoint lastTouch_;
     /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
     bool bootButtonDown_ = false;
+#if GUME_HAS_NAV_KEYS
+    /* Navigation keys: which were down last frame (one bit per NavKey), and
+     * the held direction's next auto-repeat, for pollNavKey(). */
+    uint8_t navDown_ = 0;
+    NavKey navHeld_ = NavKey::None;
+    uint32_t navRepeatAtMs_ = 0;
+#endif
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
 
@@ -775,6 +801,14 @@ private:
 
     void beginBatteryMonitor();
     void sampleBattery();
+#if GUME_HAS_ATTAKY_MODULES
+    /* The battery module's path of sampleBattery(): whatever the module table
+     * reads, on a board whose profile names a fuel gauge. BoardModules.cpp. */
+    void sampleModuleBattery();
+#endif
+    /* The deadband both paths share: moves displayPct_ towards a fresh raw
+     * percentage only when it has genuinely moved. Battery task only. */
+    void settleDisplayPercent(int8_t raw);
     BatteryPublic batterySnapshot();
     static void batteryTask(void* arg);
 
@@ -800,6 +834,12 @@ private:
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;
+#if GUME_HAS_IO_EXPANDER
+    /* What an expander LED was last driven to, one bit a channel; 0xFF until
+     * the first write, so that one is never skipped. */
+    uint8_t rgbExpanderBits_ = 0xFF;
+    void driveExpanderRgb(bool red, bool green, bool blue);
+#endif
     uint32_t lastTimeSyncMs_ = 0;
     time_t lastTimeSyncEpoch_ = 0;
     static constexpr uint8_t NETWORK_ACTIVITY_CAP = 8;

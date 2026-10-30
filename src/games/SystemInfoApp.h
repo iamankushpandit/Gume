@@ -50,6 +50,13 @@ private:
     void drawTabStrip(Ui::Renderer& tft, int16_t screenW);
     void drawContent(GameHost& host);
     void buildBoardRows(GameHost& host);
+    /* The Board tab's Module section, read from the module table
+     * (SystemInfoModules.cpp). Nothing on a board without one. */
+#if GUME_HAS_ATTAKY_MODULES
+    void addModuleRows();
+#else
+    void addModuleRows() {}
+#endif
     void buildMemoryRows(GameHost& host);
     void buildNetworkRows(GameHost& host);
     void buildBleRows(GameHost& host);
