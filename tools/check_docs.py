@@ -317,17 +317,20 @@ def check_site(problems):
     """
     template = read("site", "index.template.html")
     featured_template = read("site", "featured.template.html")
+    experimental_template = read("site", "experimental.template.html")
     generator = read("tools", "gen_site.py")
 
-    # Two templates share one generator. A placeholder the generator fills
+    # Three templates share one generator. A placeholder the generator fills
     # has to appear in at least one of them, or it is a value computed for
     # nobody; one that appears in a template without being filled is caught
     # at generation time, so this is the other half.
+    templates = (template, featured_template, experimental_template)
     for placeholder in sorted(set(re.findall(r'\("(\{\{[A-Z_]+\}\})"', generator))):
-        if placeholder not in template and placeholder not in featured_template:
-            fail(problems, "gen_site.py substitutes %s but neither site/"
-                           "index.template.html nor site/featured.template.html "
-                           "contains it" % placeholder)
+        if not any(placeholder in text for text in templates):
+            fail(problems, "gen_site.py substitutes %s but none of site/"
+                           "index.template.html, site/featured.template.html "
+                           "and site/experimental.template.html contains it"
+                           % placeholder)
 
     if re.search(r"\d+\.\d+\.\d+", template):
         fail(problems, "site/index.template.html hardcodes a version number -- "
@@ -391,6 +394,31 @@ def check_older_versions(problems):
         fail(problems, "gen_site.py no longer reads the cached release index -- "
                        "tools/fetch_release_firmware.py would download binaries "
                        "the site never publishes")
+
+    # The Experimental page has the same three pieces: the workflow that
+    # downloads each build from its CI run, the generator that publishes it,
+    # and the data file that says which. Dropping the download step leaves a
+    # page that generates and deploys with every card saying the image is
+    # absent -- for the one reader who came for it.
+    if "site/_experimental" not in workflow or "gh run download" not in workflow:
+        fail(problems, "the Pages workflow no longer downloads the experimental "
+                       "builds (gh run download into site/_experimental) -- the "
+                       "Experimental page would publish cards with no image")
+    if "actions: read" not in workflow:
+        fail(problems, "the Pages workflow lacks `actions: read`, which `gh run "
+                       "download` needs to fetch another run's artifact")
+    if "experimental_builds" not in generator:
+        fail(problems, "gen_site.py no longer reads site/experimental.json -- "
+                       "the Experimental page would be empty whatever it says")
+    captured = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(captured):
+            gen_site.validate_experimental()
+    except SystemExit:
+        message = captured.getvalue().strip() or "gen_site.py rejected site/experimental.json"
+        for line in message.splitlines():
+            fail(problems, line.replace("gen_site.py: ", "", 1) +
+                 " -- fix site/experimental.json, or the Pages build fails on main")
 
 
 def check_site_screens(problems):
