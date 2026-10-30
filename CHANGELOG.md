@@ -6,6 +6,28 @@ In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
 `release.yml` refuses to publish a tag whose version carries it.
 
+**Sign ABC: the American Sign Language hand alphabet.** A new game, the 41st,
+and a course rather than a quiz, because most players will never have seen a
+sign: a quiz about something nobody has shown you is a test, not a lesson.
+Seven lessons of four letters (Y-Z is two), in alphabetical order. Each first
+teaches its new hands one at a time, big, beside the letter, then asks six
+questions -- a hand, which letter? and a letter, which hand? -- with two from
+earlier lessons from the second lesson on. Five right opens the next lesson;
+fewer offers the cards again or another try. Practice, open after the first
+lesson, quizzes every letter learnt so far without end. The hands are line
+art in the theme's own ink, and J and Z -- the two letters signed by moving
+the hand -- carry the motion as an arrow and say so in words. Wrong answers
+are only ever hands the player has been taught, and more often the ones that
+look alike (the six fists A E M N S T, the raised fingers of K R U V, the
+sideways pointers G H P Q, and C/O, D/Z, I/J) as mastery grows; the letters a
+player misses come back sooner, through the same spaced repetition the flag
+games use. Lesson progress is kept per player. The artwork is WPClipart's public-domain set,
+added to the map-n-flag library as `mnf_sign()`; it costs about 52 KB of
+flash. `Ui::drawCountryImageTintedScaled()` is new, for drawing a recoloured
+image at 2x, and the launcher icons' shared helpers moved to
+`LauncherIconArt.cpp` so `LauncherIcons.cpp` stays under the size the
+modularity rule allows.
+
 `Board::compareVersions()` sorts a pre-release before the release of the same
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.

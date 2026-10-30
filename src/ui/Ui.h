@@ -268,6 +268,11 @@ bool drawCountryImageTinted(Ui::Renderer& tft, const void* img, const Rect& r,
 bool drawCountryImageScaled(Ui::Renderer& tft, const void* img, const Rect& r,
                             uint16_t bgColor, uint8_t scale);
 
+/** drawCountryImageScaled() for an alpha-ramp image, painted in `inkColor`
+ *  the way drawCountryImageTinted() paints one at native size. */
+bool drawCountryImageTintedScaled(Ui::Renderer& tft, const void* img, const Rect& r,
+                                  uint16_t bgColor, uint16_t inkColor, uint8_t scale);
+
 /* The display themes.
  *
  * Order is storage: the value is persisted as a uint8_t and Board::ThemeMode
