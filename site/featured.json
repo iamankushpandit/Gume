@@ -214,6 +214,21 @@
       "sha256": "5fdadd78f270ca3f6fa3fa9d86365601d7f60c74eda527bc6401a2657454f074",
       "width": 1024,
       "height": 880
+    },
+    {
+      "id": "bilibili",
+      "outlet": "Bilibili",
+      "title": "ESP32 开发板刷入 31 款益智游戏！开源 Braino 固件网页一键烧录 - Hacktuber",
+      "title_en": "An ESP32 board flashed with 31 educational games: open-source Braino firmware, one-click web flashing",
+      "byline": "稻草人阿尔",
+      "url": "https://www.bilibili.com/video/BV1QCYx6yEc3/",
+      "published": "2026-09-09",
+      "archive": "https://web.archive.org/web/20261030190653/https://www.bilibili.com/en/video/BV1QCYx6yEc3/",
+      "screenshot": "bilibili.jpg",
+      "captured": "2026-10-30T19:06:42Z",
+      "sha256": "3e1e322ccde77f8cf384c6d5e7c5b1da06676b0a6946d0e4284a6f95d554e2fe",
+      "width": 1024,
+      "height": 880
     }
   ]
 }
