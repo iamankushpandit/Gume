@@ -101,7 +101,22 @@ STYLES = {
     ".py": HASH, ".yml": HASH, ".yaml": HASH, ".sh": HASH,
     ".ini": SEMI,
     ".html": XML, ".svg": XML,
+    ".cmake": HASH,
 }
+
+# Files whose comment syntax is set by their NAME, not their extension.
+# CMakeLists.txt is CMake, but ".txt" in general has no comment syntax at all,
+# so it cannot go in STYLES -- and leaving it out entirely would exempt the
+# host build's top-level script by accident rather than by decision.
+NAMED_STYLES = {"CMakeLists.txt": ".cmake"}
+
+
+def style_ext(path):
+    """The STYLES key for `path`: its extension, unless its name decides."""
+    name = os.path.basename(path)
+    if name in NAMED_STYLES:
+        return NAMED_STYLES[name]
+    return os.path.splitext(path)[1].lower()
 
 # Handled by a footer rather than a header: a comment block before the first
 # heading pushes the title down in some renderers, and YAML frontmatter has to
@@ -190,7 +205,7 @@ def classify(path):
     """Return 'header', 'markdown' or None (exempt)."""
     if path in EXEMPT_PATHS:
         return None
-    ext = os.path.splitext(path)[1].lower()
+    ext = style_ext(path)
     if ext in EXEMPT_EXTS:
         return None
     if ext in MARKDOWN:
@@ -260,7 +275,7 @@ def main():
         if not args.fix:
             missing.append(rel)
             continue
-        ext = os.path.splitext(rel)[1].lower()
+        ext = style_ext(rel)
         new = fix_markdown(text) if kind == "markdown" else fix_header(text, ext)
         with open(full, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(new)

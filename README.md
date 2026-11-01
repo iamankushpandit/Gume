@@ -1158,6 +1158,35 @@ network's name or its password. Changing settings over the cable needs the
 admin PIN, the same one the device asks for on screen. Nothing about this
 involves a radio.
 
+### The PC build
+
+The [desktop version](#run-it-on-a-pc) makes the same three requests a board
+makes over Wi-Fi: the clock sync, the one timezone lookup and the daily update
+check. They come from the same code, and only once a network has been joined
+from its Wi-Fi screen. It adds no request of its own, and sends nothing in
+them that a board would not. Its Bluetooth beacon is a board's opt-in beacon,
+built by the same code and off until it is switched on in Settings; it
+advertises from a random address the device made up, never the chip's own. On
+the RG40XXV, Braino also switches off muOS's own network services -- its web
+dashboard, file sharing, remote login and its time service -- so the console
+as a whole sends only what a board sends. On a desktop with NetworkManager,
+joining a network from that screen saves it in the computer's own network
+settings, exactly as joining from the system's Wi-Fi menu would. Profiles and
+scores are kept in a file on that computer, the same way a board keeps them in
+its own flash.
+
+On the RG40XXV that file is on the microSD card, which any laptop can read, so
+the Wi-Fi network's name and password and the admin PIN are **encrypted**
+before they are written to it. The key is derived from the console's own
+processor serial, read each time Braino starts and never written down, so the
+card read on a computer, or moved to another console, shows only scrambled
+bytes. The network is not saved in muOS's own Wi-Fi settings either, and a
+copy an older build left there is removed. What this does not stop is someone
+with the whole console who knows where to look: the code is open, so they can
+derive the same key -- about the same effort as reading a board's flash. If
+the processor serial cannot be read, the console does not fall back to
+writing the password readably; it asks for it again after a restart.
+
 ### The update check
 
 Once a day, a console with Wi-Fi configured downloads one small file listing the
@@ -1359,6 +1388,39 @@ if the page references an asset that is missing, or if an asset in the tree is
 referenced by nothing -- a broken image on the landing page and dead weight in
 every clone are both worth failing a build over.
 
+### Run it on a PC
+
+The same firmware also builds as a desktop program, in Linux or WSL, with no
+board attached:
+
+```bash
+sudo apt install build-essential cmake pkg-config libsdl2-dev libcurl4-openssl-dev
+cmake -S host -B build/host -DCMAKE_BUILD_TYPE=Release
+cmake --build build/host -j
+./build/host/braino
+```
+
+All 40 games, the launcher and every system screen run from the same code as
+on a board. The mouse is a finger on the glass. With a gamepad or the arrow
+keys, a cursor moves and A or Enter presses. B or Escape goes Home, and X and
+Y (PageUp, PageDown) turn the launcher's pages. Settings
+and scores are kept in `~/.local/share/braino` on that computer. Wi-Fi is the
+computer's own radio: the Wi-Fi screen scans and joins through the system's
+network manager (NetworkManager or wpa_supplicant), so the clock, the
+timezone lookup and the update check behave as they do on a board. Nearby
+play works over Bluetooth wherever Linux has a Bluetooth controller; see
+[the PC build](#the-pc-build) under Privacy.
+
+The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
+it turns the console into a Braino appliance: it boots straight into Braino
+behind a Braino splash, and the D-pad and stick drive a cursor, with A as the
+tap, X and Y turning pages, and a list scrolling when the cursor is pushed
+against its end. When Braino sleeps it switches the console's backlight off,
+and any button wakes it. The light ring around the sticks doubles as a battery
+gauge, red through orange to green, shown while the charger is in and for a few
+seconds after it comes out or a stick is pushed. [host/CLAUDE.md](host/CLAUDE.md) explains how it works, how to put it on
+a card, and what differs from a board.
+
 ### Diagnostics
 
 Fourteen environments in `platformio.ini` are hardware probes rather than the
@@ -1521,6 +1583,16 @@ src/
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
+host/
+  CMakeLists.txt        builds src/ unchanged as a desktop program (SDL2)
+  boards/host.h         the virtual board: every pin answered by host/src
+  shim/                 Arduino, TFT_eSPI, Preferences, FreeRTOS, Wi-Fi...
+                        -- only what src/ calls
+  src/                  window, input, NVS file, audio, emulated touch,
+                        Wi-Fi through the system's network manager, the
+                        boot splash
+  cmake/                the aarch64 cross toolchain, the build stamp
+  muos/                 the RG40XXV launcher and the card packer
 tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_elements.py       regenerates the 118-element table, checking it

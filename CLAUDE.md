@@ -483,6 +483,50 @@ would otherwise say "HEAD". A tree with no `.git` at all -- a source tarball --
 is a supported way to build, and stamps "unknown" rather than inventing
 something plausible.
 
+### The host build: the same firmware, on a PC
+
+`host/` compiles `src/` unchanged into a desktop program with SDL2, in Linux
+or WSL (`cmake -S host -B build/host && cmake --build build/host -j`). It is
+the road to Linux handhelds such as the Anbernic RG40XXV, and it is already
+the quickest way to see a real screen without a board. `host/CLAUDE.md` is
+the guide. Three things about it are load-bearing:
+
+- **`host/` adapts to `src/`, never the reverse.** There is no host `#ifdef`
+  under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
+  answered by `host/src/`. It is deliberately outside `include/boards/`,
+  because a header there is a claim of support. Only the hardware watchdog and
+  the codec/DAC backend are replaced, and `CMakeLists.txt` names them; the
+  radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
+  through `host/shim/NimBLEDevice.h` on a raw HCI socket).
+- **A new platform call in `src/` breaks the host build until `host/shim/`
+  answers it.** The shims hold only what `src/` calls. CI does not build the
+  host yet, so check it yourself when you reach for a new Arduino or ESP-IDF
+  API.
+- **The host's network is the firmware's, and nothing more.** Wi-Fi is the
+  computer's own radio, driven through NetworkManager or wpa_supplicant
+  (`host/src/HostWifiOs.cpp`), and UDP and HTTP are real sockets. But the
+  shims only answer: every packet that leaves is one the firmware's own code
+  chose to send, behind its own `WL_CONNECTED` checks, so the closed list of
+  outbound flows holds for this program unchanged. A shim must never add a
+  request, a header or a field. `esp_read_mac()` returns random bytes rather
+  than the PC's MAC, and `WiFi.macAddress()` answers `--`.
+- **On a handheld the settings file is on a card any laptop reads, so the
+  Wi-Fi name and password and the admin PIN are sealed in it**
+  (`host/src/HostSecret.h`), with a key derived from the processor serial and
+  never stored. With no processor-bound key, a handheld build keeps the
+  network in memory rather than write it readably. muOS's
+  `wpa_supplicant.conf` is never given a copy. A new secret setting in `src/`
+  belongs in `SECRET_KEYS` in `host/src/HostNvs.cpp` in the same commit.
+- **Sleep must switch the real lamp off.** The backlight PWM is only a
+  brightness multiplier on the window here, so `host/src/HostScreenPower.cpp`
+  follows the panel's Sleep In and Sleep Out and switches the handheld's own
+  backlight. While the panel sleeps, any button press becomes a BOOT press
+  that wakes it and reaches nothing else.
+
+`BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
+replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,
+overdraw and partial-repaint mistakes.
+
 ### Build gotchas
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
@@ -1120,7 +1164,13 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 12. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
     `CLAUDE.md`. They are the two places that disagree.
 13. `python tools/check_docs.py` â€” must be clean.
-14. Flash it and actually play it. Take the board lock first.
+14. Build the host version and look at the new screen there --
+    `BRAINO_TAPS` walks to it, `BRAINO_SHOTS` photographs the firmware's own
+    frame. No board, no lock. A build failure means the game reached for a
+    platform call `host/shim/` does not answer yet: add the shim, never an
+    `#ifdef` in the game.
+15. Flash it and actually play it. Take the board lock first. The host build
+    is not the panel: colours, SPI time and touch feel are only true there.
 
 ### What you do NOT hand-edit
 
@@ -1329,6 +1379,13 @@ docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
                           tables and diagrams in it are generated)
 cases/                    printable enclosures, one folder per BOARD_NAME;
                           optional -- a board is supported without one
+host/                     src/ built unchanged as an SDL desktop program:
+                          boards/host.h (virtual pins), shim/ (only what
+                          src/ calls), src/ (window, input, NVS file with
+                          its secrets sealed, audio, the backlight,
+                          emulated FT6336U, Wi-Fi through the OS, boot
+                          splash), cmake/ (aarch64 toolchain), muos/ (the
+                          RG40XXV launcher and card packer)
 ```
 
 ## Cutting a release

@@ -10,6 +10,64 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Braino runs on a PC.** `host/` builds the firmware as a desktop program
+with SDL2, in Linux or WSL, with no edits to `src/`: the launcher, all 40 games
+and every system screen run from the same code as on a board. Small stand-ins
+for the ESP32 libraries replace the hardware. Touch reaches the firmware
+through an emulated FT6336U, so `BoardTouch.cpp` runs its capacitive path
+unchanged. Storage is one typed key-value store behind both Preferences and
+the NVS API, so profile moves run the real code. The synthesiser plays
+through an SDL audio queue sized like the codec board's DMA. A mouse is a
+finger. A gamepad or the keyboard drives a cursor, and B is the BOOT key.
+Wi-Fi is the computer's own radio. The Wi-Fi screen scans and joins through
+NetworkManager (`nmcli`) or wpa_supplicant (`wpa_cli`), started with no shell
+so an SSID cannot run anything. The firmware's three requests then run for
+real: NTP over UDP, and the timezone lookup and update check over libcurl,
+with TLS verified and no header added. Nearby works over Bluetooth LE: the
+firmware's own beacon and scanner run on a NimBLE stand-in over Linux's raw
+HCI socket, advertising from a random static address rather than the chip's.
+`BRAINO_SHOTS` and `BRAINO_TAPS` save screenshots and replay taps, so a
+screen can be checked without anyone at the window. Unlike
+`tools/gen_screens.py`, those pictures are the firmware's own drawing. This is
+the first step towards a port to Linux handhelds such as the Anbernic
+RG40XXV. `tools/check_licenses.py` now also requires the notice in CMake files.
+
+**The Anbernic RG40XXV boots into Braino.** The host build cross-compiles for
+aarch64 (clang against a glibc 2.31 sysroot), and `host/muos/` packs it for
+muOS 2606 as a port. Launched once, it makes the console an appliance:
+Startup becomes Last Content, so every boot goes straight to Braino; Braino's
+splash replaces muOS's boot logo; and muOS's safe-mode counter is cleared, so
+that the autostart does not give way to the menu on every third boot. The
+D-pad and stick move a cursor, A taps, B and Start go Home, X or R1 and Y or
+L1 turn the launcher's pages forward and back, as does pushing the cursor
+against the right or left side, M moves to the next tab (or opens Settings where there are no tabs), L2 mutes,
+R2 locks, pushing the cursor against the top or
+bottom of a list with a scroll bar scrolls it, and holding Select + Start for
+three seconds leaves for muOS's menu. The splash is new: the
+mark drawn from its vector artwork at the panel's own resolution, with a glow
+that breathes while a loading bar fills, and the copyright line. Braino's
+own volume on the volume keys is not done yet. The light ring around the sticks is Braino's status
+LED: a rainbow by default, the firmware's green, red and rally colours over
+it, dark when switched off in Settings or while the screen sleeps. It is also a
+battery gauge, for as long as the charger is in and for ten seconds after it
+comes out or a stick is pushed,
+screen off included: lit as far round as the percentage, red through orange to
+green, with the part yet to charge flashing while plugged in. Pulling the
+charger opens it with a mood: angry red below 50%, a warm
+orange breath from there, and a happy green run at 100%. The battery
+badge shows the console's own fuel gauge, read through Linux's power-supply
+driver, rather than a guess from the voltage. The power button turns the
+console off, and Wi-Fi comes back if muOS stopped it. On the
+console, Braino switches off muOS's web dashboard, mDNS, SSH, SFTP, terminal
+and Syncthing and stops its time daemon, so only the firmware's declared
+flows leave the device. Because its settings file is on a microSD card any
+laptop can read, the Wi-Fi network's name and password and the admin PIN are
+encrypted in it, with a key derived from the console's processor serial that
+is never written down; the network is no longer saved in muOS's own Wi-Fi
+settings, and a copy an older build left there is removed. When Braino
+sleeps, the console's backlight is switched off rather than left lit behind a
+black screen, and any button wakes it.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was
