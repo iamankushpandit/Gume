@@ -1413,9 +1413,10 @@ play works over Bluetooth wherever Linux has a Bluetooth controller; see
 
 The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
 it turns the console into a Braino appliance: it boots straight into Braino
-behind a Braino splash, and the D-pad and stick drive a cursor, with A as the
-tap, X and Y turning pages, and a list scrolling when the cursor is pushed
-against its end. When Braino sleeps it switches the console's backlight off,
+behind a Braino splash. The D-pad moves a selector from button to button, and
+the stick moves a crosshair for anything else, such as a chess board. A is the
+tap, X and Y turn pages, and a list scrolls when either is pushed against its
+end. When Braino sleeps it switches the console's backlight off,
 and any button wakes it. The light ring around the sticks doubles as a battery
 gauge, red through orange to green, shown while the charger is in and for a few
 seconds after it comes out or a stick is pushed. [host/CLAUDE.md](host/CLAUDE.md) explains how it works, how to put it on

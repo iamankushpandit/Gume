@@ -13,8 +13,9 @@
  * screen takes one TouchPoint. Two things can drive it:
  *
  *   - a mouse: the left button is a finger on the glass, where the mouse is;
- *   - a gamepad or the keyboard: the d-pad, the left stick or the arrow keys
- *     move a drawn cursor, and A (Enter, Space) holds a finger down under it.
+ *   - a gamepad or the keyboard: the left stick moves a crosshair, the d-pad or
+ *     the arrow keys move a selector from control to control, and A (Enter,
+ *     Space) holds a finger down under whichever of the two is showing.
  *
  * B and Start (Escape, Backspace) are the BOOT key, which the runtime treats
  * as Home. Y or L1 (PageUp) and X or R1 (PageDown) press the screen's own
@@ -34,6 +35,7 @@
  * frame from outside would be smeared across the screen by the next partial
  * repaint. Kept out of the frame, the cursor costs the firmware nothing. */
 
+#include "HostFocus.h"
 #include "HostLed.h"
 #include "HostPlatform.h"
 
@@ -57,14 +59,18 @@ constexpr int FRAME_W = TFT_eSPI::FRAME_W;
 constexpr int FRAME_H = TFT_eSPI::FRAME_H;
 constexpr uint32_t PRESENT_INTERVAL_MS = 16;
 constexpr int STICK_DEADZONE = 8000;
-/* Cursor speeds in canvas pixels per second: a held d-pad starts slow enough
- * to land on a 24px control and speeds up for crossing the screen. */
-constexpr float CURSOR_SLOW = 110.0f;
+/* The stick at full push, in canvas pixels per second. */
 constexpr float CURSOR_FAST = 300.0f;
-constexpr float CURSOR_RAMP_S = 0.45f;
 /* How long the cursor stays drawn after the pad or keyboard last moved it,
  * so a mouse user never sees it. */
 constexpr uint32_t CURSOR_SHOW_MS = 4000;
+/* The d-pad: one control per press, then repeating once it has been held long
+ * enough that the hold cannot have been a slow press. */
+constexpr uint32_t FOCUS_REPEAT_AFTER_MS = 350;
+constexpr uint32_t FOCUS_REPEAT_MS = 130;
+/* A screen change clears the panel before it draws the next screen, so an empty
+ * list means nothing until it has stayed empty for longer than a repaint. */
+constexpr uint32_t FOCUS_LOST_MS = 500;
 constexpr uint32_t QUIT_HOLD_MS = 3000;
 
 SDL_Window* window = nullptr;
@@ -112,8 +118,9 @@ ScriptedTap pageTap{0, 0, 0, 0};
 
 /* BRAINO_TAPS can press keys too: "ms:prev" and "ms:next" are the page keys,
  * "ms:up", "ms:down", "ms:left" and "ms:right" hold the d-pad (for 1000 ms,
- * or ",hold"), and "ms:menu", "ms:mute" and "ms:lock" are M, L2 and R2. */
-enum class Key : uint8_t { Prev, Next, Up, Down, Left, Right, Menu, Mute, Lock };
+ * or ",hold"), "ms:a" holds A (for 120 ms unless given), and "ms:menu",
+ * "ms:mute" and "ms:lock" are M, L2 and R2. */
+enum class Key : uint8_t { Prev, Next, Up, Down, Left, Right, Menu, Mute, Lock, A };
 struct ScriptKey {
     uint32_t atMs;
     uint32_t holdMs;
@@ -123,6 +130,7 @@ ScriptKey scriptKeys[MAX_SCRIPT];
 int scriptKeyCount = 0;
 int scriptKeyNext = 0;
 bool scriptUp = false, scriptDown = false, scriptLeft = false, scriptRight = false;
+bool scriptA = false;
 
 /* Pushing the cursor against the top or bottom of a list that has more to
  * show scrolls it: the cursor stays put and an invisible finger drags the
@@ -152,7 +160,18 @@ uint32_t edgeNextMs = 0;
 float cursorX = FRAME_W / 2.0f;
 float cursorY = FRAME_H / 2.0f;
 uint32_t cursorShownAtMs = 0;
-float heldFor = 0.0f;
+
+/* The d-pad's selector. While it is on, the cursor sits at the middle of the
+ * selected control, so A presses it through the same path as the crosshair. The
+ * box is kept rather than an index, because the list is read again every frame
+ * and a screen may draw the same control in a different slot. */
+bool focusOn = false;
+bool focusShown = false;
+HostFocus::Box focusBox;
+int focusDx = 0, focusDy = 0;
+uint32_t focusRepeatAtMs = 0;
+uint32_t focusEmptySinceMs = 0;
+
 bool padTouch = false;
 bool padStickClick = false;
 bool keyTouch = false;
@@ -333,6 +352,7 @@ void pumpEvents() {
                     mouseX = e.button.x;
                     mouseY = e.button.y;
                     cursorShownAtMs = 0;
+                    focusOn = false;
                 }
                 break;
             case SDL_MOUSEBUTTONUP:
@@ -400,6 +420,95 @@ void stepDrag(int dir, const TFT_eSPI::ScrollArea& area, float dt, uint32_t now)
     }
 }
 
+/* The selector for this frame: follow the control it was on, take a d-pad press
+ * or repeat, and put the cursor under it. Answers how a list should scroll, for
+ * a d-pad held towards where there is no control left to go to. */
+int stepFocus(uint32_t now) {
+    int dx = 0, dy = 0;
+    if (padUp || keyUp || scriptUp) dy -= 1;
+    if (padDown || keyDown || scriptDown) dy += 1;
+    if (dy == 0) {
+        if (padLeft || keyLeft || scriptLeft) dx -= 1;
+        if (padRight || keyRight || scriptRight) dx += 1;
+    }
+    const bool newPress = (dx != 0 || dy != 0) && (dx != focusDx || dy != focusDy);
+    const bool repeat = !newPress && (dx != 0 || dy != 0) && now >= focusRepeatAtMs;
+    focusDx = dx;
+    focusDy = dy;
+    if (!focusOn && dx == 0 && dy == 0) return 0;
+
+    TFT_eSPI::FocusBox raw[TFT_eSPI::MAX_FOCUS];
+    HostFocus::Box boxes[TFT_eSPI::MAX_FOCUS];
+    const int count = panel ? panel->focusTargets(raw, TFT_eSPI::MAX_FOCUS) : 0;
+    for (int i = 0; i < count; ++i) {
+        boxes[i].x0 = raw[i].x0;
+        boxes[i].y0 = raw[i].y0;
+        boxes[i].x1 = raw[i].x1;
+        boxes[i].y1 = raw[i].y1;
+        boxes[i].header = raw[i].header;
+    }
+    if (count == 0) {
+        focusShown = false;
+        if (focusEmptySinceMs == 0) focusEmptySinceMs = now;
+        if (now - focusEmptySinceMs >= FOCUS_LOST_MS) focusOn = false;
+        return dy;   // nothing to select, but a list like System Info's still scrolls
+    }
+    focusEmptySinceMs = 0;
+    if (!focusOn && !newPress) return 0;
+
+    /* The first press only brings the selector up, on what the crosshair was
+     * nearest: nobody has seen where it is yet, so it must not move or turn a
+     * page. Otherwise, the same control if it is still there, or the nearest
+     * to where it was, which is how a scrolled list or a new page is followed. */
+    int at = -1;
+    const bool arriving = !focusOn;
+    if (arriving) {
+        at = HostFocus::nearest(boxes, count, static_cast<int>(cursorX), static_cast<int>(cursorY));
+    } else {
+        for (int i = 0; i < count && at < 0; ++i) {
+            if (boxes[i].same(focusBox)) at = i;
+        }
+        if (at < 0) at = HostFocus::nearest(boxes, count, focusBox.cx(), focusBox.cy());
+    }
+    focusOn = true;
+    focusShown = true;
+    focusBox = boxes[at];
+
+    int scroll = 0;
+    if (!arriving && (dx != 0 || dy != 0)) {
+        int next = HostFocus::step(boxes, count, focusBox, dx, dy);
+        /* Up from the top of a list that has more above is the list, not the
+         * header over it: the header is there when the list has run out. */
+        TFT_eSPI::ScrollArea area;
+        if (next >= 0 && dy < 0 && boxes[next].header && !focusBox.header && panel &&
+            panel->scrollArea(area) && area.moreAbove) {
+            next = -1;
+        }
+        if (next < 0) scroll = dy;
+        if (newPress || repeat) {
+            if (next >= 0) {
+                focusBox = boxes[next];
+            } else if (dx != 0 && !focusBox.header) {
+                /* Nothing further along the row: the page after, arriving at
+                 * the near end of the same row. Not from the header, whose row
+                 * is not what the pages are made of. */
+                int16_t px = 0, py = 0;
+                if (panel && panel->pagerTarget(dx > 0, px, py)) {
+                    pressPager(dx > 0);
+                    const int end = HostFocus::rowEnd(boxes, count, focusBox, dx > 0);
+                    if (end >= 0) focusBox = boxes[end];
+                }
+            }
+        }
+    }
+    if (newPress) focusRepeatAtMs = now + FOCUS_REPEAT_AFTER_MS;
+    else if (repeat) focusRepeatAtMs = now + FOCUS_REPEAT_MS;
+
+    cursorX = static_cast<float>(focusBox.cx());
+    cursorY = static_cast<float>(focusBox.cy());
+    return scroll;
+}
+
 /* Move the cursor for the time since the last step. */
 void stepCursor(uint32_t now) {
     const float dt = lastStepMs ? (now - lastStepMs) / 1000.0f : 0.0f;
@@ -414,20 +523,9 @@ void stepCursor(uint32_t now) {
     }
     const float startY = cursorY;
 
-    float dx = 0.0f, dy = 0.0f;
-    if (padLeft || keyLeft || scriptLeft) dx -= 1.0f;
-    if (padRight || keyRight || scriptRight) dx += 1.0f;
-    if (padUp || keyUp || scriptUp) dy -= 1.0f;
-    if (padDown || keyDown || scriptDown) dy += 1.0f;
-    if (dx != 0.0f || dy != 0.0f) {
-        heldFor += dt;
-        const float t = heldFor < CURSOR_RAMP_S ? heldFor / CURSOR_RAMP_S : 1.0f;
-        const float speed = CURSOR_SLOW + (CURSOR_FAST - CURSOR_SLOW) * t;
-        cursorX += dx * speed * dt;
-        cursorY += dy * speed * dt;
-    } else {
-        heldFor = 0.0f;
-    }
+    /* The stick takes over from the selector the moment it is pushed. */
+    if (std::abs(stickX) > STICK_DEADZONE || std::abs(stickY) > STICK_DEADZONE) focusOn = false;
+    const int padScroll = stepFocus(now);
 
     auto axis = [](int16_t v) {
         if (std::abs(v) <= STICK_DEADZONE) return 0.0f;
@@ -445,11 +543,15 @@ void stepCursor(uint32_t now) {
     /* Against the edge of a list with more beyond it: scroll instead. Not
      * while a finger is already down, which would make the drag a second
      * finger. */
-    const float push = dy + axis(stickY);
+    const float push = axis(stickY);
     TFT_eSPI::ScrollArea area;
     int dir = 0;
     const bool pressing = mouseDown || padTouch || padStickClick || keyTouch;
-    if (!pressing && push != 0.0f && panel && panel->scrollArea(area) &&
+    if (!pressing && padScroll != 0 && panel && panel->scrollArea(area)) {
+        /* The d-pad, with no control left that way: wherever the selector is. */
+        if (padScroll > 0 && area.moreBelow) dir = 1;
+        if (padScroll < 0 && area.moreAbove) dir = -1;
+    } else if (!pressing && push != 0.0f && panel && panel->scrollArea(area) &&
         cursorX >= area.x0 && cursorX <= area.x1 && startY >= area.y0 - 1 &&
         startY <= area.y1) {
         if (push > 0.0f && cursorY >= area.y1 - SCROLL_EDGE && area.moreBelow) {
@@ -466,7 +568,7 @@ void stepCursor(uint32_t now) {
      * page after, through the same Prev and Next buttons as Y/L1 and X/R1.
      * A short dwell first, so a cursor swept across to a tile by the edge
      * does not turn the page under it; then again while it is held there. */
-    const float pushX = dx + axis(stickX);
+    const float pushX = axis(stickX);
     int side = 0;
     if (!pressing && pushX < 0.0f && cursorX <= 0.0f) side = -1;
     if (!pressing && pushX > 0.0f && cursorX >= FRAME_W - 1) side = 1;
@@ -496,16 +598,61 @@ void drawCursor() {
     SDL_RenderDrawLine(renderer, x, y - 6, x, y + 6);
 }
 
+/* A ring two pixels thick, just outside the control and in a contrasting pair,
+ * so it reads on every theme and over every fill. It turns the colour the
+ * crosshair turns while A is held. */
+/* Kept on the screen: Home sits in the corner, and a ring just outside it would
+ * lose two whole sides. */
+SDL_Rect selectorRect() {
+    const int x0 = focusBox.x0 - 2 < 0 ? 0 : focusBox.x0 - 2;
+    const int y0 = focusBox.y0 - 2 < 0 ? 0 : focusBox.y0 - 2;
+    const int x1 = focusBox.x1 + 2 > FRAME_W - 1 ? FRAME_W - 1 : focusBox.x1 + 2;
+    const int y1 = focusBox.y1 + 2 > FRAME_H - 1 ? FRAME_H - 1 : focusBox.y1 + 2;
+    return SDL_Rect{x0, y0, x1 - x0 + 1, y1 - y0 + 1};
+}
+
+void drawSelector() {
+    const bool pressing = padTouch || padStickClick || keyTouch;
+    const SDL_Rect outer = selectorRect();
+    const SDL_Rect middle{outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2};
+    const SDL_Rect inner{outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4};
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderDrawRect(renderer, &inner);
+    if (pressing) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    } else {
+        SDL_SetRenderDrawColor(renderer, 255, 210, 0, 255);
+    }
+    SDL_RenderDrawRect(renderer, &outer);
+    SDL_RenderDrawRect(renderer, &middle);
+}
+
 void saveShot(uint32_t now) {
     if (!panel) return;
-    SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(
+    SDL_Surface* frame = SDL_CreateRGBSurfaceWithFormatFrom(
         const_cast<uint16_t*>(panel->frame()), FRAME_W, FRAME_H, 16, FRAME_W * 2,
         SDL_PIXELFORMAT_RGB565);
+    if (!frame) return;
+    /* A copy, so that the selector can be in the picture and stay out of the
+     * panel's frame. */
+    SDL_Surface* s = SDL_ConvertSurface(frame, frame->format, 0);
+    SDL_FreeSurface(frame);
     if (!s) return;
+    if (focusOn && focusShown) {
+        const Uint32 ring = SDL_MapRGB(s->format, 255, 210, 0);
+        const SDL_Rect r = selectorRect();
+        const int x = r.x, y = r.y, w = r.w, h = r.h;
+        const SDL_Rect edges[4] = {{x, y, w, 2}, {x, y + h - 2, w, 2}, {x, y, 2, h}, {x + w - 2, y, 2, h}};
+        SDL_FillRects(s, edges, 4, ring);
+    }
     char path[512];
     std::snprintf(path, sizeof(path), "%s/shot-%06u.bmp", dataDir().c_str(),
                   static_cast<unsigned>(now));
-    if (SDL_SaveBMP(s, path) == 0) std::printf("[host] saved %s\n", path);
+    if (SDL_SaveBMP(s, path) == 0) {
+        TFT_eSPI::FocusBox boxes[TFT_eSPI::MAX_FOCUS];
+        std::printf("[host] saved %s, %d controls\n", path,
+                    panel->focusTargets(boxes, TFT_eSPI::MAX_FOCUS));
+    }
     SDL_FreeSurface(s);
 }
 
@@ -539,9 +686,10 @@ void parseScripts() {
                 else if (std::strcmp(word, "menu") == 0) key = Key::Menu;
                 else if (std::strcmp(word, "mute") == 0) key = Key::Mute;
                 else if (std::strcmp(word, "lock") == 0) key = Key::Lock;
+                else if (std::strcmp(word, "a") == 0) key = Key::A;
                 else break;
                 p += keyUsed;
-                unsigned long keyHold = 1000;
+                unsigned long keyHold = key == Key::A ? 120 : 1000;
                 if (*p == ',') {
                     ++p;
                     keyHold = std::strtoul(p, const_cast<char**>(&p), 10);
@@ -611,7 +759,11 @@ void present(uint32_t now) {
         SDL_SetTextureColorMod(texture, mod, mod, mod);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
     }
-    if (cursorShownAtMs != 0 && now - cursorShownAtMs < CURSOR_SHOW_MS) drawCursor();
+    if (focusOn) {
+        if (focusShown) drawSelector();
+    } else if (cursorShownAtMs != 0 && now - cursorShownAtMs < CURSOR_SHOW_MS) {
+        drawCursor();
+    }
     SDL_RenderPresent(renderer);
     lastPresentMs = now;
 }
@@ -719,7 +871,7 @@ bool service() {
     pumpEvents();
     const uint32_t now = SDL_GetTicks();
     stepCursor(now);
-    scriptUp = scriptDown = scriptLeft = scriptRight = false;
+    scriptUp = scriptDown = scriptLeft = scriptRight = scriptA = false;
     for (int i = 0; i < scriptKeyCount; ++i) {
         const ScriptKey& k = scriptKeys[i];
         const bool held = now >= k.atMs && now < k.atMs + k.holdMs;
@@ -727,6 +879,7 @@ bool service() {
         if (k.key == Key::Down && held) scriptDown = true;
         if (k.key == Key::Left && held) scriptLeft = true;
         if (k.key == Key::Right && held) scriptRight = true;
+        if (k.key == Key::A && held) scriptA = true;
     }
     while (scriptKeyNext < scriptKeyCount && now >= scriptKeys[scriptKeyNext].atMs) {
         const Key key = scriptKeys[scriptKeyNext++].key;
@@ -767,7 +920,7 @@ Contact contact() {
         c.down = true;
         c.x = static_cast<int16_t>(mouseX < 0 ? 0 : (mouseX >= FRAME_W ? FRAME_W - 1 : mouseX));
         c.y = static_cast<int16_t>(mouseY < 0 ? 0 : (mouseY >= FRAME_H ? FRAME_H - 1 : mouseY));
-    } else if (padTouch || padStickClick || keyTouch) {
+    } else if (padTouch || padStickClick || keyTouch || scriptA) {
         c.down = true;
         c.x = static_cast<int16_t>(cursorX);
         c.y = static_cast<int16_t>(cursorY);

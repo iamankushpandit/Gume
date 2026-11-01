@@ -38,10 +38,12 @@ muOS 2606 as a port. Launched once, it makes the console an appliance:
 Startup becomes Last Content, so every boot goes straight to Braino; Braino's
 splash replaces muOS's boot logo; and muOS's safe-mode counter is cleared, so
 that the autostart does not give way to the menu on every third boot. The
-D-pad and stick move a cursor, A taps, B and Start go Home, X or R1 and Y or
-L1 turn the launcher's pages forward and back, as does pushing the cursor
-against the right or left side, M moves to the next tab (or opens Settings where there are no tabs), L2 mutes,
-R2 locks, pushing the cursor against the top or
+D-pad moves a selector from button to button, tile to tile and key to key, the
+header's Home, padlock, speaker and gear included, and the stick moves a crosshair for what has no buttons, such as a chess board. A
+taps under whichever is showing, B and Start go Home, X or R1 and Y or
+L1 turn the launcher's pages forward and back, as does pushing either past
+the right or left side, M moves to the next tab (or opens Settings where there are no tabs), L2 mutes,
+R2 locks, pushing either against the top or
 bottom of a list with a scroll bar scrolls it, and holding Select + Start for
 three seconds leaves for muOS's menu. The splash is new: the
 mark drawn from its vector artwork at the panel's own resolution, with a glow

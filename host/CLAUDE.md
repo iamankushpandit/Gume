@@ -15,9 +15,10 @@ cmake --build build/host -j
 ./build/host/braino
 ```
 
-A mouse click is a finger on the glass. With a gamepad or the keyboard, the
-d-pad, the left stick or the arrow keys move a cursor and A (Enter, Space)
-presses under it. B and Start (Escape, Backspace) are the BOOT key, so they go
+A mouse click is a finger on the glass. With a gamepad, the left stick moves a
+crosshair, the d-pad (the arrow keys) moves a selector from control to control,
+and A (Enter, Space) presses under whichever is showing; see "The d-pad's
+selector" below. B and Start (Escape, Backspace) are the BOOT key, so they go
 Home. Y or L1 (PageUp) and X or R1 (PageDown) press the screen's own Prev and
 Next buttons, so they turn the launcher's pages and every other pager drawn with
 `Ui::drawPagerButton()`; the panel shim learns where those are from the labels
@@ -46,6 +47,42 @@ leaves by accident on a handheld where Braino is all there is. F10 or closing
 the window quits at once. `BRAINO_FULLSCREEN=1` fills
 the screen. Settings and scores go in `$BRAINO_DATA_DIR`, or
 `~/.local/share/braino`.
+
+## The d-pad's selector
+
+The firmware has no idea what a selected control is: every screen takes one
+touch point. So the selector is the host's, and pressing A is an ordinary touch
+at the middle of the selected control. No screen changed for it.
+
+`src/HostTftFocus.cpp` reads the controls off the panel as they are drawn: a
+round fill and an outline of the same rectangle, which is how `Ui::drawButton()`
+ends and so every button, launcher tile and keyboard key. `src/HostFocus.h` is
+where the selector goes next, and is pure arithmetic. It is drawn over the
+window like the crosshair, never into the panel's frame.
+
+- **A button has a shadow; a card does not, and that is the whole test for what
+  gets a stop.** A fill and outline with no shadow might be a control (Memory's
+  cards, Cinnamon's pads, Ludo's seats) or something to look at (a quiz's
+  question box, Color Mix's two colours). Beside buttons, one to three cards
+  were always the second kind, so they get no stop, and from the fourth they are
+  a grid of controls. That is measured off every screen by opening each with a
+  d-pad press and photographing it (`BRAINO_SHOTS` logs how many controls it
+  found), so a new screen needs the same look.
+- **A board drawn as one picture has nothing to select.** Tic-Tac-Toe, Whack A
+  Mole, Piano, Maze, the Elements table, the squares in Chess, Go, Sea Battle
+  and Backgammon, Microku's cells and the tracing games work the square out from
+  where the finger landed, so nothing marks a cell, and the stick's crosshair is
+  the way onto them. The buttons around them still take the selector.
+- **The first press only brings it up**, on the control nearest the crosshair,
+  because nobody has seen where it is yet. Pushing the stick puts it away.
+- **Past the end of a row is the next page and past the end of a column is the
+  rest of the list**, through the same Prev and Next buttons and scroll drag the
+  crosshair uses. Holding down on a list with nothing to select, like System
+  Info's, scrolls it too.
+- **The header's Home, padlock, speaker and gear are stops as well**, found the
+  way M, R2 and L2 find them (`iconTarget()`, Home added for this). Up from the
+  top of a list with more above it scrolls the list before it reaches them, and
+  going past the end of the header's row turns no page.
 
 ## The one rule: host/ adapts to src/, never the reverse
 
@@ -233,8 +270,8 @@ Two environment variables, both off by default:
   coordinates `x,y` at that time, for 120 ms or the given hold. `4000:next`
   and `4000:prev` press the page keys instead, and `4000:down,3000`,
   `4000:up`, `4000:left` and `4000:right` hold the d-pad (for 1000 ms unless a
-  hold is given), and `4000:menu`, `4000:mute` and `4000:lock` press M, L2
-  and R2.
+  hold is given), `4000:a` holds A, and `4000:menu`, `4000:mute` and
+  `4000:lock` press M, L2 and R2.
 
 Together they walk to a screen and photograph it. These are pictures of the
 firmware's own drawing, so **unlike `tools/gen_screens.py` they do show

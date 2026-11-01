@@ -173,14 +173,15 @@ public:
     };
     bool scrollArea(ScrollArea& out) const;
 
-    /* Where the header's Settings gear, padlock or speaker is, in the
+    /* Where the header's Settings gear, padlock, speaker or Home is, in the
      * rotation-1 frame, or false when it is not on screen. The host's M, R2
-     * and L2 press them. Each is recognised by how Ui draws it (the gear's
-     * eight teeth and hub, the padlock's shackle, body and keyhole, the
-     * speaker's two cone triangles) inside the rect LauncherLayout gives it,
-     * in the top bar or the launcher header, and forgotten when that rect is
-     * painted over whole. */
-    enum class Icon : uint8_t { Settings, Lock, Mute };
+     * and L2 press the first three, and the d-pad's selector can stop on all
+     * four. Each is recognised by how Ui draws it (the gear's eight teeth and
+     * hub, the padlock's shackle, body and keyhole, the speaker's two cone
+     * triangles, Home's roof and body) inside the rect LauncherLayout gives
+     * it, in the top bar or the launcher header, and forgotten when that rect
+     * is painted over whole. */
+    enum class Icon : uint8_t { Settings, Lock, Mute, Home };
     bool iconTarget(Icon icon, int16_t& fx, int16_t& fy) const;
 
     /* The tab after the selected one in the screen's tab strip, wrapping to
@@ -189,6 +190,21 @@ public:
      * that squares off its bottom, and the selected tab 4px taller than the
      * rest. The host's M presses it. */
     bool nextTabTarget(int16_t& fx, int16_t& fy) const;
+
+    /* The controls on screen, in the rotation-1 frame, for the host's d-pad
+     * selector. A control is a fill and an outline of one rectangle, which is
+     * how Ui::drawButton() ends and so every button, launcher tile and keyboard
+     * key, or a header icon iconTarget() can find. Forgotten when the screen is
+     * cleared, the rotation changes, or something is filled over its middle. A
+     * board drawn as one picture, with the squares worked out from where the
+     * finger landed, offers nothing here: the stick's crosshair is the way onto
+     * those. */
+    struct FocusBox {
+        int16_t x0, y0, x1, y1;   // inclusive
+        bool header;              // a header icon rather than part of the screen
+    };
+    static constexpr int MAX_FOCUS = 100;
+    int focusTargets(FocusBox* out, int max) const;
     bool displayOn() const { return displayOn_ && !sleeping_; }
     bool asleep() const { return sleeping_; }
     bool inverted() const { return inverted_; }
@@ -233,7 +249,7 @@ private:
     void noteScrollFill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r);
     void noteScrollOutline(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r);
 
-    /* The icon trackers: three places each icon can be (the top bar, the
+    /* The icon trackers: up to three places each icon can be (the top bar, the
      * launcher header in landscape, and in portrait), with a count of the
      * primitives seen inside each since it was last painted over. */
     enum class Prim : uint8_t { Line, CircleOutline, RoundOutline, RoundFill, CircleFill, Triangle };
@@ -241,8 +257,9 @@ private:
         int32_t x = 0, y = 0, w = 0, h = 0;
         uint8_t count[6] = {0};
     };
-    IconTrack icons_[3][3];
+    IconTrack icons_[4][3];
     uint8_t iconsRot_ = 0xFF;
+    const IconTrack* iconTrack(Icon icon) const;
     void placeIcons();
     void noteIconPrim(Prim prim, int32_t x0, int32_t y0, int32_t x1, int32_t y1);
     void forgetIconsUnder(int32_t x, int32_t y, int32_t w, int32_t h);
@@ -260,6 +277,26 @@ private:
     void noteTabFill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r);
     void noteTabSquare(int32_t x, int32_t y, int32_t w, int32_t h);
     void logicalToFrame(int32_t x, int32_t y, int16_t& fx, int16_t& fy) const;
+
+    /* Controls, in absolute logical coordinates and in the frame. `focusFill_`
+     * is the last round fill, waiting for the outline that makes it a control;
+     * `button` says the fill before it was that fill's shadow. */
+    struct FocusMark {
+        bool valid = false;
+        bool button = false;
+        int32_t x = 0, y = 0, w = 0, h = 0;
+        int16_t fx0 = 0, fy0 = 0, fx1 = 0, fy1 = 0;
+    };
+    struct FocusFill {
+        int32_t x = 0, y = 0, w = 0, h = 0;
+        bool shadowed = false;
+    };
+    FocusMark focus_[MAX_FOCUS];
+    FocusFill focusFill_;
+    void noteFocusFill(int32_t x, int32_t y, int32_t w, int32_t h);
+    void noteFocusOutline(int32_t x, int32_t y, int32_t w, int32_t h);
+    void forgetFocusUnder(int32_t x, int32_t y, int32_t w, int32_t h);
+    void forgetFocus();
 
     uint16_t frame_[FRAME_W * FRAME_H] = {0};
     uint8_t rotation_ = 1;

@@ -279,6 +279,7 @@ void TFT_eSPI::drawRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t
                              uint32_t color) {
     if (w <= 0 || h <= 0) return;
     noteScrollOutline(x, y, w, h, r);
+    noteFocusOutline(x, y, w, h);
     noteIconPrim(Prim::RoundOutline, x, y, x + w - 1, y + h - 1);
     r = std::min(r, std::min(w, h) / 2);
     if (r < 0) r = 0;
@@ -299,6 +300,7 @@ void TFT_eSPI::fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t
     noteScrollFill(x, y, w, h, r);
     noteIconPrim(Prim::RoundFill, x, y, x + w - 1, y + h - 1);
     noteTabFill(x, y, w, h, r);
+    noteFocusFill(x, y, w, h);
     r = std::min(r, std::min(w, h) / 2);
     if (r < 0) r = 0;
     fillRect(x + r, y, w - 2 * r, h, color);
@@ -508,6 +510,7 @@ void TFT_eSPI::forgetMarks() {
     iconsRot_ = 0xFF;   // re-placed, with every count zeroed, on the next draw
     for (TabMark& t : tabs_) t.valid = false;
     pendingTab_.valid = false;
+    forgetFocus();
 }
 
 void TFT_eSPI::forgetMarksUnder(int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -525,6 +528,7 @@ void TFT_eSPI::forgetMarksUnder(int32_t x, int32_t y, int32_t w, int32_t h) {
      * the list being repainted or taken away. */
     if (scroll_.valid && under(scroll_.x, scroll_.y + scroll_.h / 2)) scroll_.valid = false;
     forgetIconsUnder(x, y, w, h);
+    forgetFocusUnder(x, y, w, h);
     /* A tab's left edge near its foot: its own label never reaches it, and a
      * strip being repainted covers it. */
     for (TabMark& t : tabs_) {
@@ -613,15 +617,18 @@ void TFT_eSPI::logicalToFrame(int32_t x, int32_t y, int16_t& fx, int16_t& fy) co
 void TFT_eSPI::placeIcons() {
     using Mode = Board::LayoutMode;
     const int16_t w = width();
-    const Rect places[3][3] = {
+    const Rect places[4][3] = {
         {LauncherLayout::topBarSettingsRect(w), LauncherLayout::gearRect(Mode::Horizontal, w),
          LauncherLayout::gearRect(Mode::Vertical, w)},
         {LauncherLayout::topBarLockRect(w), LauncherLayout::lockRect(Mode::Horizontal, w),
          LauncherLayout::lockRect(Mode::Vertical, w)},
         {LauncherLayout::topBarSpeakerRect(w), LauncherLayout::speakerRect(Mode::Horizontal, w),
          LauncherLayout::speakerRect(Mode::Vertical, w)},
+        /* Only the top bar: the launcher has no Home, being it. The empty rects
+         * count nothing, and iconTrack() passes over them. */
+        {LauncherLayout::topBarHomeRect(), Rect{}, Rect{}},
     };
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 3; ++j) {
             IconTrack& t = icons_[i][j];
             t = IconTrack{};
@@ -664,10 +671,11 @@ void TFT_eSPI::forgetIconsUnder(int32_t x, int32_t y, int32_t w, int32_t h) {
     }
 }
 
-bool TFT_eSPI::iconTarget(Icon icon, int16_t& fx, int16_t& fy) const {
-    if (iconsRot_ != rotation_) return false;
+const TFT_eSPI::IconTrack* TFT_eSPI::iconTrack(Icon icon) const {
+    if (iconsRot_ != rotation_) return nullptr;
     const int kind = static_cast<int>(icon);
     for (const IconTrack& t : icons_[kind]) {
+        if (t.w <= 0 || t.h <= 0) continue;
         auto n = [&](Prim p) { return t.count[static_cast<uint8_t>(p)]; };
         bool drawn = false;
         switch (icon) {
@@ -681,12 +689,20 @@ bool TFT_eSPI::iconTarget(Icon icon, int16_t& fx, int16_t& fy) const {
             case Icon::Mute:       // the cone, as two triangles
                 drawn = n(Prim::Triangle) >= 2;
                 break;
+            case Icon::Home:       // the roof and the body
+                drawn = n(Prim::Triangle) >= 1 && n(Prim::RoundFill) >= 1;
+                break;
         }
-        if (!drawn) continue;
-        logicalToFrame(t.x + t.w / 2, t.y + t.h / 2, fx, fy);
-        return true;
+        if (drawn) return &t;
     }
-    return false;
+    return nullptr;
+}
+
+bool TFT_eSPI::iconTarget(Icon icon, int16_t& fx, int16_t& fy) const {
+    const IconTrack* t = iconTrack(icon);
+    if (!t) return false;
+    logicalToFrame(t->x + t->w / 2, t->y + t->h / 2, fx, fy);
+    return true;
 }
 
 /* ---- the list's scroll bar (see scrollArea() in TFT_eSPI.h) ----------- *
