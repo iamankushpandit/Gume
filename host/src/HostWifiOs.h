@@ -77,4 +77,13 @@ int scan(ScanEntry* out, int capacity);
 /* Which manager is in charge, for System Info and the boot log. */
 const char* backendName();
 
+/* The panel is going to sleep (true) or waking (false); see HostSleep.h.
+ * Asleep the interface is taken down and nothing is asked of the manager: the
+ * once-a-second link poll stops and a join the firmware asks for is dropped,
+ * since waking rejoins the network wpa_supplicant already holds. Waking
+ * brings the interface up, rejoins with power saving off as at start, and
+ * puts power saving back on once there is an address. Returns at once.
+ * wpa_supplicant only: NetworkManager is a desktop's, and left alone. */
+void sleepRadio(bool asleep);
+
 }   // namespace HostWifiOs

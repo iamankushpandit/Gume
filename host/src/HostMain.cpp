@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "HostMain.h"
 #include "HostPlatform.h"
 #include "HostScreenPower.h"
 #include "HostSplash.h"
@@ -78,10 +79,15 @@ int main(int argc, char** argv) {
     while (HostPlatform::service()) {
         loop();
     }
+    hostExit(0);
+}
+
+void hostExit(int code) {
     /* Takes the beacon off the air and joins the HCI reader. A reader still
      * running when statics are destroyed aborts the program. */
     NimBLEDevice::deinit();
     HostScreenPower::restore();
     HostPlatform::shutdown();
-    return 0;
+    std::fflush(stdout);
+    std::exit(code);
 }

@@ -65,7 +65,7 @@ file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
   "${REPO_ROOT}/src/ui/*.cpp"
   "${REPO_ROOT}/src/hal/*.cpp")
 list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX
-  "/src/hal/(Watchdog|BoardAudioBackend)\\.cpp$")
+  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32)\\.cpp$")
 list(APPEND FIRMWARE_SOURCES
   "${REPO_ROOT}/src/main.cpp"
   "${REPO_ROOT}/src/BuildStamp.cpp")

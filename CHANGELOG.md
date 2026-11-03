@@ -10,6 +10,95 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The launcher's header gives the player's name room.** A nine-letter name ran
+over the header's divider and under the padlock, because every control added
+to the badge row had taken its pixels from the name. In landscape the name now
+sits beside the Braino! mark, in the larger font when it fits and the smaller
+one when it does not, so a whole name always shows. The badges are ordered by
+how often they are there: the clock keeps its sync check beside it, Bluetooth,
+which shows only while the beacon is on, goes to the outer end, and the
+padlock, speaker, Wi-Fi and battery sit together at the right. The gear is the
+same size as in every app instead of half again as big, and it is kept apart
+from the padlock and speaker so that a tap on its edge cannot mute the
+console. The clock reads `12:41P` instead of `12:41 PM` everywhere, which is
+what bought the name its width. On the handheld the d-pad's selector now
+leaves a little air round the name instead of drawing over its letters.
+
+**The battery icon keeps its size.** It used to grow and shrink with the
+number inside it, so it narrowed as the charge fell from 10% to 9% -- the same
+moment it turned red -- and widened again at 100%. It is now one size at every
+level, the size `100` needs, with the number centred. It still turns red when
+the battery is low.
+
+**The Wi-Fi password is hidden while it is typed.** The field shows one `*`
+per character, so a missed or doubled key can still be counted, and a Show
+checkbox at its right-hand end reveals the password for as long as it is
+ticked. It is unticked again each time a network is chosen.
+
+**The player picker can lock the console.** It has no top bar, so it had no
+padlock -- and the runtime still took taps where the top bar's would be,
+which on that screen was the middle of the Braino! mark: an invisible Lock
+button and no visible one. It now carries its own padlock and speaker at the
+end of the "Who is playing?" row, the handheld's R2 and d-pad reach them, and
+the mark is only a mark.
+
+**The console can say where its battery went.** System Info has a Batt tab and
+the serial console a `power` command, both reading one recorder that runs from
+boot: time on battery is divided between the states the console was in (awake,
+saver, asleep; the lamp; Wi-Fi, Bluetooth, the lights) and each collects what it
+cost, most costly first. Where a handheld's battery reports its current, that is
+measured within seconds; the RG40XXV's does not, so it gets the slope like a
+board, plus the fuel gauge's own time-to-empty turned into a current, with the
+real lamp level and the busiest processes beside it. Its log also says, once a
+minute, what woke the processor and how often, how deeply the cores slept,
+whether the audio device was open, how many frames went to the screen and
+whether Wi-Fi was allowed to doze. On the ESP32 boards,
+which have no current sensor, it is the charge lost per hour once a state has run
+for twenty minutes, with whether Wi-Fi's modem sleep is on. Each platform
+implements one small interface, `PowerProbe`, and the analysis is shared and
+tested off the device. It is held in RAM, stored nowhere and sent nowhere.
+
+**The RG40XXV stops keeping things running that nobody is using.** Measured
+there first: asleep with the lamp off it still lost 11-12% an hour, because the
+processor was woken over four thousand times a second. Braino now sends a frame
+to the screen only when the picture changed, where it sent sixty a second over
+an untouched launcher; waits out each frame in one sleep instead of waking
+every 4ms, and asleep waits out the whole poll; closes the audio device, and so
+the codec and the speaker amplifier, two seconds after the last sound, where it
+held them open from boot; lets Wi-Fi doze between beacons once it has joined;
+and slows the light ring's thread while the screen sleeps and the ring is dark.
+It also reads the power chip at most once a second, where the battery code
+asked it seven or eight times a second over a bus already busy with it, and
+the firmware's audio task now sleeps until a sound is armed instead of waking
+every 25ms -- which helps the ESP32 boards with an amplifier switch as well.
+On the PC build, idle on the launcher, Braino's wakeups fell from about 330 a
+second to about 90 and its frames from 58 a second to none. Over 3.6 hours on
+the handheld, asleep now costs about 9% an hour.
+
+**Asleep, the RG40XXV switches off more than the backlight, and can suspend.**
+The 3.6-hour run showed the rest of the sleep drain was the platform, not
+Braino, so sleep now also takes down the Wi-Fi interface and three of the four
+cores, and waking brings them back; Wi-Fi rejoins in about twelve seconds. A
+run that ends asleep leaves a note so the next start undoes both. Switching
+the display output off as well was tried for one night and dropped: the
+console woke mirrored with its colours inverted, which muOS also warns about,
+and the gauge read the same current asleep with every saver on as with none.
+**Settings → Power → Deep sleep** (admin only, off by
+default) goes one step further: after 15 minutes asleep the whole console
+suspends to RAM, which saves the most battery, and the power button wakes it to
+the lock screen. It stays up on the charger. The ESP32 boards do not offer it,
+because nothing on them can wake an ESP32 from deep sleep. The console's
+`set deep_sleep on|off` mirrors the row.
+
+**Quitting no longer crashes the handheld build.** Quitting while the firmware
+was waiting between frames, which is most of the time, skipped the Bluetooth
+shutdown, and the program ended in an abort with the beacon still on the air.
+Every way out now takes the same path. The battery diagnostic also says what
+the Wi-Fi packets are (broadcast or addressed, which protocol, and which
+processes hold a network socket) and whether the GPU is powered, since a clock
+of 360 MHz with the screen off turned out to be the bottom of its range rather
+than a load.
+
 **Braino runs on a PC.** `host/` builds the firmware as a desktop program
 with SDL2, in Linux or WSL, with no edits to `src/`: the launcher, all 40 games
 and every system screen run from the same code as on a board. Small stand-ins
@@ -39,7 +128,7 @@ Startup becomes Last Content, so every boot goes straight to Braino; Braino's
 splash replaces muOS's boot logo; and muOS's safe-mode counter is cleared, so
 that the autostart does not give way to the menu on every third boot. The
 D-pad moves a selector from button to button, tile to tile and key to key, the
-header's Home, padlock, speaker and gear included, and the stick moves a crosshair for what has no buttons, such as a chess board. A
+header's Home, padlock, speaker and gear included, and the launcher's player name, which opens the player picker, and the stick moves a crosshair for what has no buttons, such as a chess board. A
 taps under whichever is showing, B and Start go Home, X or R1 and Y or
 L1 turn the launcher's pages forward and back, as does pushing either past
 the right or left side, M moves to the next tab (or opens Settings where there are no tabs), L2 mutes,
@@ -53,8 +142,9 @@ LED: a rainbow by default, the firmware's green, red and rally colours over
 it, dark when switched off in Settings or while the screen sleeps. It is also a
 battery gauge, for as long as the charger is in and for ten seconds after it
 comes out or a stick is pushed,
-screen off included: lit as far round as the percentage, red through orange to
-green, with the part yet to charge flashing while plugged in. Pulling the
+screen off included: lit as far round as the percentage in three bands, red,
+orange and green, every LED at full strength, with one light stepping across the part yet to charge while plugged
+in. Pulling the
 charger opens it with a mood: angry red below 50%, a warm
 orange breath from there, and a happy green run at 100%. The battery
 badge shows the console's own fuel gauge, read through Linux's power-supply

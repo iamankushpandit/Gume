@@ -83,6 +83,13 @@ window like the crosshair, never into the panel's frame.
   way M, R2 and L2 find them (`iconTarget()`, Home added for this). Up from the
   top of a list with more above it scrolls the list before it reaches them, and
   going past the end of the header's row turns no page.
+- **So is the launcher's player name**, which switches player. It is plain
+  text, not a control, so the shim takes any text starting inside
+  `LauncherLayout::profileRect()` while that layout's launcher gear is drawn.
+  The stop is the name as drawn, cut short of the padlock's `TOUCH_HIT_SLOP`:
+  in landscape `profileRect()` runs under the padlock, and the runtime takes a
+  tap there as Lock before the launcher sees it, so pressing the rect's middle
+  locked the console. A long name's tail is therefore outside the box.
 
 ## The one rule: host/ adapts to src/, never the reverse
 
@@ -94,7 +101,8 @@ synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
 What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
-regex: the hardware watchdog and the codec/DAC backend. Their host versions are in `src/Host*.cpp`, and each says why.
+regex: the hardware watchdog, the codec/DAC backend, and the two per-platform
+interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Host*.cpp`, and each says why.
 
 ## How it fits together
 
@@ -192,9 +200,13 @@ Without one, the beacon logs why and Nearby sees an empty room.
 and it refuses new advertising parameters (`HCI 0x2006 refused (status 0x0c)`)
 until told to stop, so `NimBLEDevice::init()` switches advertising and scanning
 off before anything else. Without that, Nearby sits on "Radio starting" after
-any restart that was not clean, with the old payload still on the air. A clean
-exit calls `NimBLEDevice::deinit()`, which takes the beacon off the air and
-joins the reader thread.
+any restart that was not clean, with the old payload still on the air. Every
+exit goes through `hostExit()` (`src/HostMain.h`), which calls
+`NimBLEDevice::deinit()` to take the beacon off the air and join the reader
+thread. Quitting while the firmware sat in `delay()` -- most of the time --
+used to tear down on its own and skip that, and a `std::thread` still joinable
+when statics are destroyed aborts the program: the handheld's log ended in
+`terminate called without an active exception`. Do not add a second way out.
 
 ## The light ring
 
@@ -213,10 +225,16 @@ outright, for a device with two radios.
 The ring is also a battery gauge (`src/HostRingGauge.h`), up for as long as
 the charger is in and for ten seconds after it comes out or a stick is pushed,
 screen off included. How far
-round it is lit is the percentage, along red, orange at half and green at full.
+round it is lit is the percentage, in three bands like a battery icon's bars:
+two LEDs of red, three of orange, three of green, each at full strength. It was
+a gradient first, and the orange-to-green blend left the LEDs between at half
+of each, an olive that read as the ring having stopped; brightened, it gave
+yellow and lime, which still looked wrong on the ring.
 With the charger in, the ring breathes twice in the percentage's colour first.
-Then the charged part holds still and the part yet to charge flashes in its own
-colours, under one flash a second. Pulling the charger
+Then the charged part holds still and one light steps across the part yet to
+charge, an LED every 300ms in its own colour, from the charged edge to the end
+and round again. It used to flash that part as one block, which read as an
+alarm rather than as filling. Pulling the charger
 opens with a mood instead: red pulses below 50%, deliberately under three a
 second because it is saturated red, one slow orange breath from 50%, and a
 green light running round the ring at 100%. Pushing a stick
@@ -258,6 +276,155 @@ once", and stops its restart loop when it sees muOS shutting down. Maintenance
 mode gets muOS's default of 600 back. `reviveRadio()` in `src/HostWifiOs.cpp`
 restarts the radio if anything else stops it, so a scan cannot come back empty
 without saying why (`[wifi] host: scan found N`).
+
+## Where the battery went
+
+`src/HostPowerProbe.cpp` is this platform's `PowerProbe` (`src/hal/CLAUDE.md`
+has the design). It reads /proc and /sys, so it runs on any Linux and reports
+less where a file is missing. Two things only a handheld can answer:
+
+- **Current.** `current_now` on the battery supply says what a change costs in
+  seconds. The unit and the sign vary by PMIC driver: anything at or above 20000
+  is taken as microamps, the direction comes from the battery's `status`, and
+  the first raw value is logged as `[power] host: current_now reads ...` so a
+  wrong guess shows up. **The RG40XXV's axp2202 has no `current_now`**, and its
+  `charge_counter` is only the percentage times the capacity, so it is no help
+  either. What it does have is `time_to_empty_now`, which the gauge can only
+  compute from a current it keeps to itself; the `[drain]` line turns that
+  back into `gauge_ma` off the charger. Trust it as the gauge's opinion, not
+  as a measurement.
+- **What else is running.** The three busiest processes, because a handheld runs
+  other people's software beside the firmware, and a daemon eating a core looks
+  exactly like a battery defect.
+
+**The firmware's brightness slider does not reach the real lamp here.** It only
+multiplies the picture (`HostPlatform::setBacklight()`), so the probe reports the
+lamp itself through `HostScreenPower::lampPercent()`, and the ledger bands on
+that rather than on the setting. The ledger's row names therefore say what the
+lamp is really doing.
+
+The `[power]` lines go to `braino.log` on the card, synced every five minutes,
+because a console is switched off by pulling power. That log is what survives a
+flat battery. The card's log is replaced on the next start and kept once as
+`braino.prev.log`, so read it before starting twice.
+
+The `[drain]` lines are the finer half, for while the drain is still being
+chased. Once at start, every power_supply value (serial numbers left out), the
+sleep states the kernel offers, the cores' idle states, the GPU's clocks, the
+thermal zones and what sits on each I2C bus. Then once a minute: interrupts and
+context switches per second and the four busiest interrupts, Braino's own
+wakeups by thread (so every thread is named: FreeRTOS tasks carry the
+firmware's names, plus `led-ring` and `ble-hci`), each core idle state's share
+of the minute, whether the audio device is running and how often it was
+opened, frames sent to the screen, Wi-Fi packets and power saving, the speaker
+amplifier's `spk_state`, and every temperature.
+
+Two of those answer questions the first nights raised. **The GPU's clock is
+not its power**: `gpu_mhz=360` asleep is the floor of `simple_ondemand`'s
+range, not a load, so each devfreq device also reports its runtime power state
+and the share of the minute it was active (`gpu_pm=suspended,0%`). **Wi-Fi
+packets are split by what they are** (`src/HostNetTraffic.cpp`): broadcast or
+addressed (`wifi_rx=bcast:..,ucast:..,arp_req:..`), and what the protocols
+made of them (`net_in=` and `net_out=`, from `/proc/net/snmp` and `snmp6`,
+which count loopback too, so `lo=` is given beside them). Every ten minutes a
+`[drain] sockets:` line names each process holding a network socket, with its
+protocol and local port (`lo` for loopback only, `L` for listening). Braino's
+own requests are a few a day, so anything else on that line is the platform's.
+Counts, ports and process names only: no address is read into any of it.
+
+## What the handheld does not keep running
+
+The first measured night lost 11-12% an hour asleep with the lamp off. The
+processor was being woken over four thousand times a second, and these were
+Braino's part of it. Each is a rule now:
+
+- **A frame is sent only when it differs from the last.** `TFT_eSPI::plot()`,
+  the one place a pixel is written, moves `frameGeneration()`, and `present()`
+  compares that plus the lamp, the selector and the cursor against what was
+  last shown. Anything new that writes `frame_` directly must move the
+  generation too, or the window keeps the old picture. A window event or the
+  splash forces the next frame.
+- **`delay()` services the window once a frame, not every 4ms**, and with the
+  panel asleep sleeps the whole wait. The loop reads input once a frame anyway,
+  so nothing is slower; a long `delay()` with the screen on still services
+  every 20ms.
+- **The audio device is the amplifier.** `setAmp(false)`, which the firmware
+  calls two seconds after the last sound, closes it (on a thread of its own,
+  because SDL waits out the last buffer), and the next write reopens it. An
+  open device kept the codec, its transfers and the speaker amplifier running
+  from boot whether or not anything sounded. The cost is a few milliseconds on
+  the first sound after a pause.
+- **Wi-Fi power saving goes back on once joined.** It stays off for the join,
+  because on these SDIO Realtek parts it drops handshakes and DHCP replies.
+  If the address is ever lost hours in, a DHCP renewal under power saving is
+  the first suspect.
+- **The light ring's thread wakes four times a second, not thirty, while the
+  screen sleeps and nothing is on the ring.** A charger or a stick still
+  lights it within a quarter of a second.
+- **The power chip is read at most once a second** (`HostBattery`'s
+  snapshot). Each read of an axp2202 file is a round of I2C on its bus,
+  `twi5`, which the log showed at about 430 interrupts a second, and the
+  firmware's battery task alone asked eight times in a row every two
+  seconds. A gauge that moves a percent every few minutes gives the same
+  answer a second later.
+- **The firmware's audio task sleeps until a sound is armed** once the
+  amplifier's tail has run out, instead of waking every 25ms
+  (`src/hal/BoardAudio.cpp`). That was forty wakeups a second for a silent
+  console; a board with no amplifier switch keeps the old timeout.
+
+A 3.6-hour run after those still read about 290 mA asleep from the gauge, and
+Braino's own part had become about 85 wakeups a second of 5,450. The rest was
+the platform, so sleep now switches two more things off
+(`src/HostSleep.cpp`), after the lamp and back before it:
+
+- **Wi-Fi.** `HostWifiOs::sleepRadio()` disconnects and takes the interface
+  down; waking brings it up, rejoins with power saving off as at start, asks
+  for an address if DHCP does not, and puts power saving back. About twelve
+  seconds. While it is down the link poller stops spawning `wpa_cli` and a
+  join the firmware asks for is dropped, because waking rejoins anyway.
+- **Three of the four cores**, offline through sysfs.
+
+Either can be switched off for a measurement (`BRAINO_SLEEP_WIFI=0`,
+`BRAINO_SLEEP_CORES=0`), and the log's `[sleep]` line says which are on.
+
+**The display output stays on, and must**, unless `BRAINO_SLEEP_LCD=1` asks
+for the experiment. It was the third saver -- `lcd0 disable` through the
+display driver's debug interface, as muOS's own `LCD_DISABLE` does, a second
+after the lamp -- and the first night of it ended with the console waking
+mirrored left to right and every colour inverted. Re-enabling powers the panel
+up without the setup the bootloader gave it, and only a reboot restores that.
+muOS ships the toggle off (`settings/advanced/disp_suspend` = 0) and its
+brightness script says why: it "causes display panel issues". Nor did it buy
+anything: that night the gauge read 263-277 mA asleep with all three savers on,
+against 264-270 mA the afternoon before with none -- Wi-Fi's 440 packets a
+minute gone, interrupts down a third, and the current where it was. What is
+left asleep is an awake H700 itself, which only Deep sleep below takes away.
+
+**A run that ends asleep must not leave them off**: the
+restart would come up to a black screen on one core with no network. Each
+writes a marker in `/run/braino` (emptied at boot) before switching off, and
+the next start (`HostSleep::recover()`, and `HostWifiOs`'s start for the
+radio) puts back whatever a marker names. `hostExit()` wakes them first anyway.
+
+## Deep sleep: suspend to RAM
+
+The firmware owns the setting and the timing (`SystemSuspend.h`,
+`BrainoApp::tickDeepSleep()`): with Deep sleep on in Settings -> Power, 15
+minutes asleep asks the platform to suspend. `src/HostSuspend.cpp` is the
+platform: on a handheld build with `mem` in `/sys/power/state` it stops the
+beacon and the scan, stamps `/run/braino/resumed`, syncs, writes `mem`, and
+when that write returns -- the power button pressed -- stamps the file again,
+restarts the radio as it was and hands back to the firmware, which wakes the
+panel to the lock screen. It declines on the charger, and the runtime asks
+again a minute later. A desktop build never suspends the computer;
+`BRAINO_FAKE_SUSPEND=1` makes any build pretend for three seconds, which is how
+the flow is tested on a PC, and `BRAINO_SUSPEND=0` turns it off on a handheld.
+
+**The press that wakes it must not also turn it off.** The Braino image's
+`/opt/braino/hotkeys.sh` turns the console off on the power key, and muhotkey
+hears the press that ended the suspend. It ignores the power key within five
+seconds of `/run/braino/resumed`. That script is part of the image, not of this
+tree, so an image built without the change would shut down on every wake.
 
 ## Seeing a screen without anyone at the window
 

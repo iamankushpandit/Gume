@@ -276,12 +276,13 @@ void Board::setBrightness(uint8_t percent) {
 
 void Board::applyBrightness() {
     if (!BOARD.hasBacklightControl()) return;
+    lampLevel_ = brightness();
     if (!blReady) {
         ledcSetup(BL_CHANNEL, BL_PWM_HZ, BL_PWM_BITS);
         ledcAttachPin(BOARD.panel.backlightPin, BL_CHANNEL);
         blReady = true;
     }
-    ledcWrite(BL_CHANNEL, backlightDuty(brightness()));
+    ledcWrite(BL_CHANNEL, backlightDuty(lampLevel_));
 }
 
 void Board::displaySleep() {

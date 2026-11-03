@@ -22,4 +22,15 @@ bool open(int rate);
 /* Amplitude percentage applied to every sample written, 100 being unity. */
 void setVolume(uint8_t percent);
 
+/* The firmware's amplifier enable, which on a handheld is the audio device
+ * itself: an open device keeps the codec, its transfers and the speaker
+ * amplifier running, silent or not. release() closes it, off the caller's
+ * thread because closing waits out the last buffer; the next sound reopens
+ * it. hold() cancels a release that has not happened yet. */
+void release();
+void hold();
+
+/* Times the device has been opened since start, for the battery diagnostic. */
+uint32_t openCount();
+
 }   // namespace HostI2s

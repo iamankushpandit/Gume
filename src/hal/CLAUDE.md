@@ -268,6 +268,71 @@ Every crossing invalidates the header, which is why this mattered enough to fix 
 
 Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k).
 
+## Where the battery went: PowerProbe, PowerMonitor, PowerLedger
+
+Owners report the charge going down fast, and until this nothing could say why:
+the gauge says how much is left, not what took it. The diagnostic is three
+pieces, and only the first differs between platforms.
+
+- **`PowerProbe.h` is the interface.** `read()` fills a `PowerReading` with what
+  this platform can see, on the monitor's task. **To add a platform, implement
+  it in one `.cpp` only that platform builds and define `platformPowerProbe()`.**
+  An unanswered field stays at its default and is shown as not measured, never
+  as zero, because a current sensor and a voltage divider differ by an order of
+  magnitude in what they can say and the rest of the code must not care which
+  it got.
+- **`PowerMonitor` is the recorder.** A task every `SAMPLE_MS` (10s) reads the
+  probe, fills what the probe left open from the firmware's own gauge and loop
+  load, and books the time to the state `BrainoApp::tickPowerMonitor()` last
+  published. System Info's Batt tab, the console's `power` command and the
+  `[power]` log lines (one a minute, the whole table every ten) read the same
+  ledger.
+- **`PowerLedger` is the analysis**, and it is pure: no Arduino, no clock, tested
+  by `test/host/power_ledger_test.cpp`. Time is divided between states (awake,
+  saver, lock, asleep; the lamp's band; Wi-Fi, Bluetooth, case lights) and each
+  state collects what it cost. **The measurement is comparing two rows that
+  differ in one respect.**
+
+Three things about the numbers:
+
+- **Percentages are summed as deltas, so noise cancels.** A flicker nets to zero
+  and the sum telescopes to the real change. A step landing just after a state
+  change is charged to the new state, which is why a rate is withheld until a
+  state has `MIN_RATE_SECONDS` (20 minutes) behind it. Current is reported at
+  once.
+- **On these boards it is a slope and nothing more.** No current sensor and no
+  charge line, so a board on USB looks like one that is not draining
+  (`percentDrop` falling to nothing), and `onCharger` stays unknown rather than
+  being inferred, for the reason in "No charge detection" below.
+- **It runs from boot, not behind a switch**, because a report of a flat battery
+  arrives after the fact. It costs a few KB of RAM and a read every ten seconds.
+  The ledger is RAM and starts over on a reboot, so a console that went completely
+  flat has lost it; `Start over` on the tab is for a clean before and after. It
+  stores nothing in NVS, and a read every ten seconds is the reason it can be left
+  on: writing flash at that rate would be its own wear problem.
+
+`lampPercent()` is on `Board` for this: `brightness()` is the stored setting and
+an NVS read, and it stays at the old value while the panel sleeps.
+
+## SystemSuspend: Deep sleep, where a platform can
+
+Panel sleep keeps the processor up so a touch can wake it. Deep sleep stops
+the whole device, so it can exist only where something other than the
+processor can start it again. `SystemSuspend.h` is the interface, shaped like
+`PowerProbe`: one `.cpp` per platform. `SystemSuspendEsp32.cpp` says no --
+these boards wire no wake source (the touch controllers raise nothing the RTC
+can see, BOOT is a strapping pin), and a deep sleep nothing can end is a
+device that looks dead. So on a board the Settings row is not drawn and the
+console refuses `set deep_sleep`; do not "add" it with esp_deep_sleep and a
+timer, because a console that wakes itself to find nobody there has saved
+nothing. The host's version suspends a Linux handheld to RAM
+(`host/src/HostSuspend.cpp`).
+
+The runtime owns when (`BrainoApp::tickDeepSleep()`,
+`SystemSuspend::AFTER_ASLEEP_MS`), the platform owns how and may decline.
+`enter()` blocks for as long as the device sleeps, so its caller holds a
+`Watchdog::Pause`.
+
 ## No charge detection
 
 There is no charging state, and there should not be one again without a

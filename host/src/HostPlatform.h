@@ -58,6 +58,14 @@ bool homeHeld();
 /* Backlight level as the firmware's PWM duty, 0.0 to 1.0. */
 void setBacklight(float level);
 
+/* Whether the firmware has put the panel to sleep: nothing to show until it
+ * wakes. */
+bool screenAsleep();
+
+/* Frames handed to the display since start, for the battery diagnostic:
+ * every one is a texture upload and a page flip. Any thread. */
+uint32_t presentCount();
+
 /* The directory the host keeps its NVS file in, created on first use. */
 const std::string& dataDir();
 

@@ -25,6 +25,7 @@
 #include <string>
 
 #include "HostPlatform.h"
+#include "HostSleep.h"
 
 namespace HostScreenPower {
 namespace {
@@ -142,6 +143,7 @@ void writeRestoreFile() {
 }   // namespace
 
 void begin() {
+    HostSleep::recover();
     std::snprintf(restorePath, sizeof(restorePath), "%s/backlight-off",
                   HostPlatform::dataDir().c_str());
     long level = 0;
@@ -196,15 +198,20 @@ void begin() {
     }
 }
 
-void setAwake(bool awake) {
-    if (method == None) return;
-    if (awake) {
-        if (!lampOff) return;
-        restoreLamp();
-        std::printf("[display] host: backlight on (level %lu)\n", savedLevel);
-        return;
-    }
-    if (lampOff) return;
+namespace {
+
+/* The rest of what sleep switches off (HostSleep.h) follows the lamp: off
+ * after it, back before it, so the lamp never lights a panel with no output. */
+bool sleeping = false;
+
+void lampOn() {
+    if (method == None || !lampOff) return;
+    restoreLamp();
+    std::printf("[display] host: backlight on (level %lu)\n", savedLevel);
+}
+
+void lampOffNow() {
+    if (method == None || lampOff) return;
     savedLevel = currentLevel();
     std::snprintf(savedLevelText, sizeof(savedLevelText), "%lu", savedLevel);
     writeRestoreFile();
@@ -221,7 +228,38 @@ void setAwake(bool awake) {
                 ok ? "" : " -- the driver refused");
 }
 
-void restore() { restoreLamp(); }
+}   // namespace
+
+void setAwake(bool awake) {
+    if (awake == !sleeping) return;
+    sleeping = !awake;
+    if (awake) {
+        HostSleep::leave();
+        lampOn();
+    } else {
+        lampOffNow();
+        HostSleep::enter();
+    }
+}
+
+void restore() {
+    if (sleeping) {
+        sleeping = false;
+        HostSleep::leave();
+    }
+    restoreLamp();
+}
+
+int16_t lampPercent() {
+    if (lampOff) return 0;
+    if (method == None) return -1;
+    unsigned long full = 255;
+    if (method == Sysfs) {
+        const std::string base(sysBrightness, std::strlen(sysBrightness) - std::strlen("brightness"));
+        if (!readLong((base + "max_brightness").c_str(), full) || full == 0) full = 255;
+    }
+    return static_cast<int16_t>(currentLevel() * 100 / full);
+}
 
 }   // namespace HostScreenPower
 
@@ -231,6 +269,7 @@ namespace HostScreenPower {
 void begin() {}
 void setAwake(bool) {}
 void restore() {}
+int16_t lampPercent() { return -1; }
 }   // namespace HostScreenPower
 
 #endif

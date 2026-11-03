@@ -19,6 +19,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cctype>
@@ -31,6 +32,7 @@
 
 #include "HostBattery.h"
 #include "HostLed.h"
+#include "HostMain.h"
 #include "HostPlatform.h"
 #include "boards/host.h"
 
@@ -72,7 +74,17 @@ int64_t esp_timer_get_time() {
 
 /* The runtime sleeps off the rest of each 20ms frame here, so this is where
  * the window gets its events pumped and its picture shown. Off the main
- * thread it is a plain sleep. */
+ * thread it is a plain sleep.
+ *
+ * Once a frame is enough for both, because the loop reads input once a frame
+ * anyway. It used to wake every 4ms, about 250 times a second, and kept doing
+ * so behind a dark screen: on a handheld that is 250 times a second a core is
+ * pulled out of sleep for nothing. Asleep there is no picture, so the whole
+ * wait is one sleep -- the runtime's own 100ms poll, the same latency the
+ * firmware has always given a touch on a sleeping panel. A long delay() with
+ * the screen on still services the window every frame, so it stays drawn. */
+constexpr uint32_t SERVICE_EVERY_MS = 20;
+
 void delay(uint32_t ms) {
     if (!HostPlatform::onMainThread()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
@@ -80,14 +92,15 @@ void delay(uint32_t ms) {
     }
     const uint32_t until = millis() + ms;
     for (;;) {
-        if (!HostPlatform::service()) {
-            HostPlatform::shutdown();
-            std::exit(0);
+        const int32_t left = static_cast<int32_t>(until - millis());
+        if (left > 0) {
+            const uint32_t step = HostPlatform::screenAsleep()
+                                      ? static_cast<uint32_t>(left)
+                                      : std::min(static_cast<uint32_t>(left), SERVICE_EVERY_MS);
+            std::this_thread::sleep_for(std::chrono::milliseconds(step));
         }
-        const uint32_t now = millis();
-        if (static_cast<int32_t>(until - now) <= 0) break;
-        const uint32_t left = until - now;
-        std::this_thread::sleep_for(std::chrono::milliseconds(left < 4 ? left : 4));
+        if (!HostPlatform::service()) hostExit(0);
+        if (static_cast<int32_t>(until - millis()) <= 0) break;
     }
 }
 

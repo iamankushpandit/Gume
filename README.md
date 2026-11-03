@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-82.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-82.4%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,581,817 / 3,145,728 bytes of the app partition (**82.1%**) |
-| RAM | 88,036 / 327,680 bytes (**26.9%**) |
+| Flash | 2,592,425 / 3,145,728 bytes of the app partition (**82.4%**) |
+| RAM | 90,916 / 327,680 bytes (**27.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -672,7 +672,11 @@ Automatic NTP resync is **1–24 hours**, default **6 hours**; boot-time sync an
 the Network screen's **Sync now** action stay immediate. **Power** holds
 the idle policy, its two delays and the hold-to-unlock guard — see [Screen
 saver and sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
-arrived and there was nowhere left to put them.
+arrived and there was nowhere left to put them. On a device that can suspend
+— the RG40XXV, not the ESP32 boards, which have no way to be woken from it —
+Power also has **Deep sleep**, off by default and changeable only by the
+admin: after 15 minutes asleep the whole console suspends, which saves
+battery, and then only the power button wakes it.
 
 **Sound** holds the mute switch and the volume. Mute is a switch of its own
 rather than volume zero, so the level survives being silenced and comes back
@@ -1033,7 +1037,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   version number cannot answer "which firmware is on this board?", because
   it is identical across every flash of a release; this can. A build made
   from a source tarball with no git says `unknown` rather than guessing.
-- **System Info** -- five tabs of live telemetry: board, memory, network, BLE
+- **System Info** -- six tabs of live telemetry: board, memory, network, BLE, battery
   and app state. This is a diagnostics screen, not a toy: chip and reset
   reason, heap with a fragmentation meter, NVS usage and namespace counts,
   Wi-Fi throughput, watchdog stalls, and the branch, commit and build time
@@ -1050,6 +1054,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   <img src="docs/screens/about-build.png" width="360" alt="About: which build is on the device">
   <img src="docs/screens/about-updates.png" width="360" alt="About: whether a newer firmware exists">
   <img src="docs/screens/systeminfo-memory.png" width="360" alt="System Info: heap and CPU">
+  <img src="docs/screens/systeminfo-battery.png" width="360" alt="System Info: where the battery went">
 </p>
 
 ### Battery
@@ -1088,9 +1093,10 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
-The icon is deliberately **not** a fixed size: it grows with its digits, widest
-at `100`, and the status rows around it are laid
-out from its measured width rather than a constant offset.
+The icon is **one size at every level**, the width `100` needs, with the
+number centred inside it, so it does not shrink as the battery drops from 10%
+to 9%. The status rows around it are still laid out from its measured width,
+because a board with no battery sense shows no icon at all.
 
 At **15% or less** a strip also appears across the top of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
@@ -1123,6 +1129,11 @@ Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip
 Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
+
+The battery diagnostic (*System Info -> Batt*) is held in memory and starts over
+at every restart. It stores nothing in flash and adds nothing to what leaves the
+device; its log lines go to the serial cable, or on a handheld to the log file
+on its own card.
 
 ### Where the Wi-Fi password is kept, and what that is worth
 
@@ -1416,8 +1427,10 @@ it turns the console into a Braino appliance: it boots straight into Braino
 behind a Braino splash. The D-pad moves a selector from button to button, and
 the stick moves a crosshair for anything else, such as a chess board. A is the
 tap, X and Y turn pages, and a list scrolls when either is pushed against its
-end. When Braino sleeps it switches the console's backlight off,
-and any button wakes it. The light ring around the sticks doubles as a battery
+end. When Braino sleeps it switches off the console's backlight, its Wi-Fi
+and three of its four cores, and any button wakes it; Wi-Fi
+takes a few seconds longer to come back. With **Deep sleep** on, 15 minutes
+asleep suspends the whole console, and the power button wakes it. The light ring around the sticks doubles as a battery
 gauge, red through orange to green, shown while the charger is in and for a few
 seconds after it comes out or a stick is pushed. [host/CLAUDE.md](host/CLAUDE.md) explains how it works, how to put it on
 a card, and what differs from a board.
@@ -1469,7 +1482,7 @@ PIN: after `unlock <PIN>`,
 
 | What | Commands |
 |---|---|
-| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp, ntp_hours, timezone |
+| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, deep_sleep (only where the device can suspend), light, beacon, nearby, ntp, ntp_hours, timezone |
 | Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
 | Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
 | Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
@@ -1561,6 +1574,10 @@ src/
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
+    PowerMonitor.cpp    where the battery went: the recorder
+    PowerLedger.cpp     where the battery went: the analysis
+    PowerProbeEsp32.cpp what an ESP32 board can measure of it
+    SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
     BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
     BoardAudioBackend.cpp  the hardware under it: codec, I2S, amp, DAC idle

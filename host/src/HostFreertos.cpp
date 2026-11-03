@@ -15,8 +15,10 @@
  * are simply on different cores. */
 
 #include <freertos/FreeRTOS.h>
+#include <pthread.h>
 
 #include <chrono>
+#include <cstring>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -36,14 +38,19 @@ thread_local HostTask* currentTask = nullptr;
 const auto startTime = std::chrono::steady_clock::now();
 }   // namespace
 
-BaseType_t xTaskCreatePinnedToCore(TaskFunction_t fn, const char*, uint32_t, void* arg,
+BaseType_t xTaskCreatePinnedToCore(TaskFunction_t fn, const char* name, uint32_t, void* arg,
                                    UBaseType_t, TaskHandle_t* handle, BaseType_t) {
     /* Tasks here never end (the firmware's do not either), so the handle is
      * deliberately never freed: it must outlive the thread that holds it. */
     auto* task = new HostTask();
     if (handle) *handle = task;
-    std::thread([fn, arg, task] {
+    /* The task's own name on the thread, which is how the battery diagnostic
+     * says which one keeps waking the processor. Linux allows 15 characters. */
+    char label[16] = {0};
+    if (name) std::strncpy(label, name, sizeof(label) - 1);
+    std::thread([fn, arg, task, label] {
         currentTask = task;
+        if (label[0]) ::pthread_setname_np(::pthread_self(), label);
         fn(arg);
     }).detach();
     return pdPASS;

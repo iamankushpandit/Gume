@@ -150,6 +150,9 @@ public:
 
     /* What the host window shows. */
     const uint16_t* frame() const { return frame_; }
+    /* Moves whenever a pixel is written, so the window is shown again only
+     * when there is something new to show. */
+    uint32_t frameGeneration() const { return frameGen_; }
 
     /* Where the screen's "Prev" (next=false) or "Next" button is, in the
      * rotation-1 frame, or false when none is showing. The host's page keys
@@ -180,8 +183,10 @@ public:
      * hub, the padlock's shackle, body and keyhole, the speaker's two cone
      * triangles, Home's roof and body) inside the rect LauncherLayout gives
      * it, in the top bar or the launcher header, and forgotten when that rect
-     * is painted over whole. */
-    enum class Icon : uint8_t { Settings, Lock, Mute, Home };
+     * is painted over whole. Profile is the launcher's player name, which is
+     * plain text rather than a glyph: text starting inside profileRect(),
+     * counted only while the launcher's own gear is drawn beside it. */
+    enum class Icon : uint8_t { Settings, Lock, Mute, Home, Profile };
     bool iconTarget(Icon icon, int16_t& fx, int16_t& fy) const;
 
     /* The tab after the selected one in the screen's tab strip, wrapping to
@@ -249,17 +254,23 @@ private:
     void noteScrollFill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r);
     void noteScrollOutline(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r);
 
-    /* The icon trackers: up to three places each icon can be (the top bar, the
-     * launcher header in landscape, and in portrait), with a count of the
-     * primitives seen inside each since it was last painted over. */
-    enum class Prim : uint8_t { Line, CircleOutline, RoundOutline, RoundFill, CircleFill, Triangle };
+    /* The icon trackers: up to four places each icon can be (the top bar, the
+     * launcher header in landscape, and in portrait, and the player picker's
+     * own Lock and Mute), with a count of the primitives seen inside each
+     * since it was last painted over. Slots are tried in that order, so a
+     * place that only resembles an icon cannot win over the real one. */
+    enum class Prim : uint8_t { Line, CircleOutline, RoundOutline, RoundFill, CircleFill, Triangle, Text };
     struct IconTrack {
         int32_t x = 0, y = 0, w = 0, h = 0;
-        uint8_t count[6] = {0};
+        uint8_t count[7] = {0};
+        int32_t tx0 = 0, ty0 = 0, tx1 = 0, ty1 = 0;   // the text drawn in it, for Profile
     };
-    IconTrack icons_[4][3];
+    static constexpr int ICON_KINDS = 5;
+    static constexpr int ICON_SLOTS = 4;
+    IconTrack icons_[ICON_KINDS][ICON_SLOTS];
     uint8_t iconsRot_ = 0xFF;
     const IconTrack* iconTrack(Icon icon) const;
+    bool iconDrawn(Icon icon, int slot) const;
     void placeIcons();
     void noteIconPrim(Prim prim, int32_t x0, int32_t y0, int32_t x1, int32_t y1);
     void forgetIconsUnder(int32_t x, int32_t y, int32_t w, int32_t h);
@@ -299,6 +310,7 @@ private:
     void forgetFocus();
 
     uint16_t frame_[FRAME_W * FRAME_H] = {0};
+    uint32_t frameGen_ = 0;
     uint8_t rotation_ = 1;
     bool inverted_ = false;
     bool sleeping_ = false;

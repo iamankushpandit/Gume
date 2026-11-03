@@ -500,8 +500,14 @@ void audioTaskFn(void*) {
 
         if (bytes == 0) {
             /* Nothing to make. Sleep until something is armed -- with a short
-             * timeout, because the amplifier tail above still has to expire. */
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(25));
+             * timeout while the amplifier tail above still has to expire, and
+             * none at all once it has: arm() wakes the task, and there is
+             * nothing else for it to do. Waking every 25ms regardless was forty
+             * times a second for a silent console, the second-largest share of
+             * this firmware's wakeups on the handheld. A board with no
+             * amplifier switch never sees ampOn fall (setAmp() returns early),
+             * so it keeps the old timeout and loses nothing. */
+            ulTaskNotifyTake(pdTRUE, ampOn ? pdMS_TO_TICKS(25) : portMAX_DELAY);
             continue;
         }
 

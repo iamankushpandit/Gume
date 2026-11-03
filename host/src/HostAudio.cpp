@@ -26,7 +26,17 @@ namespace audio {
 
 constexpr uint32_t AMP_TAIL_MS = 2000;
 
-void setAmp(bool on) { ampOn = on; }
+/* The device is the amplifier here (see HostI2s::release()), so the
+ * firmware's own two-second tail is what closes it. */
+void setAmp(bool on) {
+    if (ampOn == on) return;
+    ampOn = on;
+    if (on) {
+        HostI2s::hold();
+    } else {
+        HostI2s::release();
+    }
+}
 
 void tickAmpTail() {
     if (ampIdleSinceMs == 0) {
@@ -56,6 +66,9 @@ void Board::beginAudio() {
     applyCodecVolume(volume());
     Serial.printf("[audio] host device up, %d Hz\n", AUDIO_RATE);
     startAudioTask();
+    /* Opened once to know there is a device; closed until something sounds,
+     * or a console that boots muted would keep it running for good. */
+    HostI2s::release();
 }
 
 /* The task drains the synthesiser; this is the firmware's fallback for when

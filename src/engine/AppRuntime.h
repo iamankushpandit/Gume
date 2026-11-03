@@ -61,6 +61,7 @@ private:
     void runConsoleLine(char* line, Print& out);
     // AppRuntimeConsole.cpp
     void cmdIdentify(int argc, char** argv, Print& out);
+    void cmdPower(int argc, char** argv, Print& out);
     void cmdHelp(int argc, char** argv, Print& out);
     void cmdUnlock(int argc, char** argv, Print& out);
     void cmdLock(int argc, char** argv, Print& out);
@@ -151,6 +152,11 @@ public:
     /* Nobody unlocked: go back where we came from rather than sitting lit. */
     static constexpr uint32_t LOCK_TIMEOUT_MS = 12000;
 
+    /* Deep sleep: how soon to ask again when the platform declined to
+     * suspend (the charger was in). How long it waits the first time is
+     * SystemSuspend::AFTER_ASLEEP_MS, beside the setting that states it. */
+    static constexpr uint32_t DEEP_SLEEP_RETRY_MS = 60UL * 1000UL;
+
 private:
     enum class View {
         Game,
@@ -176,6 +182,11 @@ private:
     void enterSleep();
     void wakeFromSleep();
     void exitScreenSaver();
+    /* Called on every asleep poll that brought no press: suspends the device
+     * once it has slept SystemSuspend::AFTER_ASLEEP_MS with the owner's Deep
+     * sleep setting on, and wakes the panel when it comes back. */
+    void tickDeepSleep(uint32_t nowMs);
+    uint32_t deepSleepDueMs_ = 0;
 
     /* Going idle ends an admin session, exactly as a reboot does.
      *
@@ -248,6 +259,7 @@ private:
      * the admin: a parent who is not holding the device has no other way to
      * learn, and the wording tells a young player what to do about it. */
     void tickUpdateNotice(uint32_t nowMs);
+    void tickPowerMonitor(uint32_t nowMs);
 
     /* Mark the strip as needing paint and make the screen under it redraw. */
     void requestBannerRepaint();
@@ -394,6 +406,7 @@ private:
     bool batteryEverHidden_ = false;
     uint8_t batteryWarnLevel_ = 0;   // 0 none, 1 low, 2 critical
     uint32_t lastClockMinute_ = 0;
+    uint32_t lastPowerPublishMs_ = 0;
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
 

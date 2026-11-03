@@ -52,6 +52,11 @@ Backend backend = Backend::None;
 std::string iface;
 std::atomic<bool> ready{false};
 std::once_flag started;
+/* See sleepRadio(). The generation lets a wake that is still rejoining notice
+ * that the panel went back to sleep under it. */
+std::atomic<bool> radioAsleep{false};
+std::atomic<uint32_t> radioGeneration{0};
+constexpr const char* RADIO_MARK = "/run/braino/sleep-wifi-off";
 
 constexpr int JOIN_TIMEOUT_S = 20;
 constexpr int READY_WAIT_S = 30;
@@ -509,6 +514,17 @@ Link readLink() {
 
 void poller() {
     for (;;) {
+        /* Two subprocesses a second is a processor woken twice a second;
+         * with the radio off there is nothing for them to find. */
+        if (radioAsleep) {
+            {
+                std::lock_guard<std::mutex> lock(stateMutex);
+                current = Link{};
+                current.radio = true;
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
         const Link l = readLink();
         {
             std::lock_guard<std::mutex> lock(stateMutex);
@@ -540,6 +556,12 @@ void start() {
             current = l;
         }
         ready = true;
+        if (backend == Backend::WpaSupplicant && ::access(RADIO_MARK, F_OK) == 0) {
+            std::printf("[wifi] host: a previous run left the radio off for sleep; waking it\n");
+            std::fflush(stdout);
+            radioAsleep = true;
+            sleepRadio(false);
+        }
         if (backend != Backend::None) poller();
     }).detach();
 }
@@ -663,6 +685,12 @@ void joinWithWpaSupplicant(uint32_t gen, const std::string& ssid, const std::str
         if (connectedTo(ssid)) {
             std::printf("[wifi] host: +%u ms address up, joined\n", sinceMs(t0));
             std::fflush(stdout);
+            /* Power saving was off for the join, which is where it drops
+             * handshakes and DHCP replies (startWpaSupplicant()). Joined, it
+             * goes back on: Braino talks to the network every few hours, and
+             * with it off the radio stays awake for every broadcast on the
+             * network in between, hundreds a minute on a busy one. */
+            if (onPath("iw")) run({"iw", "dev", iface, "set", "power_save", "on"}, 3000, nullptr);
             finish(gen, JoinState::Idle);
             return;
         }
@@ -704,6 +732,7 @@ std::string joinTarget() {
 
 void join(const std::string& ssid, const std::string& password) {
     begin();
+    if (radioAsleep) return;   // waking rejoins; see sleepRadio()
     if (!ready || backend == Backend::None || ssid.empty()) {
         /* Still coming up: join from a thread once it is, rather than drop
          * the request or hold the frame loop. */
@@ -809,6 +838,61 @@ const char* backendName() {
         case Backend::WpaSupplicant: return "wpa_supplicant";
         default: return iface.empty() ? "none (no wireless interface)" : "none (no manager answers)";
     }
+}
+
+void sleepRadio(bool asleep) {
+    if (!ready || backend != Backend::WpaSupplicant || iface.empty()) return;
+    if (radioAsleep == asleep) return;
+    const uint32_t generation = ++radioGeneration;
+    radioAsleep = asleep;
+    /* A run that ends asleep leaves the interface down, and nothing at the
+     * next start brings it up: start() finds wpa_supplicant answering and
+     * skips bringUp(). This marker is how start() knows to wake it. */
+    if (asleep) {
+        ::mkdir("/run/braino", 0755);
+        if (FILE* f = std::fopen(RADIO_MARK, "w")) std::fclose(f);
+    } else {
+        ::unlink(RADIO_MARK);
+    }
+    std::thread([asleep, generation] {
+        auto cli = [](const char* command) { run({"wpa_cli", "-i", iface, command}, 3000, nullptr); };
+        if (asleep) {
+            /* disconnect first, so wpa_supplicant does not try to rejoin a
+             * network on an interface that is going away. */
+            cli("disconnect");
+            run({"ip", "link", "set", iface, "down"}, 3000, nullptr);
+            std::printf("[wifi] host: radio off for sleep\n");
+            std::fflush(stdout);
+            return;
+        }
+        const auto t0 = std::chrono::steady_clock::now();
+        run({"ip", "link", "set", iface, "up"}, 3000, nullptr);
+        if (onPath("iw")) run({"iw", "dev", iface, "set", "power_save", "off"}, 3000, nullptr);
+        cli("reconnect");
+        bool askedForAddress = false;
+        for (int i = 0; i < JOIN_TIMEOUT_S * 4; ++i) {
+            if (generation != radioGeneration) return;   // asleep again already
+            const Link l = readLink();
+            {
+                std::lock_guard<std::mutex> lock(stateMutex);
+                current = l;
+            }
+            if (l.associated && l.hasAddress) {
+                if (onPath("iw")) run({"iw", "dev", iface, "set", "power_save", "on"}, 3000, nullptr);
+                std::printf("[wifi] host: +%u ms back on the network after sleep\n", sinceMs(t0));
+                std::fflush(stdout);
+                return;
+            }
+            if (l.associated && !askedForAddress) {
+                askedForAddress = true;
+                requestAddress();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+        std::printf("[wifi] host: +%u ms not back on the network after sleep%s\n", sinceMs(t0),
+                    askedForAddress ? " (no address from DHCP)" : "");
+        std::fflush(stdout);
+    }).detach();
 }
 
 }   // namespace HostWifiOs

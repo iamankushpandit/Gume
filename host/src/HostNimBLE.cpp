@@ -33,6 +33,7 @@
 
 #include <NimBLEDevice.h>
 
+#include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -104,6 +105,7 @@ int deviceIndex() {
 }
 
 void readerLoop() {
+    ::pthread_setname_np(::pthread_self(), "ble-hci");
     uint8_t buf[300];
     NimBLEAdvertisedDevice device;
     for (;;) {

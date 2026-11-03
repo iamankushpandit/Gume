@@ -11,6 +11,7 @@
 
 #include "engine/AppCapabilities.h"
 #include "engine/ConsoleText.h"
+#include "hal/PowerMonitor.h"
 
 using namespace ConsoleText;
 
@@ -120,6 +121,8 @@ const BrainoApp::ConsoleCommand* BrainoApp::consoleTable(size_t& count) {
     static const ConsoleCommand TABLE[] = {
         {"identify", "identify", "which board and firmware this is",
          APP_CAP_DEVICE_STATUS, 0, 0, &BrainoApp::cmdIdentify},
+        {"power", "power", "where the battery went: draw now, and cost per state",
+         APP_CAP_DEVICE_STATUS, 0, 0, &BrainoApp::cmdPower},
         {"get", "get [key]", "device settings; with a key, its value and choices",
          APP_CAP_DEVICE_STATUS, 0, 1, &BrainoApp::cmdGet},
         {"set", "set <key> <value>", "change a device setting (keys: get)",
@@ -210,6 +213,8 @@ void BrainoApp::runConsoleLine(char* line, Print& out) {
 }
 
 void BrainoApp::cmdIdentify(int, char**, Print& out) { replyIdentify(out); }
+
+void BrainoApp::cmdPower(int, char**, Print& out) { PowerMonitor::printReply(out); }
 
 /* Derived from the table, never hand-written: a command cannot exist without
  * appearing here, or appear here without existing. */

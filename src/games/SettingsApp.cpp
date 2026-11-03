@@ -229,6 +229,12 @@ void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
             board.setWakeLockEnabled(!board.wakeLockEnabled());
             markControl(wakeLockRect()); return;
         }
+        /* The footnote restates it, so the whole body repaints. Empty rect
+         * where the device cannot suspend, which contains nothing. */
+        if (deepSleepRect().w > 0 && deepSleepRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.setDeepSleepEnabled(!board.deepSleepEnabled());
+            markDirty(); return;
+        }
         return;
     }
 

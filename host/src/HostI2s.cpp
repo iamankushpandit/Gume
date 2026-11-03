@@ -23,11 +23,18 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <mutex>
 #include <thread>
 
 namespace {
 
+/* Held by whoever opens, closes or writes the device: the braino-audio task
+ * writes and reopens, a short-lived thread closes. */
+std::mutex deviceLock;
 SDL_AudioDeviceID device = 0;
+bool available = false;   // the first open worked, so a reopen is worth trying
+std::atomic<bool> released{false};
+std::atomic<uint32_t> opens{0};
 int sampleRate = 16000;
 std::atomic<uint8_t> volumePercent{100};
 
@@ -35,13 +42,10 @@ uint32_t queueLimitBytes() {
     return static_cast<uint32_t>(sampleRate * 2 * sizeof(int16_t) * 96 / 1000);
 }
 
-}   // namespace
-
-namespace HostI2s {
-
-bool open(int rate) {
+/* With deviceLock held. */
+bool openDevice() {
     SDL_AudioSpec want{};
-    want.freq = rate;
+    want.freq = sampleRate;
     want.format = AUDIO_S16SYS;
     want.channels = 2;
     want.samples = 256;
@@ -51,23 +55,53 @@ bool open(int rate) {
         SDL_Log("[audio] %s", SDL_GetError());
         return false;
     }
-    sampleRate = rate;
     SDL_PauseAudioDevice(device, 0);
+    ++opens;
     return true;
 }
 
+}   // namespace
+
+namespace HostI2s {
+
+bool open(int rate) {
+    std::lock_guard<std::mutex> lock(deviceLock);
+    sampleRate = rate;
+    available = openDevice();
+    return available;
+}
+
 void setVolume(uint8_t percent) { volumePercent = percent > 100 ? 100 : percent; }
+
+void release() {
+    if (released.exchange(true)) return;
+    std::thread([] {
+        std::lock_guard<std::mutex> lock(deviceLock);
+        if (!released || device == 0) return;
+        SDL_CloseAudioDevice(device);
+        device = 0;
+    }).detach();
+}
+
+void hold() { released = false; }
+
+uint32_t openCount() { return opens; }
 
 }   // namespace HostI2s
 
 esp_err_t i2s_write(i2s_port_t, const void* src, size_t size, size_t* written, TickType_t ticks) {
     *written = 0;
-    if (device == 0) return ESP_FAIL;
+    std::lock_guard<std::mutex> lock(deviceLock);
+    HostI2s::hold();
+    if (device == 0 && (!available || !openDevice())) return ESP_FAIL;
 
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ticks);
-    while (SDL_GetQueuedAudioSize(device) > queueLimitBytes()) {
+    for (uint32_t queued; (queued = SDL_GetQueuedAudioSize(device)) > queueLimitBytes();) {
         if (ticks == 0 || std::chrono::steady_clock::now() >= deadline) return ESP_OK;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        /* As long as the excess takes to play, not a fixed poll. */
+        const uint32_t bytesPerMs = static_cast<uint32_t>(sampleRate) * 2 * sizeof(int16_t) / 1000;
+        const uint32_t ms = (queued - queueLimitBytes()) / (bytesPerMs ? bytesPerMs : 1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms ? ms : 1));
     }
 
     int16_t scaled[1024];
@@ -87,6 +121,7 @@ esp_err_t i2s_write(i2s_port_t, const void* src, size_t size, size_t* written, T
 }
 
 esp_err_t i2s_zero_dma_buffer(i2s_port_t) {
+    std::lock_guard<std::mutex> lock(deviceLock);
     if (device != 0) SDL_ClearQueuedAudio(device);
     return ESP_OK;
 }

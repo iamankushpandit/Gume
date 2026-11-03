@@ -42,4 +42,14 @@ struct Reading {
 };
 Reading read();
 
+/* The cell's voltage and the current leaving it, for the battery diagnostic.
+ * Either is INT32_MIN (PowerReading::UNKNOWN) when the PMIC does not report it.
+ * Current is positive out of the cell; the sign comes from the battery's status,
+ * because drivers disagree about what sign current_now carries. */
+struct Electrical {
+    int32_t millivolts;
+    int32_t milliamps;
+};
+Electrical electrical();
+
 }   // namespace HostBattery

@@ -16,12 +16,15 @@
 
 #include <algorithm>
 
+#include "BoardConfig.h"   // TOUCH_HIT_SLOP
+
 namespace {
 /* Ui::BUTTON_SHADOW_DX and DY, the offset of the fill drawn before the button.
  * Not read from Ui.h: a little slack costs nothing, and a theme may change it. */
 constexpr int32_t SHADOW_REACH = 4;
 constexpr int32_t SMALLEST_CONTROL = 12;
 constexpr int MIN_CARD_CONTROLS = 4;
+constexpr int32_t NAME_AIR = 3;   // between the player's name and the selector
 }   // namespace
 
 void TFT_eSPI::noteFocusFill(int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -122,12 +125,31 @@ int TFT_eSPI::focusTargets(FocusBox* out, int max) const {
         }
         out[count++] = FocusBox{m.fx0, m.fy0, m.fx1, m.fy1, false};
     }
-    for (const Icon icon : {Icon::Home, Icon::Lock, Icon::Mute, Icon::Settings}) {
+    for (const Icon icon : {Icon::Home, Icon::Profile, Icon::Lock, Icon::Mute, Icon::Settings}) {
         const IconTrack* t = iconTrack(icon);
         if (!t || count >= max) continue;
+        int32_t x0 = t->x, y0 = t->y, x1 = t->x + t->w - 1, y1 = t->y + t->h - 1;
+        if (icon == Icon::Profile) {
+            /* The name as drawn, not the rect it may fill: in landscape that
+             * rect runs under the padlock, and the runtime takes a tap within
+             * the padlock's slop as Lock before the launcher sees it. So the
+             * box also stops short of that, and A presses on the name. */
+            const int slot = static_cast<int>(t - icons_[static_cast<int>(Icon::Profile)]);
+            const IconTrack& lock = icons_[static_cast<int>(Icon::Lock)][slot];
+            /* With air round it: the selector's innermost line is drawn on
+             * the box's edge, so a box cut to the glyphs lays it across them. */
+            x0 = t->tx0 - NAME_AIR;
+            y0 = t->ty0 - NAME_AIR;
+            y1 = t->ty1 + NAME_AIR;
+            x1 = t->tx1 + NAME_AIR;
+            if (lock.w > 0 && lock.y < t->ty1 && lock.y + lock.h > t->ty0) {
+                x1 = std::min<int32_t>(x1, lock.x - TOUCH_HIT_SLOP - 1);
+            }
+            if (x1 < x0) continue;
+        }
         int16_t ax = 0, ay = 0, bx = 0, by = 0;
-        logicalToFrame(t->x, t->y, ax, ay);
-        logicalToFrame(t->x + t->w - 1, t->y + t->h - 1, bx, by);
+        logicalToFrame(x0, y0, ax, ay);
+        logicalToFrame(x1, y1, bx, by);
         out[count++] = FocusBox{std::min(ax, bx), std::min(ay, by), std::max(ax, bx), std::max(ay, by), true};
     }
     return count;

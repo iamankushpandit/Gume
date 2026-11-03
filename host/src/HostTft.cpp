@@ -75,6 +75,7 @@ void TFT_eSPI::begin(uint8_t) {
     resetViewport();
     forgetMarks();
     std::fill(std::begin(frame_), std::end(frame_), 0);
+    ++frameGen_;
     HostPlatform::attachPanel(this);
 }
 
@@ -155,7 +156,10 @@ bool TFT_eSPI::toFrame(int32_t x, int32_t y, int32_t& fx, int32_t& fy) const {
 
 void TFT_eSPI::plot(int32_t x, int32_t y, uint16_t color) {
     int32_t fx = 0, fy = 0;
-    if (toFrame(x, y, fx, fy)) frame_[fy * FRAME_W + fx] = color;
+    if (toFrame(x, y, fx, fy)) {
+        frame_[fy * FRAME_W + fx] = color;
+        ++frameGen_;
+    }
 }
 
 void TFT_eSPI::span(int32_t x0, int32_t x1, int32_t y, uint16_t color) {
@@ -483,6 +487,7 @@ int16_t TFT_eSPI::drawString(const char* text, int32_t x, int32_t y, uint8_t fon
         advance += drawChar(code, x + advance, y, font);
     }
     notePagerLabel(text, x, y, advance, h);
+    if (advance > 0 && h > 0) noteIconPrim(Prim::Text, x, y, x + advance - 1, y + h - 1);
     return static_cast<int16_t>(advance);
 }
 
@@ -617,19 +622,22 @@ void TFT_eSPI::logicalToFrame(int32_t x, int32_t y, int16_t& fx, int16_t& fy) co
 void TFT_eSPI::placeIcons() {
     using Mode = Board::LayoutMode;
     const int16_t w = width();
-    const Rect places[4][3] = {
+    const Rect places[ICON_KINDS][ICON_SLOTS] = {
         {LauncherLayout::topBarSettingsRect(w), LauncherLayout::gearRect(Mode::Horizontal, w),
-         LauncherLayout::gearRect(Mode::Vertical, w)},
+         LauncherLayout::gearRect(Mode::Vertical, w), Rect{}},
         {LauncherLayout::topBarLockRect(w), LauncherLayout::lockRect(Mode::Horizontal, w),
-         LauncherLayout::lockRect(Mode::Vertical, w)},
+         LauncherLayout::lockRect(Mode::Vertical, w), LauncherLayout::pickerLockRect(w)},
         {LauncherLayout::topBarSpeakerRect(w), LauncherLayout::speakerRect(Mode::Horizontal, w),
-         LauncherLayout::speakerRect(Mode::Vertical, w)},
+         LauncherLayout::speakerRect(Mode::Vertical, w), LauncherLayout::pickerSpeakerRect(w)},
         /* Only the top bar: the launcher has no Home, being it. The empty rects
          * count nothing, and iconTrack() passes over them. */
-        {LauncherLayout::topBarHomeRect(), Rect{}, Rect{}},
+        {LauncherLayout::topBarHomeRect(), Rect{}, Rect{}, Rect{}},
+        /* Only the launcher: the top bar names no player. */
+        {Rect{}, LauncherLayout::profileRect(Mode::Horizontal, w),
+         LauncherLayout::profileRect(Mode::Vertical, w), Rect{}},
     };
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < ICON_KINDS; ++i) {
+        for (int j = 0; j < ICON_SLOTS; ++j) {
             IconTrack& t = icons_[i][j];
             t = IconTrack{};
             t.x = places[i][j].x;
@@ -651,9 +659,19 @@ void TFT_eSPI::noteIconPrim(Prim prim, int32_t x0, int32_t y0, int32_t x1, int32
     if (y1 < y0) std::swap(y0, y1);
     for (auto& kind : icons_) {
         for (IconTrack& t : kind) {
-            /* A pixel of slack: the gear's teeth reach one past its radius. */
-            if (x0 >= t.x - 1 && x1 <= t.x + t.w && y0 >= t.y - 1 && y1 <= t.y + t.h) {
+            /* A pixel of slack: the gear's teeth reach one past its radius. A
+             * name only has to start inside: portrait draws it 2px in from the
+             * rect it was fitted to, so a long one ends just past it. */
+            const int32_t right = prim == Prim::Text ? x0 : x1;
+            if (x0 >= t.x - 1 && right <= t.x + t.w && y0 >= t.y - 1 && y1 <= t.y + t.h) {
                 uint8_t& n = t.count[static_cast<uint8_t>(prim)];
+                if (prim == Prim::Text) {
+                    const bool first = n == 0;
+                    t.tx0 = first ? x0 : std::min(t.tx0, x0);
+                    t.ty0 = first ? y0 : std::min(t.ty0, y0);
+                    t.tx1 = first ? x1 : std::max(t.tx1, x1);
+                    t.ty1 = first ? y1 : std::max(t.ty1, y1);
+                }
                 if (n < 255) ++n;
             }
         }
@@ -671,29 +689,29 @@ void TFT_eSPI::forgetIconsUnder(int32_t x, int32_t y, int32_t w, int32_t h) {
     }
 }
 
+bool TFT_eSPI::iconDrawn(Icon icon, int slot) const {
+    const IconTrack& t = icons_[static_cast<int>(icon)][slot];
+    if (t.w <= 0 || t.h <= 0) return false;
+    auto n = [&](Prim p) { return t.count[static_cast<uint8_t>(p)]; };
+    switch (icon) {
+        case Icon::Settings:   // eight teeth of four lines, three hub circles
+            return n(Prim::Line) >= 24 && n(Prim::CircleOutline) >= 2;
+        case Icon::Lock:       // shackle, body, keyhole
+            return n(Prim::RoundOutline) >= 1 && n(Prim::RoundFill) >= 1 && n(Prim::CircleFill) >= 1;
+        case Icon::Mute:       // the cone, as two triangles
+            return n(Prim::Triangle) >= 2;
+        case Icon::Home:       // the roof and the body
+            return n(Prim::Triangle) >= 1 && n(Prim::RoundFill) >= 1;
+        case Icon::Profile:    // any text there, beside this layout's launcher gear
+            return n(Prim::Text) >= 1 && iconDrawn(Icon::Settings, slot);
+    }
+    return false;
+}
+
 const TFT_eSPI::IconTrack* TFT_eSPI::iconTrack(Icon icon) const {
     if (iconsRot_ != rotation_) return nullptr;
-    const int kind = static_cast<int>(icon);
-    for (const IconTrack& t : icons_[kind]) {
-        if (t.w <= 0 || t.h <= 0) continue;
-        auto n = [&](Prim p) { return t.count[static_cast<uint8_t>(p)]; };
-        bool drawn = false;
-        switch (icon) {
-            case Icon::Settings:   // eight teeth of four lines, three hub circles
-                drawn = n(Prim::Line) >= 24 && n(Prim::CircleOutline) >= 2;
-                break;
-            case Icon::Lock:       // shackle, body, keyhole
-                drawn = n(Prim::RoundOutline) >= 1 && n(Prim::RoundFill) >= 1 &&
-                        n(Prim::CircleFill) >= 1;
-                break;
-            case Icon::Mute:       // the cone, as two triangles
-                drawn = n(Prim::Triangle) >= 2;
-                break;
-            case Icon::Home:       // the roof and the body
-                drawn = n(Prim::Triangle) >= 1 && n(Prim::RoundFill) >= 1;
-                break;
-        }
-        if (drawn) return &t;
+    for (int slot = 0; slot < ICON_SLOTS; ++slot) {
+        if (iconDrawn(icon, slot)) return &icons_[static_cast<int>(icon)][slot];
     }
     return nullptr;
 }

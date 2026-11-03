@@ -37,6 +37,9 @@
  * no such device exists -- a PC -- this does nothing. */
 namespace HostLed {
 
+/* Whether the ring is showing anything: 1, 0, or -1 where there is no ring. */
+int8_t lightOn();
+
 /* One channel of the firmware's LED, 0-255. */
 void setChannel(int channel, uint8_t level);   // 0 red, 1 green, 2 blue
 

@@ -43,6 +43,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -81,6 +82,7 @@ std::thread::id mainThread;
 char** savedArgv = nullptr;
 bool quit = false;
 uint32_t lastPresentMs = 0;
+std::atomic<uint32_t> presents{0};
 uint32_t lastStepMs = 0;
 float backlight = 1.0f;
 
@@ -205,6 +207,29 @@ uint32_t unmappedSeen = 0;
 constexpr uint32_t WAKE_PULSE_MS = 200;
 uint32_t wakePulseUntilMs = 0;
 bool presentedAsleep = false;
+
+/* Everything the window shows, reduced to what can change it. A frame that
+ * would look like the last one is not sent: each is a texture upload and a
+ * page flip, which at 60 a second over a launcher nobody touches was the
+ * handheld's biggest cost while awake. */
+struct Shown {
+    uint32_t frameGen = 0;
+    uint8_t lamp = 0;
+    bool displayOn = false;
+    bool pressing = false;
+    bool selector = false;
+    HostFocus::Box box;
+    bool cursor = false;
+    int16_t cursorX = 0, cursorY = 0;
+
+    bool operator==(const Shown& o) const {
+        return frameGen == o.frameGen && lamp == o.lamp && displayOn == o.displayOn &&
+               pressing == o.pressing && selector == o.selector && box.same(o.box) &&
+               cursor == o.cursor && cursorX == o.cursorX && cursorY == o.cursorY;
+    }
+};
+Shown lastShown;
+bool shownOnce = false;
 
 bool panelAsleep() { return panel && panel->asleep(); }
 
@@ -340,6 +365,8 @@ void pumpEvents() {
                 std::printf("[host] window closed\n");
                 quit = true;
                 break;
+            /* A window uncovered or resized has lost its picture, changed or not. */
+            case SDL_WINDOWEVENT: shownOnce = false; break;
             case SDL_KEYDOWN:
                 if (!e.key.repeat) onKey(e.key.keysym.sym, true);
                 break;
@@ -747,16 +774,31 @@ void present(uint32_t now) {
         lastPresentMs = now;
         return;
     }
+    float level = backlight;
+    if (level < 0.0f) level = 0.0f;
+    if (level > 1.0f) level = 1.0f;
+    Shown shown;
+    shown.frameGen = panel->frameGeneration();
+    shown.lamp = static_cast<uint8_t>(level * 255.0f + 0.5f);
+    shown.displayOn = panel->displayOn();
+    shown.pressing = padTouch || padStickClick || keyTouch;
+    shown.selector = focusOn && focusShown;
+    if (shown.selector) shown.box = focusBox;
+    shown.cursor = !focusOn && cursorShownAtMs != 0 && now - cursorShownAtMs < CURSOR_SHOW_MS;
+    if (shown.cursor) {
+        shown.cursorX = static_cast<int16_t>(cursorX);
+        shown.cursorY = static_cast<int16_t>(cursorY);
+    }
+    if (shownOnce && asleep == presentedAsleep && shown == lastShown) return;
+    lastShown = shown;
+    shownOnce = true;
+
     presentedAsleep = asleep;
     SDL_UpdateTexture(texture, nullptr, panel->frame(), FRAME_W * sizeof(uint16_t));
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     if (panel->displayOn()) {
-        float level = backlight;
-        if (level < 0.0f) level = 0.0f;
-        if (level > 1.0f) level = 1.0f;
-        const uint8_t mod = static_cast<uint8_t>(level * 255.0f + 0.5f);
-        SDL_SetTextureColorMod(texture, mod, mod, mod);
+        SDL_SetTextureColorMod(texture, shown.lamp, shown.lamp, shown.lamp);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
     }
     if (focusOn) {
@@ -766,6 +808,7 @@ void present(uint32_t now) {
     }
     SDL_RenderPresent(renderer);
     lastPresentMs = now;
+    ++presents;
 }
 
 bool makeDir(const std::string& path) {
@@ -854,6 +897,7 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
     SDL_RenderPresent(renderer);
     SDL_RenderSetLogicalSize(renderer, FRAME_W, FRAME_H);
     SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
+    shownOnce = false;   // the firmware's frame is no longer what is on screen
     return !quit;
 }
 
@@ -936,6 +980,10 @@ bool homeHeld() {
 }
 
 void setBacklight(float level) { backlight = level; }
+
+uint32_t presentCount() { return presents; }
+
+bool screenAsleep() { return panelAsleep(); }
 
 const std::string& dataDir() {
     static std::string dir;

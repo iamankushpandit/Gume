@@ -22,18 +22,21 @@
  * With the charger in, the whole ring first breathes twice in the one colour
  * of the percentage; pulling it out opens with a mood instead. Then, either
  * way, the gauge fills up to where the battery is and holds still. With the
- * charger in, what is charged holds still and what is yet to charge flashes,
- * each LED in its own place on the scale, which is what tells charging apart
- * from a battery that is only being looked at. */
+ * charger in, what is charged holds still and one light steps across what is
+ * yet to charge, an LED at a time in its own place on the scale, from the
+ * charged edge to the end and round again. That is what tells charging apart
+ * from a battery that is only being looked at, and it moves rather than
+ * blinks: the part that flashed as one block read as an alarm. */
 namespace HostRingGauge {
 
 constexpr int LEDS = 8;
 constexpr uint32_t GLOW_MS = 2500;
 constexpr uint32_t FILL_MS = 800;
-/* Well under three flashes a second, and softer than what holds still, so the
- * charged part stays the thing the eye reads. */
-constexpr uint32_t CHARGE_FLASH_MS = 1200;
-constexpr float CHARGE_FLASH_PEAK = 0.7f;
+/* How long the charging light rests on each LED, and how bright. Full: moving
+ * is what sets it apart from the charged part, and anything dimmer vanishes
+ * into the part-filled LED it crosses first, which near full is all there is. */
+constexpr uint32_t CHARGE_STEP_MS = 300;
+constexpr float CHARGE_DOT_PEAK = 1.0f;
 constexpr uint32_t FADE_MS = 1000;
 constexpr float PI_F = 3.14159265f;
 /* A nearly empty battery must still light something: dark means "not showing". */
@@ -49,16 +52,26 @@ struct Colour {
 
 inline float mix(float a, float b, float t) { return a + (b - a) * t; }
 
-/* 0 is red, 0.5 orange, 1 green. The orange is low in green because these
- * LEDs' green is much the stronger: an even mix reads as yellow. */
+/* Three bands, like the bars of a battery: red for the first two LEDs, orange
+ * for the next three, green for the last three -- so 0 is red, 0.5 orange and
+ * 1 green, with nothing in between. The orange is low in green because these
+ * LEDs' green is much the stronger: an even mix reads as yellow.
+ *
+ * It was a gradient, and blending orange into green left the LEDs between at
+ * about half of each: olive, dimmer than either end, on the very stretch the
+ * eye watches fill while charging, which made a charging ring look stalled.
+ * Lifting the blend to full brightness gave yellow and lime, which still read
+ * as off. Bands keep every LED at full strength and make the step from orange
+ * to green a clear one. */
+constexpr Colour RED{255, 0, 0};
+constexpr Colour ORANGE{255, 90, 0};
+constexpr Colour GREEN{0, 255, 0};
+
 inline Colour scale(float t) {
-    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-    if (t < 0.5f) {
-        const float u = t * 2.0f;
-        return {255, static_cast<uint8_t>(mix(0.0f, 90.0f, u)), 0};
-    }
-    const float u = (t - 0.5f) * 2.0f;
-    return {static_cast<uint8_t>(mix(255.0f, 0.0f, u)), static_cast<uint8_t>(mix(90.0f, 255.0f, u)), 0};
+    const float led = t * (LEDS - 1);
+    if (led < 1.5f) return RED;
+    if (led < 4.5f) return ORANGE;
+    return GREEN;
 }
 
 inline Colour dimmed(Colour c, float level) {
@@ -126,15 +139,19 @@ inline void render(int percent, Opening opening, bool plugged, uint32_t sinceMs,
 
     const float filled = t >= FILL_MS ? 1.0f : static_cast<float>(t) / FILL_MS;
     const float lit = percent * LEDS / 100.0f * filled;
-    const bool flashing = t >= FILL_MS && plugged && percent < 100;
-    const float wave = std::sin(PI_F * static_cast<float>(t % CHARGE_FLASH_MS) / CHARGE_FLASH_MS);
-    const float flash = CHARGE_FLASH_PEAK * wave * wave;
+    /* The first LED not wholly lit, and so where the charging light sets out.
+     * Each pass ends with a step on nothing: it marks where the light starts
+     * over, and with one LED left to charge it is what makes the light move
+     * at all. A dot past the last LED lights nothing. */
+    const int edge = static_cast<int>(lit);
+    const bool charging = t >= FILL_MS && plugged && percent < 100 && edge < LEDS;
+    const int dot = charging ? edge + static_cast<int>((t - FILL_MS) / CHARGE_STEP_MS % (LEDS - edge + 1)) : -1;
     for (int i = 0; i < LEDS; ++i) {
         const float share = lit - static_cast<float>(i);
         float level = share <= 0.0f ? 0.0f : (share >= 1.0f ? 1.0f : share);
         if (i == 0 && level < FIRST_LED_FLOOR) level = FIRST_LED_FLOOR;
         /* The LED part-way through keeps its filled share as a floor. */
-        if (flashing && level < 1.0f && flash > level) level = flash;
+        if (i == dot && CHARGE_DOT_PEAK > level) level = CHARGE_DOT_PEAK;
         out[i] = dimmed(scale(static_cast<float>(i) / (LEDS - 1)), level * fade);
     }
 }

@@ -13,6 +13,7 @@
 
 #include <dirent.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -60,6 +61,7 @@ struct BatteryFiles {
     std::string capacity;   // the fuel gauge's percentage, when it has one
     std::string voltage;    // the cell voltage, otherwise
     std::string status;     // Charging, Discharging, Full, ...
+    std::string current;    // the current through the cell, when the PMIC measures it
     std::vector<std::string> chargers;   // every other supply's `online`
 };
 
@@ -93,6 +95,7 @@ BatteryFiles findBattery() {
         if (readable(base + "/capacity")) found.capacity = base + "/capacity";
         if (readable(base + "/voltage_now")) found.voltage = base + "/voltage_now";
         if (readable(base + "/status")) found.status = base + "/status";
+        if (readable(base + "/current_now")) found.current = base + "/current_now";
         haveBattery = !found.capacity.empty() || !found.voltage.empty();
     }
     ::closedir(dir);
@@ -122,6 +125,47 @@ int readCapacity(const std::string& path) {
 
 std::once_flag once;
 BatteryFiles files;
+
+/* What the power chip said last, and when. Every read of one of its files is
+ * a round of I2C transactions on its bus -- twi5 on the RG40XXV, which the
+ * [drain] log showed at 430 interrupts a second -- and this file was asked
+ * seven or eight times a second: the firmware's battery task alone samples
+ * eight times in a row every two seconds, each sample a capacity read here.
+ * The gauge moves a whole percent every few minutes at most, so an answer a
+ * second old is the same answer. */
+constexpr auto FRESH_FOR = std::chrono::milliseconds(1000);
+
+struct Snapshot {
+    int pct = -1;
+    bool charging = false;
+    bool plugged = false;
+};
+std::mutex snapshotLock;
+Snapshot lastRead;
+std::chrono::steady_clock::time_point lastReadAt{};
+bool haveRead = false;
+
+/* After `files` has been found. */
+Snapshot fresh() {
+    std::lock_guard<std::mutex> lock(snapshotLock);
+    const auto now = std::chrono::steady_clock::now();
+    if (haveRead && now - lastReadAt < FRESH_FOR) return lastRead;
+    Snapshot s;
+    s.pct = readCapacity(files.capacity);
+    if (FILE* f = std::fopen(files.status.c_str(), "r")) {
+        char status[24] = {0};
+        s.charging = std::fscanf(f, "%23s", status) == 1 && std::strcmp(status, "Charging") == 0;
+        std::fclose(f);
+    }
+    s.plugged = s.charging;
+    for (const std::string& online : files.chargers) {
+        if (readLong(online) == 1) s.plugged = true;
+    }
+    lastRead = s;
+    lastReadAt = now;
+    haveRead = true;
+    return s;
+}
 
 }   // namespace
 
@@ -156,24 +200,45 @@ uint32_t cellMillivolts() {
         if (files.chargers.empty()) std::printf("[battery] host: no charger supply reported\n");
         std::fflush(stdout);
     });
-    const int pct = readCapacity(files.capacity);
+    const int pct = fresh().pct;
     if (pct >= 0) return millivoltsFor(pct);
     return files.voltage.empty() ? 0 : readMillivolts(files.voltage);
 }
 
 Reading read() {
     cellMillivolts();   // finds the files, once
-    Reading r{readCapacity(files.capacity), false, false};
-    if (FILE* f = std::fopen(files.status.c_str(), "r")) {
-        char status[24] = {0};
-        r.charging = std::fscanf(f, "%23s", status) == 1 && std::strcmp(status, "Charging") == 0;
-        std::fclose(f);
-    }
-    r.plugged = r.charging;
-    for (const std::string& online : files.chargers) {
-        if (readLong(online) == 1) r.plugged = true;
-    }
+    const Snapshot s = fresh();
+    Reading r{s.pct, false, false};
+    r.charging = s.charging;
+    r.plugged = s.plugged;
     return r;
+}
+
+Electrical electrical() {
+    cellMillivolts();   // finds the files, once
+    Electrical e{INT32_MIN, INT32_MIN};
+    if (!files.voltage.empty()) {
+        const uint32_t mv = readMillivolts(files.voltage);
+        if (mv > 0) e.millivolts = static_cast<int32_t>(mv);
+    }
+    if (files.current.empty()) return e;
+    long raw = 0;
+    FILE* f = std::fopen(files.current.c_str(), "r");
+    if (!f) return e;
+    const bool ok = std::fscanf(f, "%ld", &raw) == 1;
+    std::fclose(f);
+    if (!ok) return e;
+    /* The kernel's unit is microamps, and some PMIC drivers report milliamps
+     * regardless. No handheld draws 20 A, and under 20 mA is not a figure
+     * anything here turns on, so the size of the number settles which it is. */
+    long magnitude = std::labs(raw);
+    if (magnitude >= 20000) magnitude /= 1000;
+    static std::once_flag said;
+    std::call_once(said, [raw, magnitude] {
+        std::printf("[power] host: current_now reads %ld, taken as %ld mA\n", raw, magnitude);
+    });
+    e.milliamps = static_cast<int32_t>(read().charging ? -magnitude : magnitude);
+    return e;
 }
 
 }   // namespace HostBattery

@@ -33,6 +33,7 @@
 #include "HostRingGauge.h"
 
 #include <fcntl.h>
+#include <pthread.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -60,6 +61,7 @@ constexpr uint8_t SOLID_BRIGHTNESS = 255;
 
 constexpr auto GAUGE_SHOW = std::chrono::milliseconds(10000);
 constexpr auto GAUGE_FRAME = std::chrono::milliseconds(33);   // also how soon a change lands
+constexpr auto IDLE_FRAME = std::chrono::milliseconds(250);   // asleep, nothing showing
 constexpr auto BATTERY_POLL = std::chrono::milliseconds(1000);
 
 std::mutex mutex;
@@ -68,6 +70,7 @@ bool awake = true;
 bool dirty = true;
 bool gaugeAsked = false;
 std::once_flag started;
+std::atomic<int> lit{-1};   // what the ring last showed; -1 until it is driven
 int fd = -1;
 
 bool openDevice() {
@@ -146,9 +149,11 @@ bool ledEnabled() {
 }
 
 void worker() {
+    ::pthread_setname_np(::pthread_self(), "led-ring");
     if (!openDevice()) return;
     std::printf("[led] host: light ring on %s\n", SERIAL_PATH);
     std::fflush(stdout);
+    lit = 0;
     using Clock = std::chrono::steady_clock;
     Clock::time_point gaugeStart{}, gaugeUntil{}, nextPoll{};
     HostRingGauge::Opening opening = HostRingGauge::Opening::None;
@@ -214,22 +219,30 @@ void worker() {
                 static_cast<uint32_t>(duration_cast<milliseconds>(now - gaugeStart).count()),
                 static_cast<uint32_t>(duration_cast<milliseconds>(gaugeUntil - now).count()), ring);
             sendGauge(ring);
+            lit = 1;
             gaugeShown = true;
         } else if (lightChanged || gaugeShown) {
             gaugeShown = false;
             if (!isAwake || !ledEnabled()) {
                 sendSolid(0, 0, 0);
+                lit = 0;
             } else if (r == 0 && g == 0 && b == 0) {
                 sendRainbow();
+                lit = 1;
             } else {
                 sendSolid(r, g, b);
+                lit = 1;
             }
         }
         /* Slept, not waited on the condition variable: without
          * pthread_cond_clockwait that wait is against the wall clock, and a
          * first NTP answer can step that back by hours, which would leave this
-         * thread stuck there until something else woke it. */
-        std::this_thread::sleep_for(GAUGE_FRAME);
+         * thread stuck there until something else woke it. Asleep with nothing
+         * on the ring there is nothing to animate and no firmware colour to
+         * follow, only a charger or a stick to notice, so it wakes a few times
+         * a second instead of thirty. */
+        const bool idle = !isAwake && now >= gaugeUntil;
+        std::this_thread::sleep_for(idle ? IDLE_FRAME : GAUGE_FRAME);
     }
 }
 
@@ -269,6 +282,8 @@ void setDisplayAwake(bool isAwake) {
     awake = isAwake;
     changed();
 }
+
+int8_t lightOn() { return static_cast<int8_t>(lit.load()); }
 
 void showBattery() {
     std::lock_guard<std::mutex> lock(mutex);

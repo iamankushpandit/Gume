@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 /* The handheld's real backlight, switched off while the firmware's panel is
  * asleep.
  *
@@ -37,6 +39,11 @@
  * Built only with GUME_HOST_SCREEN_POWER (cross-compiled builds: handhelds).
  * A desktop build leaves the computer's own screen alone. */
 namespace HostScreenPower {
+
+/* The real lamp, 0-100, or -1 where this build cannot see it. It differs from
+ * the firmware's brightness setting, which only dims the picture in front of
+ * it. For the battery diagnostic: not for a render path. */
+int16_t lampPercent();
 
 /* Once, at start: restore a backlight a previous run left off, and arm the
  * signal handlers. */
