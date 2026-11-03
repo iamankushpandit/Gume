@@ -199,7 +199,7 @@ public:
     /* The controls on screen, in the rotation-1 frame, for the host's d-pad
      * selector. A control is a fill and an outline of one rectangle, which is
      * how Ui::drawButton() ends and so every button, launcher tile and keyboard
-     * key, or a header icon iconTarget() can find. Forgotten when the screen is
+     * key, a tab in a tab strip, or a header icon iconTarget() can find. Forgotten when the screen is
      * cleared, the rotation changes, or something is filled over its middle. A
      * board drawn as one picture, with the squares worked out from where the
      * finger landed, offers nothing here: the stick's crosshair is the way onto

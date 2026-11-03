@@ -22,12 +22,25 @@ login, shell or network service, and no text on the screen from power-on to
 Braino's splash. Braino draws straight to the panel through the kernel's DRM
 driver (`BRAINO_HOST_DRM`, off for desktops), with no GPU driver at all, and
 moves to an HDMI screen when one is plugged in. The power key turns the
-console off and the volume keys set the codec's level. Each boot leaves a
-hardware report and the kernel log on the card, for diagnosing a console that
-misbehaves. Not working yet on the device: the light ring, which looks for its
-controller under a mainline kernel's names but has not been seen to light.
-`tools/check_licenses.py` now covers Buildroot's file types and extension-less
-scripts, and exempts ROCKNIX's files, which keep their own licences.
+console off and the volume keys set the codec's level. The light ring works
+on the mainline kernel too: its controller is UART5, which 7.2 names
+`5001400.serial:0.0` rather than muOS's `ttyS5`. Settings, profiles and scores
+are kept on the card's data partition across power-offs, and the CPU clock
+follows the load (`schedutil`) where the kernel's default held it at 1.4 GHz.
+Each boot leaves a hardware report and the kernel log on the card, for
+diagnosing a console that misbehaves. `tools/check_licenses.py` now covers
+Buildroot's file types and extension-less scripts, and exempts ROCKNIX's
+files, which keep their own licences.
+
+**The handheld's d-pad reaches the tabs.** Settings, Wi-Fi, System Info and
+About draw their tabs as a strip rather than as buttons, so the selector could
+reach every control on those screens except the tabs that move between them.
+
+**The launcher's header has its hairline back, at the side.** The rearranged
+header lost the vertical line that set the mark, the name and the copyright
+apart from the clock and the badges. It now stands just before the badge
+row's first glyph, down both rows, and the name stops short of it: 62px on a
+320px panel, still enough for a nine-letter name in the smaller font.
 
 **The launcher's header gives the player's name room.** A nine-letter name ran
 over the header's divider and under the padlock, because every control added

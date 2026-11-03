@@ -147,12 +147,10 @@ Rect gearRect(Board::LayoutMode mode, int16_t screenW) {
  * After the copyright it began at x=132 and every control added to the badge
  * row took pixels from it, until its right limit was screenW-164 -- 24px on a
  * 320px panel -- and a floor of 52 then pushed it past that limit, over the
- * hairline and under the padlock. Beside the mark it runs to the clock: 91px
- * at 320, which holds a full PROFILE_NAME_MAX name at font 2 in all but the
- * widest letters, and the launcher drops to font 1 (6px a character, 54px for
- * nine) when it does not. The clock sits off the gear and the sync check and
- * is at most 48px at font 2 ("12:59P"), so its left edge is never further left
- * than screenW-99; 7px of air before that.
+ * hairline and under the padlock. Beside the mark it runs to the header's
+ * hairline (headerDividerX()), 4px short of it: 62px at 320, which holds a
+ * full PROFILE_NAME_MAX name at font 1 (6px a character, 54px for nine) and a
+ * shorter one at font 2, which the launcher uses when it fits.
  *
  * PORTRAIT it has the second row to itself up to the gear. */
 Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
@@ -162,8 +160,28 @@ Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
                     static_cast<int16_t>(gear.x - 8 - 8), 20};
     }
     const int16_t x = static_cast<int16_t>(10 + Ui::logoWidth(Ui::Logo::Word) + 10);
-    const int16_t rightLimit = static_cast<int16_t>(screenW - 106);
+    const int16_t rightLimit = static_cast<int16_t>(headerDividerX(screenW) - 4);
     return Rect{x, static_cast<int16_t>(WIDE_TOP_Y - 1), static_cast<int16_t>(rightLimit - x), 20};
+}
+
+/* LANDSCAPE: the hairline that sets the mark, the name and the copyright
+ * apart from everything the header reports -- the clock and its check, the
+ * gear, and the badge row. Its x is the right-hand group's own left edge: the
+ * Bluetooth rune, outermost in the badge row, is a 9px box from lockRect().x -
+ * 13 (drawBleBadge() centres it 9px left of the padlock), and the hairline
+ * stands 4px before it, so it clears the group on both rows whether the beacon
+ * is on or not. The clock on the top row is further right still (never left
+ * of screenW-99). At 320 that is x=193; the copyright ends near x=124. */
+int16_t headerDividerX(int16_t screenW) {
+    const Rect lock = lockRect(Board::LayoutMode::Horizontal, screenW);
+    return static_cast<int16_t>(lock.x - 13 - 4);
+}
+
+/* From the top of the mark's row to the foot of the badge row. */
+int16_t headerDividerTop() { return WIDE_TOP_Y; }
+int16_t headerDividerBottom(int16_t screenW) {
+    const Rect lock = lockRect(Board::LayoutMode::Horizontal, screenW);
+    return static_cast<int16_t>(lock.y + lock.h);
 }
 
 Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH) {

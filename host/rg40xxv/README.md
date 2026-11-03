@@ -114,10 +114,16 @@ bundle is what a release must offer beside the image.
 
 ### Before the first public release
 
-- **The light ring does not light yet.** Braino looks for its controller as
-  UART5 (`5001400.serial`) behind the `kbd_backlight` LED; the boot's
-  `hardware.txt` will say what the kernel actually called them.
-- **HDMI is untested on the device**, and HDMI sound is not routed yet.
+- **HDMI is untested on the device**, and HDMI sound is not routed: ROCKNIX
+  ships the H700's HDMI audio (its `ahub` sound card) disabled in this
+  device tree.
+- **The Wi-Fi password's Show checkbox is not reached by the d-pad** on the
+  device, though it is drawn as a button. `braino-run` sets
+  `BRAINO_FOCUS_LOG=1` for now, which logs the selector's list on every
+  screen; remove it once that is understood.
+- **The GPL source offer.** Publish Buildroot's `make legal-info` output
+  beside every image: every source, patch and configuration that built it,
+  and the licence texts, Realtek's firmware licence among them.
 
 - **The panel files' licence.** `anbernic,rg40xx*-panel.panel` come from
   ROCKNIX's tree, which states no licence for them. Confirm it with ROCKNIX.

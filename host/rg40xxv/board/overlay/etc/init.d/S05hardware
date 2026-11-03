@@ -20,6 +20,13 @@ start)
 
     hwclock -s -u 2>/dev/null
 
+    # The kernel boots with the performance governor, which holds every core
+    # at 1.4 GHz however idle the launcher is (396 mA awake, measured). Let the
+    # clock follow the load instead.
+    for g in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
+        grep -qw schedutil "${g%/*}/scaling_available_governors" 2>/dev/null && echo schedutil >"$g"
+    done
+
     # The codec starts muted. Braino sets its own volume in software, so the
     # hardware path is opened once, at a level that does not distort.
     if [ -f /data/asound.state ]; then

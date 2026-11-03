@@ -125,6 +125,18 @@ int TFT_eSPI::focusTargets(FocusBox* out, int max) const {
         }
         out[count++] = FocusBox{m.fx0, m.fy0, m.fx1, m.fy1, false};
     }
+    /* Tabs are not drawn as a fill and an outline of one rectangle (see
+     * Ui::drawTab: a rounded fill, a square foot, three edges), so they are
+     * taken from the tab strip noteTabSquare() already follows for the M key.
+     * Without this the d-pad could reach every control on Settings, Wi-Fi,
+     * System Info and About but never the strip that moves between them. */
+    for (const TabMark& t : tabs_) {
+        if (!t.valid || t.rot != rotation_ || count >= max) continue;
+        int16_t ax = 0, ay = 0, bx = 0, by = 0;
+        logicalToFrame(t.x, t.top, ax, ay);
+        logicalToFrame(t.x + t.w - 1, t.bottom - 1, bx, by);
+        out[count++] = FocusBox{std::min(ax, bx), std::min(ay, by), std::max(ax, bx), std::max(ay, by), false};
+    }
     for (const Icon icon : {Icon::Home, Icon::Profile, Icon::Lock, Icon::Mute, Icon::Settings}) {
         const IconTrack* t = iconTrack(icon);
         if (!t || count >= max) continue;

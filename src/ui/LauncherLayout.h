@@ -35,6 +35,11 @@ Rect lockRect(Board::LayoutMode mode, int16_t screenW);
 int16_t headerHeight(Board::LayoutMode mode);
 Rect gearRect(Board::LayoutMode mode, int16_t screenW);
 Rect profileRect(Board::LayoutMode mode, int16_t screenW);
+/* Landscape only: the hairline between the mark, name and copyright and the
+ * header's clock, gear and badges -- its x, and the rows it spans. */
+int16_t headerDividerX(int16_t screenW);
+int16_t headerDividerTop();
+int16_t headerDividerBottom(int16_t screenW);
 /* The launcher's tile grid, measured against the live panel.
  *
  * screenW/screenH are required rather than defaulted. Everything else on this

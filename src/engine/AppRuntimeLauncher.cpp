@@ -307,6 +307,12 @@ void LauncherApp::drawHeader(GameHost& host) {
         if (BleBeacon::active()) {
             Ui::drawBleBadge(tft, static_cast<int16_t>(lock.x - 9), rowY, Ui::surface());
         }
+        /* The hairline that sets the mark, the name and the copyright apart
+         * from the status group (LauncherLayout::headerDividerX()). */
+        const int16_t dividerTop = LauncherLayout::headerDividerTop();
+        tft.drawFastVLine(LauncherLayout::headerDividerX(lW), dividerTop,
+                          static_cast<int16_t>(LauncherLayout::headerDividerBottom(lW) - dividerTop),
+                          Ui::outline());
     }
     Ui::drawGearIcon(tft, gearBtn, Ui::text());
     /* The launcher draws no top bar, so it carries its own Lock button. The

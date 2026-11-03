@@ -17,6 +17,9 @@ mkdir -p "$DATA"
 
 export BRAINO_DATA_DIR="$DATA"
 export BRAINO_FULLSCREEN=1
+# Bring-up only: the d-pad's list of controls goes to the log whenever it
+# changes (HostPlatform's stepFocus). Remove before a release image.
+export BRAINO_FOCUS_LOG=1
 export HOME=/data
 export SDL_AUDIODRIVER=alsa
 export SDL_GAMECONTROLLERCONFIG="$(cat /etc/braino/gamecontroller.txt 2>/dev/null)"

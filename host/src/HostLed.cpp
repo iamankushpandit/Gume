@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cerrno>
 #include <cstring>
 #include <mutex>
 #include <thread>
@@ -78,8 +79,13 @@ bool findMainlineUart5(char* out, size_t len) {
         const ssize_t got = ::readlink(link, target, sizeof(target) - 1);
         if (got <= 0) continue;
         target[got] = '\0';
+        /* "5001400.serial", or "5001400.serial:0.0" since the kernel's
+         * serial core gained a port device of its own (7.x on the RG40XX V). */
         const char* base = std::strrchr(target, '/');
-        if (std::strcmp(base ? base + 1 : target, MAINLINE_UART5) == 0) {
+        base = base ? base + 1 : target;
+        const size_t nameLen = std::strlen(MAINLINE_UART5);
+        if (std::strncmp(base, MAINLINE_UART5, nameLen) == 0 &&
+            (base[nameLen] == '\0' || base[nameLen] == ':')) {
             std::snprintf(out, len, "/dev/ttyS%d", n);
             return true;
         }
@@ -124,14 +130,34 @@ std::atomic<int> lit{-1};   // what the ring last showed; -1 until it is driven
 int fd = -1;
 
 bool openDevice() {
-    if (!findSerial() || ::access(serialPath, W_OK) != 0) return false;
-    if (!writeOne(VENDOR_MCU_POWER)) {
+    /* Each way this can fail says so: a ring that stays dark is otherwise
+     * indistinguishable from one with no MCU at all. */
+    if (!findSerial()) {
+        std::printf("[led] host: no light ring: no %s, and no ttyS is UART5 (%s)\n", VENDOR_MCU_POWER,
+                    MAINLINE_UART5);
+        return false;
+    }
+    if (::access(serialPath, W_OK) != 0) {
+        std::printf("[led] host: no light ring: %s is not writable (%s)\n", serialPath, std::strerror(errno));
+        return false;
+    }
+    const char* power = nullptr;
+    if (writeOne(VENDOR_MCU_POWER)) {
+        power = VENDOR_MCU_POWER;
+    } else {
         for (const char* p : MAINLINE_MCU_POWER) {
-            if (writeOne(p)) break;
+            if (writeOne(p)) {
+                power = p;
+                break;
+            }
         }
     }
+    std::printf("[led] host: ring MCU on %s, its supply %s\n", serialPath, power ? power : "not found");
     fd = ::open(serialPath, O_WRONLY | O_NOCTTY | O_CLOEXEC);
-    if (fd < 0) return false;
+    if (fd < 0) {
+        std::printf("[led] host: could not open %s: %s\n", serialPath, std::strerror(errno));
+        return false;
+    }
     termios tio{};
     if (::tcgetattr(fd, &tio) == 0) {
         ::cfmakeraw(&tio);

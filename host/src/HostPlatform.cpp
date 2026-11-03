@@ -482,6 +482,27 @@ int stepFocus(uint32_t now) {
         return dy;   // nothing to select, but a list like System Info's still scrolls
     }
     focusEmptySinceMs = 0;
+    /* BRAINO_FOCUS_LOG=1: log the selector's list whenever it changes, so a
+     * control the d-pad cannot reach on the device shows up in its log. */
+    static const bool focusLog = std::getenv("BRAINO_FOCUS_LOG") != nullptr;
+    if (focusLog) {
+        static uint32_t lastHash = 0;
+        uint32_t hash = 2166136261u;
+        for (int i = 0; i < count; ++i) {
+            for (int v : {int(boxes[i].x0), int(boxes[i].y0), int(boxes[i].x1), int(boxes[i].y1)}) {
+                hash = (hash ^ static_cast<uint32_t>(v)) * 16777619u;
+            }
+        }
+        if (hash != lastHash) {
+            lastHash = hash;
+            std::printf("[focus] %d controls:", count);
+            for (int i = 0; i < count; ++i) {
+                std::printf(" %d,%d-%d,%d%s", boxes[i].x0, boxes[i].y0, boxes[i].x1, boxes[i].y1,
+                            boxes[i].header ? "h" : "");
+            }
+            std::printf("\n");
+        }
+    }
     if (!focusOn && !newPress) return 0;
 
     /* The first press only brings the selector up, on what the crosshair was

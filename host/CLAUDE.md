@@ -501,8 +501,13 @@ code in `host/`:
   is untouched.
 - **The light ring is found, not assumed.** Under Anbernic's kernel the MCU
   is `/dev/ttyS5` behind the PMIC's `mcu_pwr`; under mainline it is whichever
-  `ttyS` is UART5 (`5001400.serial`), behind the GPIO the device tree calls
-  `kbd_backlight`. `BRAINO_LED_TTY` overrides the search.
+  `ttyS` is UART5 (`5001400.serial`, or `5001400.serial:0.0` now the serial
+  core names a port device of its own -- `ttyS2` on the RG40XX V under 7.2),
+  behind the GPIO the device tree calls `rgb:kbd_backlight`. `BRAINO_LED_TTY`
+  overrides the search, and every way it can fail is logged.
+- **The CPU governor is `schedutil`**, set by the image's init. The kernel
+  boots with `performance`, which held all four cores at 1.4 GHz at an idle
+  launcher (396 mA awake, measured).
 - **The build stamp takes its commit from the environment.** Buildroot builds
   a copy of the tree without `.git`, so `cmake/BuildStamp.cmake` reads
   `BRAINO_BUILD_COMMIT` and `BRAINO_BUILD_BRANCH`, which `rg40xxv/build.sh`

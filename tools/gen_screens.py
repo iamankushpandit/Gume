@@ -1695,7 +1695,13 @@ def launcher_header(d, w, tall, name="Ava", beacon=False):
         sync_badge(d, int(8 + d.textlength(t, font=F2) + 12), row)
     else:
         d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-        d.text((10 + _logo_mask("WORD")[0] + 10, 7), name, font=F2, fill=TEXT)
+        # headerDividerX(): 4px before the Bluetooth rune's box (lock_x - 13),
+        # from the mark's row (y=6) to the foot of the badge row (25 + 18).
+        divider_x = lock_x - 13 - 4
+        name_x = 10 + _logo_mask("WORD")[0] + 10
+        name_font = F2 if d.textlength(name, font=F2) <= divider_x - 4 - name_x else F1
+        d.text((name_x, 7), name, font=name_font, fill=TEXT)
+        d.line([(divider_x, 6), (divider_x, 25 + CONTROL_H - 1)], fill=OUTLINE)
         row = 34
         sync_cx = gear[0] - 6 - 7
         sync_badge(d, sync_cx, 15)
