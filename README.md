@@ -1180,7 +1180,10 @@ built by the same code and off until it is switched on in Settings; it
 advertises from a random address the device made up, never the chip's own. On
 the RG40XXV, Braino also switches off muOS's own network services -- its web
 dashboard, file sharing, remote login and its time service -- so the console
-as a whole sends only what a board sends. On a desktop with NetworkManager,
+as a whole sends only what a board sends. The RG40XX V's Braino-only card
+image has none of those services to switch off: nothing on it but Braino uses
+the network, there is no login or remote access of any kind, and Wi-Fi is
+started only when Braino joins a network. On a desktop with NetworkManager,
 joining a network from that screen saves it in the computer's own network
 settings, exactly as joining from the system's Wi-Fi menu would. Profiles and
 scores are kept in a file on that computer, the same way a board keeps them in
@@ -1435,6 +1438,14 @@ gauge, red through orange to green, shown while the charger is in and for a few
 seconds after it comes out or a stick is pushed. [host/CLAUDE.md](host/CLAUDE.md) explains how it works, how to put it on
 a card, and what differs from a board.
 
+The RG40XX V also has a **card image that is nothing but Braino**: no muOS
+or any other system underneath, no menu, no login, and no text on the screen
+from power-on to the splash. It is built from source with Buildroot --
+mainline Linux 7.2 with ROCKNIX's H700 support, U-Boot, and Braino drawing
+straight to the panel with no GPU driver -- and is 13 MB to download.
+[host/rg40xxv/README.md](host/rg40xxv/README.md) explains how to build it and
+what is on it.
+
 ### Diagnostics
 
 Fourteen environments in `platformio.ini` are hardware probes rather than the
@@ -1611,6 +1622,9 @@ host/
                         boot splash
   cmake/                the aarch64 cross toolchain, the build stamp
   muos/                 the RG40XXV launcher and the card packer
+  rg40xxv/              the RG40XX V's Braino-only card image (Buildroot):
+                        mainline Linux with ROCKNIX's H700 support, U-Boot,
+                        Braino drawing through DRM, nothing else
 tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_elements.py       regenerates the 118-element table, checking it

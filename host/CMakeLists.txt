@@ -140,5 +140,13 @@ if(BRAINO_HOST_SCREEN_POWER)
   target_compile_definitions(braino PRIVATE GUME_HOST_SCREEN_POWER=1)
 endif()
 
+# A whole-device image with no window system draws straight to the kernel's
+# display driver (host/src/HostDrm.h) and uses SDL only for the gamepad and
+# sound. Off for desktops, where SDL's window is the screen.
+option(BRAINO_HOST_DRM "Draw to the panel through DRM instead of an SDL window" OFF)
+if(BRAINO_HOST_DRM)
+  target_compile_definitions(braino PRIVATE GUME_HOST_DRM=1)
+endif()
+
 target_compile_options(braino PRIVATE -Wall)
 target_link_libraries(braino PRIVATE PkgConfig::SDL2 PkgConfig::CURL Threads::Threads m)

@@ -91,7 +91,8 @@ every pull request. Three things follow from it:
 - **The holder in a header is `iamankushpandit` and nothing else.** A header
   that disagrees with LICENSE is worse than no header, because it is the one a
   downstream reader will rely on. The exemptions -- LICENSE itself, files with
-  no comment syntax (JSON, binaries), and PlatformIO's stub READMEs -- are
+  no comment syntax (JSON, binaries), PlatformIO's stub READMEs, and the
+  third-party ROCKNIX files kept verbatim in `host/rg40xxv/rocknix/` -- are
   listed with their reasons at the top of the checker; add to that list only
   for a reason of the same kind, never for convenience.
 
@@ -526,6 +527,21 @@ the guide. Three things about it are load-bearing:
   a run that ends asleep leaves markers in `/run/braino` so the next start
   puts them back. **Never the display output**: re-enabling it woke the
   RG40XXV mirrored with inverted colours, and muOS ships that toggle off.
+- **The RG40XX V has a whole-device image that is nothing but Braino**
+  (`host/rg40xxv/`, a Buildroot external tree; its README is the guide).
+  Mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A built from
+  source, the whole system in RAM, no GPU driver: `BRAINO_HOST_DRM` draws
+  through the kernel's DRM driver (`host/src/HostDrm.cpp`) and keeps SDL for
+  the gamepad and sound only. Four rules hold it together. **Nothing but
+  Braino draws on the panel** -- no text console, boot messages on the serial
+  port only -- so the screen is dark until the splash. **No service, login or
+  shell exists**: init runs the scripts in `board/overlay/etc/init.d` and
+  Braino, and the closed list of outbound flows covers the whole device.
+  **`host/rg40xxv/rocknix/` is ROCKNIX's, verbatim** (fetched by `fetch.sh`
+  from one pinned commit, recorded in `PROVENANCE.txt`), applied in ROCKNIX's
+  order with patch's default fuzz, and stops the build on any hunk that does
+  not apply. **The image is a release asset, never in git**, and it ships
+  with Buildroot's `legal-info` as its source offer.
 
 `BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
 replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,
@@ -1425,7 +1441,10 @@ host/                     src/ built unchanged as an SDL desktop program:
                           its secrets sealed, audio, the backlight,
                           emulated FT6336U, Wi-Fi through the OS, boot
                           splash), cmake/ (aarch64 toolchain), muos/ (the
-                          RG40XXV launcher and card packer)
+                          RG40XXV launcher and card packer), rg40xxv/ (the
+                          RG40XX V's Braino-only Buildroot image: build.sh,
+                          configs/, board/, package/, and rocknix/ --
+                          ROCKNIX's H700 patches and device trees, verbatim)
 ```
 
 ## Cutting a release

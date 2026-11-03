@@ -476,6 +476,41 @@ time, and only when uptime says this really was a boot. It then fills over
 about two seconds and reads 100% only when the first screen is next. The
 opening number is an estimate; the 100% is not.
 
+## The Anbernic RG40XXV as nothing but Braino (`rg40xxv/`)
+
+`rg40xxv/` builds a microSD image on which the console is Braino and nothing
+else: mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A from
+source, a busybox system built into the kernel, and this program. Its
+`README.md` covers the build, the card and the licences. What it asks of the
+code in `host/`:
+
+- **`BRAINO_HOST_DRM` is the screen.** The image has no GPU driver and no
+  window system, so `src/HostDrm.cpp` opens the kernel's DRM card, makes two
+  dumb XRGB8888 buffers at the panel's mode and flips them on vertical blank,
+  with raw ioctls rather than libdrm. `HostPlatform` then initialises SDL
+  without video (gamepad, events and sound only) and `present()` converts the
+  RGB565 frame, dims it by the emulated backlight, scales it by a whole number
+  and draws the cursor and selector over it in canvas pixels, as the SDL
+  renderer does at its logical size. It still presents only when something
+  changed, and `presentImage()` (the splash) clears that so the next frame is
+  drawn. **HDMI wins whenever a screen is connected**: `outputChanged()` reads
+  the kernel's hotplug uevents from a netlink socket (no udev), moves the
+  picture to the TV's own mode on fresh buffers and turns the panel's CRTC
+  off, and back again when it is unplugged; `present()` re-lays out and
+  redraws whole when it says so. The option is off by default: the PC build
+  is untouched.
+- **The light ring is found, not assumed.** Under Anbernic's kernel the MCU
+  is `/dev/ttyS5` behind the PMIC's `mcu_pwr`; under mainline it is whichever
+  `ttyS` is UART5 (`5001400.serial`), behind the GPIO the device tree calls
+  `kbd_backlight`. `BRAINO_LED_TTY` overrides the search.
+- **The build stamp takes its commit from the environment.** Buildroot builds
+  a copy of the tree without `.git`, so `cmake/BuildStamp.cmake` reads
+  `BRAINO_BUILD_COMMIT` and `BRAINO_BUILD_BRANCH`, which `rg40xxv/build.sh`
+  works out (translating a Windows worktree's `gitdir` as this script does).
+- **The libraries are Buildroot packages.** `FETCHCONTENT_SOURCE_DIR_*` points
+  CMake at them, so the image build makes no network request of its own and
+  every source is in `legal-info`.
+
 ## The Anbernic RG40XXV under muOS
 
 `cmake/aarch64-linux-gnu.cmake` cross-compiles against a Debian bullseye

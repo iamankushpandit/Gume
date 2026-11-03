@@ -35,6 +35,7 @@
  * frame from outside would be smeared across the screen by the next partial
  * repaint. Kept out of the frame, the cursor costs the firmware nothing. */
 
+#include "HostDrm.h"
 #include "HostFocus.h"
 #include "HostLed.h"
 #include "HostPlatform.h"
@@ -756,8 +757,147 @@ const ScriptedTap* scriptedTap(uint32_t now) {
     return nullptr;
 }
 
+#if GUME_HOST_DRM
+/* The same picture without SDL video: the frame is converted, dimmed by the
+ * emulated backlight and scaled by a whole number into a DRM buffer, centred,
+ * and the cursor and selector are drawn over it in canvas pixels exactly as
+ * the SDL renderer draws them at its logical size. */
+int drmScale = 1, drmOffX = 0, drmOffY = 0;
+int drmBordersDirty = 0;   // buffers holding a full-screen picture outside the canvas
+uint8_t lutMod = 0;
+bool lutValid = false;
+uint32_t lutR[32], lutG[64], lutB[32];
+
+/* The largest whole-number scale that fits the current output, centred. */
+void drmLayout() {
+    drmScale = HostDrm::width() / FRAME_W;
+    if (HostDrm::height() / FRAME_H < drmScale) drmScale = HostDrm::height() / FRAME_H;
+    if (drmScale < 1) drmScale = 1;
+    drmOffX = (HostDrm::width() - FRAME_W * drmScale) / 2;
+    drmOffY = (HostDrm::height() - FRAME_H * drmScale) / 2;
+}
+
+void drmBuildLut(uint8_t mod) {
+    for (int v = 0; v < 32; ++v) {
+        const uint32_t c = static_cast<uint32_t>(((v << 3) | (v >> 2)) * mod / 255);
+        lutR[v] = c << 16;
+        lutB[v] = c;
+    }
+    for (int v = 0; v < 64; ++v) {
+        const uint32_t c = static_cast<uint32_t>(((v << 2) | (v >> 4)) * mod / 255);
+        lutG[v] = c << 8;
+    }
+    lutMod = mod;
+    lutValid = true;
+}
+
+/* A rectangle in canvas pixels, clipped to the canvas. */
+void drmFill(uint32_t* buf, int stride, int x, int y, int w, int h, uint32_t color) {
+    int x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
+    int x1 = x + w > FRAME_W ? FRAME_W : x + w, y1 = y + h > FRAME_H ? FRAME_H : y + h;
+    if (x0 >= x1 || y0 >= y1) return;
+    for (int sy = drmOffY + y0 * drmScale; sy < drmOffY + y1 * drmScale; ++sy) {
+        uint32_t* row = buf + sy * stride;
+        for (int sx = drmOffX + x0 * drmScale; sx < drmOffX + x1 * drmScale; ++sx) row[sx] = color;
+    }
+}
+
+void drmOutline(uint32_t* buf, int stride, const SDL_Rect& r, uint32_t color) {
+    drmFill(buf, stride, r.x, r.y, r.w, 1, color);
+    drmFill(buf, stride, r.x, r.y + r.h - 1, r.w, 1, color);
+    drmFill(buf, stride, r.x, r.y, 1, r.h, color);
+    drmFill(buf, stride, r.x + r.w - 1, r.y, 1, r.h, color);
+}
+
+constexpr uint32_t DRM_BLACK = 0x000000, DRM_WHITE = 0xffffff, DRM_YELLOW = 0xffd200;
+
+void drmCursor(uint32_t* buf, int stride) {
+    const int x = static_cast<int>(cursorX);
+    const int y = static_cast<int>(cursorY);
+    const bool pressing = padTouch || padStickClick || keyTouch;
+    drmFill(buf, stride, x - 6, y + 1, 13, 1, DRM_BLACK);
+    drmFill(buf, stride, x + 1, y - 6, 1, 13, DRM_BLACK);
+    const uint32_t c = pressing ? DRM_YELLOW : DRM_WHITE;
+    drmFill(buf, stride, x - 6, y, 13, 1, c);
+    drmFill(buf, stride, x, y - 6, 1, 13, c);
+}
+
+void drmSelector(uint32_t* buf, int stride) {
+    const bool pressing = padTouch || padStickClick || keyTouch;
+    const SDL_Rect outer = selectorRect();
+    const SDL_Rect middle{outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2};
+    const SDL_Rect inner{outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4};
+    drmOutline(buf, stride, inner, DRM_BLACK);
+    const uint32_t c = pressing ? DRM_WHITE : DRM_YELLOW;
+    drmOutline(buf, stride, outer, c);
+    drmOutline(buf, stride, middle, c);
+}
+
+void drmPresent(uint32_t now) {
+    int stride = 0;
+    uint32_t* buf = HostDrm::backBuffer(stride);
+    if (!buf) return;
+    const int screenW = HostDrm::width(), screenH = HostDrm::height();
+    if (drmBordersDirty > 0) {
+        for (int y = 0; y < screenH; ++y) {
+            const bool inRows = y >= drmOffY && y < drmOffY + FRAME_H * drmScale;
+            uint32_t* row = buf + y * stride;
+            if (!inRows) {
+                std::memset(row, 0, screenW * sizeof(uint32_t));
+            } else {
+                std::memset(row, 0, drmOffX * sizeof(uint32_t));
+                const int right = drmOffX + FRAME_W * drmScale;
+                std::memset(row + right, 0, (screenW - right) * sizeof(uint32_t));
+            }
+        }
+        --drmBordersDirty;
+    }
+    float level = panel->displayOn() ? backlight : 0.0f;
+    if (level < 0.0f) level = 0.0f;
+    if (level > 1.0f) level = 1.0f;
+    const uint8_t mod = static_cast<uint8_t>(level * 255.0f + 0.5f);
+    if (!lutValid || mod != lutMod) drmBuildLut(mod);
+
+    const uint16_t* src = panel->frame();
+    uint32_t line[FRAME_W];
+    for (int y = 0; y < FRAME_H; ++y) {
+        const uint16_t* s = src + y * FRAME_W;
+        for (int x = 0; x < FRAME_W; ++x) {
+            const uint16_t p = s[x];
+            line[x] = lutR[p >> 11] | lutG[(p >> 5) & 63] | lutB[p & 31];
+        }
+        for (int k = 0; k < drmScale; ++k) {
+            uint32_t* d = buf + (drmOffY + y * drmScale + k) * stride + drmOffX;
+            if (drmScale == 2) {
+                for (int x = 0; x < FRAME_W; ++x) d[2 * x] = d[2 * x + 1] = line[x];
+            } else {
+                for (int x = 0; x < FRAME_W; ++x) {
+                    for (int j = 0; j < drmScale; ++j) d[x * drmScale + j] = line[x];
+                }
+            }
+        }
+    }
+    if (focusOn) {
+        if (focusShown) drmSelector(buf, stride);
+    } else if (cursorShownAtMs != 0 && now - cursorShownAtMs < CURSOR_SHOW_MS) {
+        drmCursor(buf, stride);
+    }
+    HostDrm::flip();
+}
+#endif
+
 void present(uint32_t now) {
     if (!panel) return;
+#if GUME_HOST_DRM
+    /* A TV plugged in or unplugged: the picture has moved to new, black
+     * buffers of another size, so lay it out again and draw it whole. */
+    if (HostDrm::outputChanged()) {
+        drmLayout();
+        drmBordersDirty = 0;
+        shownOnce = false;
+        presentedAsleep = false;
+    }
+#endif
     if (shotRequested) {
         shotRequested = false;
         saveShot(now);
@@ -794,6 +934,12 @@ void present(uint32_t now) {
     shownOnce = true;
 
     presentedAsleep = asleep;
+#if GUME_HOST_DRM
+    drmPresent(now);
+    lastPresentMs = now;
+    ++presents;
+    return;
+#endif
     SDL_UpdateTexture(texture, nullptr, panel->frame(), FRAME_W * sizeof(uint16_t));
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -827,6 +973,20 @@ bool begin(int argc, char** argv) {
     (void)argc;
     savedArgv = argv;
     mainThread = std::this_thread::get_id();
+
+#if GUME_HOST_DRM
+    /* No window system: SDL brings the gamepad, the events and the sound, and
+     * the panel is the kernel's (HostDrm). */
+    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) {
+        std::fprintf(stderr, "[host] SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+    if (!HostDrm::begin()) return false;
+    drmLayout();
+    for (int i = 0; i < SDL_NumJoysticks(); ++i) openController(i);
+    parseScripts();
+    return true;
+#endif
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) {
         std::fprintf(stderr, "[host] SDL_Init failed: %s\n", SDL_GetError());
@@ -871,6 +1031,11 @@ bool begin(int argc, char** argv) {
 void outputSize(int& w, int& h) {
     w = FRAME_W * 2;
     h = FRAME_H * 2;
+#if GUME_HOST_DRM
+    w = HostDrm::width();
+    h = HostDrm::height();
+    return;
+#endif
     if (renderer) SDL_GetRendererOutputSize(renderer, &w, &h);
 }
 
@@ -878,6 +1043,34 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
     static SDL_Texture* image = nullptr;
     static int imageW = 0, imageH = 0;
     pumpEvents();
+#if GUME_HOST_DRM
+    /* Drawn at the panel's own size (outputSize()), centred if it is not. */
+    (void)image;
+    (void)imageW;
+    (void)imageH;
+    int stride = 0;
+    uint32_t* buf = HostDrm::backBuffer(stride);
+    if (!buf) return !quit;
+    const int sw = HostDrm::width(), sh = HostDrm::height();
+    const int ox = (sw - w) / 2, oy = (sh - h) / 2;
+    for (int y = 0; y < sh; ++y) {
+        uint32_t* row = buf + y * stride;
+        const int iy = y - oy;
+        for (int x = 0; x < sw; ++x) {
+            const int ix = x - ox;
+            if (iy < 0 || iy >= h || ix < 0 || ix >= w) {
+                row[x] = 0;
+                continue;
+            }
+            const uint8_t* p = rgb + (iy * w + ix) * 3;
+            row[x] = (uint32_t(p[0]) << 16) | (uint32_t(p[1]) << 8) | p[2];
+        }
+    }
+    HostDrm::flip();
+    drmBordersDirty = 2;   // both buffers hold this picture around the canvas now
+    shownOnce = false;     // the firmware's frame is no longer what is on screen
+    return !quit;
+#endif
     if (!renderer) return !quit;
     if (!image || imageW != w || imageH != h) {
         if (image) SDL_DestroyTexture(image);
@@ -902,6 +1095,9 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
 }
 
 void shutdown() {
+#if GUME_HOST_DRM
+    HostDrm::shutdown();
+#endif
     if (texture) SDL_DestroyTexture(texture);
     if (renderer) SDL_DestroyRenderer(renderer);
     if (window) SDL_DestroyWindow(window);

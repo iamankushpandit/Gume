@@ -10,7 +10,7 @@
 /* See HostLed.h.
  *
  * The RG40XXV's light MCU speaks raw serial at 115200 8N1, once its supply is
- * switched on through the PMIC's mcu_pwr attribute. Each frame is a mode, a
+ * switched on (where each kernel puts the port and the switch is below). Each frame is a mode, a
  * brightness, the mode's arguments and a checksum -- the low byte of the sum
  * of everything before it:
  *
@@ -41,13 +41,63 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <thread>
 
 namespace {
 
-constexpr const char* SERIAL_PATH = "/dev/ttyS5";
-constexpr const char* MCU_POWER = "/sys/class/power_supply/axp2202-battery/mcu_pwr";
+/* Where the MCU is depends on the kernel. Anbernic's 4.9 kernel (muOS) names
+ * the H700's UART5 ttyS5 and switches the MCU's supply through the PMIC's
+ * mcu_pwr attribute. A mainline kernel numbers the UARTs it enables in order,
+ * so UART5 is found by its address (0x05001400), and the supply is the GPIO
+ * the device tree calls the "kbd_backlight" LED. BRAINO_LED_TTY overrides
+ * the search. */
+constexpr const char* VENDOR_SERIAL = "/dev/ttyS5";
+constexpr const char* VENDOR_MCU_POWER = "/sys/class/power_supply/axp2202-battery/mcu_pwr";
+constexpr const char* MAINLINE_UART5 = "5001400.serial";
+constexpr const char* MAINLINE_MCU_POWER[] = {
+    "/sys/class/leds/rgb:kbd_backlight/brightness",
+    "/sys/class/leds/kbd_backlight/brightness",
+};
+char serialPath[32] = "";
+
+bool writeOne(const char* path) {
+    FILE* p = std::fopen(path, "w");
+    if (!p) return false;
+    std::fputs("1\n", p);
+    std::fclose(p);
+    return true;
+}
+
+/* The tty whose device is UART5, on a mainline kernel. */
+bool findMainlineUart5(char* out, size_t len) {
+    for (int n = 0; n < 8; ++n) {
+        char link[64], target[128];
+        std::snprintf(link, sizeof(link), "/sys/class/tty/ttyS%d/device", n);
+        const ssize_t got = ::readlink(link, target, sizeof(target) - 1);
+        if (got <= 0) continue;
+        target[got] = '\0';
+        const char* base = std::strrchr(target, '/');
+        if (std::strcmp(base ? base + 1 : target, MAINLINE_UART5) == 0) {
+            std::snprintf(out, len, "/dev/ttyS%d", n);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool findSerial() {
+    if (const char* env = std::getenv("BRAINO_LED_TTY")) {
+        std::snprintf(serialPath, sizeof(serialPath), "%s", env);
+        return true;
+    }
+    if (::access(VENDOR_MCU_POWER, F_OK) == 0) {
+        std::snprintf(serialPath, sizeof(serialPath), "%s", VENDOR_SERIAL);
+        return true;
+    }
+    return findMainlineUart5(serialPath, sizeof(serialPath));
+}
 
 /* The rainbow's look. BRAINO_LED_RAINBOW="brightness,speed" overrides both
  * (0-255 each) while the defaults are tuned by eye on the device. */
@@ -74,12 +124,13 @@ std::atomic<int> lit{-1};   // what the ring last showed; -1 until it is driven
 int fd = -1;
 
 bool openDevice() {
-    if (::access(SERIAL_PATH, W_OK) != 0) return false;
-    if (FILE* p = std::fopen(MCU_POWER, "w")) {
-        std::fputs("1\n", p);
-        std::fclose(p);
+    if (!findSerial() || ::access(serialPath, W_OK) != 0) return false;
+    if (!writeOne(VENDOR_MCU_POWER)) {
+        for (const char* p : MAINLINE_MCU_POWER) {
+            if (writeOne(p)) break;
+        }
     }
-    fd = ::open(SERIAL_PATH, O_WRONLY | O_NOCTTY | O_CLOEXEC);
+    fd = ::open(serialPath, O_WRONLY | O_NOCTTY | O_CLOEXEC);
     if (fd < 0) return false;
     termios tio{};
     if (::tcgetattr(fd, &tio) == 0) {
@@ -151,7 +202,7 @@ bool ledEnabled() {
 void worker() {
     ::pthread_setname_np(::pthread_self(), "led-ring");
     if (!openDevice()) return;
-    std::printf("[led] host: light ring on %s\n", SERIAL_PATH);
+    std::printf("[led] host: light ring on %s\n", serialPath);
     std::fflush(stdout);
     lit = 0;
     using Clock = std::chrono::steady_clock;

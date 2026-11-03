@@ -10,6 +10,25 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The RG40XX V gets a card image that is nothing but Braino.** `host/rg40xxv/`
+builds it with Buildroot from source: mainline Linux 7.2 with ROCKNIX's H700
+patches and device trees, U-Boot 2026.01 and TF-A 2.12, and a busybox system
+built into the kernel, so it runs from RAM and writes only to a small partition
+for Braino's settings and scores. It is 97 MB on the card and 13 MB to
+download, against 1.6 GB and 209 MB for the muOS card, and unlike that card it
+can be published: nothing on it is closed except the Realtek Wi-Fi/Bluetooth
+firmware, which is redistributable. There is no other system underneath, no
+login, shell or network service, and no text on the screen from power-on to
+Braino's splash. Braino draws straight to the panel through the kernel's DRM
+driver (`BRAINO_HOST_DRM`, off for desktops), with no GPU driver at all, and
+moves to an HDMI screen when one is plugged in. The power key turns the
+console off and the volume keys set the codec's level. Each boot leaves a
+hardware report and the kernel log on the card, for diagnosing a console that
+misbehaves. Not working yet on the device: the light ring, which looks for its
+controller under a mainline kernel's names but has not been seen to light.
+`tools/check_licenses.py` now covers Buildroot's file types and extension-less
+scripts, and exempts ROCKNIX's files, which keep their own licences.
+
 **The launcher's header gives the player's name room.** A nine-letter name ran
 over the header's divider and under the padlock, because every control added
 to the badge row had taken its pixels from the name. In landscape the name now

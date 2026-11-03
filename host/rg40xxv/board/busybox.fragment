@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# The power and volume keys are handled by busybox's acpid (see overlay/etc).
+CONFIG_ACPID=y
+CONFIG_FEATURE_ACPID_COMPAT=y
+# No network services of any kind.
+# CONFIG_TELNETD is not set
+# CONFIG_HTTPD is not set
+# CONFIG_FTPD is not set
+# CONFIG_TFTPD is not set
+# CONFIG_INETD is not set
+# CONFIG_NC is not set

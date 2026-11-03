@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+EV_KEY	0x01	KEY_POWER	116	1	button/power PWRF 00000080
+EV_KEY	0x01	KEY_VOLUMEUP	115	1	button/volup VOLU 00000080
+EV_KEY	0x01	KEY_VOLUMEDOWN	114	1	button/voldown VOLD 00000080
