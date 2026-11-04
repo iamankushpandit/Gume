@@ -36,3 +36,14 @@ define BRAINO_LINUX_INSTALL_ROCKNIX_DTS
 	done
 endef
 LINUX_POST_PATCH_HOOKS += BRAINO_LINUX_INSTALL_ROCKNIX_DTS
+
+# SDL's ALSA backend starts a thread that wakes ten times a second, for ever,
+# to notice a sound card being plugged in. This console's one card is soldered
+# on, and the thread was a sixth of everything that woke a sleeping console.
+# SDL still lists the cards once, at start.
+define BRAINO_SDL2_NO_ALSA_HOTPLUG_THREAD
+	$(SED) 's/^#define SDL_ALSA_HOTPLUG_THREAD 1$$/#define SDL_ALSA_HOTPLUG_THREAD 0/' \
+		$(@D)/src/audio/alsa/SDL_alsa_audio.c
+	grep -q '^#define SDL_ALSA_HOTPLUG_THREAD 0$$' $(@D)/src/audio/alsa/SDL_alsa_audio.c
+endef
+SDL2_POST_PATCH_HOOKS += BRAINO_SDL2_NO_ALSA_HOTPLUG_THREAD

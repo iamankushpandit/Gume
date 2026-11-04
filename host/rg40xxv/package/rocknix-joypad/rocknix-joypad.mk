@@ -21,5 +21,16 @@ ROCKNIX_JOYPAD_LICENSE_FILES = rocknix-singleadc-joypad.c CREDITS
 # The H700 consoles use only the single-ADC driver.
 ROCKNIX_JOYPAD_MODULE_MAKE_OPTS = DEVICE=H700
 
+# The driver polls every 10 ms -- three ADC conversions each, about 300
+# interrupts a second -- and never sets a ceiling on its interval, so the
+# kernel makes 10 ms the ceiling too and refuses a slower one in sysfs. A
+# sleeping Braino slows it (host/src/HostSleep.cpp), which needs the room.
+define ROCKNIX_JOYPAD_ALLOW_SLOWER_POLLING
+	$(SED) 's/^\(\s*\)input_set_poll_interval(input, joypad->poll_interval);$$/&\n\1input_set_max_poll_interval(input, 500);/' \
+		$(@D)/rocknix-singleadc-joypad.c
+	grep -q 'input_set_max_poll_interval(input, 500);' $(@D)/rocknix-singleadc-joypad.c
+endef
+ROCKNIX_JOYPAD_POST_PATCH_HOOKS += ROCKNIX_JOYPAD_ALLOW_SLOWER_POLLING
+
 $(eval $(kernel-module))
 $(eval $(generic-package))

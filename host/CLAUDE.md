@@ -508,6 +508,40 @@ code in `host/`:
 - **The CPU governor is `schedutil`**, set by the image's init. The kernel
   boots with `performance`, which held all four cores at 1.4 GHz at an idle
   launcher (396 mA awake, measured).
+- **Sleep switches off more here than under muOS.** A 14.5-hour night on the
+  image lost about 6.9% an hour asleep and 4.4% suspended, against muOS's 9%
+  asleep. Its `[drain]` lines then showed what still woke a sleeping console
+  about 880 times a second, and each is dealt with:
+  - **The display output goes off with the lamp**, through
+    `HostDrm::setPower()`: the CRTC is disabled, which stops the display
+    engine and the DSI link and unprepares the panel. This is the mainline
+    driver, not the `lcd0 disable` above that broke the panel under muOS, so
+    it is on by default in a DRM build; `BRAINO_SLEEP_LCD=0` turns it off.
+    Frames drawn meanwhile are kept, and a hotplug waits until it is back.
+  - **The joypad is polled every 50 ms asleep, not every 10 ms.** It is a
+    polled input device -- three ADC conversions a poll, 300 interrupts a
+    second -- and `HostSleep` slows every polled input through the kernel
+    poller's own `poll` attribute, saving each one's interval in
+    `/run/braino/sleep-poll` so a restart can put it back. The driver sets no
+    ceiling, which makes 10 ms the ceiling too, so `rocknix-joypad.mk` adds
+    one (500 ms). A press still wakes the console. `BRAINO_SLEEP_INPUT=0`
+    leaves the polling alone.
+  - **The light ring's MCU loses its supply** while it is dark and the
+    console asleep, and gets it back 100 ms before the next frame (a charger
+    plugged in, or waking). The ring's thread reads the battery every 3 s
+    asleep instead of every second: each read is a round of I2C on the power
+    chip's bus.
+  - **SDL's ALSA hotplug thread is not built** (`external.mk`). It woke ten
+    times a second to notice a sound card being plugged into a console whose
+    only card is soldered on.
+
+  Bluetooth needed nothing: the kernel powers `hci0` down two seconds after
+  setting it up when nothing claims it, and Braino claims it only while the
+  beacon is on, when it has to stay up. The `[power]` line's `BT radio` is
+  the rfkill switch, not that. **The battery's `current_now` cannot be
+  trusted under this kernel**: it read 370-390 mA awake at full clock and
+  asleep alike, so the ledger's per-state milliamps are flat; judge a change
+  by the percentage per hour.
 - **The build stamp takes its commit from the environment.** Buildroot builds
   a copy of the tree without `.git`, so `cmake/BuildStamp.cmake` reads
   `BRAINO_BUILD_COMMIT` and `BRAINO_BUILD_BRANCH`, which `rg40xxv/build.sh`

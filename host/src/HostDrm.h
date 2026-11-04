@@ -45,4 +45,10 @@ uint32_t* backBuffer(int& stride);
 /* Puts the back buffer on the screen at the next vertical blank. */
 void flip();
 
+/* Switches the output off -- the CRTC, and with it the panel and the display
+ * engine -- while Braino sleeps, and back on with the newest frame. Frames
+ * drawn while it is off are kept, not shown, and a screen plugged in or out
+ * meanwhile is noticed once it is back on. */
+void setPower(bool on);
+
 }   // namespace HostDrm

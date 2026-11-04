@@ -28,7 +28,11 @@ on the mainline kernel too: its controller is UART5, which 7.2 names
 are kept on the card's data partition across power-offs, and the CPU clock
 follows the load (`schedutil`) where the kernel's default held it at 1.4 GHz.
 Each boot leaves a hardware report and the kernel log on the card, for
-diagnosing a console that misbehaves. `tools/check_licenses.py` now covers
+diagnosing a console that misbehaves. Asleep it already used less battery than
+muOS -- about 6.9% an hour, and 4.4% in Deep sleep, against muOS's 9% -- and it
+now also switches the display output off, reads the joypad every 50 ms instead
+of every 10, cuts the light ring controller's supply, and no longer runs SDL's
+sound-card watcher. `tools/check_licenses.py` now covers
 Buildroot's file types and extension-less scripts, and exempts ROCKNIX's
 files, which keep their own licences.
 

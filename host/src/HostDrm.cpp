@@ -55,6 +55,7 @@ Output current;
 Buffer buffers[2];
 int front = 0;
 bool flipPending = false;
+bool poweredOff = false;
 
 int ioctlRetry(unsigned long request, void* arg) {
     int r;
@@ -303,7 +304,9 @@ int width() { return current.mode.hdisplay; }
 int height() { return current.mode.vdisplay; }
 
 bool outputChanged() {
-    if (fd < 0 || !hotplugEvent()) return false;
+    /* Not while off: use() would set a CRTC and light the output. The
+     * kernel's events wait in the socket until it is back on. */
+    if (fd < 0 || poweredOff || !hotplugEvent()) return false;
     Output o;
     if (!pickOutput(o)) return false;   // nothing connected for a moment: keep what there is
     if (o.connector == current.connector && o.mode.hdisplay == current.mode.hdisplay &&
@@ -323,6 +326,10 @@ uint32_t* backBuffer(int& stride) {
 void flip() {
     if (fd < 0) return;
     const int back = front ^ 1;
+    if (poweredOff) {   // kept for setPower(true) to show
+        front = back;
+        return;
+    }
     drm_mode_crtc_page_flip pf{};
     pf.crtc_id = current.crtc;
     pf.fb_id = buffers[back].fb;
@@ -335,6 +342,21 @@ void flip() {
         setCrtc(buffers[back]);
     }
     front = back;
+}
+
+void setPower(bool on) {
+    if (fd < 0 || !current.crtc || poweredOff == !on) return;
+    waitFlip();
+    if (on) {
+        poweredOff = false;
+        const bool ok = setCrtc(buffers[front]);
+        std::printf("[drm] %s output %s\n", typeName(current.type), ok ? "on" : "did not come back on");
+    } else {
+        disableCrtc(current.crtc);
+        poweredOff = true;
+        std::printf("[drm] %s output off\n", typeName(current.type));
+    }
+    std::fflush(stdout);
 }
 
 }   // namespace HostDrm

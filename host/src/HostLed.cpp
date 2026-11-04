@@ -62,11 +62,13 @@ constexpr const char* MAINLINE_MCU_POWER[] = {
     "/sys/class/leds/kbd_backlight/brightness",
 };
 char serialPath[32] = "";
+const char* mcuPower = nullptr;   // the supply switch that answered, if any
+bool mcuPowered = false;
 
-bool writeOne(const char* path) {
+bool writeLevel(const char* path, bool on) {
     FILE* p = std::fopen(path, "w");
     if (!p) return false;
-    std::fputs("1\n", p);
+    std::fputs(on ? "1\n" : "0\n", p);
     std::fclose(p);
     return true;
 }
@@ -119,6 +121,11 @@ constexpr auto GAUGE_SHOW = std::chrono::milliseconds(10000);
 constexpr auto GAUGE_FRAME = std::chrono::milliseconds(33);   // also how soon a change lands
 constexpr auto IDLE_FRAME = std::chrono::milliseconds(250);   // asleep, nothing showing
 constexpr auto BATTERY_POLL = std::chrono::milliseconds(1000);
+/* Asleep the poll only has a charger being plugged in to notice, and each one
+ * is a round of I2C reads on the power chip's bus. */
+constexpr auto BATTERY_POLL_ASLEEP = std::chrono::milliseconds(3000);
+/* The MCU misses the first frame after its supply comes up. */
+constexpr auto MCU_POWER_UP = std::chrono::milliseconds(100);
 
 std::mutex mutex;
 uint8_t want[3] = {0, 0, 0};
@@ -141,18 +148,18 @@ bool openDevice() {
         std::printf("[led] host: no light ring: %s is not writable (%s)\n", serialPath, std::strerror(errno));
         return false;
     }
-    const char* power = nullptr;
-    if (writeOne(VENDOR_MCU_POWER)) {
-        power = VENDOR_MCU_POWER;
+    if (writeLevel(VENDOR_MCU_POWER, true)) {
+        mcuPower = VENDOR_MCU_POWER;
     } else {
         for (const char* p : MAINLINE_MCU_POWER) {
-            if (writeOne(p)) {
-                power = p;
+            if (writeLevel(p, true)) {
+                mcuPower = p;
                 break;
             }
         }
     }
-    std::printf("[led] host: ring MCU on %s, its supply %s\n", serialPath, power ? power : "not found");
+    mcuPowered = true;
+    std::printf("[led] host: ring MCU on %s, its supply %s\n", serialPath, mcuPower ? mcuPower : "not found");
     fd = ::open(serialPath, O_WRONLY | O_NOCTTY | O_CLOEXEC);
     if (fd < 0) {
         std::printf("[led] host: could not open %s: %s\n", serialPath, std::strerror(errno));
@@ -167,12 +174,22 @@ bool openDevice() {
         tio.c_cflag |= CS8 | CLOCAL;
         ::tcsetattr(fd, TCSANOW, &tio);
     }
-    /* The MCU misses the first frame after its supply comes up. */
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(MCU_POWER_UP);
     return true;
 }
 
+/* The MCU's supply, switched off while the ring has nothing to show and the
+ * console sleeps, and on again before the next frame. Without a switch it
+ * stays on. */
+void powerMcu(bool on) {
+    if (!mcuPower || mcuPowered == on) return;
+    writeLevel(mcuPower, on);
+    mcuPowered = on;
+    if (on) std::this_thread::sleep_for(MCU_POWER_UP);
+}
+
 void send(const uint8_t* frame, size_t len) {
+    powerMcu(true);
     uint8_t buf[64];
     uint8_t sum = 0;
     for (size_t i = 0; i < len; ++i) {
@@ -254,7 +271,7 @@ void worker() {
 
         const Clock::time_point now = Clock::now();
         if (now >= nextPoll) {
-            nextPoll = now + BATTERY_POLL;
+            nextPoll = now + (isAwake ? BATTERY_POLL : BATTERY_POLL_ASLEEP);
             battery = HostBattery::read();
             /* Held up from here for as long as the charger is in. The switch is
              * asked again each time, so it can still turn a held gauge off. */
@@ -319,6 +336,9 @@ void worker() {
          * follow, only a charger or a stick to notice, so it wakes a few times
          * a second instead of thirty. */
         const bool idle = !isAwake && now >= gaugeUntil;
+        /* Dark and asleep, the MCU has nothing to hold; its supply goes off
+         * until something has to be shown again. */
+        if (idle && lit == 0) powerMcu(false);
         std::this_thread::sleep_for(idle ? IDLE_FRAME : GAUGE_FRAME);
     }
 }

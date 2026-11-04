@@ -27,8 +27,16 @@
  * - **Three of the four cores.** A sleeping Braino polls ten times a second on
  *   one thread. The others are taken offline and brought back on waking.
  *
- * Either can be turned off for a measurement: BRAINO_SLEEP_WIFI=0,
- * BRAINO_SLEEP_CORES=0. The log names which are on.
+ * - **Polled input.** A device the kernel reads on a timer -- the RG40XX V's
+ *   joypad under mainline, every 10 ms -- is read every 50 ms instead, through
+ *   the input poller's `poll` attribute, and put back on waking.
+ *
+ * Each can be turned off for a measurement: BRAINO_SLEEP_WIFI=0,
+ * BRAINO_SLEEP_CORES=0, BRAINO_SLEEP_INPUT=0. The log names which are on.
+ *
+ * **A DRM build (the RG40XX V image) also switches the display output off**,
+ * through HostDrm::setPower() -- the mainline driver, not the vendor one below;
+ * BRAINO_SLEEP_LCD=0 leaves it on. What follows is about muOS's driver.
  *
  * **The display output stays on unless BRAINO_SLEEP_LCD=1.** Disabling it
  * (`lcd0 disable`, a second after the lamp) was the third saver, and the RG40XXV

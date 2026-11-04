@@ -70,6 +70,18 @@ outbound flows Braino itself declares (CLAUDE.md, "No data collection"):
 wpa_supplicant and DHCP run only when Braino starts Wi-Fi, and nothing else
 uses the network.
 
+### Asleep
+
+With the screen asleep Braino turns off the backlight, the display output,
+Wi-Fi and three of the four cores, cuts the light ring controller's supply,
+and reads the joypad every 50 ms instead of every 10 ms (the image lets the
+joypad driver be polled that slowly). After 15 minutes asleep, with Deep sleep
+on, it suspends to RAM and the power key wakes it. SDL is built without its
+sound-card hotplug thread. Measured before the last four of those, a night on
+battery lost about 6.9% an hour asleep and 4.4% suspended; muOS loses about 9%
+asleep. The battery's current reading is flat under this kernel, so measure by
+the percentage per hour.
+
 ## Building
 
 In Linux or WSL (Ubuntu 24.04 works), with Buildroot 2026.08.1 unpacked in
@@ -114,6 +126,8 @@ bundle is what a release must offer beside the image.
 
 ### Before the first public release
 
+- **The display output switching off in sleep is untested on the device.**
+  If the panel ever wakes wrong, set `BRAINO_SLEEP_LCD=0` in `braino-run`.
 - **HDMI is untested on the device**, and HDMI sound is not routed: ROCKNIX
   ships the H700's HDMI audio (its `ahub` sound card) disabled in this
   device tree.

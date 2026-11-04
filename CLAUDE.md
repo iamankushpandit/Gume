@@ -523,10 +523,13 @@ the guide. Three things about it are load-bearing:
   follows the panel's Sleep In and Sleep Out and switches the handheld's own
   backlight. While the panel sleeps, any button press becomes a BOOT press
   that wakes it and reaches nothing else. Sleep also takes the Wi-Fi
-  interface and three of the four cores down (`host/src/HostSleep.cpp`), and
-  a run that ends asleep leaves markers in `/run/braino` so the next start
-  puts them back. **Never the display output**: re-enabling it woke the
-  RG40XXV mirrored with inverted colours, and muOS ships that toggle off.
+  interface and three of the four cores down and slows polled input such as
+  the joypad (`host/src/HostSleep.cpp`), and a run that ends asleep leaves
+  markers in `/run/braino` so the next start puts them back. **Never the
+  display output under muOS**: re-enabling its vendor driver's output woke the
+  RG40XXV mirrored with inverted colours, and muOS ships that toggle off. The
+  whole-device image's mainline DRM driver is a different driver, and there
+  sleep does switch the output off (`HostDrm::setPower()`).
 - **The RG40XX V has a whole-device image that is nothing but Braino**
   (`host/rg40xxv/`, a Buildroot external tree; its README is the guide).
   Mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A built from
