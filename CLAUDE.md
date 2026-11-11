@@ -1112,6 +1112,17 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
+10b. `tools/gen_gameplay.py` -- a sequence in `SEQUENCES`, named after the
+    game's still, then `python tools/gen_gameplay.py <name>` and **watch the
+    GIF**. The site plays it on the game's card (and on Home if the still is
+    one of `HERO_STILLS`), and `gen_site.py` refuses to build while a game
+    card has no animation or an animation has no card. Draw every state by
+    giving the game's own `gen_screens` function a parameter whose default is
+    the still -- the stills must regenerate byte-identical, which is how you
+    know the parameter changed nothing -- never by redrawing the screen in
+    the sequence. **No animation may show the number 13**, the maintainer's
+    rule: the generator records every string drawn and refuses one containing
+    it, so step a score or counter over it rather than drawing it.
 11. `tools/gen_site.py` — nothing, usually. The Games tab shows one card
     per playable game: its still, its blurb from `AppRegistry` and its
     "What it builds" cell read from the README table in step 6, grouped by
@@ -1296,6 +1307,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           gen_site_anims.py (the animations on the site's
                           Privacy and Get started cards -- look at every one
                           after regenerating),
+                          gen_gameplay.py (each game's mock-up, played --
+                          docs/gameplay/*.gif, shown on the site; watch
+                          every one after regenerating),
                           gen_logo_mask.py (the product mark, from
                           tools/braino-badge.svg -- writes a preview that MUST
                           be looked at),
@@ -1338,6 +1352,7 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           release.yml publishes a tagged release with
                           every firmware image attached
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
+                          gameplay/ (the stills played, from gen_gameplay.py),
                           boards/ (one page per supported board; the pin
                           tables and diagrams in it are generated)
 cases/                    printable enclosures, one folder per BOARD_NAME;
