@@ -39,6 +39,7 @@
 #include "games/GoGame.h"
 #include "games/PercentCircleGame.h"
 #include "games/RomanGame.h"
+#include "games/NumberNestGame.h"
 #include "games/ProfileApp.h"
 #include "games/ScoresApp.h"
 #include "games/SequenceGame.h"
@@ -100,6 +101,7 @@ struct GameInstances {
     GoGame go;
     SpaceGame space;
     RomanGame roman;
+    NumberNestGame numberNest;
     ProfileApp profile;
     ScoresApp scores;
     AboutApp about;

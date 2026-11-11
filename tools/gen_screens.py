@@ -1611,6 +1611,24 @@ def launcher_icon(d, icon, cx, cy, fill):
         _idiag(d, cx - 13, cy - 13, cx - 9, cy - 9, ICON_CORAL)
         _idiag(d, cx - 9, cy - 13, cx - 13, cy - 9, ICON_CORAL)
         _iring(d, cx, cy, 4, ICON_INK)
+    elif icon == "NumberNest":
+        # A nest with three chicks in it, and the chicks are numbers. The
+        # beak is two triangles a pixel apart, so its tip is two pixels wide.
+        for i in range(3):
+            hx = cx - 12 + i * 12
+            hy = cy - (7 if i == 1 else 3)
+            d.polygon([(hx - 3, hy - 5), (hx + 1, hy - 5), (hx - 1, hy - 9)], fill=ICON_SNOW)
+            d.polygon([(hx - 2, hy - 5), (hx + 2, hy - 5), (hx, hy - 9)], fill=ICON_SNOW)
+            _idisc(d, hx, hy, 6, ICON_AMBER)
+            left, top, right, bottom = d.textbbox((0, 0), str(i + 1), font=F1)
+            d.text((hx - (right - left) / 2 - left, hy - (bottom - top) / 2 - top),
+                   str(i + 1), font=F1, fill=ICON_INK)
+        _irr(d, cx - 17, cy + 2, 34, 15, 7, ICON_SNOW)   # the bowl: radius 7, its own shape
+        for i in range(4):
+            x0 = cx - 13 + i * 7
+            rising = i % 2 == 0
+            _idiag(d, x0, cy + (12 if rising else 6), x0 + 5, cy + (6 if rising else 12),
+                   ICON_INK)
     else:
         # Loud, rather than a circle. A silent placeholder is exactly how every
         # launcher still came to show art the device never draws. If a game
@@ -4216,6 +4234,320 @@ PORTRAIT_SCREENS = [
 ]
 
 
+# --- NumberNest ---------------------------------------------------------------
+# Every number below is the geometry in src/games/NumberNestLayout.h,
+# restated. Change one and change the other: a still drawn from numbers of its
+# own is a picture of a different screen.
+#
+# The scene is drawn through a scale, because that is how the game reaches a
+# bigger panel: the runtime's ScaledRenderer multiplies positions per axis and
+# radii by the smaller of the two, and leaves TEXT at its own size. The stills
+# in docs/screens/ are all at 1:1; numbernest_scene(..., 480, 320) is the
+# 4-inch board, and is worth looking at whenever the layout moves.
+NN_EDGE, NN_GAP = 8, 4
+NN_CONTROL_Y, NN_CONTROL_H = 40, 24
+NN_ADD = (NN_EDGE, NN_CONTROL_Y, 64, NN_CONTROL_H)
+NN_SLOP = 8                    # TOUCH_HIT_SLOP; side-by-side buttons are two apart
+NN_MUL = (NN_ADD[0] + NN_ADD[2] + 2 * NN_SLOP, NN_CONTROL_Y, 96, NN_CONTROL_H)
+NN_LEVEL = (W - NN_EDGE - 80, NN_CONTROL_Y, 80, NN_CONTROL_H)
+NN_STATUS_Y, NN_STATUS_H = NN_CONTROL_Y + NN_CONTROL_H + NN_GAP, 18
+NN_R, NN_PITCH, NN_CX0 = 28, 64, 32
+NN_CY = NN_STATUS_Y + NN_STATUS_H + NN_GAP + NN_R
+NN_CAPTION_Y, NN_CAPTION_H = NN_CY + NN_R + NN_GAP + 1, 12
+NN_STATUS_PILL = ((W - 240) // 2, NN_STATUS_Y, 240, NN_STATUS_H)
+NN_CAPTION_BAND = ((W - 288) // 2, NN_CAPTION_Y, 288, NN_CAPTION_H)
+NN_SLOT_R = 19
+NN_SLOT_CY = NN_CAPTION_Y + NN_CAPTION_H + NN_GAP + NN_SLOT_R
+NN_NEST = (NN_EDGE - 2, NN_SLOT_CY - NN_SLOT_R - 2, W - 2 * (NN_EDGE - 2), 2 * NN_SLOT_R + 4)
+NN_FOOTER_Y, NN_FOOTER_H = NN_SLOT_CY + NN_SLOT_R + NN_GAP + 1, 26
+NN_RULES = (NN_EDGE, NN_FOOTER_Y, 64, NN_FOOTER_H)
+NN_HOME = (W - NN_EDGE - 72, NN_FOOTER_Y, 72, NN_FOOTER_H)
+NN_AGAIN = (NN_HOME[0] - 2 * NN_SLOP - 104, NN_FOOTER_Y, 104, NN_FOOTER_H)
+
+# The stored level-1 nests from NumberNestRules.cpp, so the stills show groups
+# the firmware can actually deal: (values, first, second, answer).
+NN_ADD_GROUPS = [
+    ((8, 9, 15, 5, 3), 3, 4, 0),
+    ((6, 9, 4, 1, 13), 1, 2, 4),
+    ((1, 13, 3, 5, 6), 0, 3, 4),
+    ((5, 17, 8, 11, 9), 2, 4, 1),
+    ((7, 8, 5, 11, 2), 2, 4, 0),
+]
+NN_ADD_FINAL = ((8, 13, 6, 17, 7), 2, 4, 1)
+NN_MUL_GROUPS = [
+    ((14, 2, 6, 10, 5), 1, 4, 3),
+    ((2, 6, 3, 13, 10), 0, 2, 1),
+    ((10, 6, 60, 69, 68), 0, 1, 2),
+    ((10, 76, 80, 9, 8), 0, 4, 2),
+    ((12, 23, 9, 2, 18), 2, 3, 4),
+]
+NN_MUL_FINAL = ((10, 6, 60, 80, 18), 0, 1, 2)
+
+
+# Ui::cornerRadius(): 6 on the rounded themes, 0 on Classic, Silver and
+# Pocket. apply_theme() sets it, so a theme sheet draws this screen's chips,
+# tray and pills square where the panel does. (The rest of this file still
+# rounds every theme alike; that is an older gap than this screen.)
+NN_RADIUS = 6
+
+
+class _NnScale:
+    """ScaledRenderer, for a mock-up: x and y per axis, radii by the smaller.
+    Rounded as lroundf() rounds, half away from zero -- Python's round() goes
+    to the even neighbour and lands a pixel off wherever x * 1.5 ends in .5."""
+
+    def __init__(self, width, height):
+        self.w, self.h = width, height
+        self.kx, self.ky = width / W, height / H
+        self.kr = min(self.kx, self.ky)
+
+    def x(self, v): return int(math.floor(v * self.kx + 0.5))
+    def y(self, v): return int(math.floor(v * self.ky + 0.5))
+    def r(self, v): return int(math.floor(v * self.kr + 0.5))
+
+    def box(self, rect):
+        x, y, w, h = rect
+        return (self.x(x), self.y(y), self.x(w), self.y(h))
+
+
+def _nn_text(d, cx, cy, s, f, fill):
+    left, top, right, bottom = d.textbbox((0, 0), s, font=f)
+    d.text((cx - (right - left) / 2 - left, cy - (bottom - top) / 2 - top), s, font=f, fill=fill)
+
+
+def _nn_sign(d, cx, cy, multiply, ink):
+    if multiply:
+        # Two slanted bars, each a filled quad two pixels wide: paintArm().
+        for rise in (1, -1):
+            top, bottom = cy - 4 * rise, cy + 4 * rise
+            d.polygon([(cx - 5, top), (cx - 3, top), (cx + 5, bottom), (cx + 3, bottom)],
+                      fill=ink)
+    else:
+        d.rectangle([cx - 5, cy - 1, cx + 4, cy], fill=ink)
+        d.rectangle([cx - 1, cy - 5, cx, cy + 4], fill=ink)
+
+
+def _nn_chip(d, k, rect, label, fill, ink):
+    x, y, w, h = k.box(rect)
+    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], k.r(NN_RADIUS), fill=fill, outline=OUTLINE)
+    _nn_text(d, x + w / 2, y + h / 2, label, F2, ink)
+
+
+def _nn_mode_chip(d, k, rect, multiply, selected):
+    # Inverted ink, not the accent role: see paintModeChip().
+    fill = TEXT if selected else PANEL
+    ink = on_fill(fill) if selected else TEXT
+    x, y, w, h = k.box(rect)
+    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], k.r(NN_RADIUS), fill=fill, outline=OUTLINE)
+    mid = k.y(rect[1] + rect[3] / 2)
+    _nn_sign(d, k.x(rect[0] + 15), mid, multiply, ink)
+    label = "Multiply" if multiply else "Add"
+    left, top, right, bottom = d.textbbox((0, 0), label, font=F2)
+    d.text((k.x(rect[0] + 27), mid - (bottom - top) / 2 - top), label, font=F2, fill=ink)
+
+
+def _nn_disc(d, cx, cy, radius, value, fill, ink, f, rim_w):
+    # The rim is the disc in the outline colour with the fill laid inside it,
+    # as paintDisc() does it, so it scales with the canvas rather than staying
+    # one physical pixel per outline. It is always the outline colour: what a
+    # circle means is said by its fill.
+    d.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=OUTLINE)
+    inner = radius - rim_w
+    d.ellipse([cx - inner, cy - inner, cx + inner, cy + inner], fill=fill)
+    _nn_text(d, cx, cy, str(value), f, ink)
+
+
+def numbernest_scene(op="add", level=1, numbers=(0, 0, 0, 0, 0), looks=None, slots=(),
+                     fresh=None, status="", status_fill=None, caption="", caption_fill=None,
+                     caption_ink=None, done=False, width=W, height=H):
+    """One state of the NumberNest play screen.
+
+    looks: per number, one of idle / wrong / operand / answer.
+    slots: the values in the nest, in order; fresh is the index of the one
+           that has just dropped in, if any.
+    status_fill / caption_fill: feedback is written on a filled pill with
+           on_fill() ink, never in coloured text on the ground -- see
+           STATUS_PILL in NumberNestLayout.h for why.
+    """
+    k = _NnScale(width, height)
+    im, d = blank(width, height)
+    topbar(d, "NumberNest", w=width)
+    looks = looks or ["idle"] * 5
+
+    _nn_mode_chip(d, k, NN_ADD, False, op == "add")
+    _nn_mode_chip(d, k, NN_MUL, True, op == "mul")
+    _nn_chip(d, k, NN_LEVEL, "Level %d" % level, PANEL, TEXT)
+
+    def pill(rect, fill):
+        x, y, w, h = k.box(rect)
+        d.rounded_rectangle([x, y, x + w - 1, y + h - 1], k.r(min(NN_RADIUS, 4)), fill=fill)
+
+    if status_fill:
+        pill(NN_STATUS_PILL, status_fill)
+    _nn_text(d, k.x(W / 2), k.y(NN_STATUS_Y + NN_STATUS_H / 2), status, F2,
+             on_fill(status_fill) if status_fill else TEXT)
+
+    for i, value in enumerate(numbers):
+        cx, cy = k.x(NN_CX0 + i * NN_PITCH), k.y(NN_CY)
+        look = looks[i]
+        # The two operands are in inverted ink, as the selected mode is: see
+        # paintNumber() for why not a rim in the success colour.
+        fill = {"wrong": ERROR, "answer": SUCCESS, "operand": TEXT}.get(look, PANEL)
+        ink = TEXT if look == "idle" else on_fill(fill)
+        _nn_disc(d, cx, cy, k.r(NN_R), value, fill, ink, F4, k.r(NN_R) - k.r(NN_R - 2))
+
+    if caption_fill:
+        pill(NN_CAPTION_BAND, caption_fill)
+    _nn_text(d, k.x(W / 2), k.y(NN_CAPTION_Y + NN_CAPTION_H / 2), caption, F1,
+             on_fill(caption_fill) if caption_fill else (caption_ink or MUTED))
+
+    nx, ny, nw, nh = k.box(NN_NEST)
+    d.rounded_rectangle([nx, ny, nx + nw - 1, ny + nh - 1], k.r(NN_RADIUS), fill=SURFACE,
+                        outline=OUTLINE)
+    for i in range(5):
+        cx, cy, radius = k.x(NN_CX0 + i * NN_PITCH), k.y(NN_SLOT_CY), k.r(NN_SLOT_R)
+        if i < len(slots):
+            fill = SUCCESS if fresh == i else PANEL
+            ink = on_fill(fill) if fresh == i else TEXT
+            _nn_disc(d, cx, cy, radius, slots[i], fill, ink, F2, radius - k.r(NN_SLOT_R - 1))
+        else:
+            _nn_disc(d, cx, cy, radius, "", BG, BG, F2, radius - k.r(NN_SLOT_R - 1))
+
+    _nn_chip(d, k, NN_RULES, "Rules", PANEL, TEXT)
+    if done:
+        _nn_chip(d, k, NN_AGAIN, "Play again", ACCENT, on_fill(ACCENT))
+        _nn_chip(d, k, NN_HOME, "Home", PANEL, TEXT)
+    return im
+
+
+def _nn_looks(group, show):
+    values, first, second, answer = group
+    looks = ["idle"] * 5
+    if show:
+        looks[first] = looks[second] = "operand"
+        looks[answer] = "answer"
+    return looks
+
+
+def _nn_equation(group, sign):
+    values, first, second, answer = group
+    low, high = sorted((values[first], values[second]))
+    return "%d %s %d = %d" % (low, sign, high, values[answer])
+
+
+def numbernest():
+    """NumberNest, the moment after a right answer in the second group: the
+    equation on the status line, the two operands in inverted ink, the answer
+    filled, and that answer in the nest slot under the second circle."""
+    group = NN_ADD_GROUPS[1]
+    return numbernest_scene(op="add", level=1, numbers=group[0], looks=_nn_looks(group, True),
+                            slots=NN_ADD_FINAL[0][:2], fresh=1, status=_nn_equation(group, "+"),
+                            status_fill=SUCCESS, caption="GROUP 2 OF 5")
+
+
+def numbernest_multiply():
+    """NumberNest in Multiply, waiting on the first group of a fresh nest."""
+    return numbernest_scene(op="mul", level=1, numbers=NN_MUL_GROUPS[0][0],
+                            status="Tap the product of two others",
+                            caption="GROUP 1 OF 5")
+
+
+def numbernest_final():
+    """The final group: the five answers from the nest, in the circles above
+    the slots they came from."""
+    return numbernest_scene(op="add", level=1, numbers=NN_ADD_FINAL[0], slots=NN_ADD_FINAL[0],
+                            status="Final group! Tap the sum of two others",
+                            caption="FINAL GROUP - THE FIVE ANSWERS FROM YOUR NEST",
+                            caption_fill=WARN)
+
+
+def numbernest_rules(width=W, height=H):
+    """NumberNest's rules page: one example for each operation."""
+    k = _NnScale(width, height)
+    im, d = blank(width, height)
+    topbar(d, "NumberNest", w=width)
+    mid = k.x(W / 2)
+    _nn_text(d, mid, k.y(36) + 13, "How to play", F4, TEXT)
+    for y, line in ((66, "Five numbers. One of them is made from"),
+                    (84, "two of the others. Tap that one."),
+                    (166, "Solve five groups to fill the nest,"),
+                    (184, "then solve the nest itself.")):
+        _nn_text(d, mid, k.y(y) + 8, line, F2, TEXT)
+    for cy, multiply, values in ((118, False, (3, 7, 10, 12, 18)), (148, True, (2, 3, 6, 11, 17))):
+        y = k.y(cy)
+        _nn_sign(d, k.x(18), y, multiply, TEXT)
+        label = "Multiply" if multiply else "Add"
+        left, top, right, bottom = d.textbbox((0, 0), label, font=F2)
+        d.text((k.x(30), y - (bottom - top) / 2 - top), label, font=F2, fill=TEXT)
+        for i, value in enumerate(values):
+            # EXAMPLE_CX0, EXAMPLE_PITCH and EXAMPLE_R in NumberNestLayout.h.
+            fill = SUCCESS if i == 2 else (TEXT if i < 2 else PANEL)
+            _nn_disc(d, k.x(106 + i * 28), y, k.r(13), value, fill,
+                     on_fill(fill) if i <= 2 else TEXT, F2, k.r(13) - k.r(12))
+        text = "%d %s %d = %d" % (values[0], "x" if multiply else "+", values[1], values[2])
+        left, top, right, bottom = d.textbbox((0, 0), text, font=F2)
+        d.text((k.x(240), y - (bottom - top) / 2 - top), text, font=F2, fill=TEXT)
+    _nn_chip(d, k, (110, 208, 100, 26), "Tap to play", ACCENT, on_fill(ACCENT))
+    return im
+
+
+def numbernest_states():
+    """Every state the play screen can be in, as (name, image) pairs. Not in
+    SCREENS: docs/screens/ carries four of these. This is for looking at the
+    whole set in one go, at 1:1 and on the 4-inch board's 480x320."""
+    add, mul = NN_ADD_GROUPS, NN_MUL_GROUPS
+    wrong = ["idle"] * 5
+    wrong[1] = "wrong"
+    # paintCaption(): a finished nest states its final equation.
+    done_caption = _nn_equation(NN_ADD_FINAL, "+") + " - NEST COMPLETE"
+    hard = ((288, 65, 228, 370, 293), 1, 2, 4)
+    out = [
+        ("rules", numbernest_rules()),
+        ("add: waiting", numbernest_scene(op="add", level=1, numbers=add[2][0], slots=NN_ADD_FINAL[0][:2],
+                                          status="Tap the sum of two others",
+                                          caption="GROUP 3 OF 5")),
+        ("add: wrong tap", numbernest_scene(op="add", level=1, numbers=add[2][0], looks=wrong, slots=NN_ADD_FINAL[0][:2],
+                                            status="Not that one - have another look",
+                                            status_fill=ERROR, caption="GROUP 3 OF 5")),
+        ("add: right answer", numbernest()),
+        ("add: final group", numbernest_final()),
+        ("add: complete, no slips",
+         numbernest_scene(op="add", level=1, numbers=NN_ADD_FINAL[0], looks=_nn_looks(NN_ADD_FINAL, True),
+                          slots=NN_ADD_FINAL[0], status="Nest complete! Not one slip",
+                          status_fill=SUCCESS, caption=done_caption, caption_ink=TEXT,
+                          done=True)),
+        ("add: complete, with slips",
+         numbernest_scene(op="add", level=1, numbers=NN_ADD_FINAL[0], looks=_nn_looks(NN_ADD_FINAL, True),
+                          slots=NN_ADD_FINAL[0], status="Nest complete! 2 slips on the way", status_fill=SUCCESS,
+                          caption=done_caption, caption_ink=TEXT, done=True)),
+        ("add: complete, level up",
+         numbernest_scene(op="add", level=2, numbers=NN_ADD_FINAL[0], looks=_nn_looks(NN_ADD_FINAL, True),
+                          slots=NN_ADD_FINAL[0], status="Level up! The next nest is level 2",
+                          status_fill=SUCCESS, caption=done_caption, caption_ink=TEXT,
+                          done=True)),
+        ("multiply: waiting", numbernest_multiply()),
+        ("multiply: right answer",
+         numbernest_scene(op="mul", level=1, numbers=mul[0][0], looks=_nn_looks(mul[0], True), slots=NN_MUL_FINAL[0][:1], fresh=0,
+                          status=_nn_equation(mul[0], "x"), status_fill=SUCCESS,
+                          caption="GROUP 1 OF 5")),
+        ("multiply: final group",
+         numbernest_scene(op="mul", level=1, numbers=NN_MUL_FINAL[0], slots=NN_MUL_FINAL[0],
+                          status="Final group! Tap the product of two others",
+                          caption="FINAL GROUP - THE FIVE ANSWERS FROM YOUR NEST",
+                          caption_fill=WARN)),
+        ("add level 5: three digits", numbernest_scene(op="add", level=5, numbers=hard[0],
+                                                       status="Tap the sum of two others",
+                                                       caption="GROUP 1 OF 5")),
+        ("4-inch board, 480x320", numbernest_scene(op="add", level=1, numbers=add[1][0], looks=_nn_looks(add[1], True),
+                                                   slots=NN_ADD_FINAL[0][:2], fresh=1,
+                                                   status=_nn_equation(add[1], "+"),
+                                                   status_fill=SUCCESS, caption="GROUP 2 OF 5",
+                                                   width=480, height=320)),
+        ("4-inch board, rules", numbernest_rules(480, 320)),
+    ]
+    return out
+
+
 EXTRA_SCREENS = [
     ("scores-mine", scores_mine, "Scores: this player"),
     ("scores-device", scores_device, "Scores: device best"),
@@ -4265,6 +4597,10 @@ EXTRA_SCREENS = [
     ("space-answered", space_answered, "Space: the fact after an answer"),
     ("roman", roman, "Roman Numerals: read the numeral"),
     ("roman-write", roman_write, "Roman Numerals: write the number"),
+    ("numbernest", numbernest, "NumberNest: a right answer drops into the nest"),
+    ("numbernest-multiply", numbernest_multiply, "NumberNest: the product of two others"),
+    ("numbernest-final", numbernest_final, "NumberNest: the nest is the last group"),
+    ("numbernest-rules", numbernest_rules, "NumberNest: how to play"),
     ("piano", piano, "Piano: one octave"),
     ("chess", chess, "Chess: legal moves ringed, captures beside the board"),
     ("seabattle", sea_battle, "Sea Battle: hunting the fleet, your sea beside it"),
@@ -4316,6 +4652,7 @@ THEME_SHEET_SCREENS = (
     "scores",               # a list with values
     "math",                 # a game: big text and answer buttons
     "trace",                # a game with its own canvas colours
+    "numbernest",           # a game drawn in palette roles: fills and their ink
     "wakelock",             # chrome on the bare ground
 )
 
@@ -4333,7 +4670,7 @@ def apply_theme(palette):
     value of the sheet is that it shows what the device will draw.
     """
     global BG, SURFACE, PANEL, TEXT, MUTED, OUTLINE, SUCCESS, ERROR, WARN
-    global BAR, BAR_TEXT, BLUE, GREEN, RED, ACCENT
+    global BAR, BAR_TEXT, BLUE, GREEN, RED, ACCENT, NN_RADIUS
     BG = _palette_rgb(palette["bg"])
     SURFACE = _palette_rgb(palette["surface"])
     PANEL = _palette_rgb(palette["panel"])
@@ -4347,6 +4684,7 @@ def apply_theme(palette):
     BAR_TEXT = _palette_rgb(palette["barText"])
     BLUE, GREEN, RED = (_palette_rgb(t) for t in palette["tile"])
     ACCENT = _palette_rgb(palette["accent"])
+    NN_RADIUS = int(palette["radius"])
 
 
 def theme_sheets():
@@ -4382,9 +4720,64 @@ def theme_sheets():
     print("wrote %d theme sheets to %s" % (len(parse_palettes()), out))
 
 
+def _contact_sheet(items, cols, path, title, scale=1):
+    """(name, image) pairs on one labelled sheet, for looking at together."""
+    cw = max(im.width for _, im in items) * scale + 12
+    ch = max(im.height for _, im in items) * scale + 26
+    rows = (len(items) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * cw + 12, rows * ch + 34), (26, 26, 30))
+    d = ImageDraw.Draw(sheet)
+    d.text((12, 8), title, font=F2, fill=(240, 240, 240))
+    for n, (name, im) in enumerate(items):
+        x, y = 12 + (n % cols) * cw, 34 + (n // cols) * ch
+        d.text((x, y), name, font=F1, fill=(190, 190, 195))
+        if scale != 1:
+            im = im.resize((im.width * scale, im.height * scale), Image.NEAREST)
+        sheet.paste(im, (x, y + 14))
+    sheet.save(path)
+    print("  %s" % path.name)
+
+
+def numbernest_sheets(out) -> None:
+    """Every state of NumberNest and its launcher tile, as contact sheets.
+
+    `python tools/gen_screens.py --numbernest <dir>`. Not stills: docs/screens/
+    carries four of these states, and the tile is on the launcher's last
+    page, which no still shows. This is the whole set in one look, at 1:1
+    and on the 4-inch board, for whenever the layout or the icon moves.
+    """
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    states = numbernest_states()
+    _contact_sheet([s for s in states if s[1].width == W], 3, out / "numbernest-states.png",
+                   "NumberNest -- every state of the screen, 320x240 (1:1)")
+    _contact_sheet([s for s in states if s[1].width != W], 2, out / "numbernest-4inch.png",
+                   "NumberNest on the 4-inch board (480x320): positions and circles scale, "
+                   "text does not")
+    tiles = []
+    for name, fill in (("blue tile", BLUE), ("green tile", GREEN), ("red tile", RED)):
+        im = Image.new("RGB", (148, 46), BG)
+        d = ImageDraw.Draw(im)
+        d.rounded_rectangle([0, 0, 144, 45], 6, fill=fill)
+        launcher_icon(d, "NumberNest", 24, 22, fill)
+        d.text((46, 9), "NumberNest", font=F2, fill=on_fill(fill))
+        d.text((46, 28), "add & multiply", font=F1, fill=on_fill_soft(fill))
+        tiles.append((name, im))
+    _contact_sheet(tiles, 3, out / "numbernest-tile.png",
+                   "NumberNest launcher tile, enlarged 4x: a nest with 1, 2 and 3 as chicks",
+                   scale=4)
+    print("wrote 3 NumberNest sheets to %s" % out)
+
+
 def main() -> None:
     if "--themes" in sys.argv:
         theme_sheets()
+        return
+    if "--numbernest" in sys.argv:
+        at = sys.argv.index("--numbernest") + 1
+        if at >= len(sys.argv):
+            raise SystemExit("usage: gen_screens.py --numbernest <directory outside docs/screens>")
+        numbernest_sheets(sys.argv[at])
         return
     OUT.mkdir(parents=True, exist_ok=True)
     if not HAVE_ART:

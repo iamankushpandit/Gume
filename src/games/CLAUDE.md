@@ -441,6 +441,141 @@ states the rules as played.
 - **Saved packed**: two bits a point, so 19x19 is a hundred bytes. Undo is
   not saved. The lobby's chips are, and come back whatever else does.
 
+## NumberNest
+
+Split like the board games, for the same reason: `NumberNestRules.{h,cpp}`
+(limits, the generator, the stored nests) and `NumberNestSession.cpp`
+(levels, the flow of a sitting, and what the screen should show) are pure and
+host-tested by `test/host/numbernest_rules_test.cpp`. The screen is thin on
+purpose and is two files over one layout header: `NumberNestGame.cpp` (its
+life and its input), `NumberNestDraw.cpp` (every pixel) and
+`NumberNestLayout.h` (every rectangle, once, with the `static_assert`s that
+keep them apart). `NumberNestRules.h` states the game.
+
+- **A nest is built backwards.** The final group first, then one preliminary
+  group round each of its five values. Never the other way: five groups
+  generated freely do not make a sixth with exactly one answer.
+- **"The answer" has one definition: `Nest::countRelations()`.** It tries
+  every pair of positions against every third. A group is valid when that is
+  exactly one; the generator, the stored nests, the tap handler and the test
+  all ask it. Do not decide correctness any other way, and never accept a
+  group with two answers to get a search unstuck.
+- **Two preferences, and they are not rules.** The search keeps a number
+  from sitting beside its own double -- `3 + 3 = 6` is not an answer, one
+  number used twice being one number, but it is correct arithmetic and the
+  player who taps the 6 is told no -- and it avoids a final equation that
+  the nest has already asked (`doubles()`, `poorFinal()`, the tiers in
+  `makePrelim()`). Bystanders never make a double; operands do only when the
+  target cannot be made another way. Both belong to the SEARCH:
+  `countRelations()` is still the only definition of valid, and neither is
+  ever traded for uniqueness or a limit. The host test counts both per level
+  and holds the bystander rule at zero.
+- **Level 1 Multiply has three final equations, each asked twice, and that
+  is the ten-times table's doing.** A final group's operands are themselves
+  products of two different numbers, so inside 2..10 they are 6, 8 and 10;
+  and 48, 60 and 80 can each be earned one way there. The test asserts
+  exactly that, so a change to the limits that ends it fails loudly and the
+  documents get corrected.
+- **Limits are per operation and per level, and bind differently.**
+  `operandMin..operandMax` bind both operands of every equation the player
+  solves, the final group's included; `resultMax` binds every number shown.
+  Multiplication's final group is the tight case -- both operands must
+  themselves be products of two different factors, so the smallest final
+  answer is 6 x 8 = 48 at any level. Change a limit and re-run the test: it
+  checks that every level still deals complete nests without falling back.
+- **The timings and the promotion run are asserted beside their
+  definitions**, in `NumberNestRules.h`, so `pio run` refuses a `REVEAL_MS`
+  nobody could read or a `RELEASE_MS` of one frame. The host test is not run
+  by CI; a `static_assert` in a header the firmware includes is.
+- **The search is bounded by a budget, not by luck.** Every candidate number
+  examined spends one unit of `SEARCH_BUDGET`; when it is gone the stored
+  nest for that mode and level is used. The stored nests are validated by
+  `static_assert` with the game's own `puzzleValid()`, so tightening a limit
+  under one is a build error, not a puzzle with two answers.
+- **Arithmetic is widened before it is done.** `combine()` casts both
+  operands to `uint32_t` first. Two `uint16_t` promote to `int`, and a
+  product of two large ones overflows a signed type.
+- **Progression borrows, because there is nothing to share.** Five levels
+  like Math and Multiply; kept per player, promoted by six in a row and
+  cycled by hand like Flags and States; never demoted. Add and Multiply each
+  have their own level and their own run. An answer counts toward the run
+  only at the first tap, and a wrong tap ends the run THERE -- not when the
+  group is finally solved, or walking away from the group would hide the
+  slip. A run can reach six part way through a nest, so the promotion is
+  EARNED there (`Progress::earned`, kept through a later slip) and applied by
+  `finishNest()`: the level on the screen is always the level of the nest in
+  play. The screen writes the new level to storage the moment it is earned,
+  so going Home before the nest ends does not lose it. The run starts over
+  with the level, and the level control gives up anything earned.
+- **A held finger answers nothing, and that is in the rules, not the screen.**
+  `Session::armed` is false from the moment the picture changes until a
+  finger has been off the glass for `RELEASE_MS`, and `SETTLE_MS` ignores a
+  tap that was already on its way. **One sample off the glass is not a
+  lift**: a resistive panel drops below its pressure threshold in the middle
+  of a held press, and the frame after reads as a fresh press in the same
+  place -- the same reason the lock screen forgives a 150ms gap.
+  And every accepted tap closes the gate behind it, a wrong one included, or
+  one held press on a wrong number is two slips.
+  `Nest::controlsArmed()` is the ONE gate, asked before any control is hit
+  tested: the numbers, both mode chips, the level, Rules, Play again and
+  Home, and the rules page itself, which watches the finger with
+  `watchFinger()` while the nest's own clock is stopped. Add a control and it
+  is behind that gate already; do not add a path above it.
+- **The screen is painted by difference.** It keeps the `Nest::View` it last
+  painted and repaints only what `Nest::changedRegions()` names; each region
+  has one painter that covers its own box, so there is nothing to erase. Add
+  a field to `View` and add it to `changedRegions()` in the same change, or
+  it will never be repainted. The test states what each kind of event may
+  repaint -- a wrong tap is one circle and the status line -- and that an
+  idle frame repaints nothing.
+- **Feedback goes on a filled pill.** Success and error are contrast-checked
+  as fills against the ground, not as text on it; on Silver and Pocket a line
+  of success-coloured text is close to invisible. Fill, then `Ui::onFill()`.
+- **A circle says what it is by its fill, never by its rim.** Idle is the
+  panel colour, a wrong tap the error colour, the answer the success colour
+  and the two numbers it was made from INVERTED INK -- filled with the text
+  colour. They were first marked by a success-coloured rim, and on Pocket
+  that colour and the outline are the same green; on Classic and High
+  Contrast the text colour and the outline are the same too, so no rim colour
+  works on all nine. Text against panel is the pairing every palette is
+  checked for.
+- **Nothing is painted that the next layer will cover.** Because the rim
+  never changes, it is painted once, when the screen is (`rimToo`), and a
+  repaint lays only the inner disc and the number. A feedback pill clears
+  only the strip either side of itself. Laid down whole each time, a change
+  of group measured 72,000 pixels on the 4-inch board -- 31 ms of SPI
+  against a 20 ms frame.
+- **Circles, and they are hit-tested as circles.** `NUMBER_SLOP` is LESS than
+  half the gap between two neighbours -- a `static_assert` with a strict
+  inequality -- so not even the midpoint belongs to two numbers. The nest
+  slot with index i sits under the number circle with index i, because the
+  final group is the nest shown in that order.
+- **Strokes are filled shapes, never lines side by side.** The runtime scales
+  positions and radii on a larger panel and a line stays one physical pixel
+  wide, so a rim made of concentric outlines, or a multiplication sign made
+  of two parallel lines, comes apart into thin lines with ground between
+  them at 1.5x. A rim is the disc in the rim colour with the fill laid inside
+  it; an arm of the sign is two triangles.
+- **The rules page is remembered per player, and a guest is found out by
+  writing.** A screen is not told who is playing and a guest keeps nothing,
+  so the first visit stores "been here, not read" and reads it back; nothing
+  coming back means a guest, whose "already seen" lasts until the next boot.
+  It is one write per player, in `begin()`, never in a frame.
+- **Buttons side by side are two touch slops apart**, and a `static_assert`
+  says so. Every button is hit-tested with `TOUCH_HIT_SLOP` round it, so at a
+  smaller gap the first one tested owns the leading edge of the second; at
+  six pixels the left edge of Multiply selected Add.
+- **The selected mode is inverted ink, not `Ui::accent()`.** Filled with the
+  text colour, written in `Ui::onFill()` of it: text against panel is a
+  pairing every palette is checked for, so the selection reads on all nine.
+- **The rules page is the one full repaint after entry.** Everything else,
+  a mode switch and a fresh nest included, is content in fixed regions.
+- **`python tools/gen_screens.py --numbernest <dir>` draws the whole set**:
+  every state of the screen at 1:1, the 4-inch board, and the launcher tile.
+  The stills in `docs/screens/` are four of those states, and the tile is on
+  the launcher's last page, which no still shows -- look at the sheets
+  whenever the layout or the icon moves.
+
 ## Tracing games
 
 `LetterTracer` is the finger-tracing engine: waypoint resampling, hit testing,
