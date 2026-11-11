@@ -1539,6 +1539,7 @@ tools/
   gen_elements.py       regenerates the 118-element table, checking it
   gen_screens.py        regenerates the images in this README
   gen_site.py           builds the GitHub Pages site and its flash manifests
+  gen_site_anims.py     draws the site's Privacy and Get started animations
   check_docs.py         fails if these docs have drifted from the code
   check_boards.py       fails if a board is described inconsistently
   check_catalog.py      fails if launcher metadata indices misalign
