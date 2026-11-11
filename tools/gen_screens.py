@@ -365,7 +365,7 @@ def blank(w=W, h=H):
 
 # ---------------------------------------------------------------- screens
 
-def piano():
+def piano(lit=4):
     """Piano: one octave, a key held.
 
     Geometry taken from PianoGame's own rects, not approximated -- eight white
@@ -377,7 +377,6 @@ def piano():
     top, capH, m = 34, 22, 4
     kb = (m, top, W - m * 2, H - top - capH - m)
     whites = ["C", "D", "E", "F", "G", "A", "B", "C"]
-    lit = 4                                    # G held down
     for i, name in enumerate(whites):
         x0 = kb[0] + kb[2] * i // 8
         x1 = kb[0] + kb[2] * (i + 1) // 8
@@ -398,7 +397,7 @@ def piano():
     return im
 
 
-def chess():
+def chess(selected=(3, 0), targets=None, moves=(), status=("White", "to move")):
     """Chess: a piece selected, its moves ringed, and the panel beside it.
 
     The geometry is ChessGame's, restated: the board takes the full height in
@@ -444,8 +443,10 @@ def chess():
         board[(f, 7)] = (back[f], False)
     del board[(4, 1)]
     board[(4, 3)] = ("PAWN", True)             # the pawn on e4
-    selected = (3, 0)                          # white queen
-    targets = [(4, 1), (5, 2), (6, 3), (7, 4)]
+    for frm, to in moves:                      # gen_gameplay plays moves on
+        board[to] = board.pop(frm)
+    if targets is None:                        # the white queen's moves
+        targets = [(4, 1), (5, 2), (6, 3), (7, 4)]
 
     def paint(mask, pxx, pyy, size, colour):
         for ry in range(size):
@@ -489,13 +490,14 @@ def chess():
             piece(masks[name], x0 + 1, y0 + 1, tcell - 2, white)
 
     sy = by + side - action_h - gap - status_h
-    d.text((px, sy), "White", font=F1, fill=TEXT)
-    d.text((px, sy + 10), "to move", font=F1, fill=MUTED)
+    d.text((px, sy), status[0], font=F1, fill=TEXT)
+    d.text((px, sy + 10), status[1], font=F1, fill=MUTED)
     button(d, (px, by + side - action_h, pw, action_h), "End game")
     return im
 
 
-def sea_battle():
+def sea_battle(misses=None, hits=None, pending=None,
+               status=("Hit!", "fire again", None), tally="Hits 4/11  lost 3"):
     """Sea Battle: hunting the enemy fleet, with your own sea beside it.
 
     Geometry restated from SeaBattleGame: the board takes the canvas height and
@@ -516,9 +518,9 @@ def sea_battle():
     MISS, HIT, SHIP = (150, 168, 190), (214, 66, 54), (120, 128, 140)
 
     # A game part way through: some misses, some hits, one ship going down.
-    misses = {5, 9, 18, 22, 33, 41, 47, 52, 58, 61}
-    hits = {26, 27, 28, 35}
-    pending = {13}
+    misses = {5, 9, 18, 22, 33, 41, 47, 52, 58, 61} if misses is None else misses
+    hits = {26, 27, 28, 35} if hits is None else hits
+    pending = {13} if pending is None else pending
 
     for c in range(64):
         col, row = c % 8, c // 8
@@ -558,9 +560,9 @@ def sea_battle():
     d.rectangle([mx, my, mx + ms - 1, my + ms - 1], outline=OUTLINE)
 
     sy = my + ms + gap + 2
-    d.text((px, sy), "Hit!", font=F2, fill=SUCCESS)
-    d.text((px, sy + 14), "fire again", font=F1, fill=MUTED)
-    d.text((px, sy + status_h), "Hits 4/11  lost 3", font=F1, fill=MUTED)
+    d.text((px, sy), status[0], font=F2, fill=SUCCESS if status[2] is None else status[2])
+    d.text((px, sy + 14), status[1], font=F1, fill=MUTED)
+    d.text((px, sy + status_h), tally, font=F1, fill=MUTED)
     button(d, (px, by + side - action_h, pw, action_h), "End game")
     return im
 
@@ -701,7 +703,7 @@ def _ludo_board(d, pos, lit):
                    fill=_ludo_on_seat(s))
 
 
-def ludo():
+def ludo(pos=None, lit=None, msg="Pick a token"):
     """Ludo: Red, a player, holding a 4 against two computers.
 
     Red's two tokens on one square are a block and carry a 2; Green shares a
@@ -710,8 +712,9 @@ def ludo():
     rolling when there is a real choice to make.
     """
     im, d = blank(); topbar(d, "Ludo")
-    pos = {0: [None, 3, 20, 20], 1: [None, None, 8, 17], 2: [8, 30, 53, 56]}
-    _ludo_board(d, pos, lit={(0, 1), (0, 2), (0, 3)})
+    if pos is None:
+        pos = {0: [None, 3, 20, 20], 1: [None, None, 8, 17], 2: [8, 30, 53, 56]}
+    _ludo_board(d, pos, lit={(0, 1), (0, 2), (0, 3)} if lit is None else lit)
 
     px, pw = LUDO_PX, LUDO_PW
     _ludo_token(d, px + 7, 38 + 9, 0, 6)
@@ -724,7 +727,6 @@ def ludo():
     for ox, oy in ((-10, -10), (10, 10), (10, -10), (-10, 10)):
         d.ellipse([cx + ox - 4, cy + oy - 4, cx + ox + 4, cy + oy + 4], fill=LUDO_INK)
 
-    msg = "Pick a token"
     d.text((px + (pw - d.textlength(msg, font=F2)) / 2, 114), msg, font=F2, fill=TEXT)
 
     y = 132
@@ -832,7 +834,7 @@ def _bg_checker(d, cx, cy, white):
     d.ellipse([cx - BG_R + 3, cy - BG_R + 3, cx + BG_R - 3, cy + BG_R - 3], outline=edge)
 
 
-def backgammon():
+def backgammon(selected=12, targets=frozenset({7, 9}), moves=()):
     """Backgammon against the computer: a 5-3 rolled, the checker on White's
     13-point picked up, and the two points it can reach marked.
 
@@ -845,7 +847,9 @@ def backgammon():
         pt[i] = n
     for i, n in ((0, 2), (11, 4), (16, 3), (18, 4), (20, 2)):
         pt[i] = -n
-    selected, targets = 12, {7, 9}
+    for a, b in moves:                         # gen_gameplay: White moves a->b
+        pt[a] -= 1
+        pt[b] += 1
     d.rectangle([BG_BX - 2, BG_BY - 2, BG_BOARD_R + 1, BG_BY + BG_BOARD_H + 1], fill=BG_WOOD)
     for i in range(24):
         x, y = _bg_point_rect(i)
@@ -930,7 +934,7 @@ def flags_country():
     return im
 
 
-def flags_capital():
+def flags_capital(answered=False):
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "4/5", font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength("+3", font=F2), 32), "+3", font=F2, fill=GOLD)
@@ -941,7 +945,9 @@ def flags_capital():
     q = "Bonus! Capital of Brazil?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 169), q, font=F2, fill=GOLD)
     for i, lab in enumerate(["Brasilia", "Buenos Aires", "Lisbon", "Bogota"]):
-        button(d, (6 + (i % 2) * 158, 186 + (i // 2) * 27, 150, 25), lab)
+        ok = answered and i == 0
+        button(d, (6 + (i % 2) * 158, 186 + (i // 2) * 27, 150, 25), lab,
+               SUCCESS if ok else None, (0, 0, 0) if ok else None)
     return im
 
 
@@ -1437,20 +1443,22 @@ def fingers_count():
     return im
 
 
-def fingers_show():
+def fingers_show(left=(True, True, True, False, False),
+                 right=(False, False, True, False, False)):
     im, d = blank(); topbar(d, "Finger Counting")
     d.text((W - 8 - d.textlength("5/6", font=F2), 32), "5/6", font=F2, fill=TEXT)
     q = "Show me 7 fingers"
     d.text((W / 2 - d.textlength(q, font=F4) / 2, 41), q, font=F4, fill=TEXT)
-    d.text((W / 2 - d.textlength("Up: 4", font=F2) / 2, 71), "Up: 4", font=F2, fill=MUTED)
-    hand(d, 22, [True, True, True, False, False], False)
-    hand(d, 172, [False, False, True, False, False], True)
+    up = "Up: %d" % (sum(left) + sum(right))
+    d.text((W / 2 - d.textlength(up, font=F2) / 2, 71), up, font=F2, fill=MUTED)
+    hand(d, 22, list(left), False)
+    hand(d, 172, list(right), True)
     t = "Tap a finger to raise or lower it"
     d.text((W / 2 - d.textlength(t, font=F2) / 2, 205), t, font=F2, fill=MUTED)
     return im
 
 
-def cinnamon():
+def cinnamon(lit=(False, True, False, False), status="Watch", score=4):
     """Cinnamon Says -- and it honours the theme now.
 
     It used to force Ui::Theme::Light for the whole of each render half, so
@@ -1461,11 +1469,9 @@ def cinnamon():
     """
     im, d = blank()
     topbar(d, "Cinnamon Says")
-    d.text((10, 34), "Score 4", font=F2, fill=TEXT)
+    d.text((10, 34), "Score %d" % score, font=F2, fill=TEXT)
     d.text((W - 10 - d.textlength("Best 9", font=F2), 34), "Best 9", font=F2, fill=TEXT)
-    st = "Watch"
-    d.text((W / 2 - d.textlength(st, font=F2) / 2, 52), st, font=F2, fill=TEXT)
-    lit = [False, True, False, False]
+    d.text((W / 2 - d.textlength(status, font=F2) / 2, 52), status, font=F2, fill=TEXT)
     cols_lit = [(248, 0, 0), (0, 130, 255), (0, 230, 60), (255, 240, 0)]
     cols_dim = [(96, 0, 0), (0, 0, 70), (0, 70, 0), (128, 110, 0)]
     for i in range(4):
@@ -2277,7 +2283,7 @@ def _go_stone(d, x, y, rad, black, faded=False):
                   fill=shade(fill, 160) if black else (255, 255, 255))
 
 
-def go():
+def go(played=False):
     """Go, 9x9, against the computer under Area rules: a white stone in atari,
     Black's ghost on the point that takes it, and the panel saying so.
 
@@ -2297,32 +2303,36 @@ def go():
     black = [(2, 2), (2, 3), (3, 1), (4, 1), (5, 2), (6, 3), (6, 5), (5, 6), (4, 6),
              (3, 6), (2, 5), (1, 6)]
     white = [(3, 2), (4, 2), (4, 3), (5, 3), (5, 4), (3, 4), (2, 6), (1, 4), (6, 6)]
+    if played:                                 # H7 played, the white stone taken
+        black.append((2, 7))
+        white.remove((2, 6))
     rad = GO_STEP * 46 // 100
     for r, c in black:
         _go_stone(d, *_go_xy(r, c), rad, True)
     for r, c in white:
         _go_stone(d, *_go_xy(r, c), rad, False)
-    x, y = _go_xy(1, 6)   # the last move
+    x, y = _go_xy(2, 7) if played else _go_xy(1, 6)   # the last move
     d.ellipse([x - rad // 2, y - rad // 2, x + rad // 2, y + rad // 2], outline=GO_MARK)
-    x, y = _go_xy(2, 7)   # the ghost
-    mixed = tuple((a + b) // 2 for a, b in zip(GO_BLACK, GO_WOOD))
-    d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=mixed, outline=GO_HI)
-    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-        d.line([(x + dx * (rad + 1), y + dy * (rad + 1)), (x + dx * (rad + 4), y + dy * (rad + 4))],
-               fill=GO_HI)
+    if not played:
+        x, y = _go_xy(2, 7)   # the ghost
+        mixed = tuple((a + b) // 2 for a, b in zip(GO_BLACK, GO_WOOD))
+        d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=mixed, outline=GO_HI)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            d.line([(x + dx * (rad + 1), y + dy * (rad + 1)), (x + dx * (rad + 4), y + dy * (rad + 4))],
+                   fill=GO_HI)
 
     px, pw = GO_PX, GO_PW
     d.rounded_rectangle([px, 34, px + pw - 1, 55], 6, fill=SURFACE, outline=OUTLINE)
-    _go_stone(d, px + 12, 45, 8, True)
-    d.text((px + 28, 45), "Your turn", font=F2, fill=TEXT, anchor="lm")
+    _go_stone(d, px + 12, 45, 8, not played)
+    d.text((px + 28, 45), "White" if played else "Your turn", font=F2, fill=TEXT, anchor="lm")
     d.text((px, 60), "Captured", font=F1, fill=MUTED)
     _go_stone(d, px + 10, 82, 8, True)
-    d.text((px + 24, 82), "3", font=F4, fill=TEXT, anchor="lm")
+    d.text((px + 24, 82), "4" if played else "3", font=F4, fill=TEXT, anchor="lm")
     _go_stone(d, px + 58, 82, 8, False)
     d.text((px + 72, 82), "1", font=F4, fill=TEXT, anchor="lm")
     d.rounded_rectangle([px, 96, px + pw - 1, 129], 6, fill=SURFACE, outline=OUTLINE)
-    d.text((px + 6, 101), "Tap again to play", font=F1, fill=MUTED)
-    d.text((px + 6, 112), "H7 takes 1", font=F2, fill=SUCCESS)
+    d.text((px + 6, 101), "Thinking..." if played else "Tap again to play", font=F1, fill=MUTED)
+    d.text((px + 6, 112), "You took 1" if played else "H7 takes 1", font=F2, fill=SUCCESS)
     button(d, (px, 136, pw, 26), "Pass")
     button(d, (px, 166, pw, 24), "Undo")
     button(d, (px, 194, pw, 26), "End game")
@@ -2414,16 +2424,16 @@ SCREENS = [
 # ------------------------------------------------------- remaining 23 games
 # Geometry below is taken from each game's own Rect helpers in src/games/.
 
-def tictactoe():
+def tictactoe(marks=None, status="X turn"):
     im, d = blank(); topbar(d, "Tic-Tac-Toe")
-    d.text((10, 36), "X turn", font=F2, fill=TEXT)
+    d.text((10, 36), status, font=F2, fill=TEXT)
     bx, by, bw = 76, 68, 168
     cell = bw // 3
     d.rectangle([bx, by, bx + bw, by + bw], outline=OUTLINE)
     for i in range(1, 3):
         d.line([(bx + i * cell, by), (bx + i * cell, by + bw)], fill=OUTLINE)
         d.line([(bx, by + i * cell), (bx + bw, by + i * cell)], fill=OUTLINE)
-    marks = {0: "X", 4: "O", 8: "X", 2: "O"}
+    marks = {0: "X", 4: "O", 8: "X", 2: "O"} if marks is None else marks
     for k, mk in marks.items():
         cx = bx + (k % 3) * cell + cell // 2
         cy = by + (k // 3) * cell + cell // 2
@@ -2436,14 +2446,14 @@ def tictactoe():
     return im
 
 
-def memory():
+def memory(faces=None, pairs="Pairs 3/12"):
     im, d = blank(); topbar(d, "Memory Match")
-    d.text((10, 36), "Pairs 3/12", font=F2, fill=TEXT)
+    d.text((10, 36), pairs, font=F2, fill=TEXT)
     cols, rows, cell, gap = 6, 4, 44, 4
     gw = cols * cell + (cols - 1) * gap
     gh = rows * cell + (rows - 1) * gap
     sx, sy = (W - gw) // 2, 58 + (H - 58 - gh) // 2
-    faces = {2: "A", 3: "A", 9: "F"}
+    faces = {2: "A", 3: "A", 9: "F"} if faces is None else faces
     for i in range(cols * rows):
         x = sx + (i % cols) * (cell + gap)
         y = sy + (i // cols) * (cell + gap)
@@ -2546,16 +2556,15 @@ def math_game():
     return im
 
 
-def math_words():
+def math_words(question="Nia has 21 shells and gives 8 away. How many are left?",
+               answers=("13", "11", "29", "12"), correct="13"):
     """Math: the same sum as a word problem, wrapped into the same panel."""
     im, d = blank(); topbar(d, "Math")
     _quiz_header(d, "Level 3", "Correct 11  2:40", "Streak 4", "Best 14 / 3:02")
-    _quiz_panel_text(d, (26, 70, 268, 56),
-                     "Nia has 21 shells and gives 8 away. How many are left?",
-                     F2, 18)
+    _quiz_panel_text(d, (26, 70, 268, 56), question, F2, 18)
     p = "Tap the answer"
     d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
-    _quiz_buttons(d, ["13", "11", "29", "12"], "13")
+    _quiz_buttons(d, list(answers), correct)
     return im
 
 
@@ -2613,8 +2622,13 @@ def _roman_screen(prompt, subject, answers, correct, level, key, rule, note, not
     return im
 
 
-def roman():
+def roman(answered=True):
     """Roman Numerals: read one, answered, with the decomposition underneath."""
+    if not answered:
+        return _roman_screen("What number is this?", "XIV", ["14", "16", "15", "11"], None,
+                             2, "I=1   V=5   X=10",
+                             "A smaller sign BEFORE a bigger one is taken away.",
+                             "Tap the answer", WARN, note_big=True)
     return _roman_screen("What number is this?", "XIV", ["14", "16", "15", "11"], "14",
                          2, "I=1   V=5   X=10",
                          "A smaller sign BEFORE a bigger one is taken away.",
@@ -2739,7 +2753,7 @@ def multiply():
     return _quiz4("Multiplication", "6 x 7 = ?", "Tap the product", ["42", "36", "48", "40"], "42", 144, 38)
 
 
-def time_game():
+def time_game(answered=False):
     """Time.
 
     The geometry here is taken from TimeGame::drawClock() and answerRect(),
@@ -2777,21 +2791,22 @@ def time_game():
 
     for i, a in enumerate(["6:00", "5:00", "2:00", "4:00"]):
         r2 = (18 + (i % 2) * 152, 152 + (i // 2) * 40, 132, 34)
-        button(d, r2, a, PANEL, TEXT)
+        ok = answered and a == "6:00"
+        button(d, r2, a, SUCCESS if ok else PANEL, (0, 0, 0) if ok else TEXT)
     return im
 
 
-def whack():
+def whack(moles=None, score="Score 12", clock="0:18"):
     im, d = blank(); topbar(d, "Whack A Mole")
-    d.text((10, 36), "Score 12", font=F2, fill=TEXT)
-    d.text((W - 10 - d.textlength("0:18", font=F2), 36), "0:18", font=F2, fill=TEXT)
+    d.text((10, 36), score, font=F2, fill=TEXT)
+    d.text((W - 10 - d.textlength(clock, font=F2), 36), clock, font=F2, fill=TEXT)
     GRID, CELL = 9, 20
     gx, gy = (W - GRID * CELL) // 2, 58
     d.rectangle([gx, gy, gx + GRID * CELL, gy + GRID * CELL], outline=OUTLINE)
     for i in range(1, GRID):
         d.line([(gx + i * CELL, gy), (gx + i * CELL, gy + GRID * CELL)], fill=(48, 52, 62))
         d.line([(gx, gy + i * CELL), (gx + GRID * CELL, gy + i * CELL)], fill=(48, 52, 62))
-    for (r, c) in [(2, 3), (5, 6), (7, 1)]:
+    for (r, c) in ([(2, 3), (5, 6), (7, 1)] if moles is None else moles):
         x, y = gx + c * CELL, gy + r * CELL
         d.ellipse([x + 3, y + 3, x + CELL - 3, y + CELL - 3], fill=(255, 246, 178), outline=(120, 110, 60))
         d.ellipse([x + 7, y + 8, x + 9, y + 10], fill=(60, 50, 20))
@@ -2799,16 +2814,18 @@ def whack():
     return im
 
 
-def microku():
+def microku(grid=None, selected=None):
     im, d = blank(); topbar(d, "Microku")
     size, cell = 4, 32
     gs = size * cell
     sx, sy = (W - gs) // 2, 58
-    grid = [[1, 0, 3, 0], [0, 4, 0, 2], [2, 0, 4, 0], [0, 3, 0, 1]]
+    if grid is None:
+        grid = [[1, 0, 3, 0], [0, 4, 0, 2], [2, 0, 4, 0], [0, 3, 0, 1]]
     for r in range(size):
         for c in range(size):
             x, y = sx + c * cell, sy + r * cell
-            d.rectangle([x, y, x + cell, y + cell], fill=SURFACE, outline=OUTLINE)
+            d.rectangle([x, y, x + cell, y + cell],
+                        fill=PANEL if (r, c) == selected else SURFACE, outline=OUTLINE)
             if grid[r][c]:
                 d.text((x + cell / 2 - 4, y + cell / 2 - 7), str(grid[r][c]), font=F2, fill=TEXT)
     for i in range(0, size + 1, 2):
@@ -2920,7 +2937,7 @@ def maze_levels():
     return [rows[i:i + 8] for i in range(0, len(rows) - 7, 8)]
 
 
-def maze():
+def maze(player=None, moves=0):
     im, d = blank(); topbar(d, "Maze")
     # MazeGame draws the board as filled CELLS -- white path, dark wall, green
     # exit, each cell outlined -- not as thin wall segments over a dark board.
@@ -2936,7 +2953,7 @@ def maze():
     # are erased on the device. Mirrored here rather than quietly tidied up --
     # a mock-up that looks better than the hardware is not evidence.
     d.rectangle([0, 42, W - 1, 59], fill=BG)
-    hud = "Level 4/%d  Moves 0  Best 46" % len(maze_levels())
+    hud = "Level 4/%d  Moves %d  Best 46" % (len(maze_levels()), moves)
     d.text((W / 2 - d.textlength(hud, font=F1) / 2, 50 - F1.size / 2 - 1), hud,
            font=F1, fill=TEXT)
 
@@ -2948,15 +2965,15 @@ def maze():
             fill = WALL_C if cell == "#" else EXIT_C if cell == "E" else PATH_C
             d.rectangle([x, y, x + CELL - 1, y + CELL - 1], fill=fill, outline=GRID_C)
 
-    for r, row in enumerate(grid):                 # drawPlayer, radius 8, at S
-        if "S" in row:
-            c = row.index("S")
-            px, py = MX + c * CELL + CELL // 2, MY + r * CELL + CELL // 2
-            d.ellipse([px - 8, py - 8, px + 8, py + 8], fill=PLAYER_C, outline=(0, 0, 0))
+    if player is None:                             # drawPlayer, radius 8, at S
+        player = next((r, row.index("S")) for r, row in enumerate(grid) if "S" in row)
+    r, c = player
+    px, py = MX + c * CELL + CELL // 2, MY + r * CELL + CELL // 2
+    d.ellipse([px - 8, py - 8, px + 8, py + 8], fill=PLAYER_C, outline=(0, 0, 0))
     return im
 
 
-def sorting():
+def sorting(done=((0, 1),), nxt="Next: 4"):
     im, d = blank(); topbar(d, "Sorting")
     q = "Tap smallest to largest"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
@@ -2964,10 +2981,10 @@ def sorting():
     for r in range(2):
         for c in range(3):
             rr = (24 + c * 92, 82 + r * 58, 76, 44)
-            done = (r == 0 and c == 1)
-            button(d, rr, str(vals[r][c]), SUCCESS if done else PANEL,
-                   (0, 0, 0) if done else TEXT, F4)
-    d.text((W / 2 - d.textlength("Next: 4", font=F2) / 2, 208), "Next: 4", font=F2, fill=MUTED)
+            ok = (r, c) in done
+            button(d, rr, str(vals[r][c]), SUCCESS if ok else PANEL,
+                   (0, 0, 0) if ok else TEXT, F4)
+    d.text((W / 2 - d.textlength(nxt, font=F2) / 2, 208), nxt, font=F2, fill=MUTED)
     return im
 
 
@@ -2985,13 +3002,13 @@ def colormix():
     return im
 
 
-def slide():
+def slide(layout=None, moves=14):
     im, d = blank(); topbar(d, "Slide Puzzle")
-    d.text((10, 36), "Moves 14", font=F2, fill=TEXT)
+    d.text((10, 36), "Moves %d" % moves, font=F2, fill=TEXT)
     size, cell = 3, 48
     grid = size * cell
     sx, sy = (W - grid) // 2, 68
-    layout = [1, 2, 3, 4, 5, 6, 7, 0, 8]
+    layout = [1, 2, 3, 4, 5, 6, 7, 0, 8] if layout is None else layout
     for i, v in enumerate(layout):
         x, y = sx + (i % size) * cell, sy + (i // size) * cell
         if v == 0:
@@ -3004,19 +3021,21 @@ def slide():
     return im
 
 
-def oddone():
+def oddone(picked=False, score="Score 5/7"):
     im, d = blank(); topbar(d, "Odd One Out")
     q = "Tap the one that is different"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 40), q, font=F2, fill=MUTED)
     for i in range(6):
         r = (36 + (i % 3) * 86, 70 + (i // 3) * 50, 66, 40)
-        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 5, fill=SURFACE, outline=OUTLINE)
+        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 5, fill=SURFACE,
+                            outline=SUCCESS if picked and i == 4 else OUTLINE,
+                            width=3 if picked and i == 4 else 1)
         cx, cy = r[0] + r[2] // 2, r[1] + r[3] // 2
         if i == 4:
             d.rectangle([cx - 12, cy - 12, cx + 12, cy + 12], fill=(255, 246, 178))
         else:
             d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(110, 190, 255))
-    d.text((W / 2 - d.textlength("Score 5/7", font=F2) / 2, 186), "Score 5/7", font=F2, fill=TEXT)
+    d.text((W / 2 - d.textlength(score, font=F2) / 2, 186), score, font=F2, fill=TEXT)
     return im
 
 
@@ -3471,7 +3490,7 @@ def percent_make():
     return im
 
 
-def grewords():
+def grewords(answered=True, progress="132 / 250"):
     """GRE Words, Quiz tab: the word, four glosses, one right."""
     im, d = blank(); topbar(d, "GRE Words")
     for i, (lab, x) in enumerate([("Study", 0), ("Quiz", 160)]):
@@ -3491,14 +3510,13 @@ def grewords():
             "lasting a very short time", "showing great attention to detail"]
     for i, o in enumerate(opts):
         y = 88 + i * 34
-        fillc = SUCCESS if i == 0 else PANEL
-        ink = (0, 0, 0) if i == 0 else TEXT
+        fillc = SUCCESS if answered and i == 0 else PANEL
+        ink = (0, 0, 0) if answered and i == 0 else TEXT
         d.rounded_rectangle([10, y, 309, y + 30], 5, fill=fillc, outline=OUTLINE)
         d.text((18, y + 15 - 5), o, font=F1, fill=ink)
 
     d.text((8, 226), "40 pts  x4", font=F1, fill=MUTED)
-    lbl = "132 / 250"
-    d.text((312 - d.textlength(lbl, font=F1), 226), lbl, font=F1, fill=MUTED)
+    d.text((312 - d.textlength(progress, font=F1), 226), progress, font=F1, fill=MUTED)
     return im
 
 
@@ -3730,13 +3748,16 @@ def nearby_name():
 # (85, 198, 150, 34), dice at 68px on a 14px gap, coin at r=34 centred on
 # (160, 116). Change either game and change these to match.
 DIE_PIPS = {
+    1: (4,),
     2: (0, 8),
+    3: (0, 4, 8),
+    4: (0, 2, 6, 8),
     5: (0, 2, 4, 6, 8),
     6: (0, 2, 3, 5, 6, 8),
 }
 
 
-def dice():
+def dice(faces=(5, 2, 6)):
     im, d = blank(); topbar(d, "Dice")
     d.text((W / 2 - d.textlength("How many dice?", font=F1) / 2, 34),
            "How many dice?", font=F1, fill=MUTED)
@@ -3745,7 +3766,6 @@ def dice():
         button(d, (86 + i * 52, 46, 44, 26), label,
                ACCENT if on else PANEL, on_fill(ACCENT) if on else TEXT)
 
-    faces = (5, 2, 6)
     span = 3 * 68 + 2 * 14
     x0 = (W - span) // 2
     for i, face in enumerate(faces):
@@ -3766,7 +3786,7 @@ def dice():
 COIN_FACE, COIN_EDGE = (226, 182, 72), (150, 116, 34)
 
 
-def coinflip():
+def coinflip(results="HTHTH", face="H", squash=1.0, verdict="Heads wins 3-2"):
     im, d = blank(); topbar(d, "Coin Flip")
     d.text((W / 2 - d.textlength("Best of how many?", font=F1) / 2, 34),
            "Best of how many?", font=F1, fill=MUTED)
@@ -3776,8 +3796,10 @@ def coinflip():
                ACCENT if on else PANEL, on_fill(ACCENT) if on else TEXT)
 
     # The settled coin: full width, so it carries a readable face.
-    d.ellipse([126, 82, 194, 150], fill=COIN_FACE, outline=COIN_EDGE)
-    d.text((160 - d.textlength("H", font=F4) / 2, 116 - 9), "H", font=F4, fill=COIN_EDGE)
+    hw = max(2, round(34 * squash))           # gen_gameplay spins it edge-on
+    d.ellipse([160 - hw, 82, 160 + hw, 150], fill=COIN_FACE, outline=COIN_EDGE)
+    if face and squash > .6:
+        d.text((160 - d.textlength(face, font=F4) / 2, 116 - 9), face, font=F4, fill=COIN_EDGE)
 
     results = "HTHTH"
     px0 = (W - (len(results) - 1) * 28) // 2
@@ -3786,7 +3808,6 @@ def coinflip():
         d.ellipse([px - 10, 156, px + 10, 176], fill=COIN_FACE, outline=COIN_EDGE)
         d.text((px - d.textlength(side, font=F1) / 2, 166 - 5), side, font=F1, fill=COIN_EDGE)
 
-    verdict = "Heads wins 3-2"
     d.text((W / 2 - d.textlength(verdict, font=F2) / 2, 187 - 7), verdict, font=F2, fill=TEXT)
     button(d, (85, 198, 150, 34), "Flip", GREEN, WHITE, F4)
     return im

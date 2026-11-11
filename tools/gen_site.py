@@ -31,6 +31,8 @@ Writes, into DIR (default `site/_build`, which is not committed):
     firmware/<board>/<env>/manifest.json   an esp-web-tools manifest per build
     screens/*.png                          the stills the page shows, copied
                                            from docs/screens
+    gameplay/*.gif                         the same stills played, from
+                                           docs/gameplay (tools/gen_gameplay.py)
     assets/*                               a copy of site/assets --
                                            the photos, the hero video
                                            and the poster
@@ -454,20 +456,34 @@ def available_screen_names():
     }
 
 
+GAMEPLAY_DIR = os.path.join(ROOT, "docs", "gameplay")
+
+
+def gameplay_file(name):
+    return "gameplay/%s.gif" % name
+
+
+def available_gameplay_names():
+    if not os.path.isdir(GAMEPLAY_DIR):
+        return set()
+    return {n[:-4] for n in os.listdir(GAMEPLAY_DIR) if n.endswith(".gif")}
+
+
+def still_media(name, alt, loading, size=""):
+    """A still, played: the game's animation from docs/gameplay/ where there is
+    one, and its still for a reader whose system asks for reduced motion."""
+    img = '<img src="%s" alt="%s" loading="%s"%s>'
+    if name not in available_gameplay_names():
+        return img % (screen_file(name), escape(alt), loading, size)
+    return ('<picture><source srcset="%s" media="(prefers-reduced-motion: reduce)">'
+            + img + '</picture>') % (screen_file(name), gameplay_file(name),
+                                     escape(alt), loading, size)
+
+
 def still_figure(name, class_name="still", loading="eager"):
     caption = SCREEN_CAPTIONS.get(name, name.replace("-", " ").title())
-    return (
-        '<figure class="%s">'
-        '<img src="%s" alt="%s" loading="%s">'
-        '<figcaption>%s</figcaption>'
-        '</figure>'
-    ) % (
-        class_name,
-        screen_file(name),
-        escape(caption),
-        loading,
-        escape(caption),
-    )
+    return '<figure class="%s">%s<figcaption>%s</figcaption></figure>' % (
+        class_name, still_media(name, caption, loading), escape(caption))
 
 
 def render_game_wall(apps):
@@ -557,16 +573,17 @@ def render_game_cards(apps):
         for app, builds in cards:
             out.append(
                 '    <article class="game" id="game-%s">\n'
-                '      <img src="%s" alt="%s on the console" loading="lazy" '
-                'width="640" height="480">\n'
+                '      %s\n'
                 '      <div class="text">\n'
                 '        <h4>%s</h4>\n'
                 '        <p class="blurb">%s</p>\n'
                 '        <p class="builds"><span>What it builds</span>%s</p>\n'
                 '      </div>\n'
                 '    </article>' % (
-                    escape(app.id), screen_file(game_still(app.id)),
-                    escape(app.title), escape(app.title), escape(app.blurb),
+                    escape(app.id),
+                    still_media(game_still(app.id), "%s being played" % app.title,
+                                "lazy", ' width="640" height="480"'),
+                    escape(app.title), escape(app.blurb),
                     inline_markdown(builds)))
         out.append('  </div>')
     return "\n".join(out)
@@ -667,6 +684,20 @@ def validate_site_screens():
     missing = (set(HERO_STILLS) | set(game_card_stills())) - available_screen_names()
     if missing:
         die("site references missing screen still(s): %s" % ", ".join(sorted(missing)))
+
+    # Every game card plays, and nothing in docs/gameplay goes unshown. A game
+    # added without a sequence would sit still among forty that move.
+    shown = set(HERO_STILLS) | set(game_card_stills())
+    played = available_gameplay_names()
+    silent = set(game_card_stills()) - played
+    if silent:
+        die("no animation for game still(s) %s -- add a sequence to "
+            "tools/gen_gameplay.py and run it" % ", ".join(sorted(silent)))
+    unused = played - shown
+    if unused:
+        die("docs/gameplay/ has animation(s) the site does not show: %s -- "
+            "remove them, or the sequence in tools/gen_gameplay.py"
+            % ", ".join(sorted(unused)))
 
 
 ASSET_DIR = os.path.join(ROOT, "site", "assets")
@@ -1338,9 +1369,13 @@ def main():
     # Games tab. Publishing the rest of docs/screens would be shipping images
     # nothing links to.
     os.makedirs(os.path.join(out, "screens"))
+    os.makedirs(os.path.join(out, "gameplay"))
     for name in sorted(set(HERO_STILLS) | set(game_card_stills(catalog))):
         shutil.copy(os.path.join(ROOT, "docs", "screens", "%s.png" % name),
                     os.path.join(out, "screens", "%s.png" % name))
+        if name in available_gameplay_names():
+            shutil.copy(os.path.join(GAMEPLAY_DIR, "%s.gif" % name),
+                        os.path.join(out, "gameplay", "%s.gif" % name))
     # The photos, the hero video and the poster PDF. They are committed
     # rather than generated, so they are copied rather than built -- but
     # they are published from here so that nothing on the page has to
