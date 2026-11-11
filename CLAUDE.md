@@ -1299,6 +1299,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           gen_site_anims.py (the animations on the site's
                           Privacy and Get started cards -- look at every one
                           after regenerating),
+                          gen_board_launch.py (Home's three boards, each
+                          launching a game -- site/assets/boards-launch.webp,
+                          drawn over boards-braino.png),
                           gen_gameplay.py (each game's mock-up, played --
                           docs/gameplay/*.gif, shown on the site; watch
                           every one after regenerating),
@@ -1438,7 +1441,14 @@ break it, and all three fail in someone else's browser rather than here:
    the folder into the build, so nothing on the page reaches outside the Pages
    origin for a picture.
 
-   The exception is `privacy-*` and `start-*`: one animation per card on the
+   `boards-launch.webp` is generated too, by `tools/gen_board_launch.py`:
+   the three boards from `boards-braino.png`, each launching a game, its
+   screens drawn by `gen_screens.py` in that board's theme. Its screen
+   rectangles were fitted to the still, so **recompositing
+   `boards-braino.png` means refitting them** (the docstring says how), and
+   the still stays as the reduced-motion fallback.
+
+   The other exception is `privacy-*` and `start-*`: one animation per card on the
    Privacy and Get started tabs, each a GIF plus its last frame as a PNG that
    readers who ask for reduced motion get instead. They are drawn by
    `tools/gen_site_anims.py` in the page's own palette, never by hand, and
