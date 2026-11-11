@@ -10,6 +10,16 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The site's games move.** Every game card on the Games tab, and the six
+stills on Home, now play a few seconds of the game -- a question answered
+under a finger, a letter traced, the maze walked, a pair found, a piece
+moved, the dice thrown -- with the still kept for readers who ask for
+reduced motion. `tools/gen_gameplay.py` draws them with the same
+`gen_screens.py` functions that draw the stills, given the state as a
+parameter whose default is the still, so the 93 stills regenerate
+byte-identical; `gen_site.py` refuses to build while a game has no
+animation.
+
 **The site's Privacy and Get started cards are animated.** Every Privacy card
 -- Wi-Fi, Bluetooth, Nearby, games between consoles, the poke, local names,
 scores and the page itself -- has a short loop showing what goes where and
