@@ -1112,16 +1112,18 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
-11. `tools/gen_site.py` — nothing, usually. The landing page shows six
-    chosen stills (`HERO_STILLS`) rather than all of them, and its game list
-    is names read from `AppRegistry`, so a new game appears on it without
-    anybody touching the generator. It showed all ninety-one once, with three
-    per game card, and that is why this step used to be a wiring job; the
-    page is now a page rather than a contact sheet, and the README gallery is
-    where a reader goes for every screen. Only if you want the new still to
-    be one of the six: add it to `HERO_STILLS` and give it a
-    `SCREEN_CAPTIONS` entry, and take one out — six is the number because
-    more stops selling and starts listing.
+11. `tools/gen_site.py` — nothing, usually. The Games tab shows one card
+    per playable game: its still, its blurb from `AppRegistry` and its
+    "What it builds" cell read from the README table in step 6, grouped by
+    that table's heading. So the README row *is* the site copy -- write it
+    for a parent deciding whether the game is worth a child's time.
+    `gen_site.py` and `check_docs.py` both fail when a game has no README
+    row or no still. The still is `docs/screens/<game-id>.png` unless the id
+    is in `GAME_STILL_ALIASES`, which `check_docs.py` reads too; add an
+    alias only when the game's first screen is not named after its id. The
+    Home tab is separate: six chosen stills (`HERO_STILLS`). Only if you want
+    the new still to be one of those six, add it there with a
+    `SCREEN_CAPTIONS` entry and take one out.
 
 ### 4. Verify
 
@@ -1142,9 +1144,9 @@ how About fell six games behind in the first place:
   `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
-  fails if a version number is typed into it. The game list and the six-still
-  wall are generated too, so do not add an `<img>` or a game name to the
-  template — see step 11 above
+  fails if a version number is typed into it. The game list, the game cards
+  and the six-still wall are generated too, so do not add an `<img>`, a game
+  name or a game description to the template — see step 11 above
 
 ### If it is a system app rather than a game
 
@@ -1291,6 +1293,9 @@ src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product
                           mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_site_anims.py (the animations on the site's
+                          Privacy and Get started cards -- look at every one
+                          after regenerating),
                           gen_logo_mask.py (the product mark, from
                           tools/braino-badge.svg -- writes a preview that MUST
                           be looked at),
@@ -1425,6 +1430,16 @@ break it, and all three fail in someone else's browser rather than here:
    sitting in the tree (weight in every clone, forever). `gen_site.py` copies
    the folder into the build, so nothing on the page reaches outside the Pages
    origin for a picture.
+
+   The exception is `privacy-*` and `start-*`: one animation per card on the
+   Privacy and Get started tabs, each a GIF plus its last frame as a PNG that
+   readers who ask for reduced motion get instead. They are drawn by
+   `tools/gen_site_anims.py` in the page's own palette, never by hand, and
+   every label in one is a claim the card beside it also makes in words -- so
+   **changing a card's text means rereading its scene**, and changing what
+   the firmware sends means both. Labels are drawn no smaller than 19px
+   because the card shows a scene at about half size; check a regenerated
+   scene at phone width, not only on a desktop.
 
 5. **Adding coverage to `site/featured.json`.** The Featured page shows other
    people's pages, which move, paywall and vanish, so an entry is not a link:

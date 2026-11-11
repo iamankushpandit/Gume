@@ -50,6 +50,22 @@ the pictures are what a port is written from.
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The site's Privacy and Get started cards are animated.** Every Privacy card
+-- Wi-Fi, Bluetooth, Nearby, games between consoles, the poke, local names,
+scores and the page itself -- has a short loop showing what goes where and
+what never leaves, and Get started's three steps and three extras show the
+board, the data cable, the install, the speaker, the case and which way round
+a battery plugs in. They are drawn by `tools/gen_site_anims.py` in the page's
+own colours, and a reader whose system asks for reduced motion gets each
+one's last frame as a still instead.
+
+**The site's Games tab shows every game.** Each of the 40 has a card with
+its screen, its one-line blurb and what it builds, grouped as the README
+groups them; the row of names above links to each card. The "What it builds"
+text is read from the README's game tables by `gen_site.py` rather than
+written a second time, so the page and the README cannot disagree, and both
+`gen_site.py` and `check_docs.py` fail when a game has no row or no still.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was
