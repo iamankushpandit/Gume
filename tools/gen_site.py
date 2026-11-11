@@ -14,8 +14,9 @@ The page is *derived*, for the same reason the About app is: a hand-written
 copy of the game list fell six games behind once already, and a landing page is
 even easier to forget than a screen you look at while holding the device. So
 nothing here is typed twice -- the version comes from AppVersion.h, the games
-and their blurbs from the playable app registry, the build figures from
-README.md, the board name and the firmware environments from platformio.ini.
+and their blurbs from the playable app registry, what each game builds and the
+build figures from README.md, the board name and the firmware environments
+from platformio.ini.
 
     python tools/gen_site.py [--out DIR] [--repo URL]
 
@@ -28,7 +29,8 @@ Writes, into DIR (default `site/_build`, which is not committed):
     featured/*.jpg                            a copy of site/featured -- the dated
                                            screenshots that back each entry
     firmware/<board>/<env>/manifest.json   an esp-web-tools manifest per build
-    screens/*.png                          a copy of docs/screens
+    screens/*.png                          the stills the page shows, copied
+                                           from docs/screens
     assets/*                               a copy of site/assets --
                                            the photos, the hero video
                                            and the poster
@@ -332,6 +334,21 @@ HERO_STILLS = (
     "elements", "chess", "cinnamon",
 )
 
+# The Games tab shows every playable game with one still and what it builds.
+# A catalog id names its still in docs/screens/ except for these; check_docs.py
+# reads the same table, so "does every game have a screenshot" and "which one
+# does the page show" cannot disagree.
+GAME_STILL_ALIASES = {
+    "shapecolor": "shapes",
+    "sort": "sorting",
+    "fingers": "fingers-count",
+    "flags": "flags-country",
+}
+
+
+def game_still(game_id):
+    return GAME_STILL_ALIASES.get(game_id, game_id)
+
 
 def read(*parts):
     with open(os.path.join(ROOT, *parts), encoding="utf-8") as handle:
@@ -454,14 +471,105 @@ def still_figure(name, class_name="still", loading="eager"):
 
 
 def render_game_wall(apps):
-    """Every playable game as its own name, in launcher order.
-
-    Still derived from AppRegistry, so it cannot fall behind the firmware --
-    that was never the reason the cards existed. What is gone is three
-    screenshots per game, not the list.
-    """
+    """Every playable game as its own name, in launcher order, each a link to
+    its card below. Derived from AppRegistry, so it cannot fall behind the
+    firmware."""
     return "\n".join(
-        "    <span>%s</span>" % escape(app.title) for app in apps)
+        '    <a href="#game-%s">%s</a>' % (escape(app.id), escape(app.title))
+        for app in apps)
+
+
+def inline_markdown(text):
+    """The handful of inline Markdown the README's game tables use, as HTML."""
+    html = escape(text)
+    html = re.sub(r"`([^`]+)`", r"<code>\1</code>", html)
+    html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
+    html = re.sub(r"\*(.+?)\*", r"<em>\1</em>", html)
+    return html.replace(" -- ", " &mdash; ")
+
+
+def readme_game_groups():
+    """[(heading, [(title, what_it_builds)])] from README's "The games" tables.
+
+    README is where each game's "What it builds" is written, once; the page
+    reads it rather than keeping a second copy that would drift from it.
+    """
+    readme = read("README.md")
+    section = find(r"^## The games\n(.*?)(?=^## )", readme,
+                   "README's '## The games' section", re.M | re.S).group(1)
+    groups = []
+    for match in re.finditer(r"^### (.+?)\n(.*?)(?=^### |\Z)", section,
+                             re.M | re.S):
+        rows = []
+        for line in match.group(2).splitlines():
+            if not line.startswith("| **"):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) != 3:
+                die("README game row has %d cells, expected 3: %s"
+                    % (len(cells), line[:60]))
+            title = find(r"^\*\*(.+?)\*\*$", cells[0],
+                         "the game name in README row %r" % cells[0]).group(1)
+            rows.append((title, cells[2]))
+        if rows:
+            groups.append((match.group(1).strip(), rows))
+    if not groups:
+        die("parsed no game tables out of README's '## The games' section")
+    return groups
+
+
+def game_card_groups(apps=None):
+    """[(heading, [(app, what_it_builds)])]: every playable game exactly once,
+    grouped and ordered as README's tables group them."""
+    apps = apps if apps is not None else playable_apps()
+    by_title = {app.title: app for app in apps}
+    seen = set()
+    groups = []
+    for heading, rows in readme_game_groups():
+        cards = []
+        for title, builds in rows:
+            app = by_title.get(title)
+            if app is None:
+                die("README's game tables name '%s', which is not a playable "
+                    "game title in AppRegistry" % title)
+            if app.id in seen:
+                die("README's game tables name '%s' twice" % title)
+            seen.add(app.id)
+            cards.append((app, builds))
+        groups.append((heading, cards))
+    missing = [app.title for app in apps if app.id not in seen]
+    if missing:
+        die("README's game tables have no row for: %s -- the Games tab takes "
+            "each game's 'What it builds' from there" % ", ".join(missing))
+    return groups
+
+
+def game_card_stills(apps=None):
+    return [game_still(app.id)
+            for _, cards in game_card_groups(apps) for app, _ in cards]
+
+
+def render_game_cards(apps):
+    out = []
+    for heading, cards in game_card_groups(apps):
+        out.append('  <h3 class="game-group">%s</h3>' % escape(heading))
+        out.append('  <div class="game-grid">')
+        for app, builds in cards:
+            out.append(
+                '    <article class="game" id="game-%s">\n'
+                '      <img src="%s" alt="%s on the console" loading="lazy" '
+                'width="640" height="480">\n'
+                '      <div class="text">\n'
+                '        <h4>%s</h4>\n'
+                '        <p class="blurb">%s</p>\n'
+                '        <p class="builds"><span>What it builds</span>%s</p>\n'
+                '      </div>\n'
+                '    </article>' % (
+                    escape(app.id), screen_file(game_still(app.id)),
+                    escape(app.title), escape(app.title), escape(app.blurb),
+                    inline_markdown(builds)))
+        out.append('  </div>')
+    return "\n".join(out)
 
 
 def board_facts(board):
@@ -547,17 +655,16 @@ def render_still_wall():
 
 
 def validate_site_screens():
-    """Every still the page shows must exist.
+    """Every still the page shows must exist, and every game must have a card.
 
-    The other direction -- a still on disk that the page does not show -- used
-    to fail here, back when the page showed all ninety-one and an orphan meant
-    somebody had added a game and forgotten to wire it up. The page now shows
-    six, so that reading no longer holds. The contract it was protecting did
-    not move: check_docs.py's check_screens() still fails when a still has no
-    generator entry, when a generated one is missing from disk, and when a
-    playable game has no screenshot at all.
+    The page shows six stills on Home and one per playable game on the Games
+    tab. game_card_stills() dies when a game has no row in README's game
+    tables, so a new game that was never written up fails here -- which
+    check_docs.py calls -- rather than in CI after the push. A still on disk
+    that the page does not show is fine: the alternate screens of a game, the
+    system screens and the Tall layouts live in the README gallery.
     """
-    missing = set(HERO_STILLS) - available_screen_names()
+    missing = (set(HERO_STILLS) | set(game_card_stills())) - available_screen_names()
     if missing:
         die("site references missing screen still(s): %s" % ", ".join(sorted(missing)))
 
@@ -947,6 +1054,7 @@ def main():
     # 4-inch board and gets a black screen that looks like a dead device.
     variant_options = ""
     game_wall = render_game_wall(catalog)
+    game_cards = render_game_cards(catalog)
     buy_pick = render_buy_pick(supported)
     buy_table = render_buy_table(supported)
     still_wall = render_still_wall()
@@ -964,6 +1072,7 @@ def main():
         ("{{VARIANT_OPTIONS}}", variant_options),
         ("{{STILL_WALL}}", still_wall),
         ("{{GAME_WALL}}", game_wall),
+        ("{{GAME_CARDS}}", game_cards),
         ("{{BUY_PICK}}", buy_pick),
         ("{{BUY_TABLE}}", buy_table),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
@@ -998,11 +1107,11 @@ def main():
         handle.write(featured_page)
     shutil.copytree(FEATURED_DIR, os.path.join(out, "featured"))
 
-    # Only the stills the page shows. It copied all of docs/screens back when
-    # it showed all of docs/screens; publishing the other eighty-five now
-    # would be shipping images nothing links to.
+    # Only the stills the page shows: the six on Home and one per game on the
+    # Games tab. Publishing the rest of docs/screens would be shipping images
+    # nothing links to.
     os.makedirs(os.path.join(out, "screens"))
-    for name in HERO_STILLS:
+    for name in sorted(set(HERO_STILLS) | set(game_card_stills(catalog))):
         shutil.copy(os.path.join(ROOT, "docs", "screens", "%s.png" % name),
                     os.path.join(out, "screens", "%s.png" % name))
     # The photos, the hero video and the poster PDF. They are committed
