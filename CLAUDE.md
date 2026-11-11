@@ -1104,16 +1104,18 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
-11. `tools/gen_site.py` — nothing, usually. The landing page shows six
-    chosen stills (`HERO_STILLS`) rather than all of them, and its game list
-    is names read from `AppRegistry`, so a new game appears on it without
-    anybody touching the generator. It showed all ninety-one once, with three
-    per game card, and that is why this step used to be a wiring job; the
-    page is now a page rather than a contact sheet, and the README gallery is
-    where a reader goes for every screen. Only if you want the new still to
-    be one of the six: add it to `HERO_STILLS` and give it a
-    `SCREEN_CAPTIONS` entry, and take one out — six is the number because
-    more stops selling and starts listing.
+11. `tools/gen_site.py` — nothing, usually. The Games tab shows one card
+    per playable game: its still, its blurb from `AppRegistry` and its
+    "What it builds" cell read from the README table in step 6, grouped by
+    that table's heading. So the README row *is* the site copy -- write it
+    for a parent deciding whether the game is worth a child's time.
+    `gen_site.py` and `check_docs.py` both fail when a game has no README
+    row or no still. The still is `docs/screens/<game-id>.png` unless the id
+    is in `GAME_STILL_ALIASES`, which `check_docs.py` reads too; add an
+    alias only when the game's first screen is not named after its id. The
+    Home tab is separate: six chosen stills (`HERO_STILLS`). Only if you want
+    the new still to be one of those six, add it there with a
+    `SCREEN_CAPTIONS` entry and take one out.
 
 ### 4. Verify
 
@@ -1134,9 +1136,9 @@ how About fell six games behind in the first place:
   `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
-  fails if a version number is typed into it. The game list and the six-still
-  wall are generated too, so do not add an `<img>` or a game name to the
-  template — see step 11 above
+  fails if a version number is typed into it. The game list, the game cards
+  and the six-still wall are generated too, so do not add an `<img>`, a game
+  name or a game description to the template — see step 11 above
 
 ### If it is a system app rather than a game
 

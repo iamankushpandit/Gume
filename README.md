@@ -1364,7 +1364,8 @@ python tools/gen_site.py
 ```
 
 That writes `site/_build/` (git-ignored) with the page, one manifest per
-firmware, the six stills the page shows and a copy of `site/assets/`. The
+firmware, the stills the page shows (six on Home, one per game on the
+Games tab) and a copy of `site/assets/`. The
 binaries are *not* built locally; the flash button only works against the
 published site, where CI has put them there. `gen_site.py` refuses to generate
 if the page references an asset that is missing, or if an asset in the tree is

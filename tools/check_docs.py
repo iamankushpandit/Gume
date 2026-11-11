@@ -284,13 +284,11 @@ def check_screens(problems):
                        "not exist" % name)
 
     # Every playable game should be picturable. Catalog ids mostly match the
-    # screen names; list the deliberate exceptions rather than skipping the check.
-    alias = {"shapecolor": "shapes", "sort": "sorting", "fingers": "fingers-count",
-             "flags": "flags-country", "states": "states", "stateflags": "stateflags",
-             "statemaps": "statemaps", "tictactoe": "tictactoe"}
+    # screen names; gen_site.GAME_STILL_ALIASES lists the deliberate
+    # exceptions, and is also what picks the still the Games tab shows.
     for app in playable_apps():
         game_id = app.id
-        name = alias.get(game_id, game_id)
+        name = gen_site.game_still(game_id)
         if name not in on_disk:
             fail(problems, "game '%s' has no screenshot (expected "
                            "docs/screens/%s.png)" % (game_id, name))
