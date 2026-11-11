@@ -10,6 +10,13 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The site's Games tab shows every game.** Each of the 40 has a card with
+its screen, its one-line blurb and what it builds, grouped as the README
+groups them; the row of names above links to each card. The "What it builds"
+text is read from the README's game tables by `gen_site.py` rather than
+written a second time, so the page and the README cannot disagree, and both
+`gen_site.py` and `check_docs.py` fail when a game has no row or no still.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was

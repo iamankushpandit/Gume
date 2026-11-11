@@ -173,14 +173,28 @@
   .boards span{display:block;font-size:15px;color:rgba(0,0,0,.62);margin-top:2px}
   @media (max-width:860px){.flash .grid{grid-template-columns:1fr}}
 
-  /* games, as type rather than as ninety-one pictures */
+  /* games: an index of names, then one card per game */
   .games{padding:14vh var(--gutter)}
   .games h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
   .games .intro{margin-top:22px;max-width:38rem;font-size:20px;color:var(--muted)}
   .games .intro a{color:var(--yellow)}
   .wall{margin-top:30px;display:flex;flex-wrap:wrap;gap:8px}
-  .wall span{font-size:15px;font-weight:600;letter-spacing:0;color:var(--muted);
-             border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+  .wall a{font-size:15px;font-weight:600;letter-spacing:0;color:var(--muted);text-decoration:none;
+          border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+  .wall a:hover,.wall a:focus-visible{color:var(--fg);border-color:var(--yellow)}
+  .game-group{margin-top:64px;font-size:clamp(28px,3.4vw,44px);font-weight:900;letter-spacing:-.035em;line-height:1.05}
+  .game-grid{margin-top:22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+  .game{display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:var(--ink-2);
+        box-shadow:inset 0 0 0 1px var(--line);scroll-margin-top:160px}
+  .game img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:contain;background:#0b0f15}
+  .game .text{padding:16px 18px 20px}
+  .game h4{margin:0;font-size:24px;font-weight:800;letter-spacing:-.03em}
+  .game .blurb{margin-top:2px;font-size:15px;color:var(--muted)}
+  .game .builds{margin-top:12px;font-size:16px;line-height:1.5}
+  .game .builds span{display:block;margin-bottom:2px;font-size:12px;font-weight:700;letter-spacing:.08em;
+                     text-transform:uppercase;color:var(--yellow)}
+  .game code{font-size:.92em;background:rgba(255,255,255,.08);border-radius:4px;padding:0 4px}
+  @media (max-width:420px){.game-grid{grid-template-columns:1fr}}
 
   /* videos */
   .videos{padding:14vh var(--gutter);background:var(--ink-2)}
@@ -589,17 +603,17 @@
 <section class="games" id="games">
   <h2>Every game,<br>baked into flash.</h2>
   <p class="intro">
-    All {{GAME_COUNT}} of them, and any one can be hidden per player. This list is
-    generated from the firmware's own registry, so it cannot drift from what is
-    actually on the board.
+    All {{GAME_COUNT}} of them, each with a screen and what it builds. Any one
+    can be hidden per player.
   </p>
-  <div class="wall">
+  <nav class="wall" aria-label="Jump to a game">
 {{GAME_WALL}}
-  </div>
-  <p class="intro" style="margin-top:34px">
-    Every screen has a mock-up, redrawn on a PC from the rectangles, fonts and
-    colours in the source. They live in
-    <a href="{{REPO}}#the-games">the README gallery</a> rather than here.
+  </nav>
+{{GAME_CARDS}}
+  <p class="intro" style="margin-top:44px">
+    The screens are mock-ups drawn from the firmware's own layout and colours.
+    Every other screen, including the system apps, is in
+    <a href="{{REPO}}#every-game">the README gallery</a>.
   </p>
 </section>
 
