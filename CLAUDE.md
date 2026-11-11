@@ -1285,6 +1285,9 @@ src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product
                           mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_site_anims.py (the animations on the site's
+                          Privacy and Get started cards -- look at every one
+                          after regenerating),
                           gen_logo_mask.py (the product mark, from
                           tools/braino-badge.svg -- writes a preview that MUST
                           be looked at),
@@ -1419,6 +1422,16 @@ break it, and all three fail in someone else's browser rather than here:
    sitting in the tree (weight in every clone, forever). `gen_site.py` copies
    the folder into the build, so nothing on the page reaches outside the Pages
    origin for a picture.
+
+   The exception is `privacy-*` and `start-*`: one animation per card on the
+   Privacy and Get started tabs, each a GIF plus its last frame as a PNG that
+   readers who ask for reduced motion get instead. They are drawn by
+   `tools/gen_site_anims.py` in the page's own palette, never by hand, and
+   every label in one is a claim the card beside it also makes in words -- so
+   **changing a card's text means rereading its scene**, and changing what
+   the firmware sends means both. Labels are drawn no smaller than 19px
+   because the card shows a scene at about half size; check a regenerated
+   scene at phone width, not only on a desktop.
 
 5. **Adding coverage to `site/featured.json`.** The Featured page shows other
    people's pages, which move, paywall and vanish, so an entry is not a link:

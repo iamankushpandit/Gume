@@ -10,6 +10,15 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The site's Privacy and Get started cards are animated.** Every Privacy card
+-- Wi-Fi, Bluetooth, Nearby, games between consoles, the poke, local names,
+scores and the page itself -- has a short loop showing what goes where and
+what never leaves, and Get started's three steps and three extras show the
+board, the data cable, the install, the speaker, the case and which way round
+a battery plugs in. They are drawn by `tools/gen_site_anims.py` in the page's
+own colours, and a reader whose system asks for reduced motion gets each
+one's last frame as a still instead.
+
 **The site's Games tab shows every game.** Each of the 40 has a card with
 its screen, its one-line blurb and what it builds, grouped as the README
 groups them; the row of names above links to each card. The "What it builds"
