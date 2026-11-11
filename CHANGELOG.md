@@ -10,6 +10,13 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The boards on the landing page launch games.** The picture of Braino on
+three bare boards now plays: each board taps a tile on its launcher, the game
+opens sideways as it does on a board standing upright, the board turns to
+play it, and Home turns it back -- each in its own theme, a third of a loop
+apart. `tools/gen_board_launch.py` draws every screen with `gen_screens.py`;
+the still remains for reduced motion.
+
 **The site's games move.** Every game card on the Games tab, and the six
 stills on Home, now play a few seconds of the game -- a question answered
 under a finger, a letter traced, the maze walked, a pair found, a piece
