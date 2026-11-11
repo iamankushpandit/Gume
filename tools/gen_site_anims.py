@@ -80,6 +80,12 @@ SOFT_GREEN = (88, 214, 140)
 
 _FONTS = {}
 
+# The maintainer asked that no animation show the number 13. Every string a
+# scene draws goes through Canvas.text, which records it, and main() refuses
+# to write a scene that drew one containing it.
+FORBIDDEN = ("13",)
+DRAWN = []
+
 
 def font(size, bold=False, mono=False):
     key = (size, bold, mono)
@@ -170,6 +176,7 @@ class Canvas:
                    start, end, fill=color, width=int(width * S))
 
     def text(self, xy, s, size=18, color=FG, bold=False, mono=False, anchor="mm"):
+        DRAWN.append(str(s))
         self.d.text((xy[0] * S, xy[1] * S), s, font=font(size, bold, mono),
                     fill=color, anchor=anchor)
 
@@ -285,7 +292,7 @@ def scene_wifi(c, t):
     dests = (
         (52, "Clock server", "the time", "time?", "12:41"),
         (176, "ip-api.com", "once: time zone", "zone?", "UTC-5"),
-        (300, "Update list", "daily, no device id", "newer?", "5.13"),
+        (300, "Update list", "daily, no device id", "newer?", "5.14"),
     )
     start = (170, 104)
     for i, (y, title, sub, ask, reply) in enumerate(dests):
@@ -914,7 +921,13 @@ def main():
     for name, seconds, draw in SCENES:
         if wanted and name not in wanted:
             continue
-        gif, png = write(name, render(seconds, draw))
+        DRAWN.clear()
+        frames = render(seconds, draw)
+        bad = sorted({t for t in DRAWN for f in FORBIDDEN if f in t})
+        if bad:
+            sys.exit("gen_site_anims.py: %s draws %s -- no animation may show %s"
+                     % (name, ", ".join(repr(b) for b in bad), " or ".join(FORBIDDEN)))
+        gif, png = write(name, frames)
         total += gif + png
         print("%-15s %4d KB gif  %3d KB png" % (name, gif // 1024, png // 1024))
     print("total %d KB" % (total // 1024))
