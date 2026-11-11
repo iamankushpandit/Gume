@@ -1526,6 +1526,7 @@ tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_elements.py       regenerates the 118-element table, checking it
   gen_screens.py        regenerates the images in this README
+  gen_gameplay.py       plays them: a few seconds of every game, for the site
   gen_site.py           builds the GitHub Pages site and its flash manifests
   gen_site_anims.py     draws the site's Privacy and Get started animations
   check_docs.py         fails if these docs have drifted from the code
