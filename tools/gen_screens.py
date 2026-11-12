@@ -243,7 +243,7 @@ def topbar(d, title, synced=True, bars=3, muted=False, w=W):
     lock_icon(d, (40, 6, CONTROL_H, CONTROL_H), BAR_TEXT, BAR)
     # Mute, right of the padlock; the title starts after it now.
     speaker_icon(d, (64, 6, CONTROL_H, CONTROL_H), muted, BAR_TEXT)
-    t = "12:41 AM"
+    t = "12:41A"
     batt_w = battery_width(72)
     batt_right = w - 8 - CONTROL_H - 6
     wifi_cx = batt_right - batt_w - 6 - 8
@@ -287,16 +287,18 @@ def battery_width(pct=72):
     """Mirrors Ui::batteryBadgeWidth. Font 1 advances exactly 6px on the
     device, so the width is counted in characters rather than measured with
     PIL's proportional stand-in -- otherwise the mock-up packs differently
-    from the firmware and stops being evidence."""
-    text = "" if pct is None or pct < 0 else str(min(pct, 100))
-    inner = BATT_PAD * 2 + 6 * len(text)
+    from the firmware and stops being evidence. One width at every level,
+    the width "100" needs."""
+    if pct is None or pct < 0:
+        return 0
+    inner = BATT_PAD * 2 + 6 * len("100")
     return max(inner, 11) + 2 + BATT_TERM_W
 
 
 def battery_badge(d, cx, cy, pct=72):
     """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
     shell over a bordered two-pixel level gauge along the inside bottom. No
-    charging state. Variable width -- see battery_width."""
+    charging state. One width, digits centred -- see battery_width."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
     total = battery_width(pct)
     shell = total - BATT_TERM_W
@@ -319,7 +321,7 @@ def battery_badge(d, cx, cy, pct=72):
     if pct > 0 and track_w > 2:
         gw = max(1, int(pct * (track_w - 2) / 100))
         d.rectangle([track_x + 1, track_y + 1, track_x + gw, track_y + BATT_TRACK_H - 2], fill=level)
-    penx = bx + 1 + BATT_PAD
+    penx = bx + (shell - 6 * len(text) + 1) // 2
     if text:
         d.text((penx, cy - 6), text, font=F1, fill=out)
 
@@ -1675,31 +1677,56 @@ def on_fill_soft(fill):
     return soft if (hi + 0.05) / (lo + 0.05) >= 4.5 else ink
 
 
+def launcher_header(d, w, tall, name="Ava", beacon=False):
+    """The launcher's header, from LauncherLayout's own numbers.
+
+    The mark and the copyright are fixed. The player's name has the mark's row
+    to itself in landscape and the second row in portrait; the clock keeps its
+    sync check; the gear is the top bar's, 18px and 8px in from the right; and
+    the badge row runs Bluetooth (only while the beacon is on), padlock,
+    speaker, Wi-Fi, battery, right-aligned under the gear.
+    """
+    lock_x = w - 110                      # lockRect(): CONTROL_FROM_RIGHT
+    gear = (w - 8 - CONTROL_H, 32 if tall else 6, CONTROL_H, CONTROL_H)
+    t = "12:41A"
+    batt_w = battery_width(72)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
+    if tall:
+        d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
+               font=F1, fill=MUTED)
+        d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
+        d.text((8, 33), name, font=F2, fill=TEXT)
+        row = 60
+        d.text((8, 53), t, font=F2, fill=TEXT)
+        sync_badge(d, int(8 + d.textlength(t, font=F2) + 12), row)
+    else:
+        d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
+        # headerDividerX(): 4px before the Bluetooth rune's box (lock_x - 13),
+        # from the mark's row (y=6) to the foot of the badge row (25 + 18).
+        divider_x = lock_x - 13 - 4
+        name_x = 10 + _logo_mask("WORD")[0] + 10
+        name_font = F2 if d.textlength(name, font=F2) <= divider_x - 4 - name_x else F1
+        d.text((name_x, 7), name, font=name_font, fill=TEXT)
+        d.line([(divider_x, 6), (divider_x, 25 + CONTROL_H - 1)], fill=OUTLINE)
+        row = 34
+        sync_cx = gear[0] - 6 - 7
+        sync_badge(d, sync_cx, 15)
+        d.text((sync_cx - 12 - d.textlength(t, font=F2), 7), t, font=F2, fill=TEXT)
+    gear_icon(d, gear, TEXT)
+    right = gear[0] + gear[2]
+    wifi_badge(d, right - batt_w - 14, row)
+    battery_badge(d, right - batt_w // 2, row)
+    lock_icon(d, (lock_x, row - 9, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (lock_x + 22, row - 9, CONTROL_H, CONTROL_H), False, TEXT)
+    if beacon:
+        ble_badge(d, lock_x - 9, row)
+
+
 def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
-    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
-    d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-    # Profile name: plain text on the byline row, no button chrome.
-    d.text((124, 34), "Ava", font=F1, fill=TEXT)
-    t = "12:41 AM"
-    d.text((W - 40 - d.textlength(t, font=F1), 9), t, font=F1, fill=TEXT)
-    # Beacon badge sits left of the clock, off its measured width.
-    ble_badge(d, int(W - 40 - d.textlength(t, font=F1)) - 14, 14)
-    batt_w = battery_width(72)
-    batt_right = W - 36
-    wifi_cx = batt_right - batt_w - 6 - 8
-    sync_cx = wifi_cx - 8 - 6 - 6
-    sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
-    battery_badge(d, batt_right - batt_w // 2, 34)
-    # Third move: lW-116 -> lW-138 for Lock -> lW-160 for mute.
-    d.line([(W - 160, 8), (W - 160, 40)], fill=OUTLINE)
-    gear_icon(d, (W - 30, 11, 25, 25), TEXT)          # gearRect(), unchanged
-    # Lock at the left-hand end of the badge row, inside the hairline, at badge
-    # size. See LauncherLayout::lockRect().
-    lock_icon(d, (W - 158, 25, CONTROL_H, CONTROL_H))
-    speaker_icon(d, (W - 136, 25, CONTROL_H, CONTROL_H), False, TEXT)
+    launcher_header(d, W, tall=False)
     tiles = front_page_tiles(6)
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub, icon) in enumerate(tiles):
@@ -1728,23 +1755,7 @@ def launcher_tall_dense():
     w, h = 320, 480
     im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, w - 1, 77], fill=SURFACE)
-    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
-    d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
-           font=F1, fill=MUTED)
-    d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
-    d.text((8, 36), "Ava", font=F2, fill=TEXT)
-    d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
-    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
-    batt_w = battery_width(72)
-    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
-    battery_badge(d, bx + 40 + batt_w // 2, 60)
-    gear_icon(d, (w - 32, 48, 24, 24), TEXT)
-    lock_icon(d, (w - 64, 51, CONTROL_H, CONTROL_H))
-    # Directly above the padlock, taking its x. It sat at w-96 for a release,
-    # which is neither beside nor above anything -- an icon floating in an
-    # empty row, reported off both portrait panels. Mirrors
-    # LauncherLayout::speakerRect(), which derives this from lockRect().
-    speaker_icon(d, (w - 64, 32, CONTROL_H, CONTROL_H), False, TEXT)
+    launcher_header(d, w, tall=True)
 
     gap, header_h, footer_h, cols, rows_n = 8, 78, 32, 3, 3
     tile_w = (w - gap * (cols + 1)) // cols
@@ -1777,25 +1788,7 @@ def launcher_tall_dense():
 def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
-    # Title left, copyright right, sharing the top row. See AppRuntimeLauncher.
-    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
-    d.text((232 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
-           font=F1, fill=MUTED)
-    d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
-    d.text((8, 36), "Ava", font=F2, fill=TEXT)
-    d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
-    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
-    batt_w = battery_width(72)
-    batt_left = bx + 40
-    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
-    battery_badge(d, batt_left + batt_w // 2, 60)
-    ble_badge(d, batt_left + batt_w + 11, 60)
-    gear_icon(d, (208, 48, 24, 24), TEXT)
-    lock_icon(d, (176, 51, CONTROL_H, CONTROL_H))
-    # Profile-name row, because at 240px the badge row is full by x=155 -- but
-    # in the padlock's column, not floating in the middle of it. Mirrors
-    # LauncherLayout::speakerRect().
-    speaker_icon(d, (176, 32, CONTROL_H, CONTROL_H), False, TEXT)
+    launcher_header(d, 240, tall=True, beacon=True)
     _fills = (BLUE, GREEN, RED, BLUE)
     tiles = [(t, sub, ic, _fills[i % 4])
              for i, (t, sub, ic) in enumerate(front_page_tiles(4))]
@@ -2150,7 +2143,7 @@ def network_time():
     button(d, (166, 64, 140, 30), "Forget")
     d.text((14, 102), "TIME", font=F1, fill=MUTED)
     d.line([(48, 109), (306, 109)], fill=OUTLINE)
-    stamp = "Tue Aug 11 2026  12:41 AM"
+    stamp = "Tue Aug 11 2026  12:41A"
     d.text((14, 114), stamp, font=F2, fill=TEXT)
     sync_badge(d, int(14 + d.textlength(stamp, font=F2) + 12), 122, True)
     button(d, (14, 132, 140, 30), "Auto time: On", GREEN, WHITE)
@@ -3107,13 +3100,13 @@ def numberline():
 
 
 def _si_tabs(d, active):
-    """Mirrors SystemInfoApp: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
-    labels = ["Board", "Memory", "Network", "BLE", "App"]
-    y, tw = 32, W // 5
+    """Mirrors SystemInfoApp: strip at TOP_BAR_HEIGHT+2, 28px tall, W/6 each."""
+    labels = ["Board", "Memory", "Network", "BLE", "Batt", "App"]
+    y, tw = 32, W // 6
     d.rectangle([0, y, W - 1, y + 27], fill=PANEL)
     for i, lab in enumerate(labels):
         x = i * tw
-        w = (W - x) if i == 4 else tw
+        w = (W - x) if i == 5 else tw
         on = i == active
         top = y if on else y + 4
         h = 28 if on else 24
@@ -3189,6 +3182,26 @@ def systeminfo_ble():
     ])
     d.rounded_rectangle([306, 63, 312, 236], 3, fill=PANEL, outline=OUTLINE)
     d.rounded_rectangle([307, 66, 311, 130], 2, fill=(88, 164, 224))
+    return im
+
+
+def systeminfo_battery():
+    """SystemInfoPower.cpp, on a handheld that has a current sensor."""
+    im, d = blank(); topbar(d, "System Info")
+    _si_tabs(d, 4)
+    _si_rows(d, [
+        ("s", "Now", "", None),
+        ("r", "Measured by", "Battery current sensor", None),
+        ("r", "Battery", "62%  3.84 V", None),
+        ("r", "Draw", "640 mA", None),
+        ("r", "On charger", "No", None),
+        ("s", "Result", "", None),
+        ("r", "On battery", "2:14 h", None),
+        ("r", "Most drain", "Awake full WL (71%)", WARN),
+        ("s", "States", "", None),
+        ("r", "Awake full WL", "640 mA  21.0%/h  1:32 h", None),
+        ("r", "Asleep W", "210 mA  7.5%/h  0:42 h", None),
+    ])
     return im
 
 
@@ -3630,6 +3643,15 @@ def scores_device():
     return im
 
 
+def picker_controls(d, w):
+    """The picker's own padlock and speaker, at the right-hand end of the
+    "Who is playing?" row: LauncherLayout::pickerLockRect()/pickerSpeakerRect().
+    It has no top bar, so without these it had no Lock at all."""
+    speaker_x = w - 8 - CONTROL_H
+    lock_icon(d, (speaker_x - 4 - CONTROL_H, 31, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (speaker_x, 31, CONTROL_H, CONTROL_H), False, TEXT)
+
+
 def profiles_pick():
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     # Header band
@@ -3641,6 +3663,7 @@ def profiles_pick():
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
     d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
+    picker_controls(d, W)
     # Six rows (five players + Guest) from ProfileApp's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
@@ -4003,7 +4026,7 @@ def wifi_tall():
     # The date drops off this row on a 240px panel: TFT_eSPI stops drawing at
     # the viewport edge, mid-word and unmarked. Shown here as the device shows
     # it rather than wrapped, because wrapping is not what the firmware does.
-    stamp = "Tue Aug 11 2026  12:41 AM"
+    stamp = "Tue Aug 11 2026  12:41A"
     d.text((pw(14), ph(114)), stamp, font=F2, fill=TEXT)
     sync_badge(d, int(pw(14) + d.textlength(stamp, font=F2) + 12), ph(122), True)
     button(d, prect(14, 132, 140, 30), "Auto time: On", GREEN, WHITE)
@@ -4162,12 +4185,12 @@ def about_tall():
 
 def systeminfo_tall():
     """System Info (Board tab) in portrait. SystemInfoApp::tabRect divides the
-    live width by TAB_COUNT=5, so on 240px each tab is 48px -- the labels are
+    live width by TAB_COUNT=6, so on 240px each tab is 40px -- the labels are
     fitted here because that is what the strip has room for, and the content
     below starts at TOP_BAR_HEIGHT + 2 + TAB_STRIP_H."""
     im, d = blank_tall()
     topbar(d, "System Info", w=PW)
-    labels = ["Board", "Memory", "Network", "BLE", "App"]
+    labels = ["Board", "Memory", "Network", "BLE", "Batt", "App"]
     strip_y, strip_h = 32, 28
     each = PW // len(labels)
     for i, lab in enumerate(labels):
@@ -4208,6 +4231,7 @@ def profiles_tall():
            font=F1, fill=MUTED)
     prompt = "Who is playing?"
     d.text((PW / 2 - d.textlength(prompt, font=F2) / 2, 32), prompt, font=F2, fill=TEXT)
+    picker_controls(d, PW)
 
     menu_w, top, pitch, row_h = 54, 62, 38, 33
     people = [("Ava", True), ("Ben", False), ("Cora", False),
@@ -4246,6 +4270,7 @@ EXTRA_SCREENS = [
     ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
+    ("systeminfo-battery", systeminfo_battery, "System Info: where the battery went"),
     ("about-intro", about_intro, "About: the mark, the version, what is inside"),
     ("about-radios", about_radios, "About: what the radios do"),
     ("about-password", about_password, "About: where the Wi-Fi password lives"),

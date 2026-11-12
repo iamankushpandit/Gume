@@ -38,6 +38,11 @@ private:
     bool connectOk_ = false;
     bool capsLock_ = false;
     bool symbols_ = false;   // symbol layer: WPA keys are full of these
+    /* The password shows as '*' unless this is ticked. Hidden by default and
+     * hidden again each time a network is chosen: the screen is readable by
+     * anyone standing beside the console, and typing a network password is the
+     * one time it is on the panel at all. */
+    bool showPassword_ = false;
     uint32_t connectStart_ = 0;
     uint32_t scanStart_ = 0;
     bool scanPending_ = false;    // draw "Scanning..." first, then block
@@ -88,4 +93,6 @@ private:
     Rect netRect(uint8_t slot) const;
     Rect zoneRect(uint8_t slot) const;
     Rect keyRect(uint8_t row, uint8_t col) const;
+    /* The "Show" checkbox inside the right-hand end of the password field. */
+    Rect showRect() const;
 };

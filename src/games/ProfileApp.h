@@ -32,6 +32,13 @@ public:
      * painting a top bar this screen does not own. */
     bool renderChrome(GameHost& host) override;
 
+    /* The picker carries its own padlock and speaker (LauncherLayout's
+     * pickerLockRect/pickerSpeakerRect), and only while picking: the menu,
+     * rename, games list and PIN pad have their own layouts, and the runtime
+     * takes nothing on them. */
+    bool headerControls(int16_t screenW, int16_t screenH, Rect& lock,
+                        Rect& speaker) const override;
+
 private:
     enum class Phase : uint8_t { Pick, Menu, Rename, Games, PinEntry };
 

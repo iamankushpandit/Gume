@@ -11,6 +11,7 @@
 
 #include "engine/ConsoleText.h"
 #include "engine/NearbyPlay.h"
+#include "hal/SystemSuspend.h"
 
 using namespace ConsoleText;
 
@@ -187,6 +188,19 @@ const BrainoApp::ConsoleSetting* BrainoApp::consoleSettings(size_t& count) {
              bool on = false;
              if (!parseOnOff(v, on)) return "range wakelock is on|off";
              a.board_.setWakeLockEnabled(on);
+             return nullptr;
+         }},
+        /* The Settings row it mirrors is drawn only where
+         * SystemSuspend::supported(), and the runtime never suspends
+         * elsewhere, so on a board a stored "on" would do nothing. It is
+         * refused there rather than stored, so "ok" never lies. */
+        {"deep_sleep", "on|off", nullptr,
+         [](BrainoApp& a, char* o, size_t n) { onOff(o, n, a.board_.deepSleepEnabled()); },
+         [](BrainoApp& a, const char* v) -> const char* {
+             bool on = false;
+             if (!parseOnOff(v, on)) return "range deep_sleep is on|off";
+             if (!SystemSuspend::supported()) return "refused this device cannot suspend";
+             a.board_.setDeepSleepEnabled(on);
              return nullptr;
          }},
         {"find_alert", "on|off", nullptr,

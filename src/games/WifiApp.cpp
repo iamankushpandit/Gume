@@ -8,6 +8,7 @@
 // offered. See LICENSE and NOTICE.md.
 
 #include "WifiApp.h"
+#include <string.h>
 #include <WiFi.h>
 #include <esp_bt.h>
 #include <esp_sntp.h>
@@ -43,6 +44,7 @@ void WifiApp::begin(GameHost& host) {
     phase_ = Phase::Idle;
     password_ = "";
     capsLock_ = false;
+    showPassword_ = false;
     selectedNet_ = -1;
     listPage_ = 0;
     netCount_ = 0;
@@ -89,6 +91,15 @@ Rect WifiApp::zoneRect(uint8_t slot) const {
 Rect WifiApp::keyRect(uint8_t row, uint8_t col) const {
     return baseRect(static_cast<int16_t>(2 + col * 32),
                     static_cast<int16_t>(96 + row * 28), 28, 24);
+}
+
+/* Inside the password field (8, 54, 304, 34), against its right-hand end, so
+ * it reads as a property of the field rather than one more key. A button
+ * rather than a bare box: it is the one control on this screen a young player
+ * might press by accident, so it gets the same raised look as everything else
+ * that can be pressed -- and the handheld's d-pad finds controls by it. */
+Rect WifiApp::showRect() const {
+    return baseRect(234, 59, 74, 24);
 }
 
 void WifiApp::startScan(GameHost& host) {
@@ -389,6 +400,7 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
                 Serial.printf("[wifi] selected network %d\n", (int)selectedNet_);
                 password_ = "";
                 capsLock_ = false;
+                showPassword_ = false;
                 phase_ = Phase::Keyboard;
                 markFullDirty();
                 return;
@@ -398,6 +410,13 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
     } else if (phase_ == Phase::Keyboard) {
         const char (*keys)[11] = symbols_ ? KEYS_SYMBOL
                                              : (capsLock_ ? KEYS_UPPER : KEYS_LOWER);
+        /* The field is repainted on every keystroke anyway, so the checkbox
+         * costs the same partial repaint as a key; the grid is untouched. */
+        if (showRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            showPassword_ = !showPassword_;
+            markDirty();
+            return;
+        }
         for (uint8_t row = 0; row < 4; ++row) {
             for (uint8_t col = 0; col < 10; ++col) {
                 if (keyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -681,15 +700,52 @@ void WifiApp::renderDynamic(GameHost& host) {
         tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
         tft.setTextColor(password_.length() > 0 ? Ui::text() : Ui::muted(), Ui::surface());
         tft.setTextDatum(ML_DATUM);
+        /* One '*' per character unless Show is ticked: the length is still
+         * there to count, which is what catches a missed or doubled key. */
         String shown = password_.length() > 0 ? password_ : "Password";
-        const int16_t fieldTextMax = static_cast<int16_t>(field.w - 16);
+        if (password_.length() > 0 && !showPassword_) {
+            char stars[64];
+            const size_t n = password_.length() < sizeof(stars) - 1 ? password_.length()
+                                                                     : sizeof(stars) - 1;
+            memset(stars, '*', n);
+            stars[n] = '\0';
+            shown = stars;
+        }
+        const Rect show = showRect();
+        const int16_t fieldTextMax = static_cast<int16_t>(show.x - field.x - 16);
         while (shown.length() > 2 && tft.textWidth(shown, 2) > fieldTextMax) {
             shown.remove(shown.length() - 1);
         }
+        /* The field is not cleared above the text's own width on a shorter
+         * repaint, so wipe the text area first: deleting a character, or
+         * switching '*'s for letters, must not leave the old tail behind. */
+        tft.fillRect(static_cast<int16_t>(field.x + 2), static_cast<int16_t>(field.y + 2),
+                     static_cast<int16_t>(show.x - field.x - 4), static_cast<int16_t>(field.h - 4),
+                     Ui::surface());
         /* Centred in the field rather than at a mapped y of its own, so the
          * two cannot drift apart again. */
         tft.drawString(shown, static_cast<int16_t>(field.x + 8),
                        static_cast<int16_t>(field.y + field.h / 2), 2);
+
+        /* Show: a box that fills with the success colour and carries a tick
+         * when the password is visible, and the word beside it. */
+        Ui::drawButton(tft, show, "", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        const int16_t box = 14;
+        const int16_t bx = static_cast<int16_t>(show.x + 6);
+        const int16_t by = static_cast<int16_t>(show.y + (show.h - box) / 2);
+        tft.fillRoundRect(bx, by, box, box, 3, showPassword_ ? Ui::success() : Ui::surface());
+        tft.drawRoundRect(bx, by, box, box, 3, Ui::outline());
+        if (showPassword_) {
+            const uint16_t ink = Ui::onFill(Ui::success());
+            tft.drawLine(bx + 3, by + 7, bx + 6, by + 10, ink);
+            tft.drawLine(bx + 6, by + 10, bx + 11, by + 4, ink);
+            tft.drawLine(bx + 3, by + 8, bx + 6, by + 11, ink);
+            tft.drawLine(bx + 6, by + 11, bx + 11, by + 5, ink);
+        }
+        tft.setTextColor(Ui::text(), Ui::panel());
+        tft.setTextDatum(ML_DATUM);   // drawButton() leaves its own datum behind
+        tft.drawString("Show", static_cast<int16_t>(bx + box + 6),
+                       static_cast<int16_t>(show.y + show.h / 2), 2);
         /* THE KEYBOARD IS NOT REPAINTED PER KEYSTROKE.
          *
          * Every key used to call markFullDirty(), which clears the screen and

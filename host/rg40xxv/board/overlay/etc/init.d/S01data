@@ -1,0 +1,49 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# Mounts Braino's data partition (settings, profiles, scores) at /data.
+# The rest of the system is in RAM; this is the only thing on the card that
+# is ever written.
+case "$1" in
+start)
+    mkdir -p /data
+    # Busybox here has blkid but no findfs, so the label is found in blkid's
+    # list. What happened is kept, and written beside the logs once /data is
+    # mounted, so a card that fell back to RAM says why.
+    DEV=$(blkid | sed -n 's/^\([^:]*\):.*LABEL="BRAINODATA".*/\1/p' | head -1)
+    NOTE="data partition: ${DEV:-not found}"
+    if [ -n "$DEV" ]; then
+        # 0 and 1 are clean or repaired; 4 and up need the forceful pass.
+        e2fsck -p "$DEV" >/dev/console 2>&1
+        rc=$?
+        [ $rc -ge 4 ] && e2fsck -y "$DEV" >/dev/console 2>&1
+        NOTE="$NOTE, e2fsck $rc"
+        if ! mount -t ext4 -o noatime "$DEV" /data; then
+            # Unmountable after repair: start the data over rather than leave
+            # a console that cannot keep any setting.
+            echo "braino: data partition unusable, formatting it" >/dev/console
+            NOTE="$NOTE, unmountable: formatted"
+            mke2fs -q -t ext4 -L BRAINODATA "$DEV" && mount -t ext4 -o noatime "$DEV" /data
+        fi
+    fi
+    if ! mountpoint -q /data; then
+        echo "braino: no data partition, nothing will be kept" >/dev/console
+        NOTE="$NOTE, NOT MOUNTED: settings kept in RAM only"
+        mount -t tmpfs -o size=8m tmpfs /data
+    fi
+    mkdir -p /data/braino
+    echo "$(cut -d' ' -f1 /proc/uptime)s $NOTE" >>/data/braino/boot.log
+    ;;
+stop)
+    sync
+    umount /data 2>/dev/null
+    ;;
+esac
+exit 0

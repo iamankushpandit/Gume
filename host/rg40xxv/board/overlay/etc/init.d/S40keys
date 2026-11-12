@@ -1,0 +1,21 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# The power and volume keys, which are not on the gamepad: busybox's acpid
+# reads them and runs /etc/acpi/<action> (see /etc/acpi.map, /etc/acpid.conf).
+case "$1" in
+start)
+    acpid -c /etc/acpi -a /etc/acpid.conf -M /etc/acpi.map -l /dev/null
+    ;;
+stop)
+    killall acpid 2>/dev/null
+    ;;
+esac
+exit 0

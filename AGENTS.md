@@ -339,7 +339,15 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 12. `pio run` — and put the new flash/RAM figures in `README.md` **and**
     `CLAUDE.md`. They are the two places that disagree.
 13. `python tools/check_docs.py` — must be clean.
-14. Flash it and actually play it. Take the board lock first.
+14. Build the host version (`host/`, see `host/CLAUDE.md`) and look at the
+    new screen there. `BRAINO_TAPS` walks to it and `BRAINO_SHOTS`
+    photographs the firmware's own frame, which catches clipping and
+    repaint mistakes a mock-up cannot. It needs no board and no lock. If it
+    fails to build, the game reached for a platform call `host/shim/` does
+    not answer yet. Add the shim; do not put an `#ifdef` in the game.
+15. Flash it and actually play it. Take the board lock first. The host
+    build is not the panel: colours, SPI time and touch feel are only true
+    on hardware.
 
 ### What you do NOT hand-edit
 

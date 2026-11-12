@@ -50,6 +50,260 @@ the pictures are what a port is written from.
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**CI builds the RG40XX V's card image, and a tag publishes it.**
+`card-image.yml` builds the image with Buildroot on every change to what it is
+made from, and uploads it with its source bundle: Buildroot's `legal-info`,
+the source, patches and licence of everything on the card, as the GPL asks of
+whoever offers the binary. Pushing a `card-rg40xxv-*` tag publishes both as a
+GitHub pre-release, which needs no sign-in to download and does not expire.
+`ci.yml` gained a `host` job that builds Braino for a PC and runs the console
+profile tests, and `verify` waits for it.
+
+**The RG40XX V's card can be written safely from Windows.**
+`host/rg40xxv/write-card.ps1` writes the image to a microSD card, reads it
+back and keeps every volume on the card locked until it is pulled out,
+because with some card readers Windows writes over a card's partition table
+the moment it mounts it -- and an ordinary image writer lets go of the card
+when it finishes. It offers only removable disks, never the one Windows runs
+from, and asks for the disk number twice. The image README now has the steps
+for Linux and macOS as well. The download is gzip rather than xz, which
+every writer and Windows itself can unpack.
+
+**The RG40XX V gets a card image that is nothing but Braino.** `host/rg40xxv/`
+builds it with Buildroot from source: mainline Linux 7.2 with ROCKNIX's H700
+patches and device trees, U-Boot 2026.01 and TF-A 2.12, and a busybox system
+built into the kernel, so it runs from RAM and writes only to a small partition
+for Braino's settings and scores. It is 97 MB on the card and 17 MB to
+download, against 1.6 GB and 209 MB for the muOS card, and unlike that card it
+can be published: nothing on it is closed except the Realtek Wi-Fi/Bluetooth
+firmware, which is redistributable. There is no other system underneath, no
+login, shell or network service, and no text on the screen from power-on to
+Braino's splash. Braino draws straight to the panel through the kernel's DRM
+driver (`BRAINO_HOST_DRM`, off for desktops), with no GPU driver at all, and
+moves to an HDMI screen when one is plugged in. The power key turns the
+console off and the volume keys set the codec's level. The light ring works
+on the mainline kernel too: its controller is UART5, which 7.2 names
+`5001400.serial:0.0` rather than muOS's `ttyS5`. Settings, profiles and scores
+are kept on the card's data partition across power-offs, and the CPU clock
+follows the load (`schedutil`) where the kernel's default held it at 1.4 GHz.
+Each boot leaves a hardware report and the kernel log on the card, for
+diagnosing a console that misbehaves. Asleep it already used less battery than
+muOS -- about 6.9% an hour, and 4.4% in Deep sleep, against muOS's 9% -- and it
+now also switches the display output off, reads the joypad every 50 ms instead
+of every 10, cuts the light ring controller's supply, and no longer runs SDL's
+sound-card watcher. `tools/check_licenses.py` now covers
+Buildroot's file types and extension-less scripts, and exempts ROCKNIX's
+files, which keep their own licences.
+
+**The handheld works out which console it is, and what each button is for.**
+One card image is meant to serve a family of consoles that share a processor
+and differ in what is on the case, so the controls are no longer written into
+the program. At start-up Braino reads the model from the kernel's device tree
+and loads that console's profile from `host/consoles/` -- a name, the model
+string it answers to, and the controls it has. Each control then gets one
+job, handed out in the order the jobs are missed: moving the selector and
+pressing, Home, the page buttons, the next tab, Lock and Mute, the stick's
+crosshair. A console with fewer controls loses the jobs at the end of that
+list, and none is lost for good, because every one of them is also a button
+on the screen that the d-pad's selector reaches. A control left over once
+every job has one now does nothing: **on the RG40XX V, X and Y no longer turn
+pages (L1 and R1 do) and Start no longer goes Home (B does).** Select and
+Start held together still restart Braino. The RG40XX V's profile lists one
+stick, as the console has: its driver reads a second stick's axes that
+nothing is wired to. An H700 console with no profile of
+its own gets the family's buttons and no stick, since a stick input with
+nothing wired to it would send the crosshair wandering; the log says which
+profile was used and which controls have no job. The image build refuses a
+device tree that no profile answers to. The README now says which games need
+a stick and why -- their boards are drawn as one picture, with no button for
+the selector to stop at -- and that is left as it is. Tested on a PC for every
+combination of controls (`test/host/host_controls_test.cpp`); not yet run on
+the console.
+
+**The RG40XX V's card image no longer has an address made from its Wi-Fi
+chip.** Its kernel was built with IPv6 and left at Linux's defaults, which on
+a network that offers IPv6 gives the console an address built from the radio's
+hardware address (EUI-64), and libcurl prefers IPv6: the timezone lookup and
+the update check would have carried that address to the servers they reach.
+No image was published with it. The kernel is now built without IPv6 and the
+build fails if it comes back; Braino's HTTP requests are IPv4 only on every
+Linux build, as a board's are; the DHCP client sends no client identifier
+(its default is the hardware address), no vendor string and no hostname; the
+image ships its own `wpa_supplicant.conf` in place of Buildroot's, which
+joins any open network in range; busybox's DNS server is no longer built; and
+the hardware report and kernel log each boot leaves on the card have anything
+shaped like a hardware address blanked. `tools/check_privacy.py` asserts the
+kernel fragment, the IPv4-only request and the DHCP client's arguments. The
+ESP32 boards were checked and are not affected: the firmware never enables
+IPv6 and the core's clients open IPv4 sockets only.
+
+**The handheld's d-pad reaches the tabs.** Settings, Wi-Fi, System Info and
+About draw their tabs as a strip rather than as buttons, so the selector could
+reach every control on those screens except the tabs that move between them.
+
+**The launcher's header has its hairline back, at the side.** The rearranged
+header lost the vertical line that set the mark, the name and the copyright
+apart from the clock and the badges. It now stands just before the badge
+row's first glyph, down both rows, and the name stops short of it: 62px on a
+320px panel, still enough for a nine-letter name in the smaller font.
+
+**The launcher's header gives the player's name room.** A nine-letter name ran
+over the header's divider and under the padlock, because every control added
+to the badge row had taken its pixels from the name. In landscape the name now
+sits beside the Braino! mark, in the larger font when it fits and the smaller
+one when it does not, so a whole name always shows. The badges are ordered by
+how often they are there: the clock keeps its sync check beside it, Bluetooth,
+which shows only while the beacon is on, goes to the outer end, and the
+padlock, speaker, Wi-Fi and battery sit together at the right. The gear is the
+same size as in every app instead of half again as big, and it is kept apart
+from the padlock and speaker so that a tap on its edge cannot mute the
+console. The clock reads `12:41P` instead of `12:41 PM` everywhere, which is
+what bought the name its width. On the handheld the d-pad's selector now
+leaves a little air round the name instead of drawing over its letters.
+
+**The battery icon keeps its size.** It used to grow and shrink with the
+number inside it, so it narrowed as the charge fell from 10% to 9% -- the same
+moment it turned red -- and widened again at 100%. It is now one size at every
+level, the size `100` needs, with the number centred. It still turns red when
+the battery is low.
+
+**The Wi-Fi password is hidden while it is typed.** The field shows one `*`
+per character, so a missed or doubled key can still be counted, and a Show
+checkbox at its right-hand end reveals the password for as long as it is
+ticked. It is unticked again each time a network is chosen.
+
+**The player picker can lock the console.** It has no top bar, so it had no
+padlock -- and the runtime still took taps where the top bar's would be,
+which on that screen was the middle of the Braino! mark: an invisible Lock
+button and no visible one. It now carries its own padlock and speaker at the
+end of the "Who is playing?" row, the handheld's R2 and d-pad reach them, and
+the mark is only a mark.
+
+**The console can say where its battery went.** System Info has a Batt tab and
+the serial console a `power` command, both reading one recorder that runs from
+boot: time on battery is divided between the states the console was in (awake,
+saver, asleep; the lamp; Wi-Fi, Bluetooth, the lights) and each collects what it
+cost, most costly first. Where a handheld's battery reports its current, that is
+measured within seconds; the RG40XXV's does not, so it gets the slope like a
+board, plus the fuel gauge's own time-to-empty turned into a current, with the
+real lamp level and the busiest processes beside it. Its log also says, once a
+minute, what woke the processor and how often, how deeply the cores slept,
+whether the audio device was open, how many frames went to the screen and
+whether Wi-Fi was allowed to doze. On the ESP32 boards,
+which have no current sensor, it is the charge lost per hour once a state has run
+for twenty minutes, with whether Wi-Fi's modem sleep is on. Each platform
+implements one small interface, `PowerProbe`, and the analysis is shared and
+tested off the device. It is held in RAM, stored nowhere and sent nowhere.
+
+**The RG40XXV stops keeping things running that nobody is using.** Measured
+there first: asleep with the lamp off it still lost 11-12% an hour, because the
+processor was woken over four thousand times a second. Braino now sends a frame
+to the screen only when the picture changed, where it sent sixty a second over
+an untouched launcher; waits out each frame in one sleep instead of waking
+every 4ms, and asleep waits out the whole poll; closes the audio device, and so
+the codec and the speaker amplifier, two seconds after the last sound, where it
+held them open from boot; lets Wi-Fi doze between beacons once it has joined;
+and slows the light ring's thread while the screen sleeps and the ring is dark.
+It also reads the power chip at most once a second, where the battery code
+asked it seven or eight times a second over a bus already busy with it, and
+the firmware's audio task now sleeps until a sound is armed instead of waking
+every 25ms -- which helps the ESP32 boards with an amplifier switch as well.
+On the PC build, idle on the launcher, Braino's wakeups fell from about 330 a
+second to about 90 and its frames from 58 a second to none. Over 3.6 hours on
+the handheld, asleep now costs about 9% an hour.
+
+**Asleep, the RG40XXV switches off more than the backlight, and can suspend.**
+The 3.6-hour run showed the rest of the sleep drain was the platform, not
+Braino, so sleep now also takes down the Wi-Fi interface and three of the four
+cores, and waking brings them back; Wi-Fi rejoins in about twelve seconds. A
+run that ends asleep leaves a note so the next start undoes both. Switching
+the display output off as well was tried for one night and dropped: the
+console woke mirrored with its colours inverted, which muOS also warns about,
+and the gauge read the same current asleep with every saver on as with none.
+**Settings → Power → Deep sleep** (admin only, off by
+default) goes one step further: after 15 minutes asleep the whole console
+suspends to RAM, which saves the most battery, and the power button wakes it to
+the lock screen. It stays up on the charger. The ESP32 boards do not offer it,
+because nothing on them can wake an ESP32 from deep sleep. The console's
+`set deep_sleep on|off` mirrors the row.
+
+**Quitting no longer crashes the handheld build.** Quitting while the firmware
+was waiting between frames, which is most of the time, skipped the Bluetooth
+shutdown, and the program ended in an abort with the beacon still on the air.
+Every way out now takes the same path. The battery diagnostic also says what
+the Wi-Fi packets are (broadcast or addressed, which protocol, and which
+processes hold a network socket) and whether the GPU is powered, since a clock
+of 360 MHz with the screen off turned out to be the bottom of its range rather
+than a load.
+
+**Braino runs on a PC.** `host/` builds the firmware as a desktop program
+with SDL2, in Linux or WSL, with no edits to `src/`: the launcher, all 40 games
+and every system screen run from the same code as on a board. Small stand-ins
+for the ESP32 libraries replace the hardware. Touch reaches the firmware
+through an emulated FT6336U, so `BoardTouch.cpp` runs its capacitive path
+unchanged. Storage is one typed key-value store behind both Preferences and
+the NVS API, so profile moves run the real code. The synthesiser plays
+through an SDL audio queue sized like the codec board's DMA. A mouse is a
+finger. A gamepad or the keyboard drives a cursor, and B is the BOOT key.
+Wi-Fi is the computer's own radio. The Wi-Fi screen scans and joins through
+NetworkManager (`nmcli`) or wpa_supplicant (`wpa_cli`), started with no shell
+so an SSID cannot run anything. The firmware's three requests then run for
+real: NTP over UDP, and the timezone lookup and update check over libcurl,
+with TLS verified and no header added. Nearby works over Bluetooth LE: the
+firmware's own beacon and scanner run on a NimBLE stand-in over Linux's raw
+HCI socket, advertising from a random static address rather than the chip's.
+`BRAINO_SHOTS` and `BRAINO_TAPS` save screenshots and replay taps, so a
+screen can be checked without anyone at the window. Unlike
+`tools/gen_screens.py`, those pictures are the firmware's own drawing. This is
+the first step towards a port to Linux handhelds such as the Anbernic
+RG40XXV. `tools/check_licenses.py` now also requires the notice in CMake files.
+
+**The Anbernic RG40XXV boots into Braino.** The host build cross-compiles for
+aarch64 (clang against a glibc 2.31 sysroot), and `host/muos/` packs it for
+muOS 2606 as a port. Launched once, it makes the console an appliance:
+Startup becomes Last Content, so every boot goes straight to Braino; Braino's
+splash replaces muOS's boot logo; and muOS's safe-mode counter is cleared, so
+that the autostart does not give way to the menu on every third boot. The
+D-pad moves a selector from button to button, tile to tile and key to key, the
+header's Home, padlock, speaker and gear included, and the launcher's player name, which opens the player picker, and the stick moves a crosshair for what has no buttons, such as a chess board. A
+taps under whichever is showing, B and Start go Home, X or R1 and Y or
+L1 turn the launcher's pages forward and back, as does pushing either past
+the right or left side, M moves to the next tab (or opens Settings where there are no tabs), L2 mutes,
+R2 locks, pushing either against the top or
+bottom of a list with a scroll bar scrolls it, and holding Select + Start for
+three seconds leaves for muOS's menu. The splash is new: the
+mark drawn from its vector artwork at the panel's own resolution, with a glow
+that breathes while a loading bar fills, and the copyright line. Braino's
+own volume on the volume keys is not done yet. The light ring around the sticks is Braino's status
+LED: a rainbow by default, the firmware's green, red and rally colours over
+it, dark when switched off in Settings or while the screen sleeps. It is also a
+battery gauge, for as long as the charger is in and for ten seconds after it
+comes out or a stick is pushed,
+screen off included: lit as far round as the percentage in three bands, red,
+orange and green, every LED at full strength, with one light stepping across the part yet to charge while plugged
+in. Pulling the
+charger opens it with a mood: angry red below 50%, a warm
+orange breath from there, and a happy green run at 100%. The battery
+badge shows the console's own fuel gauge, read through Linux's power-supply
+driver, rather than a guess from the voltage. The power button turns the
+console off, and Wi-Fi comes back if muOS stopped it. On the
+console, Braino switches off muOS's web dashboard, mDNS, SSH, SFTP, terminal
+and Syncthing and stops its time daemon, so only the firmware's declared
+flows leave the device. Because its settings file is on a microSD card any
+laptop can read, the Wi-Fi network's name and password and the admin PIN are
+encrypted in it, with a key derived from the console's processor serial that
+is never written down; the network is no longer saved in muOS's own Wi-Fi
+settings, and a copy an older build left there is removed. When Braino
+sleeps, the console's backlight is switched off rather than left lit behind a
+black screen, and any button wakes it.
+
+**The boards on the landing page launch games.** The picture of Braino on
+three bare boards now plays: each board taps a tile on its launcher, the game
+opens sideways as it does on a board standing upright, the board turns to
+play it, and Home turns it back -- each in its own theme, a third of a loop
+apart. `tools/gen_board_launch.py` draws every screen with `gen_screens.py`;
+the still remains for reduced motion.
+
 **The site's games move.** Every game card on the Games tab, and the six
 stills on Home, now play a few seconds of the game -- a question answered
 under a finger, a letter traced, the maze walked, a pair found, a piece

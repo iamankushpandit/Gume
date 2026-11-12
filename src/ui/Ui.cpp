@@ -577,9 +577,8 @@ void drawTopBar(Board& board, const String& title) {
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     /* The right-hand cluster is laid out from the gear leftwards off MEASURED
-     * widths, because the battery badge is no longer a fixed size -- it grows
-     * with the number it is showing. Everything here used to be a constant
-     * offset, which is exactly what a variable-width badge invalidates. */
+     * widths: the battery badge is one size, but it is no size at all on a
+     * board with no battery sense, and the clock's text varies. */
     const int8_t battPct = board.getBatteryPercent();
     const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
     /* Derived from the gear rather than stated, so the two cannot drift: the
@@ -787,9 +786,12 @@ void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
  * inside bottom, so the analogue cue and the digits are both there and neither
  * is guessing.
  *
- * The badge is therefore VARIABLE WIDTH, growing with the digits. Callers must
- * lay out from batteryBadgeWidth() rather than assuming a size. It used to be
- * wider still while charging, to fit a bolt; there is no charging state now. */
+ * The badge is ONE WIDTH, sized for "100", with the digits centred inside it.
+ * It grew with its digits for a while, so it shrank on the way from 10 to 9 --
+ * at the moment it also turned red, which made a status badge look like a
+ * glitch. Callers still lay out from batteryBadgeWidth(), because a board with
+ * no battery sense gets no badge at all. It used to be wider still while
+ * charging, to fit a bolt; there is no charging state now. */
 namespace {
 
 constexpr int16_t BATT_H        = 15;   // shell height, outline included
@@ -811,9 +813,9 @@ void batteryText(char* out, size_t len, int8_t percent) {
     snprintf(out, len, "%d", static_cast<int>(percent));
 }
 
-int16_t batteryShellWidth(Ui::Renderer& tft, const char* text) {
-    int16_t inner = BATT_PAD * 2;
-    if (text[0] != '\0') inner = static_cast<int16_t>(inner + tft.textWidth(text, 1));
+/* Measured on the widest thing the shell ever holds, whatever it holds now. */
+int16_t batteryShellWidth(Ui::Renderer& tft) {
+    int16_t inner = static_cast<int16_t>(BATT_PAD * 2 + tft.textWidth("100", 1));
     if (inner < BATT_MIN_INNER) inner = BATT_MIN_INNER;
     return static_cast<int16_t>(inner + 2);   // the two outline pixels
 }
@@ -839,9 +841,7 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
     if (!BOARD.hasBatterySense() || percent < 0) {
         return 0;
     }
-    char text[8];
-    batteryText(text, sizeof(text), percent);
-    return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
+    return static_cast<int16_t>(batteryShellWidth(tft) + BATT_TERM_W);
 }
 
 void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour) {
@@ -907,7 +907,7 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     char text[8];
     batteryText(text, sizeof(text), percent);
 
-    const int16_t shellW = batteryShellWidth(tft, text);
+    const int16_t shellW = batteryShellWidth(tft);
     const int16_t totalW = static_cast<int16_t>(shellW + BATT_TERM_W);
     const int16_t bx = static_cast<int16_t>(cx - totalW / 2);
     const int16_t by = static_cast<int16_t>(cy - BATT_H / 2);
@@ -963,9 +963,10 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
                      gw, static_cast<int16_t>(BATT_TRACK_H - 2), levelCol);
     }
 
-    const int16_t penX = static_cast<int16_t>(bx + 1 + BATT_PAD);
-
     if (text[0] != '\0') {
+        // Centred, so 9 and 100 sit in the same shell without either hugging an end.
+        const int16_t penX =
+            static_cast<int16_t>(bx + (shellW - tft.textWidth(text, 1) + 1) / 2);
         /* Transparent text: the gauge runs under the glyph box and a filled
          * background would punch a notch out of it. */
         tft.setTextColor(outClr);
