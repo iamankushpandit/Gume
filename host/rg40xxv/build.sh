@@ -41,7 +41,9 @@ if [ -f "$REPO/.git" ]; then
 fi
 git_() { if [ -n "$GITDIR" ]; then git --git-dir="$GITDIR" --work-tree="$REPO" "$@"; else git -C "$REPO" "$@"; fi; }
 BRAINO_GIT_COMMIT=$(git_ rev-parse --short=7 HEAD 2>/dev/null || true)
-BRAINO_GIT_BRANCH=$(git_ rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+# GitHub Actions checks out a detached HEAD, where git says only "HEAD"; it
+# names the branch in the environment instead, as tools/build_stamp.py reads.
+BRAINO_GIT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-$(git_ rev-parse --abbrev-ref HEAD 2>/dev/null || true)}}
 export BRAINO_GIT_COMMIT BRAINO_GIT_BRANCH
 
 # The defconfig is the whole configuration: read it again every time, so a

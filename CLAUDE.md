@@ -1454,7 +1454,10 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           check that judges them); pages.yml publishes
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
-                          every firmware image attached
+                          every firmware image attached; card-image.yml
+                          builds the RG40XX V's card image and its source
+                          bundle, and a card-rg40xxv-* tag publishes both
+                          as a pre-release
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
                           gameplay/ (the stills played, from gen_gameplay.py),
                           boards/ (one page per supported board; the pin

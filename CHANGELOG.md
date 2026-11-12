@@ -10,6 +10,15 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**CI builds the RG40XX V's card image, and a tag publishes it.**
+`card-image.yml` builds the image with Buildroot on every change to what it is
+made from, and uploads it with its source bundle: Buildroot's `legal-info`,
+the source, patches and licence of everything on the card, as the GPL asks of
+whoever offers the binary. Pushing a `card-rg40xxv-*` tag publishes both as a
+GitHub pre-release, which needs no sign-in to download and does not expire.
+`ci.yml` gained a `host` job that builds Braino for a PC and runs the console
+profile tests, and `verify` waits for it.
+
 **The RG40XX V's card can be written safely from Windows.**
 `host/rg40xxv/write-card.ps1` writes the image to a microSD card, reads it
 back and keeps every volume on the card locked until it is pulled out,

@@ -125,6 +125,26 @@ slower.
 `rocknix/fetch.sh` refreshes the ROCKNIX parts from a pinned commit, and
 `rocknix/PROVENANCE.txt` records where every file came from and its hash.
 
+### In CI
+
+`.github/workflows/card-image.yml` builds the same image on GitHub's runners
+whenever a pull request or a push to `dev` or `main` changes `host/`, `src/`
+or `include/`, and uploads two artifacts: `braino-rg40xxv` (the `.img.gz`,
+its checksums and `write-card.ps1`) and `braino-rg40xxv-sources` (the source
+bundle below). The first build on a runner takes a few hours; the downloads
+are cached after that.
+
+To publish an image for testers, tag the commit and push the tag:
+
+```sh
+git tag card-rg40xxv-2026-11-12 && git push origin card-rg40xxv-2026-11-12
+```
+
+That builds the tagged commit and publishes both artifacts as a GitHub
+pre-release, which the site's Experimental page links to. It is a
+pre-release so that nothing takes it for the newest Braino: the old-release
+installer skips pre-releases, and `release.yml` answers only to `v*` tags.
+
 ## Writing a card
 
 Writing the image replaces everything on the card, the players' profiles and
@@ -202,9 +222,14 @@ bundle is what a release must offer beside the image.
   console joins. The driver supports scanning from a random address
   (`wpa_cli mac_rand_scan all enable=1`); it is not switched on because it
   has not been tried on the device.
-- **The GPL source offer.** Publish Buildroot's `make legal-info` output
-  beside every image: every source, patch and configuration that built it,
-  and the licence texts, Realtek's firmware licence among them.
+- **The GPL source offer is the source bundle.** Every published image has
+  `braino-rg40xxv-sources.tar` beside it: Buildroot's `make legal-info` --
+  every package's source, patches and licence texts, Realtek's firmware
+  licence among them -- plus the Buildroot that built it. Two parts are left
+  out and the bundle's `BRAINO-SOURCES.txt` says why: `linux-firmware`, of
+  which the card carries three binary files with no source to offer, and the
+  build machine's own tools, none of which is on the card. That leaves about
+  550 MB of the 1.4 GB legal-info writes.
 
 - **The panel files' licence.** `anbernic,rg40xx*-panel.panel` come from
   ROCKNIX's tree, which states no licence for them. Confirm it with ROCKNIX.
