@@ -222,6 +222,9 @@ void Board::begin() {
     prefs_.begin("cydkids", false);
     migrateStorageSchema();
     logStorageUsage("boot");
+    /* Before any radio code: the station is named here, once, so the core's
+     * MAC-derived default is never the name in force. See BoardNetwork.cpp. */
+    applyWifiHostname();
     loadNtpEnabled();
     loadNtpResyncHours();
     applyBrightness();

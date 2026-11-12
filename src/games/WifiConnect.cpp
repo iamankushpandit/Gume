@@ -62,6 +62,9 @@ void WifiApp::runScan() {
     WiFi.persistent(false);
     WiFi.mode(WIFI_OFF);
     delay(100);
+    /* The station restarts here, and a restart is where the core hands the
+     * interface its name. See Board::applyWifiHostname(). */
+    Board::applyWifiHostname();
     WiFi.mode(WIFI_STA);
 
     /* MODEM SLEEP MUST STAY ON WHILE THE BLUETOOTH CONTROLLER IS UP.
@@ -183,6 +186,7 @@ void WifiApp::startConnect(GameHost& host) {
      * esp_wifi, and its own NVS copy is one this firmware cannot clear. See
      * the note in BoardNetwork.cpp. */
     WiFi.persistent(false);
+    Board::applyWifiHostname();
     WiFi.begin(ssid.c_str(), password_.c_str());
     connectStart_ = millis();
     connectOk_ = false;

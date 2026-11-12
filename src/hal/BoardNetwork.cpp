@@ -205,6 +205,39 @@ bool Board::isWifiConnected() {
     return WiFi.status() == WL_CONNECTED;
 }
 
+/* THE ROUTER IS TOLD "braino", NOT HALF OF THIS BOARD'S MAC.
+ *
+ * Until this existed nothing in the firmware named the station, and the
+ * Arduino core does not leave it unnamed: WiFiGeneric.cpp builds a default of
+ * "esp32-" (or "esp32s3-") plus the low three bytes of the Wi-Fi MAC in hex,
+ * and lwIP sends it to the router as DHCP option 12. So every console
+ * volunteered the half of its MAC that identifies it, in a name the router
+ * records in its client list and System Info draws on a screen that gets
+ * photographed for bug reports -- which is the reason the boot banner prints
+ * `device=` and never the MAC.
+ *
+ * The MAC itself is in every frame the radio sends and no name can change
+ * that. This is about not ALSO writing it into a field whose only job is to
+ * be read by people.
+ *
+ * ORDER MATTERS, and it was read out of the core rather than assumed.
+ * WiFi.setHostname() does not touch the interface; it copies the string into
+ * a static buffer. The interface is given that buffer's contents inside
+ * WiFiGenericClass::mode(), on a transition into a mode that includes the
+ * station, before esp_wifi_start() -- and mode() returns early, applying
+ * nothing, when the mode is already the one asked for. So a name set after
+ * the station is up is not sent until the station is next restarted.
+ *
+ * That is why this is called twice over: once from Board::begin(), before
+ * any radio code has run, which alone is enough -- the buffer then never
+ * holds the MAC form at all -- and again immediately before each call that
+ * can start the station, so the guarantee is readable at the place it
+ * matters and survives somebody moving the boot call. It is a short string
+ * copy; calling it again costs nothing. */
+void Board::applyWifiHostname() {
+    WiFi.setHostname(WIFI_HOSTNAME);
+}
+
 uint8_t Board::tzZoneCount() { return TZ_ZONE_COUNT; }
 
 const char* Board::tzZonePosix(uint8_t index) {
@@ -338,6 +371,7 @@ void Board::beginTimeSync() {
      * password on the device -- the one this code owns, clears and can
      * account for. It is still plain text; see Board::setWifiCredentials(). */
     WiFi.persistent(false);
+    applyWifiHostname();
     WiFi.mode(WIFI_STA);
     const String ssid = wifiSsid();
     const String pass = wifiPassword();
@@ -345,6 +379,7 @@ void Board::beginTimeSync() {
     /* The activity list keeps the name: it is drawn on the panel for whoever
      * is holding the device, and is never transmitted or written to serial. */
     logNetworkActivity("WiFi begin %s", ssid.c_str());
+    applyWifiHostname();
     WiFi.begin(ssid.c_str(), pass.c_str());
     lastWifiBeginMs_ = now;
     timeSyncStartedMs_ = now;

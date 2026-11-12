@@ -416,6 +416,22 @@ settings, and a copy an older build left there is removed. When Braino
 sleeps, the console's backlight is switched off rather than left lit behind a
 black screen, and any button wakes it.
 
+**The router is told `braino`, not half of the board's MAC.** Nothing in the
+firmware named the Wi-Fi station, and the Arduino core does not leave it
+unnamed: it sent `esp32-` (or `esp32s3-`) plus the low three bytes of the
+Wi-Fi MAC as the DHCP host name, so every console wrote the identifying half
+of its hardware address into the router's client list, and *System Info ->
+Network* drew the same name on a screen that gets photographed for bug
+reports. Every console now gives the one fixed name `braino`, set at boot and
+again before each start of the station (`Board::applyWifiHostname()`), which
+is where the core applies it. The Hostname row stays, reading what the Wi-Fi
+stack actually holds, so it is the name to look for in a router's list.
+`tools/check_privacy.py` fails if the name stops being a literal, if anything
+else names an interface, or if the station is started without it. The Wi-Fi
+MAC itself is still in every frame the radio sends; a router sees that for
+any device. The bench probes are unchanged: they scan and never join a
+network, so they give no router a name.
+
 **The boards on the landing page launch games.** The picture of Braino on
 three bare boards now plays: each board taps a tile on its launcher, the game
 opens sideways as it does on a board standing upright, the board turns to

@@ -455,6 +455,134 @@ def check_host_network_identity():
     return found
 
 
+# The standalone bench probes: each is built alone by its own diagnostic
+# environment, has no Board to call, and none of them joins a network -- they
+# scan, and a scan sends no DHCP request, so no name is given to any router.
+# The WiFi.begin() rule below still covers them, so a probe that learns to
+# join fails this check until the question has been answered for it.
+_PROBE_SOURCES = {
+    "src/audiodiag.cpp",
+    "src/battery_diag.cpp",
+    "src/diag4.cpp",
+    "src/s3_diag.cpp",
+    "src/wifi_diag.cpp",
+}
+
+# Every way this core has of giving an interface a name.
+_HOSTNAME_SETTERS = re.compile(
+    r"\bsetHostname\s*\(|\.hostname\s*\(|esp_netif_set_hostname\s*\("
+    r"|tcpip_adapter_set_hostname\s*\(")
+
+# How many lines of code may sit between naming the station and starting it.
+_HOSTNAME_LOOKBACK = 6
+
+
+def _code_lines(path: Path) -> list:
+    """(line number, text) for every line that is code rather than comment."""
+    out = []
+    in_block = False
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if in_block:
+            if "*/" in stripped:
+                in_block = False
+            continue
+        if stripped.startswith("/*"):
+            if "*/" not in stripped:
+                in_block = True
+            continue
+        if not stripped or stripped.startswith("//") or stripped.startswith("*"):
+            continue
+        out.append((number, line.split("//")[0]))
+    return out
+
+
+def check_station_hostname_is_fixed():
+    """The name given to the router must be one fixed word, never the MAC.
+
+    Left alone, the Arduino core names the station "esp32-" plus the low three
+    bytes of the Wi-Fi MAC and lwIP sends that to the router as DHCP option
+    12. Nothing in the firmware asked for it, which is how it went unnoticed:
+    the leak was an absence, a call that was never made, and no pattern over
+    the source finds a line that is not there. So this asserts the call.
+
+    Three properties, each one edit away from being lost:
+
+      - the name is a string literal -- not formatted, and so not formatted
+        from a MAC, a device id or a profile name;
+      - nothing else in src/ names an interface, so there is no second
+        setter for a later change to make clever;
+      - the station is named at boot, and again immediately before every
+        call that can start it. The core applies the name on the transition
+        into station mode and at no other time, so a start with no name in
+        force is the MAC form going back on the air.
+    """
+    found = []
+
+    header = REPO_ROOT / "src" / "hal" / "Board.h"
+    text = header.read_text(encoding="utf-8", errors="replace") if header.exists() else ""
+    match = re.search(r'\bWIFI_HOSTNAME\b[^=;]*=\s*([^;]+);', text)
+    if not match:
+        return ["src/hal/Board.h no longer defines Board::WIFI_HOSTNAME: the "
+                "name given to the router has no single definition"]
+    literal = re.fullmatch(r'"([^"]*)"', match.group(1).strip())
+    if not literal:
+        return ["Board::WIFI_HOSTNAME is not a plain string literal (%s): the "
+                "name given to the router must be the same fixed word from "
+                "every console" % match.group(1).strip()]
+    name = literal.group(1)
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", name):
+        found.append("Board::WIFI_HOSTNAME is '%s': it must be one lowercase "
+                     "word a router will accept as a host name" % name)
+    if "%" in name or re.search(r"[0-9a-f]{6}", name):
+        found.append("Board::WIFI_HOSTNAME is '%s': it looks formatted, or "
+                     "carries hex that could be part of a MAC" % name)
+
+    setters = 0
+    for path in sorted((REPO_ROOT / "src").rglob("*")):
+        if path.suffix not in (".cpp", ".h"):
+            continue
+        rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        lines = _code_lines(path)
+
+        for number, line in lines:
+            if not _HOSTNAME_SETTERS.search(line):
+                continue
+            if (rel == "src/hal/BoardNetwork.cpp"
+                    and re.search(r"WiFi\.setHostname\(\s*WIFI_HOSTNAME\s*\)", line)):
+                setters += 1
+                continue
+            found.append("%s: Line %d: names a network interface itself (%s) "
+                         "-- the only setter is Board::applyWifiHostname(), "
+                         "and it takes Board::WIFI_HOSTNAME"
+                         % (rel, number, line.strip()[:60]))
+
+        for index, (number, line) in enumerate(lines):
+            starts = "WiFi.begin(" in line
+            if rel not in _PROBE_SOURCES and "WiFi.mode(WIFI_STA" in line:
+                starts = True
+            if not starts:
+                continue
+            before = lines[max(0, index - _HOSTNAME_LOOKBACK):index]
+            if not any("applyWifiHostname()" in prior for _, prior in before):
+                found.append("%s: Line %d: starts the Wi-Fi station without "
+                             "calling applyWifiHostname() just before it -- "
+                             "the core would name it from the MAC"
+                             % (rel, number))
+
+    if setters != 1:
+        found.append("src/hal/BoardNetwork.cpp: expected exactly one "
+                     "WiFi.setHostname(WIFI_HOSTNAME), found %d" % setters)
+
+    boot = REPO_ROOT / "src" / "hal" / "Board.cpp"
+    if boot.exists() and not any(
+            "applyWifiHostname()" in line for _, line in _code_lines(boot)):
+        found.append("src/hal/Board.cpp: Board::begin() no longer names the "
+                     "station before any radio code runs")
+    return found
+
+
 def main():
     """Run the privacy audit on all source files."""
     print("=" * 70)
@@ -500,6 +628,9 @@ def main():
     # What a Linux build could add underneath the firmware's own requests:
     # an address made from the MAC, and a DHCP client that introduces itself.
     all_issues.extend(check_host_network_identity())
+    # The name the router is given. The leak this guards against was a call
+    # that was never made, which no pattern over the source can find.
+    all_issues.extend(check_station_hostname_is_fixed())
 
     # Print results
     if all_issues:
@@ -523,6 +654,7 @@ def main():
             print("  identifier, vendor string or hostname, and the card image's")
             print("  kernel has no IPv6.")
         print("Public privacy wording: no absolute network-silence claims.")
+        print("Router host name: one fixed word, set before every station start.")
         print("\n" + "=" * 70)
         return 0
 

@@ -158,6 +158,14 @@ So:
 - **The boot banner prints `device=`, not `mac=`.** That line is what gets
   pasted into a public issue, which is how a "local" identifier stops being
   local. Do not add the MAC back to it.
+- **The router is told `braino`, not a name made from the MAC.** Left alone,
+  the Arduino core names the Wi-Fi station `esp32-` plus the low three bytes
+  of the MAC and sends it as the DHCP host name; every build did that until
+  5.14.0, and System Info drew it. `Board::applyWifiHostname()` sets the one
+  fixed `Board::WIFI_HOSTNAME` at boot and before every start of the station,
+  and `check_privacy.py` fails on a start without it. The MAC is in every
+  frame the radio sends and that is accepted; writing part of it into a name
+  people read is not. See `src/hal/CLAUDE.md`.
 - **`tools/board_registry.json` is gitignored.** `board_registry.example.json`
   ships instead, with placeholder ids, and `ESP32_boardUtil.py --learn` fills
   in the real one per machine. Reading a MAC off a chip with esptool is still

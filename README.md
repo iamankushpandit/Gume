@@ -1247,6 +1247,11 @@ at every restart. It stores nothing in flash and adds nothing to what leaves the
 device; its log lines go to the serial cable, or on a handheld to the log file
 on its own card.
 
+On your own network every console gives the router the same name, `braino`,
+so the router's list of connected devices says what it is and not which one.
+The router also sees the console's Wi-Fi hardware address, as it does for
+anything that joins it.
+
 ### Where the Wi-Fi password is kept, and what that is worth
 
 In the ESP32's own flash, **in plain text**. It is stored once -- the Wi-Fi

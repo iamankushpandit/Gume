@@ -256,6 +256,22 @@ The E32R28T-1's LED is red IO22, green IO16, blue IO17, per the vendor's table; 
 
 Wi-Fi exists only to set the clock. `tickTimeSync()` drives a non-blocking `Idle → Connecting → Syncing → Synced` state machine from the main loop. The success-path automatic resync interval is a write-through cached setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. `ntpUdpProbe()` queries NTP over raw UDP and doubles as a diagnostic and a fallback that sets the clock directly when lwIP's SNTP never answers.
 
+**The station is named `braino`, and it has to be named before it starts.**
+Unnamed, the Arduino core calls it `esp32-` plus the low three bytes of the
+Wi-Fi MAC and lwIP sends that to the router as DHCP option 12 -- half of an
+identifier this repository's rules keep off the boot banner, in a name the
+router records and System Info displays. `Board::WIFI_HOSTNAME` is the one
+definition and `Board::applyWifiHostname()` the one setter.
+`WiFi.setHostname()` only fills a buffer; the core hands it to the interface
+inside `WiFi.mode()`, on a transition into station mode, and `mode()` returns
+early when the mode is already the one asked for. So `Board::begin()` names
+the station before any radio code runs, and every `WiFi.mode(WIFI_STA)` and
+`WiFi.begin()` in the product is preceded by the call as well.
+`tools/check_privacy.py` fails on a start without it, on a second setter and
+on a name that is not a literal. A console is told apart by
+`Board::deviceId()`, never by this name. Whether the name reaches a given
+router can only be read off that router's client list or a packet capture.
+
 **These, the opt-in BLE beacon and the update check in `BoardUpdate.cpp` are the only outbound flows the firmware has, and that list is closed.** No analytics, no usage or crash reporting, no other HTTP/UDP/DNS request, and nothing transmitted that carries a player's name, profile name, score, progress or typing. `BoardNetwork.cpp` and `BoardUpdate.cpp` are where such a thing would be added, so they are where it gets refused: a fifth flow needs agreement in an issue before the code exists. See [CONTRIBUTING.md](../../CONTRIBUTING.md#no-data-collection).
 
 The update check is the worked example of how that agreement is supposed to go. It was argued as a change to what the product promises, not reviewed as a feature, and it was then built so the promise is checked rather than asserted: the request carries nothing about the device, and the address shown to the owner is compiled in rather than read out of the response. `tools/check_privacy.py` fails on either being lost.

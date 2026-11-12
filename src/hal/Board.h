@@ -493,6 +493,16 @@ public:
     void setNtpServer(const String& server);
     bool isWifiConnected();
 
+    /* The name this console gives the router: DHCP option 12, the name in the
+     * router's client list. One fixed word, the same from every console, so
+     * it says what the device is and nothing about which one. Left alone, the
+     * Arduino core makes this name up from the Wi-Fi MAC -- see
+     * applyWifiHostname() in BoardNetwork.cpp. tools/check_privacy.py asserts
+     * that this stays a literal and that nothing else names the station. */
+    static constexpr char WIFI_HOSTNAME[] = "braino";
+    /* Call before anything that can start the station interface. */
+    static void applyWifiHostname();
+
     /* Update availability -- a NOTICE, not an OTA. The console never downloads
      * or installs firmware; it reads one static file, compares a version string
      * locally, and tells the owner where to go. Nothing about this device is
