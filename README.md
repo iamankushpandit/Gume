@@ -1402,7 +1402,8 @@ python tools/gen_site.py
 ```
 
 That writes `site/_build/` (git-ignored) with the page, one manifest per
-firmware, the six stills the page shows and a copy of `site/assets/`. The
+firmware, the stills the page shows (six on Home, one per game on the
+Games tab) and a copy of `site/assets/`. The
 binaries are *not* built locally; the flash button only works against the
 published site, where CI has put them there. `gen_site.py` refuses to generate
 if the page references an asset that is missing, or if an asset in the tree is
@@ -1662,7 +1663,10 @@ tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_elements.py       regenerates the 118-element table, checking it
   gen_screens.py        regenerates the images in this README
+  gen_gameplay.py       plays them: a few seconds of every game, for the site
+  gen_board_launch.py   animates the landing page's three boards launching games
   gen_site.py           builds the GitHub Pages site and its flash manifests
+  gen_site_anims.py     draws the site's Privacy and Get started animations
   check_docs.py         fails if these docs have drifted from the code
   check_boards.py       fails if a board is described inconsistently
   check_catalog.py      fails if launcher metadata indices misalign

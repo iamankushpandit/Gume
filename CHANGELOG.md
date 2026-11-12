@@ -236,6 +236,39 @@ settings, and a copy an older build left there is removed. When Braino
 sleeps, the console's backlight is switched off rather than left lit behind a
 black screen, and any button wakes it.
 
+**The boards on the landing page launch games.** The picture of Braino on
+three bare boards now plays: each board taps a tile on its launcher, the game
+opens sideways as it does on a board standing upright, the board turns to
+play it, and Home turns it back -- each in its own theme, a third of a loop
+apart. `tools/gen_board_launch.py` draws every screen with `gen_screens.py`;
+the still remains for reduced motion.
+
+**The site's games move.** Every game card on the Games tab, and the six
+stills on Home, now play a few seconds of the game -- a question answered
+under a finger, a letter traced, the maze walked, a pair found, a piece
+moved, the dice thrown -- with the still kept for readers who ask for
+reduced motion. `tools/gen_gameplay.py` draws them with the same
+`gen_screens.py` functions that draw the stills, given the state as a
+parameter whose default is the still, so the 93 stills regenerate
+byte-identical; `gen_site.py` refuses to build while a game has no
+animation.
+
+**The site's Privacy and Get started cards are animated.** Every Privacy card
+-- Wi-Fi, Bluetooth, Nearby, games between consoles, the poke, local names,
+scores and the page itself -- has a short loop showing what goes where and
+what never leaves, and Get started's three steps and three extras show the
+board, the data cable, the install, the speaker, the case and which way round
+a battery plugs in. They are drawn by `tools/gen_site_anims.py` in the page's
+own colours, and a reader whose system asks for reduced motion gets each
+one's last frame as a still instead.
+
+**The site's Games tab shows every game.** Each of the 40 has a card with
+its screen, its one-line blurb and what it builds, grouped as the README
+groups them; the row of names above links to each card. The "What it builds"
+text is read from the README's game tables by `gen_site.py` rather than
+written a second time, so the page and the README cannot disagree, and both
+`gen_site.py` and `check_docs.py` fail when a game has no row or no still.
+
 **The site has a Featured page.** `featured.html` lists every article, video and
 listing about Braino -- Hackaday, FabScene, Geeky Gadgets, Hacktuber's video,
 and the hubs and lists that accepted it -- each with the date it was
