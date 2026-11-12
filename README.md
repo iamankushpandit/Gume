@@ -1416,8 +1416,8 @@ cmake --build build/host -j
 
 All 40 games, the launcher and every system screen run from the same code as
 on a board. The mouse is a finger on the glass. With a gamepad or the arrow
-keys, a cursor moves and A or Enter presses. B or Escape goes Home, and X and
-Y (PageUp, PageDown) turn the launcher's pages. Settings
+keys, a cursor moves and A or Enter presses. B or Escape goes Home, and L1 and
+R1 (PageUp, PageDown) turn the launcher's pages. Settings
 and scores are kept in `~/.local/share/braino` on that computer. Wi-Fi is the
 computer's own radio: the Wi-Fi screen scans and joins through the system's
 network manager (NetworkManager or wpa_supplicant), so the clock, the
@@ -1429,8 +1429,32 @@ The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
 it turns the console into a Braino appliance: it boots straight into Braino
 behind a Braino splash. The D-pad moves a selector from button to button, and
 the stick moves a crosshair for anything else, such as a chess board. A is the
-tap, X and Y turn pages, and a list scrolls when either is pushed against its
-end. When Braino sleeps it switches off the console's backlight, its Wi-Fi
+tap, B goes Home, L1 and R1 turn pages, and a list scrolls when either the
+selector or the crosshair is pushed against its end.
+
+**Braino works out which console it is on, and what each button is for.** The
+kernel says which model booted, and each console Braino knows has a few lines
+in [host/consoles/](host/consoles/) listing the controls on its case. Each
+control gets one job, handed out in the order the jobs are missed: moving the
+selector and pressing first, then Home, the page buttons, the next tab, Lock
+and Mute, and the stick's crosshair. A console with fewer controls loses the
+jobs at the end of that list, and a control left over once every job has one
+does nothing -- on the RG40XX V that is X, Y and the click of the right
+stick. Nothing is lost with a job, because a button is only ever a shortcut:
+Home, the padlock, the speaker, the gear, the tabs and the page buttons are
+all on the screen, and the D-pad's selector reaches every one.
+
+**What a console without a stick cannot do.** Tic-Tac-Toe, Whack A Mole,
+Piano, Maze, the Elements table, Microku, both tracing games, and the boards
+of Chess, Go, Sea Battle and Backgammon are each drawn as one picture and
+work out the square from where the finger lands. No button is drawn on them
+for the selector to stop at, so the crosshair is the only way onto them, and
+the crosshair needs a stick. On a console that has none, those games open
+and their boards cannot be played; every other game, and every button around
+those boards, works as it does anywhere. That is a property of how those
+games are drawn, and it is left as it is.
+
+When Braino sleeps it switches off the console's backlight, its Wi-Fi
 and three of its four cores, and any button wakes it; Wi-Fi
 takes a few seconds longer to come back. With **Deep sleep** on, 15 minutes
 asleep suspends the whole console, and the power button wakes it. The light ring around the sticks doubles as a battery
@@ -1621,6 +1645,8 @@ host/
                         Wi-Fi through the system's network manager, the
                         boot splash
   cmake/                the aarch64 cross toolchain, the build stamp
+  consoles/             one profile per handheld: the controls on its case,
+                        found at boot from the kernel's device tree
   muos/                 the RG40XXV launcher and the card packer
   rg40xxv/              the RG40XX V's Braino-only card image (Buildroot):
                         mainline Linux with ROCKNIX's H700 support, U-Boot,

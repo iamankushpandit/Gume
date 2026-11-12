@@ -38,6 +38,23 @@ cp -f "$EXT"/rocknix/firmware/panels/*.panel "$FW/panels/"
 # SDL's mapping for the joypad driver's "H700 Gamepad".
 install -D -m 0644 "$EXT/rocknix/gamecontroller.txt" "$TARGET/etc/braino/gamecontroller.txt"
 
+# The console profiles: which controls each console has. Braino picks one at
+# start-up from the device tree (host/src/HostConsole.h). Every device tree
+# on this card must have a profile of its own -- a console that boots here
+# and then falls back to the family's profile has lost its stick, and nobody
+# would have been told.
+CONSOLES=$EXT/../consoles
+mkdir -p "$TARGET/etc/braino/consoles"
+install -m 0644 "$CONSOLES"/*.conf "$TARGET/etc/braino/consoles/"
+for dts in "$EXT"/rocknix/dts/*.dts; do
+    model=$(sed -n 's/^[[:space:]]*compatible = "\(anbernic,[^"]*\)", "allwinner,.*/\1/p' "$dts" | head -n 1)
+    [ -n "$model" ] || continue     # a variant that includes another's tree keeps its name
+    if ! grep -qs "^match = $model[[:space:]]*$" "$CONSOLES"/*.conf; then
+        echo "post-build: no profile in host/consoles/ has \"match = $model\" (${dts##*/})" >&2
+        exit 1
+    fi
+done
+
 # No logging daemons, no network services: the overlay's scripts are the
 # system, with S40network bringing up only the loopback interface.
 for s in S01syslogd S01seedrng S02klogd S02sysctl S10mdev S11modules S15watchdog S41ifplugd S50crond S50telnet S90httpd; do

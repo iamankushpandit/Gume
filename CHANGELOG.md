@@ -36,6 +36,29 @@ sound-card watcher. `tools/check_licenses.py` now covers
 Buildroot's file types and extension-less scripts, and exempts ROCKNIX's
 files, which keep their own licences.
 
+**The handheld works out which console it is, and what each button is for.**
+One card image is meant to serve a family of consoles that share a processor
+and differ in what is on the case, so the controls are no longer written into
+the program. At start-up Braino reads the model from the kernel's device tree
+and loads that console's profile from `host/consoles/` -- a name, the model
+string it answers to, and the controls it has. Each control then gets one
+job, handed out in the order the jobs are missed: moving the selector and
+pressing, Home, the page buttons, the next tab, Lock and Mute, the stick's
+crosshair. A console with fewer controls loses the jobs at the end of that
+list, and none is lost for good, because every one of them is also a button
+on the screen that the d-pad's selector reaches. A control left over once
+every job has one now does nothing: **on the RG40XX V, X and Y no longer turn
+pages (L1 and R1 do) and Start no longer goes Home (B does).** Select and
+Start held together still restart Braino. An H700 console with no profile of
+its own gets the family's buttons and no stick, since a stick input with
+nothing wired to it would send the crosshair wandering; the log says which
+profile was used and which controls have no job. The image build refuses a
+device tree that no profile answers to. The README now says which games need
+a stick and why -- their boards are drawn as one picture, with no button for
+the selector to stop at -- and that is left as it is. Tested on a PC for every
+combination of controls (`test/host/host_controls_test.cpp`); not yet run on
+the console.
+
 **The handheld's d-pad reaches the tabs.** Settings, Wi-Fi, System Info and
 About draw their tabs as a strip rather than as buttons, so the selector could
 reach every control on those screens except the tabs that move between them.

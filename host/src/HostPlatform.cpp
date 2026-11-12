@@ -17,10 +17,16 @@
  *     the arrow keys move a selector from control to control, and A (Enter,
  *     Space) holds a finger down under whichever of the two is showing.
  *
- * B and Start (Escape, Backspace) are the BOOT key, which the runtime treats
- * as Home. Y or L1 (PageUp) and X or R1 (PageDown) press the screen's own
- * Prev and Next buttons -- the launcher's pages, and every other pager drawn
- * the same way, and so does pushing the cursor against the left or right side.
+ * Which gamepad control does which job is not written here. HostConsole
+ * finds out which console this is, and HostControls gives each control it
+ * has one job, in the order the jobs are missed; a control left over does
+ * nothing. With every control present, which is a PC's gamepad and the
+ * RG40XX V, that comes to what follows.
+ *
+ * B (Escape, Backspace) is the BOOT key, which the runtime treats as Home.
+ * L1 (PageUp) and R1 (PageDown) press the screen's own Prev and Next buttons
+ * -- the launcher's pages, and every other pager drawn the same way, and so
+ * does pushing the cursor against the left or right side.
  * Pushing the cursor against the end of a scrolling list scrolls it. M (the M
  * key) is the next tab, or Settings where there are none; R2 (L) is Lock and
  * L2 (K) is mute, by the header's own buttons. While the screen is asleep
@@ -35,6 +41,8 @@
  * frame from outside would be smeared across the screen by the next partial
  * repaint. Kept out of the frame, the cursor costs the firmware nothing. */
 
+#include "HostConsole.h"
+#include "HostControls.h"
 #include "HostDrm.h"
 #include "HostFocus.h"
 #include "HostLed.h"
@@ -180,9 +188,13 @@ bool padStickClick = false;
 bool keyTouch = false;
 bool padHome = false;
 bool keyHome = false;
-bool padStart = false;
-bool padBack = false;
+/* The two buttons of the restart hold (HostControls::RestartA and RestartB). */
+bool padRestartA = false;
+bool padRestartB = false;
 uint32_t quitHeldSinceMs = 0;
+/* Which control does which job on this console. Until begin() has asked
+ * HostConsole which console it is, a gamepad with everything. */
+HostControls::Assignment jobs = HostControls::assign(HostControls::ALL);
 bool keyUp = false, keyDown = false, keyLeft = false, keyRight = false;
 bool padUp = false, padDown = false, padLeft = false, padRight = false;
 int16_t stickX = 0, stickY = 0;
@@ -234,16 +246,28 @@ bool shownOnce = false;
 
 bool panelAsleep() { return panel && panel->asleep(); }
 
-/* While the screen is on the left stick is the cursor, and showing the battery
- * every time it moved would take the ring away from everything else. So the
- * left stick asks only in the dark, and the right, which does nothing else,
- * asks at any time. */
+/* The stick an axis belongs to, or ControlCount for a trigger. */
+HostControls::Control stickOf(uint8_t axis) {
+    if (axis <= SDL_CONTROLLER_AXIS_LEFTY) return HostControls::LStick;
+    if (axis <= SDL_CONTROLLER_AXIS_RIGHTY) return HostControls::RStick;
+    return HostControls::ControlCount;
+}
+
+/* While the screen is on the crosshair's stick is the cursor, and showing the
+ * battery every time it moved would take the ring away from everything else.
+ * So that stick asks only in the dark, and a second stick, which does nothing
+ * else, asks at any time. An axis this console has no stick on is not read at
+ * all: with nothing wired to it, it reads whatever it likes. */
 void watchStickForBattery(uint8_t axis, int16_t value) {
-    if (axis > SDL_CONTROLLER_AXIS_RIGHTY) return;
+    const HostControls::Control stick = stickOf(axis);
+    if (stick == HostControls::ControlCount) return;
+    const bool isCursor = jobs.is(HostControls::Cursor, stick);
+    const bool asksAnyTime = jobs.is(HostControls::AskBattery, stick);
+    if (!isCursor && !asksAnyTime) return;
     bool& asking = stickAsking[axis];
     if (!asking && std::abs(value) > STICK_ASK_ON) {
         asking = true;
-        if (axis >= SDL_CONTROLLER_AXIS_RIGHTX || panelAsleep()) HostLed::showBattery();
+        if (asksAnyTime || panelAsleep()) HostLed::showBattery();
     } else if (asking && std::abs(value) < STICK_ASK_OFF) {
         asking = false;
     }
@@ -293,44 +317,75 @@ void pressPager(bool next) {
     if (panel && panel->pagerTarget(next, x, y)) tapAt(x, y);
 }
 
-void onButton(uint8_t button, bool down) {
+/* A control went down or up: do the job this console gives it
+ * (HostControls.h). One with no job does nothing -- but it still wakes a
+ * sleeping panel, as any press does. */
+void onControl(HostControls::Control control, bool down) {
+    using namespace HostControls;
     if (down && wakeInstead()) return;
+    switch (jobs.taskOf(control)) {
+        case Tab: if (down) pressMenu(); return;
+        case PageNext: if (down) pressPager(true); return;
+        case PagePrev: if (down) pressPager(false); return;
+        case Lock: if (down) pressIcon(TFT_eSPI::Icon::Lock); return;
+        case Mute: if (down) pressIcon(TFT_eSPI::Icon::Mute); return;
+        /* The button, or pressing the stick in -- the click a mouse-shaped
+         * control invites. Both hold the finger down for as long as they are
+         * held. */
+        case Press: padTouch = down; break;
+        case CursorPress: padStickClick = down; break;
+        case Home: padHome = down; break;
+        case RestartA: padRestartA = down; break;
+        case RestartB: padRestartB = down; break;
+        default: return;
+    }
+    cursorShownAtMs = SDL_GetTicks();
+    if (padRestartA && padRestartB) {
+        if (quitHeldSinceMs == 0) quitHeldSinceMs = SDL_GetTicks();
+    } else {
+        quitHeldSinceMs = 0;
+    }
+}
+
+void onButton(uint8_t button, bool down) {
+    using namespace HostControls;
+    Control control = ControlCount;
     switch (button) {
-        /* M, the small button: the next tab, or Settings. */
-        case SDL_CONTROLLER_BUTTON_GUIDE: if (down) pressMenu(); return;
-        /* X or R1 on to the next page, Y or L1 back a page -- the owner's
-         * choice on the RG40XXV, where X is the upper face button and Y the
-         * left one. */
-        case SDL_CONTROLLER_BUTTON_X:
-        case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: if (down) pressPager(true); return;
-        case SDL_CONTROLLER_BUTTON_Y:
-        case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: if (down) pressPager(false); return;
-        /* A, or pressing the stick in -- the click a mouse-shaped control
-         * invites. Both hold the finger down for as long as they are held. */
-        case SDL_CONTROLLER_BUTTON_A: padTouch = down; break;
-        case SDL_CONTROLLER_BUTTON_LEFTSTICK: padStickClick = down; break;
-        case SDL_CONTROLLER_BUTTON_B: padHome = down; break;
-        case SDL_CONTROLLER_BUTTON_START: padStart = down; break;
-        case SDL_CONTROLLER_BUTTON_BACK: padBack = down; break;
-        case SDL_CONTROLLER_BUTTON_DPAD_UP: padUp = down; break;
-        case SDL_CONTROLLER_BUTTON_DPAD_DOWN: padDown = down; break;
-        case SDL_CONTROLLER_BUTTON_DPAD_LEFT: padLeft = down; break;
-        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: padRight = down; break;
+        case SDL_CONTROLLER_BUTTON_A: control = A; break;
+        case SDL_CONTROLLER_BUTTON_B: control = B; break;
+        case SDL_CONTROLLER_BUTTON_X: control = X; break;
+        case SDL_CONTROLLER_BUTTON_Y: control = Y; break;
+        case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: control = L1; break;
+        case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: control = R1; break;
+        case SDL_CONTROLLER_BUTTON_BACK: control = Select; break;
+        case SDL_CONTROLLER_BUTTON_START: control = Start; break;
+        case SDL_CONTROLLER_BUTTON_GUIDE: control = Menu; break;
+        case SDL_CONTROLLER_BUTTON_LEFTSTICK: control = L3; break;
+        case SDL_CONTROLLER_BUTTON_RIGHTSTICK: control = R3; break;
+        /* The d-pad is one control with four ways to push it. */
+        case SDL_CONTROLLER_BUTTON_DPAD_UP:
+        case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+        case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+            if (down && wakeInstead()) return;
+            if (!jobs.is(Move, DPad)) return;
+            if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) padUp = down;
+            if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) padDown = down;
+            if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) padLeft = down;
+            if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) padRight = down;
+            cursorShownAtMs = SDL_GetTicks();
+            return;
         default:
             /* Said once per button, so a handheld whose buttons SDL names
              * differently can be mapped from its log. */
+            if (down && wakeInstead()) return;
             if (down && button < 32 && !(unmappedSeen & (1u << button))) {
                 unmappedSeen |= 1u << button;
                 std::printf("[host] button %u is not mapped\n", static_cast<unsigned>(button));
             }
             return;
     }
-    cursorShownAtMs = SDL_GetTicks();
-    if (padStart && padBack) {
-        if (quitHeldSinceMs == 0) quitHeldSinceMs = SDL_GetTicks();
-    } else {
-        quitHeldSinceMs = 0;
-    }
+    onControl(control, down);
 }
 
 void onKey(SDL_Keycode key, bool down) {
@@ -394,26 +449,31 @@ void pumpEvents() {
             case SDL_CONTROLLERBUTTONDOWN: onButton(e.cbutton.button, true); break;
             case SDL_CONTROLLERBUTTONUP: onButton(e.cbutton.button, false); break;
             case SDL_CONTROLLERAXISMOTION:
-                watchStickForBattery(e.caxis.axis, e.caxis.value);
-                if (e.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX) stickX = e.caxis.value;
-                if (e.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY) stickY = e.caxis.value;
-                /* L2 and R2 are triggers, which SDL reports as axes: act on
-                 * the press, once, and not again until released. */
+                /* L2 and R2 are triggers, which SDL reports as axes: they are
+                 * down past one level and up below another, so a trigger
+                 * resting half in is one press and not several. */
                 if (e.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ||
                     e.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT) {
                     const bool left = e.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
                     bool& held = left ? leftTriggerHeld : rightTriggerHeld;
                     if (!held && e.caxis.value > TRIGGER_ON) {
                         held = true;
-                        if (!wakeInstead()) {
-                            pressIcon(left ? TFT_eSPI::Icon::Mute : TFT_eSPI::Icon::Lock);
-                        }
+                        onControl(left ? HostControls::L2 : HostControls::R2, true);
                     } else if (held && e.caxis.value < TRIGGER_OFF) {
                         held = false;
+                        onControl(left ? HostControls::L2 : HostControls::R2, false);
                     }
                     break;
                 }
-                if (std::abs(e.caxis.value) > STICK_DEADZONE) cursorShownAtMs = SDL_GetTicks();
+                watchStickForBattery(e.caxis.axis, e.caxis.value);
+                /* Only the stick this console's crosshair is on moves it. */
+                if (jobs.has(HostControls::Cursor) &&
+                    jobs.is(HostControls::Cursor, stickOf(e.caxis.axis))) {
+                    const bool isX = e.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX ||
+                                     e.caxis.axis == SDL_CONTROLLER_AXIS_RIGHTX;
+                    (isX ? stickX : stickY) = e.caxis.value;
+                    if (std::abs(e.caxis.value) > STICK_DEADZONE) cursorShownAtMs = SDL_GetTicks();
+                }
                 break;
             default: break;
         }
@@ -988,12 +1048,39 @@ bool makeDir(const std::string& path) {
     return true;
 }
 
+/* Ask which console this is and give its controls their jobs. What it
+ * decided goes to the log once, because "this button does nothing" is
+ * otherwise indistinguishable from a button that is broken. */
+void adoptConsole() {
+    using namespace HostControls;
+    const HostConsole::Profile& console = HostConsole::detect();
+    jobs = assign(console.controls);
+    if (HostConsole::source() == HostConsole::Source::Computer) return;
+    std::string line;
+    for (uint8_t t = 0; t < TaskCount; ++t) {
+        if (t == RestartB) continue;
+        const Task task = static_cast<Task>(t);
+        line += std::string(" ") + name(task) + "=";
+        line += jobs.has(task) ? name(static_cast<Control>(jobs.control[t])) : "none";
+        if (t == RestartA && jobs.has(RestartB)) {
+            line += std::string("+") + name(static_cast<Control>(jobs.control[RestartB]));
+        }
+    }
+    std::printf("[console] jobs:%s\n", line.c_str());
+    line.clear();
+    for (uint8_t c = 0; c < ControlCount; ++c) {
+        if (jobs.unassigned & (1u << c)) line += std::string(" ") + name(static_cast<Control>(c));
+    }
+    if (!line.empty()) std::printf("[console] no job:%s\n", line.c_str());
+}
+
 }   // namespace
 
 bool begin(int argc, char** argv) {
     (void)argc;
     savedArgv = argv;
     mainThread = std::this_thread::get_id();
+    adoptConsole();
 
 #if GUME_HOST_DRM
     /* No window system: SDL brings the gamepad, the events and the sound, and
@@ -1151,7 +1238,7 @@ bool service() {
         if (key == Key::Lock) pressIcon(TFT_eSPI::Icon::Lock);
     }
     if (quitHeldSinceMs != 0 && now - quitHeldSinceMs >= QUIT_HOLD_MS && !quit) {
-        std::printf("[host] Select+Start held: leaving Braino\n");
+        std::printf("[host] restart buttons held: leaving Braino\n");
         quit = true;
     }
     if (now - lastPresentMs >= PRESENT_INTERVAL_MS) present(now);
@@ -1189,11 +1276,10 @@ Contact contact() {
     return c;
 }
 
-/* Start is Home on its own; with Select it is the start of the quit hold, and
- * must not also send the console Home underneath it. A button pressed while
- * the panel sleeps is a BOOT press too (wakeInstead()). */
+/* Whichever button this console gives Home (HostControls.h). A button pressed
+ * while the panel sleeps is a BOOT press too (wakeInstead()). */
 bool homeHeld() {
-    return padHome || keyHome || (padStart && !padBack) || SDL_GetTicks() < wakePulseUntilMs;
+    return padHome || keyHome || SDL_GetTicks() < wakePulseUntilMs;
 }
 
 void setBacklight(float level) { backlight = level; }

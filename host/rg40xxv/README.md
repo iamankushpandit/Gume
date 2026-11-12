@@ -61,6 +61,11 @@ loopback interface):
   stay on the card; nothing is sent anywhere.
 - `S40keys` runs busybox's `acpid` for the keys that are not on the gamepad:
   power (turns the console off) and the volume keys (the codec's mixer).
+- `/etc/braino/consoles/` holds one profile per console, copied from
+  `host/consoles/`: the controls on its case. Braino reads the model from the
+  device tree and picks one, then decides what each control is for
+  (`host/CLAUDE.md`, "Which console, and which button does what"). The build
+  stops if a device tree on the card has no profile of its own.
 - `braino-run` sets Braino's environment, including the gamepad mapping, and
   shows the splash only on the first start of a boot.
 

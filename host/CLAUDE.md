@@ -18,8 +18,10 @@ cmake --build build/host -j
 A mouse click is a finger on the glass. With a gamepad, the left stick moves a
 crosshair, the d-pad (the arrow keys) moves a selector from control to control,
 and A (Enter, Space) presses under whichever is showing; see "The d-pad's
-selector" below. B and Start (Escape, Backspace) are the BOOT key, so they go
-Home. Y or L1 (PageUp) and X or R1 (PageDown) press the screen's own Prev and
+selector" below. Which control does which job is decided per console -- see
+"Which console, and which button does what" -- and what follows is a console
+with every control. B (Escape, Backspace) is the BOOT key, so it goes
+Home. L1 (PageUp) and R1 (PageDown) press the screen's own Prev and
 Next buttons, so they turn the launcher's pages and every other pager drawn with
 `Ui::drawPagerButton()`; the panel shim learns where those are from the labels
 it draws, and on a screen without one the keys do nothing rather than press
@@ -91,6 +93,55 @@ window like the crosshair, never into the panel's frame.
   tap there as Lock before the launcher sees it, so pressing the rect's middle
   locked the console. A long name's tail is therefore outside the box.
 
+## Which console, and which button does what
+
+One card image serves a family of consoles, so nothing about the controls is
+compiled in. Two files decide it at start-up, and `HostPlatform.cpp` only
+carries out what they say.
+
+**`HostConsole` finds the console.** The kernel's device tree names the model
+(`/proc/device-tree/compatible`, most specific string first), and each console
+has a profile in `host/consoles/`, installed to `/etc/braino/consoles/`: a
+name, the `compatible` string it answers to, and the controls on its case.
+The console's own profile wins; failing that the family's
+(`allwinner-h700.conf`: the buttons the family shares and **no stick**, since
+an input with no stick wired to it reads whatever it likes); failing that the
+d-pad, A and B. With no device tree, or no profiles installed -- a PC, the
+muOS package -- every control is assumed. `BRAINO_CONSOLE_PROFILE=<file>`
+uses a profile outright, which is how to try a console nobody here owns.
+
+**`HostControls` gives each control one job**, from a list read top to
+bottom (`WANTS`): move the selector and press, then Home, the page pair, the
+next tab, Lock and Mute, the crosshair, the battery on the light ring, and the
+restart hold. A job whose usual control is missing takes the next one down its
+own lines; when those run out the job has no button. A control left over has
+no job -- X, Y and R3 on the RG40XX V. The log says both, once
+(`[console] jobs:` and `[console] no job:`).
+
+- **A button is a shortcut, never the only way to do something.** This is
+  what makes it safe to stop when the buttons run out: Home, the padlock, the
+  speaker, the gear, the tabs and both page buttons are selector stops, so a
+  d-pad and one button reach everything. It is the firmware's own rule for
+  the BOOT key. **Do not add a job that has no stop on the screen.**
+- **No job is given to two controls.** X and Y used to turn pages beside L1
+  and R1, and Start went Home beside B. A duplicate teaches a player nothing
+  and is missing on the next console.
+- **Pairs go together or not at all.** A page-back button with no page-forward
+  is half a control, and the restart hold needs both of its buttons free.
+- **The crosshair has no stand-in, on purpose.** A board drawn as one picture
+  has no stop for the selector (see "The d-pad's selector"), so on a console
+  with no stick those boards cannot be played: Tic-Tac-Toe, Whack A Mole,
+  Piano, Maze, the Elements table, Microku, both tracing games, and the
+  boards of Chess, Go, Sea Battle and Backgammon. The maintainer's decision
+  is to say so and leave it: the README says it to owners, and nothing here
+  hides those games or steers the crosshair from the d-pad.
+- **Adding a console is a profile, and a profile is a claim.** Write
+  `controls` from the console's device tree or from the console itself,
+  never from a product page, and say in the file which it was.
+  `test/host/host_controls_test.cpp` reads every shipped profile, and
+  `rg40xxv/board/post-build.sh` refuses to build an image holding a device
+  tree no profile answers to.
+
 ## The one rule: host/ adapts to src/, never the reverse
 
 There is no `#ifdef` for the host anywhere under `src/`, and there must not
@@ -116,6 +167,8 @@ interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Ho
 | `src/HostAudio.cpp`, `HostI2s.cpp` | The codec backend: an SDL queue kept about as deep as the codec board's DMA, so the audio task is paced the way it is on hardware. |
 | `src/HostWifiOs.cpp`, `HostNet.cpp` | Wi-Fi through the OS's network manager; UDP sockets and libcurl for the firmware's own requests. |
 | `src/HostPlatform.cpp` | The window, input, cursor and test aids. |
+| `src/HostConsole.cpp`, `HostConsoleDetect.cpp` | Which handheld this is: reading a profile from `consoles/`, and finding this console's from the device tree. Nothing under `include/boards/` has a counterpart chosen at run time; this is it. |
+| `src/HostControls.h` | Which control does which job on that console. Pure arithmetic, tested for every combination of controls. |
 
 ## Wi-Fi is the computer's radio; the requests are still the firmware's
 
