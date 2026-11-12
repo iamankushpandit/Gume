@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# Applied over ROCKNIX's H700 kernel config (rocknix/linux/rocknix-h700.config).
+CONFIG_LOCALVERSION="-braino"
+
+# Firmware comes from /lib/firmware inside the built-in root filesystem.
+CONFIG_EXTRA_FIRMWARE=""
+CONFIG_INITRAMFS_COMPRESSION_XZ=y
+# CONFIG_INITRAMFS_COMPRESSION_GZIP is not set
+
+# Nothing but Braino ever draws on the panel: no text console, so the screen
+# stays dark from power-on until Braino's splash. Boot messages go to the
+# serial port only (extlinux.conf: console=ttyS0).
+# CONFIG_FRAMEBUFFER_CONSOLE is not set
+
+# Bluetooth built in: the RTL8821CS controller on the UART, no module loading.
+CONFIG_BT=y
+CONFIG_BT_RTL=y
+CONFIG_BT_HCIUART=y
+# CONFIG_BT_HIDP is not set
+
+# No IPv6 at all. Left on, the kernel gives wlan0 an address built from the
+# radio's MAC (EUI-64 is the default: addr_gen_mode 0, use_tempaddr 0), and
+# Braino's requests would carry it to the servers they reach. Compiled out
+# rather than switched off by sysctl, so no order of bringing the radio up can
+# get ahead of it. board/post-build.sh fails the build if it comes back.
+# CONFIG_IPV6 is not set
+
+# Not used by Braino: networking beyond Wi-Fi, USB network and HID adapters,
+# virtualisation, network and extra filesystems, and the boot logo.
+# CONFIG_LOGO is not set
+# CONFIG_KVM is not set
+# CONFIG_VIRTUALIZATION is not set
+# CONFIG_WIREGUARD is not set
+# CONFIG_TUN is not set
+# CONFIG_VETH is not set
+# CONFIG_BRIDGE is not set
+# CONFIG_NET_DSA is not set
+# CONFIG_NF_TABLES is not set
+# CONFIG_IP6_NF_IPTABLES is not set
+# CONFIG_NLMON is not set
+# CONFIG_USB_NET_DRIVERS is not set
+# CONFIG_HID_PLAYSTATION is not set
+# CONFIG_USB_ACM is not set
+# CONFIG_USB_WDM is not set
+# CONFIG_NFSD is not set
+# CONFIG_NFS_FS is not set
+# CONFIG_NET_9P is not set
+# CONFIG_BTRFS_FS is not set
+# CONFIG_F2FS_FS is not set
+# CONFIG_NTFS3_FS is not set
+# CONFIG_ZRAM is not set
+# CONFIG_RUST is not set

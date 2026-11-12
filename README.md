@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-84.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-84.4%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 41 |
-| Flash | 2,644,397 / 3,145,728 bytes of the app partition (**84.1%**) |
-| RAM | 88,468 / 327,680 bytes (**27.0%**) |
+| Flash | 2,655,213 / 3,145,728 bytes of the app partition (**84.4%**) |
+| RAM | 91,356 / 327,680 bytes (**27.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -683,7 +683,11 @@ Automatic NTP resync is **1–24 hours**, default **6 hours**; boot-time sync an
 the Network screen's **Sync now** action stay immediate. **Power** holds
 the idle policy, its two delays and the hold-to-unlock guard — see [Screen
 saver and sleep](#screen-saver-and-sleep). They were one screen until the sleep settings
-arrived and there was nowhere left to put them.
+arrived and there was nowhere left to put them. On a device that can suspend
+— the RG40XXV, not the ESP32 boards, which have no way to be woken from it —
+Power also has **Deep sleep**, off by default and changeable only by the
+admin: after 15 minutes asleep the whole console suspends, which saves
+battery, and then only the power button wakes it.
 
 **Sound** holds the mute switch and the volume. Mute is a switch of its own
 rather than volume zero, so the level survives being silenced and comes back
@@ -1044,7 +1048,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   version number cannot answer "which firmware is on this board?", because
   it is identical across every flash of a release; this can. A build made
   from a source tarball with no git says `unknown` rather than guessing.
-- **System Info** -- five tabs of live telemetry: board, memory, network, BLE
+- **System Info** -- six tabs of live telemetry: board, memory, network, BLE, battery
   and app state. This is a diagnostics screen, not a toy: chip and reset
   reason, heap with a fragmentation meter, NVS usage and namespace counts,
   Wi-Fi throughput, watchdog stalls, and the branch, commit and build time
@@ -1061,6 +1065,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
   <img src="docs/screens/about-build.png" width="360" alt="About: which build is on the device">
   <img src="docs/screens/about-updates.png" width="360" alt="About: whether a newer firmware exists">
   <img src="docs/screens/systeminfo-memory.png" width="360" alt="System Info: heap and CPU">
+  <img src="docs/screens/systeminfo-battery.png" width="360" alt="System Info: where the battery went">
 </p>
 
 ### Battery
@@ -1099,9 +1104,10 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
-The icon is deliberately **not** a fixed size: it grows with its digits, widest
-at `100`, and the status rows around it are laid
-out from its measured width rather than a constant offset.
+The icon is **one size at every level**, the width `100` needs, with the
+number centred inside it, so it does not shrink as the battery drops from 10%
+to 9%. The status rows around it are still laid out from its measured width,
+because a board with no battery sense shows no icon at all.
 
 At **15% or less** a strip also appears across the top of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
@@ -1134,6 +1140,11 @@ Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
 guess the time zone on first connect (the picker overrides it, and you can skip
 Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
+
+The battery diagnostic (*System Info -> Batt*) is held in memory and starts over
+at every restart. It stores nothing in flash and adds nothing to what leaves the
+device; its log lines go to the serial cable, or on a handheld to the log file
+on its own card.
 
 ### Where the Wi-Fi password is kept, and what that is worth
 
@@ -1168,6 +1179,45 @@ and on/off flags). It never answers with a player's name, a score, the Wi-Fi
 network's name or its password. Changing settings over the cable needs the
 admin PIN, the same one the device asks for on screen. Nothing about this
 involves a radio.
+
+### The PC build
+
+The [desktop version](#run-it-on-a-pc) makes the same three requests a board
+makes over Wi-Fi: the clock sync, the one timezone lookup and the daily update
+check. They come from the same code, and only once a network has been joined
+from its Wi-Fi screen. It adds no request of its own, and sends nothing in
+them that a board would not. Its Bluetooth beacon is a board's opt-in beacon,
+built by the same code and off until it is switched on in Settings; it
+advertises from a random address the device made up, never the chip's own. On
+the RG40XXV, Braino also switches off muOS's own network services -- its web
+dashboard, file sharing, remote login and its time service -- so the console
+as a whole sends only what a board sends. The RG40XX V's Braino-only card
+image has none of those services to switch off: nothing on it but Braino uses
+the network, there is no login or remote access of any kind, and Wi-Fi is
+started only when Braino joins a network. On Linux the three requests go over
+IPv4 only, as a board's do: a Linux system's default IPv6 address is built
+from the Wi-Fi chip's hardware address, and that address would otherwise
+travel with them. The card image goes further and has no IPv6 at all, and
+when it asks the router for an address it sends no name, no client identifier
+and no software version. The router and other devices on the same network
+still see the Wi-Fi chip's hardware address, as they do for a board and for
+every other Wi-Fi device; it does not leave that network. On a desktop with NetworkManager,
+joining a network from that screen saves it in the computer's own network
+settings, exactly as joining from the system's Wi-Fi menu would. Profiles and
+scores are kept in a file on that computer, the same way a board keeps them in
+its own flash.
+
+On the RG40XXV that file is on the microSD card, which any laptop can read, so
+the Wi-Fi network's name and password and the admin PIN are **encrypted**
+before they are written to it. The key is derived from the console's own
+processor serial, read each time Braino starts and never written down, so the
+card read on a computer, or moved to another console, shows only scrambled
+bytes. The network is not saved in muOS's own Wi-Fi settings either, and a
+copy an older build left there is removed. What this does not stop is someone
+with the whole console who knows where to look: the code is open, so they can
+derive the same key -- about the same effort as reading a board's flash. If
+the processor serial cannot be read, the console does not fall back to
+writing the password readably; it asks for it again after a restart.
 
 ### The update check
 
@@ -1363,12 +1413,81 @@ python tools/gen_site.py
 ```
 
 That writes `site/_build/` (git-ignored) with the page, one manifest per
-firmware, the six stills the page shows and a copy of `site/assets/`. The
+firmware, the stills the page shows (six on Home, one per game on the
+Games tab) and a copy of `site/assets/`. The
 binaries are *not* built locally; the flash button only works against the
 published site, where CI has put them there. `gen_site.py` refuses to generate
 if the page references an asset that is missing, or if an asset in the tree is
 referenced by nothing -- a broken image on the landing page and dead weight in
 every clone are both worth failing a build over.
+
+### Run it on a PC
+
+The same firmware also builds as a desktop program, in Linux or WSL, with no
+board attached:
+
+```bash
+sudo apt install build-essential cmake pkg-config libsdl2-dev libcurl4-openssl-dev
+cmake -S host -B build/host -DCMAKE_BUILD_TYPE=Release
+cmake --build build/host -j
+./build/host/braino
+```
+
+All 40 games, the launcher and every system screen run from the same code as
+on a board. The mouse is a finger on the glass. With a gamepad or the arrow
+keys, a cursor moves and A or Enter presses. B or Escape goes Home, and L1 and
+R1 (PageUp, PageDown) turn the launcher's pages. Settings
+and scores are kept in `~/.local/share/braino` on that computer. Wi-Fi is the
+computer's own radio: the Wi-Fi screen scans and joins through the system's
+network manager (NetworkManager or wpa_supplicant), so the clock, the
+timezone lookup and the update check behave as they do on a board. Nearby
+play works over Bluetooth wherever Linux has a Bluetooth controller; see
+[the PC build](#the-pc-build) under Privacy.
+
+The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
+it turns the console into a Braino appliance: it boots straight into Braino
+behind a Braino splash. The D-pad moves a selector from button to button, and
+the stick moves a crosshair for anything else, such as a chess board. A is the
+tap, B goes Home, L1 and R1 turn pages, and a list scrolls when either the
+selector or the crosshair is pushed against its end.
+
+**Braino works out which console it is on, and what each button is for.** The
+kernel says which model booted, and each console Braino knows has a few lines
+in [host/consoles/](host/consoles/) listing the controls on its case. Each
+control gets one job, handed out in the order the jobs are missed: moving the
+selector and pressing first, then Home, the page buttons, the next tab, Lock
+and Mute, and the stick's crosshair. A console with fewer controls loses the
+jobs at the end of that list, and a control left over once every job has one
+does nothing -- on the RG40XX V that is X, Y and the click of the right
+stick. Nothing is lost with a job, because a button is only ever a shortcut:
+Home, the padlock, the speaker, the gear, the tabs and the page buttons are
+all on the screen, and the D-pad's selector reaches every one.
+
+**What a console without a stick cannot do.** Tic-Tac-Toe, Whack A Mole,
+Piano, Maze, the Elements table, Microku, both tracing games, and the boards
+of Chess, Go, Sea Battle and Backgammon are each drawn as one picture and
+work out the square from where the finger lands. No button is drawn on them
+for the selector to stop at, so the crosshair is the only way onto them, and
+the crosshair needs a stick. On a console that has none, those games open
+and their boards cannot be played; every other game, and every button around
+those boards, works as it does anywhere. That is a property of how those
+games are drawn, and it is left as it is.
+
+When Braino sleeps it switches off the console's backlight, its Wi-Fi
+and three of its four cores, and any button wakes it; Wi-Fi
+takes a few seconds longer to come back. With **Deep sleep** on, 15 minutes
+asleep suspends the whole console, and the power button wakes it. The light ring around the sticks doubles as a battery
+gauge, red through orange to green, shown while the charger is in and for a few
+seconds after it comes out or a stick is pushed. [host/CLAUDE.md](host/CLAUDE.md) explains how it works, how to put it on
+a card, and what differs from a board.
+
+The RG40XX V also has a **card image that is nothing but Braino**: no muOS
+or any other system underneath, no menu, no login, and no text on the screen
+from power-on to the splash. It is built from source with Buildroot --
+mainline Linux 7.2 with ROCKNIX's H700 support, U-Boot, and Braino drawing
+straight to the panel with no GPU driver -- and is 17 MB to download.
+[host/rg40xxv/README.md](host/rg40xxv/README.md) explains how to build it and
+what is on it.
 
 ### Diagnostics
 
@@ -1417,7 +1536,7 @@ PIN: after `unlock <PIN>`,
 
 | What | Commands |
 |---|---|
-| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, light, beacon, nearby, ntp, ntp_hours, timezone |
+| Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, deep_sleep (only where the device can suspend), light, beacon, nearby, ntp, ntp_hours, timezone |
 | Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
 | Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
 | Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
@@ -1509,6 +1628,10 @@ src/
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
+    PowerMonitor.cpp    where the battery went: the recorder
+    PowerLedger.cpp     where the battery went: the analysis
+    PowerProbeEsp32.cpp what an ESP32 board can measure of it
+    SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
     BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
     BoardAudioBackend.cpp  the hardware under it: codec, I2S, amp, DAC idle
@@ -1533,11 +1656,29 @@ src/
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
+host/
+  CMakeLists.txt        builds src/ unchanged as a desktop program (SDL2)
+  boards/host.h         the virtual board: every pin answered by host/src
+  shim/                 Arduino, TFT_eSPI, Preferences, FreeRTOS, Wi-Fi...
+                        -- only what src/ calls
+  src/                  window, input, NVS file, audio, emulated touch,
+                        Wi-Fi through the system's network manager, the
+                        boot splash
+  cmake/                the aarch64 cross toolchain, the build stamp
+  consoles/             one profile per handheld: the controls on its case,
+                        found at boot from the kernel's device tree
+  muos/                 the RG40XXV launcher and the card packer
+  rg40xxv/              the RG40XX V's Braino-only card image (Buildroot):
+                        mainline Linux with ROCKNIX's H700 support, U-Boot,
+                        Braino drawing through DRM, nothing else
 tools/
   gen_country_facts.py  regenerates the capital/continent table
   gen_elements.py       regenerates the 118-element table, checking it
   gen_screens.py        regenerates the images in this README
+  gen_gameplay.py       plays them: a few seconds of every game, for the site
+  gen_board_launch.py   animates the landing page's three boards launching games
   gen_site.py           builds the GitHub Pages site and its flash manifests
+  gen_site_anims.py     draws the site's Privacy and Get started animations
   check_docs.py         fails if these docs have drifted from the code
   check_boards.py       fails if a board is described inconsistently
   check_catalog.py      fails if launcher metadata indices misalign

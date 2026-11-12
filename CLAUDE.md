@@ -91,7 +91,8 @@ every pull request. Three things follow from it:
 - **The holder in a header is `iamankushpandit` and nothing else.** A header
   that disagrees with LICENSE is worse than no header, because it is the one a
   downstream reader will rely on. The exemptions -- LICENSE itself, files with
-  no comment syntax (JSON, binaries), and PlatformIO's stub READMEs -- are
+  no comment syntax (JSON, binaries), PlatformIO's stub READMEs, and the
+  third-party ROCKNIX files kept verbatim in `host/rg40xxv/rocknix/` -- are
   listed with their reasons at the top of the checker; add to that list only
   for a reason of the same kind, never for convenience.
 
@@ -483,6 +484,72 @@ would otherwise say "HEAD". A tree with no `.git` at all -- a source tarball --
 is a supported way to build, and stamps "unknown" rather than inventing
 something plausible.
 
+### The host build: the same firmware, on a PC
+
+`host/` compiles `src/` unchanged into a desktop program with SDL2, in Linux
+or WSL (`cmake -S host -B build/host && cmake --build build/host -j`). It is
+the road to Linux handhelds such as the Anbernic RG40XXV, and it is already
+the quickest way to see a real screen without a board. `host/CLAUDE.md` is
+the guide. Three things about it are load-bearing:
+
+- **`host/` adapts to `src/`, never the reverse.** There is no host `#ifdef`
+  under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
+  answered by `host/src/`. It is deliberately outside `include/boards/`,
+  because a header there is a claim of support. Only the hardware watchdog and
+  the codec/DAC backend are replaced, and `CMakeLists.txt` names them; the
+  radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
+  through `host/shim/NimBLEDevice.h` on a raw HCI socket).
+- **A new platform call in `src/` breaks the host build until `host/shim/`
+  answers it.** The shims hold only what `src/` calls. CI does not build the
+  host yet, so check it yourself when you reach for a new Arduino or ESP-IDF
+  API.
+- **The host's network is the firmware's, and nothing more.** Wi-Fi is the
+  computer's own radio, driven through NetworkManager or wpa_supplicant
+  (`host/src/HostWifiOs.cpp`), and UDP and HTTP are real sockets. But the
+  shims only answer: every packet that leaves is one the firmware's own code
+  chose to send, behind its own `WL_CONNECTED` checks, so the closed list of
+  outbound flows holds for this program unchanged. A shim must never add a
+  request, a header or a field. `esp_read_mac()` returns random bytes rather
+  than the PC's MAC, and `WiFi.macAddress()` answers `--`.
+- **On a handheld the settings file is on a card any laptop reads, so the
+  Wi-Fi name and password and the admin PIN are sealed in it**
+  (`host/src/HostSecret.h`), with a key derived from the processor serial and
+  never stored. With no processor-bound key, a handheld build keeps the
+  network in memory rather than write it readably. muOS's
+  `wpa_supplicant.conf` is never given a copy. A new secret setting in `src/`
+  belongs in `SECRET_KEYS` in `host/src/HostNvs.cpp` in the same commit.
+- **Sleep must switch the real lamp off.** The backlight PWM is only a
+  brightness multiplier on the window here, so `host/src/HostScreenPower.cpp`
+  follows the panel's Sleep In and Sleep Out and switches the handheld's own
+  backlight. While the panel sleeps, any button press becomes a BOOT press
+  that wakes it and reaches nothing else. Sleep also takes the Wi-Fi
+  interface and three of the four cores down and slows polled input such as
+  the joypad (`host/src/HostSleep.cpp`), and a run that ends asleep leaves
+  markers in `/run/braino` so the next start puts them back. **Never the
+  display output under muOS**: re-enabling its vendor driver's output woke the
+  RG40XXV mirrored with inverted colours, and muOS ships that toggle off. The
+  whole-device image's mainline DRM driver is a different driver, and there
+  sleep does switch the output off (`HostDrm::setPower()`).
+- **The RG40XX V has a whole-device image that is nothing but Braino**
+  (`host/rg40xxv/`, a Buildroot external tree; its README is the guide).
+  Mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A built from
+  source, the whole system in RAM, no GPU driver: `BRAINO_HOST_DRM` draws
+  through the kernel's DRM driver (`host/src/HostDrm.cpp`) and keeps SDL for
+  the gamepad and sound only. Four rules hold it together. **Nothing but
+  Braino draws on the panel** -- no text console, boot messages on the serial
+  port only -- so the screen is dark until the splash. **No service, login or
+  shell exists**: init runs the scripts in `board/overlay/etc/init.d` and
+  Braino, and the closed list of outbound flows covers the whole device.
+  **`host/rg40xxv/rocknix/` is ROCKNIX's, verbatim** (fetched by `fetch.sh`
+  from one pinned commit, recorded in `PROVENANCE.txt`), applied in ROCKNIX's
+  order with patch's default fuzz, and stops the build on any hunk that does
+  not apply. **The image is a release asset, never in git**, and it ships
+  with Buildroot's `legal-info` as its source offer.
+
+`BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
+replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,
+overdraw and partial-repaint mistakes.
+
 ### Build gotchas
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
@@ -623,9 +690,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,644,397 / 3,145,728 bytes,
-**84.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 88,468 / 327,680 (27.0%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,655,213 / 3,145,728 bytes,
+**84.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 91,356 / 327,680 (27.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -659,6 +726,20 @@ to draw, and holding 50Hz behind a dark screen defeats the point. It is panel
 sleep, not `esp_deep_sleep`: the CPU must stay up to poll touch, since no wake
 source is wired. `Board::displayWake()` blocks ~120ms for the panel, so its
 call site sits inside a `Watchdog::Pause` guard.
+
+**Deep sleep is the one step further, and only where a platform can take
+it.** `Board::deepSleepEnabled()` (off by default, global, RAM-mirrored) asks
+`BrainoApp::tickDeepSleep()` to suspend the whole device once the panel has
+been asleep `SystemSuspend::AFTER_ASLEEP_MS` (15 minutes).
+`src/hal/SystemSuspend.h` is the interface, one `.cpp` per platform like
+`PowerProbe`: the ESP32 boards answer `supported() == false`, because nothing
+on them can wake an ESP32 from deep sleep, so Settings does not draw the row
+and the console refuses `set deep_sleep`; the RG40XXV suspends to RAM and its
+power button wakes it (`host/src/HostSuspend.cpp`). The runtime decides when,
+the platform how, and it may decline -- on the charger, say -- in which case
+the runtime asks again a minute later. A wake from suspend is an ordinary
+`wakeFromSleep()`, so the lock screen and the admin rule apply unchanged. It is
+a Power-tab control like any other, so the Settings admin gate covers it.
 
 `View::Locked` sits between both idle views and the screen underneath, and is
 gated on `Board::wakeLockEnabled()` (default on, RAM-mirrored, global like
@@ -695,9 +776,9 @@ this one's -- see the invariant below. Three things about it are load-bearing:
   repainted per frame. The whole stack hangs off `lockButtonRect()`, whose
   offset below centre went from +12 to +25 to clear the new hairline;
   landscape is the tight case and every gap is stated in the comment there.
-  The battery badge is variable width, so it is placed off
-  `Ui::batteryBadgeWidth()` rather than a constant -- same rule as the
-  launcher header. **It belongs top right, level with the middle of the
+  The battery badge is placed off `Ui::batteryBadgeWidth()` rather than a
+  constant -- same rule as the launcher header -- because it is absent on a
+  board with no battery sense. **It belongs top right, level with the middle of the
   mark**, and it spent a release in the bottom corner instead on the
   reasoning that a status badge should not compete with the brand. The
   measurement disagrees: the footer is drawn centred across the full width
@@ -728,7 +809,14 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   find it done when they unlocked. Its slot comes from
   `LauncherLayout::topBarLockRect()` (top bar) or `LauncherLayout::lockRect()`
   (the launcher, which draws no top bar), and both the glyph and the hit test
-  read those same helpers.
+  read those same helpers. **Any other screen without a top bar overrides
+  `Game::headerControls()`** and draws the padlock and speaker itself: the
+  player picker does, at `LauncherLayout::pickerLockRect()` /
+  `pickerSpeakerRect()`. Before it, the picker had no padlock and the runtime
+  still took taps at the top bar's slot -- the middle of the Braino! mark, an
+  invisible Lock with no visible one. An empty rect means "none just now", and
+  the runtime then takes nothing there; the picker's menu, rename, games list
+  and PIN pad return one.
 - **The top bar has no spare pixels, and Lock was paid for.** Home narrowed
   from 42px to 32px and the title's start moved from 48 to 62, costing the
   title 14px. The right-hand cluster is measured, not padded, and cannot give;
@@ -755,6 +843,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
 | `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudioCues.cpp` / `BoardAudio.cpp` / `BoardAudioBackend.cpp` | The console's sound vocabulary, the synthesiser that generates every one of them a sample at a time, and the codec/I2S/DAC hardware under it |
+| `PowerMonitor` / `PowerProbe` / `PowerLedger` | `src/hal/Power*.h` | The battery drain diagnostic: one recorder and one analysis on every platform, over one small interface each platform implements |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
@@ -773,7 +862,8 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
 - **Device settings are global, not per-profile**: theme, layout, screen flip, brightness,
-  sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+  sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone,
+  deep sleep.
   Sound belongs on that list for a reason worth stating: the speaker belongs to
   whoever is in the room, and a console that came back loud because a different
   player picked it up is a poor thing to hand a young player in a quiet house. Per-profile: scores, mastery blobs, game visibility.
@@ -834,8 +924,8 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
 - **`APP_REGISTRY` holds the 41 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
-- **The launcher shows the profile name as plain text, not a button.** The framed chip is what overlapped the status badges; the name itself is wanted. `launcherProfileRect()` is both where it draws and the touch target, so the two cannot drift â€” in landscape it sits after the byline, not across it.
-- **The launcher status badges are packed to the pixel.** Landscape runs from a hairline at `lW-138` to the gear at `lW-30`, and the Lock badge sits at its left-hand end. The battery badge is **variable width** -- it carries its own percentage, so it grows with its digits, widest at `100` -- and in that widest state the row has only a few pixels spare. Everything on it is therefore laid out right-to-left off `Ui::batteryBadgeWidth()` and the *measured* width of the clock string, never a constant offset; the hairline has moved out twice to buy those pixels -- `lW-110` to `lW-116` for the battery percentage, then to `lW-138` for the Lock badge -- and `LauncherLayout::profileRect()`'s right limit moved with it both times. Lock is a **badge, not a control**: it is drawn at 18px beside the battery and Wi-Fi glyphs rather than at the gear's 26px, because it belongs to that family and a gear-sized padlock read as the most important thing on the header. Portrait has room to extend the badge row instead -- with one measured exception: the **mute control does not fit that row in portrait**. At 240px the badges reach about x=155 and the padlock starts at `lW-64`, which leaves roughly 20px for an 18px glyph plus its gaps, so it goes on the profile-name row above, whose right-hand half is empty because the name is capped at 112px. It sits **in the padlock's column** (`speakerRect()` takes `lockRect().x`) rather than mid-row: at `lW-96` it was beside nothing and above nothing, and it read off both portrait panels as an icon floating in an empty row. Anything new in that header needs the same treatment â€” measure, don't guess.
+- **The launcher shows the profile name as plain text, not a button, and a whole name always fits.** `LauncherLayout::profileRect()` is both where it draws and the touch target. In landscape it shares the mark's row, not the copyright's: after the copyright it lost pixels to every control added to the badge row until a nine-letter name ran over the hairline and under the padlock. Beside the mark it runs to 4px short of the header's hairline (`LauncherLayout::headerDividerX()`, 4px before the Bluetooth rune, the status group's leftmost glyph, so it divides both rows) -- 62px on a 320px panel -- and `drawProfileName()` uses font 2 when the name fits and font 1 when it does not -- `PROFILE_NAME_MAX` characters of font 1 always fit -- so a short name reads large and a long one is made smaller rather than cut. In portrait it has the second row to itself up to the gear. **The mark and the copyright never move to make room**; everything else in the header can.
+- **The launcher header is laid out by `LauncherLayout`, in one place, and ordered by how often each thing is there.** Landscape: the mark and the name, then the clock with its sync check and the gear, on the top row; the copyright, then Bluetooth, padlock, speaker, Wi-Fi and battery on the bottom row, right-aligned under the gear. Portrait: the mark and the copyright; the name and the gear; the clock and its sync check on the left of the third row and the same badge group on its right. Four rules hold it together. **The sync check sits with the clock**, because on its own it means nothing. **Bluetooth is outermost**, because it is drawn only while the beacon is on and its absence must leave a gap rather than move the rest. **The gear is the top bar's** -- `Ui::CONTROL_H`, 8px in from the right edge -- because at 26px here and 18px in every app it looked like two controls. **And the gear is kept away from the padlock and the speaker**: the runtime takes their taps before the launcher sees the gear's, so a speaker under the gear would turn taps on the gear's lower edge into Mute; Wi-Fi and the battery sit between them. The battery badge is **one width at every level** -- the width `100` needs, digits centred -- because a badge that shrank from 10% to 9%, just as it turned red, looked like a glitch. The badge group is still laid out right-to-left off `Ui::batteryBadgeWidth()`, which is 0 on a board with no battery sense, and the padlock's position (`screenW-110`) leaves room for it. The clock is `12:41P`, not `12:41 PM`, which is what bought the name its width. Anything new in that header: measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
   and the System Info BLE tab reads that same buffer back. `BleBeacon::decode()`
@@ -978,6 +1068,15 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   an older reader sees a poke and blips. **A future flag that moves a field
   does have to bump the version.** It is still a broadcast: everyone in range
   hears who is looking for whom, only the target rings.
+- **Where the battery went is measured the same way on every platform, and a
+  platform only answers what it can see.** `PowerProbe` is the interface:
+  one `.cpp` per platform (`hal/PowerProbeEsp32.cpp`,
+  `host/src/HostPowerProbe.cpp`), and an empty one still gets the analysis,
+  because `PowerMonitor` falls back to the firmware's gauge and loop load. A
+  field a platform cannot answer stays unknown and is shown as not measured,
+  never as zero. It runs from boot, because a report of a flat battery arrives
+  after the fact. The ledger is RAM and starts over on a reboot; nothing goes
+  to NVS and nothing is transmitted. See `src/hal/CLAUDE.md`.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
@@ -986,7 +1085,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 84.1%. As synthesis it is under a kilobyte.
+  artwork, on a budget already at 84.4%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.
@@ -1104,23 +1203,42 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
     generated image; nothing else will tell you it came out wrong.
-11. `tools/gen_site.py` — nothing, usually. The landing page shows six
-    chosen stills (`HERO_STILLS`) rather than all of them, and its game list
-    is names read from `AppRegistry`, so a new game appears on it without
-    anybody touching the generator. It showed all ninety-one once, with three
-    per game card, and that is why this step used to be a wiring job; the
-    page is now a page rather than a contact sheet, and the README gallery is
-    where a reader goes for every screen. Only if you want the new still to
-    be one of the six: add it to `HERO_STILLS` and give it a
-    `SCREEN_CAPTIONS` entry, and take one out — six is the number because
-    more stops selling and starts listing.
+10b. `tools/gen_gameplay.py` -- a sequence in `SEQUENCES`, named after the
+    game's still, then `python tools/gen_gameplay.py <name>` and **watch the
+    GIF**. The site plays it on the game's card (and on Home if the still is
+    one of `HERO_STILLS`), and `gen_site.py` refuses to build while a game
+    card has no animation or an animation has no card. Draw every state by
+    giving the game's own `gen_screens` function a parameter whose default is
+    the still -- the stills must regenerate byte-identical, which is how you
+    know the parameter changed nothing -- never by redrawing the screen in
+    the sequence. **No animation may show the number 13**, the maintainer's
+    rule: the generator records every string drawn and refuses one containing
+    it, so step a score or counter over it rather than drawing it.
+11. `tools/gen_site.py` — nothing, usually. The Games tab shows one card
+    per playable game: its still, its blurb from `AppRegistry` and its
+    "What it builds" cell read from the README table in step 6, grouped by
+    that table's heading. So the README row *is* the site copy -- write it
+    for a parent deciding whether the game is worth a child's time.
+    `gen_site.py` and `check_docs.py` both fail when a game has no README
+    row or no still. The still is `docs/screens/<game-id>.png` unless the id
+    is in `GAME_STILL_ALIASES`, which `check_docs.py` reads too; add an
+    alias only when the game's first screen is not named after its id. The
+    Home tab is separate: six chosen stills (`HERO_STILLS`). Only if you want
+    the new still to be one of those six, add it there with a
+    `SCREEN_CAPTIONS` entry and take one out.
 
 ### 4. Verify
 
 12. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
     `CLAUDE.md`. They are the two places that disagree.
 13. `python tools/check_docs.py` â€” must be clean.
-14. Flash it and actually play it. Take the board lock first.
+14. Build the host version and look at the new screen there --
+    `BRAINO_TAPS` walks to it, `BRAINO_SHOTS` photographs the firmware's own
+    frame. No board, no lock. A build failure means the game reached for a
+    platform call `host/shim/` does not answer yet: add the shim, never an
+    `#ifdef` in the game.
+15. Flash it and actually play it. Take the board lock first. The host build
+    is not the panel: colours, SPI time and touch feel are only true there.
 
 ### What you do NOT hand-edit
 
@@ -1134,9 +1252,9 @@ how About fell six games behind in the first place:
   `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
-  fails if a version number is typed into it. The game list and the six-still
-  wall are generated too, so do not add an `<img>` or a game name to the
-  template — see step 11 above
+  fails if a version number is typed into it. The game list, the game cards
+  and the six-still wall are generated too, so do not add an `<img>`, a game
+  name or a game description to the template — see step 11 above
 
 ### If it is a system app rather than a game
 
@@ -1241,6 +1359,7 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Cursive share: logic, Draw, Arrows, Words and a
                           Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
+                          SystemInfoPower is System Info's Batt tab.
                           Settings is three .cpp against one header --
                           SettingsApp (tabs + routing), SettingsPanels
                           (the tab bodies), SettingsPin (the PIN pad).
@@ -1276,13 +1395,25 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           (every cue and the spoken phrase),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
                           key), BoardUpdate (is a newer firmware available --
-                          a notice, never an OTA), BoardStorage, storage
+                          a notice, never an OTA), PowerProbe (what each
+                          platform implements) + PowerMonitor + PowerLedger
+                          (where the battery went), SystemSuspend (Deep
+                          sleep, where a platform can), BoardStorage, storage
                           maintenance, TouchTypes,
                           Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
                           LauncherLayout, LogoMask (generated -- the product
                           mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
+                          gen_site_anims.py (the animations on the site's
+                          Privacy and Get started cards -- look at every one
+                          after regenerating),
+                          gen_board_launch.py (Home's three boards, each
+                          launching a game -- site/assets/boards-launch.webp,
+                          drawn over boards-braino.png),
+                          gen_gameplay.py (each game's mock-up, played --
+                          docs/gameplay/*.gif, shown on the site; watch
+                          every one after regenerating),
                           gen_logo_mask.py (the product mark, from
                           tools/braino-badge.svg -- writes a preview that MUST
                           be looked at),
@@ -1323,12 +1454,26 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           check that judges them); pages.yml publishes
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
-                          every firmware image attached
+                          every firmware image attached; card-image.yml
+                          builds the RG40XX V's card image and its source
+                          bundle, and a card-rg40xxv-* tag publishes both
+                          as a pre-release
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
+                          gameplay/ (the stills played, from gen_gameplay.py),
                           boards/ (one page per supported board; the pin
                           tables and diagrams in it are generated)
 cases/                    printable enclosures, one folder per BOARD_NAME;
                           optional -- a board is supported without one
+host/                     src/ built unchanged as an SDL desktop program:
+                          boards/host.h (virtual pins), shim/ (only what
+                          src/ calls), src/ (window, input, NVS file with
+                          its secrets sealed, audio, the backlight,
+                          emulated FT6336U, Wi-Fi through the OS, boot
+                          splash), cmake/ (aarch64 toolchain), muos/ (the
+                          RG40XXV launcher and card packer), rg40xxv/ (the
+                          RG40XX V's Braino-only Buildroot image: build.sh,
+                          configs/, board/, package/, and rocknix/ --
+                          ROCKNIX's H700 patches and device trees, verbatim)
 ```
 
 ## Cutting a release
@@ -1417,6 +1562,23 @@ break it, and all three fail in someone else's browser rather than here:
    sitting in the tree (weight in every clone, forever). `gen_site.py` copies
    the folder into the build, so nothing on the page reaches outside the Pages
    origin for a picture.
+
+   `boards-launch.webp` is generated too, by `tools/gen_board_launch.py`:
+   the three boards from `boards-braino.png`, each launching a game, its
+   screens drawn by `gen_screens.py` in that board's theme. Its screen
+   rectangles were fitted to the still, so **recompositing
+   `boards-braino.png` means refitting them** (the docstring says how), and
+   the still stays as the reduced-motion fallback.
+
+   The other exception is `privacy-*` and `start-*`: one animation per card on the
+   Privacy and Get started tabs, each a GIF plus its last frame as a PNG that
+   readers who ask for reduced motion get instead. They are drawn by
+   `tools/gen_site_anims.py` in the page's own palette, never by hand, and
+   every label in one is a claim the card beside it also makes in words -- so
+   **changing a card's text means rereading its scene**, and changing what
+   the firmware sends means both. Labels are drawn no smaller than 19px
+   because the card shows a scene at about half size; check a regenerated
+   scene at phone width, not only on a desktop.
 
 5. **Adding coverage to `site/featured.json`.** The Featured page shows other
    people's pages, which move, paywall and vanish, so an entry is not a link:

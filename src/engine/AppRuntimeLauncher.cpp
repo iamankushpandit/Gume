@@ -31,6 +31,31 @@ void copyFittedText(Ui::Renderer& tft, const char* source, char* dest, size_t ca
     }
 }
 
+/* The player's name in the space profileRect() gives it, left-aligned and
+ * centred on the rect's height: font 2 when the whole name fits, font 1 when
+ * it does not. profileRect() is sized so that font 1 always holds a full
+ * PROFILE_NAME_MAX name (6px a character), so a short name reads large and a
+ * long one is made smaller rather than cut. The trim is only a backstop for a
+ * panel too narrow for even that. */
+void drawProfileName(Ui::Renderer& tft, const char* name, const Rect& r) {
+    char text[Board::PROFILE_NAME_MAX + 1];
+    const uint8_t font = tft.textWidth(name, 2) <= r.w ? 2 : 1;
+    copyFittedText(tft, name, text, sizeof(text), r.w, font);
+    tft.setTextDatum(ML_DATUM);
+    tft.drawString(text, r.x, static_cast<int16_t>(r.y + r.h / 2), font);
+}
+
+/* The always-there half of the badge row, right-aligned to `right` on the row
+ * centred at `cy`: the battery at the end and Wi-Fi before it, with the
+ * spacing the top bar uses. The battery badge is absent on a board with no
+ * battery sense, so this is measured, never assumed. */
+void drawWifiAndBattery(Ui::Renderer& tft, Board& board, int16_t right, int16_t cy) {
+    const int8_t battPct = board.getBatteryPercent();
+    const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
+    Ui::drawWifiBadge(tft, static_cast<int16_t>(right - battW - 6 - 8), cy, Ui::surface());
+    Ui::drawBatteryBadge(tft, static_cast<int16_t>(right - battW / 2), cy, battPct, Ui::surface());
+}
+
 /* Break `source` at a space into two lines that each fit `maxW`, keeping the
  * first line as long as it can be. False when there is no such break -- a
  * single word too wide for the tile, or text that needs three lines. */
@@ -237,76 +262,57 @@ void LauncherApp::drawHeader(GameHost& host) {
         tft.setTextDatum(MR_DATUM);
         tft.drawString(BRAINO_COPYRIGHT_SHORT, static_cast<int16_t>(lW - 8), 17, 1);
         tft.setTextColor(Ui::text(), Ui::surface());
+        drawProfileName(tft, board.profileName(board.activeProfile()).c_str(), profileBtn);
+
+        /* The badge row: the clock and its sync check on the left, the rest
+         * right-aligned under the gear, Bluetooth outermost (see lockRect()). */
+        const int16_t rowY = 60;
         tft.setTextDatum(ML_DATUM);
-        tft.setTextColor(Ui::text(), Ui::surface());
-        tft.drawString(Ui::fitted(tft, board.profileName(board.activeProfile()),
-                                  profileBtn.w, 2),
-                       static_cast<int16_t>(profileBtn.x + 2),
-                       static_cast<int16_t>(profileBtn.y + profileBtn.h / 2), 2);
-        tft.setTextColor(Ui::text(), Ui::surface());
-        tft.setTextDatum(ML_DATUM);
-        tft.drawString(Clock::timeText(), 8, 60, 2);
-        /* Left to right off the clock. The battery badge is variable width now,
-         * so the BLE badge after it is placed off the measured size rather than
-         * a fixed +70 that assumed a 15px battery. */
-        const int16_t bx = static_cast<int16_t>(8 + tft.textWidth(Clock::timeText(), 2) + 10);
-        const int8_t battPct = board.getBatteryPercent();
-        const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
-        const int16_t battLeft = static_cast<int16_t>(bx + 40);
-        Ui::drawSyncBadge(tft, static_cast<int16_t>(bx + 6), 60, Clock::synced(), Ui::surface());
-        Ui::drawWifiBadge(tft, static_cast<int16_t>(bx + 26), 60, Ui::surface());
-        Ui::drawBatteryBadge(tft, static_cast<int16_t>(battLeft + battW / 2), 60,
-                             battPct, Ui::surface());
+        tft.drawString(Clock::timeText(), 8, rowY, 2);
+        Ui::drawSyncBadge(tft, static_cast<int16_t>(8 + tft.textWidth(Clock::timeText(), 2) + 12),
+                          rowY, Clock::synced(), Ui::surface());
+        drawWifiAndBattery(tft, board, static_cast<int16_t>(gearBtn.x + gearBtn.w), rowY);
         if (BleBeacon::active()) {
-            Ui::drawBleBadge(tft, static_cast<int16_t>(battLeft + battW + 11), 60,
+            Ui::drawBleBadge(tft, static_cast<int16_t>(LauncherLayout::lockRect(mode, lW).x - 9), rowY,
                              Ui::surface());
         }
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
 
     } else {
         /* The same mark in landscape, where the copyright sits on its own row
-         * underneath and there is no width to fight over. */
+         * underneath. The player's name shares the mark's row (see
+         * profileRect()), and the clock with its sync check and the gear close
+         * it at the right, as in the top bar. */
         Ui::drawLogo(tft,
                      static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
                      16, Ui::text(), Ui::Logo::Word);
         tft.setTextColor(Ui::muted(), Ui::surface());
         tft.drawString(BRAINO_COPYRIGHT_SHORT, 10, 38, 1);
-        tft.setTextDatum(ML_DATUM);
         tft.setTextColor(Ui::text(), Ui::surface());
-        tft.drawString(Ui::fitted(tft, board.profileName(board.activeProfile()),
-                                  profileBtn.w, 1),
-                       static_cast<int16_t>(profileBtn.x),
-                       static_cast<int16_t>(profileBtn.y + profileBtn.h / 2), 1);
+        drawProfileName(tft, board.profileName(board.activeProfile()).c_str(), profileBtn);
 
+        const int16_t topY = static_cast<int16_t>(gearBtn.y + gearBtn.h / 2);
+        const int16_t syncCx = static_cast<int16_t>(gearBtn.x - 6 - 7);
+        Ui::drawSyncBadge(tft, syncCx, topY, Clock::synced(), Ui::surface());
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(MR_DATUM);
-        tft.drawString(Clock::timeText(), static_cast<int16_t>(lW - 40), 14, 1);
+        tft.drawString(Clock::timeText(), static_cast<int16_t>(syncCx - 7 - 5), topY, 2);
+
+        /* The badge row, right-aligned under the gear: Wi-Fi and the battery
+         * at the end, the speaker and padlock before them, and Bluetooth --
+         * there only while the beacon is on -- outermost. */
+        const Rect lock = LauncherLayout::lockRect(mode, lW);
+        const int16_t rowY = static_cast<int16_t>(lock.y + lock.h / 2);
+        drawWifiAndBattery(tft, board, static_cast<int16_t>(gearBtn.x + gearBtn.w), rowY);
         if (BleBeacon::active()) {
-            const int16_t clockLeft =
-                static_cast<int16_t>(lW - 40 - tft.textWidth(Clock::timeText(), 1));
-            Ui::drawBleBadge(tft, max<int16_t>(static_cast<int16_t>(lW - 104),
-                                               static_cast<int16_t>(clockLeft - 14)),
-                             14, Ui::surface());
+            Ui::drawBleBadge(tft, static_cast<int16_t>(lock.x - 9), rowY, Ui::surface());
         }
-        /* Packed to the pixel, and now measured rather than assumed. The row
-         * runs from the hairline at lW-160 to the gear at lW-30, and carries
-         * the Lock badge and the mute control at its left-hand end. In the widest state -- "100",
-         * narrower now there is no charging bolt -- the three status badges plus their gaps come
-         * to 81px, the padlock and its gap take another 25, and what is left
-         * is a few pixels. Anything else that wants to live on this row has to
-         * earn it. The hairline has moved out twice, lW-110 to lW-116 to lW-138,
-         * lW-110 to lW-116 to lW-138 to lW-160, and profileRect()'s right
-         * limit moved with it every time. */
-        const int8_t battPct = board.getBatteryPercent();
-        const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
-        const int16_t battRight = static_cast<int16_t>(lW - 36);
-        const int16_t wifiCx = static_cast<int16_t>(battRight - battW - 6 - 8);
-        const int16_t syncCx = static_cast<int16_t>(wifiCx - 8 - 6 - 6);
-        Ui::drawSyncBadge(tft, syncCx, 34, Clock::synced(), Ui::surface());
-        Ui::drawWifiBadge(tft, wifiCx, 34, Ui::surface());
-        Ui::drawBatteryBadge(tft, static_cast<int16_t>(battRight - battW / 2), 34,
-                             battPct, Ui::surface());
-        tft.drawFastVLine(static_cast<int16_t>(lW - 160), 8, 32, Ui::outline());
+        /* The hairline that sets the mark, the name and the copyright apart
+         * from the status group (LauncherLayout::headerDividerX()). */
+        const int16_t dividerTop = LauncherLayout::headerDividerTop();
+        tft.drawFastVLine(LauncherLayout::headerDividerX(lW), dividerTop,
+                          static_cast<int16_t>(LauncherLayout::headerDividerBottom(lW) - dividerTop),
+                          Ui::outline());
     }
     Ui::drawGearIcon(tft, gearBtn, Ui::text());
     /* The launcher draws no top bar, so it carries its own Lock button. The

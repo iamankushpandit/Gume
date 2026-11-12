@@ -163,12 +163,24 @@ Rect BrainoApp::activeLockRect() {
     if (activeGame_ == &launcher_) {
         return LauncherLayout::lockRect(board_.layoutMode(), renderer_.width());
     }
+    Rect lock{}, speaker{};
+    if (activeGame_ != nullptr && activeGame_->headerControls(static_cast<int16_t>(renderer_.width()),
+                                                              static_cast<int16_t>(renderer_.height()),
+                                                              lock, speaker)) {
+        return lock;
+    }
     return LauncherLayout::topBarLockRect(static_cast<int16_t>(renderer_.width()));
 }
 
 Rect BrainoApp::activeSpeakerRect() {
     if (activeGame_ == &launcher_) {
         return LauncherLayout::speakerRect(board_.layoutMode(), renderer_.width());
+    }
+    Rect lock{}, speaker{};
+    if (activeGame_ != nullptr && activeGame_->headerControls(static_cast<int16_t>(renderer_.width()),
+                                                              static_cast<int16_t>(renderer_.height()),
+                                                              lock, speaker)) {
+        return speaker;
     }
     return LauncherLayout::topBarSpeakerRect(static_cast<int16_t>(renderer_.width()));
 }

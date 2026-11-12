@@ -29,12 +29,17 @@ Rect topBarLockRect(int16_t screenW);
 int16_t topBarTitleLeft(int16_t screenW);
 
 /* Where the launcher draws its own Lock button. The launcher has no top bar,
- * so it needs its own slot: the air between the title and the profile name in
- * Wide, and the badge row's right-hand end in Tall. */
+ * so it needs its own slot: just left of the status badges on the bottom row
+ * in Wide, and the badge row's right-hand end in Tall. */
 Rect lockRect(Board::LayoutMode mode, int16_t screenW);
 int16_t headerHeight(Board::LayoutMode mode);
 Rect gearRect(Board::LayoutMode mode, int16_t screenW);
 Rect profileRect(Board::LayoutMode mode, int16_t screenW);
+/* Landscape only: the hairline between the mark, name and copyright and the
+ * header's clock, gear and badges -- its x, and the rows it spans. */
+int16_t headerDividerX(int16_t screenW);
+int16_t headerDividerTop();
+int16_t headerDividerBottom(int16_t screenW);
 /* The launcher's tile grid, measured against the live panel.
  *
  * screenW/screenH are required rather than defaulted. Everything else on this
@@ -62,10 +67,15 @@ struct Grid {
 constexpr int16_t DENSE_PORTRAIT_MIN_W = 320;
 /** The most tiles any grid puts on one page. */
 constexpr uint8_t MAX_PAGE_SIZE = 9;
-/* Mute/unmute on the launcher's own header. Landscape: the badge row, beside
- * the padlock. Portrait: the profile-name row, because the badge row at 240px
- * has no fourth slot. */
+/* Mute/unmute on the launcher's own header, beside the padlock. */
 Rect speakerRect(Board::LayoutMode mode, int16_t screenW);
+
+/* The player picker's padlock and speaker. It draws its own header and no top
+ * bar, so like the launcher it carries the pair itself: at the right-hand end
+ * of the "Who is playing?" row, in both orientations. Here rather than in
+ * ProfileApp because the runtime and the handheld's d-pad read them too. */
+Rect pickerLockRect(int16_t screenW);
+Rect pickerSpeakerRect(int16_t screenW);
 
 Grid grid(Board::LayoutMode mode, int16_t screenW, int16_t screenH);
 uint8_t pageSize(Board::LayoutMode mode, int16_t screenW, int16_t screenH);

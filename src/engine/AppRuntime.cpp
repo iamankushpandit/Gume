@@ -9,12 +9,14 @@
 
 #include "AppRuntime.h"
 
+#include <WiFi.h>
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <math.h>
 #include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
+#include "hal/PowerMonitor.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
 
@@ -152,6 +154,7 @@ void BrainoApp::begin() {
      * this configures a scale of 1.0 and the wrapper becomes a passthrough. */
     scaledRenderer_.configure(SCREEN_WIDTH, SCREEN_HEIGHT);
     Watchdog::begin();
+    PowerMonitor::begin(board_);
     if (!board_.hasTouchCalibration()) {
         board_.runTouchCalibration();
     }
@@ -234,6 +237,7 @@ void BrainoApp::loop() {
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
     tickUpdateNotice(nowMs);
+    tickPowerMonitor(nowMs);
     tickSerialQuery();
 
     /* A notification appearing or expiring changes the header, and the header
@@ -326,6 +330,8 @@ void BrainoApp::loop() {
     if (view_ == View::Asleep) {
         if (rawTouch.justPressed || rawTouch.down || boot.justPressed) {
             wakeFromSleep();
+        } else {
+            tickDeepSleep(nowMs);
         }
     } else if (view_ == View::Locked) {
         /* The swallowed touch, not the raw one: the press that lit the panel
@@ -383,13 +389,15 @@ void BrainoApp::loop() {
          * find it done when they unlocked. Home is tested first: their touch
          * slop overlaps even though the glyphs do not, and the older target
          * keeps the ambiguous pixels. */
-        } else if (touch.justPressed &&
+        /* An empty rect is a screen showing no padlock (Game::headerControls),
+         * and with the slop it would still catch the corner. */
+        } else if (touch.justPressed && lockButton.w > 0 &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
         /* Mute is consumed up here for the same reason Home, the gear and
          * Lock are: a tap that also reached the screen would press whatever
          * sat under the speaker, and the player would find it done. */
-        } else if (touch.justPressed && Board::hasSound() &&
+        } else if (touch.justPressed && Board::hasSound() && speakerButton.w > 0 &&
                    speakerButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             toggleMute();
         } else if (activeAppIsPlayable() && !activeApp_->followsLayout) {
@@ -451,6 +459,23 @@ void BrainoApp::loop() {
     } else {
         delay(1);
     }
+}
+
+/* What the battery diagnostic cannot find out for itself. Once a second, from
+ * RAM: the task that books the time reads the last one published, so nothing
+ * here is on its schedule and nothing there touches the runtime. */
+void BrainoApp::tickPowerMonitor(uint32_t nowMs) {
+    if (nowMs - lastPowerPublishMs_ < 1000) return;
+    lastPowerPublishMs_ = nowMs;
+    PowerMonitor::Activity a;
+    a.activity = view_ == View::Asleep        ? PowerLedger::Activity::Asleep
+                 : view_ == View::ScreenSaver ? PowerLedger::Activity::Saver
+                 : view_ == View::Locked      ? PowerLedger::Activity::Locked
+                                              : PowerLedger::Activity::Awake;
+    a.lampPercent = board_.lampPercent();
+    a.wifi = WiFi.status() == WL_CONNECTED;
+    a.bluetooth = BleBeacon::active() || NearbyPlay::active();
+    PowerMonitor::publish(a);
 }
 
 void BrainoApp::requestChromeRender() {

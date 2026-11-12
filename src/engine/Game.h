@@ -18,6 +18,7 @@
 struct AppDefinition;
 class Board;
 class ContentLoader;
+struct Rect;
 
 /* One seat at a two-player game on another console.
  *
@@ -274,6 +275,25 @@ public:
     virtual bool renderChrome(GameHost& host) {
         host.drawTopBar(title());
         return true;
+    }
+
+    /* Where this screen's padlock and speaker are, if it draws its own header
+     * rather than the top bar. The runtime takes Lock and Mute taps there,
+     * above update(), as it does on the top bar.
+     *
+     * False, the default, means the top bar's. A screen that returns true
+     * draws the two glyphs itself at the rects it gives, and an empty rect
+     * (w == 0) means it shows neither just now -- so nothing is taken there.
+     * Without this the runtime took taps at the top bar's slots on a screen
+     * with no top bar: on the player picker that was the middle of the
+     * Braino! mark, an invisible Lock button with no visible one anywhere. */
+    virtual bool headerControls(int16_t screenW, int16_t screenH, Rect& lock,
+                                Rect& speaker) const {
+        (void)screenW;
+        (void)screenH;
+        (void)lock;
+        (void)speaker;
+        return false;
     }
 
 protected:

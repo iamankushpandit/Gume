@@ -12,6 +12,7 @@
 #include "AppVersion.h"
 #include "engine/AppRegistry.h"
 #include "hal/Board.h"
+#include "ui/LauncherLayout.h"
 
 namespace {
 constexpr uint8_t KEY_COLS = 6;
@@ -501,6 +502,19 @@ bool ProfileApp::renderChrome(GameHost& host) {
     return false;   // see the header -- nothing here to repaint in isolation
 }
 
+bool ProfileApp::headerControls(int16_t screenW, int16_t screenH, Rect& lock,
+                                Rect& speaker) const {
+    (void)screenH;
+    if (phase_ != Phase::Pick) {
+        lock = Rect{};
+        speaker = Rect{};
+        return true;
+    }
+    lock = LauncherLayout::pickerLockRect(screenW);
+    speaker = LauncherLayout::pickerSpeakerRect(screenW);
+    return true;
+}
+
 /* PROFILES IS A FULL-REPAINT SCREEN, ON PURPOSE.
  *
  * It has five phases with different layouts, it carries the admin PIN pad, and
@@ -571,6 +585,14 @@ void ProfileApp::renderDynamic(GameHost& host) {
         tft.setTextColor(Ui::muted(), Ui::bg());
         tft.drawString("Guest plays without saving scores",
                        W / 2, static_cast<int16_t>(promptY + 18), 1);
+
+        /* Lock and Mute, which every other screen has in its top bar. The taps
+         * are the runtime's (headerControls()), so nothing here tests them. */
+        Ui::drawLockIcon(tft, LauncherLayout::pickerLockRect(W), Ui::text(), Ui::bg());
+        if (Board::hasSound()) {
+            Ui::drawSpeakerIcon(tft, LauncherLayout::pickerSpeakerRect(W), !board.soundEnabled(),
+                                Ui::text());
+        }
 
         const uint8_t active = board.activeProfile();
         const uint8_t rows = rowCount(board);

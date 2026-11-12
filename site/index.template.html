@@ -173,14 +173,29 @@
   .boards span{display:block;font-size:15px;color:rgba(0,0,0,.62);margin-top:2px}
   @media (max-width:860px){.flash .grid{grid-template-columns:1fr}}
 
-  /* games, as type rather than as ninety-one pictures */
+  /* games: an index of names, then one card per game */
   .games{padding:14vh var(--gutter)}
   .games h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
   .games .intro{margin-top:22px;max-width:38rem;font-size:20px;color:var(--muted)}
   .games .intro a{color:var(--yellow)}
   .wall{margin-top:30px;display:flex;flex-wrap:wrap;gap:8px}
-  .wall span{font-size:15px;font-weight:600;letter-spacing:0;color:var(--muted);
-             border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+  .wall a{font-size:15px;font-weight:600;letter-spacing:0;color:var(--muted);text-decoration:none;
+          border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+  .wall a:hover,.wall a:focus-visible{color:var(--fg);border-color:var(--yellow)}
+  .game-group{margin-top:64px;font-size:clamp(28px,3.4vw,44px);font-weight:900;letter-spacing:-.035em;line-height:1.05}
+  .game-grid{margin-top:22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+  .game{display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:var(--ink-2);
+        box-shadow:inset 0 0 0 1px var(--line);scroll-margin-top:160px}
+  .game img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:contain;background:#0b0f15;image-rendering:pixelated}
+  .game picture,.wall-still picture{display:block}
+  .game .text{padding:16px 18px 20px}
+  .game h4{margin:0;font-size:24px;font-weight:800;letter-spacing:-.03em}
+  .game .blurb{margin-top:2px;font-size:15px;color:var(--muted)}
+  .game .builds{margin-top:12px;font-size:16px;line-height:1.5}
+  .game .builds span{display:block;margin-bottom:2px;font-size:12px;font-weight:700;letter-spacing:.08em;
+                     text-transform:uppercase;color:var(--yellow)}
+  .game code{font-size:.92em;background:rgba(255,255,255,.08);border-radius:4px;padding:0 4px}
+  @media (max-width:420px){.game-grid{grid-template-columns:1fr}}
 
   /* videos */
   .videos{padding:14vh var(--gutter);background:var(--ink-2)}
@@ -215,6 +230,7 @@
   .privacy .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:34px var(--gutter);margin-top:40px}
   .privacy h3{font-size:22px;font-weight:800;letter-spacing:-.02em}
   .privacy p{margin-top:8px;color:var(--muted);font-size:17px}
+  .privacy .anim img{display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:14px;border:1px solid var(--line);margin-bottom:16px}
 
   .builders{padding:14vh var(--gutter)}
   .builders h2{font-size:clamp(44px,7vw,112px);font-weight:900;letter-spacing:-.045em;line-height:.92}
@@ -299,6 +315,7 @@
   .extras > div{padding:22px;border-radius:20px;box-shadow:inset 0 0 0 1.5px var(--line)}
   .extras h4{font-size:18px;font-weight:800}
   .extras p{margin-top:8px;font-size:15px;color:var(--muted)}
+  .start .anim img{display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:14px;border:1px solid var(--line);margin-bottom:16px}
   .faq{margin-top:18px;max-width:54rem}
   .faq details{border-top:1px solid var(--line);padding:16px 0}
   .faq summary{cursor:pointer;font-weight:700;font-size:18px}
@@ -402,8 +419,9 @@
   </div>
   <figure style="background:#fff">
     <picture>
-      <source srcset="assets/boards-braino.webp" type="image/webp">
-      <img src="assets/boards-braino.png" alt="Braino running on three bare ESP32 CYD boards - 3.2 inch, 4 inch and the 2.8 inch S3 - in three different themes" loading="lazy" style="object-fit:contain">
+      <source srcset="assets/boards-braino.webp" type="image/webp" media="(prefers-reduced-motion: reduce)">
+      <source srcset="assets/boards-launch.webp" type="image/webp">
+      <img src="assets/boards-braino.png" alt="Braino running on three bare ESP32 CYD boards - 3.2 inch, 4 inch and the 2.8 inch S3 - in three different themes, each opening a game from its launcher and turning to play it" loading="lazy" style="object-fit:contain">
     </picture>
   </figure>
 </section>
@@ -464,9 +482,9 @@
     or assemble.
   </p>
   <ol class="how">
-    <li><b>Get a board.</b>Pick one from the table below. Not sure? Get the 4-inch Hosyond: the biggest screen of the five.</li>
-    <li><b>Plug it into a computer.</b>Use a USB-C cable that carries data &mdash; a charge-only cable looks identical and does nothing. Windows, Mac, Linux or a Chromebook all work.</li>
-    <li><b>Press Install.</b>Open the <a href="#flash">Install</a> tab in Chrome or Edge, pick the same board, and wait about a minute. Phones and tablets cannot install it.</li>
+    <li><picture class="anim"><source srcset="assets/start-board.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-board.gif" width="640" height="360" loading="lazy" alt="A yellow CYD board turns over: the touchscreen on the front, the ESP32 computer already on the back. Nothing to solder or wire."></picture><b>Get a board.</b>Pick one from the table below. Not sure? Get the 4-inch Hosyond: the biggest screen of the five.</li>
+    <li><picture class="anim"><source srcset="assets/start-plug.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-plug.gif" width="640" height="360" loading="lazy" alt="Over a charge-only cable the board powers on but the computer finds nothing; over a data cable the data flows both ways and the board is found."></picture><b>Plug it into a computer.</b>Use a USB-C cable that carries data &mdash; a charge-only cable looks identical and does nothing. Windows, Mac, Linux or a Chromebook all work.</li>
+    <li><picture class="anim"><source srcset="assets/start-install.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-install.gif" width="640" height="360" loading="lazy" alt="Install is pressed in Chrome or Edge, a progress bar fills in about a minute, and the board boots into Braino. A phone or tablet cannot do it."></picture><b>Press Install.</b>Open the <a href="#flash">Install</a> tab in Chrome or Edge, pick the same board, and wait about a minute. Phones and tablets cannot install it.</li>
   </ol>
 
   <h3 class="sub">Which board to buy</h3>
@@ -485,9 +503,9 @@
 
   <h3 class="sub">Nice to have, never required</h3>
   <div class="extras">
-    <div><h4>A small speaker</h4><p>For sound. Most of these boards have a two-pin 1.25&nbsp;mm speaker socket; without a speaker Braino simply plays silently. Either of these works: <a href="https://www.amazon.com/dp/B0D878Q3JH" rel="nofollow noopener">1&nbsp;W, 8&nbsp;&Omega;</a> or <a href="https://www.amazon.com/dp/B0FM3QN15Q" rel="nofollow noopener">3&nbsp;W, 4&nbsp;&Omega;</a> &mdash; also not sponsored.</p></div>
-    <div><h4>A case</h4><p>Prints without supports and needs no screws. The files for the 2.8, 3.2 and 4-inch boards are in the repository, so anyone with a 3D printer can make one. <a href="{{REPO}}/tree/main/cases">The case files</a></p></div>
-    <div><h4>A battery</h4><p>Boards with a battery socket take a single-cell 3.7&nbsp;V lithium battery with a two-pin 1.25&nbsp;mm plug, and charge it over USB. The maintainer uses <a href="https://www.amazon.com/dp/B08T6GT7DV" rel="nofollow noopener">this 3000&nbsp;mAh one</a> &mdash; not sponsored &mdash; the size the printed case has room for. <b>Before plugging any battery in, check that its red wire lines up with the + mark beside the socket:</b> plugs of the same size are sold wired both ways round, and a reversed battery can damage the board. Without one, the board runs from any USB charger or power bank.</p></div>
+    <div><picture class="anim"><source srcset="assets/start-speaker.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-speaker.gif" width="640" height="360" loading="lazy" alt="A small speaker's two-pin 1.25 mm plug goes into the board's SPK socket and it plays sound. Without one, Braino plays silently."></picture><h4>A small speaker</h4><p>For sound. Most of these boards have a two-pin 1.25&nbsp;mm speaker socket; without a speaker Braino simply plays silently. Either of these works: <a href="https://www.amazon.com/dp/B0D878Q3JH" rel="nofollow noopener">1&nbsp;W, 8&nbsp;&Omega;</a> or <a href="https://www.amazon.com/dp/B0FM3QN15Q" rel="nofollow noopener">3&nbsp;W, 4&nbsp;&Omega;</a> &mdash; also not sponsored.</p></div>
+    <div><picture class="anim"><source srcset="assets/start-case.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-case.gif" width="640" height="360" loading="lazy" alt="The back of the case, the board and the front frame come together: no screws, no supports, for the 2.8, 3.2 and 4-inch boards."></picture><h4>A case</h4><p>Prints without supports and needs no screws. The files for the 2.8, 3.2 and 4-inch boards are in the repository, so anyone with a 3D printer can make one. <a href="{{REPO}}/tree/main/cases">The case files</a></p></div>
+    <div><picture class="anim"><source srcset="assets/start-battery.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-battery.gif" width="640" height="360" loading="lazy" alt="A battery plug with its red wire on the minus side is stopped; turned round with the red wire to plus it plugs in and the battery charges over USB."></picture><h4>A battery</h4><p>Boards with a battery socket take a single-cell 3.7&nbsp;V lithium battery with a two-pin 1.25&nbsp;mm plug, and charge it over USB. The maintainer uses <a href="https://www.amazon.com/dp/B08T6GT7DV" rel="nofollow noopener">this 3000&nbsp;mAh one</a> &mdash; not sponsored &mdash; the size the printed case has room for. <b>Before plugging any battery in, check that its red wire lines up with the + mark beside the socket:</b> plugs of the same size are sold wired both ways round, and a reversed battery can damage the board. Without one, the board runs from any USB charger or power bank.</p></div>
   </div>
 
   <h3 class="sub">Questions people ask first</h3>
@@ -589,17 +607,17 @@
 <section class="games" id="games">
   <h2>Every game,<br>baked into flash.</h2>
   <p class="intro">
-    All {{GAME_COUNT}} of them, and any one can be hidden per player. This list is
-    generated from the firmware's own registry, so it cannot drift from what is
-    actually on the board.
+    All {{GAME_COUNT}} of them, each with a screen and what it builds. Any one
+    can be hidden per player.
   </p>
-  <div class="wall">
+  <nav class="wall" aria-label="Jump to a game">
 {{GAME_WALL}}
-  </div>
-  <p class="intro" style="margin-top:34px">
-    Every screen has a mock-up, redrawn on a PC from the rectangles, fonts and
-    colours in the source. They live in
-    <a href="{{REPO}}#the-games">the README gallery</a> rather than here.
+  </nav>
+{{GAME_CARDS}}
+  <p class="intro" style="margin-top:44px">
+    The screens are mock-ups drawn from the firmware's own layout and colours.
+    Every other screen, including the system apps, is in
+    <a href="{{REPO}}#every-game">the README gallery</a>.
   </p>
 </section>
 
@@ -649,14 +667,14 @@
   check for updates &mdash; and its Bluetooth is off until you switch it on. Every
   exception is listed below, exactly.</p>
   <div class="cols">
-    <div><h3>Wi-Fi</h3><p>Optional, and used for the clock: an NTP server, plus one lookup to ip-api.com to guess the time zone on first connect. A daily check asks whether a newer firmware exists, and that request says nothing whatsoever about this device. Skip Wi-Fi entirely and nothing else changes.</p></div>
-    <div><h3>Bluetooth Low Energy</h3><p>Off by default. Switched on, it advertises a device name and two bytes of the factory Bluetooth MAC &mdash; and the device shows you a hex dump of the exact bytes on air, read back from the same buffer that was handed to the radio.</p></div>
-    <div><h3>Nearby</h3><p>A second opt-in on top of that, also off by default. The beacon then additionally carries which game is open and the best score for it. No player name, no profile name, nothing profile-scoped: a peer is four hex digits of its own hardware id and nothing else.</p></div>
-    <div><h3>Games between consoles</h3><p>Each console advertises its latest move: a session number, a move number and two small numbers saying what was played. Dice are never sent. It is a broadcast &mdash; anyone in range hears the moves &mdash; and every move received is checked against the receiver's own board before it is played.</p></div>
-    <div><h3>Poke</h3><p>Rides the same beacon and adds no new kind of data: for a few seconds it carries the id being poked, which that console already broadcasts as its own name, and a counter. Every Braino in range hears it; only the one addressed reacts.</p></div>
-    <div><h3>Local names for peers</h3><p>Stay on the console that stored them. The administrator can label a tag they recognise so a poke says who rather than what; the beacon never reads that label, so what goes on air is identical whether every peer is named or none is.</p></div>
-    <div><h3>Scores and profiles</h3><p>Live in the ESP32's own flash and never leave it. There is no account to make, nothing to sign in to, and no way for anybody here to see how a player plays.</p></div>
-    <div><h3>This page</h3><p>Talks to your board over Web Serial, inside your browser; nothing about your device is sent anywhere. The firmware comes from GitHub Pages, and the Install button's code (esp-web-tools) from the unpkg CDN. Those two are the only requests this page makes on load &mdash; no analytics, no cookies, no fonts from anybody else.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-wifi.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-wifi.gif" width="640" height="360" loading="lazy" alt="The console asks a clock server for the time, asks ip-api.com once for its time zone, and asks once a day whether a newer firmware exists, while players, scores and the Wi-Fi password stay on the console."></picture><h3>Wi-Fi</h3><p>Optional, and used for the clock: an NTP server, plus one lookup to ip-api.com to guess the time zone on first connect. A daily check asks whether a newer firmware exists, and that request says nothing whatsoever about this device. Skip Wi-Fi entirely and nothing else changes.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-ble.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-ble.gif" width="640" height="360" loading="lazy" alt="Bluetooth is off until switched on; then the console sends its name, Braino-A4F2, and shows the exact bytes it sends on its own screen."></picture><h3>Bluetooth Low Energy</h3><p>Off by default. Switched on, it advertises a device name and two bytes of the factory Bluetooth MAC &mdash; and the device shows you a hex dump of the exact bytes on air, read back from the same buffer that was handed to the radio.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-nearby.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-nearby.gif" width="640" height="360" loading="lazy" alt="With Nearby switched on, the beacon adds the open game and its best score; a player name and profile are never on air."></picture><h3>Nearby</h3><p>A second opt-in on top of that, also off by default. The beacon then additionally carries which game is open and the best score for it. No player name, no profile name, nothing profile-scoped: a peer is four hex digits of its own hardware id and nothing else.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-games.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-games.gif" width="640" height="360" loading="lazy" alt="A move goes out as a game number, a move number and two squares. The opponent checks it on its own board, any other console in range ignores it, and dice are never sent."></picture><h3>Games between consoles</h3><p>Each console advertises its latest move: a session number, a move number and two small numbers saying what was played. Dice are never sent. It is a broadcast &mdash; anyone in range hears the moves &mdash; and every move received is checked against the receiver's own board before it is played.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-poke.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-poke.gif" width="640" height="360" loading="lazy" alt="A poke to B7C1 is heard by every console in range; only B7C1 rings and the others ignore it."></picture><h3>Poke</h3><p>Rides the same beacon and adds no new kind of data: for a few seconds it carries the id being poked, which that console already broadcasts as its own name, and a counter. Every Braino in range hears it; only the one addressed reacts.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-names.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-names.gif" width="640" height="360" loading="lazy" alt="A label such as B7C1 = Blue case is saved on this console only; the beacon never reads it, so what goes on air is identical before and after."></picture><h3>Local names for peers</h3><p>Stay on the console that stored them. The administrator can label a tag they recognise so a poke says who rather than what; the beacon never reads that label, so what goes on air is identical whether every peer is named or none is.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-scores.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-scores.gif" width="640" height="360" loading="lazy" alt="Players' scores are saved in the console's own flash, with no connection to any account or cloud."></picture><h3>Scores and profiles</h3><p>Live in the ESP32's own flash and never leave it. There is no account to make, nothing to sign in to, and no way for anybody here to see how a player plays.</p></div>
+    <div><picture class="anim"><source srcset="assets/privacy-page.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-page.gif" width="640" height="360" loading="lazy" alt="The page loads from GitHub Pages and the installer from unpkg; it talks to your board over Web Serial inside your browser, with no analytics, cookies or web fonts."></picture><h3>This page</h3><p>Talks to your board over Web Serial, inside your browser; nothing about your device is sent anywhere. The firmware comes from GitHub Pages, and the Install button's code (esp-web-tools) from the unpkg CDN. Those two are the only requests this page makes on load &mdash; no analytics, no cookies, no fonts from anybody else.</p></div>
   </div>
 </section>
 
