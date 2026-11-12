@@ -258,6 +258,12 @@ int HTTPClient::GET() {
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, follow_ == HTTPC_DISABLE_FOLLOW_REDIRECTS ? 0L : 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+    /* IPv4 only, as on a board, whose clients open AF_INET sockets and
+     * nothing else. Left to choose, libcurl prefers IPv6, and a Linux kernel's
+     * default IPv6 address is built from the radio's MAC (EUI-64), so the
+     * request would carry the one identifier that cannot be changed to the
+     * server at the other end. NTP above is AF_INET for the same reason. */
+    curl_easy_setopt(curl, CURLOPT_IPRESOLVE, static_cast<long>(CURL_IPRESOLVE_V4));
     /* Nothing but the request the firmware wrote: libcurl sends no
      * User-Agent unless told to, and is told nothing. Only http and https,
      * so a redirect cannot take the request anywhere stranger. */

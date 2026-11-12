@@ -350,7 +350,15 @@ void bringUp() {
 
 /* An address once associated. wpa_supplicant joins the network; getting an
  * IP from it is the DHCP client's job, which the OS's own connect script
- * would have done. dhcpcd when the system has it, BusyBox udhcpc otherwise. */
+ * would have done. dhcpcd when the system has it, BusyBox udhcpc otherwise.
+ *
+ * udhcpc is the card image's client, and it is told to say nothing about the
+ * console: -C sends no client identifier (the default is the radio's MAC,
+ * which would be recorded with the lease), -V "" sends no vendor string (the
+ * default is "udhcp" and its version), and with no -F or -x it sends no
+ * hostname. What is left is what DHCP cannot work without: the hardware
+ * address in the request itself, which every frame on the network carries
+ * anyway and which never leaves it. tools/check_privacy.py holds these. */
 void requestAddress() {
     std::printf("[wifi] host: DHCP with %s\n",
                 onPath("dhcpcd") ? "dhcpcd" : (onPath("udhcpc") ? "udhcpc" : "nothing (no client found)"));
@@ -358,7 +366,7 @@ void requestAddress() {
     if (onPath("dhcpcd")) {
         runQuiet({"dhcpcd", "-4", "-q", "-b", iface}, 15000);
     } else if (onPath("udhcpc")) {
-        runQuiet({"udhcpc", "-i", iface, "-b", "-q"}, 15000);
+        runQuiet({"udhcpc", "-i", iface, "-b", "-q", "-C", "-V", ""}, 15000);
     }
 }
 

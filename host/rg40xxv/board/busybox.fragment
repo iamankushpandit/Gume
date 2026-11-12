@@ -17,3 +17,4 @@ CONFIG_FEATURE_ACPID_COMPAT=y
 # CONFIG_TFTPD is not set
 # CONFIG_INETD is not set
 # CONFIG_NC is not set
+# CONFIG_DNSD is not set

@@ -70,6 +70,26 @@ outbound flows Braino itself declares (CLAUDE.md, "No data collection"):
 wpa_supplicant and DHCP run only when Braino starts Wi-Fi, and nothing else
 uses the network.
 
+### What the network sees of the console
+
+- **No IPv6.** The kernel is built without it (`board/linux.fragment`), so the
+  console has no IPv6 address of any kind. Linux's default one is built from
+  the Wi-Fi chip's hardware address, and would have travelled with Braino's
+  requests to the servers they reach. `board/post-build.sh` fails the build if
+  the kernel that was built has IPv6.
+- **DHCP sends no client identifier, no vendor string and no hostname.** The
+  request still carries the radio's hardware address, as every Wi-Fi frame
+  does; that address stays on the local network.
+- **wpa_supplicant knows no network of its own.** The image's
+  `/etc/wpa_supplicant.conf` replaces Buildroot's, which joins any open
+  network in range. Nothing is saved to it.
+- **`hardware.txt` and `dmesg.txt` have anything shaped like a hardware
+  address blanked**, since they are the files a bug report attaches.
+
+To check a card after one boot, on a PC: `hardware.txt` has `== ipv6` followed
+by `off: not in this kernel`, and `dmesg.txt` has no line containing
+`PF_INET6`. A card from an image built before this has that line.
+
 ### Asleep
 
 With the screen asleep Braino turns off the backlight, the display output,
@@ -135,6 +155,11 @@ bundle is what a release must offer beside the image.
   device, though it is drawn as a button. `braino-run` sets
   `BRAINO_FOCUS_LOG=1` for now, which logs the selector's list on every
   screen; remove it once that is understood.
+- **Wi-Fi scans use the radio's real hardware address**, as a board's do, so
+  anyone in radio range can hear it while the Wi-Fi screen scans or the
+  console joins. The driver supports scanning from a random address
+  (`wpa_cli mac_rand_scan all enable=1`); it is not switched on because it
+  has not been tried on the device.
 - **The GPL source offer.** Publish Buildroot's `make legal-info` output
   beside every image: every source, patch and configuration that built it,
   and the licence texts, Realtek's firmware licence among them.
