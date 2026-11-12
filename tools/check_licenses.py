@@ -36,6 +36,11 @@ for convenience:
     at risk in them.
   - PlatformIO's stub READMEs in include/, lib/ and test/, which are the
     toolchain's boilerplate rather than this project's writing.
+  - Third-party files kept verbatim under their own licence: the ROCKNIX
+    patches, device trees, board config and panel data the RG40XX V image is
+    built from (host/rg40xxv/rocknix/, see its PROVENANCE.txt). They are not
+    this project's, so stamping its notice on them would claim them -- the
+    same reason LICENSE carries none.
 
 WHAT GENERATED FILES DO. A generated source file carries the same header as a
 handwritten one, emitted by its generator, so that regenerating it cannot
@@ -101,7 +106,46 @@ STYLES = {
     ".py": HASH, ".yml": HASH, ".yaml": HASH, ".sh": HASH,
     ".ini": SEMI,
     ".html": XML, ".svg": XML,
+    ".cmake": HASH,
+    # The RG40XX V image's Buildroot tree: makefiles, genimage, kconfig
+    # fragments, U-Boot's extlinux and busybox's acpid tables all take "#".
+    ".mk": HASH, ".cfg": HASH, ".fragment": HASH, ".desc": HASH,
+    ".conf": HASH, ".map": HASH,
+    # PowerShell: the RG40XX V's card writer for Windows.
+    ".ps1": HASH,
 }
+
+# Files whose comment syntax is set by their NAME, not their extension.
+# CMakeLists.txt is CMake, but ".txt" in general has no comment syntax at all,
+# so it cannot go in STYLES -- and leaving it out entirely would exempt the
+# host build's top-level script by accident rather than by decision.
+NAMED_STYLES = {
+    "CMakeLists.txt": ".cmake",
+    "Config.in": ".mk",       # Buildroot's kconfig
+    "inittab": ".mk",         # busybox init
+    ".gitattributes": ".mk",
+}
+
+
+def style_ext(path):
+    """The STYLES key for `path`: its extension, unless its name decides.
+
+    A Buildroot defconfig is named by its suffix, and a script with no
+    extension -- the image's init scripts -- by its "#!" line."""
+    name = os.path.basename(path)
+    if name in NAMED_STYLES:
+        return NAMED_STYLES[name]
+    if name.endswith("_defconfig"):
+        return ".mk"
+    ext = os.path.splitext(path)[1].lower()
+    if ext == "" and not name.startswith("."):
+        try:
+            with open(os.path.join(ROOT, path), "rb") as f:
+                if f.read(2) == b"#!":
+                    return ".sh"
+        except OSError:
+            pass
+    return ext
 
 # Handled by a footer rather than a header: a comment block before the first
 # heading pushes the title down in some renderers, and YAML frontmatter has to
@@ -186,11 +230,17 @@ def tracked_files():
     return [p for p in out.splitlines() if p]
 
 
+# Third-party, kept verbatim; see the module docstring.
+THIRD_PARTY_DIRS = tuple(
+    "host/rg40xxv/rocknix/" + d + "/" for d in ("linux", "dts", "firmware", "patches", "uboot")
+)
+
+
 def classify(path):
     """Return 'header', 'markdown' or None (exempt)."""
-    if path in EXEMPT_PATHS:
+    if path in EXEMPT_PATHS or path.startswith(THIRD_PARTY_DIRS):
         return None
-    ext = os.path.splitext(path)[1].lower()
+    ext = style_ext(path)
     if ext in EXEMPT_EXTS:
         return None
     if ext in MARKDOWN:
@@ -260,7 +310,7 @@ def main():
         if not args.fix:
             missing.append(rel)
             continue
-        ext = os.path.splitext(rel)[1].lower()
+        ext = style_ext(rel)
         new = fix_markdown(text) if kind == "markdown" else fix_header(text, ext)
         with open(full, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(new)

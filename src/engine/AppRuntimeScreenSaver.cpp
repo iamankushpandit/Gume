@@ -11,6 +11,7 @@
 
 #include <math.h>
 #include "AppVersion.h"
+#include "hal/SystemSuspend.h"
 #include "hal/Watchdog.h"
 
 /* See the comment on the declaration: idle ends an admin session, for the
@@ -48,6 +49,31 @@ void BrainoApp::enterSleep() {
     board_.displaySleep();
     Watchdog::setContext("Asleep");
     view_ = View::Asleep;
+    deepSleepDueMs_ = millis() + SystemSuspend::AFTER_ASLEEP_MS;
+}
+
+/* The panel has been dark for a while and nobody has touched it: stop the
+ * whole device rather than keep a processor polling for a touch that is not
+ * coming. Only the platform knows how, and whether it can at all
+ * (SystemSuspend.h); the ESP32 boards say no, so this never fires there.
+ *
+ * A wake from suspend is a wake: the panel comes back through the ordinary
+ * wakeFromSleep(), so the lock screen and everything resumeUnderlyingScreen()
+ * decides apply exactly as after a touch. The admin session already ended on
+ * the way into sleep. */
+void BrainoApp::tickDeepSleep(uint32_t nowMs) {
+    if (!SystemSuspend::supported() || !board_.deepSleepEnabled()) return;
+    if (static_cast<int32_t>(nowMs - deepSleepDueMs_) < 0) return;
+    bool suspended = false;
+    {
+        Watchdog::Pause guard;   // it sleeps for as long as nobody presses power
+        suspended = SystemSuspend::enter();
+    }
+    if (!suspended) {
+        deepSleepDueMs_ = millis() + DEEP_SLEEP_RETRY_MS;
+        return;
+    }
+    wakeFromSleep();
 }
 
 /* Both wake paths keep the panel wake inside the Watchdog::Pause guard:

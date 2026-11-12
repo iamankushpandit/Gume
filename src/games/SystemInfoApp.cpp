@@ -15,6 +15,7 @@
 #include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
+#include "hal/PowerMonitor.h"
 #include "hal/Watchdog.h"
 
 #include <WiFi.h>
@@ -96,7 +97,7 @@ String wifiPhyText() {
 }
 
 const char* const SystemInfoApp::TAB_LABELS[TAB_COUNT] = {
-    "Board", "Memory", "Network", "BLE", "App"
+    "Board", "Memory", "Network", "BLE", "Batt", "App"
 };
 
 const char* SystemInfoApp::title() const {
@@ -231,7 +232,11 @@ void SystemInfoApp::update(GameHost& host, const TouchPoint& touch) {
          * the frame the user was looking at when they touched it. */
         if (rows_.actionRect().w > 0 &&
             rows_.actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            bleAdvanced_ = !bleAdvanced_;
+            if (tab_ == TAB_BATTERY) {
+                PowerMonitor::reset();
+            } else {
+                bleAdvanced_ = !bleAdvanced_;
+            }
             rowsStale_ = true;
             host.board().beepOk();
             markDirty();
@@ -644,7 +649,8 @@ void SystemInfoApp::rebuildRows(GameHost& host) {
         case 1: buildMemoryRows(host); break;
         case 2: buildNetworkRows(host); break;
         case 3: buildBleRows(host); break;
-        case 4: buildAppStateRows(host); break;
+        case TAB_BATTERY: buildPowerRows(host); break;
+        case 5: buildAppStateRows(host); break;
     }
     rowsStale_ = false;
 }

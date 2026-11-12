@@ -329,6 +329,9 @@ public:
     uint8_t brightness();
     void setBrightness(uint8_t percent);
     void applyBrightness();
+    /* The lamp as it is being driven right now, from RAM: 0 while the panel
+     * sleeps, unlike brightness(), which is the stored setting and an NVS read. */
+    uint8_t lampPercent() const { return displayAsleep_ ? 0 : lampLevel_; }
 
     LayoutMode layoutMode();
     void setLayoutMode(LayoutMode mode);
@@ -404,6 +407,14 @@ public:
 
     bool wakeLockEnabled();
     void setWakeLockEnabled(bool enabled);
+
+    /* Deep sleep: after a while asleep, suspend the whole device
+     * (SystemSuspend). Off by default, global like every device setting, and
+     * meaningful only where SystemSuspend::supported() -- Settings does not
+     * offer it elsewhere. RAM-mirrored because the asleep view asks it on
+     * every poll. */
+    bool deepSleepEnabled();
+    void setDeepSleepEnabled(bool enabled);
 
     /* Panel sleep. Backlight to zero and the controller to its low-power
      * state; the CPU stays up so touch still wakes it. This is NOT
@@ -689,6 +700,8 @@ private:
      * it, and it never changes while the device is up. */
     char cachedDeviceId_[20] = {0};
     bool cachedWakeLock_ = true;
+    bool deepSleepCached_ = false;
+    bool cachedDeepSleep_ = false;
     bool ntpEnabledCached_ = false;
     bool cachedNtpEnabled_ = true;
     bool ntpResyncCached_ = false;
@@ -717,6 +730,7 @@ private:
     bool adminPinCached_ = false;
     uint16_t cachedAdminPin_ = 0;
     bool displayAsleep_ = false;
+    uint8_t lampLevel_ = 100;
     DisplaySleepTelemetry displaySleepTelemetry_{};
 
     /* The NTP server name handed to lwIP, owned for the lifetime of the board.

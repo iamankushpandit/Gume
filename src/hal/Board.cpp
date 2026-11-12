@@ -477,6 +477,20 @@ void Board::setWakeLockEnabled(bool enabled) {
     wakeLockCached_ = true;
 }
 
+bool Board::deepSleepEnabled() {
+    if (!deepSleepCached_) {
+        cachedDeepSleep_ = prefs_.getBool("deepSleep", false);
+        deepSleepCached_ = true;
+    }
+    return cachedDeepSleep_;
+}
+
+void Board::setDeepSleepEnabled(bool enabled) {
+    prefs_.putBool("deepSleep", enabled);
+    cachedDeepSleep_ = enabled;
+    deepSleepCached_ = true;
+}
+
 bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
     if (isGuest()) return true;
     return gameVisibleFor(catalogIndex, activeProfile(), fallback);

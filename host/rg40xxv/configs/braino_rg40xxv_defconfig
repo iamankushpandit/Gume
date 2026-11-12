@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# Braino! for the Anbernic RG40XX V: one console, one program, nothing else.
+
+# Architecture: Allwinner H700, four Cortex-A53 cores.
+BR2_aarch64=y
+BR2_cortex_a53=y
+BR2_OPTIMIZE_S=y
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_BRAINO_PATH)/rocknix/patches"
+
+# Toolchain: glibc and C++ for the firmware; headers from the 6.18 LTS series.
+BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+BR2_KERNEL_HEADERS_6_18=y
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+
+# System: busybox init, no login of any kind, no services but Braino's own.
+BR2_TARGET_GENERIC_HOSTNAME="braino"
+BR2_TARGET_GENERIC_ISSUE="Braino!"
+BR2_INIT_BUSYBOX=y
+BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_DEVTMPFS=y
+# BR2_TARGET_ENABLE_ROOT_LOGIN is not set
+# BR2_TARGET_GENERIC_GETTY is not set
+BR2_SYSTEM_DHCP=""
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_BRAINO_PATH)/board/overlay"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_BRAINO_PATH)/board/post-build.sh"
+BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_BRAINO_PATH)/board/post-image.sh"
+
+# Kernel: mainline 7.2 with ROCKNIX's H700 patches (applied by external.mk,
+# not BR2_LINUX_KERNEL_PATCH; see there) and device trees.
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="7.2"
+BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
+BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_BRAINO_PATH)/rocknix/linux/rocknix-h700.config"
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_BRAINO_PATH)/board/linux.fragment"
+BR2_LINUX_KERNEL_DTS_SUPPORT=y
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="allwinner/sun50i-h700-anbernic-rg40xx-v allwinner/sun50i-h700-anbernic-rg40xx-v-v2-panel"
+BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+BR2_LINUX_KERNEL_NEEDS_HOST_LIBELF=y
+
+# Root filesystem: a cpio built into the kernel, so the whole system runs from
+# RAM and the card is read once at boot. Only Braino's data partition is
+# written to.
+BR2_TARGET_ROOTFS_CPIO=y
+BR2_TARGET_ROOTFS_CPIO_NONE=y
+BR2_TARGET_ROOTFS_INITRAMFS=y
+# BR2_TARGET_ROOTFS_TAR is not set
+
+# Bootloader: TF-A BL31 and U-Boot with ROCKNIX's LPDDR4 board config.
+BR2_TARGET_ARM_TRUSTED_FIRMWARE=y
+BR2_TARGET_ARM_TRUSTED_FIRMWARE_CUSTOM_VERSION=y
+BR2_TARGET_ARM_TRUSTED_FIRMWARE_CUSTOM_VERSION_VALUE="v2.12.0"
+BR2_TARGET_ARM_TRUSTED_FIRMWARE_PLATFORM="sun50i_h616"
+BR2_TARGET_UBOOT=y
+BR2_TARGET_UBOOT_BUILD_SYSTEM_KCONFIG=y
+BR2_TARGET_UBOOT_CUSTOM_VERSION=y
+BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE="2026.01"
+BR2_TARGET_UBOOT_USE_CUSTOM_CONFIG=y
+BR2_TARGET_UBOOT_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_BRAINO_PATH)/rocknix/uboot/anbernic_rg35xx_h700_lpddr4_defconfig"
+BR2_TARGET_UBOOT_NEEDS_DTC=y
+BR2_TARGET_UBOOT_NEEDS_PYLIBFDT=y
+BR2_TARGET_UBOOT_NEEDS_PYELFTOOLS=y
+BR2_TARGET_UBOOT_NEEDS_OPENSSL=y
+BR2_TARGET_UBOOT_NEEDS_GNUTLS=y
+BR2_TARGET_UBOOT_NEEDS_ATF_BL31=y
+BR2_TARGET_UBOOT_SPL=y
+BR2_TARGET_UBOOT_SPL_NAME="u-boot-sunxi-with-spl.bin"
+BR2_TARGET_UBOOT_CUSTOM_MAKEOPTS="SCP=/dev/null"
+
+# Firmware: the RTL8821CS Wi-Fi and Bluetooth (trimmed to it in post-build).
+BR2_PACKAGE_LINUX_FIRMWARE=y
+BR2_PACKAGE_LINUX_FIRMWARE_RTL_RTW88=y
+BR2_PACKAGE_LINUX_FIRMWARE_RTL_88XX_BT=y
+BR2_PACKAGE_WIRELESS_REGDB=y
+
+# What Braino needs: SDL2 for input and sound, libcurl for its two HTTPS
+# requests, wpa_supplicant for Wi-Fi, ALSA's mixer for the codec.
+BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_BRAINO_PATH)/board/busybox.fragment"
+BR2_PACKAGE_ALSA_LIB=y
+BR2_PACKAGE_ALSA_UTILS=y
+BR2_PACKAGE_ALSA_UTILS_AMIXER=y
+BR2_PACKAGE_ALSA_UTILS_ALSACTL=y
+# BR2_PACKAGE_ALSA_UTILS_APLAY is not set
+BR2_PACKAGE_SDL2=y
+BR2_PACKAGE_CA_CERTIFICATES=y
+BR2_PACKAGE_MBEDTLS=y
+BR2_PACKAGE_LIBCURL=y
+BR2_PACKAGE_LIBCURL_MBEDTLS=y
+# BR2_PACKAGE_LIBCURL_CURL is not set
+BR2_PACKAGE_E2FSPROGS=y
+BR2_PACKAGE_IW=y
+BR2_PACKAGE_WPA_SUPPLICANT=y
+BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
+BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
+BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
+BR2_PACKAGE_ROCKNIX_JOYPAD=y
+BR2_PACKAGE_BRAINO=y
+
+# Host tools for the card image.
+BR2_PACKAGE_HOST_GENIMAGE=y
+BR2_PACKAGE_HOST_DOSFSTOOLS=y
+BR2_PACKAGE_HOST_MTOOLS=y
+BR2_PACKAGE_HOST_E2FSPROGS=y

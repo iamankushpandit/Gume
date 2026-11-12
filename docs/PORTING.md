@@ -223,6 +223,14 @@ A board that boots is not a board that ships. In the same commit:
   still carries any. Add a row to `docs/boards/README.md`.
 - `CHANGELOG.md`.
 
+## A platform that is not an ESP32
+
+A new *board* needs nothing here. A new *platform* takes part in the battery
+diagnostic by implementing `PowerProbe` (`src/hal/PowerProbe.h`) in one file of
+its own. See `host/src/HostPowerProbe.cpp` for a full one. An empty `read()` still
+works: it gets the firmware's gauge and the per-state analysis, and only lacks the
+detail.
+
 ## What is *not* decoupled yet
 
 The playable games are authored against a fixed landscape canvas and lay

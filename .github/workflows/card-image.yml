@@ -1,0 +1,214 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+name: Card image
+
+# Builds the Anbernic RG40XX V's card image (host/rg40xxv/) with Buildroot,
+# from source, the way host/rg40xxv/build.sh builds it on a desk.
+#
+# It is its own workflow rather than a job in ci.yml because it takes hours
+# the first time -- a cross toolchain, a kernel, U-Boot and every library --
+# and because what it protects is a download, not the firmware every change
+# touches. It runs when something the image is built from changes.
+#
+# Every run uploads two artifacts: the image as testers get it, and the
+# source bundle that has to go beside it. Pushing a tag named
+# card-rg40xxv-<anything> builds that commit and publishes both as a GitHub
+# pre-release, which is what the site's Experimental page links to: a
+# pre-release asset needs no GitHub sign-in to download and does not expire,
+# where an artifact needs both.
+#
+# Why the sources are published with the image at all: Linux, U-Boot and
+# busybox are GPL-2.0, and the GPL asks that whoever offers the binary offer
+# the corresponding source from the same place. Buildroot's `make legal-info`
+# collects exactly that.
+
+on:
+  pull_request:
+    paths:
+      - "host/**"
+      - "src/**"
+      - "include/**"
+      - ".github/workflows/card-image.yml"
+  push:
+    branches: [main, dev]
+    paths:
+      - "host/**"
+      - "src/**"
+      - "include/**"
+      - ".github/workflows/card-image.yml"
+    # Path filters do not apply to tags: a tag always builds.
+    tags: ["card-rg40xxv-*"]
+  workflow_dispatch:
+
+# A newer push to the same branch makes an older build worthless, and each
+# one holds a runner for hours.
+concurrency:
+  group: card-image-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  BUILDROOT: buildroot-2026.08.1
+  # From buildroot.org's signed release announcement for 2026.08.1.
+  BUILDROOT_SHA256: 34fb7bea8a213ffde39cc02e61703391560f26e0850f03138c722d0b09880f2b
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      # The build directory reaches about 16 GB, and the source bundle and
+      # the downloads take it past 20. A fresh runner has less than that free
+      # until the toolchains this job never uses are removed.
+      - name: Make room on the runner
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/.ghcup
+          df -h /
+
+      - name: Install what Buildroot needs from the host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc cpio file rsync unzip wget python3 xz-utils git
+
+      - name: Fetch Buildroot
+        run: |
+          mkdir -p "$HOME/braino-rg40xxv"
+          cd "$HOME/braino-rg40xxv"
+          wget -q "https://buildroot.org/downloads/$BUILDROOT.tar.xz"
+          echo "$BUILDROOT_SHA256  $BUILDROOT.tar.xz" | sha256sum -c -
+          tar -xf "$BUILDROOT.tar.xz"
+
+      # Every source tarball the build downloads: about 2 GB, most of it the
+      # kernel, glibc and linux-firmware. The key moves when the
+      # configuration or a package version does.
+      - name: Cache the downloaded sources
+        uses: actions/cache@v4
+        with:
+          path: ~/braino-rg40xxv/dl
+          key: card-dl-${{ hashFiles('host/rg40xxv/configs/**', 'host/rg40xxv/package/**', 'host/rg40xxv/board/*.fragment') }}
+          restore-keys: card-dl-
+
+      # Buildroot's own output runs to hundreds of thousands of lines, so it
+      # goes to a file, which is uploaded if the build fails; the log here
+      # keeps only the step names.
+      - name: Build the card image
+        run: |
+          set -o pipefail
+          host/rg40xxv/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered '^>>> ' || {
+            tail -n 200 "$RUNNER_TEMP/build.log"
+            exit 1
+          }
+          ls -l "$HOME/braino-rg40xxv/out/images"
+
+      - name: Keep the build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: card-image-build-log
+          path: ${{ runner.temp }}/build.log
+          retention-days: 7
+
+      # The corresponding source: every package's source and patches, the
+      # configuration, the licence texts -- and Buildroot itself, which
+      # legal-info leaves out. Two things are taken out, each for a reason
+      # of its own, written into the bundle's README:
+      #   - linux-firmware: 620 MB of binaries, of which the card carries
+      #     three files. Firmware has no source to offer; its licence is in
+      #     licenses/.
+      #   - host-sources: the tools that ran on the build machine. None of
+      #     them is on the card.
+      - name: Collect the source bundle
+        run: |
+          host/rg40xxv/build.sh legal-info >"$RUNNER_TEMP/legal-info.log" 2>&1 || {
+            tail -n 100 "$RUNNER_TEMP/legal-info.log"
+            exit 1
+          }
+          L="$HOME/braino-rg40xxv/out/legal-info"
+          rm -rf "$L/host-sources" "$L"/sources/linux-firmware-*
+          cp "$HOME/braino-rg40xxv/$BUILDROOT.tar.xz" "$L/"
+          cat >"$L/BRAINO-SOURCES.txt" <<EOF
+          The corresponding source of the Braino card image for the Anbernic RG40XX V,
+          built from ${GITHUB_SHA} of ${GITHUB_REPOSITORY}.
+
+          sources/      every package on the card: its source and the patches applied
+          licenses/     every package's licence texts
+          manifest.csv  each package, its version and its licence
+          ${BUILDROOT}.tar.xz
+                        the Buildroot that built it; host/rg40xxv/ in the Braino
+                        source is the configuration it was given
+
+          Not included, on purpose:
+          - linux-firmware: the card carries three of its files, the Realtek
+            Wi-Fi/Bluetooth firmware, which is distributed as binaries only.
+            Its licence is in licenses/.
+          - host-sources: the tools that ran on the build machine. None of
+            them is on the card.
+          EOF
+          tar -C "$HOME/braino-rg40xxv/out" -cf "$RUNNER_TEMP/braino-rg40xxv-sources.tar" legal-info
+          ls -l "$RUNNER_TEMP/braino-rg40xxv-sources.tar"
+
+      - name: Gather the download
+        run: |
+          mkdir -p "$RUNNER_TEMP/image"
+          cd "$HOME/braino-rg40xxv/out/images"
+          cp braino-rg40xxv.img.gz braino-rg40xxv.sha256 "$RUNNER_TEMP/image/"
+          cp "$GITHUB_WORKSPACE/host/rg40xxv/write-card.ps1" "$RUNNER_TEMP/image/"
+          ls -l "$RUNNER_TEMP/image"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: braino-rg40xxv
+          path: ${{ runner.temp }}/image/
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: braino-rg40xxv-sources
+          path: ${{ runner.temp }}/braino-rg40xxv-sources.tar
+          retention-days: 30
+          compression-level: 0
+
+  publish:
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/card-rg40xxv-')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # A pre-release, so it is never offered as the newest Braino:
+      # tools/fetch_release_firmware.py skips pre-releases, and release.yml
+      # answers only to v* tags.
+      - name: Publish as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l dist
+          cat >notes.md <<EOF
+          An experimental card image that makes the Anbernic RG40XX V a Braino console, built by CI from ${GITHUB_SHA}.
+
+          - \`braino-rg40xxv.img.gz\`: the card image. Write it to a microSD card; it replaces everything on the card.
+          - \`write-card.ps1\`: writes it from Windows without Windows touching the card afterwards. Linux and macOS: see host/rg40xxv/README.md.
+          - \`braino-rg40xxv.sha256\`: the checksums of the image, packed and unpacked.
+          - \`braino-rg40xxv-sources.tar\`: the corresponding source of everything on the card, and the licences.
+
+          What to try and what to report: https://iamankushpandit.github.io/Gume/experimental-h700-rg40xxv.html
+          EOF
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
+            --title "Braino for the Anbernic RG40XX V (experimental, $GITHUB_REF_NAME)" \
+            --notes-file notes.md dist/*

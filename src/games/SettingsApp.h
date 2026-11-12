@@ -112,6 +112,9 @@ private:
     Rect idleAfterRect() const;
     Rect sleepAfterRect() const;
     Rect wakeLockRect() const;
+    /* Only where SystemSuspend::supported(); elsewhere Hold to unlock keeps
+     * the whole last row and this is an empty rect. */
+    Rect deepSleepRect() const;
 
     void cycleScreenSaver(Board& board);
     void cycleSleepSeconds(Board& board);

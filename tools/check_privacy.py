@@ -380,6 +380,80 @@ def check_update_channel_is_anonymous():
     return found
 
 
+def check_host_network_identity():
+    """What a Linux build must not add to the firmware's requests.
+
+    A board's requests leave from an IPv4 address its router chose. A Linux
+    kernel left at its defaults adds an IPv6 address built from the radio's
+    MAC (EUI-64), and libcurl prefers IPv6 when it has the choice -- so the
+    timezone lookup and the update check carried the one identifier the
+    project forbids to the servers they reached. Nothing in src/ shows that:
+    it is a property of a kernel configuration and of one libcurl option,
+    which is why it is asserted here rather than left to a comment.
+
+    The DHCP client is the other place a Linux system volunteers things: a
+    client identifier that is the MAC again, a vendor string, a hostname.
+    """
+    host = REPO_ROOT / "host"
+    if not host.exists():
+        return []
+
+    found = []
+
+    def text_of(rel):
+        path = REPO_ROOT / rel
+        if not path.exists():
+            found.append("%s is missing" % rel)
+            return ""
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    net = text_of("host/src/HostNet.cpp")
+    if net and "CURL_IPRESOLVE_V4" not in net:
+        found.append("host/src/HostNet.cpp: the HTTP client no longer forces "
+                     "IPv4 (CURLOPT_IPRESOLVE): over IPv6 a request can carry "
+                     "an address built from the radio's MAC")
+    if net and "AF_INET6" in net:
+        found.append("host/src/HostNet.cpp opens an IPv6 socket: a board's "
+                     "requests are IPv4 only, and so are the host's")
+
+    wifi = text_of("host/src/HostWifiOs.cpp")
+    for call in re.findall(r'\{\s*"udhcpc"[^}]*\}', wifi):
+        if '"-C"' not in call:
+            found.append("host/src/HostWifiOs.cpp: udhcpc is started without "
+                         "-C, so it sends the radio's MAC as its client "
+                         "identifier")
+        if not re.search(r'"-V",\s*""', call):
+            found.append("host/src/HostWifiOs.cpp: udhcpc is started without "
+                         "-V \"\", so it sends a vendor string")
+        if '"-F"' in call or '"-x"' in call:
+            found.append("host/src/HostWifiOs.cpp: udhcpc is told to send a "
+                         "hostname or an extra option; it must send neither")
+    if wifi and '"udhcpc"' in wifi and not re.search(r'\{\s*"udhcpc"', wifi):
+        found.append("host/src/HostWifiOs.cpp: the udhcpc call has changed "
+                     "shape and can no longer be checked")
+
+    image = host / "rg40xxv"
+    if image.exists():
+        fragment = text_of("host/rg40xxv/board/linux.fragment")
+        if fragment and not re.search(r"^# CONFIG_IPV6 is not set$", fragment, re.M):
+            found.append("host/rg40xxv/board/linux.fragment no longer compiles "
+                         "IPv6 out of the card image's kernel")
+        if re.search(r"^CONFIG_IPV6=", fragment, re.M):
+            found.append("host/rg40xxv/board/linux.fragment switches IPv6 on")
+        post = text_of("host/rg40xxv/board/post-build.sh")
+        if post and "CONFIG_IPV6=" not in post:
+            found.append("host/rg40xxv/board/post-build.sh no longer fails the "
+                         "build when the kernel that was really built has IPv6")
+        wpa = text_of("host/rg40xxv/board/overlay/etc/wpa_supplicant.conf")
+        if re.search(r"^\s*network=", wpa, re.M):
+            found.append("the card image's wpa_supplicant.conf names a "
+                         "network: it must know none of its own")
+        if re.search(r"^\s*update_config\s*=\s*1", wpa, re.M):
+            found.append("the card image's wpa_supplicant.conf lets "
+                         "wpa_supplicant save networks to the card")
+    return found
+
+
 def main():
     """Run the privacy audit on all source files."""
     print("=" * 70)
@@ -422,6 +496,10 @@ def main():
     # of any line of code, and so is invisible to every check above.
     all_issues.extend(check_update_channel_is_anonymous())
 
+    # What a Linux build could add underneath the firmware's own requests:
+    # an address made from the MAC, and a DHCP client that introduces itself.
+    all_issues.extend(check_host_network_identity())
+
     # Print results
     if all_issues:
         print("\n[FAILED] PRIVACY AUDIT FAILED\n")
@@ -439,6 +517,10 @@ def main():
         print("  2. One-time timezone lookup (ip-api.com)")
         print("  3. BLE beacon (opt-in: device ID, game, score, and the turns\n             of games between consoles -- no names, no profiles)")
         print("  4. Update-availability manifest (anonymous GET, no device data)")
+        if (REPO_ROOT / "host").exists():
+            print("Linux builds: requests are IPv4 only, DHCP sends no client")
+            print("  identifier, vendor string or hostname, and the card image's")
+            print("  kernel has no IPv6.")
         print("Public privacy wording: no absolute network-silence claims.")
         print("\n" + "=" * 70)
         return 0
