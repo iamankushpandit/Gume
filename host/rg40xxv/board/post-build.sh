@@ -60,3 +60,25 @@ done
 for s in S01syslogd S01seedrng S02klogd S02sysctl S10mdev S11modules S15watchdog S41ifplugd S50crond S50telnet S90httpd; do
     rm -f "$TARGET/etc/init.d/$s"
 done
+
+# What the image promises about the network, checked on what was really built
+# rather than on what the configuration asked for. A kernel left over from
+# before a fragment changed, or a refreshed ROCKNIX config, fails here instead
+# of shipping.
+KCONFIG=$(ls "$BUILD_DIR"/linux-[0-9]*/.config 2>/dev/null | head -1)
+if [ -z "$KCONFIG" ]; then
+    echo "braino: no kernel .config to check under $BUILD_DIR" >&2
+    exit 1
+fi
+if grep -q '^CONFIG_IPV6=' "$KCONFIG"; then
+    echo "braino: this kernel has IPv6, which would give the console an address" >&2
+    echo "  built from its Wi-Fi MAC. board/linux.fragment switches it off; if it" >&2
+    echo "  changed after the kernel was configured, run: build.sh linux-dirclean" >&2
+    exit 1
+fi
+# Buildroot's own wpa_supplicant.conf ends in a network block that joins any
+# open network in range. The overlay's replaces it; make sure it did.
+if grep -q '^[[:space:]]*network=' "$TARGET/etc/wpa_supplicant.conf"; then
+    echo "braino: /etc/wpa_supplicant.conf names a network; the overlay's must not" >&2
+    exit 1
+fi

@@ -180,7 +180,7 @@ kernel and a once-a-second poller, so the per-frame `status()` never waits
 on a subprocess. With no wireless interface (WSL, a wired desktop) the radio
 is absent and the firmware sees `WL_NO_SHIELD`.
 
-Three things about it are load-bearing:
+Four things about it are load-bearing:
 
 - **The shims answer; they never originate.** `WiFiUDP` is a real socket and
   `HTTPClient` is libcurl, but the only traffic is the firmware's own three
@@ -200,6 +200,20 @@ Three things about it are load-bearing:
   cannot end it. With nmcli, the password is an argument, which another local
   user could read from the process table for the moment nmcli runs: nobody,
   on a handheld.
+- **The requests are IPv4, and DHCP introduces nobody.** A board's clients
+  open `AF_INET` sockets and nothing else (`WiFiClient.cpp`, `WiFiUdp.cpp` in
+  the pinned core), and the firmware never calls `enableIpV6()`, so a board
+  has no IPv6 address at all. A Linux kernel at its defaults gives the radio
+  one built from its MAC (EUI-64: `addr_gen_mode` 0, `use_tempaddr` 0), and
+  libcurl prefers IPv6 when it may choose, so the timezone lookup and the
+  update check would have carried the one identifier the project forbids to
+  the far end. `HTTPClient` therefore sets `CURLOPT_IPRESOLVE` to V4, NTP is
+  an `AF_INET` socket, and no shim may open an IPv6 one. `udhcpc` is started
+  with `-C` and `-V ""` and no `-F`: no client identifier (its default is the
+  MAC), no vendor string, no hostname. `check_privacy.py` holds all of it.
+  **Not covered:** under muOS the DHCP client is muOS's `dhcpcd` with muOS's
+  configuration, which sends what muOS tells it to, and the OS's interface
+  still has its IPv6 addresses even though Braino's requests do not use them.
 
 `mode(WIFI_OFF)` does not turn the computer's radio off: the OS owns its
 power. With NetworkManager, joining saves the network in the OS's own
@@ -558,6 +572,32 @@ code in `host/`:
   core names a port device of its own -- `ttyS2` on the RG40XX V under 7.2),
   behind the GPIO the device tree calls `rgb:kbd_backlight`. `BRAINO_LED_TTY`
   overrides the search, and every way it can fail is logged.
+- **The kernel has no IPv6.** `board/linux.fragment` compiles it out. That was
+  chosen over the two runtime answers. A sysctl (`disable_ipv6`, or
+  `addr_gen_mode=3` with `use_tempaddr=2`) has to land before the radio comes
+  up, and the radio comes up in two places in `HostWifiOs.cpp` and once more
+  in udhcpc's own script, none of them an init script; the image also removes
+  `S02sysctl`. Stable-privacy addresses still leave a second address family to
+  reason about (link-local, router solicitations, a per-boot secret on a
+  system that runs from RAM) for requests a board makes over IPv4 anyway.
+  Absent code needs no ordering. `board/post-build.sh` reads the `.config` of
+  the kernel that was really built and fails the image if `CONFIG_IPV6` is in
+  it, so a kernel configured before the fragment changed, or a refreshed
+  ROCKNIX config, cannot ship; `S05hardware` writes `== ipv6` / `off` into
+  `hardware.txt` every boot, which is the check on a console with no shell.
+- **wpa_supplicant's config is the image's own**
+  (`board/overlay/etc/wpa_supplicant.conf`). Buildroot's ends in a
+  `network={ key_mgmt=NONE }` block with no name, which joins any open network
+  in range; `scrubSavedNetworks()` happened to remove it before
+  wpa_supplicant started, and the image no longer depends on that. No
+  `update_config`, so the file cannot be written from the control socket.
+- **`hardware.txt` and `dmesg.txt` are scrubbed of anything shaped like a
+  hardware address** as they are written. They are the files that get attached
+  to an issue, which is the banner's rule (`device=`, never `mac=`) applied to
+  the card. mac80211 logs `authenticate with <BSSID> (local address=<MAC>)` on
+  every join; both files are written before Braino starts the radio, so that
+  line is not in them today, and the scrub is what keeps a later change from
+  putting it there.
 - **The CPU governor is `schedutil`**, set by the image's init. The kernel
   boots with `performance`, which held all four cores at 1.4 GHz at an idle
   launcher (396 mA awake, measured).

@@ -59,6 +59,23 @@ the selector to stop at -- and that is left as it is. Tested on a PC for every
 combination of controls (`test/host/host_controls_test.cpp`); not yet run on
 the console.
 
+**The RG40XX V's card image no longer has an address made from its Wi-Fi
+chip.** Its kernel was built with IPv6 and left at Linux's defaults, which on
+a network that offers IPv6 gives the console an address built from the radio's
+hardware address (EUI-64), and libcurl prefers IPv6: the timezone lookup and
+the update check would have carried that address to the servers they reach.
+No image was published with it. The kernel is now built without IPv6 and the
+build fails if it comes back; Braino's HTTP requests are IPv4 only on every
+Linux build, as a board's are; the DHCP client sends no client identifier
+(its default is the hardware address), no vendor string and no hostname; the
+image ships its own `wpa_supplicant.conf` in place of Buildroot's, which
+joins any open network in range; busybox's DNS server is no longer built; and
+the hardware report and kernel log each boot leaves on the card have anything
+shaped like a hardware address blanked. `tools/check_privacy.py` asserts the
+kernel fragment, the IPv4-only request and the DHCP client's arguments. The
+ESP32 boards were checked and are not affected: the firmware never enables
+IPv6 and the core's clients open IPv4 sockets only.
+
 **The handheld's d-pad reaches the tabs.** Settings, Wi-Fi, System Info and
 About draw their tabs as a strip rather than as buttons, so the selector could
 reach every control on those screens except the tabs that move between them.

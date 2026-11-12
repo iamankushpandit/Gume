@@ -44,6 +44,10 @@ start)
 
     # What this console's kernel calls everything, for whoever reads the card
     # after a problem. Kept on the card only; nothing here is sent anywhere.
+    # They are also what gets attached to a bug report, so anything shaped
+    # like a hardware address is blanked on the way in: a MAC names this one
+    # console for the life of its radio.
+    scrub() { sed -E 's/([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/xx:xx:xx:xx:xx:xx/g'; }
     {
         echo "== uname"; uname -a
         echo "== leds"; ls /sys/class/leds
@@ -52,12 +56,15 @@ start)
         echo "== power_supply"; for p in /sys/class/power_supply/*; do echo "$p: $(cat "$p/type" 2>/dev/null)"; done
         echo "== drm"; for c in /sys/class/drm/card*-*; do echo "$c: $(cat "$c/status" 2>/dev/null)"; done
         echo "== net"; ls /sys/class/net; echo "== bluetooth"; ls /sys/class/bluetooth 2>/dev/null
+        # The image's kernel is built without IPv6, so that the console never
+        # has an address made from its radio's MAC. This line is the proof.
+        echo "== ipv6"; [ -e /proc/net/if_inet6 ] && echo "ON: this kernel has IPv6" || echo "off: not in this kernel"
         echo "== input"; cat /proc/bus/input/devices
         echo "== sound"; cat /proc/asound/cards
         for c in 0 1 2; do [ -e /proc/asound/card$c ] && { echo "-- card $c"; amixer -c $c scontents; }; done
         echo "== modules"; lsmod
-    } >/data/braino/hardware.txt 2>&1
-    dmesg >/data/braino/dmesg.txt 2>&1
+    } 2>&1 | scrub >/data/braino/hardware.txt
+    dmesg 2>&1 | scrub >/data/braino/dmesg.txt
     ;;
 stop)
     hwclock -w -u 2>/dev/null

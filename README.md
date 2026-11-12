@@ -1183,7 +1183,14 @@ dashboard, file sharing, remote login and its time service -- so the console
 as a whole sends only what a board sends. The RG40XX V's Braino-only card
 image has none of those services to switch off: nothing on it but Braino uses
 the network, there is no login or remote access of any kind, and Wi-Fi is
-started only when Braino joins a network. On a desktop with NetworkManager,
+started only when Braino joins a network. On Linux the three requests go over
+IPv4 only, as a board's do: a Linux system's default IPv6 address is built
+from the Wi-Fi chip's hardware address, and that address would otherwise
+travel with them. The card image goes further and has no IPv6 at all, and
+when it asks the router for an address it sends no name, no client identifier
+and no software version. The router and other devices on the same network
+still see the Wi-Fi chip's hardware address, as they do for a board and for
+every other Wi-Fi device; it does not leave that network. On a desktop with NetworkManager,
 joining a network from that screen saves it in the computer's own network
 settings, exactly as joining from the system's Wi-Fi menu would. Profiles and
 scores are kept in a file on that computer, the same way a board keeps them in
