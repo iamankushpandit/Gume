@@ -115,7 +115,7 @@ bottom (`WANTS`): move the selector and press, then Home, the page pair, the
 next tab, Lock and Mute, the crosshair, the battery on the light ring, and the
 restart hold. A job whose usual control is missing takes the next one down its
 own lines; when those run out the job has no button. A control left over has
-no job -- X, Y and R3 on the RG40XX V. The log says both, once
+no job -- X and Y on the RG40XX V. The log says both, once
 (`[console] jobs:` and `[console] no job:`).
 
 - **A button is a shortcut, never the only way to do something.** This is
@@ -306,7 +306,9 @@ opens with a mood instead: red pulses below 50%, deliberately under three a
 second because it is saturated red, one slow orange breath from 50%, and a
 green light running round the ring at 100%. Pushing a stick
 needs more than half its travel, once per push, because a stick drifts. With
-the screen on only the right stick asks, since the left is the cursor. Without
+the screen on only the right stick asks, since the left is the cursor; on a
+console with one stick, such as the RG40XX V, it asks only while the screen
+sleeps. Without
 the charger, a colour the firmware has lit comes before the gauge when the
 screen is on. With it the gauge comes first, the saver's colours and the green
 and red for answers included, because from here they all look the same. The LED

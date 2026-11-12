@@ -49,7 +49,9 @@ list, and none is lost for good, because every one of them is also a button
 on the screen that the d-pad's selector reaches. A control left over once
 every job has one now does nothing: **on the RG40XX V, X and Y no longer turn
 pages (L1 and R1 do) and Start no longer goes Home (B does).** Select and
-Start held together still restart Braino. An H700 console with no profile of
+Start held together still restart Braino. The RG40XX V's profile lists one
+stick, as the console has: its driver reads a second stick's axes that
+nothing is wired to. An H700 console with no profile of
 its own gets the family's buttons and no stick, since a stick input with
 nothing wired to it would send the crosshair wandering; the log says which
 profile was used and which controls have no job. The image build refuses a

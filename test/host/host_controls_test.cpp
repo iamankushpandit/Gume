@@ -221,8 +221,16 @@ void profiles() {
     HostConsole::Profile v, family;
     CHECK(HostConsole::parse(slurp("host/consoles/anbernic-rg40xx-v.conf"), v, error));
     CHECK(HostConsole::parse(slurp("host/consoles/allwinner-h700.conf"), family, error));
-    CHECK(v.controls == ALL);
+    /* One stick: the bottom right of its face is a speaker. */
+    CHECK(v.controls == (ALL & ~bits({RStick, R3})));
     CHECK(family.controls == BUTTONS);
+    {
+        const Assignment jobs = assign(v.controls);
+        checkConsistent(v.controls, jobs);
+        CHECK(jobs.is(Cursor, LStick) && jobs.is(CursorPress, L3));
+        CHECK(!jobs.has(AskBattery));   // the stick asks while the screen sleeps
+        CHECK(jobs.unassigned == bits({X, Y}));
+    }
 
     /* The console's own profile wins whichever order the files come in, and
      * a console the image has not been taught gets the family's. */
