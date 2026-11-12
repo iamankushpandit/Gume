@@ -111,6 +111,8 @@ STYLES = {
     # fragments, U-Boot's extlinux and busybox's acpid tables all take "#".
     ".mk": HASH, ".cfg": HASH, ".fragment": HASH, ".desc": HASH,
     ".conf": HASH, ".map": HASH,
+    # PowerShell: the RG40XX V's card writer for Windows.
+    ".ps1": HASH,
 }
 
 # Files whose comment syntax is set by their NAME, not their extension.

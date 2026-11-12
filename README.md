@@ -1474,7 +1474,7 @@ The RG40XX V also has a **card image that is nothing but Braino**: no muOS
 or any other system underneath, no menu, no login, and no text on the screen
 from power-on to the splash. It is built from source with Buildroot --
 mainline Linux 7.2 with ROCKNIX's H700 support, U-Boot, and Braino drawing
-straight to the panel with no GPU driver -- and is 13 MB to download.
+straight to the panel with no GPU driver -- and is 17 MB to download.
 [host/rg40xxv/README.md](host/rg40xxv/README.md) explains how to build it and
 what is on it.
 

@@ -118,21 +118,58 @@ host/rg40xxv/build.sh
 
 The first build downloads about 1.5 GB of sources and takes 1–2 hours. The
 result is in `~/braino-rg40xxv/out/images/`: `braino-rg40xxv.img`, the same
-compressed as `.img.xz`, and `braino-rg40xxv.sha256`. Keep the build
+compressed as `.img.gz`, and `braino-rg40xxv.sha256`. Keep the build
 directory on a Linux filesystem; building under `/mnt/c` is many times
 slower.
 
 `rocknix/fetch.sh` refreshes the ROCKNIX parts from a pinned commit, and
 `rocknix/PROVENANCE.txt` records where every file came from and its hash.
 
-## Writing a card on Windows — read this first
+## Writing a card
 
-With this PC's Realtek card reader, **Windows overwrites sector 0 of a card
-whenever it mounts it**, replacing the partition table with a copy of a FAT
-boot sector. A card that has gone through that boots U-Boot and then cannot
-find its partitions. Write the image with a tool that keeps every volume on
-the card locked until the card is removed, and pull the card out before the
-lock is released. Rufus and Raspberry Pi Imager release it afterwards.
+Writing the image replaces everything on the card, the players' profiles and
+scores included. Any microSD card of 1 GB or more will do.
+
+**Windows.** Use `write-card.ps1`, beside this file, not an ordinary image
+writer. With some card readers -- the Realtek reader built into the laptop
+this image was made on is one -- **Windows writes over the start of a card
+the moment it mounts it**, replacing the partition table with a copy of a FAT
+boot sector, and a card that has gone through that boots U-Boot and then
+cannot find its partitions. Rufus and Raspberry Pi Imager let go of the card
+when they finish, which is exactly when Windows does it. The script locks
+every volume on the card for the whole write, writes the first 4 MB last,
+reads everything back, and keeps the locks until the card is pulled out.
+
+```powershell
+# PowerShell opened as administrator, in the folder with the download:
+powershell -ExecutionPolicy Bypass -File write-card.ps1          # lists the cards
+powershell -ExecutionPolicy Bypass -File write-card.ps1 -Image braino-rg40xxv.img.gz -Disk 2
+```
+
+It offers only a disk on an SD or MMC bus, or one Windows calls removable,
+that is not the disk Windows runs from and is no bigger than 512 GB, and it
+asks for the disk number a second time before it writes. When it says so,
+take the card out without ejecting it. `-Backup <file>` saves what was on the
+card first.
+
+**Linux.** Find the card with `lsblk` (it is the disk that appears when the
+card goes in), then, with `sdX` replaced by it:
+
+```sh
+gunzip -c braino-rg40xxv.img.gz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+```
+
+**macOS.** Find the card with `diskutil list`, then, with `N` replaced by its
+number:
+
+```sh
+diskutil unmountDisk /dev/diskN
+gunzip -c braino-rg40xxv.img.gz | sudo dd of=/dev/rdiskN bs=4m
+diskutil eject /dev/diskN
+```
+
+Check the download first: its SHA-256 is in `braino-rg40xxv.sha256`
+(`Get-FileHash` on Windows, `sha256sum` on Linux, `shasum -a 256` on macOS).
 
 ## Licences
 

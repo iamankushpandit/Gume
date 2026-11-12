@@ -10,11 +10,21 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The RG40XX V's card can be written safely from Windows.**
+`host/rg40xxv/write-card.ps1` writes the image to a microSD card, reads it
+back and keeps every volume on the card locked until it is pulled out,
+because with some card readers Windows writes over a card's partition table
+the moment it mounts it -- and an ordinary image writer lets go of the card
+when it finishes. It offers only removable disks, never the one Windows runs
+from, and asks for the disk number twice. The image README now has the steps
+for Linux and macOS as well. The download is gzip rather than xz, which
+every writer and Windows itself can unpack.
+
 **The RG40XX V gets a card image that is nothing but Braino.** `host/rg40xxv/`
 builds it with Buildroot from source: mainline Linux 7.2 with ROCKNIX's H700
 patches and device trees, U-Boot 2026.01 and TF-A 2.12, and a busybox system
 built into the kernel, so it runs from RAM and writes only to a small partition
-for Braino's settings and scores. It is 97 MB on the card and 13 MB to
+for Braino's settings and scores. It is 97 MB on the card and 17 MB to
 download, against 1.6 GB and 209 MB for the muOS card, and unlike that card it
 can be published: nothing on it is closed except the Realtek Wi-Fi/Bluetooth
 firmware, which is redistributable. There is no other system underneath, no
