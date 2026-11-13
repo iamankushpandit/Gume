@@ -10,6 +10,19 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**A change to Braino builds the RG40XX V's card in minutes, not an hour.**
+Every card-image build compiled the toolchain, glibc, the kernel and every
+library from scratch, 58 to 79 minutes a run, though a change to a game
+touches none of them. A full build on `dev` or `main` now stores its output,
+cut from 17 GB to 3 GB by `host/rg40xxv/os-base.sh`, as an artifact named
+after a hash of everything the OS is built from, and a later run with the
+same hash builds Braino on top of it and relinks the kernel around the new
+root filesystem -- 57 seconds on a desk. A change to the OS itself still
+builds everything. Only bases stored by pushes to `dev` or `main` are used,
+never one a pull request made, since a base goes into published images. The
+source bundle of a build on a base is the base's, with Braino's source,
+licence and manifest row replaced by the commit's own.
+
 **CI builds the RG40XX V's card image, and a tag publishes it.**
 `card-image.yml` builds the image with Buildroot on every change to what it is
 made from, and uploads it with its source bundle: Buildroot's `legal-info`,
