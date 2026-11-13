@@ -304,6 +304,11 @@ void Board::beginTimeSync() {
     lastSyncAttemptMs_ = millis();
 
     if (WiFi.status() == WL_CONNECTED) {
+        /* Already on the network: a join just made in the Wi-Fi screen.
+         * This path used to skip the timezone, so a console joining for the
+         * first time synced in UTC and stayed hours out until somebody
+         * pressed Sync or restarted it. */
+        lookUpTimezoneOnce();
         applyTimeConfig();
         if (!ntpUdpProbe(ntpServer().c_str())) ntpUdpProbe("time.google.com");
         timeSyncStartedMs_ = millis();
@@ -503,7 +508,7 @@ void Board::tickTimeSync() {
             if (WiFi.status() == WL_CONNECTED) {
                 Serial.printf("[time] wifi up, ip=%s rssi=%d\n",
                               WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
-                if (prefs_.getUChar("tzZone", 0xFF) == 0xFF) detectTimezone();
+                lookUpTimezoneOnce();
                 applyTimeConfig();
                 if (!ntpUdpProbe(ntpServer().c_str())) {
                     ntpUdpProbe("time.google.com");

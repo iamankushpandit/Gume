@@ -519,6 +519,12 @@ public:
     /** Look the zone up from the public IP. Requires an active connection. */
     bool detectTimezone();
     bool tzAutoDetected() const { return tzAutoDetected_; }
+    /* An automatic timezone is looked up once per boot, by whichever sync
+     * reaches the network first -- the boot connect, or a join made in the
+     * Wi-Fi screen. A chosen zone is never looked up. */
+    void lookUpTimezoneOnce() {
+        if (!tzZoneChosen() && !tzAutoDetected_) detectTimezone();
+    }
     void setDisplayRotation(uint8_t rotation);
     uint8_t displayRotation() const;
 
