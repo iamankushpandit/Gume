@@ -88,8 +88,10 @@ inline constexpr BoardProfile BOARD = {
      * Attaky's Retro-Go target sends INVON in its init, so the panel wants
      * the inversion that TFT_INVERSION_ON gives the ST7789 sequence; that is
      * how platformio.ini states it, and invertColours stays false because the
-     * driver is already the panel's own. If the first picture is a photo
-     * negative, this is the line to change. */
+     * driver is already the panel's own. Seen on a Cyber Deck Plus: white was
+     * white and dark was dark, so the inversion is right; the colour order
+     * was not, and is BGR (platformio.ini says how that was read off the
+     * screen). */
     PanelProfile{
         /* nativeWidth          */ 240,
         /* nativeHeight         */ 320,

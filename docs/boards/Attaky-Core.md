@@ -63,9 +63,10 @@ claim, and the four things most likely to need changing as:
 - **Whether touch lands where you tap** in each of those positions. The
   controller's reset is driven through an I2C expander, which no other board
   here does.
-- **The colours.** Inversion on and RGB order follow Attaky's Retro-Go init. A
-  photo-negative picture means inversion is wrong; red and blue exchanged means
-  the order is.
+- **The colours -- seen, and fixed.** The first run on a Cyber Deck Plus drew
+  red as blue and blue as orange, with white still white and the Dark theme
+  still dark: red and blue exchanged, inversion right. The order is now BGR,
+  where Retro-Go's init had suggested RGB.
 - **The SD card**, which is wired in SPI mode on lines the Expand modules share
   -- and the boot line `[expand] module=none-or-media sd=allowed audio=allowed`
   before it, which should read that way with Media I/O fitted. On a LoRa or

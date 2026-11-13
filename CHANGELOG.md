@@ -399,7 +399,9 @@ they stand. The profile, `include/boards/attaky-core.h`, was written from
 Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
-has to confirm. Touch, the display and the SD slot are wired.
+has to confirm. Touch, the display and the SD slot are wired. On the first
+device red and blue came out exchanged, so the panel's colour order is BGR,
+not the RGB that Attaky's Retro-Go init suggested.
 
 **One firmware for every Attaky build: what is clipped on is found at boot.**
 Every Attaky module this firmware knows -- the keyboard, the gamepad, the
