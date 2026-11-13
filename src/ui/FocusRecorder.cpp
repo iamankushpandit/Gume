@@ -151,7 +151,16 @@ void noteViewportReset() {
 void noteFill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t radius, uint16_t color) {
     if (!s_recording || w <= 0 || h <= 0) return;
     toAbsolute(x, y);
-    forgetUnder(x, y, w, h);
+    /* Only what the clip let through covers anything. A list row half
+     * scrolled out of System Info's list is filled from above the list's top,
+     * and the panel paints none of that -- but taken whole, the fill reached
+     * the tab strip's foot and every tab was forgotten, so the selector could
+     * no longer reach the tabs once the list had been scrolled. */
+    const int32_t cx0 = x > s_vpX ? x : s_vpX;
+    const int32_t cy0 = y > s_vpY ? y : s_vpY;
+    const int32_t cx1 = (x + w) < (s_vpX + s_vpW) ? (x + w) : (s_vpX + s_vpW);
+    const int32_t cy1 = (y + h) < (s_vpY + s_vpH) ? (y + h) : (s_vpY + s_vpH);
+    if (cx1 > cx0 && cy1 > cy0) forgetUnder(cx0, cy0, cx1 - cx0, cy1 - cy0);
     /* A button's shadow is the same size, a few pixels down and to the right,
      * and drawn just before it. */
     const int32_t dx = s_lastFill.x - x;
