@@ -703,7 +703,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,595,941 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,595,973 / 3,145,728 bytes,
 **82.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 90,932 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -884,6 +884,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   - **Its colour is chosen against what it sits on**: the theme colour
     furthest from the control's fill and outline, or from the header's
     ground (`Ui::bar()`, `Ui::surface()`), never one fixed accent.
+  **In a game showing four answers in two columns and two rows, the
+  gamepad's four round keys answer them**, each the one in its own
+  corner, and each answer wears its key's symbol
+  (`GamepadProfile::faceLayout` / `faceShapes`; `Focus::answerGrid()`
+  finds the four as drawn, so no quiz changed). Only while
+  `Modules::allows(NavKeys)` says the gamepad was found at boot: the
+  symbols are a promise about keys that are physically there.
   A real finger puts the selector away. A board drawn as one picture --
   Maze, Tic-Tac-Toe, the Chess and Go boards -- offers no stop, and with
   no stick on this console there is no crosshair either: those need the

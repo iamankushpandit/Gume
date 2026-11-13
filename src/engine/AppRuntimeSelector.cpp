@@ -47,6 +47,7 @@
 
 #if GUME_HAS_NAV_KEYS
 
+#include "hal/modules/Modules.h"
 #include "ui/FocusMath.h"
 #include "ui/LauncherLayout.h"
 
@@ -60,6 +61,32 @@ constexpr uint32_t RESTART_HOLD_MS = 3000;
 /* How far one press of the d-pad drags a list that has nothing more to
  * select: about one row. */
 constexpr int16_t SCROLL_STEP_PX = 24;
+/* Half a face-key symbol: 14px across, inside a quiz answer's left end. */
+constexpr int32_t FACE_SHAPE_R = 7;
+
+/* Whether the four face keys are on this console now: the gamepad module
+ * itself, found by its probe at boot -- not merely a profile that could
+ * carry one. Unclipped, nothing below happens and no answer wears a symbol. */
+bool facePadAttached() {
+    return Modules::allows(ModuleCapability::NavKeys) && BOARD.gamepad.faceLayout != nullptr;
+}
+
+/* The face key in corner `i` of the profile's faceLayout (reading order),
+ * or ControlCount. */
+Control faceKey(int i) {
+    if (!facePadAttached()) return ControlCount;
+    const char* face = BOARD.gamepad.faceLayout;
+    if (face == nullptr || face[0] == '\0' || face[1] == '\0' || face[2] == '\0' ||
+        face[3] == '\0') {
+        return ControlCount;
+    }
+    HeldControls one;
+    holdLayoutKey(face[i], one);
+    for (uint8_t c = 0; c < ControlCount; ++c) {
+        if (one.held(static_cast<Control>(c))) return static_cast<Control>(c);
+    }
+    return ControlCount;
+}
 
 FocusMath::Box toBox(const Focus::Target& t) {
     FocusMath::Box b;
@@ -230,6 +257,10 @@ void BrainoApp::selectorErase() {
 void BrainoApp::selectorFollowScreen() {
     if (sel_.screen == activeGame_) return;
     sel_.screen = activeGame_;
+    /* launch() draws the new screen's first frame itself, outside the loop's
+     * paint step, so no `repainted` ever says so: without this a quiz's first
+     * question went without its key symbols. */
+    sel_.shapesDue = true;
     sel_.on = false;
     sel_.drawn = false;
     sel_.dirty = false;
@@ -381,7 +412,42 @@ uint8_t BrainoApp::selectorFrame(TouchPoint& touch, const FrameKeys& keys) {
         return 0;
     }
 
-    if (pressed(Home)) jobs |= SELECTOR_HOME;
+    /* Every press, by name: one line, and the way to see which key is which
+     * on a console nobody has mapped by hand. */
+    const uint32_t fresh = held.buttons & ~prev.buttons;
+    for (uint8_t c = 0; c < ControlCount && fresh != 0; ++c) {
+        if (fresh & maskOf(static_cast<Control>(c))) {
+            Serial.printf("[controls] pressed %s\n", name(static_cast<Control>(c)));
+        }
+    }
+
+    /* A quiz: four answers in two columns and two rows, and the four face
+     * keys answer them, each the one in its own corner. The screen does not
+     * change for it -- it is a tap at the answer's middle, as a finger's
+     * would be. While the selector is up, its Press key presses the selector
+     * as before; the other three still answer. An answer puts the selector
+     * away, as a finger does. Only in a game, so that a two-by-two of tiles
+     * on the launcher or buttons on a system screen keep their own keys. */
+    bool answering = false;
+    if (sel_.script == SelectorState::Script::None && activeAppIsPlayable()) {
+        Rect grid[4];
+        bool gridKnown = false;
+        for (int i = 0; i < 4; ++i) {
+            const Control c = faceKey(i);
+            if (c == ControlCount || !held.held(c) || prev.held(c)) continue;
+            if (sel_.on && sel_.jobs.is(Press, c)) continue;
+            if (!gridKnown && !(gridKnown = Focus::answerGrid(grid))) break;
+            if (sel_.on) {
+                selectorErase();
+                sel_.on = false;
+            }
+            selectorTap(centreX(grid[i]), centreY(grid[i]));
+            answering = true;
+            break;
+        }
+    }
+
+    if (!answering && pressed(Home)) jobs |= SELECTOR_HOME;
     if (pressed(Lock)) jobs |= SELECTOR_LOCK;
     if (pressed(Mute) && Board::hasSound()) jobs |= SELECTOR_MUTE;
 
@@ -493,8 +559,61 @@ uint8_t BrainoApp::selectorFrame(TouchPoint& touch, const FrameKeys& keys) {
  * selector is up and either it moved or the screen painted over it. If the
  * control it was on is gone -- a page turned, a screen changed -- it follows
  * to the one nearest to where it was. */
+/* Each answer of a quiz wears the symbol of the face key that answers it,
+ * at its left end, in the ink its label would take. Only with the gamepad
+ * module attached, only in a game, and only where answerGrid() finds the
+ * four. It is drawn after the screen, whenever the screen has drawn: a
+ * button repainted for a new colour or a new question has painted over its
+ * symbol, and drawing all four again is four small outlines over pixels that
+ * are either the same or gone. Nothing ever erases one -- the answer's own
+ * repaint does that. */
+void BrainoApp::paintFaceShapes() {
+    const char* shapes = BOARD.gamepad.faceShapes;
+    if (shapes == nullptr || !facePadAttached() || !activeAppIsPlayable()) return;
+    Rect grid[4];
+    uint16_t fills[4];
+    if (!Focus::answerGrid(grid, fills)) return;
+    Focus::setRecording(false);
+    for (int i = 0; i < 4 && shapes[i] != '\0'; ++i) {
+        const Rect& r = grid[i];
+        const uint16_t ink = Ui::onFill(fills[i]);
+        const int32_t cx = r.x + 6 + FACE_SHAPE_R;
+        const int32_t cy = r.y + r.h / 2;
+        const int32_t s = FACE_SHAPE_R;
+        switch (shapes[i]) {
+            case 'O':
+                /* A ring reads smaller than a square or a triangle of the
+                 * same width, so it is drawn a pixel larger all round. */
+                renderer_.drawCircle(cx, cy, s + 1, ink);
+                renderer_.drawCircle(cx, cy, s, ink);
+                break;
+            case 'U':
+                renderer_.drawTriangle(cx, cy - s, cx - s, cy + s - 1, cx + s, cy + s - 1, ink);
+                renderer_.drawTriangle(cx, cy - s + 2, cx - s + 2, cy + s - 2, cx + s - 2,
+                                       cy + s - 2, ink);
+                break;
+            case 'D':
+                renderer_.drawTriangle(cx, cy + s, cx - s, cy - s + 1, cx + s, cy - s + 1, ink);
+                renderer_.drawTriangle(cx, cy + s - 2, cx - s + 2, cy - s + 2, cx + s - 2,
+                                       cy - s + 2, ink);
+                break;
+            case 'S':
+                renderer_.drawRect(cx - s + 1, cy - s + 1, 2 * s - 1, 2 * s - 1, ink);
+                renderer_.drawRect(cx - s + 2, cy - s + 2, 2 * s - 3, 2 * s - 3, ink);
+                break;
+            default:
+                break;
+        }
+    }
+    Focus::setRecording(true);
+}
+
 void BrainoApp::paintSelector(bool repainted) {
     selectorFollowScreen();
+    if (repainted || sel_.shapesDue) {
+        paintFaceShapes();
+        sel_.shapesDue = false;
+    }
     if (!sel_.on || !(repainted || sel_.dirty)) return;
     Focus::Target* targets = s_targets;
     const int n = selectorTargets(targets, Focus::MAX_TARGETS);

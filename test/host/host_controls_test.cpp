@@ -89,7 +89,7 @@ void everyControl() {
     CHECK(a.is(AskBattery, RStick));
     CHECK(a.is(RestartA, Select) && a.is(RestartB, Start));
     /* More controls than jobs: the spare ones do nothing. */
-    CHECK(a.unassigned == bits({X, Y, R3}));
+    CHECK(a.unassigned == bits({X, Y, R3, Option}));
     CHECK(a.taskOf(X) == TaskCount);
     CHECK(a.taskOf(B) == Home);
 }
@@ -222,7 +222,7 @@ void profiles() {
     CHECK(HostConsole::parse(slurp("host/consoles/anbernic-rg40xx-v.conf"), v, error));
     CHECK(HostConsole::parse(slurp("host/consoles/allwinner-h700.conf"), family, error));
     /* One stick: the bottom right of its face is a speaker. */
-    CHECK(v.controls == (ALL & ~bits({RStick, R3})));
+    CHECK(v.controls == (ALL & ~bits({RStick, R3, Option})));
     CHECK(family.controls == BUTTONS);
     {
         const Assignment jobs = assign(v.controls);

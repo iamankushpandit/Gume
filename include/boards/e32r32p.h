@@ -155,6 +155,8 @@ inline constexpr BoardProfile BOARD = {
         /* padRightExpander */ 0,
         /* padLeftLayout    */ nullptr,
         /* padRightLayout   */ nullptr,
+        /* faceLayout       */ nullptr,
+        /* faceShapes       */ nullptr,
     },
 
     /* Vendor-documented: the MicroSD slot shares its bus with the SPI

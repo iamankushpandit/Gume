@@ -343,6 +343,57 @@ bool scrollArea(ScrollArea& out) {
     return true;
 }
 
+bool answerGrid(Rect out[4], uint16_t* fills) {
+    int found = 0;
+    for (const Mark& first : s_marks) {
+        if (!first.valid || !first.button) continue;
+        /* Every button of this one's size; the first of a size does the
+         * looking, so a size is judged once. */
+        const Mark* same[4];
+        int n = 0;
+        bool earlier = false;
+        for (const Mark& m : s_marks) {
+            if (!m.valid || !m.button || m.w != first.w || m.h != first.h) continue;
+            if (&m < &first) earlier = true;
+            if (n < 4) same[n] = &m;
+            ++n;
+        }
+        if (earlier || n != 4) continue;
+        /* Two columns and two rows: two distinct lefts and two distinct tops,
+         * each shared by exactly two of the four. */
+        int16_t left = same[0]->x, top = same[0]->y;
+        for (int i = 1; i < 4; ++i) {
+            if (same[i]->x < left) left = same[i]->x;
+            if (same[i]->y < top) top = same[i]->y;
+        }
+        int lefts = 0, tops = 0;
+        for (int i = 0; i < 4; ++i) {
+            lefts += same[i]->x == left;
+            tops += same[i]->y == top;
+        }
+        if (lefts != 2 || tops != 2) continue;
+        bool corners[4] = {false, false, false, false};
+        Rect grid[4];
+        uint16_t gridFill[4] = {0, 0, 0, 0};
+        for (int i = 0; i < 4; ++i) {
+            const int slot = (same[i]->y == top ? 0 : 2) + (same[i]->x == left ? 0 : 1);
+            if (corners[slot]) break;
+            corners[slot] = true;
+            grid[slot] = Rect{same[i]->vx0, same[i]->vy0,
+                              static_cast<int16_t>(same[i]->vx1 - same[i]->vx0 + 1),
+                              static_cast<int16_t>(same[i]->vy1 - same[i]->vy0 + 1)};
+            gridFill[slot] = same[i]->fill;
+        }
+        if (!(corners[0] && corners[1] && corners[2] && corners[3])) continue;
+        if (++found > 1) return false;
+        for (int i = 0; i < 4; ++i) {
+            out[i] = grid[i];
+            if (fills != nullptr) fills[i] = gridFill[i];
+        }
+    }
+    return found == 1;
+}
+
 }   // namespace Focus
 
 #endif  /* GUME_HAS_NAV_KEYS */

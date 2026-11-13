@@ -98,6 +98,11 @@ bool nextTab(Rect& out);
 /* The enabled Prev (next false) or Next pager. */
 bool pager(bool next, Rect& out);
 bool scrollArea(ScrollArea& out);
+/* Four buttons of one size in two columns and two rows -- a quiz's answers
+ * -- in reading order: top left, top right, bottom left, bottom right. False
+ * unless the screen shows exactly one such set. `fills`, if given, gets each
+ * one's fill as last drawn. */
+bool answerGrid(Rect out[4], uint16_t* fills = nullptr);
 /* Whether `t` is still on the panel exactly as it was recorded: the same
  * rectangle in the same colours. Only then may its ring be taken off by
  * painting those colours back; anywhere else the screen has already drawn

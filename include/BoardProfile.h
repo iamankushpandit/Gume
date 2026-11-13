@@ -262,6 +262,17 @@ struct GamepadProfile {
     uint8_t     padRightExpander;  // the right half's
     const char* padLeftLayout;     // eight characters, P0_0..P0_7, or nullptr
     const char* padRightLayout;
+    /* The four keys that answer a quiz, as they sit, in reading order -- top left, top
+     * right, bottom left, bottom right -- in the layouts' letters, or nullptr.
+     * A quiz's four answers are a two-by-two grid, and each key answers the
+     * one in its own corner. */
+    const char* faceLayout;
+    /* What is printed on each of those keys, in the same order: 'O' a
+     * circle, 'U' a triangle, 'D' one upside down, 'S' a square -- or
+     * nullptr. Each
+     * answer then wears its key's symbol, so a player reads which key to
+     * press off the screen. */
+    const char* faceShapes;
 };
 
 struct SdProfile {

@@ -43,6 +43,9 @@ namespace ControlJobs {
 enum Control : uint8_t {
     DPad, A, B, X, Y, L1, R1, L2, R2, Select, Start, Menu,
     LStick, L3, RStick, R3,
+    /* A key some gamepads carry with no job of its own -- the Attaky
+     * gamepad's Option. Named so a screen can read it, never in WANTS. */
+    Option,
     ControlCount
 };
 
@@ -142,7 +145,7 @@ inline Assignment assign(uint32_t present) {
 inline const char* name(Control c) {
     static const char* const NAMES[ControlCount] = {
         "dpad", "a", "b", "x", "y", "l1", "r1", "l2", "r2", "select", "start", "menu",
-        "lstick", "l3", "rstick", "r3"};
+        "lstick", "l3", "rstick", "r3", "option"};
     return c < ControlCount ? NAMES[c] : "none";
 }
 

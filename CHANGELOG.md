@@ -431,6 +431,16 @@ takes the theme colour that stands out most against what it is on. This
 replaces the launcher-only focus ring. The gamepad is read in full, from
 Attaky's own Retro-Go map rather than the datasheet's six keys.
 
+**In a quiz, the gamepad's four round keys answer, and the answers show
+which.** Four answers in two columns and two rows are answered by the four
+round keys between the D-pad and the face buttons, each the one in its own
+corner, and every answer wears its key's symbol -- triangle, upside-down
+triangle, circle, square -- so a young player can see which key to press.
+No game changed for it: the runtime finds the four answers as they are
+drawn and presses one as a tap. Only with the gamepad clipped on. Option,
+the circle, had no name before and now does. The d-pad selector also
+keeps System Info's tabs within reach after its list has been scrolled.
+
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
 run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8
 module as the Freenove board) with a 2.0-inch ST7789 at 240x320 and an FT6636

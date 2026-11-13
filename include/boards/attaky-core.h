@@ -202,14 +202,22 @@ inline constexpr BoardProfile BOARD = {
      * shoulder a side; the second, L2 on left P0_7 and R2 on right P0_0, is
      * the pin left over on each half, which mirrors the first. Select,
      * Option, Menu and Start are the four small round keys between the D-pad
-     * and the face buttons; Option gets no job. Seen on a device: the D-pad,
+     * and the face buttons, printed with a triangle, an upside-down
+     * triangle, a circle and a square; Option gets no job of its own. Seen
+     * on a device: the D-pad, Select, Start, Menu and Option by name,
      * and bits 0, 1, 6 and 7 of both halves answering. The RGB LED each half
      * carries on P1_5..P1_7 is left an input, which is off. */
     GamepadProfile{
         /* padLeftExpander  */ (GUME_HAS_ATTAKY_MODULES ? 0x22 : 0),
         /* padRightExpander */ 0x26,
-        /* padLeftLayout    */ "S~DRLU<{",
+        /* padLeftLayout    */ "SODRLU<{",
         /* padRightLayout   */ "}>XABYMT",
+        /* The four round keys answer a quiz: Select (triangle) and Start
+         * (upside-down triangle) on top, Option (circle) and Menu (square)
+         * below. Which key is which was read off `[controls] pressed` on a
+         * Cyber Deck Plus. */
+        /* faceLayout       */ "STOM",
+        /* faceShapes       */ "UDOS",
     },
 
     /* microSD on the Expand: Media I/O module, in SPI mode: CS (the card's

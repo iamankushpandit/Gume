@@ -131,6 +131,8 @@ inline constexpr BoardProfile BOARD = {
         /* padRightExpander */ 0,
         /* padLeftLayout    */ nullptr,
         /* padRightLayout   */ nullptr,
+        /* faceLayout       */ nullptr,
+        /* faceShapes       */ nullptr,
     },
 
     SdProfile{

@@ -146,6 +146,8 @@ inline constexpr BoardProfile BOARD = {
         /* padRightExpander */ 0,
         /* padLeftLayout    */ nullptr,
         /* padRightLayout   */ nullptr,
+        /* faceLayout       */ nullptr,
+        /* faceShapes       */ nullptr,
     },
 
     /* Inherited from the E32R28T-1; not exercised on this board. */

@@ -438,10 +438,12 @@ private:
         Script script = Script::None;
         uint8_t step = 0;
         int16_t tx = 0, ty = 0, dragDy = 0;
+        bool shapesDue = false;          // a new screen: paint the key symbols
     };
     SelectorState sel_;
     uint8_t selectorFrame(TouchPoint& touch, const FrameKeys& keys);
     void paintSelector(bool repainted);
+    void paintFaceShapes();
     int selectorTargets(Focus::Target* out, int max);
     bool selectorSettingsRect(Rect& out);
     void selectorMove(int dx, int dy);

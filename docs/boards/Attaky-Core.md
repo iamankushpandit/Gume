@@ -109,6 +109,17 @@ keys each have one job, from the same table the RG40XX V uses
 | Select + Start, three seconds | restart |
 | Power, short press | lock |
 
+**In a quiz, the four round keys answer.** Where a game shows four answers in
+two columns and two rows -- Math, Multiplication, Counting, Time, Flags and the
+rest of that family -- the gamepad's four round keys between the D-pad and
+the face buttons answer them, each the one in its own corner: triangle (Select)
+top left, upside-down triangle (Start) top right, circle (Option) bottom left,
+square (Menu) bottom right. Each answer wears its key's symbol at its left
+end, so a player reads which key to press off the screen. It is a tap at the
+answer's middle, so no game changed for it, and it happens only with the
+gamepad module found at boot: unclipped, the answers carry no symbols. While
+the selector is up, A still presses what it is on.
+
 Without the gamepad the Core's centre key is A. A finger on the glass puts the
 selector away. Boards drawn as one picture -- Maze, Tic-Tac-Toe, Microku, the
 Chess and Go boards -- have nothing for it to stop on and are played by touch.

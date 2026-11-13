@@ -65,7 +65,8 @@ inline void holdLayoutKey(char key, HeldControls& into) {
         case 'S': into.buttons |= maskOf(Select); break;
         case 'T': into.buttons |= maskOf(Start); break;
         case 'M': into.buttons |= maskOf(Menu); break;
-        default: break;   // '~': no job
+        case 'O': into.buttons |= maskOf(Option); break;
+        default: break;   // '~': nothing at all
     }
 }
 
