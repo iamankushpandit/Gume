@@ -141,9 +141,12 @@ green and blue are stated as the catalog states them.
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
 doing what DEL and OK do. The name fields take capitals, digits and spaces, as
-their on-screen keypad does; the password takes exactly what is typed, with
-Shift for capitals. The on-screen keypad stays: the module clips off, and the
-firmware checks for it at boot.
+their on-screen keypad does; the password takes exactly what is typed. The
+keyboard's only shift is the up-arrow key, and it works as a phone's does:
+tap it on its own for caps lock, which lights the left half's LED green, and
+tap it again to turn it off; hold it with a letter for one capital (lower
+case while caps lock is on). The on-screen keypad stays: the module clips
+off, and the firmware checks for it at boot.
 
 Left out on purpose, not broken: the D-pad and the gamepad on any screen but
 the launcher, and the gamepad's other eight keys. Touch is the console's input

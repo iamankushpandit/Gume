@@ -399,7 +399,10 @@ they stand. The profile, `include/boards/attaky-core.h`, was written from
 Attaky's published datasheets and hardware catalog before a device was
 available here, and every pin agrees with the two firmwares Attaky ship for
 it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
-has to confirm. Touch, the display and the SD slot are wired. On the first
+has to confirm. Touch, the display and the SD slot are wired. The keyboard's
+up-arrow Shift, tapped on its own, now turns caps lock on and off, with the
+left half's LED green while it is on; held with a letter it still shifts
+that one letter. On the first
 device red and blue came out exchanged, so the panel's colour order is BGR,
 not the RGB that Attaky's Retro-Go init suggested.
 

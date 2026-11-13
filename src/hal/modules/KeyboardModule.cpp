@@ -31,6 +31,12 @@
  *  - A letter, lower case, or upper case while Shift is held. Each text field
  *    decides what it accepts: the name fields take capitals, as their
  *    on-screen keypad does, and the Wi-Fi password takes what was typed.
+ *  - Shift is the only shift key, printed with a phone's up arrow, and it is
+ *    pressed like one: tapped on its own -- down and up with no other key in
+ *    between -- it turns caps lock on, and tapped again turns it off. Held
+ *    with a letter it still shifts that letter, the other way round while
+ *    caps lock is on. The left half's own LED is green while it is on, so the
+ *    state is visible on the keys rather than guessed at.
  *  - A digit, a space, or the punctuation printed on the keys, as itself.
  *  - '\b' for Delete, repeating while it is held, because clearing a
  *    mistyped password one press at a time is the case that needs it.
@@ -56,6 +62,7 @@ constexpr uint8_t AW9523_CONFIG_P0 = 0x04;   // 1 = input, 0 = output
 constexpr uint8_t AW9523_MODE_P0 = 0x12;     // 1 = GPIO, 0 = LED current
 constexpr uint8_t AW9523_MODE_P1 = 0x13;
 constexpr uint8_t ROWS_LOW = 0xE0;   // rows P1_0..P1_4 low, LED P1_5..P1_7 off
+constexpr uint8_t LED_GREEN = 0x40;  // P1_6, active low
 constexpr uint8_t COLS = 0x1F;
 
 constexpr uint32_t DELETE_REPEAT_DELAY_MS = 450;
@@ -65,6 +72,20 @@ constexpr uint32_t DELETE_REPEAT_EVERY_MS = 90;
  * auto-repeat. Loop task only. */
 uint32_t s_down[2] = {0, 0};
 uint32_t s_repeatAtMs = 0;
+
+/* Caps lock, and whether the Shift press in progress is still a tap: set when
+ * it goes down, cleared by any other key before it comes up. */
+bool s_capsLock = false;
+bool s_shiftWasDown = false;
+bool s_shiftTap = false;
+
+/* The P1 value with every row low, for one half. The LED shares P1 with the
+ * rows, so every row write carries it -- otherwise the scan would put the
+ * caps-lock light out on the first key. */
+uint8_t rowsLow(uint8_t address) {
+    const bool lit = s_capsLock && address == BOARD.keyboard.keyboardLeft;
+    return static_cast<uint8_t>(lit ? (ROWS_LOW & ~LED_GREEN) : ROWS_LOW);
+}
 
 void aw9523Write(uint8_t address, uint8_t reg, uint8_t value) {
     Wire.beginTransmission(address);
@@ -123,13 +144,13 @@ bool scanHalf(uint8_t address, uint32_t& positions) {
     bool ok = true;
     for (uint8_t row = 0; row < 5 && ok; ++row) {
         uint8_t cols = 0;
-        ok = writeRows(address, static_cast<uint8_t>(ROWS_LOW | (COLS & ~(1u << row)))) &&
+        ok = writeRows(address, static_cast<uint8_t>(rowsLow(address) | (COLS & ~(1u << row)))) &&
              readColumns(address, cols);
         positions |= static_cast<uint32_t>(cols) << (row * 5);
     }
     /* Back to all rows low, whatever happened, or the next frame's idle test
      * would be reading a single row. */
-    ok = writeRows(address, ROWS_LOW) && ok;
+    ok = writeRows(address, rowsLow(address)) && ok;
     return ok;
 }
 
@@ -154,11 +175,28 @@ char typedChar() {
     }
 
     bool shift = false;
+    bool otherFresh = false;
     for (uint8_t half = 0; half < 2; ++half) {
+        const uint32_t fresh = down[half] & ~s_down[half];
         for (uint8_t pos = 0; pos < 25; ++pos) {
             if ((down[half] >> pos & 1) && layout[half][pos] == '^') shift = true;
+            if ((fresh >> pos & 1) && layout[half][pos] != '^') otherFresh = true;
         }
     }
+    if (shift && !s_shiftWasDown) {
+        s_shiftTap = true;
+    }
+    if (otherFresh) {
+        s_shiftTap = false;
+    }
+    if (!shift && s_shiftWasDown && s_shiftTap) {
+        s_capsLock = !s_capsLock;
+        s_shiftTap = false;
+        const uint8_t left = BOARD.keyboard.keyboardLeft;
+        writeRows(left, rowsLow(left));
+        Serial.printf("[keyboard] caps lock %s\n", s_capsLock ? "on" : "off");
+    }
+    s_shiftWasDown = shift;
 
     char typed = 0;
     for (uint8_t half = 0; half < 2 && typed == 0; ++half) {
@@ -173,7 +211,7 @@ char typedChar() {
             } else if (key == '>') {
                 typed = '\n';
             } else if (key >= 'A' && key <= 'Z') {
-                typed = shift ? key : static_cast<char>(key - 'A' + 'a');
+                typed = (shift != s_capsLock) ? key : static_cast<char>(key - 'A' + 'a');
             } else {
                 typed = key;
             }

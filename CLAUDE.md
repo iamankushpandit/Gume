@@ -902,7 +902,12 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   player's name and a Nearby peer's (through `Ui::Keypad::fromTyped()`,
   so they accept exactly the keypad's capitals, digits and space), both
   admin PIN pads (digits, Delete, Enter), and the Wi-Fi password (what was
-  typed, case and punctuation included). **A screen must handle a typed
+  typed, case and punctuation included). The keyboard's one Shift is
+  printed as a phone's up arrow and is pressed like one: tapped alone it
+  toggles caps lock, held with a letter it shifts that letter. Caps lock is
+  shown on the left half's own LED, which shares the AW9523's P1 with the
+  matrix rows -- so every row write carries the LED bits (`rowsLow()`), or
+  the scan would put the light out on the first key. **A screen must handle a typed
   character apart from the touch**: on its frame the touch coordinates are
   the last touch's, and running the hit tests would press that again.
   Each screen reads it through `hostTypedChar()`, a constant 0 where
