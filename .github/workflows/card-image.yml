@@ -12,10 +12,13 @@ name: Card image
 # Builds the Anbernic RG40XX V's card image (host/rg40xxv/) with Buildroot,
 # from source, the way host/rg40xxv/build.sh builds it on a desk.
 #
-# It is its own workflow rather than a job in ci.yml because it takes hours
-# the first time -- a cross toolchain, a kernel, U-Boot and every library --
-# and because what it protects is a download, not the firmware every change
-# touches. It runs when something the image is built from changes.
+# It is its own workflow rather than a job in ci.yml because a full build
+# takes about an hour -- a cross toolchain, a kernel, U-Boot and every
+# library -- and because what it protects is a download, not the firmware
+# every change touches. It runs when something the image is built from
+# changes. Most runs are not full builds: when only Braino changed, a run
+# builds Braino on top of an OS base an earlier run stored (see "Look for a
+# stored OS base" below), which takes minutes.
 #
 # Every run uploads two artifacts: the image as testers get it, and the
 # source bundle that has to go beside it. Pushing a tag named
@@ -47,8 +50,8 @@ on:
     tags: ["card-rg40xxv-*"]
   workflow_dispatch:
 
-# A newer push to the same branch makes an older build worthless, and each
-# one holds a runner for hours.
+# A newer push to the same branch makes an older build worthless, and a full
+# one holds a runner for an hour.
 concurrency:
   group: card-image-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -62,24 +65,18 @@ jobs:
   image:
     runs-on: ubuntu-24.04
     timeout-minutes: 340
+    permissions:
+      contents: read
+      # To find and download the OS base another run stored.
+      actions: read
     steps:
       - uses: actions/checkout@v4
-
-      # The build directory reaches about 16 GB, and the source bundle and
-      # the downloads take it past 20. A fresh runner has less than that free
-      # until the toolchains this job never uses are removed.
-      - name: Make room on the runner
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/.ghcup
-          df -h /
 
       - name: Install what Buildroot needs from the host
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential bc cpio file rsync unzip wget python3 xz-utils git
+            build-essential bc cpio file rsync unzip wget python3 xz-utils git zstd
 
       - name: Fetch Buildroot
         run: |
@@ -89,11 +86,74 @@ jobs:
           echo "$BUILDROOT_SHA256  $BUILDROOT.tar.xz" | sha256sum -c -
           tar -xf "$BUILDROOT.tar.xz"
 
-      # Every source tarball the build downloads: about 2 GB, most of it the
-      # kernel, glibc and linux-firmware. The key moves when the
-      # configuration or a package version does.
-      - name: Cache the downloaded sources
-        uses: actions/cache@v4
+      # THE OS BASE. Almost all of a full build is the cross toolchain, glibc,
+      # the kernel and the libraries, none of which a change to Braino
+      # touches. A full build on dev or main therefore stores its output,
+      # cut down by host/rg40xxv/os-base.sh to about 3 GB, as an artifact
+      # named after a hash of everything the OS is built from; any later run
+      # whose hash matches builds only Braino on top of it, in minutes rather
+      # than an hour. A change to the OS changes the hash, finds no base and
+      # builds everything.
+      #
+      # Only a base from a push to dev or main of THIS repository is used.
+      # A base goes into published images, and a pull request -- from a fork
+      # above all -- runs code nobody has reviewed yet: one that stored a
+      # base under the right name could put anything into the next release.
+      # Pull requests build on bases; they never store one.
+      - name: Look for a stored OS base
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_ID: ${{ github.repository_id }}
+        run: |
+          key=$(sh host/rg40xxv/os-base.sh key)
+          echo "key=$key" >>"$GITHUB_OUTPUT"
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=rg40xxv-os-$key&per_page=100" \
+            --jq "[.artifacts[] | select(.expired == false
+                     and .workflow_run.head_repository_id == $REPO_ID
+                     and (.workflow_run.head_branch == \"dev\" or .workflow_run.head_branch == \"main\"))]
+                  | .[0].workflow_run.id // empty")
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          if [ -n "$run" ]; then
+            echo "OS base $key, stored by run $run: building Braino on top of it."
+          else
+            echo "No stored OS base $key: building everything."
+          fi
+
+      - name: Fetch the OS base
+        if: steps.base.outputs.run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: rg40xxv-os-${{ steps.base.outputs.key }}
+          run-id: ${{ steps.base.outputs.run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/base
+
+      - name: Unpack the OS base
+        if: steps.base.outputs.run != ''
+        run: |
+          zstd -dc "$RUNNER_TEMP/base/os-base.tar.zst" | tar -C "$HOME/braino-rg40xxv" -xf -
+          rm -rf "$RUNNER_TEMP/base"
+          du -sh "$HOME/braino-rg40xxv/out"
+
+      # A full build reaches about 16 GB, and the source bundle and the
+      # downloads take it past 20. A fresh runner has less than that free
+      # until the toolchains this job never uses are removed.
+      - name: Make room on the runner
+        if: steps.base.outputs.run == ''
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/.ghcup
+          df -h /
+
+      # Every source tarball a full build downloads: about 2 GB, most of it
+      # the kernel, glibc and linux-firmware. Saved only from dev and main,
+      # whose caches every branch can read; one saved by a pull request is
+      # visible to that pull request alone.
+      - name: Restore the downloaded sources
+        if: steps.base.outputs.run == ''
+        uses: actions/cache/restore@v4
         with:
           path: ~/braino-rg40xxv/dl
           key: card-dl-${{ hashFiles('host/rg40xxv/configs/**', 'host/rg40xxv/package/**', 'host/rg40xxv/board/*.fragment') }}
@@ -105,7 +165,7 @@ jobs:
       - name: Build the card image
         run: |
           set -o pipefail
-          host/rg40xxv/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered '^>>> ' || {
+          host/rg40xxv/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered '>>> ' || {
             tail -n 200 "$RUNNER_TEMP/build.log"
             exit 1
           }
@@ -119,6 +179,13 @@ jobs:
           path: ${{ runner.temp }}/build.log
           retention-days: 7
 
+      - name: Save the downloaded sources
+        if: steps.base.outputs.run == '' && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        uses: actions/cache/save@v4
+        with:
+          path: ~/braino-rg40xxv/dl
+          key: card-dl-${{ hashFiles('host/rg40xxv/configs/**', 'host/rg40xxv/package/**', 'host/rg40xxv/board/*.fragment') }}
+
       # The corresponding source: every package's source and patches, the
       # configuration, the licence texts -- and Buildroot itself, which
       # legal-info leaves out. Two things are taken out, each for a reason
@@ -128,15 +195,40 @@ jobs:
       #     licenses/.
       #   - host-sources: the tools that ran on the build machine. None of
       #     them is on the card.
+      #
+      # A full build collects it with `make legal-info`, and keeps a copy in
+      # the OS base. A build on a base cannot run legal-info -- the base has
+      # dropped the package trees it reads licence files from -- and does
+      # not need to: only Braino changed, so it takes the base's bundle and
+      # replaces Braino's source, licence and manifest row with this
+      # commit's.
       - name: Collect the source bundle
+        env:
+          FROM_BASE: ${{ steps.base.outputs.run }}
         run: |
-          host/rg40xxv/build.sh legal-info >"$RUNNER_TEMP/legal-info.log" 2>&1 || {
-            tail -n 100 "$RUNNER_TEMP/legal-info.log"
-            exit 1
-          }
-          L="$HOME/braino-rg40xxv/out/legal-info"
-          rm -rf "$L/host-sources" "$L"/sources/linux-firmware-*
-          cp "$HOME/braino-rg40xxv/$BUILDROOT.tar.xz" "$L/"
+          set -eu
+          L="$HOME/braino-rg40xxv/legal-info"
+          if [ -z "$FROM_BASE" ]; then
+            host/rg40xxv/build.sh legal-info >"$RUNNER_TEMP/legal-info.log" 2>&1 || {
+              tail -n 100 "$RUNNER_TEMP/legal-info.log"
+              exit 1
+            }
+            rm -rf "$L"
+            mv "$HOME/braino-rg40xxv/out/legal-info" "$L"
+            rm -rf "$L/host-sources" "$L"/sources/linux-firmware-*
+            cp "$HOME/braino-rg40xxv/$BUILDROOT.tar.xz" "$L/"
+          else
+            new=$(git rev-parse --short=7 HEAD)
+            old=$(sed -n 's/^"braino","\([^"]*\)".*/\1/p' "$L/manifest.csv")
+            rm -rf "$L/sources/braino-$old" "$L/licenses/braino-$old"
+            mkdir -p "$L/sources/braino-$new" "$L/licenses/braino-$new"
+            git archive --format=tar.gz --prefix="braino-$new/" \
+              -o "$L/sources/braino-$new/braino-$new.tar.gz" HEAD
+            cp LICENSE NOTICE.md "$L/licenses/braino-$new/"
+            sed -i "/^\"braino\",/s/$old/$new/g" "$L/manifest.csv"
+            (cd "$L" && find . -type f ! -name legal-info.sha256 | sed 's|^\./||' | LC_ALL=C sort \
+              | xargs sha256sum >legal-info.sha256)
+          fi
           cat >"$L/BRAINO-SOURCES.txt" <<EOF
           The corresponding source of the Braino card image for the Anbernic RG40XX V,
           built from ${GITHUB_SHA} of ${GITHUB_REPOSITORY}.
@@ -155,7 +247,7 @@ jobs:
           - host-sources: the tools that ran on the build machine. None of
             them is on the card.
           EOF
-          tar -C "$HOME/braino-rg40xxv/out" -cf "$RUNNER_TEMP/braino-rg40xxv-sources.tar" legal-info
+          tar -C "$HOME/braino-rg40xxv" -cf "$RUNNER_TEMP/braino-rg40xxv-sources.tar" legal-info
           ls -l "$RUNNER_TEMP/braino-rg40xxv-sources.tar"
 
       - name: Gather the download
@@ -179,6 +271,24 @@ jobs:
           retention-days: 30
           compression-level: 0
 
+      # Kept 90 days, the longest an artifact can be. A base that expires
+      # costs the next run one full build, which stores a new one.
+      - name: Cut the build down to the OS base
+        if: steps.base.outputs.run == '' && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        run: |
+          sh host/rg40xxv/os-base.sh trim
+          tar -C "$HOME/braino-rg40xxv" -cf - out legal-info | zstd -T0 -3 -q -o "$RUNNER_TEMP/os-base.tar.zst"
+          ls -l "$RUNNER_TEMP/os-base.tar.zst"
+
+      - name: Store the OS base
+        if: steps.base.outputs.run == '' && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        uses: actions/upload-artifact@v4
+        with:
+          name: rg40xxv-os-${{ steps.base.outputs.key }}
+          path: ${{ runner.temp }}/os-base.tar.zst
+          retention-days: 90
+          compression-level: 0
+
   publish:
     needs: image
     if: startsWith(github.ref, 'refs/tags/card-rg40xxv-')
@@ -189,6 +299,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+          pattern: braino-rg40xxv*
           merge-multiple: true
 
       # A pre-release, so it is never offered as the newest Braino:

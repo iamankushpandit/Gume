@@ -131,8 +131,40 @@ slower.
 whenever a pull request or a push to `dev` or `main` changes `host/`, `src/`
 or `include/`, and uploads two artifacts: `braino-rg40xxv` (the `.img.gz`,
 its checksums and `write-card.ps1`) and `braino-rg40xxv-sources` (the source
-bundle below). The first build on a runner takes a few hours; the downloads
-are cached after that.
+bundle below).
+
+**Most runs build only Braino.** A full build -- toolchain, glibc, kernel,
+U-Boot, every library -- takes about an hour on a runner, and a change to a
+game touches none of it. So a full build on `dev` or `main` stores its
+output as an *OS base*: `os-base.sh trim` cuts the 17 GB build directory to
+the 3 GB a later build reads (the toolchain, the root filesystem, the
+kernel's tree, the Arduino libraries Braino compiles, and every other
+package's `.stamp_*` files), and it is kept as a 90-day artifact named after
+`os-base.sh key`, a hash of everything the OS is built from. A later run with
+the same hash unpacks it and runs the same `build.sh`: Braino's build
+directory is named after its commit, so Buildroot builds it afresh, then
+repacks the root filesystem and relinks the kernel around it, and nothing
+else. That was 57 seconds on a desk, against an hour.
+
+What counts as the OS is everything in this directory except Braino's
+package, the overlay, the post-build and post-image scripts, the boot menu,
+the card layout, this README and `write-card.ps1`, which every build applies
+afresh. Change anything else -- the defconfig, a package, a kernel or busybox
+fragment, ROCKNIX's patches -- and the hash moves, no base matches, and the
+run builds everything; on `dev` or `main` it then stores the new base. Three
+things to know:
+
+- **Only a base stored by a push to `dev` or `main` of this repository is
+  used.** A base goes into published images, and a pull request runs code
+  nobody has reviewed yet. Pull requests build on bases and never store one,
+  so a pull request that changes the OS builds everything every time.
+- **A file taken out of the overlay stays on a card built on an old base**,
+  because the base's root filesystem still has it; the same goes for a file
+  Braino's package stops installing. Bump `BASE_EPOCH` in `os-base.sh` when
+  that matters, and the next run builds everything.
+- **A post-build step that reads a package's build directory needs that file
+  kept by `os-base.sh trim`.** `rtl8761b_config.bin` is the one there is; a
+  build on a base fails at once, not quietly, when one is missing.
 
 To publish an image for testers, tag the commit and push the tag:
 
