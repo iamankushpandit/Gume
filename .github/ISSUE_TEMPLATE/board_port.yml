@@ -77,6 +77,28 @@ body:
     validations:
       required: true
 
+  - type: textarea
+    id: photos
+    attributes:
+      label: Photos of the board and of its screen
+      description: >-
+        Drag the images into this box. Boards sold under one name differ in
+        ways no description catches -- the same dual-USB CYD ships with two
+        different display controllers under the same listing -- so the
+        pictures are what a port is written from, not an extra. Needed:
+        the front and the back of the board, close enough that the chip
+        markings and the silkscreen read; the display's flex cable or any
+        label on it, where there is one; and, if a Braino! image already
+        runs on it, the screen under that image, showing what is wrong
+        (which colours, which build was flashed). A photo of the panel beside
+        a board that draws it right is the single most useful picture.
+      placeholder: |
+        Front: (image)
+        Back, chip markings readable: (image)
+        Screen under app_esp32_2432s028_inv -- colours washed out: (image)
+    validations:
+      required: true
+
   - type: dropdown
     id: hardware-access
     attributes:

@@ -24,7 +24,7 @@ cases/
 | [E32R28T-1](E32R28T-1/) | Complete shell: front tray, back plate with a 20 mm speaker grille, four printed clips | Printed and fitted. No metal hardware — it replaced a screwed shell that wanted $5.36 of M3 per unit. Fits the other 2.8-inch boards too |
 | [ESP32-2432S028R](ESP32-2432S028R/) | — | The 2.8-inch boards share an outline: print [E32R28T-1](E32R28T-1/) |
 | [ESP32-2432S028-inv](ESP32-2432S028-inv/) | — | Same |
-| [ESP32-2432S028Rv3](ESP32-2432S028Rv3/) | — | Same |
+| [ESP32-2432S028-st7789](ESP32-2432S028-st7789/) | — | Same |
 | [E32R32P](E32R32P/) | Front shell with printed fasteners, back plate with an 8 Ω speaker grille | Printed and fitted; print settings not recorded yet |
 | [E32R40T](E32R40T/) | Front shell, back plate and four printed fasteners on one plate | Printed and fitted; print settings not recorded yet |
 

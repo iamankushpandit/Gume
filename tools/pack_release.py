@@ -409,7 +409,16 @@ def flashing_notes(version, built, entries):
     return "\n".join(lines)
 
 
-def pack(version, out_dir, built, strict):
+def pack(version, out_dir, built, strict, only=None):
+    """Pack every product environment, or with `only` just that one.
+
+    `only` is for a build that is not a release: a CI job that built one
+    environment and wants to hand that one image to a tester, in the same
+    four-parts-plus-merged shape a release ships, with the same FLASHING.txt.
+    The release workflow never passes it -- a release missing a board is
+    exactly what the "every product environment has to be built" refusal
+    below exists to catch.
+    """
     ini = read("platformio.ini")
     stock_boot_app0 = boot_app0()
     os.makedirs(out_dir, exist_ok=True)
@@ -417,6 +426,8 @@ def pack(version, out_dir, built, strict):
     entries = []
     missing_blurb = []
     for env, board in environments(ini):
+        if only and env != only:
+            continue
         env_dir = os.path.join(ROOT, ".pio", "build", env)
         if not os.path.isdir(env_dir):
             die("no build for [env:%s] at %s -- every product environment in "
@@ -448,6 +459,10 @@ def pack(version, out_dir, built, strict):
         if env_role(env, board) not in ENV_BLURBS:
             missing_blurb.append(env)
         entries.append((env, board, parts))
+
+    if only and not entries:
+        die("--only %s names no product environment in platformio.ini"
+            % only)
 
     if missing_blurb and strict:
         die("no description in ENV_BLURBS for: %s -- a release that offers a "
@@ -481,6 +496,10 @@ def main():
                         help="how the binaries were built, for FLASHING.txt")
     parser.add_argument("--strict", action="store_true",
                         help="fail if an environment has no description")
+    parser.add_argument("--only", metavar="ENV",
+                        help="pack this one product environment rather than "
+                             "all of them -- for handing a CI build to a "
+                             "tester, never for a release")
     args = parser.parse_args()
 
     version = args.version or firmware_version()
@@ -491,7 +510,8 @@ def main():
             % (version, stated))
 
     out_dir = args.out if os.path.isabs(args.out) else os.path.join(ROOT, args.out)
-    entries, binaries = pack(version, out_dir, args.built, args.strict)
+    entries, binaries = pack(version, out_dir, args.built, args.strict,
+                             args.only)
 
     print("Packed %s: %d environment(s), %d binaries -> %s"
           % (version, len(entries), len(binaries), out_dir))
