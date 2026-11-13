@@ -141,10 +141,13 @@ the 3 GB a later build reads (the toolchain, the root filesystem, the
 kernel's tree, the Arduino libraries Braino compiles, and every other
 package's `.stamp_*` files), and it is kept as a 90-day artifact named after
 `os-base.sh key`, a hash of everything the OS is built from. A later run with
-the same hash unpacks it and runs the same `build.sh`: Braino's build
-directory is named after its commit, so Buildroot builds it afresh, then
-repacks the root filesystem and relinks the kernel around it, and nothing
-else. That was 57 seconds on a desk, against an hour.
+the same hash unpacks it, runs `os-base.sh settle`, and runs the same
+`build.sh`: Braino's build directory is named after its commit, so Buildroot
+builds it afresh, then repacks the root filesystem and relinks the kernel
+around it, and nothing else. That was 57 seconds on a desk, against an hour.
+`settle` dates the OS's own files in the checkout before the base's stamps,
+because a fresh checkout dates them now, and make takes a fragment newer than
+its stamp as a change to rebuild from sources the base no longer has.
 
 What counts as the OS is everything in this directory except Braino's
 package, the overlay, the post-build and post-image scripts, the boot menu,

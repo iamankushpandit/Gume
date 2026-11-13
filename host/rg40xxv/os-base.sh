@@ -14,6 +14,7 @@
 #
 #   host/rg40xxv/os-base.sh key    # what the base depends on, as one hash
 #   host/rg40xxv/os-base.sh trim   # cut $OUT down to the base, in place
+#   host/rg40xxv/os-base.sh settle # date the OS inputs before an unpacked base
 #
 # Why this works: Braino's package version is its commit (package/braino/),
 # so a new commit is a new build directory that Buildroot builds from
@@ -25,27 +26,41 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${OUT:-$HOME/braino-rg40xxv/out}
 
+# Everything the OS is built from, apart from the Buildroot release: the
+# configuration, every package but Braino's own, the kernel and busybox
+# fragments, ROCKNIX's patches and device trees, and this script. Left out,
+# because every build applies them afresh: Braino's package, the overlay and
+# the post-build and post-image scripts, the boot menu and the card layout.
+# Paths are relative to this directory, which is where both callers are.
+os_inputs() {
+    find . -type f \
+        ! -path './package/braino/*' \
+        ! -path './board/overlay/*' \
+        ! -name post-build.sh ! -name post-image.sh \
+        ! -name extlinux.conf ! -name genimage.cfg \
+        ! -name README.md ! -name write-card.ps1 \
+        | LC_ALL=C sort
+}
+
 case "${1:-}" in
 key)
-    # Everything the OS is built from: the Buildroot release, the
-    # configuration, every package but Braino's own, the kernel and busybox
-    # fragments, ROCKNIX's patches and device trees, and this script. Left
-    # out, because every build applies them afresh: Braino's package, the
-    # overlay and the post-build and post-image scripts, the boot menu and
-    # the card layout. Bump BASE_EPOCH to force a full build.
+    # Bump BASE_EPOCH to force a full build.
     BASE_EPOCH=1
     cd "$HERE"
     {
         echo "epoch $BASE_EPOCH"
         echo "buildroot ${BUILDROOT:-buildroot-2026.08.1}"
-        find . -type f \
-            ! -path './package/braino/*' \
-            ! -path './board/overlay/*' \
-            ! -name post-build.sh ! -name post-image.sh \
-            ! -name extlinux.conf ! -name genimage.cfg \
-            ! -name README.md ! -name write-card.ps1 \
-            | LC_ALL=C sort | xargs sha256sum
+        os_inputs | xargs sha256sum
     } | sha256sum | cut -c1-16
+    ;;
+settle)
+    # A checkout dates every file now, after every stamp in the base, and
+    # make reads that as a change: busybox.fragment newer than busybox's
+    # .stamp_dotconfig reconfigures busybox, whose source the trim removed,
+    # and the build stops. The key has already said these files are the
+    # ones the base was built from, so they are dated before it instead.
+    cd "$HERE"
+    os_inputs | xargs touch -d '2000-01-01 00:00:00 UTC'
     ;;
 trim)
     # What stays whole:
@@ -84,7 +99,7 @@ trim)
     du -sh "$OUT"
     ;;
 *)
-    echo "usage: $0 key|trim" >&2
+    echo "usage: $0 key|trim|settle" >&2
     exit 2
     ;;
 esac
