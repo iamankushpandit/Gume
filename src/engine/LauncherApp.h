@@ -27,6 +27,7 @@ public:
      * wordmark, the profile name and the status badges -- so the base class's
      * strip would be wrong here. Repaints that header instead. */
     bool renderChrome(GameHost& host) override;
+    bool renderClock(GameHost& host) override;
 
 private:
     void clampPage(GameHost& host);
@@ -45,6 +46,13 @@ private:
     /* A page turned: repaint the grid and the pager. */
     void requestGridPaint() { markDirty(); }
 
+    /* Where drawHeader() last put the clock, so the minute can redraw the
+     * time alone (renderClock()). */
+    int16_t clockScreenW_ = 0;
+    int16_t clockX_ = 0;
+    int16_t clockY_ = 0;
+    int16_t clockW_ = -1;
+    uint8_t clockDatum_ = 0;
 
     uint8_t page_ = 0;
 

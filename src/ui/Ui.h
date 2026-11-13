@@ -52,6 +52,11 @@ uint16_t warning();
 uint16_t accent();
 void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
+/* The top bar's clock alone, for the minute: the new time over the old one,
+ * nothing cleared. False when it cannot be done alone -- the time's width
+ * changed, or the bar has not been drawn at this size -- and the caller
+ * repaints the bar instead. */
+bool drawTopBarClock(Board& board);
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
 
 /* Padlock, drawn to fill `r`. `bg` is whatever is behind it: the keyhole is
@@ -312,13 +317,13 @@ constexpr int16_t BUTTON_SHADOW_DY = 3;
 
 /** Text and glyphs drawn on the top bar. A palette role, not a constant. */
 uint16_t barText();
+/* The top bar's own fill, for anything drawn over it that must stand out. */
+uint16_t bar();
 
 /* THE INK THAT CAN BE READ ON `fill`: black or white, whichever contrasts
  * more. Use it wherever text or a glyph goes on a colour the THEME chose --
  * a launcher tile, the success badge -- rather than picking one and hoping.
  *
-/* The top bar's own fill, for anything drawn over it that must stand out. */
-uint16_t bar();
  * The launcher's tile labels were a fixed white over a palette fill, which is
  * how Classic came to draw white on a light grey tile at 1.3:1 and Pocket
  * white on pale green at 2.6:1. Neither is readable, and neither was visible

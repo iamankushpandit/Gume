@@ -92,3 +92,7 @@ void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
 void BrainoApp::drawTopBar(const char* title) {
     Ui::drawTopBar(board_, title);
 }
+
+bool BrainoApp::drawTopBarClock() {
+    return Ui::drawTopBarClock(board_);
+}

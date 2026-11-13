@@ -106,6 +106,7 @@ public:
     bool batteryLow() override;
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) override;
     void drawTopBar(const char* title) override;
+    bool drawTopBarClock() override;
     void goHome() override;
     void relaunchActiveGame() override;
 
@@ -249,6 +250,9 @@ private:
      * over a Nearby event: one of them is a nicety, the other is the reason
      * the console is about to switch off. */
     void drawHeaderBanner(bool screenRepainted);
+    /* The notification on the header now, if any: the battery's, the
+     * update's or Nearby's, in that order. */
+    const char* headerBannerText() const;
 
     /* Ask for a header-only repaint. Cheap enough to call on every tick that
      * changes a badge; the flag collapses several in one frame into one
@@ -407,6 +411,11 @@ private:
         frameTyped_ = 0;
 #endif
     }
+    /* What the d-pad's selector asks the routing to do this frame; on a
+     * board without keys it asks nothing. */
+    static constexpr uint8_t SELECTOR_HOME = 1;
+    static constexpr uint8_t SELECTOR_LOCK = 2;
+    static constexpr uint8_t SELECTOR_MUTE = 4;
 #if GUME_HAS_NAV_KEYS
     /* The d-pad's selector (AppRuntimeSelector.cpp). Everything it does goes
      * through the runtime's own doors -- a touch, BOOT's Home, the padlock's
@@ -441,11 +450,6 @@ private:
     void selectorErase();
     void selectorPaintRing(const Focus::Target& t, bool on);
     void selectorFollowScreen();
-    /* What the d-pad's selector asks the routing to do this frame; on a
-     * board without keys it asks nothing. */
-    static constexpr uint8_t SELECTOR_HOME = 1;
-    static constexpr uint8_t SELECTOR_LOCK = 2;
-    static constexpr uint8_t SELECTOR_MUTE = 4;
 #endif
 #if GUME_HAS_KEYBOARD
     char frameTyped_ = 0;     /* the same, for a typed character */

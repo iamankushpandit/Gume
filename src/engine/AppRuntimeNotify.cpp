@@ -130,13 +130,17 @@ void BrainoApp::requestBannerRepaint() {
     requestChromeRender();
 }
 
+/* Priority order, and it is not arbitrary. A flat battery is about to end the
+ * session whatever else is true; an update is a standing condition that will
+ * still be there in five seconds; a poke is somebody waiting. */
+const char* BrainoApp::headerBannerText() const {
+    return (batteryBanner_ != nullptr)  ? batteryBanner_
+         : updateBannerActive_          ? updateBanner_
+                                        : NearbyPlay::banner();
+}
+
 void BrainoApp::drawHeaderBanner(bool screenRepainted) {
-    /* Priority order, and it is not arbitrary. A flat battery is about to end
-     * the session whatever else is true; an update is a standing condition that
-     * will still be there in five seconds; a poke is somebody waiting. */
-    const char* text = (batteryBanner_ != nullptr)  ? batteryBanner_
-                     : updateBannerActive_          ? updateBanner_
-                                                    : NearbyPlay::banner();
+    const char* text = headerBannerText();
     if (text == nullptr) {
         bannerNeedsPaint_ = false;
         return;

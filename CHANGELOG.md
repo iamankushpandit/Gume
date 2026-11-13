@@ -33,6 +33,13 @@ mute is toggled, the header strip when a notification comes or goes. It used
 to answer every header change with a full repaint, which was harmless only
 while it showed nothing that changed.
 
+**The minute changes the clock's digits and nothing else.** The header used
+to be wiped and redrawn once a minute to change the time; now the new time
+is drawn over the old one, on the top bar and on the launcher, and only a
+time of a different width -- which moves what sits beside it -- takes the
+header repaint. The picker, which has no clock, no longer repaints its
+header at all on the minute.
+
 **The selector's arithmetic and job table are shared.** `ui/FocusMath.h` and
 `hal/ControlJobs.h` moved from `host/` into `src/` so the Attaky Core's
 selector uses the same two pieces as the RG40XX V's; the host keeps its old
@@ -405,6 +412,12 @@ pressed is the one that flashes now.
 ## attaky-1.0.0-SNAPSHOT — Unreleased
 
 Braino! for Attaky: the same console on Attaky's modular handhelds, released
+on its own line. `ATTAKY_VERSION` is what these images report and
+`attaky-v<version>` is the tag that builds them; the Braino code each one
+is built from is on System Info and the `[boot]` line. First run on a Cyber
+Deck Plus on 2026-11-12. Nothing here is published: the tag makes a draft
+release and the web installer does not list the board.
+
 **Its keys work every screen, the way the RG40XX V's do.** The D-pad moves a
 selector to every control -- buttons, tiles, keyboard keys, tabs, and the
 header's Home, padlock, speaker, gear and player name -- and A presses it, as
@@ -417,12 +430,6 @@ the first version did that on the header and flashed the launcher -- and
 takes the theme colour that stands out most against what it is on. This
 replaces the launcher-only focus ring. The gamepad is read in full, from
 Attaky's own Retro-Go map rather than the datasheet's six keys.
-
-on its own line. `ATTAKY_VERSION` is what these images report and
-`attaky-v<version>` is the tag that builds them; the Braino code each one
-is built from is on System Info and the `[boot]` line. First run on a Cyber
-Deck Plus on 2026-11-12. Nothing here is published: the tag makes a draft
-release and the web installer does not list the board.
 
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
 run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8

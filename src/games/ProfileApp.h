@@ -32,6 +32,12 @@ public:
      * is the flash the invalidation rule exists to stop. The other phases
      * show none of those and return false, as the picker used to. */
     bool renderChrome(GameHost& host) override;
+    /* No clock on this screen, so the minute has nothing to change. Without
+     * this the default would draw a top bar's clock it does not have. */
+    bool renderClock(GameHost& host) override {
+        (void)host;
+        return true;
+    }
 
     /* The picker carries its own padlock and speaker (LauncherLayout's
      * pickerLockRect/pickerSpeakerRect), and only while picking: the menu,
@@ -94,16 +100,16 @@ private:
     void renderRename(GameHost& host);
 
     Phase phase_ = Phase::Pick;
+    /* What the picker last drew in its chrome, so renderChrome() repaints
+     * only what changed. */
+    int8_t shownPct_ = -2;
+    bool shownMuted_ = false;
     uint8_t editing_ = 0;
     uint8_t menuFor_ = 0;
     uint8_t gameScroll_ = 0;
     uint16_t adminPinAttempt_ = 0;
     uint8_t adminPinDigitCount_ = 0;
     uint8_t profileToSwitchTo_ = 0;
-    /* What the picker last drew in its chrome, so renderChrome() repaints
-     * only what changed. */
-    int8_t shownPct_ = -2;
-    bool shownMuted_ = false;
     PinPurpose pinPurpose_ = PinPurpose::Switch;
     String draft_;
 };

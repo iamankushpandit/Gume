@@ -239,7 +239,17 @@ void BrainoApp::loop() {
     const uint32_t minuteNow = Clock::minuteKey();
     if (minuteNow != lastClockMinute_) {
         lastClockMinute_ = minuteNow;
-        requestChromeRender();
+        /* The digits alone, where the screen can: a few characters drawn over
+         * the old ones, not the header wiped and redrawn once a minute. Not
+         * under a notification, which owns those pixels until it goes, nor
+         * outside a live screen -- requestChromeRender() is what knows that,
+         * and it is the fallback for both. */
+        const bool inPlace = view_ == View::Game && activeGame_ != nullptr &&
+                             !chromeNeedsPaint_ && headerBannerText() == nullptr &&
+                             (beginScreenPaint(), activeGame_->renderClock(*this));
+        if (!inPlace) {
+            requestChromeRender();
+        }
     }
 
     /* Keep the battery badge live rather than only correct at a screen change.
@@ -330,6 +340,8 @@ void BrainoApp::loop() {
             lockAndSleepNow();
         } else if (bootHome) {
             goHome();
+        } else if (keyMute) {
+            toggleMute();
         } else if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
@@ -340,8 +352,6 @@ void BrainoApp::loop() {
          * here and cannot also press whatever it landed on -- the user would
          * find it done when they unlocked. Home is tested first: their touch
          * slop overlaps even though the glyphs do not, and the older target
-        } else if (keyMute) {
-            toggleMute();
          * keeps the ambiguous pixels. */
         /* An empty rect is a screen showing no padlock (Game::headerControls),
          * and with the slop it would still catch the corner. */
@@ -403,8 +413,16 @@ void BrainoApp::loop() {
             }
         }
         drawHeaderBanner(repainted);
+#if GUME_HAS_NAV_KEYS
+        paintSelector(repainted);
+#endif
     }
 
+#if GUME_HAS_NAV_KEYS
+    /* In every view, so a key that woke the panel or dismissed the saver is
+     * not taken as a fresh press on the frame after. */
+    sel_.prev = keys.held;
+#endif
     const uint32_t workMs = millis() - nowMs;
     Watchdog::recordFrameWork(workMs);
     const uint32_t budgetMs = (view_ == View::Asleep) ? SLEEP_POLL_MS
@@ -413,16 +431,8 @@ void BrainoApp::loop() {
         delay(budgetMs - workMs);
     } else {
         delay(1);
-#if GUME_HAS_NAV_KEYS
-        paintSelector(repainted);
-#endif
     }
 }
-#if GUME_HAS_NAV_KEYS
-    /* In every view, so a key that woke the panel or dismissed the saver is
-     * not taken as a fresh press on the frame after. */
-    sel_.prev = keys.held;
-#endif
 
 /* What the battery diagnostic cannot find out for itself. Once a second, from
  * RAM: the task that books the time reads the last one published, so nothing

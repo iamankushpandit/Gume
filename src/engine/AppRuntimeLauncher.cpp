@@ -190,6 +190,22 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
  *
  * It paints its own background and takes nothing from the caller, so it is
  * correct over a live screen as well as over a freshly cleared one. */
+/* The launcher's clock alone, at the minute -- see Game::renderClock(). Only
+ * at the same width: in portrait the sync check sits after the time, and a
+ * wider or narrower time would have to move it, which is the header's job. */
+bool LauncherApp::renderClock(GameHost& host) {
+    Ui::Renderer& tft = host.display();
+    if (static_cast<int16_t>(tft.width()) != clockScreenW_ ||
+        tft.textWidth(Clock::timeText(), 2) != clockW_) {
+        return false;
+    }
+    tft.setTextColor(Ui::text(), Ui::surface());
+    tft.setTextDatum(clockDatum_);
+    tft.drawString(Clock::timeText(), clockX_, clockY_, 2);
+    tft.setTextDatum(TL_DATUM);
+    return true;
+}
+
 void LauncherApp::drawHeader(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
@@ -241,6 +257,11 @@ void LauncherApp::drawHeader(GameHost& host) {
         const int16_t rowY = 60;
         tft.setTextDatum(ML_DATUM);
         tft.drawString(Clock::timeText(), 8, rowY, 2);
+        clockScreenW_ = lW;
+        clockX_ = 8;
+        clockY_ = rowY;
+        clockW_ = tft.textWidth(Clock::timeText(), 2);
+        clockDatum_ = ML_DATUM;
         Ui::drawSyncBadge(tft, static_cast<int16_t>(8 + tft.textWidth(Clock::timeText(), 2) + 12),
                           rowY, Clock::synced(), Ui::surface());
         drawWifiAndBattery(tft, board, static_cast<int16_t>(gearBtn.x + gearBtn.w), rowY);
@@ -269,6 +290,11 @@ void LauncherApp::drawHeader(GameHost& host) {
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(MR_DATUM);
         tft.drawString(Clock::timeText(), static_cast<int16_t>(syncCx - 7 - 5), topY, 2);
+        clockScreenW_ = lW;
+        clockX_ = static_cast<int16_t>(syncCx - 7 - 5);
+        clockY_ = topY;
+        clockW_ = tft.textWidth(Clock::timeText(), 2);
+        clockDatum_ = MR_DATUM;
 
         /* The badge row, right-aligned under the gear: Wi-Fi and the battery
          * at the end, the speaker and padlock before them, and Bluetooth --

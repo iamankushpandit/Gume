@@ -562,6 +562,16 @@ void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
  * landscape ones are well clear, so nothing about the wide layout changes. */
 constexpr int16_t TOP_BAR_MIN_TITLE_W = 44;
 
+/* Where drawTopBar() last put the clock, so the minute can change the time
+ * alone (drawTopBarClock()). Stateless otherwise; this is one panel. */
+struct TopBarClock {
+    int16_t screenW = 0;
+    int16_t right = 0;
+    int16_t width = -1;
+    bool shown = false;
+};
+static TopBarClock s_topBarClock;
+
 void drawTopBar(Board& board, const String& title) {
     TftRenderer tft(board.display());
     const int16_t w = static_cast<int16_t>(tft.width());
@@ -628,6 +638,7 @@ void drawTopBar(Board& board, const String& title) {
      * the clock), then the wifi badge, then the gear. The sync badge goes with
      * the clock when the clock goes -- a tick or an exclamation mark with
      * nothing to qualify says nothing. */
+    s_topBarClock = TopBarClock{w, clockRight, tft.textWidth(Clock::timeText(), 2), showClock};
     if (showClock) {
         tft.drawString(Clock::timeText(), clockRight, TOP_BAR_HEIGHT / 2, 2);
         Ui::drawSyncBadge(tft, syncCx, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
@@ -635,6 +646,28 @@ void drawTopBar(Board& board, const String& title) {
     Ui::drawWifiBadge(tft, wifiCx, TOP_BAR_HEIGHT / 2, COLOR_BAR);
     Ui::drawBatteryBadge(tft, battCx, TOP_BAR_HEIGHT / 2, battPct, COLOR_BAR);
     tft.setTextDatum(TL_DATUM);
+}
+
+bool drawTopBarClock(Board& board) {
+    TftRenderer tft(board.display());
+    const int16_t w = static_cast<int16_t>(tft.width());
+    /* Only the same width can be redrawn alone. A wider or narrower time
+     * moves the title's budget, and with it whether the clock shows at all,
+     * so that minute takes the whole bar (false). */
+    if (w != s_topBarClock.screenW || tft.textWidth(Clock::timeText(), 2) != s_topBarClock.width) {
+        return false;
+    }
+    if (!s_topBarClock.shown) {
+        return true;   // given way to a long title: nothing on the bar to change
+    }
+    /* Drawn over the old time with its background filled, glyph by glyph:
+     * the same width means every old pixel is painted again, and nothing is
+     * cleared first, so there is nothing to see but the digits changing. */
+    tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(Clock::timeText(), s_topBarClock.right, TOP_BAR_HEIGHT / 2, 2);
+    tft.setTextDatum(TL_DATUM);
+    return true;
 }
 
 void drawNotification(Ui::Renderer& tft, const char* text) {
@@ -1033,6 +1066,8 @@ void drawPagerButton(Ui::Renderer& tft, const Rect& r, const String& label, bool
                COLOR_OUTLINE,
                enabled ? COLOR_TEXT : COLOR_MUTED,
                false, 2);
+    /* Where the page buttons (L1/R1) and walking off a row of tiles go. */
+    Focus::notePager(r, label == "Next", enabled);
 }
 
 void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active) {
@@ -1066,8 +1101,9 @@ void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active)
     tft.drawString(fitted, static_cast<int16_t>(r.x + r.w / 2),
                    static_cast<int16_t>(top + h / 2), 2);
     tft.setTextDatum(TL_DATUM);
-    /* Where the page buttons (L1/R1) and walking off a row of tiles go. */
-    Focus::notePager(r, label == "Next", enabled);
+    /* A tab is not drawn as a fill and an outline of one rectangle, so the
+     * selector is told where it is (FocusRecorder.h). */
+    Focus::noteTab(Rect{r.x, top, r.w, h}, active, fill);
 }
 
 void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,
@@ -1101,9 +1137,6 @@ void drawButton(Ui::Renderer& tft, const Rect& r, const String& label, uint16_t 
     tft.setTextColor(text, fill);
     tft.setTextDatum(MC_DATUM);
 
-    /* A tab is not drawn as a fill and an outline of one rectangle, so the
-     * selector is told where it is (FocusRecorder.h). */
-    Focus::noteTab(Rect{r.x, top, r.w, h}, active, fill);
     String fitted = label;
     while (fitted.length() > 2 && tft.textWidth(fitted, font) > r.w - 12) {
         fitted.remove(fitted.length() - 1);

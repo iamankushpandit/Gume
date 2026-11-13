@@ -1027,7 +1027,6 @@ Lock button does: the screen goes dark and comes back to **Hold to unlock**.
 Its long press switches the console off in hardware, as Attaky built it; the
 firmware never sees that press and does nothing with it.
 
-### Scores, Profiles, About and System Info
 **Its keys work every screen, the way the RG40XX V's do.** The D-pad --
 the gamepad's, or the Core's own -- moves a selector from control to control:
 every button, tile, keyboard key and tab, and the header's Home, padlock,
@@ -1039,6 +1038,7 @@ list scrolls it. A finger on the glass puts the selector away. Boards drawn
 as one picture -- Maze, Tic-Tac-Toe, Microku, the Chess and Go boards -- have
 nothing for the selector to stop on, and are played by touch for now.
 
+### Scores, Profiles, About and System Info
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
@@ -1686,8 +1686,6 @@ src/
     BoardStorageMaintenance.cpp  profile moves + NVS telemetry
     TouchTypes.h        TouchPoint event type shared without display deps
     BleBeacon.cpp       the beacon radio: bring-up, advertise, poke, turns
-    FocusRecorder.cpp   the controls on the panel, as drawn, for the selector
-    FocusMath.h         where the selector goes next (shared with host/)
     BleBeaconPayload.cpp  the one authoritative advertisement payload,
                         and decode(), its exact inverse
     BleScanner.cpp      passive observer for other Braino beacons
@@ -1699,6 +1697,8 @@ src/
     LauncherIcons.cpp   launcher tile icon drawing
     LogoMask.cpp        the product mark, generated -- see tools/gen_logo_mask.py
     LauncherLayout.cpp  launcher header, profile and tile geometry
+    FocusRecorder.cpp   the controls on the panel, as drawn, for the selector
+    FocusMath.h         where the selector goes next (shared with host/)
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
     RowList.cpp         scrolling label/value list; fixed buffers, no heap

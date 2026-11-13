@@ -286,6 +286,16 @@ chrome in isolation returns false and gets the old behaviour. **If you add
 something to the top bar, route its invalidation through
 `requestChromeRender()`, not `requestRender()`.**
 
+**And the minute does not need the strip either.** `Game::renderClock()`
+redraws the time alone, over the old one with its background filled, so
+nothing is cleared: the top bar's default is `Ui::drawTopBarClock()`, the
+launcher has its own, and the player picker, with no clock, says done. It
+answers false when the time changed width -- that moves the title's budget
+or the sync check beside it -- and only that minute takes the strip, as it
+does under a notification banner. The picker's `renderChrome()` repaints
+its battery badge, its speaker or its header strip, whichever changed --
+it used to return false, which is a full repaint for every badge tick.
+
 ## Memory rule â€” there is no garbage collector
 
 C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.
@@ -1462,8 +1472,6 @@ changes through `requestChromeRender()`, not `requestRender()`.
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
 
 **A partial repaint's clear rectangle must be derived from what it has to avoid, never typed in.** This is the most expensive mistake in this codebase to *see*, because the code reads correctly and the wrong pixels appear only after some other element redraws. `TimeGame` has now produced it twice. Its score header cleared two 140px-wide strips -- far wider than the text needed -- while the clock dial spans x=113..207, so every score change erased 37px off each shoulder of the clock and left the face as a narrow strip with square bites out of it. It happened on the first frame, on every board, from the day the screen was written; the 4-inch panel simply made it 48px a side. The same screen had already been caught clearing a prompt strip that took the bottom off two answer buttons.
-                          AppRuntimeSelector (the d-pad's selector, on a
-                          board with keys),
 
 So: write the geometry once, at file scope, and derive every clear rectangle from it with a few pixels of daylight -- `HEADER_W = CLOCK_CX - CLOCK_OUTER - MARGIN - GAP` rather than `140`. Leave a `static_assert` where the derivation could collapse. Exact adjacency is not good enough on a scaled panel: positions scale by their axis and radii by the smaller of the two, and each rounds independently.
 
@@ -1493,6 +1501,8 @@ src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 onl
 src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, AppRuntimeNotify (the
                           header banner), AppRuntimeIdentity,
+                          AppRuntimeSelector (the d-pad's selector, on a
+                          board with keys),
                           AppRuntimeConsole (+Settings, +Profiles),
                           ConsoleText,
                           ScoreCatalog, Progress,
@@ -1522,9 +1532,6 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           BackgammonAi (pure, host-tested).
                           Chess is six .cpp against two headers -- ChessGame
                           (flow, input), ChessDraw, ChessNet (the lobby and the
-                          FocusRecorder (the controls on the panel, as
-                          drawn), FocusMath (where the selector goes next;
-                          shared with the Linux host),
                           nearby game), ChessSave, over ChessRules (the rules)
                           and ChessAi (both computer levels), which are pure
                           C++ with no Arduino and are host-tested; Sea Battle is four: SeaBattleGame
@@ -1558,6 +1565,9 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           file a module -- keyboard, gamepad, fuel gauge,
                           the three Expand modules), Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
+                          FocusRecorder (the controls on the panel, as
+                          drawn), FocusMath (where the selector goes next;
+                          shared with the Linux host),
                           LauncherLayout, LogoMask (generated -- the product
                           mark, as a one-bit silhouette)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,

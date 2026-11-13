@@ -103,6 +103,9 @@ public:
     virtual bool batteryLow() = 0;
     virtual void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) = 0;
     virtual void drawTopBar(const char* title) = 0;
+    /* The top bar's clock alone, over the old time; false when only the
+     * whole bar will do (Ui::drawTopBarClock()). */
+    virtual bool drawTopBarClock() = 0;
     virtual void goHome() = 0;
     virtual void relaunchActiveGame() = 0;
 
@@ -305,6 +308,18 @@ public:
     virtual bool renderChrome(GameHost& host) {
         host.drawTopBar(title());
         return true;
+    }
+
+    /* The minute changed: the clock alone, if this screen can. The time is
+     * drawn over the old one with its background filled, so nothing is
+     * cleared and nothing else on the header is touched -- the rule is to
+     * repaint only what changed, and once a minute that is a few digits.
+     * False means "only my chrome will do" (the time changed width, which
+     * moves what sits beside it) and the runtime falls back to
+     * renderChrome(). The default is the top bar's clock; a screen with its
+     * own header overrides it, and one with no clock returns true. */
+    virtual bool renderClock(GameHost& host) {
+        return host.drawTopBarClock();
     }
 
     /* Where this screen's padlock and speaker are, if it draws its own header
