@@ -849,6 +849,9 @@ private:
      * verdict and the gauge filter are all untouched by it. */
     static constexpr int8_t PERCENT_DEADBAND = 2;
     int8_t curvePercent(float vBat) const;
+    /* The curve with its top moved to `fullVolts` (0: the curve's own), for a
+     * battery module that reads full below 4.20 V. */
+    int8_t curvePercentTo(float vBat, float fullVolts) const;
     int8_t displayPct_ = -1;   // -1 until the first good sample
 
     bool rgbReady_ = false;

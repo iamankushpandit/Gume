@@ -144,6 +144,10 @@ char typedChar();
  * voltage (see Driver::readBattery). */
 constexpr uint8_t PERCENT_FROM_VOLTS = 0xFF;
 
+/* The voltage at which the battery module fitted now reads full, for a
+   PERCENT_FROM_VOLTS reading; 0 means the LiPo curve's own 4.20 V. */
+float gaugeFullVolts();
+
 /* The first Battery driver's reading; sets that module's presence from the
  * answer. False when none answered, or there is no such driver. */
 bool readBattery(float& volts, uint8_t& percent);

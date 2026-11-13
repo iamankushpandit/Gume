@@ -50,7 +50,7 @@ void Board::sampleModuleBattery() {
     } else {
         sample.batteryVoltage = volts;
         settleDisplayPercent(percent == Modules::PERCENT_FROM_VOLTS
-                                 ? curvePercent(volts)
+                                 ? curvePercentTo(volts, Modules::gaugeFullVolts())
                                  : static_cast<int8_t>(percent));
     }
 

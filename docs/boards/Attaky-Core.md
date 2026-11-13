@@ -134,7 +134,9 @@ Retro-Go does: a MAX17048 fuel gauge at 0x36 (Standard Cell 1.0), whose state
 of charge the badge shows as it is; or an INA219 (Standard Cell 1.1) or
 INA226 (18650 Cell) at 0x40, 0x44 or 0x45, which measure the voltage, so the
 badge uses the LiPo curve. **Seen on a Cyber Deck Plus: `[battery] gauge
-INA219 at 0x44, 4076 mV`, shown as 88%.** Every two seconds, through the same
+INA219 at 0x44, 4076 mV` -- 87% at first, with the module's full-charge light
+lit.** That module reads full at 4.07 V, not the LiPo curve's 4.20 V, so for
+the INA219 the top of the curve now ends at 4.07 V; below 70% it is unchanged. Every two seconds, through the same
 deadband and the same 15% / 5% warnings as every other board. A gauge that
 does not answer -- the module unclipped -- is no reading: no badge and no
 warning, never an empty battery. Worth checking on a device:

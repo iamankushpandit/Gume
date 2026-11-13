@@ -225,6 +225,26 @@ int8_t Board::curvePercent(float vBat) const {
     return 0;
 }
 
+/* A module whose cell reads full below the curve's 4.20 V: only the top of
+ * the curve moves. From its 70% point (3.93 V) upward it runs straight to
+ * `fullVolts`; below it nothing changes, so the low and critical warnings
+ * fire exactly where they always did. */
+int8_t Board::curvePercentTo(float vBat, float fullVolts) const {
+    constexpr float KNEE_VOLTS = 3.93f;
+    constexpr int8_t KNEE_PCT = 70;
+    if (fullVolts <= KNEE_VOLTS || fullVolts >= LIPO_CURVE[0].volts) {
+        return curvePercent(vBat);
+    }
+    if (vBat >= fullVolts) {
+        return 100;
+    }
+    if (vBat <= KNEE_VOLTS) {
+        return curvePercent(vBat);
+    }
+    const float frac = (vBat - KNEE_VOLTS) / (fullVolts - KNEE_VOLTS);
+    return static_cast<int8_t>(KNEE_PCT + frac * (100 - KNEE_PCT) + 0.5f);
+}
+
 /* The displayed charge, with a deadband, because one percent is smaller than
  * this hardware can actually resolve.
  *

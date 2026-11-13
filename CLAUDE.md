@@ -1976,7 +1976,11 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   a device was the INA219 one, not the MAX17048 the catalog documents; that
   is why. A MAX17048's state of charge goes to the percentage directly; an
   INA reports only the voltage (`Modules::PERCENT_FROM_VOLTS`) and goes
-  through the LiPo curve. Same task, same snapshot, same deadband and
+  through the LiPo curve -- **with its top at the module's own full
+  voltage** (`Modules::gaugeFullVolts()`, `Board::curvePercentTo()`): the
+  Standard Cell 1.1 reads 4.07 V with its full-charge light lit, which the
+  curve's 4.20 V showed as 87%. Only the part above the curve's 70% point
+  moves, so the low and critical warnings are where they were. Same task, same snapshot, same deadband and
   thresholds. **A gauge
   that does not answer is no reading** -- -1, no badge, no warning -- never an
   empty cell, because the module unclips. See `src/hal/CLAUDE.md`.

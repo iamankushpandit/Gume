@@ -79,6 +79,15 @@ constexpr uint16_t INA226_DIE_ID = 0x2260;
 constexpr uint16_t INA219_CONFIG = 0x019F;
 constexpr uint8_t INA226_ADDRESSES[] = {0x40, 0x44, 0x45};
 constexpr uint8_t INA219_ADDRESSES[] = {0x44, 0x40, 0x45};
+/* Where the Standard Cell 1.1 reads FULL, measured rather than assumed. On a
+ * Cyber Deck Plus with the module's full-charge light lit, on USB, the INA219
+ * read 4.072-4.076 V with the shunt at a fraction of a milliamp -- charging
+ * had stopped. A LiPo curve that tops out at 4.20 V showed that as 87%. The
+ * charger stops short of 4.2 V, or the INA sits behind something that drops a
+ * little; either way 4.07 V is this module's full, and the badge has to say
+ * 100 there. The 18650 module's INA226 has not been measured and keeps the
+ * curve's own top. */
+constexpr uint16_t INA219_FULL_MV = 4070;
 constexpr uint32_t PLAUSIBLE_MIN_MV = 1000;
 constexpr uint32_t PLAUSIBLE_MAX_MV = 5500;
 
@@ -183,6 +192,14 @@ bool readFound(uint32_t& mv, uint8_t& percent) {
     }
     return true;
 }
+
+}   // namespace
+
+float Modules::gaugeFullVolts() {
+    return s_gauge == Gauge::Ina219 ? INA219_FULL_MV / 1000.0f : 0.0f;
+}
+
+namespace {
 
 bool readBattery(float& volts, uint8_t& percent) {
     if (s_gauge == Gauge::None) {

@@ -463,7 +463,9 @@ divider: the power module reports the cell on the touch bus, through a
 MAX17048 fuel gauge on the Standard Cell 1.0, an INA219 on the Standard Cell
 1.1 (the one seen on the first device) or an INA226 on the 18650 Cell. The
 firmware identifies whichever is fitted, as Attaky's Retro-Go does, and an
-INA's voltage goes through the LiPo curve. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
+INA's voltage goes through the LiPo curve. A full Standard Cell 1.1 reads
+4.07 V -- its full-charge light was lit and the deck showed 87% -- so for that
+module the curve's top is 4.07 V, measured; below 70% nothing changed. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
 board), and on a board that names one the battery task reads the gauge's
 cell voltage and state of charge instead of the ADC, and shows the state of
 charge directly rather than through the LiPo curve -- with the same deadband
