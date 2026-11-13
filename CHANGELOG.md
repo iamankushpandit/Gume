@@ -10,6 +10,14 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Joining Wi-Fi sets the clock to the right time zone straight away.** A
+console that joined a network from the Wi-Fi screen synced its clock at once
+but in UTC, because that path skipped the timezone lookup the boot connect
+makes; it stayed hours out until somebody pressed Sync or restarted it. Seen
+on an Attaky Core and on the RG40XX V. Every sync now follows one rule: with
+the zone on automatic, the first one after boot looks it up, whichever path
+that is -- still the one `ip-api.com` request a boot makes.
+
 **A change to Braino builds the RG40XX V's card in minutes, not an hour.**
 Every card-image build compiled the toolchain, glibc, the kernel and every
 library from scratch, 58 to 79 minutes a run, though a change to a game
