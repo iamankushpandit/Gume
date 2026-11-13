@@ -30,13 +30,16 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Three jobs, because the builds are independent and a runner is not:
+# Four jobs, because the builds are independent and a runner is not:
 #
 #   plan    every repository check, then decides which environments to build
 #           and installs their toolchains once, into one shared cache.
 #   build   one job PER ENVIRONMENT, on its own runner, all at once. A push to
 #           dev builds every product board; one after another on one runner that was
 #           14-15 minutes, in parallel it is roughly the slowest single board.
+#   host    the firmware built for a PC (host/), and the host tests of what
+#           the handheld image depends on. The card image itself is
+#           card-image.yml: it takes hours, and is not a check on every change.
 #   verify  the required status check. It waits for the builds and fails if
 #           any failed -- see the note on it below.
 jobs:
@@ -340,6 +343,35 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+  # The firmware as a Linux program, the way the handheld image builds it --
+  # but natively and with an SDL window, which is minutes rather than the
+  # card image's hours, and catches the same thing first: a change under
+  # src/ that the host's stand-ins for Arduino, the panel and the board do
+  # not cover. host/CLAUDE.md: host/ adapts to src/, never the reverse.
+  host:
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the host build's libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake pkg-config libsdl2-dev libcurl4-openssl-dev
+
+      - name: Build Braino for a PC
+        run: |
+          cmake -S host -B build/host -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/host -j "$(nproc)"
+
+      # Which console this is and what each button is for: every combination
+      # of controls, and every profile the image ships.
+      - name: Host test -- console profiles and button jobs
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Ihost/src test/host/host_controls_test.cpp host/src/HostConsole.cpp -o "$RUNNER_TEMP/controls_test"
+          "$RUNNER_TEMP/controls_test"
+
   # `verify` is the required status check in the "Protect main" and "Protect
   # dev" rulesets, so it must report on EVERY pull request, including
   # documentation-only ones -- a required check that does not run is not
@@ -351,7 +383,7 @@ jobs:
   # check: their names carry the environment, so the set of names changes
   # with the diff, and a ruleset can only wait for names it knows.
   verify:
-    needs: [plan, build]
+    needs: [plan, build, host]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -359,10 +391,13 @@ jobs:
         run: |
           echo "plan:  ${{ needs.plan.result }}"
           echo "build: ${{ needs.build.result }}"
-          # plan must succeed. build may be skipped (nothing needed building)
-          # but must not fail or be cancelled.
+          echo "host:  ${{ needs.host.result }}"
+          # plan must succeed. build and host may be skipped (nothing needed
+          # building) but must not fail or be cancelled.
           [ "${{ needs.plan.result }}" = "success" ] || exit 1
-          case "${{ needs.build.result }}" in
-            success|skipped) exit 0 ;;
-            *) exit 1 ;;
-          esac
+          for result in "${{ needs.build.result }}" "${{ needs.host.result }}"; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

@@ -72,53 +72,62 @@ int16_t topBarTitleLeft(int16_t screenW) {
     return static_cast<int16_t>(speaker.x + speaker.w + 4);
 }
 
-/* Both layouts put the padlock in the status cluster, at badge size, centred
- * on the same row as the sync, Wi-Fi and battery glyphs. It sat beside
- * "Braino!" first, on the far side of the header's hairline, where it read as
- * part of the product name rather than as one of the device's indicators. */
+/* THE LAUNCHER HEADER, both orientations. The mark and the copyright are
+ * fixed; everything else is placed here, so the drawing and every hit test
+ * read the same rectangles.
+ *
+ * The status row is ordered by how often each thing is there: Wi-Fi and the
+ * battery at the right-hand end, then the speaker and the padlock, and the
+ * Bluetooth rune -- drawn only while the beacon is on -- at the far left of
+ * the group, where its absence leaves a gap nobody notices instead of moving
+ * the rest. The sync check sits with the clock it describes, as it does in
+ * the top bar; on its own it means nothing.
+ *
+ * The gear is the top bar's: Ui::CONTROL_H, 8px in from the right edge. It was
+ * 26px here and 18px in every app, so the same control looked like two.
+ *
+ * And it is kept away from the padlock and the speaker. The runtime takes
+ * their taps before the launcher sees the gear's, so with the speaker under
+ * the gear, a tap on the gear's lower edge would have muted the console. Wi-Fi
+ * and the battery sit between them, nearly 40px of glyphs nobody taps.
+ *
+ * The padlock's x leaves room for the widest battery badge ("100", 28px) and
+ * Wi-Fi after the speaker; a narrower badge only widens the gap. */
+namespace {
+constexpr int16_t CONTROL_FROM_RIGHT = 110;   // padlock's left edge, from screenW
+constexpr int16_t WIDE_TOP_Y = 6;             // the top row, centred on y=15
+constexpr int16_t WIDE_BOTTOM_Y = 25;         // the badge row, centred on y=34
+constexpr int16_t TALL_NAME_Y = 32;           // the name row, centred on y=41
+constexpr int16_t TALL_BADGE_Y = 51;          // the badge row, centred on y=60
+}   // namespace
+
 Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
-    if (mode == Board::LayoutMode::Vertical) {
-        /* Portrait badge row (centred on y=60), left of the gear. The badges
-         * before it end near x=155 in the widest state ("100" plus the beacon
-         * rune), and the gear starts at screenW-32. */
-        return Rect{static_cast<int16_t>(screenW - 64), 51, 18, 18};
-    }
-    /* Landscape: the left-hand end of the badge row, inside the hairline.
-     * That row had about 4px spare, so the hairline moved out again -- from
-     * screenW-116 to screenW-138 -- and profileRect()'s right limit moved with
-     * it, exactly as it did when the battery badge grew. The name truncates
-     * gracefully; the badge row does not. */
-    return Rect{static_cast<int16_t>(screenW - 158), 25, Ui::CONTROL_H, Ui::CONTROL_H};
+    const bool tall = mode == Board::LayoutMode::Vertical;
+    return Rect{static_cast<int16_t>(screenW - CONTROL_FROM_RIGHT), tall ? TALL_BADGE_Y : WIDE_BOTTOM_Y,
+                Ui::CONTROL_H, Ui::CONTROL_H};
 }
 
-/* Mute, on the launcher's own header, which draws no top bar.
- *
- * LANDSCAPE it joins the badge row beside the padlock, so the hairline moved
- * out a third time -- lW-138 to lW-160 -- and profileRect()'s right limit
- * moved with it again. That row has never had spare pixels and still has
- * none.
- *
- * PORTRAIT it does NOT join that row. At 240px the badges already end near
- * x=155 and the padlock and gear take everything from x=176, so a fourth
- * glyph there would overlap the battery on the narrowest panel we support.
- * It goes on the profile-name row instead, whose right-hand half is empty in
- * both portrait widths -- the name is capped at 112px from x=8.
- *
- * DIRECTLY ABOVE THE PADLOCK, though, and that part was wrong for a release.
- * It sat at screenW-96, which is neither beside anything nor above anything:
- * on the device it read as an icon floating in the middle of an otherwise
- * empty row, reported off both the 2.8-inch and the 4-inch in portrait. The
- * row is the only place it fits, but the column is a choice, so it takes the
- * padlock's x -- both are CONTROL_H glyphs of the same family, so the pair
- * lines up exactly and cannot drift if the padlock moves. Derived from
- * lockRect() rather than restated for that reason. */
+/* Mute, on the launcher's own header, which draws no top bar: beside the
+ * padlock, as it is in the top bar, in both orientations. */
 Rect speakerRect(Board::LayoutMode mode, int16_t screenW) {
-    if (mode == Board::LayoutMode::Vertical) {
-        return Rect{lockRect(mode, screenW).x, 32, Ui::CONTROL_H, Ui::CONTROL_H};
-    }
     const Rect lock = lockRect(mode, screenW);
-    return Rect{static_cast<int16_t>(lock.x + lock.w + 4), lock.y,
-                Ui::CONTROL_H, Ui::CONTROL_H};
+    return Rect{static_cast<int16_t>(lock.x + lock.w + 4), lock.y, Ui::CONTROL_H, Ui::CONTROL_H};
+}
+
+/* Speaker against the right edge, 8px in like the gear everywhere else, and
+ * the padlock 4px before it. Vertically on the prompt row (32..48 at font 2):
+ * the header above holds the mark and the copyright and has no room for two
+ * more glyphs at 240px, and the guest hint underneath starts at y=50. The
+ * prompt is centred, so at 240px it ends near x=175 and the padlock starts at
+ * 192. The Edit buttons below begin at y=60 or 62, 11px under the speaker. */
+Rect pickerSpeakerRect(int16_t screenW) {
+    return Rect{static_cast<int16_t>(screenW - 8 - Ui::CONTROL_H), 31, Ui::CONTROL_H, Ui::CONTROL_H};
+}
+
+Rect pickerLockRect(int16_t screenW) {
+    const Rect speaker = pickerSpeakerRect(screenW);
+    return Rect{static_cast<int16_t>(speaker.x - 4 - Ui::CONTROL_H), speaker.y, Ui::CONTROL_H,
+                Ui::CONTROL_H};
 }
 
 int16_t headerHeight(Board::LayoutMode mode) {
@@ -127,32 +136,52 @@ int16_t headerHeight(Board::LayoutMode mode) {
 }
 
 Rect gearRect(Board::LayoutMode mode, int16_t screenW) {
-    if (mode == Board::LayoutMode::Vertical) {
-        return Rect{static_cast<int16_t>(screenW - 32), 48, 26, 24};
-    }
-    return Rect{static_cast<int16_t>(screenW - 30), 11, 26, 26};
+    const bool tall = mode == Board::LayoutMode::Vertical;
+    return Rect{static_cast<int16_t>(screenW - 8 - Ui::CONTROL_H), tall ? TALL_NAME_Y : WIDE_TOP_Y,
+                Ui::CONTROL_H, Ui::CONTROL_H};
 }
 
+/* The player's name: plain text, and the touch target that opens the picker.
+ *
+ * LANDSCAPE it is on the top row beside the mark, not after the copyright.
+ * After the copyright it began at x=132 and every control added to the badge
+ * row took pixels from it, until its right limit was screenW-164 -- 24px on a
+ * 320px panel -- and a floor of 52 then pushed it past that limit, over the
+ * hairline and under the padlock. Beside the mark it runs to the header's
+ * hairline (headerDividerX()), 4px short of it: 62px at 320, which holds a
+ * full PROFILE_NAME_MAX name at font 1 (6px a character, 54px for nine) and a
+ * shorter one at font 2, which the launcher uses when it fits.
+ *
+ * PORTRAIT it has the second row to itself up to the gear. */
 Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
+    const Rect gear = gearRect(mode, screenW);
     if (mode == Board::LayoutMode::Vertical) {
-        return Rect{8, 34, static_cast<int16_t>(min<int16_t>(112, screenW - 46)), 20};
+        return Rect{8, static_cast<int16_t>(TALL_NAME_Y - 1),
+                    static_cast<int16_t>(gear.x - 8 - 8), 20};
     }
-    /* 132, not 124. The byline -- "(C) iamankushpandit" at font 1 from x=10
-     * -- measures about 114px and therefore ends at about x=124, so a name
-     * starting there touched it with no gap at all; reported from the device
-     * as the two running together. Eight pixels of air, taken from a name that
-     * truncates gracefully rather than from the badge row that does not. */
-    const int16_t x = 132;
-    /* Stops short of the header's status hairline at lW-138. That hairline has
-     * moved out twice now -- 6px when the battery badge grew to carry its
-     * percentage, then 22px again for the Lock badge -- and the profile name
-     * gives up those pixels both times, because it truncates gracefully and
-     * the badge row does not. */
-    /* screenW-164 now: the hairline moved out a third time for the mute
-     * control. Same trade as the two before it. */
-    const int16_t rightLimit = static_cast<int16_t>(screenW - 164);
-    const int16_t w = static_cast<int16_t>(min<int16_t>(86, max<int16_t>(52, rightLimit - x)));
-    return Rect{x, 30, w, 18};
+    const int16_t x = static_cast<int16_t>(10 + Ui::logoWidth(Ui::Logo::Word) + 10);
+    const int16_t rightLimit = static_cast<int16_t>(headerDividerX(screenW) - 4);
+    return Rect{x, static_cast<int16_t>(WIDE_TOP_Y - 1), static_cast<int16_t>(rightLimit - x), 20};
+}
+
+/* LANDSCAPE: the hairline that sets the mark, the name and the copyright
+ * apart from everything the header reports -- the clock and its check, the
+ * gear, and the badge row. Its x is the right-hand group's own left edge: the
+ * Bluetooth rune, outermost in the badge row, is a 9px box from lockRect().x -
+ * 13 (drawBleBadge() centres it 9px left of the padlock), and the hairline
+ * stands 4px before it, so it clears the group on both rows whether the beacon
+ * is on or not. The clock on the top row is further right still (never left
+ * of screenW-99). At 320 that is x=193; the copyright ends near x=124. */
+int16_t headerDividerX(int16_t screenW) {
+    const Rect lock = lockRect(Board::LayoutMode::Horizontal, screenW);
+    return static_cast<int16_t>(lock.x - 13 - 4);
+}
+
+/* From the top of the mark's row to the foot of the badge row. */
+int16_t headerDividerTop() { return WIDE_TOP_Y; }
+int16_t headerDividerBottom(int16_t screenW) {
+    const Rect lock = lockRect(Board::LayoutMode::Horizontal, screenW);
+    return static_cast<int16_t>(lock.y + lock.h);
 }
 
 Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH) {

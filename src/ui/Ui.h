@@ -136,9 +136,11 @@ void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
  * room, and it only works while it is rare, so every other level leaves the
  * shell neutral and lets the gauge carry green/amber.
  *
- * THE BADGE IS VARIABLE WIDTH -- it grows with the digits, widest at "100".
- * Lay out from batteryBadgeWidth() instead of assuming a size; `cx` is the
- * centre of the whole badge, terminal nub included. */
+ * The badge is one width at every level -- the width "100" needs -- with the
+ * digits centred, so it never resizes as the number changes. Lay out from
+ * batteryBadgeWidth() anyway: it is 0 on a board with no battery sense or no
+ * usable reading. `cx` is the centre of the whole badge, terminal nub
+ * included. */
 void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent, uint16_t bg);
 
 /** Width the badge will occupy at this percentage. Lay headers out from the right. */

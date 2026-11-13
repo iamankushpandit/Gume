@@ -1,0 +1,74 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# Brings up the parts of the console the kernel does not finish by itself:
+# the joypad driver (a module), the clock from the RTC, the codec's mixer and
+# the power to the light ring's controller.
+case "$1" in
+start)
+    # Load a module for every device that names one (only the joypad does).
+    find /sys/devices -name modalias -print0 2>/dev/null | xargs -0 cat 2>/dev/null |
+        sort -u | xargs -n 1 modprobe -q 2>/dev/null
+    modprobe -q rocknix-singleadc-joypad 2>/dev/null
+
+    hwclock -s -u 2>/dev/null
+
+    # The kernel boots with the performance governor, which holds every core
+    # at 1.4 GHz however idle the launcher is (396 mA awake, measured). Let the
+    # clock follow the load instead.
+    for g in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
+        grep -qw schedutil "${g%/*}/scaling_available_governors" 2>/dev/null && echo schedutil >"$g"
+    done
+
+    # The codec starts muted. Braino sets its own volume in software, so the
+    # hardware path is opened once, at a level that does not distort.
+    if [ -f /data/asound.state ]; then
+        alsactl -f /data/asound.state restore 2>/dev/null
+    else
+        for c in 'Line Out' 'Speaker' 'Headphone' 'DAC' 'Master' 'PCM'; do
+            amixer -q -c 0 sset "$c" 80% unmute 2>/dev/null
+        done
+    fi
+
+    # The light ring is a small controller on a UART; this LED is its supply.
+    for l in /sys/class/leds/*kbd_backlight*; do
+        [ -e "$l/brightness" ] && echo 1 >"$l/brightness"
+    done
+
+    # What this console's kernel calls everything, for whoever reads the card
+    # after a problem. Kept on the card only; nothing here is sent anywhere.
+    # They are also what gets attached to a bug report, so anything shaped
+    # like a hardware address is blanked on the way in: a MAC names this one
+    # console for the life of its radio.
+    scrub() { sed -E 's/([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/xx:xx:xx:xx:xx:xx/g'; }
+    {
+        echo "== uname"; uname -a
+        echo "== leds"; ls /sys/class/leds
+        echo "== tty"; for t in /sys/class/tty/ttyS*; do echo "$t -> $(readlink "$t/device")"; done
+        echo "== backlight"; ls /sys/class/backlight
+        echo "== power_supply"; for p in /sys/class/power_supply/*; do echo "$p: $(cat "$p/type" 2>/dev/null)"; done
+        echo "== drm"; for c in /sys/class/drm/card*-*; do echo "$c: $(cat "$c/status" 2>/dev/null)"; done
+        echo "== net"; ls /sys/class/net; echo "== bluetooth"; ls /sys/class/bluetooth 2>/dev/null
+        # The image's kernel is built without IPv6, so that the console never
+        # has an address made from its radio's MAC. This line is the proof.
+        echo "== ipv6"; [ -e /proc/net/if_inet6 ] && echo "ON: this kernel has IPv6" || echo "off: not in this kernel"
+        echo "== input"; cat /proc/bus/input/devices
+        echo "== sound"; cat /proc/asound/cards
+        for c in 0 1 2; do [ -e /proc/asound/card$c ] && { echo "-- card $c"; amixer -c $c scontents; }; done
+        echo "== modules"; lsmod
+    } 2>&1 | scrub >/data/braino/hardware.txt
+    dmesg 2>&1 | scrub >/data/braino/dmesg.txt
+    ;;
+stop)
+    hwclock -w -u 2>/dev/null
+    alsactl -f /data/asound.state store 2>/dev/null
+    ;;
+esac
+exit 0
