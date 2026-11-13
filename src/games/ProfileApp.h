@@ -23,13 +23,14 @@ public:
     void renderStatic(GameHost& host) override;
     void renderDynamic(GameHost& host) override;
 
-    /* This screen draws no top bar -- it carries its own wordmark header, and
-     * nothing on it tracks the clock or the battery, so the badge ticks that
-     * make renderChrome() worth having have nothing to update here. The one
-     * chrome event that can reach it is a notification landing on the header,
-     * which is rare enough that a full repaint is the honest answer. Returning
-     * false asks the runtime for exactly that, and keeps the base class from
-     * painting a top bar this screen does not own. */
+    /* This screen draws no top bar -- it carries its own wordmark header --
+     * but the picker shows the battery, between Add Player and Done, and the
+     * speaker, so three chrome events reach it: the percentage changing, mute
+     * being toggled, and a notification coming or going over the header. Each
+     * repaints exactly its own piece -- the badge, the speaker, or the 30px
+     * header strip -- and never the screen: a full repaint for a battery tick
+     * is the flash the invalidation rule exists to stop. The other phases
+     * show none of those and return false, as the picker used to. */
     bool renderChrome(GameHost& host) override;
 
     /* The picker carries its own padlock and speaker (LauncherLayout's
@@ -55,8 +56,15 @@ private:
     Rect pinConfirmRect(int16_t screenW, int16_t screenH) const;
     Rect pinCancelRect(int16_t screenW, int16_t screenH) const;
     Rect renameCancelRect(int16_t screenW, int16_t screenH) const;
-    Rect addRect(int16_t screenW, int16_t screenH) const;
-    Rect doneRect(int16_t screenW, int16_t screenH) const;
+    /* The gap between Add Player and Done, which holds the battery badge: its
+     * measured width plus air either side, or 0 on a board with no battery
+     * sense, whose buttons keep their old width. Hit tests and drawing both
+     * ask, so the badge and the buttons cannot come to overlap. */
+    static int16_t batterySlot(Ui::Renderer& tft);
+    Rect addRect(int16_t screenW, int16_t screenH, int16_t slot) const;
+    Rect doneRect(int16_t screenW, int16_t screenH, int16_t slot) const;
+    void drawHeaderStrip(Ui::Renderer& tft, int16_t W, int16_t H);
+    void drawBatterySlot(Ui::Renderer& tft, int16_t W, int16_t H, int8_t percent);
     Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
     Rect menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect gameCheckRect(uint8_t row, int16_t screenW) const;
@@ -92,6 +100,10 @@ private:
     uint16_t adminPinAttempt_ = 0;
     uint8_t adminPinDigitCount_ = 0;
     uint8_t profileToSwitchTo_ = 0;
+    /* What the picker last drew in its chrome, so renderChrome() repaints
+     * only what changed. */
+    int8_t shownPct_ = -2;
+    bool shownMuted_ = false;
     PinPurpose pinPurpose_ = PinPurpose::Switch;
     String draft_;
 };

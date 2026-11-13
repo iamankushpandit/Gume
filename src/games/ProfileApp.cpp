@@ -85,13 +85,21 @@ Rect ProfileApp::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
                 static_cast<int16_t>(rowsTop(tall) + i * rowsPitch(tall)),
                 rowsMenuW(tall), rowsHeight(tall)};
 }
-Rect ProfileApp::addRect(int16_t screenW, int16_t screenH) const {
-    const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
+int16_t ProfileApp::batterySlot(Ui::Renderer& tft) {
+    /* The badge's width at 100 -- the width it always has -- so the slot
+     * does not move as the charge falls. 0 where there is no badge. */
+    const int16_t badge = Ui::batteryBadgeWidth(tft, 100);
+    return badge > 0 ? static_cast<int16_t>(badge + 16) : 0;
+}
+Rect ProfileApp::addRect(int16_t screenW, int16_t screenH, int16_t slot) const {
+    const int16_t gap = slot > 8 ? slot : 8;
+    const int16_t w = static_cast<int16_t>((screenW - 16 - gap) / 2);
     return Rect{8, static_cast<int16_t>(screenH - 30), w, 26};
 }
-Rect ProfileApp::doneRect(int16_t screenW, int16_t screenH) const {
-    const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
-    return Rect{static_cast<int16_t>(16 + w), static_cast<int16_t>(screenH - 30), w, 26};
+Rect ProfileApp::doneRect(int16_t screenW, int16_t screenH, int16_t slot) const {
+    const int16_t gap = slot > 8 ? slot : 8;
+    const int16_t w = static_cast<int16_t>((screenW - 16 - gap) / 2);
+    return Rect{static_cast<int16_t>(screenW - 8 - w), static_cast<int16_t>(screenH - 30), w, 26};
 }
 
 Rect ProfileApp::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
@@ -197,7 +205,8 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
                 return;
             }
         }
-        if (addRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
+        const int16_t slot = batterySlot(host.display());
+        if (addRect(W, H, slot).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
             board.playerCount() < Board::MAX_PLAYERS) {
             editing_ = 0xFF;
             draft_ = "";
@@ -205,7 +214,7 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
             markFullDirty();
             return;
         }
-        if (doneRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (doneRect(W, H, slot).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.goHome();
         }
         return;
@@ -298,8 +307,64 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
 }
 
 bool ProfileApp::renderChrome(GameHost& host) {
-    (void)host;
-    return false;   // see the header -- nothing here to repaint in isolation
+    if (phase_ != Phase::Pick) {
+        return false;   // no badge, no speaker: the old full repaint
+    }
+    Board& board = host.board();
+    Ui::Renderer& tft = host.display();
+    const int16_t W = static_cast<int16_t>(tft.width());
+    const int16_t H = static_cast<int16_t>(tft.height());
+    bool painted = false;
+    const int8_t pct = board.getBatteryPercent();
+    if (pct != shownPct_) {
+        drawBatterySlot(tft, W, H, pct);
+        painted = true;
+    }
+    const bool muted = !board.soundEnabled();
+    if (Board::hasSound() && muted != shownMuted_) {
+        const Rect s = LauncherLayout::pickerSpeakerRect(W);
+        tft.fillRect(s.x, s.y, s.w, s.h, Ui::bg());
+        Ui::drawSpeakerIcon(tft, s, muted, Ui::text());
+        shownMuted_ = muted;
+        painted = true;
+    }
+    /* Neither changed, so it was a notification coming or going over the
+     * header strip: put the strip back. */
+    if (!painted) {
+        drawHeaderStrip(tft, W, H);
+    }
+    return true;
+}
+
+void ProfileApp::drawHeaderStrip(Ui::Renderer& tft, int16_t W, int16_t H) {
+    const Rect header = headerRect(W, H);
+    tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
+    /* The mark rather than the name in font 4 -- the wordmark variant is
+     * cut to that height, so the header's geometry does not move. */
+    Ui::drawLogo(tft,
+                 static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
+                 15, Ui::text(), Ui::Logo::Word);
+    // The mark is the brand's, the copyright is the author's -- two
+    // different facts, and AppVersion.h is where both are spelled.
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(BRAINO_COPYRIGHT_SHORT, W - 8, 15, 1);
+    tft.setTextDatum(TL_DATUM);
+}
+
+/* The badge in the gap between Add Player and Done, centred on that row.
+ * Its own small rect is cleared first, so a reading that becomes unusable
+ * leaves nothing behind; nothing else on the screen is touched. */
+void ProfileApp::drawBatterySlot(Ui::Renderer& tft, int16_t W, int16_t H, int8_t percent) {
+    shownPct_ = percent;
+    const int16_t slot = batterySlot(tft);
+    if (slot <= 0) return;
+    const Rect add = addRect(W, H, slot);
+    const int16_t cy = static_cast<int16_t>(add.y + add.h / 2);
+    const int16_t badge = static_cast<int16_t>(slot - 16);
+    tft.fillRect(static_cast<int16_t>(W / 2 - badge / 2 - 1), static_cast<int16_t>(cy - 9),
+                 static_cast<int16_t>(badge + 2), 18, Ui::bg());
+    Ui::drawBatteryBadge(tft, static_cast<int16_t>(W / 2), cy, percent, Ui::bg());
 }
 
 bool ProfileApp::headerControls(int16_t screenW, int16_t screenH, Rect& lock,
@@ -358,20 +423,7 @@ void ProfileApp::renderDynamic(GameHost& host) {
     tft.setTextDatum(TC_DATUM);
 
     if (phase_ == Phase::Pick) {
-        const Rect header = headerRect(W, H);
-        tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
-
-        /* The mark rather than the name in font 4 -- the wordmark variant is
-         * cut to that height, so the header's geometry does not move. */
-        Ui::drawLogo(tft,
-                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
-                     15, Ui::text(), Ui::Logo::Word);
-
-        // The mark is the brand's, the copyright is the author's -- two
-        // different facts, and AppVersion.h is where both are spelled.
-        tft.setTextColor(Ui::muted(), Ui::surface());
-        tft.setTextDatum(MR_DATUM);
-        tft.drawString(BRAINO_COPYRIGHT_SHORT, W - 8, 15, 1);
+        drawHeaderStrip(tft, W, H);
 
         /* Both lines below sit on the background between the header and the
          * first row. They used to overlap each other by a pixel, and in
@@ -392,6 +444,7 @@ void ProfileApp::renderDynamic(GameHost& host) {
         if (Board::hasSound()) {
             Ui::drawSpeakerIcon(tft, LauncherLayout::pickerSpeakerRect(W), !board.soundEnabled(),
                                 Ui::text());
+            shownMuted_ = !board.soundEnabled();
         }
 
         const uint8_t active = board.activeProfile();
@@ -425,10 +478,12 @@ void ProfileApp::renderDynamic(GameHost& host) {
         char label[16];
         snprintf(label, sizeof(label), canAdd ? "Add Player" : "Max %u",
                  static_cast<unsigned>(Board::MAX_PLAYERS));
-        Ui::drawButton(tft, addRect(W, H), label,
+        const int16_t slot = batterySlot(tft);
+        Ui::drawButton(tft, addRect(W, H, slot), label,
                        canAdd ? Ui::rgb(45, 154, 96) : Ui::surface(),
                        Ui::outline(), canAdd ? TFT_WHITE : Ui::muted(), false, 2);
-        Ui::drawButton(tft, doneRect(W, H), "Done", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        Ui::drawButton(tft, doneRect(W, H, slot), "Done", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        drawBatterySlot(tft, W, H, board.getBatteryPercent());
 
         tft.setTextDatum(TL_DATUM);
         return;

@@ -3678,10 +3678,13 @@ def profiles_pick():
             d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 23], 4, fill=SURFACE, outline=OUTLINE)
             d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 23 / 2 - 6),
                    "Edit", font=F2, fill=MUTED)
-    # Add Player and Done buttons
-    btn_w = (W - 24) // 2
+    # Add Player and Done, with the battery between them -- ProfileApp's
+    # batterySlot(): the badge's width at 100 plus 8px of air either side.
+    slot = battery_width(100) + 16
+    btn_w = (W - 16 - slot) // 2
     button(d, (8, H - 30, btn_w, 26), "Add Player", GREEN, WHITE)
-    button(d, (16 + btn_w, H - 30, btn_w, 26), "Done")
+    button(d, (W - 8 - btn_w, H - 30, btn_w, 26), "Done")
+    battery_badge(d, W // 2, H - 30 + 13)
     return im
 
 
@@ -4245,9 +4248,11 @@ def profiles_tall():
                             fill=PANEL, outline=OUTLINE)
         d.text((PW - 8 - menu_w + menu_w / 2 - d.textlength("Edit", font=F1) / 2,
                 y + row_h / 2 - 5), "Edit", font=F1, fill=MUTED)
-    bw = (PW - 24) // 2
+    slot = battery_width(100) + 16
+    bw = (PW - 16 - slot) // 2
     button(d, (8, PH - 30, bw, 26), "Add")
-    button(d, (16 + bw, PH - 30, bw, 26), "Done", GREEN, WHITE)
+    button(d, (PW - 8 - bw, PH - 30, bw, 26), "Done", GREEN, WHITE)
+    battery_badge(d, PW // 2, PH - 30 + 13)
     return im
 
 

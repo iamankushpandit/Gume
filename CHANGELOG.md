@@ -27,6 +27,12 @@ silently. None of the Attaky code is in these images: the only cost to them
 is a few hundred bytes of flash from the file splits, and their RAM is
 unchanged.
 
+**The player picker shows the battery**, between Add Player and Done, and it
+repaints only what changed: the badge when the charge moves, the speaker when
+mute is toggled, the header strip when a notification comes or goes. It used
+to answer every header change with a full repaint, which was harmless only
+while it showed nothing that changed.
+
 **The selector's arithmetic and job table are shared.** `ui/FocusMath.h` and
 `hal/ControlJobs.h` moved from `host/` into `src/` so the Attaky Core's
 selector uses the same two pieces as the RG40XX V's; the host keeps its old

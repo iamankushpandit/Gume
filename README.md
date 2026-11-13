@@ -1044,7 +1044,7 @@ Four more screens, all of them ordinary `Game` subclasses like everything else:
 
 - **Profiles** -- shown at boot; picks whose scores are being written. Carries
   the Braino! product mark in a branded header, with the copyright line
-  beside it.
+  beside it, and the battery between Add Player and Done.
 - **Scores** -- two tabs:
   - **Mine** shows bests and worsts for the active player, per game.
   - **Device** shows the device-wide best and its holder across every player on
