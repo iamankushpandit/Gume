@@ -155,6 +155,19 @@ def roman():
     return tap(gs.roman(False), gs.roman(), (84, 163))
 
 
+def signs():
+    """The course in four touches: open lesson 3, it teaches J, Next teaches
+    K, and the lesson's quiz asks about a hand from it."""
+    lessons, j, k = gs.signs_lessons(), gs.signs_teach("J"), gs.signs_teach("K")
+    tile = (164, 60, 70, 58)                 # lesson 3, from signs_lessons()
+    header = "Lesson 3 quiz: 1 of 6"
+    ask = gs.signs_quiz("L", "ILKJ", None, header)
+    right = gs.signs_quiz("L", "ILKJ", "L", header)
+    return ([(lessons, 1400)] + tap(lessons, j, centre(tile), wait=0)[1:]
+            + tap(j, k, centre(gs._sign_key(3)), wait=0)[1:]
+            + [(ask, WAIT)] + tap(ask, right, centre(gs._sign_key(1)), wait=0)[1:])
+
+
 def time():
     return tap(gs.time_game(), gs.time_game(True), (84, 169))
 
@@ -501,6 +514,7 @@ SEQUENCES = {
     "multiply": lambda: quiz(gs.multiply),
     "space": space,
     "roman": roman,
+    "signs": signs,
     "time": time,
     "money": lambda: quiz(gs.money, gs.BLUE, gs.TEXT),
     "fractions": lambda: quiz(gs.fractions),

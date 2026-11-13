@@ -335,7 +335,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 40 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 41 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -690,9 +690,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,592,549 / 3,145,728 bytes,
-**82.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 90,916 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,655,213 / 3,145,728 bytes,
+**84.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 91,356 / 327,680 (27.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -922,7 +922,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   and there was physically nothing to press. Anything added to either pad must
   still end above `screenH`.
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
-- **`APP_REGISTRY` holds the 40 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
+- **`APP_REGISTRY` holds the 41 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
 - **The launcher shows the profile name as plain text, not a button, and a whole name always fits.** `LauncherLayout::profileRect()` is both where it draws and the touch target. In landscape it shares the mark's row, not the copyright's: after the copyright it lost pixels to every control added to the badge row until a nine-letter name ran over the hairline and under the padlock. Beside the mark it runs to 4px short of the header's hairline (`LauncherLayout::headerDividerX()`, 4px before the Bluetooth rune, the status group's leftmost glyph, so it divides both rows) -- 62px on a 320px panel -- and `drawProfileName()` uses font 2 when the name fits and font 1 when it does not -- `PROFILE_NAME_MAX` characters of font 1 always fit -- so a short name reads large and a long one is made smaller rather than cut. In portrait it has the second row to itself up to the gear. **The mark and the copyright never move to make room**; everything else in the header can.
 - **The launcher header is laid out by `LauncherLayout`, in one place, and ordered by how often each thing is there.** Landscape: the mark and the name, then the clock with its sync check and the gear, on the top row; the copyright, then Bluetooth, padlock, speaker, Wi-Fi and battery on the bottom row, right-aligned under the gear. Portrait: the mark and the copyright; the name and the gear; the clock and its sync check on the left of the third row and the same badge group on its right. Four rules hold it together. **The sync check sits with the clock**, because on its own it means nothing. **Bluetooth is outermost**, because it is drawn only while the beacon is on and its absence must leave a gap rather than move the rest. **The gear is the top bar's** -- `Ui::CONTROL_H`, 8px in from the right edge -- because at 26px here and 18px in every app it looked like two controls. **And the gear is kept away from the padlock and the speaker**: the runtime takes their taps before the launcher sees the gear's, so a speaker under the gear would turn taps on the gear's lower edge into Mute; Wi-Fi and the battery sit between them. The battery badge is **one width at every level** -- the width `100` needs, digits centred -- because a badge that shrank from 10% to 9%, just as it turned red, looked like a glitch. The badge group is still laid out right-to-left off `Ui::batteryBadgeWidth()`, which is 0 on a board with no battery sense, and the padlock's position (`screenW-110`) leaves room for it. The clock is `12:41P`, not `12:41 PM`, which is what bought the name its width. Anything new in that header: measure, don't guess.
@@ -1085,7 +1085,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 82.4%. As synthesis it is under a kilobyte.
+  artwork, on a budget already at 84.4%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.

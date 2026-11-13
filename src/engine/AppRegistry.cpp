@@ -54,6 +54,7 @@ Game& backgammon(GameInstances& games) { return games.backgammon; }
 Game& go(GameInstances& games) { return games.go; }
 Game& space(GameInstances& games) { return games.space; }
 Game& roman(GameInstances& games) { return games.roman; }
+Game& signs(GameInstances& games) { return games.signs; }
 Game& scores(GameInstances& games) { return games.scores; }
 Game& profiles(GameInstances& games) { return games.profile; }
 Game& settings(GameInstances& games) { return games.settings; }
@@ -131,6 +132,7 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
      * the end silently reassigns every player's hidden-game choices. */
     metadataCatalogApp(spaceAppMetadata(), space),
     metadataCatalogApp(romanAppMetadata(), roman),
+    metadataCatalogApp(signAppMetadata(), signs),
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
