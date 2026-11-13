@@ -129,12 +129,8 @@ inline constexpr BoardProfile BOARD = {
     GamepadProfile{
         /* padLeftExpander  */ 0,
         /* padRightExpander */ 0,
-        /* padUp            */ PIN_NONE,
-        /* padDown          */ PIN_NONE,
-        /* padLeft          */ PIN_NONE,
-        /* padRight         */ PIN_NONE,
-        /* padA             */ PIN_NONE,
-        /* padB             */ PIN_NONE,
+        /* padLeftLayout    */ nullptr,
+        /* padRightLayout   */ nullptr,
     },
 
     SdProfile{

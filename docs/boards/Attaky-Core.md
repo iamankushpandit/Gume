@@ -50,12 +50,14 @@ only be inferred. Supporting a module Attaky adds later is one driver file in
 
 ## What has been checked on this board
 
-**Nothing yet.** The profile was written on 2026-10-23 from Attaky's published
-documents, before a device was available, and it builds. Every pin agrees with
-two firmwares Attaky ship for this hardware -- their Retro-Go target and their
-MeshCore variant -- but agreement on paper is not a board that has been seen to
-draw and respond. Until somebody has flashed it, treat every line below as a
-claim, and the four things most likely to need changing as:
+**First run on a Cyber Deck Plus on 2026-11-12.** The profile was written on
+2026-10-23 from Attaky's published documents, before a device was available.
+Seen working on the device: the display (once its colour order was fixed, below)
+and touch in landscape, the keyboard, the gamepad, sound (the boot phrase),
+Wi-Fi and the clock, Bluetooth, the lock screen, and the battery badge (an
+INA219, below). **Not yet seen:** portrait and the flipped positions, the SD
+card (none was fitted), the status LED, and the Core's own five keys, which did
+not answer on the first device. What is left to confirm:
 
 - **Which way up the picture is**, in all four positions of the Layout button.
   The panel is mounted half a turn round, and Attaky warn that the rotation
@@ -90,25 +92,40 @@ it has been heard. What to listen for:
 - **Does anything pop or hiss when idle?** The amplifier has no enable line, so
   it is powered for as long as the board is.
 
-**The Core's own keys drive the launcher:** the D-pad moves a ring between
-the tiles, Enter opens one, and the top-left shoulder key (L1) is Back -- Home
-from any other screen, as BOOT is. Worth checking that each direction moves
-the way it points, in landscape and in portrait.
+**The keys work every screen, the way the RG40XX V's do.** The D-pad moves a
+selector from control to control -- every button, tile, keyboard key and tab,
+and the header's Home, padlock, speaker, gear and player name -- and the other
+keys each have one job, from the same table the RG40XX V uses
+(`src/hal/ControlJobs.h`), logged at boot as `[controls] jobs:`:
 
-**So does the gamepad, when it is clipped on.** Its D-pad, A (Enter) and B
-(Back) feed the same keys as the Core's, so they move the same ring, repeat
-the same way when held, and turn with the screen the same way. It is two
-TCA9555 expanders, left half at 0x22 and right at 0x26, from Attaky's Gamepad
-(Bottom) datasheet: Up P0_5, Down P0_2, Left P0_4, Right P0_3; A P0_3, B P0_4.
-X, Y, the shoulders and the FN keys are not read, and each half's LED is left
-off. Worth checking on a device:
+| Key | Job |
+|---|---|
+| D-pad (gamepad, or the Core's) | move the selector; past a row's end, the next page; past a list's end, scroll |
+| A | press what the selector is on, for as long as it is held |
+| B | Home |
+| L1 / R1 | previous / next page |
+| L2 / R2 | mute / lock |
+| Menu | the next tab, or Settings |
+| Select + Start, three seconds | restart |
+| Power, short press | lock |
 
-- the boot log says `[module] gamepad present` with it on and `absent` with
-  it off, and System Info -> Board -> Module agrees;
-- each direction on the gamepad moves the ring the way the same direction on
-  the Core's D-pad does, in landscape, portrait and flipped -- the gamepad's
-  directions are taken to share the Core's frame, which nobody has seen yet;
-- A opens a tile and B goes Home from a game.
+Without the gamepad the Core's centre key is A. A finger on the glass puts the
+selector away. Boards drawn as one picture -- Maze, Tic-Tac-Toe, Microku, the
+Chess and Go boards -- have nothing for it to stop on and are played by touch.
+
+**The gamepad's map is Attaky's own**, from their Retro-Go patch for this
+module: two TCA9555s, left at 0x22 and right at 0x26, all eight keys of each on
+P0. Left P0_0..P0_7 is Select, Option, Down, Right, Left, Up, L1, L2; right is
+R2, R1, X, A, B, Y, Menu, Start. Their catalog says each shoulder pin is wired
+to two keys -- the edge shoulder and the pill below it -- and L2 and R2 are the
+pin left over on each half, mirroring L1 and R1. Seen on the device: the D-pad
+on the left half's bits 2-5, and bits 0, 1, 6 and 7 of both halves answering.
+Each half's LED is left off.
+
+**The Core's own keys did not answer on the first device**: its expander's
+port (0x59 P0) never changed while the strip under the screen was pressed.
+`[keys] core 0x59 P0=..` is logged on every change of that port, and is the
+line that will show them.
 
 **The battery badge reads the Power module over I2C**, rather than a voltage
 divider -- the Core has none. Attaky make three power modules with three
@@ -151,9 +168,8 @@ tap it again to turn it off; hold it with a letter for one capital (lower
 case while caps lock is on). The on-screen keypad stays: the module clips
 off, and the firmware checks for it at boot.
 
-Left out on purpose, not broken: the D-pad and the gamepad on any screen but
-the launcher, and the gamepad's other eight keys. Touch is the console's input
-on every board.
+Left out, not broken: the d-pad inside a board drawn as one picture, and
+Option, which has no job. Touch is the console's input on every board.
 
 ## Sources
 

@@ -69,6 +69,19 @@ cycles by slot on such a grid is drawing something the firmware does not.
 
 `Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so that all nine themes work.
 
+## FocusRecorder + FocusMath -- what the d-pad's selector can land on
+
+On a board with keys, `TftRenderer` reports every fill and outline to
+`Focus::` (`FocusRecorder.cpp`), which keeps the controls on the panel by the
+Linux host's rule: a fill and an outline of one rectangle is a control, a
+button if a shadow was drawn just before it, and shadowless cards count only
+where there are no buttons or four or more of them. `drawTab()`,
+`drawPagerButton()` and `RowList::drawScrollBar()` say what drawing cannot:
+a tab, a Prev or Next, a list that scrolls. A fill over a control's middle
+takes it away unless the fill sits inside it. Fixed tables, no allocation,
+and on every other board every call is an empty inline. `FocusMath.h` is the
+pure step-and-nearest arithmetic, shared with `host/` -- change it for both.
+
 ## Renderer
 
 `Renderer.h` is the app-facing drawing interface. It declares the small RGB565 primitive set used by games and UI helpers without including `TFT_eSPI.h`, so host renderers can implement the same surface later. `TftRenderer.h` is the firmware adapter around the real panel driver and is owned by `BrainoApp`; ordinary games get only `Ui::Renderer&` from `AppContext::display()`.

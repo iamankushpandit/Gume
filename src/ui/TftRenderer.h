@@ -10,6 +10,7 @@
 #pragma once
 
 #include <TFT_eSPI.h>
+#include "ui/FocusRecorder.h"
 #include "ui/Renderer.h"
 
 namespace Ui {
@@ -24,20 +25,31 @@ public:
     int16_t width() override { return static_cast<int16_t>(tft_.width()); }
     int16_t height() override { return static_cast<int16_t>(tft_.height()); }
 
-    void fillScreen(uint16_t color) override { tft_.fillScreen(color); }
+    /* Every fill and outline is also reported to the d-pad's selector,
+     * which finds the controls on the panel by how they are drawn
+     * (FocusRecorder.h). On a board without keys the reports are empty
+     * inlines and cost nothing. */
+    void fillScreen(uint16_t color) override {
+        tft_.fillScreen(color);
+        Focus::noteScreenClear();
+    }
     void fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t color) override {
         tft_.fillRect(x, y, w, h, color);
+        Focus::noteFill(x, y, w, h, 0, color);
     }
     void drawRect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t color) override {
         tft_.drawRect(x, y, w, h, color);
+        Focus::noteOutline(x, y, w, h, 0, color);
     }
     void fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h,
                        int32_t radius, uint16_t color) override {
         tft_.fillRoundRect(x, y, w, h, radius, color);
+        Focus::noteFill(x, y, w, h, radius, color);
     }
     void drawRoundRect(int32_t x, int32_t y, int32_t w, int32_t h,
                        int32_t radius, uint16_t color) override {
         tft_.drawRoundRect(x, y, w, h, radius, color);
+        Focus::noteOutline(x, y, w, h, radius, color);
     }
     void drawFastHLine(int32_t x, int32_t y, int32_t w, uint16_t color) override {
         tft_.drawFastHLine(x, y, w, color);
@@ -96,8 +108,12 @@ public:
     void setViewport(int32_t x, int32_t y, int32_t w, int32_t h,
                      bool vpDatum = true) override {
         tft_.setViewport(x, y, w, h, vpDatum);
+        Focus::noteViewport(x, y, w, h, vpDatum);
     }
-    void resetViewport() override { tft_.resetViewport(); }
+    void resetViewport() override {
+        tft_.resetViewport();
+        Focus::noteViewportReset();
+    }
 
     void startWrite() override { tft_.startWrite(); }
     void endWrite() override { tft_.endWrite(); }

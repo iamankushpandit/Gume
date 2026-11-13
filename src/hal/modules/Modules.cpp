@@ -166,14 +166,12 @@ void describe(uint8_t index, char* out, size_t cap) {
     snprintf(out, cap, "%s (%s)", d.byElimination ? "Assumed" : "Found", gives);
 }
 
-uint8_t heldNavKeys() {
-    uint8_t held = 0;
+void heldControls(HeldControls& into) {
     for (uint8_t i = 0; i < s_count; ++i) {
-        if (s_present[i] && s_drivers[i]->heldNavKeys != nullptr) {
-            held |= s_drivers[i]->heldNavKeys();
+        if (s_present[i] && s_drivers[i]->heldControls != nullptr) {
+            s_drivers[i]->heldControls(into);
         }
     }
-    return held;
 }
 
 char typedChar() {

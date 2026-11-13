@@ -11,6 +11,7 @@
 #include "hal/Clock.h"
 #include "hal/Board.h"
 #include "ui/LauncherLayout.h"
+#include "ui/FocusRecorder.h"
 #include "ui/LogoMask.h"
 #include "ui/TftRenderer.h"
 #include <WiFi.h>
@@ -201,6 +202,10 @@ void setTheme(Theme t) {
     COLOR_TILE[1] = p.tile[1];
     COLOR_TILE[2] = p.tile[2];
     COLOR_RADIUS  = p.radius;
+}
+
+uint16_t bar() {
+    return COLOR_BAR;
 }
 
 uint16_t barText() {
@@ -1061,6 +1066,8 @@ void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active)
     tft.drawString(fitted, static_cast<int16_t>(r.x + r.w / 2),
                    static_cast<int16_t>(top + h / 2), 2);
     tft.setTextDatum(TL_DATUM);
+    /* Where the page buttons (L1/R1) and walking off a row of tiles go. */
+    Focus::notePager(r, label == "Next", enabled);
 }
 
 void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,
@@ -1094,6 +1101,9 @@ void drawButton(Ui::Renderer& tft, const Rect& r, const String& label, uint16_t 
     tft.setTextColor(text, fill);
     tft.setTextDatum(MC_DATUM);
 
+    /* A tab is not drawn as a fill and an outline of one rectangle, so the
+     * selector is told where it is (FocusRecorder.h). */
+    Focus::noteTab(Rect{r.x, top, r.w, h}, active, fill);
     String fitted = label;
     while (fitted.length() > 2 && tft.textWidth(fitted, font) > r.w - 12) {
         fitted.remove(fitted.length() - 1);

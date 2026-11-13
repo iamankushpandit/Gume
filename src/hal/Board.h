@@ -15,7 +15,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
-#include "hal/NavKeys.h"
+#include "hal/HeldControls.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 
@@ -165,11 +165,14 @@ public:
     ButtonEvent pollBootButton();
 
 #if GUME_HAS_NAV_KEYS
-    /* This frame's navigation key, in screen directions, or None: the board's
-     * own D-pad and any clipped-on module's, as one stream. Called once per
-     * frame by the runtime, beside pollBootButton(). Only on a board with
+    /* The keys held this frame, directions in screen terms: the board's own
+     * and any clipped-on module's, as one set. Called once per frame by the
+     * runtime, beside pollBootButton(). Only on a board with
      * GUME_HAS_NAV_KEYS; no other image has it. See hal/BoardKeys.cpp. */
-    NavKey pollNavKey();
+    HeldControls pollControls();
+    /* The controls this console has, as ControlJobs::assign() wants them:
+     * the board's own keys and those of any key module boot found. */
+    uint32_t controlsPresent() const;
 #endif
 
 #if GUME_HAS_KEYBOARD
@@ -655,11 +658,8 @@ private:
     /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
     bool bootButtonDown_ = false;
 #if GUME_HAS_NAV_KEYS
-    /* Navigation keys: which were down last frame (one bit per NavKey), and
-     * the held direction's next auto-repeat, for pollNavKey(). */
-    uint8_t navDown_ = 0;
-    NavKey navHeld_ = NavKey::None;
-    uint32_t navRepeatAtMs_ = 0;
+    /* The Core's key port as last read, kept for a failed read. */
+    uint8_t keyLevel_ = 0xFF;
 #endif
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;

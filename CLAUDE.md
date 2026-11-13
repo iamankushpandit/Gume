@@ -693,9 +693,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,592,837 / 3,145,728 bytes,
-**82.4%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 90,916 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,595,941 / 3,145,728 bytes,
+**82.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 90,932 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -836,25 +836,53 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `BOARD.hasBootButton()` can be false and the console has to remain complete.
   It fires on the press edge, which is what a hold gesture would have to
   change first; see `src/hal/BoardButton.cpp`.
-- **Navigation keys are a second route, on the boards that have them, and
-  only the launcher takes them so far.** The Attaky Core's D-pad, Enter and
-  L1 (as Back) sit on an AW9523 expander; `KeysProfile` names its ports and
-  `Board::pollNavKey()` reads one byte per frame beside the BOOT key, ORs in
-  what any clipped-on module with `NavKeys` holds -- the gamepad's D-pad, A
-  as Enter and B as Back -- and hands back one `NavKey`, already turned for
-  the screen's rotation -- the same job `pollTouch()` does for a finger, so
-  no screen corrects for it, and the gamepad turns exactly as the Core does.
-  The runtime treats any key as BOOT for activity, the saver and sleep,
-  ignores keys on the lock screen for BOOT's reason, consumes Back as Home
-  everywhere but the launcher, and passes the rest to the active screen's
-  `update()` through `GameHost::navKey()`. The launcher draws a focus ring
-  in the gap round a tile -- erased in the background colour, never by
-  repainting a tile, with `static_assert`s proving it clears every shadow --
-  that stays hidden until the first key and goes away at the next touch.
-  Every key path is behind `GUME_HAS_NAV_KEYS`, so the boards without keys
-  carry none of it -- see the next invariant. **Nothing may become reachable only by key**, exactly as with
-  BOOT. The direction mapping has not been seen on a device; the sign to
-  change if portrait is wrong is in `src/hal/BoardKeys.cpp`.
+- **On a board with keys, a d-pad selector reaches every control on every
+  screen -- the RG40XX V's, shared rather than copied.** The firmware has
+  no idea what a selected control is: every screen takes one touch point,
+  so pressing is an ordinary touch at the control's middle and no screen
+  changed for it. Four pieces, two of them dev's own and now in `src/`:
+  `ui/FocusMath.h` (where the selector goes next) and `hal/ControlJobs.h`
+  (which control does which job, given the controls a console has); the
+  Linux host's `HostFocus.h` and `HostControls.h` are one-line forwarders
+  to them, so the two consoles cannot come to disagree. The firmware's own
+  half is `ui/FocusRecorder.cpp`, which finds the controls as
+  `Ui::TftRenderer` draws them -- a fill and an outline of one rectangle,
+  the host shim's rule -- plus the tabs, Prev/Next and list scroll bars the
+  three helpers that draw them report; and `engine/AppRuntimeSelector.cpp`,
+  which moves, presses and draws. The header's Home, padlock, speaker, gear
+  and the launcher's player name are the runtime's own rects, not recorded.
+  The board reports what is HELD (`Board::pollControls()`, `HeldControls`,
+  directions already turned for the rotation); the selector works out
+  presses and repeats. Jobs on the Attaky Core with its gamepad:
+  `move=dpad press=a home=b page-back=l1 page-on=r1 tab=menu lock=r2
+  mute=l2 restart=select+start`, logged at boot as `[controls] jobs:`; a
+  short press of the power key is Lock as before, and without the gamepad
+  the Core's centre key is A. Three things are load-bearing:
+  - **The ring never asks for a repaint.** This panel cannot be read back,
+    so the ring is drawn where its colours are known and taken off by
+    painting them back: inside a control (its outline, and a line two
+    pixels in, over its fill), as a bar inside a tab's foot, round a header
+    glyph in the gap the header leaves (`Focus::Ring`). The first version
+    erased a header ring with `requestChromeRender()`, and on the launcher
+    that is a quarter of the panel: every move off a badge flashed the
+    screen. Erasing happens only where the control is still drawn exactly
+    as recorded (`Focus::stillDrawn()`); anywhere else the screen has
+    already painted over the ring.
+  - **A selection belongs to one screen.** A new screen starts with none
+    and the next press brings it up afresh; carried over, the ring landed
+    on whatever was nearest the last screen's control.
+  - **Its colour is chosen against what it sits on**: the theme colour
+    furthest from the control's fill and outline, or from the header's
+    ground (`Ui::bar()`, `Ui::surface()`), never one fixed accent.
+  A real finger puts the selector away. A board drawn as one picture --
+  Maze, Tic-Tac-Toe, the Chess and Go boards -- offers no stop, and with
+  no stick on this console there is no crosshair either: those need the
+  d-pad game by game, which is still to come. Everything is behind
+  `GUME_HAS_NAV_KEYS`, so the boards without keys carry none of it -- see
+  the next invariant. **Nothing may become reachable only by key**,
+  exactly as with BOOT, and every job is also a control on the screen.
+  Directions are seen right at the landscape rotation; the sign to change
+  if portrait is wrong is in `src/hal/BoardKeys.cpp`.
 - **An LED can live on an I2C expander, and then it is on or off.**
   `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)
   or an AW9523's address, with `r`/`g`/`b` as its ports -- the Attaky Core's
@@ -934,17 +962,18 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `fnk0104b.h`), default to 0 in `BoardConfig.h`, which static_asserts the
   profile agrees with them both ways, and preprocess out everything behind
   them: whole files, `Board`'s members and accessors, `GameHost`'s
-  `navKey()`/`typedChar()` virtuals, the runtime's key routing, the
-  launcher's focus ring, the screens' typed paths, the gauge and the module
+  `typedChar()` virtual, the runtime's key routing and its selector, the
+  focus recorder, the screens' typed paths, the gauge and the module
   table. **Prefer a whole file that compiles to nothing** over an `#if` in a
   shared file, and where shared code must call across, an inline no-op
   beside the declaration (`hostTypedChar()`, `Modules::allows()`, the
-  launcher's key hooks). A `BOARD.hasX()` test is not enough -- both arms
-  still compile and its declarations stay in every class. Checked rather
-  than hoped: on each other product environment `xtensa-esp32-elf-nm -C
-  firmware.elf` finds none of `pollNavKey`, `pollTypedChar`, `navKey`,
-  `typedChar`, `BoardExpander`, `sampleModuleBattery`, `handleNavKey`,
-  `paintFocus`, `Modules::` or `i2sUp`, and its RAM is `dev`'s figure.
+  recorder's `Focus::note*()` calls in `TftRenderer`). A `BOARD.hasX()`
+  test is not enough -- both arms still compile and its declarations stay
+  in every class. Checked rather than hoped: on each other product
+  environment `xtensa-esp32-elf-nm -C firmware.elf` finds none of
+  `pollControls`, `pollTypedChar`, `typedChar`, `selectorFrame`,
+  `Focus::`, `BoardExpander`, `sampleModuleBattery`, `Modules::` or
+  `i2sUp`, and it carries no RAM beyond what the shared code costs.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -1197,7 +1226,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 82.4%. As synthesis it is under a kilobyte.
+  artwork, on a budget already at 82.5%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.
@@ -1433,6 +1462,8 @@ changes through `requestChromeRender()`, not `requestRender()`.
 These three are `protected`; the public surface is `needsRender()`, `clearDirty()`, and `requestRender()` (which forces a full repaint, used when returning to a screen). First paint is always full.
 
 **A partial repaint's clear rectangle must be derived from what it has to avoid, never typed in.** This is the most expensive mistake in this codebase to *see*, because the code reads correctly and the wrong pixels appear only after some other element redraws. `TimeGame` has now produced it twice. Its score header cleared two 140px-wide strips -- far wider than the text needed -- while the clock dial spans x=113..207, so every score change erased 37px off each shoulder of the clock and left the face as a narrow strip with square bites out of it. It happened on the first frame, on every board, from the day the screen was written; the 4-inch panel simply made it 48px a side. The same screen had already been caught clearing a prompt strip that took the bottom off two answer buttons.
+                          AppRuntimeSelector (the d-pad's selector, on a
+                          board with keys),
 
 So: write the geometry once, at file scope, and derive every clear rectangle from it with a few pixels of daylight -- `HEADER_W = CLOCK_CX - CLOCK_OUTER - MARGIN - GAP` rather than `140`. Leave a `static_assert` where the derivation could collapse. Exact adjacency is not good enough on a scaled panel: positions scale by their axis and radii by the smaller of the two, and each rounds independently.
 
@@ -1491,6 +1522,9 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           BackgammonAi (pure, host-tested).
                           Chess is six .cpp against two headers -- ChessGame
                           (flow, input), ChessDraw, ChessNet (the lobby and the
+                          FocusRecorder (the controls on the panel, as
+                          drawn), FocusMath (where the selector goes next;
+                          shared with the Linux host),
                           nearby game), ChessSave, over ChessRules (the rules)
                           and ChessAi (both computer levels), which are pure
                           C++ with no Arduino and are host-tested; Sea Battle is four: SeaBattleGame
@@ -1515,8 +1549,10 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           platform implements) + PowerMonitor + PowerLedger
                           (where the battery went), SystemSuspend (Deep
                           sleep, where a platform can), BoardStorage, storage
-                          maintenance, TouchTypes, BoardKeys (navigation
-                          keys), BoardExpander (the Core's AW9523s),
+                          maintenance, TouchTypes, BoardKeys (the keys,
+                          as one held set: HeldControls), ControlJobs
+                          (what each button is for -- shared with the
+                          Linux host), BoardExpander (the Core's AW9523s),
                           BoardModules + modules/ (what is clipped on,
                           found at boot: the module table and one driver
                           file a module -- keyboard, gamepad, fuel gauge,

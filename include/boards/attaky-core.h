@@ -192,24 +192,24 @@ inline constexpr BoardProfile BOARD = {
     /* gamepad: Attaky's Control: Gamepad (Bottom) 1.0, when it is clipped on
      * -- which it is on the Cyber Deck Plus, and which the module table checks
      * at boot rather than assumes. Two TCA9555 expanders on the shared I2C bus
-     * through the module's FPC, left half at 0x22, right at 0x26, every key
-     * active low against the part's own pull-up. From Attaky's Gamepad
-     * (Bottom) datasheet: left half Up P0_5, Down P0_2, Left P0_4, Right
-     * P0_3; right half A P0_3, B P0_4. A is Enter and B is Back; X, Y, the
-     * shoulders and the two FN keys a side are not read, and the RGB LED each
-     * half carries on P1_5..P1_7 is left an input, which is off. The
-     * directions are assumed to share the Core's landscape frame -- the
-     * module clips on below the screen, held the same way up. Not yet seen on
-     * a device. */
+     * through the module's FPC, left half at 0x22, right at 0x26.
+     *
+     * The map is Attaky's own, from their Retro-Go patch for this module
+     * (patches/0002-atk-input-keymap-and-battery.patch, RG_GAMEPAD_I2C_MAP),
+     * and agrees with the D-pad and A/B in their datasheet. Their catalog
+     * says L1 and L2 are each two physical keys on one pin -- the shoulder
+     * and the pill below it -- and R1 and R2 the same. Retro-Go reads one
+     * shoulder a side; the second, L2 on left P0_7 and R2 on right P0_0, is
+     * the pin left over on each half, which mirrors the first. Select,
+     * Option, Menu and Start are the four small round keys between the D-pad
+     * and the face buttons; Option gets no job. Seen on a device: the D-pad,
+     * and bits 0, 1, 6 and 7 of both halves answering. The RGB LED each half
+     * carries on P1_5..P1_7 is left an input, which is off. */
     GamepadProfile{
         /* padLeftExpander  */ (GUME_HAS_ATTAKY_MODULES ? 0x22 : 0),
         /* padRightExpander */ 0x26,
-        /* padUp            */ 5,
-        /* padDown          */ 2,
-        /* padLeft          */ 4,
-        /* padRight         */ 3,
-        /* padA             */ 3,
-        /* padB             */ 4,
+        /* padLeftLayout    */ "S~DRLU<{",
+        /* padRightLayout   */ "}>XABYMT",
     },
 
     /* microSD on the Expand: Media I/O module, in SPI mode: CS (the card's

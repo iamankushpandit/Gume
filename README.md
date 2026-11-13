@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-82.4%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-82.5%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,592,837 / 3,145,728 bytes of the app partition (**82.4%**) |
-| RAM | 90,916 / 327,680 bytes (**27.7%**) |
+| Flash | 2,595,941 / 3,145,728 bytes of the app partition (**82.5%**) |
+| RAM | 90,932 / 327,680 bytes (**27.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -138,10 +138,9 @@ screen rather than an error.
 
 ### Which board do you have?
 
-Six boards are supported. Five have been flashed and run on hardware; the
-Attaky Core was ported from its maker's documents before a device was
-available, and its page says what still has to be checked. Tell them apart by
-screen size, touch type and USB ports:
+Six boards are supported, and all six have run on hardware -- the Attaky Core
+most recently, on a Cyber Deck Plus; its page says what is still unchecked on
+it. Tell them apart by screen size, touch type and USB ports:
 
 | Screen | Touch | USB | Board | Pick in the installer | Vendor page |
 |---|---|---|---|---|---|
@@ -150,7 +149,7 @@ screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
-| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus -- **not yet run on hardware** | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
+| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to
 recognise it, what has been checked on it, its sources, and a pin table and
@@ -1029,6 +1028,17 @@ Its long press switches the console off in hardware, as Attaky built it; the
 firmware never sees that press and does nothing with it.
 
 ### Scores, Profiles, About and System Info
+**Its keys work every screen, the way the RG40XX V's do.** The D-pad --
+the gamepad's, or the Core's own -- moves a selector from control to control:
+every button, tile, keyboard key and tab, and the header's Home, padlock,
+speaker, gear and player name. **A** presses what it is on, **B** is Home,
+**L1** and **R1** turn pages, **L2** mutes, **R2** locks, **Menu** goes to
+the next tab (or Settings), and **Select + Start** held for three seconds
+restarts. Pushing past the end of a row turns the page, and past the end of a
+list scrolls it. A finger on the glass puts the selector away. Boards drawn
+as one picture -- Maze, Tic-Tac-Toe, Microku, the Chess and Go boards -- have
+nothing for the selector to stop on, and are played by touch for now.
+
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
@@ -1609,7 +1619,7 @@ src/
     AppRuntimeContext.cpp  what screens call: storage, sound, capabilities
     AppRuntimeLauncher.cpp  LauncherApp paging, grid, header UI
     AppRuntimeLauncherTiles.cpp  one tile's icon and labels
-    AppRuntimeLauncherKeys.cpp  D-pad focus on the launcher's tiles
+    AppRuntimeSelector.cpp  the d-pad's selector, on a board with keys
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeNotify.cpp  the header banner: battery, update, nearby
@@ -1653,12 +1663,13 @@ src/
     modules/            what is clipped on, found at boot -- one file a module
       Modules.cpp         the module table: probes, slots, what each provides
       KeyboardModule.cpp  a clip-on typing keyboard, scanned as two matrices
-      GamepadModule.cpp   a clip-on gamepad: D-pad, A and B, as navigation keys
+      GamepadModule.cpp   a clip-on gamepad: every key, held, as controls
       FuelGaugeModule.cpp the power module's gauge: MAX17048, INA226 or INA219
       ExpandFmAm.cpp      Expand: FM/AM, found by its tuner on its own bus
       ExpandLoraGps.cpp   Expand: LoRa/GPS, found by its GPS's sentences
       ExpandMediaIo.cpp   Expand: Media I/O (SD, sound), found by elimination
-    NavKeys.h           the key event screens read, already in screen terms
+    HeldControls.h      the keys held this frame, directions in screen terms
+    ControlJobs.h       which button does which job (shared with host/)
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
@@ -1675,6 +1686,8 @@ src/
     BoardStorageMaintenance.cpp  profile moves + NVS telemetry
     TouchTypes.h        TouchPoint event type shared without display deps
     BleBeacon.cpp       the beacon radio: bring-up, advertise, poke, turns
+    FocusRecorder.cpp   the controls on the panel, as drawn, for the selector
+    FocusMath.h         where the selector goes next (shared with host/)
     BleBeaconPayload.cpp  the one authoritative advertisement payload,
                         and decode(), its exact inverse
     BleScanner.cpp      passive observer for other Braino beacons

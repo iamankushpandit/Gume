@@ -17,7 +17,6 @@
  * first. BoardConfig.h is the board profile and its checks; no driver. */
 #include "BoardConfig.h"
 #include "engine/AppCapabilities.h"
-#include "hal/NavKeys.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 #include "ui/Renderer.h"
@@ -184,19 +183,10 @@ public:
      * that is up turns now. A screen never sets a rotation itself: which one
      * it gets is the runtime's decision, made in one place. */
     virtual void applyOrientation() = 0;
-#if GUME_HAS_NAV_KEYS
-    /* This frame's navigation key for the active screen, already in screen
-     * directions, or None -- None when the runtime consumed the key itself
-     * (Back is Home, as BOOT is). Read it in update(), beside the touch; it is
-     * only valid during that call. Not on AppContext yet: the launcher is the
-     * only screen that takes keys. Only on a board with GUME_HAS_NAV_KEYS;
-     * screens read it through hostNavKey() below, which is None elsewhere. */
-    virtual NavKey navKey() = 0;
-#endif
 #if GUME_HAS_KEYBOARD
     /* This frame's character from an attached keyboard, or 0: printable
      * ASCII, '\b' for Delete, '\n' for Enter (hal/modules/KeyboardModule.cpp).
-     * Valid only during update(), like navKey(). A screen with a text field
+     * Valid only during update(), like the touch. A screen with a text field
      * takes it as a second way to press the keys it already draws, and must
      * handle it apart from the touch: on a frame with a typed character the
      * touch's coordinates are the LAST touch's, and testing them would press
@@ -210,14 +200,6 @@ public:
  * keys or no keyboard they are constants, so the screen's key path folds away
  * at compile time and that image carries none of it -- the screen needs no
  * #if of its own. */
-inline NavKey hostNavKey(GameHost& host) {
-#if GUME_HAS_NAV_KEYS
-    return host.navKey();
-#else
-    (void)host;
-    return NavKey::None;
-#endif
-}
 inline char hostTypedChar(GameHost& host) {
 #if GUME_HAS_KEYBOARD
     return host.typedChar();

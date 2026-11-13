@@ -303,8 +303,11 @@ void BrainoApp::loop() {
          * that a future hold gesture cannot be layered on top without moving
          * this to the release edge first; hal/BoardButton.cpp says the same
          * thing from the other end. */
-        /* Back is Home too, on the boards with keys, and for the same reasons.
-         * Every other key goes to the active screen through navKey().
+        /* On a board with keys, the d-pad's selector runs here, above the
+         * routing, and does everything through it: a press is a touch at the
+         * selected control (it replaces the frame's `touch`), and Home, Lock
+         * and Mute come back as bits for the same branches BOOT, the power
+         * key and the speaker's tap already take (AppRuntimeSelector.cpp).
          *
          * A power key's short press is the Lock button, consumed up here for
          * the reason Lock's tap is, and on the launcher too, which has a Lock
@@ -312,11 +315,17 @@ void BrainoApp::loop() {
          * wakes a sleeping panel and dismisses the saver exactly as any key
          * does (above), and it does nothing on the lock screen, which takes no
          * key at all. */
-        const bool powerLock = keys.power();
+#if GUME_HAS_NAV_KEYS
+        const uint8_t selectorJobs = selectorFrame(touch, keys);
+#else
+        const uint8_t selectorJobs = 0;
+#endif
+        const bool powerLock = keys.power() || (selectorJobs & SELECTOR_LOCK) != 0;
         const bool bootHome = !powerLock &&
-                              (boot.justPressed || keys.back()) &&
+                              (boot.justPressed || (selectorJobs & SELECTOR_HOME) != 0) &&
                               activeGame_ != &launcher_;
-        offerKeys(keys, bootHome || powerLock);
+        const bool keyMute = !powerLock && !bootHome && (selectorJobs & SELECTOR_MUTE) != 0;
+        offerKeys(keys, bootHome || powerLock || keyMute);
         if (powerLock) {
             lockAndSleepNow();
         } else if (bootHome) {
@@ -331,6 +340,8 @@ void BrainoApp::loop() {
          * here and cannot also press whatever it landed on -- the user would
          * find it done when they unlocked. Home is tested first: their touch
          * slop overlaps even though the glyphs do not, and the older target
+        } else if (keyMute) {
+            toggleMute();
          * keeps the ambiguous pixels. */
         /* An empty rect is a screen showing no padlock (Game::headerControls),
          * and with the slop it would still catch the corner. */
@@ -402,8 +413,16 @@ void BrainoApp::loop() {
         delay(budgetMs - workMs);
     } else {
         delay(1);
+#if GUME_HAS_NAV_KEYS
+        paintSelector(repainted);
+#endif
     }
 }
+#if GUME_HAS_NAV_KEYS
+    /* In every view, so a key that woke the panel or dismissed the saver is
+     * not taken as a fresh press on the frame after. */
+    sel_.prev = keys.held;
+#endif
 
 /* What the battery diagnostic cannot find out for itself. Once a second, from
  * RAM: the task that books the time reads the last one published, so nothing

@@ -27,6 +27,12 @@ silently. None of the Attaky code is in these images: the only cost to them
 is a few hundred bytes of flash from the file splits, and their RAM is
 unchanged.
 
+**The selector's arithmetic and job table are shared.** `ui/FocusMath.h` and
+`hal/ControlJobs.h` moved from `host/` into `src/` so the Attaky Core's
+selector uses the same two pieces as the RG40XX V's; the host keeps its old
+names as forwarders. `ControlJobs::bit()` is now `maskOf()`, because Arduino
+defines `bit` as a macro.
+
 **Joining Wi-Fi sets the clock to the right time zone straight away.** A
 console that joined a network from the Wi-Fi screen synced its clock at once
 but in UTC, because that path skipped the timezone lookup the boot connect
@@ -393,10 +399,23 @@ pressed is the one that flashes now.
 ## attaky-1.0.0-SNAPSHOT — Unreleased
 
 Braino! for Attaky: the same console on Attaky's modular handhelds, released
+**Its keys work every screen, the way the RG40XX V's do.** The D-pad moves a
+selector to every control -- buttons, tiles, keyboard keys, tabs, and the
+header's Home, padlock, speaker, gear and player name -- and A presses it, as
+a touch at its middle, so no screen changed. B is Home, L1 and R1 turn
+pages, L2 mutes, R2 locks, Menu goes to the next tab, and Select with Start
+held restarts: the RG40XX V's job table, now shared. Past a row's end is the
+next page and past a list's end scrolls it. The selector's ring is painted
+and unpainted in colours it knows, never by asking a screen to repaint --
+the first version did that on the header and flashed the launcher -- and
+takes the theme colour that stands out most against what it is on. This
+replaces the launcher-only focus ring. The gamepad is read in full, from
+Attaky's own Retro-Go map rather than the datasheet's six keys.
+
 on its own line. `ATTAKY_VERSION` is what these images report and
 `attaky-v<version>` is the tag that builds them; the Braino code each one
-is built from is on System Info and the `[boot]` line. Nothing here has run
-on a device yet, and nothing here is published: the tag makes a draft
+is built from is on System Info and the `[boot]` line. First run on a Cyber
+Deck Plus on 2026-11-12. Nothing here is published: the tag makes a draft
 release and the web installer does not list the board.
 
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
@@ -428,11 +447,10 @@ with nothing else changed. **System Info -> Board** and a new **About ->
 Modules** page list every module and whether it was found, read from the
 table. Not yet run on a device.
 
-**The Attaky Core reads its gamepad.** Its D-pad, A and B join the Core's own
-D-pad as navigation keys -- A is Enter, B is Back -- so they move the
-launcher's ring, repeat when held and turn with the screen exactly as the
-Core's keys do. One register a half per frame, from the two TCA9555s at 0x22
-and 0x26, and only when the module answered at boot. Not yet run on a device.
+**The Attaky Core reads its gamepad.** Every key, held, joins the Core's own
+keys as one set that turns with the screen exactly as the Core's do. One
+register a half per frame, from the two TCA9555s at 0x22 and 0x26, and only
+when the module answered at boot.
 
 **No Attaky code in any other image.** The key routing, the keyboard and
 gamepad, the expander LED, the fuel gauge and the module table are behind
@@ -463,16 +481,10 @@ is now also packed as a release would be and attached to its run for 30
 days, so someone holding a board nobody here has can flash the build its
 pull request was checked against.
 
-**The Attaky Core's D-pad drives the launcher.** On a board with navigation
-keys, the D-pad moves a focus ring across the tiles in reading order, turning
-the page at either end; Enter opens the tile, and Back puts the ring away, or
-goes Home from any other screen as BOOT does. The ring stays hidden until the
-first key, so nothing changes for anyone who only touches, and a touch hides
-it again. It is drawn in the gap round a tile, so moving it never repaints a
-tile. The keys come through a new `KeysProfile` and `Board::pollNavKey()`,
-which turns each direction for the current screen rotation the way touch
-already is; boards without keys compile the key paths away. Not yet run on a
-device.
+**The Attaky Core's keys come through `KeysProfile` and
+`Board::pollControls()`**, which reports what is held and turns each
+direction for the current screen rotation the way touch already is; boards
+without keys compile the key paths away.
 
 **The Attaky Core makes sound -- not yet heard.** Its Media I/O module has an
 NS4168 class-D amplifier that decodes I2S itself, with no codec, no MCLK and no

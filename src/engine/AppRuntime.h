@@ -17,6 +17,7 @@
 #include "games/GameInstances.h"
 #include "hal/Board.h"
 #include "ui/ScaledRenderer.h"
+#include "ui/FocusRecorder.h"
 #include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
@@ -129,9 +130,6 @@ public:
     void openWifi() override;
     void openProfiles() override;
     void applyOrientation() override;
-#if GUME_HAS_NAV_KEYS
-    NavKey navKey() override { return frameNav_; }
-#endif
 #if GUME_HAS_KEYBOARD
     char typedChar() override { return frameTyped_; }
 #endif
@@ -349,7 +347,12 @@ private:
      * there is nothing to route -- no #if in loop() itself. */
     struct FrameKeys {
 #if GUME_HAS_NAV_KEYS
-        NavKey nav = NavKey::None;
+        /* What the keys hold this frame, and whether any of them -- the power
+         * key included -- went down since the last. The selector works out
+         * the rest from `held` (AppRuntimeSelector.cpp). */
+        HeldControls held;
+        bool pressedAny = false;
+        bool powerPressed = false;
 #endif
 #if GUME_HAS_KEYBOARD
         char typed = 0;
@@ -359,25 +362,17 @@ private:
         bool any() const {
             bool pressed = false;
 #if GUME_HAS_NAV_KEYS
-            pressed = pressed || nav != NavKey::None;
+            pressed = pressed || pressedAny;
 #endif
 #if GUME_HAS_KEYBOARD
             pressed = pressed || typed != 0;
 #endif
             return pressed;
         }
-        /* Back is Home, as BOOT is. */
-        bool back() const {
-#if GUME_HAS_NAV_KEYS
-            return nav == NavKey::Back;
-#else
-            return false;
-#endif
-        }
         /* A power key's short press is the Lock button. */
         bool power() const {
 #if GUME_HAS_NAV_KEYS
-            return nav == NavKey::Power;
+            return powerPressed;
 #else
             return false;
 #endif
@@ -386,20 +381,21 @@ private:
     FrameKeys pollKeys() {
         FrameKeys keys;
 #if GUME_HAS_NAV_KEYS
-        keys.nav = board_.pollNavKey();
+        keys.held = board_.pollControls();
+        keys.pressedAny = (keys.held.buttons & ~sel_.prev.buttons) != 0 ||
+                          (keys.held.dirs & ~sel_.prev.dirs) != 0 ||
+                          (keys.held.power && !sel_.prev.power);
+        keys.powerPressed = keys.held.power && !sel_.prev.power;
 #endif
 #if GUME_HAS_KEYBOARD
         keys.typed = board_.pollTypedChar();
 #endif
         return keys;
     }
-    /* Hand the keys to the active screen for its update(), unless the runtime
-     * consumed them itself; and take them back after, so navKey() and
-     * typedChar() answer None and 0 at every other moment. */
+    /* Hand the typed character to the active screen for its update(), unless
+     * the runtime consumed the frame itself; and take it back after, so
+     * typedChar() answers 0 at every other moment. */
     void offerKeys(const FrameKeys& keys, bool consumed) {
-#if GUME_HAS_NAV_KEYS
-        frameNav_ = consumed ? NavKey::None : keys.nav;
-#endif
 #if GUME_HAS_KEYBOARD
         frameTyped_ = consumed ? 0 : keys.typed;
 #endif
@@ -407,17 +403,49 @@ private:
         (void)consumed;
     }
     void withdrawKeys() {
-#if GUME_HAS_NAV_KEYS
-        frameNav_ = NavKey::None;
-#endif
 #if GUME_HAS_KEYBOARD
         frameTyped_ = 0;
 #endif
     }
 #if GUME_HAS_NAV_KEYS
-    /* The navigation key handed to the active screen's update(), and only
-     * during it; None at every other moment. See navKey(). */
-    NavKey frameNav_ = NavKey::None;
+    /* The d-pad's selector (AppRuntimeSelector.cpp). Everything it does goes
+     * through the runtime's own doors -- a touch, BOOT's Home, the padlock's
+     * Lock, the speaker's Mute -- which is what its result bits are. */
+    struct SelectorState {
+        ControlJobs::Assignment jobs{};
+        bool jobsReady = false;
+        HeldControls prev;               // last frame's keys, in every view
+        bool on = false;                 // a control is selected
+        bool drawn = false;              // and its ring is on the panel
+        bool dirty = false;              // the ring has to be drawn again
+        const Game* screen = nullptr;    // the screen the selection belongs to
+        Focus::Target sel;
+        uint8_t moveDir = 0;             // the direction being repeated
+        uint32_t repeatAtMs = 0;
+        uint32_t restartSinceMs = 0;
+        /* A touch the selector is making, one frame at a time: a press held
+         * with the button, a tap (a page, a tab), or a drag down a list. */
+        enum class Script : uint8_t { None, Hold, Tap, Drag };
+        Script script = Script::None;
+        uint8_t step = 0;
+        int16_t tx = 0, ty = 0, dragDy = 0;
+    };
+    SelectorState sel_;
+    uint8_t selectorFrame(TouchPoint& touch, const FrameKeys& keys);
+    void paintSelector(bool repainted);
+    int selectorTargets(Focus::Target* out, int max);
+    bool selectorSettingsRect(Rect& out);
+    void selectorMove(int dx, int dy);
+    void selectorTap(int16_t x, int16_t y);
+    void selectorDrag(const Focus::ScrollArea& area, int dy);
+    void selectorErase();
+    void selectorPaintRing(const Focus::Target& t, bool on);
+    void selectorFollowScreen();
+    /* What the d-pad's selector asks the routing to do this frame; on a
+     * board without keys it asks nothing. */
+    static constexpr uint8_t SELECTOR_HOME = 1;
+    static constexpr uint8_t SELECTOR_LOCK = 2;
+    static constexpr uint8_t SELECTOR_MUTE = 4;
 #endif
 #if GUME_HAS_KEYBOARD
     char frameTyped_ = 0;     /* the same, for a typed character */

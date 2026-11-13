@@ -183,7 +183,7 @@ struct ButtonProfile {
  * is why BoardConfig.h requires a capacitive board.
  *
  * The directions are PHYSICAL: Up is the key that points up when the board
- * is held at its landscape rotation. Board::pollNavKey() turns them into
+ * is held at its landscape rotation. Board::pollControls() turns them into
  * screen directions for whatever rotation is current.
  *
  * `keyPower` is a power key's SHORT press, where the board reports one to
@@ -233,32 +233,35 @@ struct KeyboardProfile {
     const char* rightLayout;
 };
 
-/* A clip-on gamepad, where a board can carry one: its D-pad and two face
- * keys, read into the same navigation-key stream as a D-pad on the board.
+/* A clip-on gamepad: two I2C expanders, one per half, eight keys each on
+ * P0_0..P0_7, every key active low against the expander's own pull-up. Only
+ * the Attaky Core takes one -- Attaky's Control: Gamepad (Bottom) module.
  *
- * Only as two TCA9555 I2C expanders, one per half, because that is the only
- * gamepad any supported board takes: Attaky's Control: Gamepad (Bottom)
- * module. The fields are each half's address and, for each key, a port of
- * that half's expander -- 0..7 for P0_0..P0_7, 8..15 for P1_0..P1_7 -- with
- * the directions on the left half and A and B on the right. Every key is
- * active low against the expander's own pull-up.
+ * Each half's keys are one string of eight characters, P0_0 first, in the
+ * spirit of KeyboardProfile: the whole module is stated in two lines rather
+ * than one field a key, and a key the firmware gives no job is written down
+ * all the same, so the map can be checked against the module's documents.
  *
- * The directions are PHYSICAL, as KeysProfile's are, and in the same frame:
- * Up is the key that points up when the console is held at its landscape
- * rotation. A is Enter and B is Back.
+ *   U D L R      the directions, PHYSICAL: Up is the key that points up when
+ *                the console is held at its landscape rotation, in the same
+ *                frame as KeysProfile's
+ *   A B X Y      the face buttons
+ *   < >          L1 and R1
+ *   { }          L2 and R2
+ *   S T M        Select, Start and Menu
+ *   ~            a key with no job, or no key
+ *
+ * What each control then does is not stated here: hal/ControlJobs.h decides
+ * that from which controls the console has, for every console alike.
  *
  * Optional twice over, like the keyboard: padLeftExpander 0 is a board that
  * cannot carry one, and a board that can may not have it clipped on, which
  * the module table finds at boot. */
 struct GamepadProfile {
-    uint8_t padLeftExpander;      // the left half's TCA9555, or 0
-    uint8_t padRightExpander;     // the right half's TCA9555
-    int8_t  padUp;                // left half's ports
-    int8_t  padDown;
-    int8_t  padLeft;
-    int8_t  padRight;
-    int8_t  padA;                 // right half's ports: Enter
-    int8_t  padB;                 // and Back
+    uint8_t     padLeftExpander;   // the left half's expander, or 0
+    uint8_t     padRightExpander;  // the right half's
+    const char* padLeftLayout;     // eight characters, P0_0..P0_7, or nullptr
+    const char* padRightLayout;
 };
 
 struct SdProfile {

@@ -52,6 +52,15 @@ the screen. Settings and scores go in `$BRAINO_DATA_DIR`, or
 
 ## The d-pad's selector
 
+**Its arithmetic and its job table are shared with the firmware.**
+`src/ui/FocusMath.h` and `src/hal/ControlJobs.h` are the one copy; the
+`HostFocus.h` and `HostControls.h` here are forwarders that keep the old names
+(by relative path, so the controls test still builds with `-Ihost/src`
+alone). The Attaky Core's selector (`src/engine/AppRuntimeSelector.cpp`)
+moves and assigns jobs with them, so a change to either is a change to both
+consoles. `ControlJobs::maskOf()` was `bit()`, which Arduino defines as a
+macro.
+
 The firmware has no idea what a selected control is: every screen takes one
 touch point. So the selector is the host's, and pressing A is an ordinary touch
 at the middle of the selected control. No screen changed for it.

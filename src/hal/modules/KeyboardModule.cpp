@@ -250,7 +250,7 @@ constexpr Modules::Driver DRIVER = {
     /* byElimination  */ false,
     /* live           */ false,
     /* probe          */ probe,
-    /* heldNavKeys    */ nullptr,
+    /* heldControls   */ nullptr,
     /* typedChar      */ typedChar,
     /* readBattery    */ nullptr,
 };

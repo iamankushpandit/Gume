@@ -9,6 +9,8 @@
 
 #include "RowList.h"
 
+#include "ui/FocusRecorder.h"
+
 namespace {
 
 void drawMeterBar(Ui::Renderer& tft, const Rect& r, uint8_t pct, uint16_t fill) {
@@ -153,6 +155,8 @@ void RowList::drawScrollBar(Ui::Renderer& tft, const Rect& r, int16_t totalH, in
     tft.fillRoundRect(static_cast<int16_t>(trackX + 1), static_cast<int16_t>(thumbY + 1),
                       static_cast<int16_t>(SCROLLBAR_W - 2), static_cast<int16_t>(thumbH - 2),
                       2, Ui::rgb(88, 164, 224));
+    /* Where the d-pad scrolls when it runs out of controls (FocusRecorder.h). */
+    Focus::noteScroll(r, offset > 0, offset < maxScroll);
 }
 
 uint32_t RowList::layoutHash() const {

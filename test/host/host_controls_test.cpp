@@ -41,7 +41,7 @@ namespace {
 
 uint32_t bits(std::initializer_list<Control> list) {
     uint32_t out = 0;
-    for (Control c : list) out |= bit(c);
+    for (Control c : list) out |= maskOf(c);
     return out;
 }
 
@@ -67,7 +67,7 @@ void checkConsistent(uint32_t present, const Assignment& a) {
     uint32_t used = 0;
     for (uint8_t t = 0; t < TaskCount; ++t) {
         if (a.control[t] == ControlCount) continue;
-        const uint32_t b = bit(static_cast<Control>(a.control[t]));
+        const uint32_t b = maskOf(static_cast<Control>(a.control[t]));
         CHECK((present & b) != 0);      // never a control the console lacks
         CHECK((used & b) == 0);         // never the same control twice
         used |= b;
@@ -107,7 +107,7 @@ void noStick() {
 
 /* One stick and no way to click it. */
 void oneStick() {
-    const uint32_t present = BUTTONS | bit(LStick);
+    const uint32_t present = BUTTONS | maskOf(LStick);
     const Assignment a = assign(present);
     checkConsistent(present, a);
     CHECK(a.is(Cursor, LStick));
@@ -139,7 +139,7 @@ void fewerButtons() {
     a = assign(present);
     checkConsistent(present, a);
     CHECK(!a.has(PagePrev) && !a.has(PageNext));
-    CHECK(a.unassigned == bit(L1));
+    CHECK(a.unassigned == maskOf(L1));
 
     /* No small button: Start is the tab key, so the restart hold, which
      * needs Start as well, is gone rather than doubled up. */
@@ -148,7 +148,7 @@ void fewerButtons() {
     checkConsistent(present, a);
     CHECK(a.is(Tab, Start));
     CHECK(!a.has(RestartA) && !a.has(RestartB));
-    CHECK(a.unassigned == bit(Select));
+    CHECK(a.unassigned == maskOf(Select));
 
     /* No A: B presses, and Home moves along to Start. */
     present = bits({DPad, B, Start, Select});
@@ -180,9 +180,9 @@ void everySubset() {
         checkConsistent(present, a);
         /* The priority is real: a job is never left without a control while
          * its first choice sits idle. */
-        if (present & bit(DPad)) CHECK(a.is(Move, DPad));
-        if (present & bit(A)) CHECK(a.is(Press, A));
-        if ((present & bit(LStick))) CHECK(a.is(Cursor, LStick));
+        if (present & maskOf(DPad)) CHECK(a.is(Move, DPad));
+        if (present & maskOf(A)) CHECK(a.is(Press, A));
+        if ((present & maskOf(LStick))) CHECK(a.is(Cursor, LStick));
         CHECK(a.has(PagePrev) == a.has(PageNext));
         CHECK(a.has(RestartA) == a.has(RestartB));
     }

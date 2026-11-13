@@ -10,6 +10,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "hal/HeldControls.h"
 
 #include "BoardConfig.h"
 
@@ -34,8 +35,8 @@
  * What a module provides is a set of Capability bits, and those decide what
  * the console does with it:
  *
- *   NavKeys  heldNavKeys() is ORed into the navigation-key stream every frame,
- *            beside the board's own D-pad, and turned for the rotation there
+ *   NavKeys  heldControls() adds what the module holds to the board's own keys
+ *            every frame, before they are turned for the rotation
  *   Typing   typedChar() is the frame's typed character
  *   Battery  readBattery() is what the battery task samples
  *   Storage  the SD slot is brought up only if a module that provides it is
@@ -97,9 +98,9 @@ struct Driver {
     /* Once, in Board::begin(), with the touch bus up; also sets the module up
      * when it is found. nullptr for a byElimination or a live driver. */
     Probe (*probe)();
-    /* Per frame, only if present: the NavKey bits (1 << NavKey) of the keys
-     * held now, in PHYSICAL directions. */
-    uint8_t (*heldNavKeys)();
+    /* Per frame, only if present: add the controls held now to `into`, with
+     * directions PHYSICAL (see hal/HeldControls.h). */
+    void (*heldControls)(HeldControls& into);
     /* Per frame, only if present: a typed character, or 0. */
     char (*typedChar)();
     /* Every BATTERY_SAMPLE_MS, from the battery task, whatever boot found:
@@ -136,7 +137,7 @@ bool provides(ModuleCapability capability);
 void describe(uint8_t index, char* out, size_t cap);
 
 /* The per-frame hooks of every present module, combined. */
-uint8_t heldNavKeys();
+void heldControls(HeldControls& into);
 char typedChar();
 
 /* What a Battery driver puts in `percent` when its part knows only the
