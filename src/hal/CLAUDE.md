@@ -289,7 +289,8 @@ The drivers, today all Attaky's:
 
 - **`KeyboardModule.cpp`** -- Attaky's two-half keyboard, each half an AW9523 scanning a 5x5 matrix. `KeyboardProfile` gives both addresses and a 25-character layout per half, with four codes for keys that type nothing (`^` Shift, `<` Delete, `>` Enter, `~` unused). The probe sets both halves up with every row driven LOW and says `[keyboard] attached|absent`; both or neither. **Idle, it costs one register read a half**: with every row low any key pulls its column down, so the frame's read stops there when they are all high, and only a key down makes it walk the rows -- about a millisecond. One character a frame: a letter (upper while Shift is held), a digit, space or the punctuation as itself, `'\b'` for Delete (repeating while held), `'\n'` for Enter. Its AW9523 writes are its own, not `BoardExpander`'s: the module is not the board.
 - **`GamepadModule.cpp`** -- Attaky's Control: Gamepad (Bottom), a TCA9555 a half at 0x22 and 0x26. `GamepadProfile` gives each key's port; the D-pad is on the left half, A (Enter) and B (Back) on the right, all active low on the part's own pull-ups. The probe writes both halves' configuration registers to all-inputs -- which is also what leaves each half's RGB LED off -- and the frame read is one input register a half, held or idle, because every key read is on port 0. The directions are taken to share the Core's landscape frame; **not yet seen on a device**.
-- **`FuelGaugeModule.cpp`** -- the Power module's MAX17048 (see Battery sensing).
+- **`FuelGaugeModule.cpp`** -- the Power module's gauge, whichever of
+  MAX17048, INA226 and INA219 is fitted (see Battery sensing).
 - **`ExpandFmAm.cpp`, `ExpandLoraGps.cpp`, `ExpandMediaIo.cpp`** -- the three Expand modules on the `expand` slot, which share IO5-8 and the speaker's I2S lines. Passive-first, after Attaky's `shared/module-detection-and-safe-boot.md`: FM/AM (order 40) is one address write to its tuner (0x64) on that module's private bus (`Wire1`, IO42/IO41), torn down after and left as inputs, and a bus that will not start is `Unknown`; LoRa/GPS (order 50) attaches the UART's receiver alone to IO17 for `GPS_LISTEN_MS` (1.5 s) and wants one NMEA sentence whose checksum adds up -- not just a `$`, because on Media I/O that line is the amplifier's idle bit clock -- and leaves IO17 `INPUT_PULLDOWN`, Attaky's park for it; Media I/O (order 60) is by elimination and provides `Storage` and `Sound`. Neither of the other two provides anything: finding one is what keeps the SD slot and the speaker down. **Keep `probeAll()` ahead of `beginAudio()`**: an I2S backend clocking IO17 while the GPS probe listens would be both a wrong answer and a noise through the speaker.
 
 Everything a driver does at boot is on the loop task; `heldNavKeys()` and `typedChar()` run on it every frame; `readBattery()` runs on the battery task, sharing the bus with touch under `TwoWire`'s own lock.
@@ -312,8 +313,11 @@ Time/date formatting and sync-state helpers over the ESP32 RTC.
 
 A board describes its battery in one of two shapes, never both (`BoardConfig.h`
 asserts it): an ADC sense line behind a divider, which is everything below, or
-a **fuel gauge** -- `BOARD.battery.fuelGaugeAddress`, a MAX17048 on the touch
-controller's I2C bus, which only the Attaky Core has. `hasBatterySense()` is
+a **gauge on I2C** -- `BOARD.battery.fuelGaugeAddress`, which only the Attaky
+Core has. Its Power module carries a MAX17048 (0x36), an INA219 or an INA226
+(0x40/0x44/0x45) depending on which module it is, and `FuelGaugeModule.cpp`
+identifies the part by a register only it answers that way; an INA's
+percentage comes from the LiPo curve, the MAX17048's from itself. `hasBatterySense()` is
 true for either; `hasBatteryAdc()` and `hasFuelGauge()` say which, and
 anything that touches the ADC pin keys on the first.
 

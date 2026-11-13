@@ -32,9 +32,13 @@
  * critical warning. When the module comes back, the next sample shows it, with
  * no deadband to climb through.
  *
- * The percentage is the module's own (a fuel gauge's state of charge), so no
- * LiPo curve and no gauge filter; the deadband stays, because the badge must
- * not twitch whoever computed the number. Battery task only. */
+ * A fuel gauge's percentage is its own state of charge, so it gets no LiPo
+ * curve and no gauge filter. A part that measures only the voltage -- the
+ * INA226 and INA219 on Attaky's other power modules -- says
+ * PERCENT_FROM_VOLTS and gets the same curve a board with a divider uses;
+ * its reading is a 1.25-4 mV conversion with no ADC noise to filter. The
+ * deadband stays either way, because the badge must not twitch whoever
+ * computed the number. Battery task only. */
 void Board::sampleModuleBattery() {
     float volts = 0.0f;
     uint8_t percent = 0;
@@ -45,7 +49,9 @@ void Board::sampleModuleBattery() {
         displayPct_ = -1;
     } else {
         sample.batteryVoltage = volts;
-        settleDisplayPercent(static_cast<int8_t>(percent));
+        settleDisplayPercent(percent == Modules::PERCENT_FROM_VOLTS
+                                 ? curvePercent(volts)
+                                 : static_cast<int8_t>(percent));
     }
 
     portENTER_CRITICAL(&batteryMux_);

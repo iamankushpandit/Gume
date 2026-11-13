@@ -110,17 +110,20 @@ off. Worth checking on a device:
   directions are taken to share the Core's frame, which nobody has seen yet;
 - A opens a tile and B goes Home from a game.
 
-**The battery badge reads the Power module's fuel gauge**, a MAX17048 at 0x36
-on the touch bus, rather than a voltage divider -- the Core has none. The
-battery task reads its cell voltage and state of charge every two seconds and
-the badge shows the state of charge as the gauge reports it, through the same
+**The battery badge reads the Power module over I2C**, rather than a voltage
+divider -- the Core has none. Attaky make three power modules with three
+chips, and the firmware identifies whichever is fitted, as Attaky's own
+Retro-Go does: a MAX17048 fuel gauge at 0x36 (Standard Cell 1.0), whose state
+of charge the badge shows as it is; or an INA219 (Standard Cell 1.1) or
+INA226 (18650 Cell) at 0x40, 0x44 or 0x45, which measure the voltage, so the
+badge uses the LiPo curve. **Seen on a Cyber Deck Plus: `[battery] gauge
+INA219 at 0x44, 4076 mV`, shown as 88%.** Every two seconds, through the same
 deadband and the same 15% / 5% warnings as every other board. A gauge that
 does not answer -- the module unclipped -- is no reading: no badge and no
 warning, never an empty battery. Worth checking on a device:
 
-- the serial log says `[battery] fuel gauge at 0x36 answering` at boot, and
-  System Info -> Board -> Power shows a voltage near the cell's and
-  "Fuel gauge MAX17048";
+- the serial log names the gauge at boot (`[battery] gauge ... at 0x..`), and
+  System Info -> Board -> Power shows a voltage near the cell's;
 - the percentage agrees roughly with Attaky's own firmware on the same charge;
 - unclipping the Power module (on USB) takes the badge away within a couple of
   seconds and logs `not answering`, and clipping it back brings it back;

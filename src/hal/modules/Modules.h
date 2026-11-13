@@ -103,7 +103,9 @@ struct Driver {
     /* Per frame, only if present: a typed character, or 0. */
     char (*typedChar)();
     /* Every BATTERY_SAMPLE_MS, from the battery task, whatever boot found:
-     * false when the module did not answer. */
+     * false when the module did not answer. `percent` is the part's own
+     * state of charge, or PERCENT_FROM_VOLTS for a part that measures only
+     * the voltage, which the board then reads through its LiPo curve. */
     bool (*readBattery)(float& volts, uint8_t& percent);
 };
 
@@ -136,6 +138,10 @@ void describe(uint8_t index, char* out, size_t cap);
 /* The per-frame hooks of every present module, combined. */
 uint8_t heldNavKeys();
 char typedChar();
+
+/* What a Battery driver puts in `percent` when its part knows only the
+ * voltage (see Driver::readBattery). */
+constexpr uint8_t PERCENT_FROM_VOLTS = 0xFF;
 
 /* The first Battery driver's reading; sets that module's presence from the
  * answer. False when none answered, or there is no such driver. */

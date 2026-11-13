@@ -1106,10 +1106,13 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
-**The Attaky Core is the exception: it has a fuel gauge, not a divider.** Its
-Power module reports the cell through a MAX17048 on the I²C bus, and the badge
-shows that chip's own state of charge rather than a percentage worked out from
-a voltage, with the same thresholds and the same steadying. Unclip the module
+**The Attaky Core is the exception: its Power module reports the cell over
+I²C, not through a divider.** Attaky make three, with three different chips,
+and the firmware finds whichever is fitted: on the Standard Cell 1.0 a
+MAX17048 fuel gauge, whose own state of charge the badge shows; on the
+Standard Cell 1.1 an INA219 and on the 18650 Cell an INA226, which measure
+the voltage, so the badge uses the same LiPo curve as every other board. The
+thresholds and the steadying are the same either way. Unclip the module
 and the gauge stops answering, so the badge disappears and no warning is raised
 -- the console does not mistake a missing module for an empty battery.
 
@@ -1651,7 +1654,7 @@ src/
       Modules.cpp         the module table: probes, slots, what each provides
       KeyboardModule.cpp  a clip-on typing keyboard, scanned as two matrices
       GamepadModule.cpp   a clip-on gamepad: D-pad, A and B, as navigation keys
-      FuelGaugeModule.cpp the battery module's MAX17048 fuel gauge
+      FuelGaugeModule.cpp the power module's gauge: MAX17048, INA226 or INA219
       ExpandFmAm.cpp      Expand: FM/AM, found by its tuner on its own bus
       ExpandLoraGps.cpp   Expand: LoRa/GPS, found by its GPS's sentences
       ExpandMediaIo.cpp   Expand: Media I/O (SD, sound), found by elimination

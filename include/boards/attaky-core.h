@@ -285,13 +285,13 @@ inline constexpr BoardProfile BOARD = {
         /* maxVolume           */ 50,
     },
 
-    /* A fuel gauge, not a divider. The Power: Standard Cell module reports
-     * the cell through a MAX17048 at 0x36 on the shared touch bus and wires
-     * no divider to any GPIO. The battery task reads its VCELL and SOC
-     * registers and the badge shows SOC directly -- charge as the gauge
-     * models it, not a voltage to be guessed from. The module can be
-     * detached; a gauge that does not answer is no reading and no badge,
-     * never an empty cell. Not yet seen on a device. */
+    /* A gauge on I2C, not a divider. The power module reports the cell on
+     * the shared touch bus and wires no divider to any GPIO. 0x36 is the
+     * MAX17048 on the Standard Cell 1.0; the Standard Cell 1.1 and the
+     * 18650 Cell carry an INA219 or INA226 at 0x40/0x44/0x45 instead, which
+     * FuelGaugeModule.cpp finds by itself -- the Cyber Deck Plus seen here
+     * has the INA219 at 0x44. The module can be detached; a gauge that does
+     * not answer is no reading and no badge, never an empty cell. */
     BatteryProfile{
         /* adcPin        */ PIN_NONE,
         /* dividerRatio  */ 0.0f,

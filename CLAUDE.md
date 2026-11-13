@@ -1927,14 +1927,21 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   input, since the firmware reads none of them. That board was ported from
   Attaky's documents before a device existed here -- see
   `docs/boards/Attaky-Core.md` for what is still unchecked.
-- **A battery can be a fuel gauge rather than a divider.** The Attaky Core's
-  Power module reports the cell through a MAX17048 at 0x36 on the touch bus, so
-  `BatteryProfile` carries `fuelGaugeAddress` (0 on every other board) beside
-  the ADC fields, and a board states one or the other, never both.
-  `hasBatterySense()` covers either; `hasBatteryAdc()` is what guards the ADC
-  pin. The gauge is read on the same battery task and published through the
-  same snapshot, its state of charge going to the percentage directly instead
-  of through the LiPo curve, with the same deadband and thresholds. **A gauge
+- **A battery can be a gauge on I2C rather than a divider.** The Attaky Core's
+  Power module reports the cell on the touch bus, so `BatteryProfile` carries
+  `fuelGaugeAddress` (0 on every other board) beside the ADC fields, and a
+  board states one or the other, never both. `hasBatterySense()` covers
+  either; `hasBatteryAdc()` is what guards the ADC pin. **Attaky make three
+  power modules with three different chips**, and `FuelGaugeModule.cpp`
+  identifies the one fitted the way Attaky's own Retro-Go does: a MAX17048 at
+  0x36 by its VERSION register, an INA226 by its die ID, an INA219 by a config
+  write it reads back -- never by a bare address ack, because the INA parts'
+  addresses overlap and their voltage maths differs. The first module seen on
+  a device was the INA219 one, not the MAX17048 the catalog documents; that
+  is why. A MAX17048's state of charge goes to the percentage directly; an
+  INA reports only the voltage (`Modules::PERCENT_FROM_VOLTS`) and goes
+  through the LiPo curve. Same task, same snapshot, same deadband and
+  thresholds. **A gauge
   that does not answer is no reading** -- -1, no badge, no warning -- never an
   empty cell, because the module unclips. See `src/hal/CLAUDE.md`.
 - Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.

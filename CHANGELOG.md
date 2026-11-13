@@ -440,9 +440,12 @@ board-header macros defined only for the Attaky Core, so the other five
 product images carry none of it: no symbol of it in their ELF, and their RAM
 is back to `dev`'s figure.
 
-**The Attaky Core's battery badge reads its fuel gauge.** It has no divider:
-the Power: Standard Cell module reports the cell through a MAX17048 on the
-touch bus. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
+**The Attaky Core's battery badge reads its power module.** It has no
+divider: the power module reports the cell on the touch bus, through a
+MAX17048 fuel gauge on the Standard Cell 1.0, an INA219 on the Standard Cell
+1.1 (the one seen on the first device) or an INA226 on the 18650 Cell. The
+firmware identifies whichever is fitted, as Attaky's Retro-Go does, and an
+INA's voltage goes through the LiPo curve. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
 board), and on a board that names one the battery task reads the gauge's
 cell voltage and state of charge instead of the ADC, and shows the state of
 charge directly rather than through the LiPo curve -- with the same deadband
