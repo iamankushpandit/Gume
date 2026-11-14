@@ -62,12 +62,13 @@ void BackgammonGame::begin(AppContext& host) {
 
 void BackgammonGame::end(AppContext& host) {
     saveGame(host);
-    /* A turn stays on the air until it is replaced; leaving without clearing
-     * it would leave this console advertising a game it is no longer in --
-     * including an ending we sent and walked away from. Unconditional, as in
-     * Chess. A nearby game is saved and says the same thing again when this
-     * screen returns. */
-    host.nearbyStop();
+    /* Leaving the screen does not end a game played across consoles: only End
+ * game does. So a nearby game's last move stays on the air while this console
+ * is elsewhere -- the other console may not have heard it yet, and taking it
+ * off would strand them waiting for a move that had already been made. It is
+ * replaced when this screen comes back and the game carries on, or when a new
+ * game starts. Every other mode hands the radio back. */
+    if (mode_ != Mode::Remote) host.nearbyStop();
 }
 
 void BackgammonGame::setMessage(const char* text) {

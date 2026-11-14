@@ -77,14 +77,15 @@ void LudoGame::begin(AppContext& host) {
 
 void LudoGame::end(AppContext& host) {
     saveGame(host);
-    /* Hands the radio back, as Chess does: a turn stays on the air until it is
-     * replaced, so leaving without clearing it would leave this console
-     * advertising a game it is no longer in. A game across consoles is saved
-     * and says the same thing again when this screen comes back. */
-    if (net_ || mode_ == Mode::Table) {
-        host.nearbyStop();
-    }
+    /* Leaving the screen does not end a game played across consoles: only End
+ * game does. So a nearby game's last move stays on the air while this console
+ * is elsewhere -- the other console may not have heard it yet, and taking it
+ * off would strand them waiting for a move that had already been made. It is
+ * replaced when this screen comes back and the game carries on, or when a new
+ * game starts. A table still being gathered is left, as
+ * before: no game has started at it. */
     if (mode_ == Mode::Table) {
+        host.nearbyStop();
         leaveTable(host);
         mode_ = Mode::Lobby;
     }

@@ -624,7 +624,7 @@ void LudoGame::dropChair(AppContext& host, uint8_t chair) {
  * is how you get a game nobody can finish; and a seat that cannot ack the
  * last ply stalls canPublish for everyone anyway. The host alone is offered
  * "Play without", and only once the chair is Gone rather than merely Quiet:
- * six seconds is a scan gap, forty-five is somebody who has left. A guest
+ * fifteen seconds is a scan gap, forty-five is somebody who has left. A guest
  * whose host has gone can only wait or end. */
 bool LudoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now) {
     if (!net_ || mode_ != Mode::Play || phase_ == Phase::Over || ended_) {

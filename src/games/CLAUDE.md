@@ -177,8 +177,8 @@ service now measures the silence (`nearbyPeerSilentMs()`, `NearbySeat::silentMs`
 and `NearbyWatch` (`src/games/NearbyWatch.{h,cpp}`) turns it into three states
 and one card, so the games cannot each decide what "too long" means:
 
-- *Present* -- heard within `NearbyPlay::PEER_QUIET_MS` (6s: several missed
-  scan windows, because missing one is ordinary). Play on.
+- *Present* -- heard within `NearbyPlay::PEER_QUIET_MS` (15s: missing a
+  few advertisements in a row is ordinary). Play on.
 - *Quiet* -- the game pauses. It cannot proceed anyway. The card over the
   board says who it is waiting for and for how long, with **Keep waiting**
   and **End game**. Keep waiting takes the card away and leaves the game
@@ -335,7 +335,7 @@ board game.
   on without it.** The same `NearbyWatch` as the two-player games, over every
   chair but our own (`tickTable()`), because a seat that cannot ack the last
   ply stalls `canPublish()` for everyone anyway. Once a chair is *Gone* --
-  not merely Quiet: six seconds is a scan gap, forty-five is somebody who
+  not merely Quiet: fifteen seconds is a scan gap, forty-five is somebody who
   left -- the host's card carries a third button, *Play without X*. That
   makes the chair's seat a computer seat the host plays, and it has to be
   SAID, because every other console reads that seat's turns from the chair

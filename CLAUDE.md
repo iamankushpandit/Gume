@@ -703,7 +703,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,597,537 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,597,545 / 3,145,728 bytes,
 **82.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 90,956 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1180,7 +1180,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   The second way a two-player game ends never arrives as a message -- a flat
   battery cannot send `nearbyEnd()` -- so `NearbyPlay::peerSilentMs()` reports
   the silence off the scanner's own `lastSeenMs`, and `NearbyWatch`
-  (`src/games/`) turns it into Present / Quiet (`PEER_QUIET_MS`, 6s) / Gone
+  (`src/games/`) turns it into Present / Quiet (`PEER_QUIET_MS`, 15s) / Gone
   (the scanner's 45s TTL) and one card: waiting for whom, for how long, Keep
   waiting or End game. Every nearby game hooks it at the same two places;
   none may decide "too long" for itself. Nothing transmits for it: it is
@@ -1195,6 +1195,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   back. So End game is not a nicety bolted on beside persistence, it is the
   other half of it. The same applies to anything else here that learns to
   remember an unfinished state.
+- **Leaving a nearby game does not end it; only End game does.** Every game
+  played across consoles -- Chess, Go, Backgammon, Sea Battle, Ludo -- saves on
+  the way out and leaves its last move on the air, so the other console still
+  receives it and the game carries on when this screen comes back. `end()`
+  calls `nearbyStop()` only outside a nearby game (and Ludo's when the table
+  was still gathering). Taking the move off the air on the way out is what
+  stranded the other player waiting for a move that had already been made.
 - **Local peer names never reach the radio, and that is structural.**
   `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
   one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never

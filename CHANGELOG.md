@@ -54,6 +54,22 @@ on an Attaky Core and on the RG40XX V. Every sync now follows one rule: with
 the zone on automatic, the first one after boot looks it up, whichever path
 that is -- still the one `ip-api.com` request a boot makes.
 
+**A nearby game no longer pauses for a console that is right there.** Chess
+and the other games played across two consoles kept showing the "waiting
+for" card between moves. The scan listened 300ms in every 900ms against a
+beacon sent every second, so the two drifted in and out of step: three
+advertisements heard, then six in a row missed, and six seconds of silence
+was exactly when a game decided the other console had gone quiet. The scan
+now runs 260ms in every 780ms -- the same share of the radio's time -- which
+never lets the two fall out of step for long, and a game waits fifteen
+seconds rather than six before pausing.
+
+**Leaving a nearby game no longer ends it.** Going Home in the middle of a
+game of Chess, Go, Backgammon, Sea Battle or Ludo played across consoles
+saves it and keeps its last move on the air, so the other console still
+receives it; coming back carries on where it was. A game across consoles
+ends only when a player presses End game.
+
 **A change to Braino builds the RG40XX V's card in minutes, not an hour.**
 Every card-image build compiled the toolchain, glibc, the kernel and every
 library from scratch, 58 to 79 minutes a run, though a change to a game

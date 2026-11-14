@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,597,537 / 3,145,728 bytes of the app partition (**82.6%**) |
+| Flash | 2,597,545 / 3,145,728 bytes of the app partition (**82.6%**) |
 | RAM | 90,956 / 327,680 bytes (**27.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -1300,12 +1300,14 @@ and adds nothing to what any one of them transmits.
 
 **If the other console goes quiet, the game pauses and says so.** A battery
 going flat or a young player walking into the next room cannot send anything, so the
-only sign is that the beacon stopped. After about six seconds without hearing
+only sign is that the beacon stopped. After about fifteen seconds without hearing
 the other console every nearby game pauses, names who it is waiting for and
 for how long, and offers Keep waiting or End game; after 45 seconds it says out
 of range. Waiting has no limit -- the game is saved after every move -- and a
 console that comes back into range picks the game up where it stopped, because
-each console's latest move is still on the air. Ending from that card tells the
+each console's latest move is still on the air. Going Home does not end a
+game either: it is saved, the last move stays on the air, and opening the game
+again carries on. Only End game ends it. Ending from that card tells the
 other console, if it returns, that the game is over. At a Ludo table the whole
 table pauses for one quiet console, and once it has been out of range for 45
 seconds the host is offered *Play without* it: that seat becomes a computer

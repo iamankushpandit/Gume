@@ -16,11 +16,22 @@
 namespace BleScan {
 namespace {
 
-/* Scan window/interval, in milliseconds. 300ms of listening every 900ms is
- * enough to catch a 1000ms beacon within a couple of cycles while leaving the
- * radio idle two thirds of the time -- this shares an antenna with Wi-Fi. */
-constexpr uint16_t SCAN_INTERVAL_MS = 900;
-constexpr uint16_t SCAN_WINDOW_MS = 300;
+/* Scan window/interval, in milliseconds: a third of the time listening,
+ * because this shares an antenna with Wi-Fi.
+ *
+ * The interval is chosen against the beacon's, not on its own. A peer
+ * advertises every BleBeacon::ADV_INTERVAL_MS (1000ms), so each advertisement
+ * lands 1000 mod interval later in our cycle than the last. At 900ms that is
+ * 100ms a time: three advertisements fall in the 300ms window, then six in a
+ * row fall outside it, and a console sitting right beside us went unheard for
+ * six seconds every nine -- exactly NearbyPlay::PEER_QUIET_MS, so a nearby
+ * game kept pausing to wait for somebody who had never left. At 780ms the
+ * step is 220ms and, simulated with the beacon's own 0-10ms jitter, nothing
+ * is unheard for longer than four seconds with no packet lost. Intervals
+ * that divide 1000ms nearly evenly (500, 990, 1020) are far worse -- a
+ * beacon can stay out of the window for minutes -- so do not round this. */
+constexpr uint16_t SCAN_INTERVAL_MS = 780;
+constexpr uint16_t SCAN_WINDOW_MS = 260;
 
 /* AD types we care about (Core Supplement, Part A). */
 constexpr uint8_t AD_NAME_SHORT = 0x08;

@@ -115,10 +115,12 @@ void ChessGame::begin(AppContext& host) {
 }
 
 
-/* end() rather than begin() is where the radio is handed back. A move is a
- * state that stays on the air until it is replaced, so leaving the screen
- * without clearing it would leave this console advertising a game it is no
- * longer playing -- and the score field it displaces would stay missing.
+/* Leaving the screen does not end a game played across consoles: only End
+ * game does. So a nearby game's last move stays on the air while this console
+ * is elsewhere -- the other console may not have heard it yet, and taking it
+ * off would strand them waiting for a move that had already been made. It is
+ * replaced when this screen comes back and the game carries on, or when a new
+ * game starts. Every other mode hands the radio back.
  *
  * The board is written here as well as after each move. After each move is
  * what survives a flat battery; here is what survives everything else, and
@@ -128,7 +130,7 @@ void ChessGame::end(AppContext& host) {
         mode_ == Mode::Remote) {
         saveGame(host);
     }
-    host.nearbyStop();
+    if (mode_ != Mode::Remote) host.nearbyStop();
 }
 
 void ChessGame::recordCapture(int8_t piece) {

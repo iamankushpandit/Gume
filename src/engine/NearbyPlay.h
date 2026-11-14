@@ -185,9 +185,12 @@ uint32_t peerGeneration();
  * and until this existed none of them did: they sat on "their turn" forever,
  * saying nothing.
  *
- * The scanner listens 300ms in every 900ms and a peer advertises about once a
- * second, so missing a window or two is ordinary and must not read as a
- * disconnection. PEER_QUIET_MS is several missed windows, not a blip.
+ * The scanner listens a third of the time and a peer advertises about once a
+ * second, so missing several advertisements in a row is ordinary -- the air
+ * is shared with Wi-Fi and with every other device in the room -- and must
+ * not read as a disconnection. At 6s it did: a console on the same table
+ * paused its game every few moves. Fifteen seconds is about fifteen missed
+ * advertisements, which a peer still in range essentially never manages.
  *
  * Nothing here goes on the air. It is derived entirely from the ABSENCE of the
  * beacon that is already there, which is why it needed no payload change, no
@@ -195,7 +198,7 @@ uint32_t peerGeneration();
 
 /* Heard less recently than this: treat the peer as quiet and pause the game.
  * Shared so that five games cannot disagree about what "gone quiet" means. */
-constexpr uint32_t PEER_QUIET_MS = 6000;
+constexpr uint32_t PEER_QUIET_MS = 15000;
 
 /* Returned when the peer is not in the table at all -- either we never heard
  * it, or BleScan::SIGHTING_TTL_MS has passed and it was dropped. A game should

@@ -24,8 +24,8 @@
  * card, so five games cannot each answer "how long is too long" differently.
  *
  *   Present   heard within NearbyPlay::PEER_QUIET_MS. Play on.
- *   Quiet     not heard for longer than that. Missing one scan window is
- *             ordinary; six seconds is several. The game PAUSES -- it cannot
+ *   Quiet     not heard for longer than that. Missing a few advertisements
+ *             is ordinary; fifteen seconds is many. The game PAUSES -- it cannot
  *             proceed anyway, nothing of theirs is arriving -- and the card
  *             says who it is waiting for and for how long.
  *   Gone      the scanner has dropped the peer (BleScan::SIGHTING_TTL_MS).

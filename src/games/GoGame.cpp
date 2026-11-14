@@ -84,7 +84,13 @@ void GoGame::end(AppContext& host) {
     if (mode_ == Mode::Local || mode_ == Mode::Computer || mode_ == Mode::Remote) {
         saveGame(host);
     }
-    host.nearbyStop();
+    /* Leaving the screen does not end a game played across consoles: only End
+ * game does. So a nearby game's last move stays on the air while this console
+ * is elsewhere -- the other console may not have heard it yet, and taking it
+ * off would strand them waiting for a move that had already been made. It is
+ * replaced when this screen comes back and the game carries on, or when a new
+ * game starts. Every other mode hands the radio back. */
+    if (mode_ != Mode::Remote) host.nearbyStop();
 }
 
 // ---- the game --------------------------------------------------------------------
