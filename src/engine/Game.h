@@ -272,6 +272,19 @@ public:
      * you leave it; this hook exists so that stays true as screens grow. */
     virtual void end(GameHost& host) { (void)host; }
 
+#if GUME_HAS_NAV_KEYS
+    /* The d-pad's selector is leaving `box`: put back what its ring covered.
+     * The default false leaves that to the selector, which paints the
+     * control's own fill and outline back -- right for every button. A screen
+     * whose stops are parts of a picture (a board's squares) answers here,
+     * because a picture's edge is not one colour. */
+    virtual bool repaintUnderRing(GameHost& host, const Rect& box) {
+        (void)host;
+        (void)box;
+        return false;
+    }
+#endif
+
     bool needsRender() const {
         return dirty_;
     }
@@ -388,6 +401,16 @@ public:
         renderDynamic(host);
     }
     virtual void end(AppContext& host) { (void)host; }
+#if GUME_HAS_NAV_KEYS
+    virtual bool repaintUnderRing(AppContext& host, const Rect& box) {
+        (void)host;
+        (void)box;
+        return false;
+    }
+    bool repaintUnderRing(GameHost& host, const Rect& box) final {
+        return repaintUnderRing(static_cast<AppContext&>(host), box);
+    }
+#endif
 
     void begin(GameHost& host) final {
         begin(static_cast<AppContext&>(host));

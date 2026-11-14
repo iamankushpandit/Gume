@@ -72,7 +72,8 @@ struct ScrollArea {
     bool moreBelow = false;
 };
 
-constexpr int MAX_TARGETS = 64;
+/* A chessboard is 64 stops before its buttons. */
+constexpr int MAX_TARGETS = 96;
 
 #if GUME_HAS_NAV_KEYS
 /* From Ui::TftRenderer, for every primitive it draws. */

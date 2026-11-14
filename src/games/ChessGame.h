@@ -71,6 +71,9 @@ public:
      * leaving the screen without clearing it would leave this console
      * broadcasting a game it is no longer in. */
     void end(AppContext& host) override;
+#if GUME_HAS_NAV_KEYS
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
 
     /* Piece codes, aliased from ChessRules.h so ChessGame::PAWN still reads
      * the way the sprite table and the renderer have always spelled it. The

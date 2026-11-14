@@ -441,6 +441,10 @@ drawn and presses one as a tap. Only with the gamepad clipped on. Option,
 the circle, had no name before and now does. The d-pad selector also
 keeps System Info's tabs within reach after its list has been scrolled.
 
+**The d-pad plays Chess.** Every square of the board is a stop for the
+selector, A picks a piece up and puts it down, and the square is redrawn
+whole when the selector moves on, so no piece is left with a notch in it.
+
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
 run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8
 module as the Freenove board) with a 2.0-inch ST7789 at 240x320 and an FT6636

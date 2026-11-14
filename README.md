@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,595,973 / 3,145,728 bytes of the app partition (**82.5%**) |
+| Flash | 2,596,009 / 3,145,728 bytes of the app partition (**82.5%**) |
 | RAM | 90,932 / 327,680 bytes (**27.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 

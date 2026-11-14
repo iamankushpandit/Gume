@@ -292,7 +292,14 @@ void ChessGame::drawSquare(AppContext& host, uint8_t square) const {
 
     uint16_t fill = light ? Ui::rgb(222, 210, 180) : Ui::rgb(120, 96, 72);
     if (square == selected_) fill = Ui::success();
-    tft.fillRect(r.x, r.y, r.w, r.h, fill);
+    /* A fill and an outline of one rectangle, the outline in the fill's own
+     * colour so nothing on the panel changes: that pair is what the d-pad's
+     * selector stops at (ui/FocusRecorder.cpp, and the Linux host's
+     * HostTftFocus.cpp, which notes only the rounded primitives -- hence
+     * radius 0 rather than fillRect). Without it the board was one picture
+     * the d-pad could not move across. */
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 0, fill);
+    tft.drawRoundRect(r.x, r.y, r.w, r.h, 0, fill);
     drawPiece(host, r, pos_.sq[square]);
 
     /* A legal destination is marked with a ring rather than a fill, so the
@@ -305,6 +312,24 @@ void ChessGame::drawSquare(AppContext& host, uint8_t square) const {
         tft.drawCircle(cx, cy, static_cast<int16_t>(r.w / 2 - 3), Ui::success());
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The selector's ring is drawn across a square's edge, where a piece's rim can
+ * reach, so painting the square's colour back would leave a notch in the
+ * piece. Redrawing the square puts back exactly what was there. */
+bool ChessGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (mode_ == Mode::Lobby) return false;
+    const Rect b = boardRect(host);
+    if (box.x < b.x || box.y < b.y || box.x + box.w > b.x + b.w || box.y + box.h > b.y + b.h) {
+        return false;
+    }
+    const uint8_t square = squareAt(host, static_cast<int16_t>(box.x + box.w / 2),
+                                    static_cast<int16_t>(box.y + box.h / 2));
+    if (square == NO_SQ) return false;
+    drawSquare(host, square);
+    return true;
+}
+#endif
 
 /* Two short lines rather than one sentence, and that is a measurement, not a
  * preference. In landscape the status now lives in a column about 110px wide;

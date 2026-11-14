@@ -121,8 +121,10 @@ gamepad module found at boot: unclipped, the answers carry no symbols. While
 the selector is up, A still presses what it is on.
 
 Without the gamepad the Core's centre key is A. A finger on the glass puts the
-selector away. Boards drawn as one picture -- Maze, Tic-Tac-Toe, Microku, the
-Chess and Go boards -- have nothing for it to stop on and are played by touch.
+selector away. On the Chess board it stops on every square, and A picks a
+piece up and puts it down. Other boards drawn as one picture -- Maze,
+Tic-Tac-Toe, Microku, the Go board -- have nothing for it to stop on yet and
+are played by touch.
 
 **The gamepad's map is Attaky's own**, from their Retro-Go patch for this
 module: two TCA9555s, left at 0x22 and right at 0x26, all eight keys of each on
@@ -181,7 +183,8 @@ tap it again to turn it off; hold it with a letter for one capital (lower
 case while caps lock is on). The on-screen keypad stays: the module clips
 off, and the firmware checks for it at boot.
 
-Left out, not broken: the d-pad inside a board drawn as one picture, and
+Left out, not broken: the d-pad inside a board drawn as one picture, Chess's
+excepted, and
 Option, which has no job. Touch is the console's input on every board.
 
 ## Sources

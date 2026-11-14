@@ -247,6 +247,8 @@ void BrainoApp::selectorErase() {
      * redrawn a pixel lower, a page turned -- and painting the old colours
      * back would leave a ring-shaped mark of its own. */
     if (!Focus::stillDrawn(t)) return;
+    /* A square of a board: the screen redraws it, piece and all. */
+    if (activeGame_ != nullptr && activeGame_->repaintUnderRing(*this, t.box)) return;
     selectorPaintRing(t, false);
 }
 
