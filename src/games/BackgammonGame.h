@@ -55,6 +55,10 @@ public:
     void renderDynamic(AppContext& host) override;
     /** Saves, and hands the radio back if a nearby game was on it. */
     void end(AppContext& host) override;
+    /* A game on the board comes back as it was left, with no question asked:
+     * End is this screen's own way out of one. In BackgammonSave.cpp. */
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     /*   Lobby      choosing how to play

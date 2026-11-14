@@ -210,6 +210,16 @@ void FlagGame::end(AppContext& host) {
     progress_.flush();
 }
 
+/* Only the feedback pause is timed. Moved on rather than left to lapse, so a
+ * player coming back still sees which answer was right before the next flag.
+ * Nothing end() did needs taking back: the flush only wrote what was learned. */
+void FlagGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::FeedbackCountry || phase_ == Phase::FeedbackCapital) {
+        movedOn(feedbackUntil_, awayMs);
+    }
+}
+
 void FlagGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 

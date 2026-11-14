@@ -96,6 +96,14 @@ void CursiveGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* Straight back to the letter or word and the dots already traced, as in
+ * Trace: Again, Prev, Next and the tabs are this screen's own ways on. The
+ * practised count is written through as it goes, so it needs nothing here,
+ * and the tracer has no clock the time away could spoil. */
+Game::Keep CursiveGame::keepsGame() const {
+    return Keep::Quietly;
+}
+
 void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
     tracer_.update(host, touch);
 

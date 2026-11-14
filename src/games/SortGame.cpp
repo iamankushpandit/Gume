@@ -112,6 +112,17 @@ int8_t SortGame::touchedTile(int16_t x, int16_t y) const {
     return -1;
 }
 
+/* Rounds sorted, or tiles already locked in this one -- including a board
+ * sorted and waiting for the tap that counts it -- are worth coming back to. */
+Game::Keep SortGame::keepsGame() const {
+    return (score_ > 0 || next_ > 0) ? Keep::Ask : Keep::No;
+}
+
+/* A tile's flash finishes its moment rather than being cut short. */
+void SortGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(flashUntil_, awayMs);
+}
+
 void SortGame::update(AppContext& host, const TouchPoint& touch) {
     if (flashUntil_ > 0 && millis() > flashUntil_) {
         flashUntil_ = 0;

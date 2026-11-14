@@ -44,6 +44,7 @@ public:
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
+    Keep keepsGame() const override;
 
     using Stroke = LetterTracer::Stroke;
     using Glyph = LetterTracer::Glyph;

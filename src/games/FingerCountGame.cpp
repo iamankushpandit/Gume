@@ -137,6 +137,16 @@ void FingerCountGame::begin(AppContext&) {
     newQuestion();
 }
 
+Game::Keep FingerCountGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* A round left showing its answer would otherwise be replaced on the first
+ * frame back, before the player had seen which number was right. */
+void FingerCountGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(feedbackUntil_, awayMs);
+}
+
 void FingerCountGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 

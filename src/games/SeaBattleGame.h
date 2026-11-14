@@ -71,6 +71,12 @@ public:
      * until it is replaced, so leaving without clearing it would leave this
      * console broadcasting a game it is no longer in. */
     void end(AppContext& host) override;
+    /* A sea being fired on comes back as it was left, with no question
+     * asked: End game is this screen's own way out of one. A fleet still
+     * being laid out has no End game beside it, so that one asks. In
+     * SeaBattleSave.cpp. */
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
     /** Eight, because the wire carries six bits per value. See the class note. */
     static constexpr uint8_t GRID = 8;

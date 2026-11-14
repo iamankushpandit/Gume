@@ -58,6 +58,10 @@ void MultiplicationGame::begin(AppContext& host) {
     markDirty();
 }
 
+Game::Keep MultiplicationGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
 uint8_t MultiplicationGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 5);
 }

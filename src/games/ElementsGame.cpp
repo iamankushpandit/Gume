@@ -211,6 +211,21 @@ void ElementsGame::end(AppContext& host) {
     progress_.flush();
 }
 
+/* Points scored are a quiz under way. Without them it is a place -- a tab, a
+ * square picked, a card being read -- and the tabs and Back leave any of it.
+ * The bare chart with nothing picked is where begin() starts anyway. */
+Game::Keep ElementsGame::keepsGame() const {
+    if (score_ > 0) return Keep::Ask;
+    if (tab_ != Tab::Explore || cardOpen_ || selected_ < ELEMENT_COUNT) return Keep::Quietly;
+    return Keep::No;
+}
+
+/* An answer being shown keeps the rest of its moment, after the repaint. */
+void ElementsGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    movedOn(revealUntilMs_, awayMs);
+}
+
 // ---- text wrapping ---------------------------------------------------------
 
 void ElementsGame::wrapInto(const char* src, char dst[FACT_LINES][FACT_COLS + 1],
@@ -430,6 +445,10 @@ void ElementsGame::renderCard(AppContext& host) {
 
     if (!needsFullRender()) return;   // the card has no moving parts
 
+    /* The top bar too: a card is not only ever opened over the chart, which
+     * had painted it. Coming back to one -- from the launcher, the saver or
+     * the lock screen -- finds something else in those 30 rows. */
+    host.drawTopBar(title());
     // Covers the tab strip too: the card is a place, not an overlay panel.
     tft.fillRect(0, 30, w, static_cast<int16_t>(tft.height() - 30), Ui::bg());
 

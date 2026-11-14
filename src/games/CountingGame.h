@@ -27,6 +27,9 @@ public:
      * four buttons. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    /* Endless: worth coming back to once something is right. Nothing here
+     * runs on the clock, so there is nothing to resume. */
+    Keep keepsGame() const override;
 
 private:
     Rect answerRect(uint8_t index) const;

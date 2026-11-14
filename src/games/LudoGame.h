@@ -65,6 +65,10 @@ public:
     void renderDynamic(AppContext& host) override;
     /** Saves the game on the way out, so nothing depends on the last move. */
     void end(AppContext& host) override;
+    /* A game on the board comes back as it was left, with no question asked:
+     * End game is this screen's own way out of one. In LudoSave.cpp. */
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
     enum class SeatKind : uint8_t { Empty = 0, Player = 1, Computer = 2 };
 

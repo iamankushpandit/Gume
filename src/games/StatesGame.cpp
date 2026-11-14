@@ -148,6 +148,15 @@ void StatesGame::end(AppContext& host) {
     progress_.flush();
 }
 
+/* The feedback pause is the only clock: moved on, so the right answer is
+ * still on show when the player comes back. */
+void StatesGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::Feedback) {
+        movedOn(feedbackUntil_, awayMs);
+    }
+}
+
 void StatesGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 

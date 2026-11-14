@@ -97,3 +97,32 @@ bool SeaBattleGame::restoreGame(AppContext& host) {
     return true;
 }
 
+/* Leaving a game in memory as well as in NVS. Guest's saves are dropped, so
+ * for Guest this is the only way a game survives Home at all.
+ *
+ * Once both fleets are out and the shooting has started, it comes back
+ * quietly: End game is right there on the panel. While a fleet is still being
+ * laid out there is no End game beside it -- only Ready and Shuffle -- so a
+ * game kept there asks. Not kept: the lobby, an invitation still waiting for
+ * an answer, a game won, lost or ended, and a local game where neither
+ * player has pressed Ready, which is two random fleets and nothing more. */
+Game::Keep SeaBattleGame::keepsGame() const {
+    if (mode_ != Mode::Local && mode_ != Mode::Remote) return Keep::No;
+    if (gameOver()) return Keep::No;
+    const bool fleetsOut = mode_ == Mode::Remote ? placed_[0] : placed_[0] && placed_[1];
+    if (fleetsOut) return Keep::Quietly;
+    if (mode_ == Mode::Local && !placed_[0] && !placed_[1]) return Keep::No;
+    return Keep::Ask;
+}
+
+/* The game is exactly as end() left it; end() only wrote it out and, away
+ * from a nearby game, gave the radio back, which nothing here needs again. A
+ * nearby turn was left on the air and update() goes on republishing it.
+ * There is no game clock to move on. A half-pressed End game is closed: a
+ * "Sure?" waiting for the first tap after a break is a game ended by
+ * accident. */
+void SeaBattleGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    (void)awayMs;
+    confirmUntilMs_ = 0;
+}

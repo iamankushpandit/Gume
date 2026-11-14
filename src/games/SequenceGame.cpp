@@ -98,6 +98,18 @@ void SequenceGame::begin(AppContext&) {
     markDirty();
 }
 
+/* A score is worth coming back to. With no answer given yet there is nothing
+ * to lose but a choice of Days or Months, which is one tap to make again. */
+Game::Keep SequenceGame::keepsGame() const {
+    return rounds_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The last answer stays coloured for the rest of its moment rather than
+ * vanishing the instant the game is back. */
+void SequenceGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(feedbackUntil_, awayMs);
+}
+
 void SequenceGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 

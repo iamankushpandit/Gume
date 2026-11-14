@@ -27,6 +27,7 @@ public:
      * offers. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     enum class RoundType : uint8_t {

@@ -91,6 +91,13 @@ void TimeGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* One right answer is a score worth coming back to. Nothing here runs on
+ * the clock, and the full repaint on the way back resets every record
+ * of what is drawn in renderStatic(), so there is no resume() to write. */
+Game::Keep TimeGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
 uint8_t TimeGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 4);
 }

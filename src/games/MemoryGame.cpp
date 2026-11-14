@@ -52,6 +52,22 @@ void MemoryGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* A board with a card turned is a board of remembered places. A finished one
+ * is not: its best is saved, and the next tap only deals again. */
+Game::Keep MemoryGame::keepsGame() const {
+    return (!allMatched() && (moves_ > 0 || first_ >= 0)) ? Keep::Ask : Keep::No;
+}
+
+/* A mismatched pair was face up when the player left. It stays up for the
+ * rest of its look rather than turning over before they have seen it again.
+ * begin() is not run, which is the point: it reshuffles the board. */
+void MemoryGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (resolving_) {
+        movedOn(resolveAt_, awayMs);
+    }
+}
+
 void MemoryGame::newRound(AppContext& host) {
     host.content().loadMemoryConfig(config_);
     bestMoves_ = static_cast<uint16_t>(host.getScore(memoryAppMetadata().score->bestKey, 0));

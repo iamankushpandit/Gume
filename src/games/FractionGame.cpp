@@ -57,6 +57,14 @@ void FractionGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* One right answer is a score worth coming back to. Before that the screen
+ * is the opening question, which coming back produces anyway. A red option
+ * still showing needs nothing on the way back: its deadline has passed by
+ * then, and the first update() takes it off. */
+Game::Keep FractionGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
 uint8_t FractionGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 4);
 }

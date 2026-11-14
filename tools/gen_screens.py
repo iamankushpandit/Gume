@@ -2561,6 +2561,27 @@ def math_words(question="Nia has 21 shells and gives 8 away. How many are left?"
     return im
 
 
+def carry_on(title="Math"):
+    """The runtime's question on the way back into a game that was left.
+
+    The geometry is CarryOnScreen.cpp's layoutFor() on the 320x240 game canvas:
+    210 rows under the top bar, the headline a sixth of the way down them, the
+    sentence 4 under the headline's 30, and the two buttons 8 below the middle,
+    each (320 - 2 * 18 - 20) / 2 wide and 46 high. Carry on is the filled one."""
+    im, d = blank(); topbar(d, title)
+    below = H - 30
+    head_y = 30 + below // 6
+    button_y = 30 + below // 2 + 8
+    bw = (W - 2 * 18 - 20) // 2
+    head = "Carry on?"
+    d.text((W / 2 - d.textlength(head, font=F4) / 2, head_y + 5), head, font=F4, fill=TEXT)
+    line = "Your game is where you left it."
+    d.text((W / 2 - d.textlength(line, font=F2) / 2, head_y + 34), line, font=F2, fill=MUTED)
+    button(d, (18, button_y, bw, 46), "Carry on", fill=ACCENT, tc=on_fill(ACCENT))
+    button(d, (18 + bw + 20, button_y, bw, 46), "New game")
+    return im
+
+
 def space():
     """Space: a question, unanswered."""
     im, d = blank(); topbar(d, "Space Quiz")
@@ -4286,6 +4307,7 @@ EXTRA_SCREENS = [
     ("memory", memory, "Memory Match"),
     ("math", math_game, "Math"),
     ("math-words", math_words, "Math: a word problem"),
+    ("carry-on", carry_on, "Carry on? -- the question on the way back into a game"),
     ("multiply", multiply, "Multiplication"),
     ("time", time_game, "Time"),
     ("whack", whack, "Whack A Mole"),

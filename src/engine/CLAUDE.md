@@ -23,6 +23,12 @@ before anyone adds the gate.
 
 The default `end()` does nothing, which is right for the games: they hold only their own members and `begin()` resets those. Override it if a screen acquires anything that outlives a frame: a cached buffer, a sampling cadence, a radio or a file handle. Nothing runs off a task or timer today, so no screen keeps burning cycles once you leave it; the hook exists so that stays true as screens grow. `SystemInfoApp` uses it to clear its fixed-buffer row list.
 
+**A game that was left is kept (`AppRuntimeKeep.cpp`).** `leaveActiveGame()` calls `noteGameLeft()` before `end()`: for a playable app that has had a press since `begin()` (`pressedInGame_`, set where the loop hands a press to the screen) it records what `keepsGame()` answered, the active player, `Board::playersEpoch()` and the time, in `kept_[]`, one entry per playable app, RAM only. `launch()` reads it back through `keptHow()`, which forgets an entry made by another player or before a player was removed: **Ask** goes to `askCarryOn()`, **Quietly** to `resumeKept()`, **No** to `enterApp(app, false, 0)`, which is the old body of `launch()` and still the one way onto a screen. `enterApp(app, true, awayMs)` calls `resume()` where it would have called `begin()`.
+
+`CarryOnScreen` is the question. It is a `Game` the runtime owns, like the launcher; it is made the active game with the app it asks about as the active app, so the top bar, the canvas, the rotation and the touch mapping are that game's, and it lays itself out against `display().width()`/`height()` so that it is right for a fixed-canvas game and for one that follows the owner's orientation. It decides nothing: `settleCarryOn()` runs after every `update()`, reads `take()`, leaves the question through `leaveActiveGame()` like any screen and enters the game. `noteGameLeft()` ignores the question itself, so leaving it by Home keeps the game waiting.
+
+`resumeUnderlyingScreen()` -- the tail of the screen saver, sleep and the lock screen -- also calls `resume()`, with the time since `idleSinceMs_`. The screen stayed up there and nothing was lost, but nothing updated it either, and a game's deadlines are in `millis()`.
+
 Invalidation is two-level because a full 320x240 wipe is ~150 KB over SPI / ~30 ms of blanking:
 
 | Member | Access | Use |

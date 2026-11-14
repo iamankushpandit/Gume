@@ -10,6 +10,8 @@ void begin(AppContext& host);                             // ordinary game
 void update(AppContext& host, const TouchPoint& touch);
 void render(AppContext& host);
 void end(AppContext& host);                               // optional
+Keep keepsGame() const;                                   // what leaving keeps
+void resume(AppContext& host, uint32_t awayMs);           // optional
 ```
 
 System/UI screens that genuinely need privileged access still subclass `Game` directly and keep the `GameHost&` signatures. Right now that list is exactly: Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info. Guard protected actions with `requireCapability()`.
@@ -17,6 +19,20 @@ System/UI screens that genuinely need privileged access still subclass `Game` di
 `main.cpp` calls `begin()` -> `render()` -> `clearDirty()` on launch, then each frame calls `update()` and re-renders only when `needsRender()` is true. On leaving, `end()` is called once via `leaveActiveGame()`, before the next screen's `begin()`.
 
 The default `end()` does nothing, which is right for a game holding only its own members. Override it if your screen acquires anything that outlives a frame. Every transition also compares free heap against the value captured before `begin()` and logs `[heap] '<screen>' left N bytes short` if a screen does not hand it back: watch the serial log after adding one.
+
+**What a game owes a player who left in the middle.** Players press Home by mistake. The runtime keeps the game -- the instance is static, so everything is still there -- and brings it back with `resume()` in place of `begin()`. The game says how, as the screen is left, from `keepsGame()`:
+
+| Answer | When | What the player gets |
+|---|---|---|
+| `Keep::Ask` (the default) | a round under way, a score, a puzzle part done | *Carry on? / New game*, then `resume()` or `begin()` |
+| `Keep::Quietly` | the screen holds a place, not a game -- the letter being traced, the open tab -- or the game has its own control to end one (every board game) | straight back, `resume()` |
+| `Keep::No` | a result or game-over screen, a menu, nothing achieved yet, a tool | `begin()`, as before |
+
+Decide it for every state the screen can be in. Two rules: **never Quietly for a state the player cannot leave by a control on the screen** -- with no question on the way in, that is a game they are shut in until the console is switched off -- and **never test for "nothing pressed yet"**, which the runtime already does.
+
+`resume(host, awayMs)` is for a game with a clock. Every deadline and stopwatch is a `millis()` stamp, and the game was not running: move each on with `movedOn(stamp_, awayMs)`, or start it again where a fresh window is fairer (the mole that was up in Whack A Mole). Never reset progress, never draw -- a full repaint follows. **It is also called after the screen saver, sleep and the lock screen**, when nothing was lost, so it must leave a paused game exactly as it was, and it must be harmless on a result screen. A game with no `millis()` in it needs no `resume()` at all.
+
+What `begin()` loads -- a best score, a config -- is not loaded again on the way back. That is right for the same player, which is the only player a game is kept for.
 
 Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally. Call `markDirty()` for content changes and `markFullDirty()` for layout changes. A full-screen repaint costs ~30 ms of visible blanking, so rapidly-updating games should do partial redraws: `CinnamonGame` is the reference implementation.
 

@@ -40,6 +40,7 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     static constexpr uint8_t TEXT_MAX = 24;

@@ -183,6 +183,12 @@ void RomanGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* The level is the score, so a score is what there is to come back to. No
+ * resume(): nothing here runs on a clock. */
+Game::Keep RomanGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
 uint8_t RomanGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 5);
 }

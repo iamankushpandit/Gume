@@ -10,6 +10,18 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**A game left by mistake is still there.** Home is one press, and on a
+console with keys it is the key beside the one that answers; players pressed
+it and lost their game. Every game is now kept when it is left in the middle,
+until the console is switched off. Opening it again asks *Carry on?* or *New
+game*, and Carry on puts back the question, the score or the half-done puzzle
+exactly as it was. Trace, Cursive, the Elements table and the board games
+come straight back without the question. A game is kept for the player who
+left it; another player gets a new one. Time away is no longer counted
+either: a countdown or a stopwatch stops while its game is off the screen and
+while the console sleeps or is locked, where it used to run out behind a dark
+panel.
+
 **The Attaky Core is ported, on its own release line, and not published.**
 Its entries are under `attaky-1.0.0` below, because that build is tagged
 `attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. The

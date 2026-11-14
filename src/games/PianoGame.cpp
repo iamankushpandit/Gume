@@ -81,6 +81,22 @@ void PianoGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* Nothing to come back to: a keyboard has no round and no score. */
+Game::Keep PianoGame::keepsGame() const {
+    return Keep::No;
+}
+
+/* Back from the screen saver, sleep or the lock screen. A key that was held
+ * as the panel went away -- through a physical key, say -- is not held now,
+ * and must not come back sounding: with held_ still set, a finger landing
+ * anywhere without a fresh press edge would keep re-arming the old note. */
+void PianoGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    (void)awayMs;
+    held_ = NO_KEY;
+    lit_ = NO_KEY;
+}
+
 /* Every rect below is measured from the live panel. On the 4-inch in landscape
  * that is 480x320 and the keys simply get bigger; in portrait it is 240x320
  * and they get narrower and taller. Neither case is a special case. */

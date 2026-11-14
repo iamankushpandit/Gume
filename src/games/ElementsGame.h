@@ -51,6 +51,8 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
     void end(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Tab : uint8_t { Explore, Quiz, Level };

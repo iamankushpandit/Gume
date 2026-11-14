@@ -138,3 +138,38 @@ bool LudoGame::restoreGame(AppContext& host) {
     enterTurn(millis(), false);
     return true;
 }
+
+/* Leaving a game in memory as well as in NVS, a hop in flight included.
+ * Guest's saves are dropped, so for Guest this is the only way a game
+ * survives Home at all.
+ *
+ * Kept quietly, because End game is right there on the panel. Not kept: the
+ * lobby, a table still being gathered (end() takes this console away from
+ * it), a game whose places are all decided or that somebody ended, and a
+ * local game nobody has rolled in yet. A game across consoles is kept from
+ * the start, because the others are already at the table. */
+Game::Keep LudoGame::keepsGame() const {
+    if (mode_ != Mode::Play || phase_ == Phase::Over || state_.over || ended_) {
+        return Keep::No;
+    }
+    if (!net_ && state_.rolls == 0) return Keep::No;
+    return Keep::Quietly;
+}
+
+/* The game is exactly as end() left it, which for a game in play is only
+ * written out; a table's last move was left on the air and the poll goes on
+ * republishing it.
+ *
+ * One clock paces a computer's roll and move, each hop, an automatic move
+ * and a roll nobody could use; it starts again where it was rather than
+ * having run out while nobody was looking, and so does the "your turn" cue
+ * that was waiting for it. cueEndsMs_ is left alone: that cue played out
+ * while the screen was away. A half-pressed End game is closed: a "Sure?"
+ * waiting for the first tap after a break is a game ended by accident. */
+void LudoGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (mode_ != Mode::Play) return;
+    movedOn(timerMs_, awayMs);
+    movedOn(turnCueAtMs_, awayMs);
+    confirmUntilMs_ = 0;
+}

@@ -26,6 +26,7 @@ public:
      * overlaps the lower buttons. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     Rect answerRect(uint8_t index) const;

@@ -27,6 +27,8 @@ public:
      * per interaction. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     void drawCard(Ui::Renderer& tft, uint8_t index, uint8_t face);

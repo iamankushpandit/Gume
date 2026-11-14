@@ -26,6 +26,8 @@ public:
      * tools/split_render.py -- see the note in the .cpp. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Mode : uint8_t {

@@ -153,6 +153,15 @@ void StateFlagGame::begin(AppContext& host) {
     newQuestion();
 }
 
+/* The feedback pause is the only clock: moved on, so the right answer is
+ * still on show when the player comes back. */
+void StateFlagGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital) {
+        movedOn(feedbackUntil_, awayMs);
+    }
+}
+
 void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 

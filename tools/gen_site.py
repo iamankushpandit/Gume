@@ -302,6 +302,7 @@ SCREEN_CAPTIONS = {
     "launcher-wide": "Launcher: Wide layout",
     "math": "Math",
     "math-words": "Math: a word problem",
+    "carry-on": "Carry on? A game left by mistake is still there",
     "maze": "Maze",
     "memory": "Memory",
     "microku": "Microku",

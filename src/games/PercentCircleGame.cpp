@@ -59,6 +59,14 @@ void PercentCircleGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* One right answer is a score worth coming back to; the level follows the
+ * streak, so that comes back with it. A circle half shaded with nothing yet
+ * answered is a few taps, not a game. The red flash ends on its own past
+ * deadline, so there is nothing to move on the way back. */
+Game::Keep PercentCircleGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
 PercentCircleGame::RoundType PercentCircleGame::nextRoundType() const {
     const uint8_t currentLevel = level();
     const uint8_t cycleIndex = score_ % 3;

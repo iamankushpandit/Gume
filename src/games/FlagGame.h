@@ -40,6 +40,13 @@ public:
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
     void end(AppContext& host) override;
+    /* The tally is the game: there is no end to a round, so a flag answered
+     * is a game a player would want back. A tap on the difficulty alone is
+     * not. */
+    Keep keepsGame() const override {
+        return (current_ != nullptr && rounds_ > 0) ? Keep::Ask : Keep::No;
+    }
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Phase : uint8_t {

@@ -26,6 +26,10 @@ public:
      * line, and the sum above them does not move. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    /* Endless, with no menu and no result screen, so the only empty case is a
+     * visit with no correct answer in it yet. */
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Operation : uint8_t {

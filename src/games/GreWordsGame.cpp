@@ -77,6 +77,23 @@ void GreWordsGame::end(AppContext& host) {
     progress_.flush();
 }
 
+/* Points scored are a quiz under way, and worth the question. Without them
+ * the screen holds only a place -- the Quiz tab, or a card turned over to be
+ * read -- and the tabs and Next move on from either. An unturned card on
+ * Study is nothing begin() would not hand back. */
+Game::Keep GreWordsGame::keepsGame() const {
+    if (score_ > 0) return Keep::Ask;
+    if (mode_ == Mode::Quiz || cardFlipped_) return Keep::Quietly;
+    return Keep::No;
+}
+
+/* The answer held on screen finishes its moment after the repaint, rather
+ * than the next word arriving before the player has seen what they chose. */
+void GreWordsGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    movedOn(revealUntilMs_, awayMs);
+}
+
 void GreWordsGame::nextWord() {
     const uint16_t picked = progress_.pickWeighted(allowAny, this);
     currentWord_ = (picked == 0xFFFF) ? 0 : picked;

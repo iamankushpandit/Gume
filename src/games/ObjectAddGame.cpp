@@ -125,6 +125,29 @@ void ObjectAddGame::begin(AppContext&) {
     markDirty();
 }
 
+Game::Keep ObjectAddGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The same question, and the time away not counted. A demonstration cut off
+ * part way is played again from the start, because the animation IS the
+ * question; the reminder blink starts again from its rest; and an answer
+ * still being shown gets the rest of its time rather than vanishing on the
+ * first frame back. */
+void ObjectAddGame::resume(AppContext&, uint32_t awayMs) {
+    const uint32_t now = millis();
+    if (phase_ == Phase::Showing || phase_ == Phase::AnimIn || phase_ == Phase::Flashing) {
+        phase_ = Phase::Showing;
+        animCount_ = 0;
+        flashOn_ = false;
+        animNextAt_ = now + 900UL;
+    } else if (phase_ == Phase::Question && op_ == OpType::Subtract) {
+        flashOn_ = false;
+        animNextAt_ = now + 1800UL;
+    }
+    movedOn(feedbackUntil_, awayMs);
+}
+
 void ObjectAddGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
 

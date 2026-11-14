@@ -53,6 +53,10 @@ void CountingGame::begin(AppContext& host) {
     markDirty();
 }
 
+Game::Keep CountingGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
 Rect CountingGame::answerRect(uint8_t index) const {
     return Rect{static_cast<int16_t>(15 + index * 76), 188, 62, 40};
 }

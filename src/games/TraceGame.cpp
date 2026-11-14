@@ -96,6 +96,14 @@ void TraceGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* Straight back to the letter and the dots already traced, with no question:
+ * this is practice, and Again, Prev, Next and the tabs are its own ways to
+ * start a letter over or move on. Nothing in the tracer runs on a clock that
+ * the time away could spoil, so there is nothing to resume. */
+Game::Keep TraceGame::keepsGame() const {
+    return Keep::Quietly;
+}
+
 void TraceGame::update(AppContext& host, const TouchPoint& touch) {
     tracer_.update(host, touch);
     /* BOTH are drained, every frame, before either is acted on. markFullDirty()

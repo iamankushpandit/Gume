@@ -73,6 +73,26 @@ void CinnamonGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* A run with a sequence repeated back is worth coming back to. A failed one
+ * is not: its best is saved, and the next tap starts again anyway. */
+Game::Keep CinnamonGame::keepsGame() const {
+    return (phase_ != Phase::Failed && score_ > 0) ? Keep::Ask : Keep::No;
+}
+
+/* The sequence is the whole game, and the player was not watching it. Half
+ * a tune shown before they left, or half of it tapped back, is not something
+ * they can be asked to pick up: it is shown again from its first note, at
+ * the same length, and they repeat it from the start. Only the pause after
+ * a good round is carried on, since what follows it is a fresh showing. */
+void CinnamonGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::Showing || phase_ == Phase::Waiting) {
+        startShowing();
+    } else if (phase_ == Phase::Good) {
+        movedOn(nextAt_, awayMs);
+    }
+}
+
 void CinnamonGame::appendStep() {
     if (length_ < sizeof(sequence_)) {
         sequence_[length_++] = random(4);

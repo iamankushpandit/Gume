@@ -46,6 +46,8 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
     /* Seven white keys plus the octave, and five black. A single octave rather
      * than two: at 240px portrait, fifteen white keys would be 16px each,

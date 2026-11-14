@@ -459,6 +459,27 @@ Three tiers — **Easy** (30 familiar countries), **Medium** (62), **Hard** (all
 195). Six correct in a row promotes a tier automatically. The tier button still
 overrides by hand, and the choice persists.
 
+### A game left by mistake is still there
+
+Home is one press -- a tap in the corner, the BOOT key, or on a console with
+keys the one beside the key that answers -- and players pressed it by mistake
+and lost the game they were in. A game left in the middle is now kept. Open
+it again and it asks **Carry on?** or **New game**; Carry on puts back the
+question that was on the screen, the score, the puzzle half done. Screens that
+hold a place rather than a game come straight back with no question: the
+letter being traced, the tab that was open, and every board game, which has
+its own End game.
+
+<p>
+  <img src="docs/screens/carry-on.png" width="280" alt="The Carry on? question: two buttons, Carry on and New game, under the game's own title">
+</p>
+
+It is kept until the console is switched off, for the player who left it:
+somebody else opening the same game gets a new one. Nothing is stored for it.
+And time away does not count. A countdown or a stopwatch stops while the game
+is off the screen, and while the console sleeps or is locked -- before this, a
+timed game ran out behind a dark panel.
+
 ### Profiles
 
 Up to **five players plus a permanent Guest**, chosen at boot. Scores, mastery
@@ -1621,6 +1642,8 @@ src/
     AppRuntimeSelector.cpp  the d-pad's selector, on a board with keys
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimeKeep.cpp  the game a player left, kept until switch-off
+    CarryOnScreen.cpp  the Carry on? / New game question on the way back in
     AppRuntimeNotify.cpp  the header banner: battery, update, nearby
     AppRuntimeIdentity.cpp  boot banner: which board, which build
     AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded

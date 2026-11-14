@@ -65,6 +65,27 @@ void WhackAMoleGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* A run with a hit in it. Before the first hit there is no score to lose, and
+ * after the tenth miss the run is over -- its best is already stored. */
+Game::Keep WhackAMoleGame::keepsGame() const {
+    return !gameOver_ && score_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The mole that is up gets its whole window again rather than what was left
+ * of it: at level 10 that could be a few milliseconds, gone before the player
+ * has found the board, and left alone it would already have expired -- a miss
+ * on the first frame back, the end of a run on a streak of nine. The gap
+ * after a hit moves on by the time away, and any flash is over. */
+void WhackAMoleGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (activeCell_ >= 0) {
+        expiresAt_ = millis() + visibleMs();
+        warned_ = false;
+    }
+    movedOn(nextSpawnAt_, awayMs);
+    flashCell_ = -1;
+}
+
 uint8_t WhackAMoleGame::level() const {
     return min<uint8_t>(10, 1 + score_ / 5);
 }

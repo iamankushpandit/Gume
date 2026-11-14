@@ -94,6 +94,17 @@ void MathGame::begin(AppContext& host) {
     markDirty();
 }
 
+Game::Keep MathGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The clock is the visit's, and it is also half of the best record: time spent
+ * away -- on the card, in another game, asleep -- must not be counted, or the
+ * next correct answer writes a slower time than the player took. */
+void MathGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(startedAt_, awayMs);
+}
+
 uint8_t MathGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 5);
 }

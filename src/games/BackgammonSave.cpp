@@ -126,3 +126,37 @@ bool BackgammonGame::restoreGame(AppContext& host) {
     }
     return true;
 }
+
+/* Leaving a game in memory as well as in NVS. Guest's saves are dropped, so
+ * for Guest this is the only way a game survives Home at all.
+ *
+ * Kept quietly, because End is right there on the panel. Not kept: the
+ * lobby, an invitation still waiting for an answer, a game somebody has won,
+ * and a local game whose opening roll has not been thrown. A nearby game is
+ * kept from the start, because the other console is already in it. */
+Game::Keep BackgammonGame::keepsGame() const {
+    if (mode_ != Mode::Local && mode_ != Mode::Computer && mode_ != Mode::Remote) {
+        return Keep::No;
+    }
+    if (phase_ == Phase::Over) return Keep::No;
+    if (mode_ != Mode::Remote && phase_ == Phase::Opening && rolls_ == 0) {
+        return Keep::No;
+    }
+    return Keep::Quietly;
+}
+
+/* The board is exactly as end() left it, the computer's plan and the turn
+ * half played included; end() only wrote it out and, away from a nearby
+ * game, gave the radio back, which nothing here needs again. A nearby turn
+ * was left on the air and the poll goes on republishing it.
+ *
+ * One clock paces the computer's thinking and each checker it moves, the
+ * other console's checkers as they arrive, and "No moves" before the turn
+ * passes on; it starts again where it was rather than having run out while
+ * nobody was looking. A half-pressed End is closed: a "Sure?" waiting
+ * for the first tap after a break is a game ended by accident. */
+void BackgammonGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::Computer || phase_ == Phase::Remote) movedOn(timerMs_, awayMs);
+    confirmUntilMs_ = 0;
+}

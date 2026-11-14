@@ -85,6 +85,20 @@ void NumberLineGame::begin(AppContext&) {
     markDirty();
 }
 
+/* A score is worth coming back to; before the first answer there is only a
+ * question, and a new one is as good. */
+Game::Keep NumberLineGame::keepsGame() const {
+    return rounds_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* Both deadlines carry on from where they stopped, so the frog does not leap
+ * the moment the game is back and the last answer's colours are still shown
+ * for as long as they would have been. */
+void NumberLineGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(nextAt_, awayMs);
+    movedOn(feedbackUntil_, awayMs);
+}
+
 void NumberLineGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     if (phase_ == Phase::Pause && now >= nextAt_) {

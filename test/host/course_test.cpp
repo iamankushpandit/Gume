@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+//
+// Part of Braino! -- https://github.com/iamankushpandit/Gume
+// Free software under GPL-3.0-or-later. Reusing any part of this file, in
+// any work, must keep this notice, credit iamankushpandit as the
+// author, and stay under the same licence with corresponding source
+// offered. See LICENSE and NOTICE.md.
+
 // Host-side test of engine/Course.h: the ladder a player climbs in a game, and
 // the deck that deals a level's questions. Course.h is pure C++ with no
 // Arduino in it, and this file is what proves that still holds, since it will

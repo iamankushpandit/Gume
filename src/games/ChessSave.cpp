@@ -127,3 +127,42 @@ bool ChessGame::restoreGame(AppContext& host) {
     }
     return true;
 }
+
+/* Leaving a game in memory as well as in NVS. Guest's saves are dropped, so
+ * for Guest this is the only way a game survives Home at all.
+ *
+ * Kept quietly, because End game is right there on the panel. Not kept: the
+ * lobby, an invitation still waiting for an answer, a game that is over, and
+ * a board nobody has moved on yet -- coming back to that is the same
+ * as starting again. A nearby game is kept even from the first position,
+ * because the other console is already in it. */
+Game::Keep ChessGame::keepsGame() const {
+    if (mode_ != Mode::Local && mode_ != Mode::Computer && mode_ != Mode::Remote) {
+        return Keep::No;
+    }
+    if (gameOver()) return Keep::No;
+    if (mode_ != Mode::Remote && pos_.whiteToMove) {
+        bool untouched = true;
+        for (int8_t f = 0; f < 8 && untouched; ++f) {
+            untouched = pos_.sq[Ch::idx(f, 0)] == Ch::BACK_RANK[f] &&
+                        pos_.sq[Ch::idx(f, 1)] == PAWN &&
+                        pos_.sq[Ch::idx(f, 6)] == -PAWN &&
+                        pos_.sq[Ch::idx(f, 7)] == -Ch::BACK_RANK[f];
+        }
+        if (untouched) return Keep::No;
+    }
+    return Keep::Quietly;
+}
+
+/* The board is exactly as end() left it; end() only wrote it out and, away
+ * from a nearby game, gave the radio back, which nothing here needs again. A
+ * nearby move was left on the air and update() goes on republishing it.
+ * The computer's pause for thought starts again where it was, rather than
+ * having run out while nobody was looking, and a half-pressed End game is
+ * closed: a "Sure?" waiting for the first tap after a break is a game ended
+ * by accident. */
+void ChessGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (thinking_) movedOn(thinkUntilMs_, awayMs);
+    confirmUntilMs_ = 0;
+}

@@ -34,6 +34,7 @@ public:
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
+    Keep keepsGame() const override;
 
     /* The glyph data model, kept here as aliases so TraceGlyphData.cpp -- 260
      * lines of hand-authored letterforms -- did not have to be touched by a

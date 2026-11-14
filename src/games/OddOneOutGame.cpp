@@ -52,6 +52,18 @@ void OddOneOutGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* score_ is also how hard the rounds have become, so a right answer is
+ * something to come back to; a wrong tap is counted nowhere. */
+Game::Keep OddOneOutGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The Correct or Try again strip keeps the rest of its time. */
+void OddOneOutGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    movedOn(flashUntil_, awayMs);
+}
+
 Rect OddOneOutGame::itemRect(uint8_t index) const {
     const uint8_t col = index % 3;
     const uint8_t row = index / 3;

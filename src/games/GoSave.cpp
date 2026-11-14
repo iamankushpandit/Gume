@@ -138,3 +138,34 @@ bool GoGame::restoreGame(AppContext& host) {
                                          : "");
     return true;
 }
+
+/* Leaving a game in memory as well as in NVS, which keeps what a save
+ * cannot: the undo, and the computer's opinion of the dead stones part-way
+ * through. Guest's saves are dropped, so for Guest this is the only way a
+ * game survives Home at all.
+ *
+ * Kept quietly, because End game is right there beside the board. Not kept:
+ * the lobby, an invitation still waiting for an answer, a game that has been
+ * scored, and a local board with no stone on it yet. A nearby game is kept
+ * from the start, because the other console is already in it. */
+Game::Keep GoGame::keepsGame() const {
+    if (mode_ != Mode::Local && mode_ != Mode::Computer && mode_ != Mode::Remote) {
+        return Keep::No;
+    }
+    if (phase_ == Phase::Over) return Keep::No;
+    if (mode_ != Mode::Remote && state_.moves == 0) return Keep::No;
+    return Keep::Quietly;
+}
+
+/* The board is exactly as end() left it; end() only wrote it out and, away
+ * from a nearby game, gave the radio back, which nothing here needs again. A
+ * nearby move was left on the air and update() goes on republishing it.
+ * The computer's pause before it plays starts again where it was, rather
+ * than having run out while nobody was looking, and a half-pressed End game
+ * is closed: a "Sure?" waiting for the first tap after a break is a game
+ * ended by accident. */
+void GoGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::Thinking) movedOn(timerMs_, awayMs);
+    confirmUntilMs_ = 0;
+}

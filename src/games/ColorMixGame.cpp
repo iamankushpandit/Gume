@@ -62,6 +62,19 @@ void ColorMixGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* Worth coming back to once an answer has been given: the score line is the
+ * whole of what this visit has built. */
+Game::Keep ColorMixGame::keepsGame() const {
+    return attempts_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The Correct or Try again panel keeps the rest of its time, so the player
+ * sees how the last answer went before the next question arrives. */
+void ColorMixGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    movedOn(flashUntil_, awayMs);
+}
+
 Rect ColorMixGame::answerRect(uint8_t index) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;

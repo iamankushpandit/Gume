@@ -34,6 +34,12 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
     void end(AppContext& host) override;
+    /* No round ends, so the tally is the game: one answer is worth coming
+     * back to, a tap on the difficulty alone is not. */
+    Keep keepsGame() const override {
+        return (current_ != nullptr && rounds_ > 0) ? Keep::Ask : Keep::No;
+    }
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Mode  : uint8_t { CapitalOf, WhichState };

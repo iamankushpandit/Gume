@@ -38,6 +38,11 @@ public:
      * must not cost a 320x240 wipe. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    /* A score, or a fact still on show, is worth coming back to. Nothing here
+     * is timed, so there is no resume(): the fact waits for the next press. */
+    Keep keepsGame() const override {
+        return (score_ > 0 || answered_) ? Keep::Ask : Keep::No;
+    }
 
 private:
     Rect answerRect(uint8_t index) const;

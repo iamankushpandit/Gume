@@ -72,6 +72,19 @@ void MoneyGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* The level and the kinds of question come from the score, so a score is
+ * what there is to come back to. Coins half-built for "Make this amount"
+ * count too, though that mode opens only once there is a score anyway. */
+Game::Keep MoneyGame::keepsGame() const {
+    return (score_ > 0 || makeCount_ > 0) ? Keep::Ask : Keep::No;
+}
+
+/* "Try again" stays up for the rest of its moment rather than vanishing the
+ * instant the game is back. */
+void MoneyGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(flashUntil_, awayMs);
+}
+
 uint8_t MoneyGame::level() const {
     return min<uint8_t>(5, 1 + score_ / 4);
 }

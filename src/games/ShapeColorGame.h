@@ -42,6 +42,7 @@ public:
      * all eight rows and the header with it. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
     /* Public only so the fact table in the .cpp can assert that it has one
      * row per shape. A count stated in two places is a count that will

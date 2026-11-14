@@ -45,6 +45,21 @@ void TicTacToeGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* A game with a mark on the board and no result yet. X always goes first, so
+ * an X anywhere is a mark anywhere. A finished game is not kept: its tally is
+ * already stored, and its board is only waiting to be cleared. */
+Game::Keep TicTacToeGame::keepsGame() const {
+    if (gameOver_) {
+        return Keep::No;
+    }
+    for (const char cell : cells_) {
+        if (cell == 'X') {
+            return Keep::Ask;
+        }
+    }
+    return Keep::No;
+}
+
 void TicTacToeGame::loadScores(AppContext& host) {
     xWins_ = host.getScore("tttX", 0);
     oWins_ = host.getScore("tttO", 0);

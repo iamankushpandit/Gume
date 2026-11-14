@@ -59,6 +59,14 @@ void MazeGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* A maze part walked is worth coming back to. One not started, or solved, is
+ * not: the level is stored the moment the exit is reached, so begin() opens
+ * the next maze anyway. The step throttle needs no moving -- time away only
+ * makes it pass. */
+Game::Keep MazeGame::keepsGame() const {
+    return !won_ && moves_ > 0 ? Keep::Ask : Keep::No;
+}
+
 void MazeGame::chooseMaze() {
     maze_ = MazeData::MAZES[levelIndex_];
     if (!isActiveMazeSolvable()) {

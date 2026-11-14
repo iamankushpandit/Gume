@@ -169,6 +169,14 @@ void ShapeColorGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* A round with a tap in it, or a level climbed to: the level lives only in
+ * rounds_, so a cleared round with nothing tapped since is still worth coming
+ * back to -- begin() would drop the player to level 1. Nothing here runs on
+ * a clock, so there is nothing for resume() to do. */
+Game::Keep ShapeColorGame::keepsGame() const {
+    return (taps_ > 0 || rounds_ > 0) ? Keep::Ask : Keep::No;
+}
+
 uint8_t ShapeColorGame::level() const {
     return min<uint8_t>(4, static_cast<uint8_t>(1 + rounds_));
 }

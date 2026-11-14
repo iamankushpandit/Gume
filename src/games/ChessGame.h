@@ -74,6 +74,10 @@ public:
 #if GUME_HAS_NAV_KEYS
     bool repaintUnderRing(AppContext& host, const Rect& box) override;
 #endif
+    /* A game on the board comes back as it was left, with no question asked:
+     * End game is this screen's own way out of one. In ChessSave.cpp. */
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
     /* Piece codes, aliased from ChessRules.h so ChessGame::PAWN still reads
      * the way the sprite table and the renderer have always spelled it. The
