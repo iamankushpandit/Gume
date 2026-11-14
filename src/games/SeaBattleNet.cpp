@@ -17,26 +17,101 @@
  * plays it. Everything on the air is the nearby service's two-player turn --
  * see src/games/CLAUDE.md. */
 
+namespace {
+
+/* Does this console's row read differently now? Everything a row is drawn
+ * from, and not only who is in the room: a console that starts asking, or
+ * whose game finds its other half, changes its row without coming or going. */
+bool rowDiffers(const NearbySeat& a, const NearbySeat& b) {
+    return a.inviting != b.inviting || a.asking != b.asking || a.inGame != b.inGame ||
+           strcmp(a.deviceId, b.deviceId) != 0 || strcmp(a.name, b.name) != 0 ||
+           strcmp(a.partner, b.partner) != 0 ||
+           strcmp(a.partnerName, b.partnerName) != 0;
+}
+
+}   // namespace
+
+SeaBattleGame::Row SeaBattleGame::rowFor(const NearbySeat& seat) {
+    if (seat.inviting && seat.forThisGame) return Row::Invites;
+    if (seat.asking) return Row::Asking;
+    if (seat.inGame && seat.partner[0] != 0) return Row::Playing;
+    if (seat.inGame) return Row::Busy;
+    return Row::Free;
+}
+
+/* Asked of the room each time rather than read off the lobby's rows, which
+ * are up to a second old: an invitation is taken up in the session it names
+ * now, or not at all. */
+bool SeaBattleGame::invitedBy(AppContext& host, const char* id, NearbySeat& out) {
+    const uint8_t n = host.nearbySeatCount();
+    for (uint8_t i = 0; i < n; ++i) {
+        NearbySeat seat;
+        if (!host.nearbySeatAt(i, seat)) continue;
+        if (!seat.inviting || !seat.forThisGame) continue;
+        if (id != nullptr && strcmp(seat.deviceId, id) != 0) continue;
+        out = seat;
+        return true;
+    }
+    return false;
+}
+
 void SeaBattleGame::renderLobby(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    Ui::drawButton(tft, lobbyRowRect(0), "Pass and play", Ui::panel(),
+    Ui::drawButton(tft, lobbyRowRect(0),
+                   keptLocal_ ? "Continue your game" : "Pass and play", Ui::panel(),
                    Ui::outline(), Ui::text(), false, 2);
 
-    char label[32];
+    /* One row a console, saying what it is doing: a player can see who is
+     * there, who is already in a game and with whom, and why a console they
+     * asked is not answering. */
+    char label[48];
     uint8_t row = 1;
     for (uint8_t i = 0; i < seatCount_ && row <= LOBBY_PEER_ROWS; ++i, ++row) {
-        const char* who = seats_[i].name[0] != 0 ? seats_[i].name
-                                                 : seats_[i].deviceId;
-        if (seats_[i].inviting) {
-            snprintf(label, sizeof(label), "%s invites you", who);
-        } else {
-            snprintf(label, sizeof(label), "Play %s", who);
+        const NearbySeat& seat = seats_[i];
+        const Rect r = lobbyRowRect(row);
+        const char* who = seat.name[0] != 0 ? seat.name : seat.deviceId;
+        const char* partner = seat.partnerName[0] != 0 ? seat.partnerName
+                                                       : seat.partner;
+        const Row kind = rowFor(seat);
+        label[0] = 0;
+        switch (kind) {
+            case Row::Invites:
+                snprintf(label, sizeof(label), "%s invites you", who);
+                break;
+            case Row::Asking:
+                snprintf(label, sizeof(label), "%s is asking %s", who, partner);
+                break;
+            case Row::Playing:
+                snprintf(label, sizeof(label), "%s is playing %s", who, partner);
+                break;
+            case Row::Busy:
+                /* In a game, and its other console is not in this room, so
+                 * whose game is not known. Asking is still allowed: the
+                 * banner on their console tells them somebody is. */
+                snprintf(label, sizeof(label), "Play %s (in a game)", who);
+                break;
+            case Row::Free:
+                snprintf(label, sizeof(label), "Play %s", who);
+                break;
         }
-        Ui::drawButton(tft, lobbyRowRect(row), label,
-                       seats_[i].inviting ? Ui::success() : Ui::panel(),
+        if (!rowTakesPress(kind)) {
+            /* News, not a button, so it is not drawn as one: a flat fill
+             * with no shadow and no outline. An outline round the same
+             * rectangle is also what the d-pad's selector stops on, and
+             * there is nothing here to press. */
+            tft.fillRoundRect(r.x, r.y, r.w, r.h, Ui::cornerRadius(), Ui::surface());
+            tft.setTextColor(Ui::muted(), Ui::surface());
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString(Ui::fitted(tft, label, static_cast<int16_t>(r.w - 12), 2),
+                           r.x + r.w / 2, r.y + r.h / 2, 2);
+            tft.setTextDatum(TL_DATUM);
+            continue;
+        }
+        Ui::drawButton(tft, r, label,
+                       kind == Row::Invites ? Ui::success() : Ui::panel(),
                        Ui::outline(), Ui::text(), false, 2);
     }
 
@@ -70,12 +145,9 @@ void SeaBattleGame::updateLobby(AppContext& host, const TouchPoint& touch) {
                 fresh[count++] = seat;
             }
         }
-        /* Compare the rows and not just how many: a peer that starts inviting
-         * changes what its row says without changing the count. */
         bool changed = count != seatCount_;
         for (uint8_t i = 0; !changed && i < count; ++i) {
-            changed = fresh[i].inviting != seats_[i].inviting ||
-                      strcmp(fresh[i].deviceId, seats_[i].deviceId) != 0;
+            changed = rowDiffers(fresh[i], seats_[i]);
         }
         for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
         seatCount_ = count;
@@ -86,7 +158,15 @@ void SeaBattleGame::updateLobby(AppContext& host, const TouchPoint& touch) {
 
     if (lobbyRowRect(0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.playSound(Sound::Select);
-        startLocal();
+        if (keptLocal_ && restoreOwn(host)) {
+            /* The game this lobby came up over, as it was left. */
+            keptLocal_ = false;
+            fullPaint_ = true;
+            panelStale_ = true;
+            markFullDirty();
+        } else {
+            startLocal();
+        }
         return;
     }
     for (uint8_t i = 0; i < seatCount_; ++i) {
@@ -94,80 +174,122 @@ void SeaBattleGame::updateLobby(AppContext& host, const TouchPoint& touch) {
                  .contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             continue;
         }
-        if (seats_[i].inviting) {
-            host.playSound(Sound::Select);
-            startRemote(seats_[i], seats_[i].session, seats_[i].weMoveFirst);
-            noteOwner(host);
-        } else {
-            /* Never a number either console still holds a turn for, or an
-             * old game's last turn would be read as this one's first. */
-            const uint8_t session = host.nearbyFreshSession();
-            bool weFireFirst = false;
-            if (host.nearbyInvite(seats_[i].deviceId, session, weFireFirst)) {
-                host.playSound(Sound::Select);
-                startRemote(seats_[i], session, weFireFirst);
-                mode_ = Mode::Waiting;
-                invitedAtMs_ = millis();
-                seatsAtMs_ = invitedAtMs_;
-                noteOwner(host);
-                markFullDirty();
+        const Row kind = rowFor(seats_[i]);
+        /* A row about somebody else's game says so and does nothing. */
+        if (!rowTakesPress(kind)) return;
+        if (kind == Row::Invites) {
+            NearbySeat seat;
+            if (invitedBy(host, seats_[i].deviceId, seat)) {
+                acceptInvite(host, seat);
             } else {
+                /* Taken back in the second since the row was drawn. */
                 host.beepError();
+                seatsAtMs_ = 0;
             }
+            return;
+        }
+        /* Never a number either console still holds a turn for, or an old
+         * game's last turn would be read as this one's first. */
+        const uint8_t session = host.nearbyFreshSession();
+        bool weFireFirst = false;
+        if (host.nearbyInvite(seats_[i].deviceId, session, weFireFirst)) {
+            host.playSound(Sound::Select);
+            startRemote(seats_[i], session, weFireFirst);
+            mode_ = Mode::Waiting;
+            seatsAtMs_ = millis();
+            markFullDirty();
+        } else {
+            host.beepError();
         }
         return;
     }
+}
+
+/* An invitation taken up, from a lobby row or from the wait below. The game
+ * is the console's from this moment and is written down as such at once, so
+ * a console that restarts before the first shot is still in it. The turn
+ * published from the next frame on is the answer they are waiting for. */
+void SeaBattleGame::acceptInvite(AppContext& host, const NearbySeat& seat) {
+    host.playSound(Sound::Select);
+    startRemote(seat, seat.session, seat.weMoveFirst);
+    saveGame(host);
 }
 
 /* Asked, and not answered yet. Nothing on this screen is in play: the sea
  * and Ready belong to a game that has not started, so the one control is
  * Cancel.
  *
- * Two things end the wait besides their answer. The invitation is on the air
- * for a few seconds only, so a player who opens the game after that sees a
- * plain "Play" row and asks us back -- and two consoles each waiting on their
- * own invitation would wait for ever. So their invitation is taken up here:
- * at once by the console with the higher tag, so that when both ask in the
- * same moment exactly one gives way, and by either once its own invitation
- * has left the air. Ours is not sent again, because sending tosses the coin
- * for first shot again and a console that accepted the first toss would
- * disagree. And after WAITING_MS with no answer the lobby comes back.
+ * The invitation stands until it is answered or taken back here. Nothing
+ * re-sends it and nothing gives up on it: sending tosses the coin for first
+ * shot again, and a console that accepted the first toss would disagree.
  *
- * Only an invitation heard just now is taken up. What is remembered about a
- * console is the last thing it said, and one that asked a while ago and has
- * since taken up OUR invitation would otherwise be answered in its old
- * session while it plays in ours. */
+ * One thing besides their answer ends the wait. Two consoles that ask each
+ * other in the same moment would each sit on their own invitation for ever,
+ * so exactly one gives way: the one with the greater tag takes its own
+ * invitation back and accepts theirs, and the other does nothing and is
+ * answered. The tags decide it, not a clock, so the two cannot both give way
+ * or both hold out. */
 void SeaBattleGame::updateWaiting(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     if (now - seatsAtMs_ > 500) {
         seatsAtMs_ = now;
         NearbySeat seat;
-        if (host.nearbyInviteForUs(seat) && seat.forThisGame &&
-            strcmp(seat.deviceId, opponent_) == 0 &&
-            seat.silentMs < INVITE_HEARD_MS &&
-            (now - invitedAtMs_ > INVITE_ON_AIR_MS ||
-             strcmp(host.nearbySelfId(), opponent_) > 0)) {
-            /* Nothing has been fired, so the sea laid out for our own
-             * invitation serves. The turn published from the next frame on
-             * is the answer they are waiting for. */
-            session_ = static_cast<uint8_t>(seat.session & 0x3F);
-            remoteFiresFirst_ = seat.weMoveFirst;
-            mode_ = Mode::Remote;
-            host.playSound(Sound::Select);
-            fullPaint_ = true;
-            saveGame(host);
-            markFullDirty();
+        if (strcmp(host.nearbySelfId(), opponent_) > 0 &&
+            invitedBy(host, opponent_, seat)) {
+            host.nearbyStop();
+            acceptInvite(host, seat);
             return;
         }
     }
 
-    const bool cancel = touch.justPressed &&
-                        actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP);
-    if (!cancel && now - invitedAtMs_ <= WAITING_MS) return;
-    if (cancel) host.playSound(Sound::Tap);
+    if (!touch.justPressed ||
+        !actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        return;
+    }
+    host.playSound(Sound::Tap);
     host.nearbyStop();
     toLobby();
+    keptLocal_ = ownGameKept(host);
     markFullDirty();
+}
+
+/* A nearby game's turn, each frame. Unchanged values do not touch the radio,
+ * and a turn must stay on the air until it is replaced -- from ply 0, which
+ * is how an accepted invitation is answered.
+ *
+ * A game that is over says one thing more and then stops: our ending if we
+ * ended it, otherwise our last turn, whose ack is how they know theirs
+ * arrived. It is said once and given a minute to be heard in. Said every
+ * frame for as long as the result was on screen, it kept a console that went
+ * to sleep there looking busy, and sharing no score, until somebody woke it. */
+void SeaBattleGame::sayTurn(AppContext& host) {
+    if (gameOver() && overSaid_) return;
+    if (ended_ && endedByUs_) {
+        host.nearbyEnd(session_, ourPly_, theirPly_);
+    } else {
+        host.nearbyPublish(session_, ourPly_, ourShotCell_, ourReplyCode_,
+                           theirPly_);
+    }
+    if (!gameOver()) return;
+    host.nearbyStopLater();
+    overSaid_ = true;
+    lastWordAtMs_ = millis();
+}
+
+/* New game, pressed on a nearby game that is over: the game is finished
+ * with, so the console's record of it goes. Its last word stays on its timer
+ * only if the other console still needs it -- the loser's answer to the last
+ * shot and our own End game are their only way of knowing. The winner, and a
+ * console that was told the game ended, have nothing left that must be
+ * heard. */
+void SeaBattleGame::finishNearby(AppContext& host) {
+    memcpy(lastWordPeer_, opponent_, sizeof(lastWordPeer_));
+    lastWordSession_ = session_;
+    lastWordPly_ = ourPly_;
+    lastWord_ = overSaid_ && (lost_ || (ended_ && endedByUs_)) &&
+                !lastWordLanded(host);
+    if (!lastWord_) host.nearbyStop();
+    forgetNearby(host);
 }
 
 /* Has the other console heard the last thing we said? It has once its own
@@ -184,10 +306,17 @@ bool SeaBattleGame::lastWordLanded(AppContext& host) const {
 }
 
 /* From the lobby or a game on this console: take a finished nearby game's
- * last word down once it has done its job. A new nearby game clears the flag
- * instead, in startRemote(), because its own turn has taken that place. */
+ * last word down as soon as it has done its job, rather than leave it its
+ * whole minute. Once the minute is up the service has taken it down itself,
+ * and there is nothing left here to protect. A new nearby game clears the
+ * flag instead, in startRemote(), because its own invitation or turn has
+ * taken that place. */
 void SeaBattleGame::tickLastWord(AppContext& host) {
-    if (!lastWord_ || !lastWordLanded(host)) return;
+    if (!lastWord_) return;
+    if (!lastWordLanded(host) &&
+        millis() - lastWordAtMs_ <= NearbyPlay::LAST_WORD_MS) {
+        return;
+    }
     lastWord_ = false;
     host.nearbyStop();
 }
@@ -211,8 +340,11 @@ void SeaBattleGame::pollOpponent(AppContext& host) {
     if (!host.nearbyTurnFrom(opponent_, session_, turn)) return;
 
     if (mode_ == Mode::Waiting) {
+        /* Answered. There is a game from here on, and it is the console's:
+         * written down now, before a shot has been fired in it. */
         mode_ = Mode::Remote;
         fullPaint_ = true;
+        saveGame(host);
         markFullDirty();
     }
 
@@ -294,7 +426,11 @@ void SeaBattleGame::pollOpponent(AppContext& host) {
  * NearbyWatch decides what quiet means; this is what Sea Battle does about it.
  * Only a live remote game is watched -- not the lobby, not an invitation still
  * unanswered, and not a game that is already won, lost or ended. A fleet still
- * being placed IS watched: the opponent can go flat while you shuffle. */
+ * being placed IS watched: the opponent can go flat while you shuffle.
+ *
+ * Waiting has no end of its own. Keep waiting keeps the game for as long as
+ * it takes, here and in the console's storage; only End game, on the card or
+ * beside the sea, ends it. */
 bool SeaBattleGame::updatePause(AppContext& host, const TouchPoint& touch) {
     if (mode_ != Mode::Remote || gameOver()) {
         if (watch_.paused()) {

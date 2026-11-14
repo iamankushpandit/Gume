@@ -55,7 +55,7 @@ public:
     void renderDynamic(AppContext& host) override;
     /* Saves. A nearby game stays on the air and in this instance, so it is
      * still here when the screen comes back; anything else hands the radio
-     * back. */
+     * back. Leaving the screen never ends a nearby game: only End game does. */
     void end(AppContext& host) override;
     /* A game on the board comes back as it was left, with no question asked:
      * End is this screen's own way out of one. In BackgammonSave.cpp. */
@@ -111,7 +111,29 @@ private:
     bool undelivered() const;
 
     // ---- nearby (BackgammonNet.cpp) ------------------------------------------
+    /* What the lobby's row for another console says, and so whether it can be
+     * pressed: the first that fits, in this order.
+     *   Invites    it is asking THIS console to play Backgammon: press to accept
+     *   Asking     it is asking somebody else: busy, not pressable
+     *   Playing    it is in a game with a console we can also hear: the same
+     *   PlayBusy   it is in a game, with whom we cannot tell: press to ask it
+     *   Play       press to ask it */
+    enum class RowKind : uint8_t { Invites, Asking, Playing, PlayBusy, Play };
+    static RowKind rowKind(const NearbySeat& seat);
+    static bool rowPressable(RowKind kind) {
+        return kind != RowKind::Asking && kind != RowKind::Playing;
+    }
     void updateLobby(AppContext& host, const TouchPoint& touch);
+    /** Read the room again; the lobby repaints when a row would read differently. */
+    void refreshSeats(AppContext& host);
+    void pressSeat(AppContext& host, const NearbySeat& shown);
+    /** The named console as the service sees it this moment. */
+    static bool seatNow(AppContext& host, const char* id, NearbySeat& out);
+    /* An invitation to Backgammon, aimed at this console and on the air now:
+     * from `from`, or from anybody when that is nullptr. */
+    static bool invitationHere(AppContext& host, const char* from, NearbySeat& out);
+    /** Take our invitation back and return to the lobby, with a note if one is due. */
+    void cancelAsk(AppContext& host, const char* note);
     void startRemote(AppContext& host, const NearbySeat& seat, uint8_t session, bool weAreWhite,
                      bool waiting);
     /* Every frame of a nearby game: our word on the air, the other console's
@@ -122,6 +144,15 @@ private:
     void leaveRemote(AppContext& host, const char* note);
     /** End a nearby game from this side: the service's ending, then the lobby. */
     void endRemoteByUs(AppContext& host);
+    /* New game pressed on a nearby game that is over. False when the press
+     * only said that the winning moves are still on their way. */
+    bool closeRemote(AppContext& host, uint32_t now);
+    /* Our last word in a game this console has left -- its ending, or the
+     * acknowledgement of the move that won it -- stays on the air for the
+     * other console to hear, and the service takes it down after a minute. */
+    void holdLastWord(AppContext& host);
+    /** Is that minute still running? Nothing here takes the word down first. */
+    bool lastWordStanding() const;
     /* The other console going quiet: pause, the card, its two buttons. True
      * when the press was on (or through) the card and must not reach the
      * board. */
@@ -130,8 +161,27 @@ private:
     void drawPause(Ui::Renderer& tft);
 
     // ---- save (BackgammonSave.cpp) --------------------------------------------
+    struct Saved;
+    /* A game across consoles is the console's: it is kept apart from the
+     * players' own saves, so it carries on whoever picks the console up and
+     * never takes the place of somebody's game against the computer. A game
+     * on one console is the player's. The lobby and an invitation save
+     * nothing. */
     void saveGame(AppContext& host) const;
-    bool restoreGame(AppContext& host);
+    /** The game on the board is finished with: it must not come back. */
+    void forgetGame(AppContext& host) const;
+    /* What begin() opens: the nearby game this console is in, else the
+     * player's own game, else the lobby. */
+    void openGame(AppContext& host);
+    /** The player's own saved game, onto the board. False when there is none. */
+    bool loadPlayerGame(AppContext& host);
+    /** The mode of the player's own saved game, or Lobby when there is none. */
+    Mode savedMode(AppContext& host) const;
+    /** To the lobby, which offers the player's own saved game if one is kept. */
+    void enterLobby(AppContext& host);
+    static void readPlayerSlot(AppContext& host, Saved& in);
+    static bool valid(const Saved& in, bool nearby);
+    void take(const Saved& in);
 
     // ---- geometry and drawing (BackgammonDraw.cpp) -----------------------------
     static Rect pointRect(uint8_t index);
@@ -142,6 +192,7 @@ private:
     /** The board and the tray: everything that is pressed only while moving. */
     static Rect stopsRect();
     static Rect lobbyRowRect(uint8_t row);
+    static void drawSeatRow(Ui::Renderer& tft, const Rect& r, const NearbySeat& seat);
     static Rect rollRect();
     static Rect undoRect();
     static Rect actionRect();
@@ -198,6 +249,12 @@ private:
     char message_[24] = {0};
     uint32_t confirmUntilMs_ = 0;
     char lobbyNote_[32] = {0};
+    /* The lobby is up in front of a game the player has saved -- a console is
+     * asking this one to play, or a nearby game has just finished -- and this
+     * is that game's mode; Lobby when there is none. Its row carries the game
+     * on instead of starting another, and nothing is saved over it until the
+     * player chooses. */
+    Mode savedBehind_ = Mode::Lobby;
 
     // ---- a nearby game ------------------------------------------------------------
     bool ourWhite_ = true;
@@ -213,7 +270,9 @@ private:
     Bg::Move outbox_[Bg::MAX_DICE] = {};
     uint8_t outboxCount_ = 0;
     bool ended_ = false;
-    NearbySeat seats_[6] = {};
+    /** How many other consoles the lobby has rows for. */
+    static constexpr uint8_t SEAT_ROWS = 3;
+    NearbySeat seats_[SEAT_ROWS] = {};
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
     /* The other console going quiet. NearbyWatch says when; what Backgammon
@@ -221,20 +280,11 @@ private:
     NearbyWatch watch_;
     bool pausePainted_ = false;
     uint16_t pauseSecondsDrawn_ = 0;
-    /* The other console can also be in the room and not in this game: it
-     * left for its lobby, or started another game. Its beacon is still heard,
-     * so the watch above sees nothing wrong. `lastHeardMs_` is when it last
-     * said anything in our session and `away_` that the panel says so. */
-    uint32_t lastHeardMs_ = 0;
-    bool away_ = false;
     /** Has the other console acknowledged the last ply we put on the air? */
     bool lastAcked_ = true;
-    /* Our last word in a game this console has left is on the air: its
-     * ending, or the acknowledgement of the move that won it. It is left
-     * there when this screen is left, because the other console may not have
-     * heard it yet, and taken down when the screen comes back or another game
-     * replaces it. */
+    /* See holdLastWord(): that a last word was left on the air, and when. */
     bool lastWordOnAir_ = false;
+    uint32_t lastWordAtMs_ = 0;
 
     // ---- what is on the panel -------------------------------------------------------
     uint32_t dirtyPlaces_ = 0;   // bit per point, then BAR, then OFF
@@ -276,4 +326,9 @@ private:
     };
     static constexpr uint16_t SAVE_MAGIC = 0xBA6A;
     static constexpr uint8_t SAVE_VERSION = 1;
+    /* Backgammon's own key, in the console's storage and in each player's.
+     * The nearby games once shared one, and each saved over the others. */
+    static constexpr char SAVE_KEY[] = "bg_game";
+    /** How long "Sure?" and "Again to leave" wait for the second press. */
+    static constexpr uint32_t CONFIRM_MS = 3000;
 };

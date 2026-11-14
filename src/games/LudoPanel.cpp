@@ -14,7 +14,11 @@
 /* The panel beside the board: whose turn it is, the die, one line of news,
  * the seats and their places, and the one button. Split from LudoBoard.cpp for
  * size. Each part is repainted on its own when what it shows changes -- see
- * LudoGame::renderDynamic(). */
+ * LudoGame::renderDynamic().
+ *
+ * The lobby before a game on this console -- who sits in each seat, and how
+ * hard the computer plays -- is the second half of this file, drawn and
+ * answered here. (The table lobby is LudoLobby.cpp.) */
 
 namespace {
 
@@ -64,20 +68,10 @@ void LudoGame::tellStops() const {
                       (phase_ == Phase::Roll || phase_ == Phase::Choose) &&
                       ownsSeat(state_.turn) && !isComputer(state_.turn) &&
                       !(net_ && watch_.paused());
-    const Rect board = boardRect();
-    const Rect die = dieRect();
-    const Rect action = actionRect();
-    const int16_t w = static_cast<int16_t>(die.x + die.w - board.x);
-    if (live) {
-        Ui::setBoardStops(Rect{board.x, board.y, w, board.h}, true);
-        return;
-    }
-    /* Quiet takes in the board and the die and must leave End game alone,
-     * which sits under the die. One rectangle cannot do all of that, so it
-     * stops three pixels short of the button's middle: that covers every yard
-     * and every row of the track but the last. */
-    const int16_t bottom = static_cast<int16_t>(action.y + action.h / 2 - 3);
-    Ui::setBoardStops(Rect{board.x, board.y, w, static_cast<int16_t>(bottom - board.y)}, false);
+    /* The board whole, bottom row included, and the die as a rectangle of its
+     * own beside it: End game sits under the die and is in neither, so it
+     * goes on taking a press whatever the board is doing. */
+    Ui::setBoardStops(boardRect(), live, dieRect());
 }
 
 // ---- the panel ---------------------------------------------------------------
@@ -222,5 +216,200 @@ void LudoGame::drawAction(Ui::Renderer& tft, bool sure) const {
         Ui::drawButton(tft, r, "Sure?", Ui::warning(), Ui::outline(), TFT_BLACK);
     } else {
         Ui::drawButton(tft, r, "End game", Ui::panel(), Ui::outline(), Ui::text());
+    }
+}
+
+// ---- the lobby ---------------------------------------------------------------
+//
+// Four chips, one per colour, each cycling Empty -> Player -> Computer on a
+// tap; the level toggle; a hint that says why Start is greyed when it is; and
+// Start. Everything here is redrawn whole on any change -- the lobby is a
+// handful of fixed rectangles, each painted by an idempotent function, so
+// there is nothing to be gained by tracking which one changed.
+
+namespace {
+
+/* Chips sit in the same corners as the yards they stand for. */
+constexpr int16_t CHIP_W = 148;
+constexpr int16_t CHIP_H = 44;
+/* drawLabel() puts left-aligned text at the rect's top, so this is the 16px
+ * line centred on the level buttons' 30px row rather than the row itself. */
+constexpr Rect LEVEL_LABEL{8, 145, 100, 16};
+constexpr Rect HINT_RECT{8, 176, 304, 18};
+/* Start plays on this console; Nearby opens the table of consoles. Side by
+ * side and the same size, because they are the two ways to begin. */
+constexpr Rect START_RECT{60, 198, 120, 34};
+constexpr Rect NEARBY_RECT{192, 198, 120, 34};
+static_assert(START_RECT.y + START_RECT.h + Ui::BUTTON_SHADOW_DY <= GAME_CANVAS_HEIGHT,
+              "Start's shadow falls off the canvas");
+static_assert(START_RECT.x + START_RECT.w + Ui::BUTTON_SHADOW_DX < NEARBY_RECT.x,
+              "Start and Nearby overlap");
+
+/* How often the lobby looks at the room for an invitation or a table. */
+constexpr uint32_t ROOM_REFRESH_MS = 1000;
+
+}   // namespace
+
+Rect LudoGame::seatChipRect(uint8_t seat) {
+    /* Laid out like the yards: Red top left, Green top right, Yellow bottom
+     * right, Blue bottom left -- so a young player finds a colour where the board
+     * keeps it. */
+    const int16_t col = (seat == 1 || seat == 2) ? 1 : 0;
+    const int16_t row = seat >= 2 ? 1 : 0;
+    return Rect{static_cast<int16_t>(8 + col * (CHIP_W + 8)),
+                static_cast<int16_t>(38 + row * (CHIP_H + 6)), CHIP_W, CHIP_H};
+}
+
+Rect LudoGame::levelRect(uint8_t level) {
+    return Rect{static_cast<int16_t>(112 + level * 100), 138, 94, 30};
+}
+
+Rect LudoGame::startRect() { return START_RECT; }
+Rect LudoGame::nearbyRect() { return NEARBY_RECT; }
+
+void LudoGame::drawSeatChip(Ui::Renderer& tft, uint8_t seat) const {
+    const Rect r = seatChipRect(seat);
+    const bool empty = kind_[seat] == SeatKind::Empty;
+    const uint16_t fill = empty ? Ui::surface() : seatColour(seat);
+    const uint16_t text = empty ? Ui::muted() : seatText(seat);
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, fill);
+    tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+    const int16_t tx = static_cast<int16_t>(r.x + 20);
+    const int16_t ty = static_cast<int16_t>(r.y + r.h / 2);
+    tft.fillCircle(tx, ty, 12, paperColour());
+    drawToken(tft, tx, ty, seat, 8, 1);
+    static const char* const KINDS[3] = {"Empty", "Player", "Computer"};
+    tft.setTextColor(text);
+    tft.drawString(seatName(seat), r.x + 40, r.y + 5, 2);
+    tft.drawString(KINDS[static_cast<uint8_t>(kind_[seat])], r.x + 40, r.y + 23, 2);
+}
+
+void LudoGame::drawLevel(Ui::Renderer& tft) const {
+    static const char* const LEVELS[2] = {"Easy", "Normal"};
+    Ui::drawLabel(tft, LEVEL_LABEL, "Computer", Ui::text(), 2, Align::Left);
+    for (uint8_t lv = 0; lv < 2; ++lv) {
+        const Rect r = levelRect(lv);
+        const bool on = static_cast<uint8_t>(level_) == lv;
+        tft.fillRect(r.x, r.y, r.w + Ui::BUTTON_SHADOW_DX, r.h + Ui::BUTTON_SHADOW_DY, Ui::bg());
+        /* The chosen one inverted, which has contrast in every theme without
+         * borrowing a colour that means something else. */
+        Ui::drawButton(tft, r, LEVELS[lv], on ? Ui::text() : Ui::surface(), Ui::outline(),
+                       on ? Ui::bg() : Ui::text());
+    }
+}
+
+void LudoGame::drawLobbyHint(Ui::Renderer& tft) const {
+    tft.fillRect(HINT_RECT.x, HINT_RECT.y, HINT_RECT.w, HINT_RECT.h, Ui::bg());
+    if (lobbyNote_[0] != 0) {
+        /* Why the game just vanished. Outranks everything until tapped. */
+        Ui::drawLabel(tft, HINT_RECT, lobbyNote_, Ui::warning(), 2, Align::Center);
+        return;
+    }
+    if (inviteWaiting_) {
+        /* The header banner announced it and has gone; this is where it is
+         * still answerable from. */
+        Ui::drawLabel(tft, HINT_RECT, "Invitation waiting: tap Nearby", Ui::success(), 2,
+                      Align::Center);
+        return;
+    }
+    if (tableOpen_) {
+        /* Nobody asked this console, but a table being gathered can be sat
+         * at all the same, and nothing else on this screen would say so. */
+        Ui::drawLabel(tft, HINT_RECT, "A table is open: tap Nearby", Ui::success(), 2,
+                      Align::Center);
+        return;
+    }
+    uint8_t seats = 0;
+    bool player = false;
+    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
+        seats = static_cast<uint8_t>(seats + (kind_[s] != SeatKind::Empty ? 1 : 0));
+        player = player || kind_[s] == SeatKind::Player;
+    }
+    const char* hint = seats < 2 ? "Two seats are needed to play"
+                       : !player ? "Someone has to be a Player"
+                                 : "Tap a seat to change who sits there";
+    Ui::drawLabel(tft, HINT_RECT, hint, canStart() ? Ui::muted() : Ui::warning(), 2,
+                  Align::Center);
+}
+
+void LudoGame::renderLobby(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
+        drawSeatChip(tft, s);
+    }
+    drawLevel(tft);
+    drawLobbyHint(tft);
+    for (const Rect& r : {START_RECT, NEARBY_RECT}) {
+        tft.fillRect(r.x, r.y, r.w + Ui::BUTTON_SHADOW_DX, r.h + Ui::BUTTON_SHADOW_DY, Ui::bg());
+    }
+    Ui::drawPagerButton(tft, START_RECT, "Start", canStart());
+    Ui::drawButton(tft, NEARBY_RECT, "Nearby", inviteWaiting_ ? Ui::success() : Ui::panel(),
+                   Ui::outline(), inviteWaiting_ ? static_cast<uint16_t>(TFT_BLACK) : Ui::text());
+}
+
+void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    /* An invitation to Ludo is announced in the header by the service; the
+     * lobby says where to answer it, and says so too when somebody in the
+     * room is gathering a table. Re-read on the peer cadence, not every
+     * frame. */
+    const uint32_t now = millis();
+    if (now - peersAtMs_ >= ROOM_REFRESH_MS) {
+        peersAtMs_ = now;
+        NearbySeat seat;
+        const bool waiting = host.nearbyInviteForUs(seat) && seat.forThisGame;
+        bool open = false;
+        const uint8_t n = host.nearbySeatCount();
+        for (uint8_t i = 0; i < n && !open; ++i) {
+            open = host.nearbySeatAt(i, seat) && seat.asking;
+        }
+        if (waiting != inviteWaiting_ || open != tableOpen_) {
+            inviteWaiting_ = waiting;
+            tableOpen_ = open;
+            lobbyStale_ = true;
+            markDirty();
+        }
+    }
+    if (!touch.justPressed) {
+        return;
+    }
+    if (lobbyNote_[0] != 0) {
+        /* "A4F2 ended the game" has been seen; any tap retires it. */
+        lobbyNote_[0] = 0;
+        lobbyStale_ = true;
+        markDirty();
+    }
+    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
+        if (seatChipRect(s).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            /* Empty -> Player -> Computer -> Empty: one tap per step, and the
+             * chip says what it is now rather than what a tap will do. */
+            kind_[s] = static_cast<SeatKind>((static_cast<uint8_t>(kind_[s]) + 1) % 3);
+            lobbyStale_ = true;
+            host.playSound(Sound::Tap);
+            saveGame(host);
+            markDirty();
+            return;
+        }
+    }
+    for (uint8_t lv = 0; lv < 2; ++lv) {
+        if (levelRect(lv).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            level_ = static_cast<Ludo::Level>(lv);
+            lobbyStale_ = true;
+            host.playSound(Sound::Tap);
+            saveGame(host);
+            markDirty();
+            return;
+        }
+    }
+    if (nearbyRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        host.playSound(Sound::Select);
+        openTable(host);
+        return;
+    }
+    if (startRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (canStart()) {
+            startGame(host);
+        } else {
+            host.beepError();
+        }
     }
 }

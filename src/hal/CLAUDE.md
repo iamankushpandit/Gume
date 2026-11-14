@@ -40,6 +40,14 @@ Five player slots plus a permanent Guest (`MAX_PLAYERS = 5`, `GUEST_INDEX = 5`, 
 
 Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Global: theme, layout, screen flip, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
 
+**One slot is the console's own.** `loadConsoleBlob()` / `saveConsoleBlob()` /
+`clearConsoleBlob()` keep a blob under `CONSOLE_SLOT` (9), outside the players'
+slots: the state of a game being played against another console. It is not a
+player's data -- the other console is playing this console, whoever is holding
+it -- so a change of player does not touch it, removing a player does not move
+or clear it, and Guest's rule that nothing is written does not apply to it.
+Scores and progress never go there, and nothing in it is transmitted.
+
 Deleting a player is a storage operation, not a name-list edit. `removePlayer()` clears the deleted slot's `pN_` keys, moves every later slot down by enumerating NVS entries in the application namespace, copies supported NVS types with fixed static scratch buffers, and clears the old last slot. Deleting the active player switches to Guest; deleting a lower slot shifts the active index down so the same real player stays active.
 
 `storageTelemetry()` reports default-partition NVS entries plus the application and watchdog namespace entry counts. System Info -> Memory shows that data with 80% warning and 92% critical soft quota thresholds. Do not call it from per-frame render paths; it enumerates flash-backed metadata.

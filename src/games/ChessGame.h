@@ -58,6 +58,12 @@ const AppMetadata& chessAppMetadata();
  * starting. That in turn is why End game exists: once a board survives leaving
  * the screen, walking away is no longer a way to abandon one.
  *
+ * A game against a nearby console is the CONSOLE's, not the player's. Only
+ * End game ends it -- pressed here, or heard from the other console -- or the
+ * rules finishing it. Leaving the screen, opening another game, the console
+ * sleeping or restarting, and a different player picking the console up all
+ * leave it standing, and opening Chess again goes straight back to it.
+ *
  * No score. A win is not a number, and a "best" would be meaningless.
  */
 class ChessGame : public AppGame {
@@ -69,7 +75,8 @@ public:
     void renderDynamic(AppContext& host) override;
     /* Saves, and hands the radio back unless this console is in a game
      * against a nearby one: that game's last move stays advertised, because
-     * the other console may not have heard it yet. */
+     * the other console may not have heard it yet. A nearby game that is over
+     * keeps its last word up for a minute more and no longer. */
     void end(AppContext& host) override;
 #if GUME_HAS_NAV_KEYS
     bool repaintUnderRing(AppContext& host, const Rect& box) override;
@@ -205,14 +212,24 @@ private:
     void declareEnd(AppContext& host, bool byUs);
     /** Fresh position, same mode. The board, not the session. */
     void newGame();
+    /* To the console's slot for a game against a nearby console, to the
+     * player's own for everything else. See ChessSave.cpp. */
     void saveGame(AppContext& host) const;
-    /** Restore a game left part-finished. False if there was nothing to take. */
-    bool restoreGame(AppContext& host);
-    /* True when the active player's save holds something other than the nearby
-     * game this instance is in. Saves are kept per player, so that is a
-     * different player at the console. No save at all answers false: that is
-     * what a Guest, whose game lives only here, looks like. */
-    bool saveIsAnotherGame(AppContext& host) const;
+    /* What begin() finds when the instance is not already in a nearby game:
+     * the console's game if one is still in play, else the player's own. */
+    void openSaved(AppContext& host);
+    /* The player's own save: the lobby's choices, and their unfinished game
+     * -- put on the board when `resume`, otherwise held for the lobby to
+     * offer. */
+    void openPlayerSave(AppContext& host, bool resume);
+    /* The active player's own unfinished game, Local or Computer, while the
+     * lobby is up in front of it; Lobby when there is none. The lobby is
+     * shown over a player's game only when somebody nearby is asking this
+     * console for one, or a nearby game has just finished here. While it is,
+     * that game sits untouched in the player's slot: the lobby's row for it
+     * says "Continue", the row for the other kind is not offered, and the
+     * chips are not saved over it. */
+    Mode heldMode_ = Mode::Lobby;
 
     // ---- nearby play -----------------------------------------------------
     /* Our colour in a remote game. Whoever moves first is White, and which
@@ -250,6 +267,18 @@ private:
     Rect lobbyRowRect(AppContext& host, uint8_t row) const;
     void renderLobby(AppContext& host);
     void updateLobby(AppContext& host, const TouchPoint& touch);
+    /* Is `deviceId` -- or anybody, for nullptr -- inviting this console to a
+     * game of chess, as last heard? Asked at the moment it matters rather
+     * than read off the lobby's list, which is up to a second old. */
+    bool inviterNow(AppContext& host, const char* deviceId, NearbySeat& out) const;
+    /* The two things a press on a console's row can do. Accepting starts the
+     * game and makes it the console's; inviting puts the question on the air
+     * and waits, for as long as it takes. */
+    void acceptInvite(AppContext& host, const NearbySeat& seat);
+    void inviteSeat(AppContext& host, const NearbySeat& seat);
+    /* While Waiting: the console we asked has asked us at the same moment.
+     * One of the two gives way, decided by the tags so both agree. */
+    void answerCrossedInvite(AppContext& host);
     /* Accept a peer's move if it is theirs, in this session, the ply we are
      * waiting for, and legal in our position. All four are required; the last
      * is what stops a hostile or confused advertiser corrupting the board. */
@@ -283,7 +312,10 @@ private:
      * ended it, or "I am stopping" -- may not have been heard when the player
      * presses New game. It is left on the air from the lobby until the other
      * console acknowledges it or FAREWELL_MS has gone, whichever is first.
-     * farewellUntilMs_ is 0 when nothing is owed. */
+     * farewellUntilMs_ is 0 when nothing is owed. Ticked every frame this
+     * screen is up; when the screen is left with one still owed, end() hands
+     * the bound to the service (nearbyStopLater), so it cannot stay up with
+     * nobody watching it. */
     void tickFarewell(AppContext& host);
     static constexpr uint32_t FAREWELL_MS = 20000;
     uint32_t farewellUntilMs_ = 0;
@@ -395,14 +427,15 @@ private:
      * A remote game is saved too, session and all. The moves are advertised
      * state rather than messages, so the opponent's board is still on the air
      * when we come back -- there is nothing to re-sync and no handshake to
-     * repeat.
+     * repeat. It is saved to the CONSOLE's slot and nowhere else, because the
+     * other console is playing this console and not whoever was holding it:
+     * the same blob, in a place no player's own game is ever written.
      *
      * Guest drops writes, silently, which is what makes Guest a guest. So a
      * guest's game on this console alone does not survive leaving the screen,
      * and that is the same answer Guest gives to scores and mastery. Do not
-     * special-case it here. (A game against a nearby console outlives the
-     * screen without the save -- see begin() -- for as long as the console
-     * stays on, because somebody else is still playing it.)
+     * special-case it here. (A game against a nearby console is not Guest's
+     * to lose: it is the console's, and is kept for whoever opens Chess.)
      *
      * Fixed layout, and loadBlob() refuses a blob whose length has changed, so
      * altering this struct retires old saves rather than misreading them.
@@ -442,4 +475,17 @@ private:
     };
     static constexpr uint16_t SAVE_MAGIC = 0xC4E5;
     static constexpr uint8_t SAVE_VERSION = 4;
+
+    /** A blob of this layout at all? */
+    static bool readable(const Saved& in);
+    /** ...holding a game still worth coming back to? */
+    static bool inPlay(const Saved& in);
+    /** The lobby's two chips, which come back whatever else does. */
+    void takeChoices(const Saved& in);
+    /** Put a saved game on the board. Ask inPlay() first. */
+    void takeGame(const Saved& in);
+    /* The active player's own save, from this game's key or -- once, for a
+     * save made before the key existed -- the one all five nearby games used
+     * to share. False when there is none, or it is not theirs to have. */
+    bool loadPlayerSave(AppContext& host, Saved& in) const;
 };

@@ -19,7 +19,8 @@
  * ghost, a dead cross, a territory mark -- so a move repaints the two to
  * four cells it touched. The panel is parts, each repainted when what it
  * shows changed. A full repaint happens on entering the screen, a new game,
- * Undo, the marking phase and the result card.
+ * Undo, the marking phase and the result card. The lobby's rectangles are
+ * here with the rest of the geometry; the lobby itself is drawn in GoNet.cpp.
  *
  * Every rectangle is derived from the board's step and margin, which are
  * the only two numbers that change between 9x9 and 19x19. */
@@ -514,8 +515,12 @@ void GoGame::drawButtons(Ui::Renderer& tft, bool sure) const {
         }
     }
     const bool over = phase_ == Phase::Over;
-    Ui::drawButton(tft, actionRect(), over ? "New game" : (sure ? "Sure?" : "End game"),
-                   sure ? Ui::warning() : Ui::panel(), Ui::outline(),
+    /* An invitation not yet answered is taken back, not ended: one press. */
+    const char* action = over                      ? "New game"
+                         : mode_ == Mode::Waiting ? "Cancel"
+                         : sure                    ? "Sure?"
+                                                   : "End game";
+    Ui::drawButton(tft, actionRect(), action, sure ? Ui::warning() : Ui::panel(), Ui::outline(),
                    sure ? Ui::bg() : Ui::text(), false, font);
 }
 
@@ -640,62 +645,6 @@ void GoGame::drawResult(Ui::Renderer& tft) const {
     Ui::drawButton(tft, resultButtonRect(0), mode_ == Mode::Remote ? "Lobby" : "Play again",
                    Ui::panel(), Ui::outline(), Ui::text());
     Ui::drawButton(tft, resultButtonRect(1), "Done", Ui::panel(), Ui::outline(), Ui::text());
-}
-
-// ---- the lobby ----------------------------------------------------------------------------
-
-void GoGame::renderLobby(AppContext& host) {
-    Ui::Renderer& tft = host.display();
-    Ui::clear(tft);
-    host.drawTopBar(title());
-
-    /* The chips: board size only where 19x19 is offered, rules, level. Each
-     * is a label over a value with a small arrow, and a tap cycles it. */
-    const uint8_t chips = BIG_BOARD_AVAILABLE ? 3 : 2;
-    const char* labels[3] = {"Rules", "Level", "Board"};
-    char values[3][16];
-    snprintf(values[0], sizeof(values[0]), "%s", Go::rulesName(rules_));
-    snprintf(values[1], sizeof(values[1]), "%s", level_ == Go::Level::Easy ? "Easy" : "Medium");
-    snprintf(values[2], sizeof(values[2]), "%s", boardSize_ > 9 ? "19x19" : "9x9");
-    for (uint8_t i = 0; i < chips; ++i) {
-        const Rect c = lobbyChipRect(i, chips);
-        tft.fillRoundRect(c.x, c.y, c.w, c.h, 6, Ui::surface());
-        tft.drawRoundRect(c.x, c.y, c.w, c.h, 6, Ui::outline());
-        tft.setTextDatum(TL_DATUM);
-        tft.setTextColor(Ui::muted(), Ui::surface());
-        tft.drawString(labels[i], c.x + 7, c.y + 3, 1);
-        tft.setTextColor(Ui::text(), Ui::surface());
-        tft.drawString(values[i], c.x + 7, c.y + 12, 2);
-        tft.fillTriangle(c.x + c.w - 16, c.y + 11, c.x + c.w - 8, c.y + 11, c.x + c.w - 12,
-                         c.y + 17, Ui::muted());
-    }
-
-    Ui::drawButton(tft, lobbyRowRect(0), "Pass and play", Ui::panel(), Ui::outline(), Ui::text());
-    Ui::drawButton(tft, lobbyRowRect(1), "Play the computer", Ui::panel(), Ui::outline(),
-                   Ui::text());
-    char label[32];
-    for (uint8_t i = 0; i < seatCount_ && i < 3; ++i) {
-        const char* who = seats_[i].name[0] != 0 ? seats_[i].name : seats_[i].deviceId;
-        if (seats_[i].inviting) {
-            snprintf(label, sizeof(label), "%s invites you", who);
-        } else {
-            snprintf(label, sizeof(label), "Play %s nearby", who);
-        }
-        Ui::drawButton(tft, lobbyRowRect(static_cast<uint8_t>(i + 2)), label,
-                       seats_[i].inviting ? Ui::success() : Ui::surface(), Ui::outline(),
-                       seats_[i].inviting ? static_cast<uint16_t>(TFT_BLACK) : Ui::text());
-    }
-    /* Why a game just vanished; else a low battery, which outranks the usual
-     * note; else what nearby play is and who can switch it on. */
-    const bool low = lobbyNote_[0] == 0 && seatCount_ > 0 && host.batteryLow();
-    const char* note = lobbyNote_[0] != 0 ? lobbyNote_
-                       : low              ? "Battery low: a nearby game may not finish."
-                       : seatCount_ > 0   ? "Moves travel by Bluetooth. Anyone near hears them."
-                                          : "An administrator can switch Beacon and Nearby on.";
-    tft.setTextDatum(BC_DATUM);
-    tft.setTextColor(lobbyNote_[0] != 0 || low ? Ui::warning() : Ui::muted(), Ui::bg());
-    tft.drawString(note, GAME_CANVAS_WIDTH / 2, GAME_CANVAS_HEIGHT - 4, lobbyNote_[0] != 0 ? 2 : 1);
-    tft.setTextDatum(TL_DATUM);
 }
 
 // ---- render -------------------------------------------------------------------------------

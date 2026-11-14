@@ -100,6 +100,14 @@ control painted over, and comes back when the strip is redrawn.
   dot is claimed. `MAX_FOCUS` is 160 because the Elements table is 118
   squares. Go's 19x19 board, on a 480px panel only, has 10px points, under
   `SMALLEST_CONTROL`, so it is the one board the selector cannot cross.
+- **A screen says when its board takes a press.** What is drawn stays drawn
+  while the other player thinks, so `focusTargets()` asks `Ui::stopRuleAt()`
+  (`src/ui/Stops.h`) about each mark's middle: *Quiet* drops it, *Live* keeps
+  a plain square as a control however few there are (the count that decides
+  whether cards are controls left a Ludo endgame with a die and two tokens
+  unplayable), and a card put up over the board makes everything outside it
+  Quiet. The header's controls are never asked about. The firmware says it;
+  the host only obeys, so there is nothing here to keep in step.
 - **The first press only brings it up**, on the control nearest the crosshair,
   because nobody has seen where it is yet. Pushing the stick puts it away.
 - **Past the end of a row is the next page and past the end of a column is the

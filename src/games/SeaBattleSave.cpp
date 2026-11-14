@@ -11,11 +11,33 @@
 
 #include <string.h>
 
-/* Remembering a game. See the Saved struct in SeaBattleGame.h. */
+/* Remembering a game. See the Saved struct in SeaBattleGame.h.
+ *
+ * It is kept in one of two places, by whose game it is. A game against a
+ * nearby console is the CONSOLE's: the other console is playing this one,
+ * whoever picks it up, so it goes with the console's own storage -- there for
+ * Guest, there after a change of player, and never written over anybody's
+ * game on this console. A pass-and-play game is the PLAYER's and goes with
+ * their saves. */
+
+namespace {
+
+/* This game's own key. Every nearby game used to save under "game", one over
+ * another, so opening a second game threw away the first one's. */
+constexpr char SAVE_KEY[] = "sea_game";
+/* That shared key. Read one more time, for a game left there before each
+ * game had its own; never written again. */
+constexpr char OLD_KEY[] = "game";
+
+}   // namespace
 
 // ------------------------------------------------------------- persistence
 
 void SeaBattleGame::saveGame(AppContext& host) const {
+    /* The lobby and an invitation nobody has answered are not games. Written
+     * out, either would take the place of one that is. */
+    if (mode_ != Mode::Local && mode_ != Mode::Remote) return;
+
     Saved out{};
     out.magic = SAVE_MAGIC;
     out.version = SAVE_VERSION;
@@ -49,22 +71,33 @@ void SeaBattleGame::saveGame(AppContext& host) const {
         out.hitsTaken[s] = side_[s].hitsTaken;
         out.sunkAgainstUs[s] = side_[s].sunkAgainstUs;
     }
-    host.saveBlob("game", &out, sizeof(out));
+    if (mode_ == Mode::Remote) {
+        host.saveConsoleBlob(SAVE_KEY, &out, sizeof(out));
+    } else {
+        host.saveBlob(SAVE_KEY, &out, sizeof(out));
+    }
 }
 
-bool SeaBattleGame::restoreGame(AppContext& host) {
-    Saved in{};
-    host.loadBlob("game", &in, sizeof(in));
-    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) return false;
-
-    const Mode m = static_cast<Mode>(in.mode);
-    if (m != Mode::Local && m != Mode::Remote) return false;
+bool SeaBattleGame::inPlay(const Saved& in, Mode want) {
+    if (static_cast<Mode>(in.mode) != want) return false;
     /* A finished game is restored as nothing, so the screen opens at the lobby
      * rather than at a result somebody has already read. */
     if (in.won || in.lost || in.ended) return false;
     if (in.turnPlayer > 1) return false;
+    if (in.phase > static_cast<uint8_t>(Phase::Firing)) return false;
+    if (in.pendingCell != NO_CELL && in.pendingCell >= CELLS) return false;
+    /* Across consoles there is one sea here, no curtain, and somebody on the
+     * other end of it. */
+    if (want == Mode::Remote &&
+        (in.turnPlayer != 0 || in.opponent[0] == 0 ||
+         static_cast<Phase>(in.phase) == Phase::Passing)) {
+        return false;
+    }
+    return true;
+}
 
-    mode_ = m;
+void SeaBattleGame::unpack(const Saved& in) {
+    mode_ = static_cast<Mode>(in.mode);
     phase_ = static_cast<Phase>(in.phase);
     turnPlayer_ = in.turnPlayer;
     placed_[0] = in.placed[0] != 0;
@@ -94,6 +127,44 @@ bool SeaBattleGame::restoreGame(AppContext& host) {
         side_[s].hitsTaken = in.hitsTaken[s];
         side_[s].sunkAgainstUs = in.sunkAgainstUs[s];
     }
+}
+
+bool SeaBattleGame::restoreNearby(AppContext& host) {
+    Saved in{};
+    host.loadConsoleBlob(SAVE_KEY, &in, sizeof(in));
+    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) return false;
+    if (inPlay(in, Mode::Remote)) {
+        unpack(in);
+        /* Its turn goes back on the air from the next frame, in place of
+         * whatever an older game left there. */
+        lastWord_ = false;
+        return true;
+    }
+    /* Over, or not a game that can be gone on with. Nothing will read it
+     * again, so it does not stay. */
+    host.clearConsoleBlob(SAVE_KEY);
+    return false;
+}
+
+bool SeaBattleGame::loadOwn(AppContext& host, Saved& in) {
+    in = Saved{};
+    host.loadBlob(SAVE_KEY, &in, sizeof(in));
+    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) {
+        /* Nothing of this player's under the game's own key yet, so look
+         * where it used to be kept. Only a game on this console is taken
+         * from there: a nearby one saved that way was a player's, and a
+         * nearby game is the console's now. */
+        in = Saved{};
+        host.loadBlob(OLD_KEY, &in, sizeof(in));
+        if (in.magic != SAVE_MAGIC || in.version != OLD_SAVE_VERSION) return false;
+    }
+    return inPlay(in, Mode::Local);
+}
+
+bool SeaBattleGame::restoreOwn(AppContext& host) {
+    Saved in{};
+    if (!loadOwn(host, in)) return false;
+    unpack(in);
     return true;
 }
 
@@ -126,27 +197,13 @@ void SeaBattleGame::resume(AppContext& host, uint32_t awayMs) {
     (void)awayMs;
     confirmUntilMs_ = 0;
 }
-
-/* Whose game is the one still in memory?
- *
- * A player with a save has this game in it from the moment it started, so a
- * save naming another game -- or none, which is what Guest reads -- means the
- * console has changed hands. Guest's own game is the other way round: nothing
- * was ever written, so it is Guest's for as long as nothing can be read. A
- * player who has never opened Sea Battle reads nothing either and is taken
- * for Guest; that is the one case this cannot tell apart. */
-void SeaBattleGame::noteOwner(AppContext& host) {
-    saveGame(host);
-    Saved in{};
-    host.loadBlob("game", &in, sizeof(in));
-    savesKept_ = in.magic == SAVE_MAGIC && in.version == SAVE_VERSION;
 }
 
-bool SeaBattleGame::keptGameIsOurs(AppContext& host) const {
+bool SeaBattleGame::ownGameKept(AppContext& host) const {
     Saved in{};
-    host.loadBlob("game", &in, sizeof(in));
-    const bool saved = in.magic == SAVE_MAGIC && in.version == SAVE_VERSION;
-    if (!savesKept_) return !saved;
-    return saved && in.session == session_ &&
-           memcmp(in.opponent, opponent_, sizeof(in.opponent)) == 0;
+    return loadOwn(host, in);
+}
+
+void SeaBattleGame::forgetNearby(AppContext& host) {
+    host.clearConsoleBlob(SAVE_KEY);
 }

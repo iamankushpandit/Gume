@@ -12,14 +12,14 @@
 #include <string.h>
 
 #include "engine/AppRegistry.h"
-#include "engine/Entropy.h"
+#include "ui/Stops.h"
 
-/* Go: the game's life, a tap on the board, the computer's pace, the marking
- * phase and the score. Five files against one header --
+/* Go: a game from its first stone to its score, a tap on the board, the
+ * computer's pace and the marking phase. Four files against one header --
  *   GoGame.cpp   this
- *   GoDraw.cpp   geometry and every pixel
+ *   GoDraw.cpp   geometry and every pixel of the board and its panel
  *   GoNet.cpp    the lobby and a game against a nearby console
- *   GoSave.cpp   remembering a game in NVS
+ *   GoSave.cpp   opening the screen, leaving it, and what is remembered
  * over GoRules (the rules) and GoAi (the computer), which are pure. */
 
 namespace {
@@ -63,55 +63,19 @@ const char* GoGame::title() const {
     return goAppMetadata().title;
 }
 
-void GoGame::begin(AppContext& host) {
-    confirmUntilMs_ = 0;
-    confirmShown_ = false;
-    ghost_ = Go::NO_POINT;
-    haveUndo_ = false;
-    watch_.reset();
-    pausePainted_ = false;
-    pauseHold_ = false;
-    resultOverlay_ = false;
-    rng_.x = Entropy::below(0xFFFFFFFFU) | 1U;
-    /* This screen is one instance for the life of the console, so a nearby
-     * game it was left in is still here, finished or not, and is kept as it
-     * is: the save may be older than it, and a Guest has no save at all.
-     * Anything else comes back from the save. */
-    if (mode_ != Mode::Remote) {
-        if (!restoreGame(host)) {
-            mode_ = Mode::Lobby;
-        }
-        /* Not a nearby game, and no last word still waiting to be heard: a
-         * turn this game left on the air belongs to a game it cannot show. */
-        if (mode_ != Mode::Remote && !settling_) host.nearbyStop();
-    }
-    lobbyStale_ = true;
-    turnStale_ = capturesStale_ = infoStale_ = buttonsStale_ = resultStale_ = true;
-    seatCount_ = 0;
-    seatsAtMs_ = 0;
-}
-
-void GoGame::end(AppContext& host) {
-    if (mode_ == Mode::Local || mode_ == Mode::Computer || mode_ == Mode::Remote) {
-        saveGame(host);
-    }
-    /* Leaving the screen does not end a game played across consoles: only End
- * game does. So a nearby game's last move stays on the air while this console
- * is elsewhere -- the other console may not have heard it yet, and taking it
- * off would strand them waiting for a move that had already been made. It is
- * replaced when this screen comes back and the game carries on, or when a new
- * game starts. The same goes for the last word of a game that has finished
- * or that we ended, until it has been heard. Everything else hands the radio
- * back, an unanswered invitation included. */
-    if (mode_ != Mode::Remote && !settling_) host.nearbyStop();
-}
-
 // ---- the game --------------------------------------------------------------------
 
 void GoGame::newGame(Mode mode) {
+    newGame(mode, (boardSize_ > 9 && BIG_BOARD_AVAILABLE) ? 19 : 9, rules_);
+}
+
+void GoGame::newGame(Mode mode, uint8_t n, Go::Rules rules) {
     mode_ = mode;
-    const uint8_t n = (boardSize_ > 9 && BIG_BOARD_AVAILABLE) ? 19 : 9;
-    Go::reset(state_, n, rules_);
+    Go::reset(state_, n, rules);
+    /* A game played here is written to the player's save, over whatever game
+     * was waiting there. An invitation or a nearby game is not, so a game
+     * the lobby was offering to carry on is still offered afterwards. */
+    if (mode == Mode::Local || mode == Mode::Computer) shelved_ = Mode::Lobby;
     phase_ = Phase::Play;
     ghost_ = Go::NO_POINT;
     haveUndo_ = false;
@@ -122,7 +86,6 @@ void GoGame::newGame(Mode mode) {
     deadPlayoutsLeft_ = 0;
     memset(dead_, 0, sizeof(dead_));
     memset(own_, 0, sizeof(own_));
-    ended_ = false;
     toggledThisMarking_ = false;
     watch_.reset();
     pausePainted_ = false;
@@ -336,20 +299,29 @@ void GoGame::pressAction(AppContext& host, uint32_t now) {
         return;
     }
     if (phase_ == Phase::Over) {
-        /* To the lobby. After a nearby game the last move stays on the air
-         * from there until the other console has heard it (settleAir). */
+        /* To the lobby. A nearby game is finished with here, and its last
+         * move stays on the air for the rest of its minute (sayLastWord). */
+        host.playSound(Sound::Select);
+        if (mode_ == Mode::Remote) {
+            lobbyAfterNearby(host);
+            return;
+        }
         watch_.reset();
         pausePainted_ = false;
         mode_ = Mode::Lobby;
         lobbyStale_ = true;
-        host.playSound(Sound::Select);
         saveGame(host);
         markFullDirty();
         return;
     }
+    if (mode_ == Mode::Waiting) {
+        /* Nothing to end: the invitation is taken back, in one press. */
+        takeBackInvite(host);
+        return;
+    }
     if (now < confirmUntilMs_) {
         confirmUntilMs_ = 0;
-        if (mode_ == Mode::Remote || mode_ == Mode::Waiting) {
+        if (mode_ == Mode::Remote) {
             endRemoteByUs(host);
             return;
         }
@@ -506,8 +478,7 @@ void GoGame::finishGame(AppContext& host) {
         }
     } else if (mode_ == Mode::Remote) {
         host.playSound(state_.winner == humanColour_ ? Sound::Victory : Sound::GameOver);
-        settling_ = true;   // the last word stays up until they have heard it
-        settlePly_ = ourPly_;
+        sayLastWord(host);   // the other console may not have heard how it ended
     } else {
         host.playSound(Sound::Victory);
     }
@@ -520,10 +491,36 @@ void GoGame::finishGame(AppContext& host) {
 
 // ---- input ------------------------------------------------------------------------------
 
+void GoGame::updateStops() {
+    /* The result card is over the board with the two buttons that matter:
+     * while it is up, only what is inside it is a stop. */
+    const bool card = mode_ != Mode::Lobby && phase_ == Phase::Over;
+    if (card) {
+        Ui::setOverlayStops(resultRect());
+    } else if (resultOverlay_) {
+        Ui::clearOverlayStops();
+    }
+    resultOverlay_ = card;
+    if (mode_ == Mode::Lobby) {
+        Ui::clearBoardStops();
+        return;
+    }
+    /* The points stay drawn whoever is to move. They are stops exactly while
+     * a press on one would be acted on: this console's turn, or the marking.
+     * Never while an invitation is unanswered, and not under the pause card,
+     * which takes every press while it is up. After Keep waiting the game is
+     * still paused but a stone can be played -- it goes on the air for when
+     * they are back -- so the board is live again. */
+    bool live = false;
+    if (mode_ != Mode::Waiting && !(mode_ == Mode::Remote && watch_.cardShown())) {
+        live = phase_ == Phase::Marking || (phase_ == Phase::Play && humanTurn());
+    }
+    Ui::setBoardStops(boardRect(), live);
+}
+
 void GoGame::update(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     updateStops();
-    if (settling_) settleAir(host);
     if (mode_ == Mode::Lobby) {
         updateLobby(host, touch);
         return;
@@ -533,7 +530,7 @@ void GoGame::update(AppContext& host, const TouchPoint& touch) {
         markDirty();
     }
     if (mode_ == Mode::Remote || mode_ == Mode::Waiting) {
-        pollRemote(host, now);
+        pollRemote(host);
         if (mode_ == Mode::Lobby) return;   // the other console ended it
         if (updatePause(host, touch, now)) return;
     }
@@ -550,7 +547,7 @@ void GoGame::update(AppContext& host, const TouchPoint& touch) {
         if (resultButtonRect(0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             if (mode_ == Mode::Remote) {
                 /* Again across consoles is a new invitation, made from the
-                 * lobby -- and saved as the lobby, or the card came back. */
+                 * lobby; this game is finished with on the way there. */
                 pressAction(host, now);
             } else {
                 host.playSound(Sound::Select);

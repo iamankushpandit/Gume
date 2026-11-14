@@ -41,6 +41,16 @@
  * receiver computes that nothing is left to play, which is also how a turn
  * with no moves at all passes without anything being sent.
  *
+ * ------------------------------------------------------------------------
+ * What ends a game, and what does not
+ * ------------------------------------------------------------------------
+ * End game pressed here, the other console's ending heard, or somebody
+ * bearing off the last checker. Nothing else: leaving the screen, opening
+ * another game, the console sleeping or restarting and a different player
+ * picking it up all leave the game where it was, with its last move still on
+ * the air (BackgammonGame::end) and its state in the console's own storage
+ * (BackgammonSave.cpp).
+ *
  * It is a BROADCAST: anyone in range hears the moves. The lobby says so. */
 
 namespace {
@@ -53,34 +63,120 @@ constexpr uint8_t PLY_MASK = 0x7F;
 inline uint8_t nextPly(uint8_t p) { return static_cast<uint8_t>((p + 1) & PLY_MASK); }
 inline bool atOrAfter(uint8_t a, uint8_t b) { return ((a - b) & PLY_MASK) < 64; }
 
+/* Would the lobby's row for this console read differently? Everything a row
+ * shows is here, so a console that starts or stops asking, begins a game or
+ * is given a name repaints the lobby as surely as one that arrives. */
+bool rowDiffers(const NearbySeat& a, const NearbySeat& b) {
+    return strcmp(a.deviceId, b.deviceId) != 0 || strcmp(a.name, b.name) != 0 ||
+           (a.inviting && a.forThisGame) != (b.inviting && b.forThisGame) ||
+           a.asking != b.asking || a.inGame != b.inGame ||
+           strcmp(a.partner, b.partner) != 0 || strcmp(a.partnerName, b.partnerName) != 0;
+}
+
 }   // namespace
 
-void BackgammonGame::updateLobby(AppContext& host, const TouchPoint& touch) {
-    const uint32_t now = millis();
-    if (now - seatsAtMs_ >= SEATS_REFRESH_MS) {
-        seatsAtMs_ = now;
-        NearbySeat fresh[6];
-        uint8_t count = 0;
-        const uint8_t n = host.nearbySeatCount();
-        for (uint8_t i = 0; i < n && count < 6; ++i) {
+// ---- the lobby ------------------------------------------------------------------
+
+BackgammonGame::RowKind BackgammonGame::rowKind(const NearbySeat& seat) {
+    if (seat.inviting && seat.forThisGame) return RowKind::Invites;
+    if (seat.asking) return RowKind::Asking;
+    if (seat.inGame && seat.partner[0] != 0) return RowKind::Playing;
+    if (seat.inGame) return RowKind::PlayBusy;
+    return RowKind::Play;
+}
+
+bool BackgammonGame::seatNow(AppContext& host, const char* id, NearbySeat& out) {
+    const uint8_t n = host.nearbySeatCount();
+    for (uint8_t i = 0; i < n; ++i) {
+        if (host.nearbySeatAt(i, out) && strcmp(out.deviceId, id) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BackgammonGame::invitationHere(AppContext& host, const char* from, NearbySeat& out) {
+    /* Nobody is asking this console anything: the usual answer, and the
+     * cheap one. Otherwise every console is looked at, because more than one
+     * can be asking and the service names only the first. */
+    if (!host.nearbyInviteForUs(out)) {
+        return false;
+    }
+    const uint8_t n = host.nearbySeatCount();
+    for (uint8_t i = 0; i < n; ++i) {
+        if (!host.nearbySeatAt(i, out) || !out.inviting || !out.forThisGame) continue;
+        if (from == nullptr || strcmp(out.deviceId, from) == 0) return true;
+    }
+    return false;
+}
+
+void BackgammonGame::refreshSeats(AppContext& host) {
+    seatsAtMs_ = millis();
+    NearbySeat fresh[SEAT_ROWS];
+    uint8_t count = 0;
+    const uint8_t n = host.nearbySeatCount();
+    /* Consoles asking this one first: there are only so many rows, and an
+     * invitation must not be the row that did not fit. */
+    for (uint8_t pass = 0; pass < 2; ++pass) {
+        for (uint8_t i = 0; i < n && count < SEAT_ROWS; ++i) {
             NearbySeat seat;
-            if (host.nearbySeatAt(i, seat)) {
-                /* An invitation to another game is not one to accept here. */
-                seat.inviting = seat.inviting && seat.forThisGame;
-                fresh[count++] = seat;
-            }
+            if (!host.nearbySeatAt(i, seat)) continue;
+            if ((rowKind(seat) == RowKind::Invites) != (pass == 0)) continue;
+            fresh[count++] = seat;
         }
-        bool changed = count != seatCount_;
-        for (uint8_t i = 0; !changed && i < count; ++i) {
-            changed = fresh[i].inviting != seats_[i].inviting ||
-                      strcmp(fresh[i].deviceId, seats_[i].deviceId) != 0;
+    }
+    bool changed = count != seatCount_;
+    for (uint8_t i = 0; !changed && i < count; ++i) {
+        changed = rowDiffers(fresh[i], seats_[i]);
+    }
+    for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
+    seatCount_ = count;
+    if (changed) {
+        lobbyStale_ = true;
+        markDirty();
+    }
+}
+
+void BackgammonGame::pressSeat(AppContext& host, const NearbySeat& shown) {
+    if (!rowPressable(rowKind(shown))) {
+        return;   // busy with somebody else: the row says so and is no button
+    }
+    /* The row is up to a second old and the press is judged on what that
+     * console is saying now: an invitation taken back in that second is not
+     * accepted, and a console that has just become busy is not asked. */
+    NearbySeat seat;
+    if (!seatNow(host, shown.deviceId, seat)) {
+        host.beepError();     // it has left the room
+        refreshSeats(host);
+        return;
+    }
+    const RowKind kind = rowKind(seat);
+    if (kind == RowKind::Invites) {
+        /* Accepting: their session, and the side the coin gave us came with
+         * the invitation. Our presence in their session is the whole
+         * answer. */
+        host.playSound(Sound::Select);
+        startRemote(host, seat, seat.session, seat.weMoveFirst, false);
+        return;
+    }
+    if (rowPressable(kind)) {
+        /* Never a number either console still holds a turn for: an old
+         * game's last move, or its ending, would be read as this one's. */
+        const uint8_t session = host.nearbyFreshSession();
+        bool weAreWhite = false;
+        if (host.nearbyInvite(seat.deviceId, session, weAreWhite)) {
+            host.playSound(Sound::Select);
+            startRemote(host, seat, session, weAreWhite, true);
+            return;
         }
-        for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
-        seatCount_ = count;
-        if (changed) {
-            lobbyStale_ = true;
-            markDirty();
-        }
+    }
+    host.beepError();
+    refreshSeats(host);   // show what changed under the press
+}
+
+void BackgammonGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    if (millis() - seatsAtMs_ >= SEATS_REFRESH_MS) {
+        refreshSeats(host);
     }
 
     if (!touch.justPressed) {
@@ -91,41 +187,30 @@ void BackgammonGame::updateLobby(AppContext& host, const TouchPoint& touch) {
         lobbyStale_ = true;
         markDirty();
     }
-    if (lobbyRowRect(0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        host.playSound(Sound::Select);
-        newGame(Mode::Local);
-        saveGame(host);
-        return;
-    }
-    if (lobbyRowRect(1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        host.playSound(Sound::Select);
-        newGame(Mode::Computer);
-        saveGame(host);
-        return;
-    }
-    for (uint8_t i = 0; i < seatCount_ && i < 3; ++i) {
-        if (!lobbyRowRect(static_cast<uint8_t>(i + 2)).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    for (uint8_t row = 0; row < 2; ++row) {
+        if (!lobbyRowRect(row).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             continue;
         }
-        if (seats_[i].inviting) {
-            /* Accepting: their session, and the side the coin gave us came
-             * with the invitation. Our presence in their session is the
-             * whole answer. */
-            host.playSound(Sound::Select);
-            startRemote(host, seats_[i], seats_[i].session, seats_[i].weMoveFirst, false);
-        } else {
-            /* Never a number either console still holds a turn for: an old
-             * game's last move, or its ending, would be read as this one's. */
-            const uint8_t session = host.nearbyFreshSession();
-            bool weAreWhite = false;
-            if (host.nearbyInvite(seats_[i].deviceId, session, weAreWhite)) {
-                host.playSound(Sound::Select);
-                startRemote(host, seats_[i], session, weAreWhite, true);
-            } else {
-                host.beepError();
-            }
+        const Mode mode = row == 0 ? Mode::Local : Mode::Computer;
+        host.playSound(Sound::Select);
+        /* The game this lobby came up in front of is carried on, not started
+         * over; the other row is a new game, and takes its place. */
+        const bool carryOn = savedBehind_ == mode;
+        savedBehind_ = Mode::Lobby;
+        if (carryOn && loadPlayerGame(host)) {
+            panelStale_ = true;
+            markFullDirty();
+            return;
         }
+        newGame(mode);
+        saveGame(host);
         return;
+    }
+    for (uint8_t i = 0; i < seatCount_ && i < SEAT_ROWS; ++i) {
+        if (lobbyRowRect(static_cast<uint8_t>(i + 2)).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            pressSeat(host, seats_[i]);
+            return;
+        }
     }
 }
 
@@ -148,17 +233,36 @@ void BackgammonGame::startRemote(AppContext& host, const NearbySeat& seat, uint8
     myPly_ = 0;
     myFrom_ = 0;
     myTo_ = 0;
-    lastHeardMs_ = millis();
-    away_ = false;
     lastAcked_ = true;    // nothing of ours to acknowledge yet
     lastWordOnAir_ = false;    // the invitation, or our first word, replaces it
     if (waiting) {
+        /* Nothing is saved for an invitation, and nothing moves until it is
+         * answered. It stays on the air until then, or until it is taken
+         * back: Cancel, or leaving the screen. */
         setMessage("Asking...");
     } else {
         host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
-        doOpening(host);
+        doOpening(host);   // which saves: the game is the console's from here
     }
-    saveGame(host);
+}
+
+void BackgammonGame::cancelAsk(AppContext& host, const char* note) {
+    if (note != nullptr) {
+        snprintf(lobbyNote_, sizeof(lobbyNote_), "%s", note);
+    }
+    host.nearbyStop();
+    host.playSound(Sound::Select);
+    enterLobby(host);
+}
+
+void BackgammonGame::holdLastWord(AppContext& host) {
+    host.nearbyStopLater();
+    lastWordOnAir_ = true;
+    lastWordAtMs_ = millis();
+}
+
+bool BackgammonGame::lastWordStanding() const {
+    return lastWordOnAir_ && millis() - lastWordAtMs_ < NearbyPlay::LAST_WORD_MS;
 }
 
 void BackgammonGame::leaveRemote(AppContext& host, const char* note) {
@@ -166,16 +270,13 @@ void BackgammonGame::leaveRemote(AppContext& host, const char* note) {
         snprintf(lobbyNote_, sizeof(lobbyNote_), "%s", note);
     }
     host.nearbyStop();
+    forgetGame(host);
     ended_ = true;
     lastWordOnAir_ = false;
-    away_ = false;
     watch_.reset();
     pausePainted_ = false;
-    mode_ = Mode::Lobby;
-    lobbyStale_ = true;
     host.playSound(Sound::GameOver);
-    saveGame(host);
-    markFullDirty();
+    enterLobby(host);
 }
 
 void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
@@ -196,10 +297,28 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
          * invitation. */
         if (heard) {
             mode_ = Mode::Remote;
-            lastHeardMs_ = now;
             host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
             doOpening(host);
             markFullDirty();
+            return;
+        }
+        const char* self = host.nearbySelfId();
+        if (self[0] == 0) {
+            /* Nearby was switched off under the invitation and the service
+             * took it down; it would not come back by itself. */
+            cancelAsk(host, "Nearby was switched off");
+            return;
+        }
+        /* Both consoles asked each other at the same moment, and each is
+         * waiting for the other to answer. One gives way, and which one is
+         * decided by something both can see and neither chose: the console
+         * with the greater tag takes its invitation back and accepts the
+         * other's. The other does nothing and is answered. */
+        NearbySeat seat;
+        if (strcmp(self, opponent_) > 0 && invitationHere(host, opponent_, seat)) {
+            host.nearbyStop();
+            host.playSound(Sound::Select);
+            startRemote(host, seat, seat.session, seat.weMoveFirst, false);
         }
         return;
     }
@@ -207,32 +326,8 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
     if (!ended_) {
         host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
     }
-
-    /* In the room but not in this game: it went back to its lobby, or began
-     * another game, and whatever it said about that was missed. Its beacon is
-     * still heard, so the watch never pauses; without this the panel would
-     * say "Their turn" for ever. It is said, not acted on -- they may come
-     * back -- and End is there for the player who would rather not wait.
-     * Real silence is the watch's to report, not this. */
     if (heard) {
-        lastHeardMs_ = now;
         lastAcked_ = atOrAfter(t.ack, myPly_);
-        if (away_) {
-            away_ = false;
-            setPhaseMessage();
-            markDirty();
-        }
-    } else if (phase_ == Phase::Over && !undelivered()) {
-        lastHeardMs_ = now;   // nothing more is owed either way
-    } else if (host.nearbyPeerSilentMs(opponent_) >= NearbyPlay::PEER_QUIET_MS) {
-        lastHeardMs_ = now;
-        away_ = false;
-    } else if (!away_ && now - lastHeardMs_ >= NearbyPlay::PEER_QUIET_MS) {
-        away_ = true;
-        char line[24];
-        snprintf(line, sizeof(line), "%.10s not in game", who);
-        setMessage(line);
-        markDirty();
     }
 
     /* Our turn, one move per ply, each once they have the one before. */
@@ -278,32 +373,73 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
 }
 
 void BackgammonGame::endRemoteByUs(AppContext& host) {
-    /* The service's own ending, which stays on the air after we leave so the
-     * other console still hears it; it goes back to its lobby too
-     * (pollRemote). Used by End game and by the pause card alike. */
-    host.nearbyEnd(session_, static_cast<uint8_t>((applied_ + 1) & 0x7F), applied_);
+    /* The service's own ending. It stays on the air after we leave -- for
+     * the lobby, or the screen altogether -- so the other console still
+     * hears it and goes back to its lobby too (pollRemote), and the service
+     * takes it down after a minute. Used by End game and by the pause card
+     * alike, and by nothing else: this is the one way this console ends a
+     * nearby game that is still being played. */
+    host.nearbyEnd(session_, nextPly(applied_), applied_);
+    holdLastWord(host);
+    forgetGame(host);
     ended_ = true;
-    lastWordOnAir_ = true;
-    away_ = false;
     outboxCount_ = 0;
     watch_.reset();
     pausePainted_ = false;
-    mode_ = Mode::Lobby;
-    lobbyStale_ = true;
     host.playSound(Sound::Select);
-    saveGame(host);
-    markFullDirty();
+    enterLobby(host);
+}
+
+bool BackgammonGame::closeRemote(AppContext& host, uint32_t now) {
+    const bool won = winner_ == (ourWhite_ ? Bg::WHITE : Bg::BLACK);
+    const bool owed = undelivered();
+    /* The winning moves are still on their way, and the other console is
+     * there to take them, so the first press only says so. It must not be the
+     * only thing this button can do, though: a console left on another screen
+     * still looks present and takes nothing, and this game stays in the
+     * instance however often the screen is left. A second press leaves. Once
+     * the other console has gone -- quiet, or off to another game -- nobody
+     * is left to wait for. */
+    if (owed && !watch_.paused() && now >= confirmUntilMs_) {
+        confirmUntilMs_ = now + CONFIRM_MS;
+        setMessage("Again to leave");
+        host.beepError();
+        markDirty();
+        return false;
+    }
+    confirmUntilMs_ = 0;
+    if (won && !owed) {
+        host.nearbyStop();   // every move arrived
+    } else {
+        /* Moves that never went out cannot be caught up, so the other
+         * console is told the game is over rather than left waiting for
+         * them. Otherwise what is on the air stays as our last word: the
+         * move that won, not yet acknowledged, or -- having lost -- the
+         * acknowledgement the winner is waiting for before it can leave. */
+        if (outboxCount_ > 0) {
+            host.nearbyEnd(session_, nextPly(applied_), applied_);
+        }
+        holdLastWord(host);
+    }
+    outboxCount_ = 0;
+    watch_.reset();
+    pausePainted_ = false;
+    return true;
 }
 
 /* ---- the other console going quiet -----------------------------------------
  *
- * NearbyWatch decides what quiet means; this is what Backgammon does about
- * it. Only a live remote game is watched -- not an invitation still
- * unanswered, which has its own "Asking..." and its own End, and not a game
+ * NearbyWatch decides what quiet means -- not heard at all, or heard but no
+ * longer saying anything in this game -- and this is what Backgammon does
+ * about it. Only a live remote game is watched -- not an invitation still
+ * unanswered, which has its own "Asking..." and its own Cancel, and not a game
  * that is over, unless this console won it and the winning moves have not all
  * arrived: the other console still has to be there for those. It is watched
  * on OUR turn as much as theirs: a move of ours cannot be acknowledged by a
- * console that is not there, so the outbox would simply stall. */
+ * console that is not there, so the outbox would simply stall.
+ *
+ * Nothing here ends the game. Keep waiting leaves it exactly as it is, for as
+ * long as the player likes; only End game on the card ends it. */
 bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now) {
     if (mode_ != Mode::Remote || (phase_ == Phase::Over && !undelivered())) {
         if (watch_.paused()) {
@@ -316,9 +452,13 @@ bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint
     const NearbyWatch::State before = watch_.state();
     if (watch_.tick(host, opponent_, now)) {
         if (watch_.state() != before) {
+            /* The panel's own line, for once the card has been sent away. */
+            const NearbyWatch::State state = watch_.state();
             char line[24];
             snprintf(line, sizeof(line), "%.10s %s", sideName(ourWhite_ ? Bg::BLACK : Bg::WHITE),
-                     watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+                     state == NearbyWatch::State::Gone   ? "out of range"
+                     : state == NearbyWatch::State::Away ? "not in game"
+                                                         : "gone quiet");
             setMessage(line);
         }
         markDirty();

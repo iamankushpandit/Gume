@@ -218,8 +218,12 @@ void SeaBattleGame::drawStatus(AppContext& host) const {
     } else if (mode_ == Mode::Remote && watch_.paused() && !gameOver()) {
         /* Still here after Keep waiting has taken the card away. */
         snprintf(top, sizeof(top), "%s", opponentLabel());
+        /* Away is heard but saying nothing in this game: quiet would be the
+         * wrong word for a console that is plainly still there. */
         snprintf(bot, sizeof(bot),
-                 watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+                 watch_.state() == NearbyWatch::State::Gone   ? "out of range"
+                 : watch_.state() == NearbyWatch::State::Away ? "not in this game"
+                                                              : "gone quiet");
         colour = Ui::warning();
     } else if (won_) {
         snprintf(top, sizeof(top), "You win!");
@@ -400,7 +404,10 @@ void SeaBattleGame::renderStatic(AppContext& host) {
 
 void SeaBattleGame::renderDynamic(AppContext& host) {
     if (mode_ == Mode::Lobby) {
-        renderLobby(host);
+        /* On a whole repaint renderStatic() has just drawn the lobby, and its
+         * rows change more often now that they say what each console is
+         * doing. Twice over was two clears to the eye. */
+        if (!needsFullRender()) renderLobby(host);
         return;
     }
     if (phase_ == Phase::Passing || fullPaint_) {

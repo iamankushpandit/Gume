@@ -82,8 +82,61 @@ threshold past which a game pauses and says so; `PEER_SILENT_UNKNOWN` is
 returned once the scanner has dropped the peer at `SIGHTING_TTL_MS`, which is
 where "a short pause" becomes "a choice". Read it every frame -- it is a walk
 over at most eight entries. Never lower the threshold below a few scan
-intervals: the scanner listens 300ms in 900, so silence of a second or two is
+intervals: the scanner listens 260ms in 780, so silence of a second or two is
 ordinary.
+
+**And so is a peer that is heard but has left the game.** `peerAwayMs()`
+answers "how long has this console, though heard, said no move in the session
+our own turn is in" -- from `Known::lastTurnMs`, which the scanner stamps
+whenever an advertisement carries a move, and from `sessionSinceMs_`, the
+moment our own turn last changed session (the console that accepts an
+invitation says its first turn before the other has said any, and must not be
+called away for that). Past `PEER_AWAY_MS` (20s) the peer has lost the game,
+started another or switched Nearby off; a console that only left the *screen*
+keeps its move on the air and is not this. `NearbyWatch` turns it into the
+same card as silence. 20s is longer than a poke takes a move's place for (6s)
+plus the scan's misses.
+
+**The air holds one turn, and the service knows whose it is.** A game left in
+the middle keeps its last move on the air, so the turn can belong to an app
+that is not the one on screen. `turnOwner_` is the app that last published;
+`stopTurns()` takes the turn down only for its owner (or when it is nobody's),
+so one game's lobby calling `nearbyStop()` on its way in or out cannot remove
+another game's kept move. It always withdraws an invitation, which can only be
+the caller's. Four more things follow from a turn outliving its screen:
+
+- **`freshSession()` is where a session number comes from.** Six bits from
+  the clock, stepped past every session this console still holds a turn for
+  (its own on the air, every peer's last) and every number a peer is offering
+  now. A peer's last turn is kept for as long as the peer is in the room, so
+  without this an old game's last move, or its ending, is read as the new
+  game's one time in 64. A game can fix the number's low bits (up to four) to
+  state a setting both consoles must agree before the first move; Go puts its
+  rules and board size there, and the console that accepts reads them back out
+  of `NearbySeat::session`.
+- **`stopTurnsLater()` bounds a finished game's last word.** A game that is
+  over is left with its last move or its ending on the air, because the other
+  console may not have heard it; it goes after `LAST_WORD_MS` (a minute), or
+  the console would look busy and share no score until that game was opened
+  again. Saying a turn again cancels it. `tickSessions()` runs it from
+  `tick()`, in every view.
+- **`dropTurnsForOff()` clears everything when Nearby or the beacon goes
+  off.** A turn left in the payload kept its flag bit on the air with sharing
+  off, and came back, stale, when Nearby was switched on again. A game still
+  in play says its turn again once it may.
+- **A score belongs to the game it was heard with.** A peer that changes app
+  while a move has its score's place on the air has sent no number for the new
+  app: `BleScan` forgets the old one, `evaluateScore()` ignores a sighting
+  with no score, and `PeerView::haveTheirScore` lets the Nearby screen print a
+  dash instead of a nought that "beats" every lower-is-better record.
+
+**What a lobby is told about a peer** is `fillSeat()`, the one place a
+`Known` becomes a `NearbySeat`: `inviting` (aimed at this console only),
+`forThisGame`, `asking` (inviting somebody else to the app open here),
+`inGame` (a move heard from it within `PEER_IN_GAME_MS` that is not an
+ending), `partner` (the other console saying moves in that session, or who it
+asked) and `withUs`. All of it is read from what peers already broadcast;
+nothing is transmitted to make a lobby.
 
 Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the notices (one line along the bottom of the screen; `AppRuntimeNotify.cpp` decides which of battery, update and Nearby is up and keeps the strip to itself while it is). `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
 

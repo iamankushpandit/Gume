@@ -50,9 +50,12 @@ const AppMetadata& goAppMetadata();
  * card, and nothing else.
  *
  * Remembered, like Chess: saved after every move and on the way out, packed
- * to two bits a point so nineteen-by-nineteen is a hundred bytes. End game
- * asks twice. Undo takes back your last move and, against the computer, its
- * reply; never in a nearby game, which would need protocol this has not got.
+ * to two bits a point so nineteen-by-nineteen is a hundred bytes. A game
+ * passed between two people or played against the computer is the player's
+ * own; a game against another console is the console's, whoever is holding
+ * it, and only End game ends it (GoSave.cpp). End game asks twice. Undo
+ * takes back your last move and, against the computer, its reply; never in
+ * a nearby game, which would need protocol this has not got.
  *
  * Score: wins against the computer, per profile. */
 class GoGame : public AppGame {
@@ -66,8 +69,8 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    /** Saves. A nearby game's last word stays on the air; anything else
-     *  hands the radio back. */
+    /** Saves. A nearby game stays on the air, because leaving the screen
+     *  does not end it; anything else hands the radio back. */
     void end(AppContext& host) override;
     /* A game on the board comes back as it was left, with no question asked:
      * End game is this screen's own way out of one. In GoSave.cpp. */
@@ -92,7 +95,9 @@ private:
     enum class Phase : uint8_t { Play, Thinking, Marking, Over };
 
     // ---- flow (GoGame.cpp) ---------------------------------------------------
+    /** A new game on the lobby's chips, or on a board and rules given. */
     void newGame(Mode mode);
+    void newGame(Mode mode, uint8_t n, Go::Rules rules);
     /** Apply a move for whoever is to move: the board, the sounds, the save. */
     void applyMove(AppContext& host, uint16_t p, bool byHuman);
     void tapBoard(AppContext& host, const TouchPoint& touch);
@@ -114,11 +119,48 @@ private:
     void markChanged(const Go::State& before);
     void markPoint(uint16_t p);
 
-    // ---- nearby (GoNet.cpp) ---------------------------------------------------
+    // ---- the lobby and a nearby game (GoNet.cpp) --------------------------------
+    /* The two things both consoles of a nearby game must agree before the
+     * first stone. The console that asks states them in the low four bits of
+     * the session number -- the rules in three, the 19x19 board in the
+     * fourth -- and the console that answers plays what it was asked to,
+     * whatever its own chips say. */
+    static constexpr uint8_t SETTING_BITS = 4;
+    static constexpr uint8_t SETTING_RULES = 0x07;
+    static constexpr uint8_t SETTING_BIG = 0x08;
+    /** Rows for consoles in the room, under the two for playing here. */
+    static constexpr uint8_t LOBBY_SEATS = 3;
+
+    /* What a lobby row says about one console in the room. Invites, PlayBusy
+     * and Play take a press; the others only say what that console is
+     * doing, and are drawn so that they do not look like buttons. */
+    enum class Row : uint8_t {
+        Invites,    // asking us, to a game this console can play
+        TooBig,     // asking us to 19x19, on a panel too small for it
+        NoRules,    // asking us under rules this build has not got
+        Asking,     // waiting on somebody else's answer
+        Playing,    // in a game with a console we can hear as well
+        PlayBusy,   // in a game with somebody; can still be asked
+        Play,       // free
+    };
+    static Row rowFor(const NearbySeat& seat);
+    static bool rowTakesPress(Row row) {
+        return row == Row::Invites || row == Row::PlayBusy || row == Row::Play;
+    }
+    static void rowLabel(const NearbySeat& seat, Row row, char* out, size_t len);
     void updateLobby(AppContext& host, const TouchPoint& touch);
-    void startRemote(AppContext& host, const NearbySeat& seat, uint8_t session, bool weAreBlack,
+    /** Who is in the room and what each is doing, read now; the lobby is
+     *  repainted if any row would read differently. */
+    void refreshSeats(AppContext& host);
+    void pressSeat(AppContext& host, uint8_t index);
+    /** Their game, on their rules and board: our presence is the answer. */
+    bool acceptInvite(AppContext& host, const NearbySeat& seat);
+    void inviteSeat(AppContext& host, const NearbySeat& seat);
+    /** Back from Asking: the invitation comes off the air. */
+    void takeBackInvite(AppContext& host);
+    bool startRemote(AppContext& host, const NearbySeat& seat, uint8_t session, bool weAreBlack,
                      bool waiting);
-    void pollRemote(AppContext& host, uint32_t now);
+    void pollRemote(AppContext& host);
     void publishOurs(AppContext& host);
     /** Our next numbered word: a stone, a pass, a toggle or an agreement. */
     void sendWord(AppContext& host, Go::Net::Kind kind, uint16_t p);
@@ -128,18 +170,36 @@ private:
     bool remoteMayMark(AppContext& host);
     /** End game from the marking phase of a nearby game, asked twice. */
     void pressEndInMarking(AppContext& host, uint32_t now);
-    /** Takes a finished game's last word off the air once it has been heard. */
-    void settleAir(AppContext& host);
-    /** Tells the d-pad's selector whether the board takes a press just now. */
-    void updateStops();
-    void leaveRemote(AppContext& host, const char* note);
-    void endRemoteByUs(AppContext& host);
     bool updatePause(AppContext& host, const TouchPoint& touch, uint32_t now);
     void drawPause(Ui::Renderer& tft);
+    /** Tells the d-pad's selector whether the board takes a press just now
+     *  (GoGame.cpp, beside the input it describes). */
+    void updateStops();
+
+    // ---- a nearby game ending (GoSave.cpp) -----------------------------------
+    /** A finished game's last word, said once more and left for a minute. */
+    void sayLastWord(AppContext& host);
+    void holdLastWord(AppContext& host);
+    bool lastWordUp() const;
+    /** A nearby game is finished with: forgotten, and the lobby shown. */
+    void lobbyAfterNearby(AppContext& host);
+    void leaveRemote(AppContext& host, const char* note);
+    void endRemoteByUs(AppContext& host);
 
     // ---- save (GoSave.cpp) ----------------------------------------------------
+    struct Saved;
+    /** The game on screen, to the console's slot or the player's. */
     void saveGame(AppContext& host) const;
-    bool restoreGame(AppContext& host);
+    /** The lobby's chips alone, leaving a game in the player's save as it is. */
+    void saveChips(AppContext& host) const;
+    /** The player's own save, or false when there is none to read. */
+    bool loadOwn(AppContext& host, Saved& out) const;
+    void fillSaved(Saved& out) const;
+    void takeChips(const Saved& in);
+    /** Take the game out of a blob, if it is one a game could have reached. */
+    bool applySaved(const Saved& in, bool nearby);
+    /** The player's own saved game, picked up again from the lobby. */
+    void resumeShelved(AppContext& host);
 
     // ---- geometry and drawing (GoDraw.cpp) ------------------------------------
     bool big() const { return state_.n > 9; }
@@ -178,7 +238,7 @@ private:
     void drawMagnifier(Ui::Renderer& tft) const;
     void drawButtons(Ui::Renderer& tft, bool sure) const;
     void drawResult(Ui::Renderer& tft) const;
-    void renderLobby(AppContext& host);
+    void renderLobby(AppContext& host);   // GoNet.cpp, with the rest of the lobby
     /** "E5": the column letter (no I, as on a real board) and the row from the bottom. */
     void coordinate(uint16_t p, char* out, size_t len) const;
 
@@ -245,7 +305,6 @@ private:
     uint8_t theirPly_ = 0;
     uint8_t ourFrom_ = 0;
     uint8_t ourTo_ = 0;
-    bool ended_ = false;
     /* The highest ply of ours the other console says it has applied. A turn
      * is one state on the air, so a second word sent before the first was
      * heard replaces it and the first is lost for good: in the marking phase,
@@ -258,16 +317,17 @@ private:
     uint8_t lastTogglePly_ = 0;
     bool toggledThisMarking_ = false;
     /* A game that finished, or that we ended, leaves its last word on the air
-     * until the other console has heard it -- taken down at once, they would
-     * wait for ever on a move that had been made. settlePly_ is that word;
-     * lastWordOurs_ says whether the last numbered word was ours (then their
-     * ack ends it) or theirs (then we keep acking until they go quiet). */
-    bool settling_ = false;
-    bool lastWordOurs_ = false;
-    uint8_t settlePly_ = 0;
-    /* When our invitation went out. It is on the air for a few seconds only. */
-    uint32_t invitedAtMs_ = 0;
-    NearbySeat seats_[6] = {};
+     * for the other console to hear -- taken down at once, they would wait
+     * for ever on a move that had been made -- and the service takes it down
+     * a minute later. This is when it went up, or 0: while it stands, leaving
+     * this screen or opening it again does not take it down early. */
+    uint32_t lastWordAtMs_ = 0;
+    /* The lobby is up over a game in the player's own save: an invitation
+     * was waiting when the screen opened, or a nearby game has just ended.
+     * This is the kind of game that is, so the lobby can offer to carry it
+     * on; Lobby for none. */
+    Mode shelved_ = Mode::Lobby;
+    NearbySeat seats_[LOBBY_SEATS] = {};
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
     char lobbyNote_[32] = {0};
@@ -293,7 +353,9 @@ private:
 
     /* The whole game, flat, for NVS: the board packed to two bits a point.
      * Fixed layout: loadBlob() refuses a blob whose length changed, and
-     * `version` covers one that kept its size. */
+     * `version` covers one that kept its size. boardSize, rules and level
+     * are the lobby's chips; n and gameRules are the game's own, which in a
+     * nearby game are whatever the invitation said. */
     struct Saved {
         uint16_t magic;
         uint8_t version;
@@ -303,6 +365,7 @@ private:
         uint8_t rules;
         uint8_t level;
         uint8_t n;
+        uint8_t gameRules;
         uint8_t at[(Go::MAX_POINTS + 3) / 4];
         uint8_t toMove;
         uint16_t ko;
@@ -322,14 +385,20 @@ private:
         uint8_t theirPly;
         uint8_t ourFrom;
         uint8_t ourTo;
-        uint8_t ended;
     };
     static constexpr uint16_t SAVE_MAGIC = 0x60A0;
     /* 2 changed what `agreed` means: version 1 counted local agreements 1/3
      * while using colour bits remotely, so a version-1 blob restored under
      * these rules would read one local press as White having agreed. The
      * struct is the same size, which is exactly the case `version` exists
-     * for -- loadBlob() cannot catch it by length. */
-    static constexpr uint8_t SAVE_VERSION = 2;
+     * for -- loadBlob() cannot catch it by length.
+     *
+     * 3 gave the game its own rules beside the lobby's chip, and came with
+     * the key below. */
+    static constexpr uint8_t SAVE_VERSION = 3;
+    /* Go's own key. Every nearby game once saved under "game", so saving one
+     * destroyed another's; that key is read once more, for a game left under
+     * it (GoSave.cpp), and never written. */
+    static constexpr const char* SAVE_KEY = "go_game";
     static constexpr uint32_t CONFIRM_MS = 3000;
 };

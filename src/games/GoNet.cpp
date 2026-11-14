@@ -11,8 +11,6 @@
 
 #include <string.h>
 
-#include "ui/Stops.h"
-
 /* Go on two consoles, and the lobby that starts it.
  *
  * Everything on the air is the nearby service's two-player turn -- the same
@@ -21,6 +19,18 @@
  * of four words spelled by Go::Net across the two six-bit fields: a stone, a
  * pass, a dead-group toggle in the marking phase, or accepting the marking.
  * Resigning is the service's own ending.
+ *
+ * THE LOBBY shows every console in the room and what it is doing: asking us,
+ * asking somebody else, in a game, or free. An invitation stands until it is
+ * answered or taken back, so nothing here times one. The console that asks
+ * states the rules and the board in its session number (SETTING_BITS), and
+ * the console that answers plays that game: two consoles on different chips
+ * used to play different games at each other.
+ *
+ * A GAME ONCE BEGUN belongs to the console and only End game ends it -- here,
+ * or on the other console, or the game finishing by its rules. Leaving the
+ * screen, sleeping, a change of player and the other console going quiet do
+ * not: the last word stays on the air and the game is where it was.
  *
  * Every move received is played only if it is legal in THIS console's
  * position and it is the other side's turn, which is what stops a hostile or
@@ -34,38 +44,125 @@
 namespace {
 
 constexpr uint32_t SEATS_REFRESH_MS = 1000;
-/* How long the service keeps an invitation on the air. Past it, the console
- * we asked can no longer be accepting ours. */
-constexpr uint32_t INVITE_ON_AIR_MS = 6000;
+
+/* Would a lobby row for `a` read as the one painted for `b`? Everything a
+ * row is built from, so a console that starts asking, sits down to a game or
+ * is given a name repaints its row -- not only one that arrives or leaves. */
+bool sameRow(const NearbySeat& a, const NearbySeat& b) {
+    return strcmp(a.deviceId, b.deviceId) == 0 && strcmp(a.name, b.name) == 0 &&
+           a.inviting == b.inviting && a.forThisGame == b.forThisGame &&
+           (!a.inviting || a.session == b.session) && a.asking == b.asking &&
+           a.inGame == b.inGame && strcmp(a.partner, b.partner) == 0 &&
+           strcmp(a.partnerName, b.partnerName) == 0;
+}
+
+/* One console by its tag, as it is on this frame rather than as the lobby
+ * last painted it. */
+bool seatNow(AppContext& host, const char* deviceId, NearbySeat& out) {
+    const uint8_t n = host.nearbySeatCount();
+    for (uint8_t i = 0; i < n; ++i) {
+        if (host.nearbySeatAt(i, out) && strcmp(out.deviceId, deviceId) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* A row with nothing to press, so nothing that looks pressable: a plain fill
+ * with no outline and no shadow, and muted words. A fill and an outline of
+ * one rectangle is also what the d-pad's selector stops on, and it must not
+ * stop here. */
+void drawPlainRow(Ui::Renderer& tft, const Rect& r, const char* label) {
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, Ui::cornerRadius(), Ui::surface());
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    tft.drawString(Ui::fitted(tft, label, static_cast<int16_t>(r.w - 12), 2), r.x + r.w / 2,
+                   r.y + r.h / 2, 2);
+    tft.setTextDatum(TL_DATUM);
+}
 
 }   // namespace
 
-void GoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
-    const uint32_t now = millis();
-    if (now - seatsAtMs_ >= SEATS_REFRESH_MS) {
-        seatsAtMs_ = now;
-        NearbySeat fresh[6];
-        uint8_t count = 0;
-        const uint8_t n = host.nearbySeatCount();
-        for (uint8_t i = 0; i < n && count < 6; ++i) {
+// ---- the lobby ----------------------------------------------------------------------
+
+GoGame::Row GoGame::rowFor(const NearbySeat& seat) {
+    if (seat.inviting && seat.forThisGame) {
+        /* The game it offers is written in its session number. One this
+         * console cannot play is shown and cannot be accepted. */
+        if ((seat.session & SETTING_RULES) >= Go::RULES_COUNT) return Row::NoRules;
+        if ((seat.session & SETTING_BIG) != 0 && !BIG_BOARD_AVAILABLE) return Row::TooBig;
+        return Row::Invites;
+    }
+    if (seat.asking) return Row::Asking;
+    if (seat.inGame && seat.partner[0] != 0) return Row::Playing;
+    /* In a game, and we cannot tell whose -- it may be waiting on this very
+     * console -- so it can still be asked: the banner on its screen says
+     * somebody is. */
+    if (seat.inGame) return Row::PlayBusy;
+    return Row::Play;
+}
+
+void GoGame::rowLabel(const NearbySeat& seat, Row row, char* out, size_t len) {
+    const char* who = seat.name[0] != 0 ? seat.name : seat.deviceId;
+    const char* partner = seat.partnerName[0] != 0 ? seat.partnerName : seat.partner;
+    switch (row) {
+        case Row::Invites:
+            /* With the game it would be: the answer plays their rules. */
+            snprintf(out, len, "%s invites you: %s%s", who,
+                     Go::rulesName(static_cast<Go::Rules>(seat.session & SETTING_RULES)),
+                     (seat.session & SETTING_BIG) != 0 ? ", 19x19" : "");
+            break;
+        case Row::TooBig:
+            snprintf(out, len, "%s: 19x19, needs a bigger screen", who);
+            break;
+        case Row::NoRules:
+            snprintf(out, len, "%s: rules this console lacks", who);
+            break;
+        case Row::Asking:
+            snprintf(out, len, "%s is asking %s", who, partner);
+            break;
+        case Row::Playing:
+            snprintf(out, len, "%s is playing %s", who, partner);
+            break;
+        case Row::PlayBusy:
+            snprintf(out, len, "Play %s (in a game)", who);
+            break;
+        case Row::Play:
+            snprintf(out, len, "Play %s", who);
+            break;
+    }
+}
+
+void GoGame::refreshSeats(AppContext& host) {
+    seatsAtMs_ = millis();
+    NearbySeat fresh[LOBBY_SEATS];
+    uint8_t count = 0;
+    const uint8_t n = host.nearbySeatCount();
+    /* Whoever is asking us goes first: with more consoles in the room than
+     * rows, an invitation must not be the one left off. */
+    for (uint8_t pass = 0; pass < 2; ++pass) {
+        for (uint8_t i = 0; i < n && count < LOBBY_SEATS; ++i) {
             NearbySeat seat;
-            if (host.nearbySeatAt(i, seat)) {
-                /* An invitation to another game is not one to accept here. */
-                seat.inviting = seat.inviting && seat.forThisGame;
-                fresh[count++] = seat;
-            }
+            if (!host.nearbySeatAt(i, seat)) continue;
+            if ((seat.inviting && seat.forThisGame) != (pass == 0)) continue;
+            fresh[count++] = seat;
         }
-        bool changed = count != seatCount_;
-        for (uint8_t i = 0; !changed && i < count; ++i) {
-            changed = fresh[i].inviting != seats_[i].inviting ||
-                      strcmp(fresh[i].deviceId, seats_[i].deviceId) != 0;
-        }
-        for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
-        seatCount_ = count;
-        if (changed) {
-            lobbyStale_ = true;
-            markDirty();
-        }
+    }
+    bool changed = count != seatCount_;
+    for (uint8_t i = 0; !changed && i < count; ++i) {
+        changed = !sameRow(fresh[i], seats_[i]);
+    }
+    for (uint8_t i = 0; i < count; ++i) seats_[i] = fresh[i];
+    seatCount_ = count;
+    if (changed) {
+        lobbyStale_ = true;
+        markDirty();
+    }
+}
+
+void GoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
+    if (millis() - seatsAtMs_ >= SEATS_REFRESH_MS) {
+        refreshSeats(host);
     }
 
     if (!touch.justPressed) {
@@ -77,7 +174,7 @@ void GoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
         markDirty();
     }
     /* The chips. Rules cycles through all five; Level toggles; Board, where
-     * it is shown, toggles. Saved with the game so they come back. */
+     * it is shown, toggles. Saved so they come back. */
     const uint8_t chips = BIG_BOARD_AVAILABLE ? 3 : 2;
     for (uint8_t i = 0; i < chips; ++i) {
         if (!lobbyChipRect(i, chips).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
@@ -89,81 +186,211 @@ void GoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
             boardSize_ = boardSize_ > 9 ? 9 : 19;
         }
         host.playSound(Sound::Tap);
-        saveGame(host);
+        saveChips(host);
         lobbyStale_ = true;
         markDirty();
         return;
     }
-    if (lobbyRowRect(0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    /* The two rows for playing here. Over a game still in the player's save
+     * the row of its kind carries that game on, and the other is not drawn
+     * as a button and takes no press (renderLobby says why). */
+    for (uint8_t row = 0; row < 2; ++row) {
+        if (!lobbyRowRect(row).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        const Mode kind = row == 0 ? Mode::Local : Mode::Computer;
+        if (shelved_ == kind) {
+            resumeShelved(host);
+            return;
+        }
+        if (shelved_ != Mode::Lobby) {
+            return;
+        }
         host.playSound(Sound::Select);
-        newGame(Mode::Local);
+        newGame(kind);
         saveGame(host);
         return;
     }
-    if (lobbyRowRect(1).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        host.playSound(Sound::Select);
-        newGame(Mode::Computer);
-        saveGame(host);
-        return;
-    }
-    for (uint8_t i = 0; i < seatCount_ && i < 3; ++i) {
-        if (!lobbyRowRect(static_cast<uint8_t>(i + 2)).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            continue;
+    for (uint8_t i = 0; i < seatCount_; ++i) {
+        if (lobbyRowRect(static_cast<uint8_t>(i + 2)).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            pressSeat(host, i);
+            return;
         }
-        if (seats_[i].inviting) {
-            /* Accepting: their session, and the colour the coin gave us came
-             * with the invitation. Our presence in their session is the
-             * whole answer. */
-            host.playSound(Sound::Select);
-            startRemote(host, seats_[i], seats_[i].session, seats_[i].weMoveFirst, false);
-        } else {
-            /* Never a number an old game's last move is still held under. */
-            const uint8_t session = host.nearbyFreshSession();
-            bool weAreBlack = false;
-            if (host.nearbyInvite(seats_[i].deviceId, session, weAreBlack)) {
-                host.playSound(Sound::Select);
-                startRemote(host, seats_[i], session, weAreBlack, true);
-            } else {
-                host.beepError();
-            }
-        }
-        return;
     }
 }
 
-void GoGame::startRemote(AppContext& host, const NearbySeat& seat, uint8_t session,
+void GoGame::pressSeat(AppContext& host, uint8_t index) {
+    /* A row that only says what that console is doing takes no press. */
+    if (!rowTakesPress(rowFor(seats_[index]))) {
+        return;
+    }
+    /* The row is up to a second old, and an invitation can have been taken
+     * back in that second: accepted from the row as painted, this console
+     * would sit in a game nobody is in. So the press is for what that
+     * console says now -- which, whichever of us asks, is still a game with
+     * the console the player chose. */
+    NearbySeat seat;
+    if (!seatNow(host, seats_[index].deviceId, seat)) {
+        host.beepError();   // gone since the row was painted
+        refreshSeats(host);
+        return;
+    }
+    const Row row = rowFor(seat);
+    if (row == Row::Invites) {
+        if (acceptInvite(host, seat)) {
+            host.playSound(Sound::Select);
+        } else {
+            host.beepError();
+        }
+    } else if (rowTakesPress(row)) {
+        inviteSeat(host, seat);
+    } else {
+        host.beepError();
+        refreshSeats(host);   // it has just become a row that takes none
+    }
+}
+
+bool GoGame::acceptInvite(AppContext& host, const NearbySeat& seat) {
+    if (rowFor(seat) != Row::Invites) {
+        return false;
+    }
+    /* Their session, and the colour the coin gave us came with the
+     * invitation. Our presence in their session is the whole answer. */
+    return startRemote(host, seat, seat.session, seat.weMoveFirst, false);
+}
+
+void GoGame::inviteSeat(AppContext& host, const NearbySeat& seat) {
+    /* The game we offer, said in the session number: our chips. The number
+     * itself is the service's, so it is never one an old game's last move is
+     * still held under. */
+    const bool bigBoard = boardSize_ > 9 && BIG_BOARD_AVAILABLE;
+    const uint8_t settings = static_cast<uint8_t>((static_cast<uint8_t>(rules_) & SETTING_RULES) |
+                                                  (bigBoard ? SETTING_BIG : 0));
+    const uint8_t session = host.nearbyFreshSession(settings, SETTING_BITS);
+    bool weAreBlack = false;
+    if (!host.nearbyInvite(seat.deviceId, session, weAreBlack)) {
+        host.beepError();
+        return;
+    }
+    if (!startRemote(host, seat, session, weAreBlack, true)) {
+        host.nearbyStop();   // nobody here is waiting on it
+        host.beepError();
+        return;
+    }
+    host.playSound(Sound::Select);
+}
+
+void GoGame::takeBackInvite(AppContext& host) {
+    host.nearbyStop();
+    confirmUntilMs_ = 0;
+    mode_ = Mode::Lobby;
+    lobbyStale_ = true;
+    refreshSeats(host);   // the room as it is now, in the one repaint
+    host.playSound(Sound::Select);
+    markFullDirty();
+}
+
+void GoGame::renderLobby(AppContext& host) {
+    Ui::Renderer& tft = host.display();
+    Ui::clear(tft);
+    host.drawTopBar(title());
+
+    /* The chips: board size only where 19x19 is offered, rules, level. Each
+     * is a label over a value with a small arrow, and a tap cycles it. */
+    const uint8_t chips = BIG_BOARD_AVAILABLE ? 3 : 2;
+    const char* labels[3] = {"Rules", "Level", "Board"};
+    char values[3][16];
+    snprintf(values[0], sizeof(values[0]), "%s", Go::rulesName(rules_));
+    snprintf(values[1], sizeof(values[1]), "%s", level_ == Go::Level::Easy ? "Easy" : "Medium");
+    snprintf(values[2], sizeof(values[2]), "%s", boardSize_ > 9 ? "19x19" : "9x9");
+    for (uint8_t i = 0; i < chips; ++i) {
+        const Rect c = lobbyChipRect(i, chips);
+        tft.fillRoundRect(c.x, c.y, c.w, c.h, 6, Ui::surface());
+        tft.drawRoundRect(c.x, c.y, c.w, c.h, 6, Ui::outline());
+        tft.setTextDatum(TL_DATUM);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.drawString(labels[i], c.x + 7, c.y + 3, 1);
+        tft.setTextColor(Ui::text(), Ui::surface());
+        tft.drawString(values[i], c.x + 7, c.y + 12, 2);
+        tft.fillTriangle(c.x + c.w - 16, c.y + 11, c.x + c.w - 8, c.y + 11, c.x + c.w - 12,
+                         c.y + 17, Ui::muted());
+    }
+
+    /* The two rows for playing here. Over a game still in the player's own
+     * save, the row of its kind says it carries that game on, and the other
+     * is not offered: starting one would write over the game being kept, and
+     * a game is only ever given up with End game. */
+    static const char* const HERE[2] = {"Pass and play", "Play the computer"};
+    static const char* const CARRY_ON[2] = {"Carry on pass and play",
+                                            "Carry on with the computer"};
+    for (uint8_t row = 0; row < 2; ++row) {
+        const Mode kind = row == 0 ? Mode::Local : Mode::Computer;
+        if (shelved_ != Mode::Lobby && shelved_ != kind) {
+            drawPlainRow(tft, lobbyRowRect(row), HERE[row]);
+            continue;
+        }
+        Ui::drawButton(tft, lobbyRowRect(row), shelved_ == kind ? CARRY_ON[row] : HERE[row],
+                       Ui::panel(), Ui::outline(), Ui::text());
+    }
+    char label[48];
+    for (uint8_t i = 0; i < seatCount_; ++i) {
+        const Rect r = lobbyRowRect(static_cast<uint8_t>(i + 2));
+        const Row row = rowFor(seats_[i]);
+        rowLabel(seats_[i], row, label, sizeof(label));
+        if (rowTakesPress(row)) {
+            const bool invites = row == Row::Invites;
+            Ui::drawButton(tft, r, label, invites ? Ui::success() : Ui::surface(), Ui::outline(),
+                           invites ? static_cast<uint16_t>(TFT_BLACK) : Ui::text());
+            continue;
+        }
+        drawPlainRow(tft, r, label);   // only says what that console is doing
+    }
+    /* Why a game just vanished; else a low battery, which outranks the usual
+     * note; else what nearby play is and who can switch it on. */
+    const bool low = lobbyNote_[0] == 0 && seatCount_ > 0 && host.batteryLow();
+    const char* note = lobbyNote_[0] != 0 ? lobbyNote_
+                       : low              ? "Battery low: a nearby game may not finish."
+                       : seatCount_ > 0   ? "Moves travel by Bluetooth. Anyone near hears them."
+                                          : "An administrator can switch Beacon and Nearby on.";
+    tft.setTextDatum(BC_DATUM);
+    tft.setTextColor(lobbyNote_[0] != 0 || low ? Ui::warning() : Ui::muted(), Ui::bg());
+    tft.drawString(note, GAME_CANVAS_WIDTH / 2, GAME_CANVAS_HEIGHT - 4, lobbyNote_[0] != 0 ? 2 : 1);
+    tft.setTextDatum(TL_DATUM);
+}
+
+// ---- a game against another console -------------------------------------------------
+
+bool GoGame::startRemote(AppContext& host, const NearbySeat& seat, uint8_t session,
                          bool weAreBlack, bool waiting) {
     const char* self = host.nearbySelfId();
     if (self[0] == 0) {
-        host.beepError();   // the radio went down between the lobby and here
-        return;
+        return false;   // the radio went down between the lobby and here
     }
     snprintf(opponent_, sizeof(opponent_), "%s", seat.deviceId);
     snprintf(opponentName_, sizeof(opponentName_), "%s", seat.name);
     session_ = static_cast<uint8_t>(session & 0x3F);
-    /* The coin toss decides the colours, and Black moves first. The board
-     * size is the inviter's chip: an invitation cannot carry it, so both
-     * consoles play the size each has chosen -- the lobby says 9x9 is the
-     * size to agree on, and a 19x19 console meeting a 9x9 one is refused by
-     * the move validation rather than merged. */
+    /* The coin toss decides the colours, and Black moves first. The rules
+     * and the board are the ones the invitation states, on both consoles:
+     * read back out of the session number here whichever of us asked, so
+     * there is one place they can come from. */
     humanColour_ = weAreBlack ? Go::BLACK : Go::WHITE;
-    newGame(waiting ? Mode::Waiting : Mode::Remote);
+    newGame(waiting ? Mode::Waiting : Mode::Remote, (session_ & SETTING_BIG) != 0 ? 19 : 9,
+            static_cast<Go::Rules>(session_ & SETTING_RULES));
     ourPly_ = 0;
     theirPly_ = 0;
     ourFrom_ = 0;
     ourTo_ = 0;
     theirAck_ = 0;
     haveAck_ = false;
-    lastWordOurs_ = false;
-    settling_ = false;   // whatever was left on the air is replaced by this game
+    lastWordAtMs_ = 0;   // whatever was left on the air is replaced by this game
     if (waiting) {
-        invitedAtMs_ = millis();
-        setMessage("Asking...");
+        char line[26];
+        snprintf(line, sizeof(line), "Asking %.10s...", sideName(Go::other(humanColour_)));
+        setMessage(line);
     } else {
         publishOurs(host);   // ply 0, 0,0: our presence is the acceptance
         setMessage(humanTurn() ? "Tap a point" : "Their move first");
+        saveGame(host);
     }
-    saveGame(host);
+    return true;
 }
 
 void GoGame::publishOurs(AppContext& host) {
@@ -173,7 +400,6 @@ void GoGame::publishOurs(AppContext& host) {
 void GoGame::sendWord(AppContext& host, Go::Net::Kind kind, uint16_t p) {
     ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
     Go::Net::encode(kind, p, ourFrom_, ourTo_);
-    lastWordOurs_ = true;
     publishOurs(host);
 }
 
@@ -200,117 +426,62 @@ void GoGame::pressEndInMarking(AppContext& host, uint32_t now) {
     markDirty();
 }
 
-void GoGame::settleAir(AppContext& host) {
-    /* A finished game's last move, or our ending, is still on the air. It
-     * comes down when the other console has it: it acked the word, it ended
-     * the game itself, or it has stopped advertising the game -- which is
-     * what a console does once it has heard, and what one out of range looks
-     * like too. When the last word was theirs there is nothing of ours to be
-     * acked; ours stays up, carrying our ack, until theirs has gone. */
-    NearbyTurn t;
-    const bool heard = host.nearbyTurnFrom(opponent_, session_, t);
-    if (heard && !t.ended && !(lastWordOurs_ && t.ack == settlePly_)) return;
-    host.nearbyStop();
-    settling_ = false;
-}
+// ---- the air ------------------------------------------------------------------------
 
-void GoGame::updateStops() {
-    /* The result card is over the board with the two buttons that matter:
-     * while it is up, only what is inside it is a stop. */
-    const bool card = mode_ != Mode::Lobby && phase_ == Phase::Over;
-    if (card) {
-        Ui::setOverlayStops(resultRect());
-    } else if (resultOverlay_) {
-        Ui::clearOverlayStops();
-    }
-    resultOverlay_ = card;
-    if (mode_ == Mode::Lobby) {
-        Ui::clearBoardStops();
-        return;
-    }
-    /* The points stay drawn whoever is to move. They are stops only while a
-     * press on one does something for the player holding this console: their
-     * own turn, or the marking -- and never while an invitation is
-     * unanswered or the other console has gone quiet. */
-    bool live = false;
-    if (mode_ != Mode::Waiting && !(mode_ == Mode::Remote && watch_.paused())) {
-        live = phase_ == Phase::Marking || (phase_ == Phase::Play && humanTurn());
-    }
-    Ui::setBoardStops(boardRect(), live);
-}
-
-void GoGame::leaveRemote(AppContext& host, const char* note) {
-    if (note != nullptr) {
-        snprintf(lobbyNote_, sizeof(lobbyNote_), "%s", note);
-    }
-    host.nearbyStop();
-    settling_ = false;
-    ended_ = true;
-    watch_.reset();
-    pausePainted_ = false;
-    mode_ = Mode::Lobby;
-    lobbyStale_ = true;
-    host.playSound(Sound::GameOver);
-    saveGame(host);
-    markFullDirty();
-}
-
-void GoGame::endRemoteByUs(AppContext& host) {
-    /* The service's own ending, which stays on the air after we leave so the
-     * other console still hears it; it goes back to its lobby too
-     * (pollRemote). Used by End game and by the pause card alike. */
-    settlePly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
-    host.nearbyEnd(session_, settlePly_, theirPly_);
-    settling_ = true;
-    lastWordOurs_ = true;
-    ended_ = true;
-    watch_.reset();
-    pausePainted_ = false;
-    mode_ = Mode::Lobby;
-    lobbyStale_ = true;
-    host.playSound(Sound::Select);
-    saveGame(host);
-    markFullDirty();
-}
-
-void GoGame::pollRemote(AppContext& host, uint32_t now) {
+void GoGame::pollRemote(AppContext& host) {
     NearbyTurn t;
     const bool heard = host.nearbyTurnFrom(opponent_, session_, t);
     const char* who = opponentName_[0] != 0 ? opponentName_ : opponent_;
 
     if (mode_ == Mode::Waiting) {
-        /* Their first word in our session is the acceptance. */
-        if (heard) {
+        /* Their first word in our session is the acceptance. From here it is
+         * a game, and the console's: our own first word takes the
+         * invitation's place on the air. */
+        if (heard && !t.ended) {
             mode_ = Mode::Remote;
+            confirmUntilMs_ = 0;
+            publishOurs(host);
+            saveGame(host);
             setMessage(humanTurn() ? "Tap a point" : "Their move first");
             turnStale_ = buttonsStale_ = true;
             markFullDirty();
             return;
         }
-        /* Our invitation leaves the air after a few seconds, and by the time
-         * they have opened Go their lobby offers "Play ... nearby" instead:
-         * tapping that invites US, in a session of theirs. Left alone, both
-         * consoles sat on "Asking..." in different sessions for ever. So an
-         * invitation from the console we asked is answered from here. When
-         * both invitations are live only one side may give way, or each
-         * would join the other's session: the larger tag does. */
+        /* The invitation stands until it is answered or taken back, so there
+         * is nothing to time. One thing can still cross it: the console we
+         * asked asking us, at the same moment. Each would wait on the other
+         * for ever, or each join the other's session, unless exactly one
+         * gives way -- the one with the greater tag, on both consoles, so
+         * they cannot disagree. It takes its invitation back and answers
+         * theirs; the other does nothing and is answered. */
         NearbySeat seat;
-        if (host.nearbyInviteForUs(seat) && seat.forThisGame &&
-            strcmp(seat.deviceId, opponent_) == 0) {
-            const bool oursExpired = now - invitedAtMs_ >= INVITE_ON_AIR_MS;
-            if (oursExpired || strcmp(host.nearbySelfId(), opponent_) > 0) {
-                host.nearbyStop();   // ours comes down; theirs is the game
-                startRemote(host, seat, seat.session, seat.weMoveFirst, false);
+        if (strcmp(host.nearbySelfId(), opponent_) > 0 && seatNow(host, opponent_, seat) &&
+            seat.inviting && seat.forThisGame) {
+            host.nearbyStop();
+            if (acceptInvite(host, seat)) {
+                host.playSound(Sound::Select);
+            } else {
+                /* Theirs is a game this console cannot play. Back to the
+                 * lobby, whose row for them says why. */
+                snprintf(lobbyNote_, sizeof(lobbyNote_), "That game cannot be played here");
+                mode_ = Mode::Lobby;
+                lobbyStale_ = true;
+                refreshSeats(host);
+                host.beepError();
+                markFullDirty();
             }
         }
         return;
     }
 
+    /* A finished game has said its last word and listens to nothing more:
+     * the result stands whatever the other console does next. */
+    if (phase_ == Phase::Over) return;
     /* Republish every frame. Unchanged values do not touch the radio, and a
      * turn must stay on the air until it is replaced -- from ply 0, which is
-     * how an accepted invitation is answered. */
-    /* A finished game says its last word only until it has been heard. */
-    if (!ended_ && (phase_ != Phase::Over || settling_)) publishOurs(host);
+     * how an accepted invitation is answered, and again whenever this screen
+     * comes back to a game it was away from. */
+    publishOurs(host);
     if (!heard) return;
     /* Before the ply test: they repeat an unchanged turn with a newer ack,
      * so this mostly arrives on a ply already taken. */
@@ -339,7 +510,6 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
             if (phase_ != Phase::Play || humanTurn()) return;   // not their move to make
             if (!Go::legal(state_, p)) return;   // not legal here: never played
             theirPly_ = t.ply;
-            lastWordOurs_ = false;
             applyMove(host, p, false);
             return;
         case Go::Net::Kind::ToggleDead:
@@ -347,7 +517,6 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
                 return;
             }
             theirPly_ = t.ply;
-            lastWordOurs_ = false;
             Go::toggleDead(state_, dead_, p);
             Go::ownership(state_, dead_, own_);
             agreed_ = 0;
@@ -359,7 +528,6 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
         case Go::Net::Kind::Accept:
             if (phase_ != Phase::Marking) return;
             theirPly_ = t.ply;
-            lastWordOurs_ = false;
             /* An agreement made before they had seen our latest toggle is an
              * agreement to a marking that no longer exists. It is used up,
              * not kept: they repeat it with a newer ack every frame, and a
@@ -399,9 +567,13 @@ bool GoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now
     const NearbyWatch::State before = watch_.state();
     if (watch_.tick(host, opponent_, now)) {
         if (watch_.state() != before) {
+            /* Away is heard but in no game of ours: it lost the game or
+             * began another, which silence is not. */
+            const char* what = watch_.state() == NearbyWatch::State::Gone   ? "out of range"
+                               : watch_.state() == NearbyWatch::State::Away ? "not in game"
+                                                                            : "gone quiet";
             char line[26];
-            snprintf(line, sizeof(line), "%.10s %s", sideName(Go::other(humanColour_)),
-                     watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+            snprintf(line, sizeof(line), "%.10s %s", sideName(Go::other(humanColour_)), what);
             setMessage(line);
             /* A ghost left from before the pause would make the first tap
              * afterwards play a stone. */
@@ -426,6 +598,8 @@ bool GoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now
     if (touch.justPressed || touch.down) pauseHold_ = true;
     switch (watch_.press(boardRect(), touch, false)) {
         case NearbyWatch::Press::Wait:
+            /* Keep waiting means that and nothing else: the game is where it
+             * was, and nothing is taken off the air. */
             watch_.dismiss();
             pausePainted_ = false;
             host.playSound(Sound::Tap);

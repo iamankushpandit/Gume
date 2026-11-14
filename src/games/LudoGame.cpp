@@ -121,6 +121,7 @@ void LudoGame::startGame(AppContext& host) {
     }
     net_ = false;
     ended_ = false;
+    setAside_ = false;   // Start is the player choosing this game over a kept one
     uint8_t mask = 0;
     uint8_t seats[Ludo::SEATS];
     uint8_t count = 0;
@@ -412,14 +413,18 @@ void LudoGame::pressAction(AppContext& host, uint32_t now) {
         /* New game after a finish: back to the lobby with the same seats,
          * which is what "again" usually means. At a table our word may be the
          * last move itself: it comes off the air now if every other console
-         * has it, and is held a while for them if not. */
+         * has it, and is held a while for them if not. The table is finished
+         * with, so its save goes too. */
         if (net_) {
             if (canPublish(host)) {
                 host.nearbyStop();
                 wordHeld_ = false;
             } else {
-                holdWord(now);
+                holdWord(host, now);
             }
+            closeTable(host);
+            host.playSound(Sound::Select);
+            return;
         }
         leaveTable(host);
         mode_ = Mode::Lobby;

@@ -251,13 +251,85 @@ the console doing the asking must not also claim first move. **"I am stopping"**
 is a reserved turn encoding the service owns, delivered as `NearbyTurn::ended`;
 never invent a second one.
 
-**An invitation names its game.** A lobby accepts one only when
-`NearbySeat::forThisGame` is set -- otherwise a Sea Battle invitation answered
-from the Chess lobby is two consoles playing different games at each other.
-Every lobby checks it: Ludo's table lobby directly, and Chess and Sea Battle by
-folding it into `inviting` as the seat list is copied, so an invitation to
-another game reads as an ordinary "Play A4F2" row. A new two-player lobby
-should do the same at the same place.
+**An invitation names its game and its console, and stands until it is
+answered.** A lobby accepts one only when `NearbySeat::forThisGame` is set --
+otherwise a Sea Battle invitation answered from the Chess lobby is two
+consoles playing different games at each other. And `NearbySeat::inviting` is
+true only for an invitation aimed at THIS console: an invitation is a
+broadcast, and a third console shown somebody else's could accept a game
+nobody was offering it and sit in it for ever.
+
+It used to leave the air after six seconds, like a poke. That left the console
+that asked waiting in its lobby for an answer nobody could give any more, and
+turned the other player's tap, a moment late, into a second invitation
+crossing the first. It now stays up until the first turn replaces it,
+`nearbyStop()` withdraws it, or another replaces it -- so **no game may time
+an invitation, re-send one or give up on one**. The console that asked waits
+until it is answered or the player takes it back. When two consoles ask each
+other at the same moment, the one whose own tag (`nearbySelfId()`) compares
+greater withdraws its invitation and accepts the other's; the one with the
+smaller tag waits. No clock is involved, so the two cannot disagree.
+
+**The lobby says who is there and what they are doing.** One row per console
+in the room, re-read about once a second. First match wins:
+
+| The seat says | The row reads | A press |
+|---|---|---|
+| `inviting && forThisGame` | "A4F2 invites you" (filled `success`) | accepts |
+| `asking` | "A4F2 is asking B3C1" | nothing (Ludo: sits at that table) |
+| `inGame`, `partner` set | "A4F2 is playing B3C1" | nothing |
+| `inGame` | "Play A4F2 (in a game)" | invites |
+| otherwise | "Play A4F2" | invites |
+
+`inGame` is a move heard on that console's advertisement lately; a move does
+not say which game it belongs to, so the row cannot either. `partner` is the
+other console saying moves in the same session, when it is in the room too. A
+console in a game whose partner cannot be seen may be waiting for THIS console
+to come back to a game it has lost, which is why that row still invites: the
+banner on their screen tells them somebody is asking. **A row that takes no
+press is not drawn as a button** -- a fill and an outline of one rectangle is
+what the d-pad's selector stops on -- and the press handler skips it. The
+lobby repaints when any of those fields changes for any row, not only when a
+console arrives or leaves.
+
+**A game across consoles belongs to the console, and only End game ends it.**
+The other console is playing *this console*, whoever is holding it. So:
+
+- **Its state is saved in the console's slot** (`saveConsoleBlob()` /
+  `loadConsoleBlob()` / `clearConsoleBlob()`), never in the player's. It
+  survives a change of player, it is kept for Guest (whose own saves are
+  dropped) through a power cut, and it never overwrites a player's own game
+  against the computer -- that one stays in the player's slot (`saveBlob()`)
+  and is there again when the nearby game is over.
+- **Every game saves under its own key** (`chess_game`, `go_game`, `bg_game`,
+  `sea_game`, `ludo_game`). All five used to save under `"game"`, so leaving a
+  Chess game and then playing Ludo destroyed the Chess game. An old save is
+  read from `"game"` once, if it validates as this game's and is not a nearby
+  game, and never written there again.
+- **Opening the game**, in this order: the instance still holds a nearby game
+  from this boot -> keep it as it is, finished or not; else the console's
+  slot holds one still in play -> restore it and say its turn again; else the
+  player's own save, or the lobby. If the result is not a nearby game,
+  `nearbyStop()`. And if it is a local or computer game while an invitation
+  for this app is waiting for this console, show the lobby instead, without
+  touching the save -- otherwise the banner sends a player to a screen with no
+  way to say yes.
+- **Leaving the screen**: save; a nearby game still in play keeps its turn on
+  the air and does nothing else; one that is over calls `nearbyStopLater()`,
+  which gives its last word a minute to be heard and then takes it down;
+  anything else calls `nearbyStop()`.
+- **Nothing else ends it.** Not leaving the screen, the console sleeping, the
+  saver, Keep waiting, a change of player or another game being opened. Only
+  End game pressed here, the other console's ending heard, the game finishing
+  by its rules, or (Ludo) the host playing on without a console.
+- **`nearbyStop()` is safe to call from anywhere in a game.** It withdraws
+  this console's invitation and takes the turn down only if THIS app put it
+  there, so one game's lobby cannot remove another game's kept move. The air
+  still holds one turn: a second nearby game that says a turn replaces the
+  first game's, and the first says it again when its screen comes back.
+- **A new game takes its session number from `nearbyFreshSession()`**, never
+  from the clock: it steps past every session this console still holds a turn
+  for, so an old game's last move or ending cannot be read as the new game's.
 
 **More than two seats is the same service.** Ludo reads every other console's
 turn by tag, invites them one at a time (only one invitation is on the air at
@@ -271,11 +343,17 @@ way.** The second way a two-player game ends never arrives as a message: a
 flat battery, a young player walking into the next room, a console sat on. Until
 5.11 every nearby game sat on "is thinking" for ever when that happened. The
 service now measures the silence (`nearbyPeerSilentMs()`, `NearbySeat::silentMs`)
-and `NearbyWatch` (`src/games/NearbyWatch.{h,cpp}`) turns it into three states
+and `NearbyWatch` (`src/games/NearbyWatch.{h,cpp}`) turns it into four states
 and one card, so the games cannot each decide what "too long" means:
 
 - *Present* -- heard within `NearbyPlay::PEER_QUIET_MS` (15s: missing a
   few advertisements in a row is ordinary). Play on.
+- *Away* -- heard, but saying no move in this game for
+  `NearbyPlay::PEER_AWAY_MS` (20s, `nearbyPeerAwayMs()`): it lost the game,
+  started another, or switched Nearby off. A console that only left the
+  screen keeps its move on the air and stays Present. Same card, "Not in this
+  game for 34s". Without it the only sign was a turn that never came, with a
+  console that looked perfectly present.
 - *Quiet* -- the game pauses. It cannot proceed anyway. The card over the
   board says who it is waiting for and for how long, with **Keep waiting**
   and **End game**. Keep waiting takes the card away and leaves the game
@@ -301,7 +379,24 @@ measured) and before any tap (so a press through the card is never a move);
 whenever anything under the card is repainted. Only a live remote game is
 watched -- not the lobby, not an unanswered invitation (which has its own
 "Asking..." and its own End), not a game the rules have finished. A new
-nearby game does the same at the same places; do not invent a fourth state.
+nearby game does the same at the same places; do not invent a fifth state.
+While the card is up only its buttons are stops for the d-pad's selector, and
+the card itself is not one: `NearbyWatch` says so through `ui/Stops.h`.
+
+**The board says when it takes a press.** The d-pad's selector finds its
+stops in what is drawn, and a board stays drawn while the other player
+thinks. So every frame a game with a board calls
+`Ui::setBoardStops(boardRect, live)` (`src/ui/Stops.h`): *live* exactly when
+a touch on the board would be acted on now, and not on the other console's
+turn, while the computer thinks, while an invitation is unanswered, when the
+game is over, or while an animation owns the board. The lobby calls
+`Ui::clearBoardStops()`. It is two assignments, nothing is drawn for it, and
+the runtime clears it on every screen change. *Live* also makes every square
+a stop however few are left -- beside buttons the selector otherwise takes one
+to three plain squares for something to look at, which left a Ludo endgame
+with two tokens and a die unplayable from the keys. The second rectangle is
+for a control that stands apart from the board and is live with it (Ludo's
+die).
 
 Nothing about this transmits. It is derived from the ABSENCE of the beacon
 that is already there, which is why it needed no payload change and no
@@ -324,10 +419,11 @@ Who can use it:
   profile, so once an administrator has switched it on, any player on the console can
   invite and be invited. Do not add a profile check to a play path; the gate is
   the switch.
-- **Saved games are per-profile**, because `saveBlob()` is transparently
-  profile-scoped. Each player has their own game in progress. Guest drops
-  writes, so a guest's game does not survive leaving the screen -- the same
-  answer Guest gives to scores.
+- **A saved game against the computer, or pass-and-play, is per-profile**,
+  because `saveBlob()` is transparently profile-scoped; Guest drops those
+  writes, the same answer Guest gives to scores. **A game across consoles is
+  the console's** and is kept for whoever picks the console up, Guest
+  included -- see above.
 - **Naming a peer stays admin-only.** It is a device-wide label, not a personal
   one, and it is what every screen then calls that console.
 

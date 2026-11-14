@@ -169,6 +169,8 @@ void SeaBattleGame::newGame() {
     theirPly_ = 0;
     ourShotCell_ = 0;
     ourReplyCode_ = 0;
+    overSaid_ = false;
+    keptLocal_ = false;
     confirmUntilMs_ = 0;
     dirtyCount_ = 0;
     fullPaint_ = true;
@@ -177,18 +179,12 @@ void SeaBattleGame::newGame() {
 }
 
 void SeaBattleGame::begin(AppContext& host) {
-    /* This screen is one instance for the life of the device, so a nearby
-     * game it was in when it was left is still here, finished or not. Carry
-     * on from that rather than from the save: Guest has no save, and a
-     * finished game is saved as nothing while its last word may still be
-     * owed to the other console. Only what belonged to the last visit's
-     * picture is put back.
-     *
-     * Only for the player who was in it, though. The instance does not know
-     * that somebody else has picked the console up -- going idle as the
-     * administrator hands it to Guest -- so that is read off the save, which
-     * is kept per player. */
-    if (mode_ == Mode::Remote && keptGameIsOurs(host)) {
+    /* A game across consoles is the console's, and this screen is one
+     * instance for the life of the device: a nearby game it was in when it
+     * was left is still here, finished or not, whoever is holding the
+     * console now. Carry on from exactly that. Only what belonged to the
+     * last visit's picture is put back. */
+    if (mode_ == Mode::Remote) {
         confirmUntilMs_ = 0;
         dirtyCount_ = 0;
         watch_.reset();   // so the card comes back if they are still quiet
@@ -199,30 +195,47 @@ void SeaBattleGame::begin(AppContext& host) {
         return;
     }
     toLobby();
-    if (restoreGame(host)) savesKept_ = true;
-    if (mode_ == Mode::Remote) {
-        /* Its turn goes back on the air from the next frame, in place of
-         * whatever an older game left there. */
-        lastWord_ = false;
-    } else if (!lastWord_) {
-        /* Not in a nearby game, and nothing still owed to one that is over,
-         * so nothing of this game's belongs on the air. */
-        host.nearbyStop();
+    /* After a restart the same game is in the console's storage, and comes
+     * first: the other console is still playing it. Its turn goes back on
+     * the air from the next frame. */
+    if (restoreNearby(host)) {
+        markFullDirty();
+        return;
+    }
+    const bool own = restoreOwn(host);
+    /* Not in a nearby game, so nothing of this game's belongs on the air --
+     * bar a finished one's last word, which is on its own timer. */
+    if (!lastWord_) host.nearbyStop();
+    /* Somebody is asking this console for a game right now. Opening straight
+     * onto the player's own game would hide that, so the lobby comes up
+     * instead, with the way back to that game as its first row. Nothing is
+     * written for this: leave without answering and the game is where it
+     * was. */
+    NearbySeat asking;
+    if (own && invitedBy(host, nullptr, asking)) {
+        toLobby();
+        keptLocal_ = true;
     }
     markFullDirty();
 }
 
 void SeaBattleGame::end(AppContext& host) {
-    if (mode_ == Mode::Local || mode_ == Mode::Remote) saveGame(host);
+    saveGame(host);
     /* Leaving the screen does not end a game played across consoles: only End
-     * game does. So a nearby game's last turn stays on the air while this
-     * console is elsewhere -- the other console may not have heard it yet,
-     * and taking it off would strand them waiting for a shot, an answer or an
-     * ending that had already been sent. It is replaced when this screen
-     * comes back and the game carries on, or when a new game starts. The same
-     * holds for a last word still unheard from a game already left for the
-     * lobby. Everything else hands the radio back. */
-    if (mode_ != Mode::Remote && !lastWord_) host.nearbyStop();
+     * game does. So a nearby game's turn stays on the air while this console
+     * is elsewhere -- the other console may not have heard it yet, and taking
+     * it off would strand them waiting for a shot or an answer that had
+     * already been sent. It is said again when this screen comes back. */
+    if (mode_ == Mode::Remote) {
+        /* One that is over has only its last word up, and nobody here to
+         * take it down once it is heard: a minute, then it goes. */
+        if (gameOver()) host.nearbyStopLater();
+        return;
+    }
+    /* The lobby, an invitation nobody has answered, a game on this console:
+     * the radio goes back. A finished nearby game's last word, left behind
+     * for the lobby, is already on its minute and is left to it. */
+    if (!lastWord_) host.nearbyStop();
 }
 
 void SeaBattleGame::toLobby() {
@@ -311,14 +324,18 @@ void SeaBattleGame::fireAt(AppContext& host, uint8_t cell) {
         ourShotCell_ = cell;
         ourReplyCode_ = static_cast<uint8_t>(owedReply_);
         ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+        owedReply_ = Shot::None;
+        /* Written down before it is said. A console that restarts says its
+         * saved turn again, so a shot saved and not yet said is only late;
+         * one said and not saved would be forgotten here and remembered
+         * there, and the two would each wait on the other for good. */
+        saveGame(host);
         host.nearbyPublish(session_, ourPly_, ourShotCell_, ourReplyCode_,
                            theirPly_);
-        owedReply_ = Shot::None;
         markCell(cell);
         host.playSound(Sound::Whoosh);
         panelStale_ = true;
         markDirty();
-        saveGame(host);
         return;
     }
 
@@ -352,6 +369,10 @@ void SeaBattleGame::declareEnd(AppContext& host, bool byUs) {
     ended_ = true;
     endedByUs_ = byUs;
     confirmUntilMs_ = 0;
+    /* Ended before this fleet was ready -- from the pause card, or by the
+     * other console. There is no placing left to do, and the placing screen
+     * has Ready and Shuffle where a finished game needs New game. */
+    if (phase_ == Phase::Placing) phase_ = Phase::Firing;
     if (mode_ == Mode::Remote && byUs) {
         ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
         host.nearbyEnd(session_, ourPly_, theirPly_);
@@ -381,19 +402,8 @@ void SeaBattleGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    /* Republish every frame. Unchanged values do not touch the radio, and a
-     * turn must stay on the air until it is replaced -- from ply 0, which is
-     * how an accepted invitation is answered. A finished game keeps going
-     * too: our ending is a turn like any other, and after theirs the ack on
-     * our last turn is how they know it arrived. */
-    if (mode_ == Mode::Remote) {
-        if (ended_ && endedByUs_) {
-            host.nearbyEnd(session_, ourPly_, theirPly_);
-        } else {
-            host.nearbyPublish(session_, ourPly_, ourShotCell_, ourReplyCode_,
-                               theirPly_);
-        }
-    }
+    /* Our turn stays on the air, and a finished game says its last. */
+    if (mode_ == Mode::Remote) sayTurn(host);
 
     /* Are they still there? After the poll and the republish, before any
      * tap, so a press through the card is never a shot. */
@@ -422,6 +432,10 @@ void SeaBattleGame::update(AppContext& host, const TouchPoint& touch) {
             placed_[viewer()] = true;
             if (mode_ == Mode::Remote) {
                 phase_ = Phase::Firing;
+                /* At once, not on the way out: after a power cut the fleet
+                 * would otherwise come back as still being placed, with the
+                 * other console already firing at it. */
+                saveGame(host);
             } else if (placed_[0] && placed_[1]) {
                 turnPlayer_ = 0;
                 phase_ = Phase::Passing;
@@ -446,19 +460,11 @@ void SeaBattleGame::update(AppContext& host, const TouchPoint& touch) {
     if (actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (gameOver()) {
             host.playSound(Sound::Select);
-            if (mode_ == Mode::Remote) {
-                /* The winner and a console that was told the game ended have
-                 * nothing left to say. The loser's answer to the last shot
-                 * and our own End game are the other console's only way of
-                 * knowing, so those stay up until they have been heard. */
-                memcpy(lastWordPeer_, opponent_, sizeof(lastWordPeer_));
-                lastWordSession_ = session_;
-                lastWordPly_ = ourPly_;
-                lastWord_ = (lost_ || (ended_ && endedByUs_)) && !lastWordLanded(host);
-                if (!lastWord_) host.nearbyStop();
-            }
+            /* A game on this console is already saved as over, which the
+             * next visit reads as nothing; a nearby one is cleared away. */
+            if (mode_ == Mode::Remote) finishNearby(host);
             toLobby();
-            saveGame(host);
+            keptLocal_ = ownGameKept(host);
             markFullDirty();
         } else if (confirmUntilMs_ != 0) {
             declareEnd(host, true);

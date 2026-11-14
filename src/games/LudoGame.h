@@ -147,31 +147,53 @@ private:
     /* The die's frame flashes on the console whose person has to roll -- the
      * one screen where "it is your go" is the whole message. */
     bool dieFlashing() const;
-    void saveGame(AppContext& host) const;
-    bool restoreGame(AppContext& host);
-    /* What the active player's save says about the table in memory. Saves are
-     * kept per player and this screen is not, so the save is how a table that
-     * is still here is told from one somebody else was sitting at. */
-    enum class SaveSays : uint8_t { Nothing, ThisTable, Other };
-    SaveSays saveSays(AppContext& host) const;
     /* Tell the d-pad's selector whether the board and the die take a press
      * just now. Every frame; it draws nothing. See ui/Stops.h. */
     void tellStops() const;
+
+    // ---- remembering a game (LudoSave.cpp) ---------------------------------
+    /* Two places, because there are two kinds of game. A table of consoles
+     * belongs to the CONSOLE -- the others are playing this console, whoever
+     * is holding it -- so it is kept in the console's slot. A game on this
+     * console alone, and the lobby's seats and level, belong to the PLAYER
+     * and are kept in theirs. Neither is ever written over the other. */
+    struct Saved;
+    static constexpr const char* SAVE_KEY = "ludo_game";
+    void saveGame(AppContext& host) const;
+    /** A blob this game wrote, with seats a lobby could show. */
+    static bool readable(const Saved& in);
+    /** It holds a game still in play, and one a game could have reached. */
+    static bool playable(const Saved& in);
+    /** Take a saved game over whole and carry on from where it says. */
+    void adopt(const Saved& in);
+    /** The console's table, if one was still in play when it was last saved. */
+    bool restoreTable(AppContext& host);
+    /* The active player's own save: the lobby's seats and level, and a game
+     * on this console if one was in play. With `resume` that game is carried
+     * on with, and true comes back. Without, only the lobby is read, and a
+     * game found there is left where it is (setAside_). */
+    bool restorePlayer(AppContext& host, bool resume);
+    /* A table is finished with -- ended, or over and New game pressed. Its
+     * save goes, and the lobby comes back as the active player left it. */
+    void closeTable(AppContext& host);
 
     // ---- our last word (LudoSave.cpp) --------------------------------------
     /* An ending, or the last move of a finished game, is the one word nobody
      * can ask us to repeat, and a console between two scan windows has not
      * heard it yet. So it is not taken off the air the moment this console
      * moves on: it is held for LAST_WORD_HOLD_MS first, and whatever would
-     * replace it -- an invitation, a presence, the plain stop -- waits. */
-    void holdWord(uint32_t now);
+     * replace it -- an invitation, a presence, the plain stop -- waits. The
+     * service is asked to take it down in a minute at the same moment, so it
+     * has an end even if this screen is never opened again. */
+    void holdWord(AppContext& host, uint32_t now);
     /** A held word that has not had its time yet. */
     bool wordHolding(uint32_t now) const;
     /* Once a held word has had its time, let the next thing replace it; a
      * local game, where nothing would, takes it down. Every frame. */
     void tickWord(AppContext& host, uint32_t now);
 
-    // ---- a table of consoles (LudoTable.cpp; its lobby in LudoLobby.cpp) ----
+    // ---- a table of consoles (LudoTable.cpp; its lobby in LudoLobby.cpp, and
+    // the pause for a quiet console in LudoSave.cpp) --------------------------
     /* The nearby service carries it; LudoRules' Net namespace spells it. What
      * is here is the part only a screen can do: who was invited, who has
      * answered, when to start, and taking each console's turn off the air in
@@ -183,6 +205,37 @@ private:
     void quitTable(AppContext& host, uint32_t now);
     void updateTable(AppContext& host, const TouchPoint& touch);
     void refreshPeers(AppContext& host);
+    /* What a console's row in the table lobby says, first match first. The
+     * drawing, the press and the repaint test all ask this, so a row cannot
+     * read one thing and do another. */
+    enum class TableRow : uint8_t {
+        InvitesUs,    // it is asking this console: a press sits at its table
+        Joined,       // at our table: a press sends it away
+        Asked,        // asked to ours, no answer yet: a press takes that back
+        TheirTable,   // gathering a table of its own: a press sits at it
+        Busy,         // playing somebody we can name: not a button
+        AskBusy,      // in a game of some kind: a press still asks it
+        Ask,
+    };
+    TableRow tableRow(AppContext& host, const NearbySeat& p);
+    /* Become a guest at the table that console is gathering: answering its
+     * invitation, or sitting down at a table seen from across the room. */
+    void sitAt(AppContext& host, const NearbySeat& seat);
+    /** Where a console is in invited_, or -1. */
+    int8_t invitedIndex(const char* id) const;
+    void unseat(uint8_t index);
+    bool turnedAway(const char* id) const;
+    /* The host seats anybody who sits down at its table, while there is a
+     * chair, and forgets a console that sat down and got up again. */
+    void seatWalkIns(AppContext& host);
+    /** The host's invitation: whom it names now, and when it moves on. */
+    void askNext(AppContext& host, uint32_t now);
+    /* A guest waiting for Start. True when this console has left the table
+     * lobby: the game began, or there is no table to wait at any more. */
+    bool guestWait(AppContext& host, uint32_t now);
+    /* The table a guest was waiting at is not there for it any more: back to
+     * the lobby, which says why. `sayLeft` when a console may be counting us. */
+    void tableGone(AppContext& host, uint32_t now, bool sayLeft, const char* note);
     /** A peer that answered our invitation with its presence. */
     bool joined(AppContext& host, const char* id);
     uint8_t joinedCount(AppContext& host);
@@ -199,8 +252,10 @@ private:
      * names the seat, and on the host it offers to play on without it. True
      * when the press was on (or through) the card. */
     bool updatePause(AppContext& host, const TouchPoint& touch, uint32_t now);
-    /** The message line while paused: who is quiet, or away. */
+    /** The message line while paused: who is quiet, away, or has left. */
     void sayWhoIsQuiet();
+    /** The host's third button on the card: the chair is not coming back. */
+    bool offerPlayWithout() const;
     /** The card over the board while paused, or nothing. End of both renders. */
     void drawPause(Ui::Renderer& tft);
     /* The host playing on without chair `chair`: its seat becomes a computer
@@ -242,7 +297,7 @@ private:
     static Rect tableStartRect();
     static Rect nearbyRect();
 
-    // ---- geometry and drawing (LudoBoard.cpp; the lobby in LudoLobby.cpp) --
+    // ---- geometry and drawing (LudoBoard.cpp; the lobby in LudoPanel.cpp) --
     /* The board is the classic 15x15 cross: four 6x6 yards in the corners,
      * three-wide arms carrying the 52-square track and the four home columns,
      * and a 3x3 centre. At 13px a cell it is 195px square, which is the
@@ -400,32 +455,59 @@ private:
     /* Everyone else at the table, watched for silence. See NearbyWatch.h. */
     NearbyWatch watch_;
     bool pausePainted_ = false;
+    bool pauseExtraDrawn_ = false;   // the card on the panel has "Play without"
     uint16_t pauseSecondsDrawn_ = 0;
     /* A last word of ours that is on the air and may not be replaced yet,
      * and when it went up. See holdWord(). Not saved: after a restart nothing
      * is on the air. */
     bool wordHeld_ = false;
     uint32_t wordAtMs_ = 0;
-    /* What the save said when the table in memory formed, or was last carried
-     * on with: ThisTable for a player whose saves are kept, Nothing for Guest,
-     * whose saves are dropped. begin() keeps the table for as long as the
-     * save still says that, or names this table. */
-    SaveSays tableSaid_ = SaveSays::Nothing;
+    /* The active player's save holds a game on this console that this screen
+     * is not showing: a table took its place, or the lobby came up over it so
+     * an invitation could be answered. While it is set nothing is written to
+     * that save, so the game is there the next time the screen opens; Start,
+     * which is the player choosing another game, clears it. */
+    bool setAside_ = false;
+    /* The table lobby came up by itself over such a game (begin()), so Back
+     * from it goes back to the game and not to the seat picker. */
+    bool backResumes_ = false;
 
     // The table lobby.
     static constexpr uint8_t MAX_PEERS = 6;
     NearbySeat peers_[MAX_PEERS] = {};
     uint8_t peerCount_ = 0;
     uint32_t peersAtMs_ = 0;
+    /* The consoles at the table the host is gathering: the ones it picked,
+     * and the ones that sat down by themselves (invitedWalkIn_). */
     char invited_[Ludo::Net::MAX_HUMANS - 1][5] = {};
+    bool invitedWalkIn_[Ludo::Net::MAX_HUMANS - 1] = {};
     uint8_t invitedCount_ = 0;
     uint8_t inviteCursor_ = 0;
     uint32_t nextInviteMs_ = 0;
+    /* The console our invitation on the air names, or "" with none up. */
+    char askedId_[5] = {0};
+    /* Consoles the host sent away from this table by tapping their row. They
+     * may still be saying they are at it; they are not seated again for that.
+     * Forgotten when the table lobby opens or closes. */
+    static constexpr uint8_t MAX_TURNED_AWAY = 4;
+    char turnedAway_[MAX_TURNED_AWAY][5] = {};
+    uint8_t turnedAwayCount_ = 0;
+    /* A guest's view of its host. closedCount_ is how many looks in a row
+     * found the host offering no table; startHeard_ that its start word has
+     * been heard with no table for us in it yet, and since when; leftOut_
+     * that "Started without you" is up, and since when. */
+    uint8_t closedCount_ = 0;
+    bool startHeard_ = false;
+    uint32_t startHeardMs_ = 0;
+    bool leftOut_ = false;
+    uint32_t leftOutAtMs_ = 0;
     uint8_t computers_ = 0;
     bool tableStale_ = true;
     uint32_t tableSig_ = 0;
-    /* The local lobby says so when an invitation to Ludo is waiting. */
+    /* The local lobby says so when an invitation to Ludo is waiting, and when
+     * somebody in the room is gathering a table that can be sat at. */
     bool inviteWaiting_ = false;
+    bool tableOpen_ = false;
 
     // ---- what is on the panel, so only changes are repainted ---------------
     static constexpr uint8_t PLACE_CENTRE = 241;
@@ -453,7 +535,8 @@ private:
     /* The whole game, flat, for NVS. Fixed layout: loadBlob() refuses a blob
      * whose length changed, and `version` covers one that kept its size.
      * Seat kinds and level are kept with no game in progress too, so the
-     * lobby comes back as it was left. */
+     * lobby comes back as it was left. The same layout serves both slots: the
+     * player's never has `net` set, the console's always has. */
     struct Saved {
         uint16_t magic;
         uint8_t version;
@@ -482,6 +565,8 @@ private:
     static constexpr uint16_t SAVE_MAGIC = 0x1D05;
     /* 2 added the table fields; 3 the dropped chairs. An older blob is a
      * different length, so loadBlob() refuses it and the lobby comes back
-     * with its defaults. */
+     * with its defaults. Moving to a key of this game's own did not change
+     * the layout, which is what lets a game on this console that was saved
+     * under the old shared key still be read (restorePlayer()). */
     static constexpr uint8_t SAVE_VERSION = 3;
 };

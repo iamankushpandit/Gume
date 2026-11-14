@@ -9,8 +9,11 @@
 
 #include "LudoGame.h"
 
+#include "engine/NearbyPlay.h"
+
 /* Ludo across consoles: forming the table, and carrying each console's turns
- * in order. The table lobby itself is in LudoLobby.cpp.
+ * in order. The table lobby itself is in LudoLobby.cpp, and the pause for a
+ * console that has gone quiet is in LudoSave.cpp.
  *
  * Everything on the air goes through AppContext's nearby calls -- the same
  * invitation, the same numbered turn and the same ending Chess and Sea Battle
@@ -62,6 +65,142 @@ const char* LudoGame::seatLabel(uint8_t seat) const {
         return "You";
     }
     return chairs_[p].name[0] != 0 ? chairs_[p].name : chairs_[p].id;
+}
+
+// ---- who is at the host's table -----------------------------------------------
+
+namespace {
+
+/* An invitation stays on the air until it is answered or replaced, and only
+ * one can be up at once. So the host asks the consoles it picked in turn:
+ * this is how long each is asked before the next one is. One that has
+ * answered is passed over. */
+constexpr uint32_t INVITE_ROTATE_MS = 6500;
+/* How often to look again for somebody still to ask, once all are asked. */
+constexpr uint32_t INVITE_RECHECK_MS = 1000;
+
+}   // namespace
+
+int8_t LudoGame::invitedIndex(const char* id) const {
+    for (uint8_t i = 0; i < invitedCount_; ++i) {
+        if (sameId(invited_[i], id)) {
+            return static_cast<int8_t>(i);
+        }
+    }
+    return -1;
+}
+
+void LudoGame::unseat(uint8_t index) {
+    for (uint8_t j = index; j + 1 < invitedCount_; ++j) {
+        copyId(invited_[j], invited_[j + 1]);
+        invitedWalkIn_[j] = invitedWalkIn_[j + 1];
+    }
+    --invitedCount_;
+}
+
+bool LudoGame::turnedAway(const char* id) const {
+    for (uint8_t i = 0; i < turnedAwayCount_; ++i) {
+        if (sameId(turnedAway_[i], id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool LudoGame::joined(AppContext& host, const char* id) {
+    NearbyTurn t;
+    /* Answered, and still being heard. An answer is remembered for as long
+     * as its console is in the room, so without the second half a console
+     * switched off after answering would go on counting as at the table. */
+    return host.nearbyTurnFrom(id, session_, t) && !t.ended && t.ply == 0 &&
+           t.from == Ludo::Net::PRESENCE && t.to == Ludo::Net::PRESENCE &&
+           host.nearbyPeerSilentMs(id) < NearbyPlay::PEER_QUIET_MS;
+}
+
+uint8_t LudoGame::joinedCount(AppContext& host) {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < invitedCount_; ++i) {
+        n = static_cast<uint8_t>(n + (joined(host, invited_[i]) ? 1 : 0));
+    }
+    return n;
+}
+
+bool LudoGame::hostCanStart(AppContext& host) {
+    if (role_ != Role::Host) {
+        return false;
+    }
+    const uint8_t people = static_cast<uint8_t>(1 + joinedCount(host));
+    return people >= 2 && people + computers_ <= Ludo::SEATS;
+}
+
+void LudoGame::seatWalkIns(AppContext& host) {
+    /* A console that sat down by itself and has got up again is forgotten,
+     * not asked back: asking was never this console's idea. */
+    for (uint8_t i = invitedCount_; i-- > 0;) {
+        if (invitedWalkIn_[i] && !joined(host, invited_[i])) {
+            unseat(i);
+        }
+    }
+    /* Anybody saying they are at this table is seated, while there is a
+     * chair -- except a console the host has sent away, which is not seated
+     * again just for still saying so. */
+    for (uint8_t i = 0; i < peerCount_ && invitedCount_ < Ludo::Net::MAX_HUMANS - 1; ++i) {
+        const char* id = peers_[i].deviceId;
+        if (invitedIndex(id) >= 0 || turnedAway(id) || !joined(host, id)) {
+            continue;
+        }
+        copyId(invited_[invitedCount_], id);
+        invitedWalkIn_[invitedCount_++] = true;
+    }
+}
+
+void LudoGame::askNext(AppContext& host, uint32_t now) {
+    if (host.nearbySelfId()[0] == 0) {
+        askedId_[0] = 0;   // Nearby is off: nothing of ours is on the air
+        return;
+    }
+    if (now < nextInviteMs_) {
+        return;
+    }
+    nextInviteMs_ = now + INVITE_RECHECK_MS;
+    if (invitedCount_ == 0) {
+        /* Nobody is at this table or asked to it. An invitation left up
+         * would be to a console the table has no chair for. */
+        if (askedId_[0] != 0) {
+            host.nearbyStop();
+            askedId_[0] = 0;
+        }
+        return;
+    }
+    /* The next console the host picked that has not answered. One that sat
+     * down by itself is never asked: if it has got up, it is forgotten the
+     * next time the room is read. Nothing else of ours may be on the air
+     * meanwhile: a turn would replace the invitation. */
+    int8_t pick = -1;
+    for (uint8_t k = 0; k < invitedCount_ && pick < 0; ++k) {
+        const uint8_t i = static_cast<uint8_t>((inviteCursor_ + k) % invitedCount_);
+        if (!invitedWalkIn_[i] && !joined(host, invited_[i])) {
+            pick = static_cast<int8_t>(i);
+        }
+    }
+    if (pick < 0) {
+        /* Everybody has answered. The invitation stays up all the same,
+         * naming one of them: it is how a console that was not asked sees
+         * there is a table here to sit at. */
+        if (askedId_[0] != 0 && invitedIndex(askedId_) >= 0) {
+            return;
+        }
+        pick = 0;
+    }
+    inviteCursor_ = static_cast<uint8_t>(pick + 1);
+    nextInviteMs_ = now + INVITE_ROTATE_MS;
+    if (sameId(askedId_, invited_[pick])) {
+        return;   // it is the one being asked already, and that stands
+    }
+    bool unused = false;   // who moves first comes from the seed, not the toss
+    if (host.nearbyInvite(invited_[pick], session_, unused)) {
+        copyId(askedId_, invited_[pick]);
+    }
 }
 
 // ---- forming the table -------------------------------------------------------
@@ -237,8 +376,6 @@ void LudoGame::startNetGame(AppContext& host, const Ludo::Net::Start& st) {
     enterTurn(millis(), false);
     host.playSound(Sound::Select);
     saveGame(host);
-    /* Whether that was kept is how begin() later knows whose table this is. */
-    tableSaid_ = saveSays(host);
     markFullDirty();
 }
 
@@ -279,7 +416,10 @@ void LudoGame::pollTable(AppContext& host, uint32_t now) {
     host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
 
     for (uint8_t c = 0; c < chairCount_; ++c) {
-        if (c == selfChair_) {
+        /* Not a chair the table has played on without: that console is at no
+         * table of ours any more, and its giving up on the one it remembers
+         * must not end the one that went on. */
+        if (c == selfChair_ || chairDropped(c)) {
             continue;
         }
         NearbyTurn t;
@@ -295,15 +435,31 @@ void LudoGame::pollTable(AppContext& host, uint32_t now) {
                      chairs_[c].name[0] != 0 ? chairs_[c].name : chairs_[c].id);
             host.nearbyStop();
             ended_ = true;
-            leaveTable(host);
-            mode_ = Mode::Lobby;
-            confirmUntilMs_ = 0;
-            lobbyStale_ = true;
+            closeTable(host);
             host.playSound(Sound::GameOver);
-            saveGame(host);
-            markFullDirty();
             return;
         }
+    }
+
+    /* A table that has gone on without this console. Nobody at a table can
+     * be more than a ply for each other console ahead of one that is still
+     * in it -- each waits for every ack before it speaks again -- so a host
+     * further ahead than that is not waiting for us: it played on without us
+     * while we were out of range and has since replaced the word that said
+     * so, or this console formed its table from a roster the host never
+     * dealt. Either way no move for us will ever come. */
+    NearbyTurn hostWord;
+    if (role_ == Role::Guest && host.nearbyTurnFrom(hostId_, session_, hostWord) &&
+        !hostWord.ended && hostWord.ack != Ludo::Net::NOT_STARTED &&
+        Ludo::Net::atOrAfter(hostWord.ack, static_cast<uint8_t>(
+                                               (applied_ + Ludo::Net::MAX_HUMANS) &
+                                               Ludo::Net::PLY_MASK))) {
+        snprintf(lobbyNote_, sizeof(lobbyNote_), "Table went on without you");
+        host.nearbyStop();
+        ended_ = true;
+        closeTable(host);
+        host.playSound(Sound::GameOver);
+        return;
     }
 
     /* A takeover we have chosen but not yet said: it goes on the air as the
@@ -359,17 +515,12 @@ void LudoGame::pollTable(AppContext& host, uint32_t now) {
              * computer now holds -- so back to the lobby, told why, the same
              * way an ending is. Our word comes off the air: we are in no
              * game now. */
-            snprintf(lobbyNote_, sizeof(lobbyNote_), "%s played on without you",
+            snprintf(lobbyNote_, sizeof(lobbyNote_), "%.9s played on without you",
                      chairs_[c].name[0] != 0 ? chairs_[c].name : chairs_[c].id);
             host.nearbyStop();
             ended_ = true;
-            leaveTable(host);
-            mode_ = Mode::Lobby;
-            confirmUntilMs_ = 0;
-            lobbyStale_ = true;
+            closeTable(host);
             host.playSound(Sound::GameOver);
-            saveGame(host);
-            markFullDirty();
             return;
         }
         droppedChairs_ = static_cast<uint8_t>(droppedChairs_ | (1U << chair));
@@ -402,137 +553,4 @@ void LudoGame::pollTable(AppContext& host, uint32_t now) {
     netCode_ = t.to;
     applied_ = t.ply;
     doRoll(host, now);
-}
-
-// ---- a console going quiet ----------------------------------------------------
-
-void LudoGame::endTableByUs(AppContext& host) {
-    /* Tell the others first, through the service's own ending, and every
-     * console at the table leaves to its lobby too (pollTable). The ending
-     * stays on the air after we leave, so a console that has not heard it
-     * yet still will -- held, so that the next thing pressed in the lobby
-     * cannot take it straight off. Used by End game and by the pause card
-     * alike. */
-    host.nearbyEnd(session_, Ludo::Net::nextPly(applied_), applied_);
-    holdWord(millis());
-    ended_ = true;
-    leaveTable(host);
-    watch_.reset();
-    pausePainted_ = false;
-    mode_ = Mode::Lobby;
-    confirmUntilMs_ = 0;
-    confirmShown_ = false;
-    lobbyStale_ = true;
-    host.playSound(Sound::Select);
-    saveGame(host);
-    markFullDirty();
-}
-
-void LudoGame::dropChair(AppContext& host, uint8_t chair) {
-    (void)host;
-    if (role_ != Role::Host || chair >= chairCount_ || chair == selfChair_ ||
-        chairDropped(chair)) {
-        return;
-    }
-    /* Chosen now, said when the table can hear it -- see pollTable. From this
-     * frame the chair is not waited for, so the pause lifts. */
-    pendingDrop_ = chair;
-}
-
-/* The whole table pauses for one quiet console. Playing on around somebody
- * is how you get a game nobody can finish; and a seat that cannot ack the
- * last ply stalls canPublish for everyone anyway. The host alone is offered
- * "Play without", and only once the chair is Gone rather than merely Quiet:
- * fifteen seconds is a scan gap, forty-five is somebody who has left. A guest
- * whose host has gone can only wait or end. */
-bool LudoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now) {
-    if (!net_ || mode_ != Mode::Play || phase_ == Phase::Over || ended_) {
-        if (watch_.paused()) {
-            watch_.reset();
-            pausePainted_ = false;
-            markFullDirty();
-        }
-        return false;
-    }
-    char ids[Ludo::Net::MAX_HUMANS][5];
-    for (uint8_t c = 0; c < chairCount_; ++c) {
-        copyId(ids[c], chairs_[c].id);
-    }
-    const NearbyWatch::State before = watch_.state();
-    if (watch_.tickTable(host, ids, chairCount_, selfChair_, chairsNotWaitedFor(), now)) {
-        if (watch_.state() != before && watch_.paused()) {
-            sayWhoIsQuiet();
-        }
-        markDirty();
-    }
-    if (watch_.resumed()) {
-        host.playSound(Sound::Pop);
-        pausePainted_ = false;
-        /* Puts the message back to whose turn it is. Not during a hop, which
-         * it would abandon: the hop does the same when it lands. */
-        if (phase_ != Phase::Moving) {
-            enterTurn(now, rollBonus_);
-        } else {
-            setMessage("");   // as a hop leaves it; nobody is quiet any more
-        }
-        markFullDirty();
-        return false;
-    }
-    if (!watch_.cardShown()) return false;
-    const bool offerDrop = role_ == Role::Host && watch_.state() == NearbyWatch::State::Gone;
-    switch (watch_.press(boardRect(), touch, offerDrop)) {
-        case NearbyWatch::Press::Wait:
-            watch_.dismiss();
-            pausePainted_ = false;
-            host.playSound(Sound::Tap);
-            markFullDirty();
-            break;
-        case NearbyWatch::Press::End:
-            endTableByUs(host);
-            break;
-        case NearbyWatch::Press::Extra:
-            dropChair(host, watch_.who());
-            host.playSound(Sound::Select);
-            pausePainted_ = false;
-            markFullDirty();
-            break;
-        default:
-            break;
-    }
-    return touch.justPressed;
-}
-
-void LudoGame::sayWhoIsQuiet() {
-    const Chair& who = chairs_[watch_.who()];
-    char line[sizeof(message_)];
-    snprintf(line, sizeof(line), "%.9s %s", who.name[0] != 0 ? who.name : who.id,
-             watch_.state() == NearbyWatch::State::Gone ? "is away" : "is quiet");
-    /* Asked on every frame of a pause, so only a change is a repaint. */
-    if (messageSeat_ == Ludo::NO_SEAT && strcmp(line, message_) == 0) {
-        return;
-    }
-    snprintf(message_, sizeof(message_), "%s", line);
-    messageSeat_ = Ludo::NO_SEAT;
-    markDirty();
-}
-
-void LudoGame::drawPause(Ui::Renderer& tft) {
-    if (!net_ || mode_ != Mode::Play || phase_ == Phase::Over || ended_ || !watch_.cardShown()) {
-        pausePainted_ = false;
-        return;
-    }
-    const Rect area = boardRect();
-    const Chair& who = chairs_[watch_.who()];
-    const char* label = who.name[0] != 0 ? who.name : who.id;
-    const bool offerDrop = role_ == Role::Host && watch_.state() == NearbyWatch::State::Gone;
-    if (!pausePainted_) {
-        char extra[24];
-        snprintf(extra, sizeof(extra), "Play without %.9s", label);
-        watch_.draw(tft, area, label, offerDrop ? extra : nullptr);
-        pausePainted_ = true;
-        pauseSecondsDrawn_ = watch_.silentSeconds();
-    } else if (pauseSecondsDrawn_ != watch_.silentSeconds()) {
-        watch_.drawSeconds(tft, area, offerDrop);
-        pauseSecondsDrawn_ = watch_.silentSeconds();
-    }
 }

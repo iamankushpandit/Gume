@@ -28,3 +28,12 @@ using Ch::idx;
 using Ch::fileOf;
 using Ch::rankOf;
 using Ch::BACK_RANK;
+
+/* Where a game is kept. One name for both places it can be: the player's own
+ * slot, for a game against the computer or across this one console and for
+ * the lobby's choices, and the console's slot, for a game against a nearby
+ * console -- see ChessSave.cpp. Chess used to keep its game under "game", and
+ * so did four other games, each writing over the last; that name is still
+ * read once, for a save made before this, and never written. */
+constexpr char CHESS_SAVE_KEY[] = "chess_game";
+constexpr char CHESS_LEGACY_KEY[] = "game";

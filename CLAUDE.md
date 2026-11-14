@@ -1096,7 +1096,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   - **Up is announced and down is not.** A step up plays `Sound::LevelUp` with a green `pulseRgb()` in place of `beepOk()` -- a tick armed first is cut off by the flourish -- and the new level's name stands over its first question. A step down says nothing at all; the questions get easier, and that is the whole of it.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
-- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
+- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player. The one exception is the state of a game being played against another console, which is the console's and not a player's (`saveConsoleBlob()`, see below).
 - **Device settings are global, not per-profile**: theme, layout, screen flip, brightness,
   sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone,
   deep sleep.
@@ -1252,12 +1252,16 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   The second way a two-player game ends never arrives as a message -- a flat
   battery cannot send `nearbyEnd()` -- so `NearbyPlay::peerSilentMs()` reports
   the silence off the scanner's own `lastSeenMs`, and `NearbyWatch`
-  (`src/games/`) turns it into Present / Quiet (`PEER_QUIET_MS`, 15s) / Gone
-  (the scanner's 45s TTL) and one card: waiting for whom, for how long, Keep
-  waiting or End game. Every nearby game hooks it at the same two places;
-  none may decide "too long" for itself. Nothing transmits for it: it is
-  derived from the absence of the beacon that is already there, which is why
-  it needed no agreement about what goes on the air. See
+  (`src/games/`) turns it into Present / Away / Quiet (`PEER_QUIET_MS`, 15s) /
+  Gone (the scanner's 45s TTL) and one card: waiting for whom, for how long,
+  Keep waiting or End game. **Away** is the peer that is still heard but has
+  said no move in this game for `PEER_AWAY_MS` (20s,
+  `NearbyPlay::peerAwayMs()`): it lost the game, started another or switched
+  Nearby off. Without it a console that looked perfectly present left the
+  other player on "their turn" for ever. Every nearby game hooks the watch at
+  the same two places; none may decide "too long" for itself. Nothing
+  transmits for it: it is derived from the absence of what is already on the
+  air, which is why it needed no agreement about what goes there. See
   `src/games/CLAUDE.md`.
 - **A game that persists needs a way to be abandoned.** Chess writes its board
   to NVS after every move and on the way out, which is right -- young players put the
@@ -1267,13 +1271,55 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   back. So End game is not a nicety bolted on beside persistence, it is the
   other half of it. The same applies to anything else here that learns to
   remember an unfinished state.
-- **Leaving a nearby game does not end it; only End game does.** Every game
-  played across consoles -- Chess, Go, Backgammon, Sea Battle, Ludo -- saves on
-  the way out and leaves its last move on the air, so the other console still
-  receives it and the game carries on when this screen comes back. `end()`
-  calls `nearbyStop()` only outside a nearby game (and Ludo's when the table
-  was still gathering). Taking the move off the air on the way out is what
-  stranded the other player waiting for a move that had already been made.
+- **A game across consoles belongs to the console, and only End game ends
+  it.** The other console is playing *this console*, whoever is holding it.
+  So Chess, Go, Backgammon, Sea Battle and Ludo keep a nearby game's state in
+  the console's own storage slot (`AppContext::saveConsoleBlob()`,
+  `Board::CONSOLE_SLOT`), not the player's: it survives a change of player,
+  it is kept for Guest through a power cut -- **the one thing written while
+  Guest is active**, agreed with the maintainer, because the alternative was
+  the other console waiting for ever on a game that no longer existed -- and
+  it never overwrites a player's own game against the computer, which stays
+  in the player's slot. Leaving the screen saves, and leaves the game's last
+  move on the air so the other console still receives it; opening the game
+  again carries on. `end()` calls `nearbyStop()` only outside a nearby game;
+  a nearby game that is over calls `nearbyStopLater()`, which gives its last
+  word a minute and then takes it down. Nothing but End game, the other
+  console's ending, the game's own rules, or Ludo's host playing on without a
+  console ends one: not the screen being left, sleep, the saver, a change of
+  player or another game being opened. Each of the five saves under its own
+  key; they all used `"game"` once, so playing one destroyed another's save.
+- **The air holds one turn, and the service knows whose it is.** A game left
+  in the middle keeps its move on the air, so the turn can belong to an app
+  that is not on screen. `NearbyPlay` records which app published it and
+  `nearbyStop()` takes it down only for that app, so one game's lobby cannot
+  remove another's kept move. A second nearby game that says a turn replaces
+  the first game's -- the payload has room for one -- and the first says it
+  again when its screen comes back; meanwhile its peer sees it as Away. A new
+  game's session number comes from `nearbyFreshSession()`, which steps past
+  every session this console still holds a turn for.
+- **An invitation stands until it is answered.** It used to leave the air
+  after six seconds, like a poke; the console that asked then waited for ever
+  and the other player's late tap became a second invitation crossing the
+  first. Agreed with the maintainer as a change to how long the existing
+  broadcast lasts, not to what it says: it stays up until the first turn
+  replaces it, `nearbyStop()` withdraws it (leaving the lobby does), or
+  another replaces it. No game may time an invitation. Two consoles asking
+  each other at once are settled by tag, with no clock: the greater tag
+  accepts. And a lobby is told only about an invitation aimed at THIS console
+  (`NearbySeat::inviting`); one aimed elsewhere is `asking`, which a lobby
+  shows as busy and Ludo shows as a table to sit at.
+- **A lobby shows who is there and what they are doing, from what is already
+  on the air.** `NearbySeat` says whether a console is inviting us, asking
+  somebody else, or in a game and with whom, all worked out from the
+  advertisements every console already sends; nothing is transmitted to make
+  a lobby. A move does not say which game it belongs to, so "in a game" is
+  all a row can say.
+- **Go states its rules and board size in the low four bits of the session
+  number.** Agreed with the maintainer: it adds no byte and no field, it is
+  what the console that invites says with a number it already sends. Each
+  console used to play its own chips, so two consoles could play different
+  games at each other.
 - **Local peer names never reach the radio, and that is structural.**
   `Board::peerName()` / `setPeerName()` hold up to 8 labels of 10 characters in
   one NVS blob with a RAM mirror. `BleBeacon` does not read them and must never
@@ -1678,7 +1724,9 @@ src/ui/                   Renderer, TftRenderer, PaintClip (the arithmetic of
                           drawn), FocusMath (where the selector goes next;
                           shared with the Linux host),
                           LauncherLayout, LogoMask (generated -- the product
-                          mark, as a one-bit silhouette)
+                          mark, as a one-bit silhouette), Stops (what a
+                          screen says about its board: whether the d-pad's
+                          selector may stop on it just now)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           gen_site_anims.py (the animations on the site's
                           Privacy and Get started cards -- look at every one
