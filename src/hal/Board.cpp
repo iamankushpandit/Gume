@@ -332,6 +332,7 @@ uint8_t Board::addPlayer(const char* name) {
 void Board::removePlayer(uint8_t index) {
     const uint8_t n = playerCount();
     if (index >= n) return;
+    ++playersEpoch_;
 
     const uint8_t oldActive = activeProfile();
     const uint8_t oldAdmin = adminProfileIndex();

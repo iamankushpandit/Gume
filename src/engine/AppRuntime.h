@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include "engine/AppRegistry.h"
+#include "engine/CarryOnScreen.h"
 #include "engine/ContentLoader.h"
 #include "engine/Game.h"
 #include "engine/LauncherApp.h"
@@ -109,6 +110,8 @@ public:
     bool drawTopBarClock() override;
     void goHome() override;
     void relaunchActiveGame() override;
+    uint8_t courseLevel(uint8_t track = 0) override;
+    void setCourseLevel(uint8_t level, uint8_t track = 0) override;
 
     /* Two-player games on nearby consoles. Thin: every one of these forwards
      * to NearbyPlay, which owns the policy, which in turn asks BleScan and
@@ -178,6 +181,23 @@ private:
     uint8_t rotationForActiveScreen();
     void applyRotation(uint8_t rotation);
     void leaveActiveGame();
+    /* What the console keeps for a player between two visits to a game
+     * (AppRuntimeKeep.cpp): the game itself until the console is switched
+     * off, and the level reached in it for good. */
+    struct KeptGame {
+        uint32_t leftAtMs = 0;
+        uint8_t profile = 0;
+        uint8_t epoch = 0;
+        bool waiting = false;
+    };
+    void noteGameLeft();
+    bool keptGameWaits(const AppDefinition& app);
+    void enterApp(const AppDefinition& app, bool carryOn, uint32_t awayMs);
+    void askCarryOn(const AppDefinition& app);
+    void settleCarryOn();
+    void syncCourse();
+    static constexpr uint8_t COURSE_SLOTS = 80;
+    static constexpr uint8_t COURSE_ENTRY = 3;      // key low, key high, level
     const char* activeAppTitle() const;
 
     const AppDefinition& appById(const char* id) const;
@@ -318,6 +338,18 @@ private:
     ContentLoader content_;
     GameInstances games_;
     LauncherApp launcher_;
+    CarryOnScreen carryOn_;
+    KeptGame kept_[PLAYABLE_APP_COUNT];
+    /* A press has reached the game since it was begun. A game opened and
+     * left untouched has nothing in it to keep. */
+    bool pressedInGame_ = false;
+    /* When the screen saver or sleep took the screen away, so the game under
+     * it can be told how long it was not running. */
+    uint32_t idleSinceMs_ = 0;
+    uint8_t course_[COURSE_SLOTS * COURSE_ENTRY] = {};
+    uint8_t courseProfile_ = 0;
+    uint8_t courseEpoch_ = 0;
+    bool courseLoaded_ = false;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
     /* True only while a playable game is the thing on screen.

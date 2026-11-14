@@ -85,32 +85,14 @@ void BrainoApp::openApp(const AppDefinition& app) {
 void BrainoApp::launch(const AppDefinition& app) {
     leaveActiveGame();
 
-    activeGame_ = &app.game(games_);
-    view_ = View::Game;
-    activeApp_ = &app;
-    /* Only playable games are announced. Opening Settings or System Info is
-     * nobody else's business, and a system screen has no score to share. */
-    NearbyPlay::setActiveApp(board_, app.isCatalogApp() ? &app : nullptr);
-    Watchdog::setContext(app.title());
-    applyRotation(rotationForActiveScreen());
-    heapAtLaunch_ = ESP.getFreeHeap();
-    activeGame_->begin(*this);
-    /* A SCREEN TRANSITION IS ALWAYS A WHOLE-SCREEN REPAINT.
-     *
-     * Every screen is a static instance reused for the life of the device, so
-     * it arrives here carrying the dirty flags the LAST visit left behind --
-     * and the last thing that visit did was clearDirty(). Without this, a
-     * screen whose begin() happens to call only markDirty() renders without
-     * its renderStatic(), which is where both Ui::clear() and the top bar
-     * live: no chrome, and the previous screen still showing underneath it.
-     *
-     * It belongs here rather than in each begin(). Fourteen screens would each
-     * have to remember, and the one that forgot would be found by eye on a
-     * panel rather than by any build. Partial repaint is an optimisation
-     * WITHIN a screen's lifetime; entering one is not the place to be greedy. */
-    activeGame_->requestRender();
-    activeGame_->render(*this);
-    activeGame_->clearDirty();
+    /* A game this player left with something in it is still in memory: ask
+     * whether to carry on before begin() throws it away. See
+     * Game::keepsGame() and AppRuntimeKeep.cpp. */
+    if (keptGameWaits(app)) {
+        askCarryOn(app);
+        return;
+    }
+    enterApp(app, false, 0);
 }
 
 const char* LauncherApp::title() const {

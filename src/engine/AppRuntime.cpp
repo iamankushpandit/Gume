@@ -383,11 +383,21 @@ void BrainoApp::loop() {
                 touch.x * static_cast<float>(GAME_CANVAS_WIDTH) / SCREEN_WIDTH));
             gameTouch.y = static_cast<int16_t>(lroundf(
                 touch.y * static_cast<float>(GAME_CANVAS_HEIGHT) / SCREEN_HEIGHT));
+            if (gameTouch.justPressed) {
+                pressedInGame_ = true;      // there is now something to keep
+            }
             activeGame_->update(*this, gameTouch);
         } else {
+            if (touch.justPressed) {
+                pressedInGame_ = true;
+            }
             activeGame_->update(*this, touch);
         }
         withdrawKeys();
+        /* The runtime asks Carry on / New game on its own screen, drawn as
+         * the game it stands in front of; this is where it reads the answer.
+         * A no-op on every other screen, and after a press the chrome took. */
+        settleCarryOn();
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();
@@ -527,6 +537,7 @@ void BrainoApp::leaveActiveGame() {
         return;
     }
     const char* leaving = Watchdog::context();
+    noteGameLeft();     // before end(): the question is about the game as it stood
     activeGame_->end(*this);
     activeGame_ = nullptr;
     activeApp_ = nullptr;
@@ -565,6 +576,7 @@ void BrainoApp::goHome() {
 void BrainoApp::relaunchActiveGame() {
     if (activeGame_ != nullptr) {
         activeGame_->begin(*this);
+        pressedInGame_ = false;     // begun again: nothing in it yet
         /* Same reasoning as launch() and goHome(): starting a screen over is a
          * whole-screen repaint, and this one does not even render here -- it
          * leaves that to the next loop iteration, which would otherwise use

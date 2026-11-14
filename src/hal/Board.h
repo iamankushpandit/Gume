@@ -308,6 +308,10 @@ public:
     uint8_t addPlayer(const String& name) { return addPlayer(name.c_str()); }
     /** Delete a player, shifting later names and persisted profile data down. */
     void removePlayer(uint8_t index);
+    /* Counts removals. Removing a player moves the ones after down a slot, so
+     * anything held in memory against a slot number -- a game left in the
+     * middle, the levels of whoever is in that slot -- has to notice. */
+    uint8_t playersEpoch() const { return playersEpoch_; }
     bool isGuest() { return activeProfile() == GUEST_INDEX; }
 
     /* Admin profile with PIN protection for device settings access. */
@@ -714,6 +718,7 @@ private:
      * stale read is not possible. The Wi-Fi credentials already worked this
      * way -- this extends the same pattern to the rest of the hot settings. */
     bool profileCached_ = false;
+    uint8_t playersEpoch_ = 0;
     uint8_t cachedProfile_ = 0;
     bool themeCached_ = false;
     uint8_t cachedTheme_ = 0;

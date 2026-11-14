@@ -109,6 +109,21 @@ public:
     virtual void goHome() = 0;
     virtual void relaunchActiveGame() = 0;
 
+    /* THE PLAYER'S PLACE IN THIS GAME'S COURSE.
+     *
+     * A level, 1 and up, kept for each player and each game. It is all a
+     * game needs kept to start a player where they left off rather than at
+     * 3 + 4 every visit; engine/Course.h has the ladder that moves it and
+     * the deck that deals a level's questions. 0 means never set.
+     *
+     * `track`, 0..3, is for a game that teaches more than one thing and
+     * keeps a level for each. Cheap to read: the runtime holds the active
+     * player's levels in memory. Written to storage only when the level
+     * changes. For Guest nothing is stored, as with everything of Guest's,
+     * and the level lasts until another player takes the console. */
+    virtual uint8_t courseLevel(uint8_t track = 0) = 0;
+    virtual void setCourseLevel(uint8_t level, uint8_t track = 0) = 0;
+
     /* ---- two-player games on nearby consoles ---------------------------
      *
      * Deliberately MOVE-shaped and not byte-shaped. An app can say "I played
@@ -285,6 +300,38 @@ public:
     }
 #endif
 
+    /* LEAVING A GAME DOES NOT LOSE IT.
+     *
+     * Home is one press, on a key that sits beside the one that answers, and
+     * players press it by mistake. Every screen is a static instance, so the
+     * game they left is still in memory -- it was begin(), run again on the
+     * way back in, that threw it away. So the runtime remembers that a game
+     * was left with something in it, and the next time the same player opens
+     * it, asks: Carry on, or New game. Carry on calls resume() INSTEAD of
+     * begin(); New game calls begin() as before. Kept until the console is
+     * switched off, and never across a change of player.
+     *
+     * keepsGame() is asked as the screen is left, before end(): does this
+     * game, as it stands, hold something a player would want back? The
+     * runtime already requires a press since begin(), so the default is yes.
+     * Say no where coming back would be coming back to nothing: a result
+     * screen, a menu, a tool with no game in it. A game that looks after its
+     * own return (the five that can be played across consoles have a lobby
+     * and a saved game) says no always.
+     *
+     * resume() is called when the game comes back without begin(): from that
+     * card, and also after the screen saver, sleep and the lock screen, where
+     * the game stayed up but was not being updated. `awayMs` is how long.
+     * A game with a deadline or a stopwatch moves it on by that much
+     * (movedOn() below), so the time away does not count against the player;
+     * anything end() gave back is taken again here. The runtime asks for a
+     * full repaint afterwards, so nothing needs drawing. */
+    virtual bool keepsGame() const { return true; }
+    virtual void resume(GameHost& host, uint32_t awayMs) {
+        (void)host;
+        (void)awayMs;
+    }
+
     bool needsRender() const {
         return dirty_;
     }
@@ -380,6 +427,14 @@ protected:
         return fullRedraw_;
     }
 
+    /* A millis() stamp, moved on by time the game was not running. 0 is left
+     * alone: it is what a stamp that was never set holds. */
+    static void movedOn(uint32_t& stampMs, uint32_t awayMs) {
+        if (stampMs != 0) {
+            stampMs += awayMs;
+        }
+    }
+
 private:
     bool dirty_ = true;
     bool fullRedraw_ = true;   // first paint is always a full one
@@ -412,6 +467,12 @@ public:
     }
 #endif
 
+    /* The AppContext half of Game::resume() -- see there. */
+    virtual void resume(AppContext& host, uint32_t awayMs) {
+        (void)host;
+        (void)awayMs;
+    }
+
     void begin(GameHost& host) final {
         begin(static_cast<AppContext&>(host));
     }
@@ -426,5 +487,9 @@ public:
 
     void end(GameHost& host) final {
         end(static_cast<AppContext&>(host));
+    }
+
+    void resume(GameHost& host, uint32_t awayMs) final {
+        resume(static_cast<AppContext&>(host), awayMs);
     }
 };

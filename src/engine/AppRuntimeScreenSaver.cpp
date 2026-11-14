@@ -32,6 +32,7 @@ void BrainoApp::enterScreenSaver() {
      * overwrite what we were doing with View::Locked. */
     if (view_ == View::Game) {
         ssavPrevView_ = view_;
+        idleSinceMs_ = millis();
     }
     applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
     Watchdog::setContext("ScreenSaver");
@@ -44,6 +45,7 @@ void BrainoApp::enterSleep() {
     endAdminSessionForIdle();
     if (view_ == View::Game) {
         ssavPrevView_ = view_;
+        idleSinceMs_ = millis();
     }
     board_.setRgbColor(0, 0, 0);
     board_.displaySleep();
@@ -140,6 +142,9 @@ void BrainoApp::resumeUnderlyingScreen() {
         if (restart) {
             relaunchActiveGame();   // requests its own full repaint
         } else {
+            /* The screen stayed up but nothing updated it: tell it for how
+             * long, so a countdown does not run out behind a dark panel. */
+            activeGame_->resume(*this, millis() - idleSinceMs_);
             activeGame_->requestRender();
         }
     } else {
