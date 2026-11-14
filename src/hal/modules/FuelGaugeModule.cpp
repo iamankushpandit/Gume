@@ -250,6 +250,7 @@ constexpr Modules::Driver DRIVER = {
     /* heldControls   */ nullptr,
     /* typedChar      */ nullptr,
     /* readBattery    */ readBattery,
+    /* panelSleep     */ nullptr,
 };
 const Modules::Registration REGISTRATION(DRIVER);
 

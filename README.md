@@ -1656,7 +1656,7 @@ src/
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
-    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED
+    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED, parked ports
     BoardKeys.cpp       navigation keys (D-pad, Enter, Back): the board's and a gamepad's
     BoardModules.cpp    Board's side of the module table: battery, typed keys
     modules/            what is clipped on, found at boot -- one file a module

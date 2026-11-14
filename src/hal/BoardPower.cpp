@@ -11,6 +11,8 @@
 
 #include <esp_adc_cal.h>
 
+#include "modules/Modules.h"
+
 namespace {
 esp_adc_cal_characteristics_t s_adcChars;
 bool s_adcCharacterised = false;
@@ -323,6 +325,14 @@ void Board::displaySleep() {
     if (BOARD.hasBacklightControl()) ledcWrite(BL_CHANNEL, backlightDuty(0));
     tft_.writecommand(0x10);
     displayAsleep_ = true;
+    /* The firmware's other lights go out with the panel. Both calls are
+     * nothing on a board whose LED is on GPIOs and which takes no modules:
+     * the first re-reads an expander LED's state from the part instead of
+     * trusting what was last asked of it, and tickRgb() keeps asking for as
+     * long as the panel sleeps; the second tells each module that is clipped
+     * on, so one with a light of its own puts it out until displayWake(). */
+    keepExpanderRgbDark(true);
+    Modules::panelSleep(true);
     displaySleepTelemetry_.sleepCount++;
     displaySleepTelemetry_.lastSleepMs = millis();
     Serial.printf("[display] sleep #%lu at %lums\n",
@@ -365,6 +375,7 @@ void Board::displayWake() {
     tft_.writecommand(0x29);
     applyBrightness();
     displayAsleep_ = false;
+    Modules::panelSleep(false);     // a module's own light, back as it was
     const uint32_t wakeEndMs = millis();
     displaySleepTelemetry_.wakeCount++;
     displaySleepTelemetry_.lastWakeMs = wakeEndMs;

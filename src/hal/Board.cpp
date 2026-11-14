@@ -168,10 +168,39 @@ void Board::begin() {
         digitalWrite(BOARD.touch.reset, HIGH);
     }
 #if GUME_HAS_IO_EXPANDER
-    if (BOARD.touch.resetExpanderAddress != 0) {
-        BoardExpander::driveTouchReset(true);       // the bus is already up
-    } else {
+    if (BOARD.touch.resetExpanderAddress == 0) {
         Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }                                               // else the bus is already up
+    /* An expander this firmware drives no port of still has to be told so.
+     *
+     * An AW9523 strapped to its lowest address powers up with all sixteen
+     * ports OUTPUTS driving LOW, and on the Attaky Core that part (0x58) is
+     * where the other chips' interrupt outputs arrive: touch, the IMU, the
+     * power module's gauge, the gamepad's and keyboard's halves and the
+     * second expander. Never written, it held every one of those lines low
+     * against its owner's output or pull-up for as long as the console ran.
+     * Inputs are high-impedance, which is what a line nobody here uses
+     * should see; park() is allInputs() plus the part's own interrupt
+     * output switched off, since nothing reads that either.
+     *
+     * Before the touch controller is let out of reset, because one of those
+     * lines is its interrupt, and before the module table or the battery
+     * task read anything. The two INPUT registers are logged afterwards:
+     * with nothing driving them they are the lines' own levels, which is
+     * the only place a bench can read them. */
+    if (BOARD.parked.parkedExpander != 0) {
+        const uint8_t parked = BOARD.parked.parkedExpander;
+        BoardExpander::park(parked);
+        uint8_t p0 = 0;
+        uint8_t p1 = 0;
+        if (BoardExpander::readInputs(parked, p0, p1)) {
+            Serial.printf("[expander] 0x%02X inputs P0=0x%02X P1=0x%02X\n", parked, p0, p1);
+        } else {
+            Serial.printf("[expander] 0x%02X not answering\n", parked);
+        }
+    }
+    if (BOARD.touch.resetExpanderAddress != 0) {
+        BoardExpander::driveTouchReset(true);
     }
     if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
         BoardExpander::allInputs(BOARD.keys.keyExpander);

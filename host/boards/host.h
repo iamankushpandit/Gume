@@ -130,4 +130,7 @@ inline constexpr BoardProfile BOARD = {
     MemoryProfile{
         16u * 1024u * 1024u,      // nominal; nothing is flashed
     },
+    ParkedExpanderProfile{
+        0,                        // parkedExpander -- there is no expander
+    },
 };

@@ -36,7 +36,9 @@
  *    between -- it turns caps lock on, and tapped again turns it off. Held
  *    with a letter it still shifts that letter, the other way round while
  *    caps lock is on. The left half's own LED is green while it is on, so the
- *    state is visible on the keys rather than guessed at.
+ *    state is visible on the keys rather than guessed at -- except while the
+ *    panel sleeps, when the light is out with every other light the firmware
+ *    drives, and comes back on wake if caps lock is still on.
  *  - A digit, a space, or the punctuation printed on the keys, as itself.
  *  - '\b' for Delete, repeating while it is held, because clearing a
  *    mistyped password one press at a time is the case that needs it.
@@ -79,11 +81,20 @@ bool s_capsLock = false;
 bool s_shiftWasDown = false;
 bool s_shiftTap = false;
 
+/* The panel is asleep, so the caps-lock light is out whatever caps lock is:
+ * a locked console shows no light of the firmware's. Caps lock itself is
+ * kept, and the light comes back with the panel. */
+bool s_panelAsleep = false;
+/* The light's last write was not acknowledged; typedChar() tries again. An
+ * idle scan only reads, so without this a write lost on the way into sleep
+ * would leave the light on until somebody pressed a key. */
+bool s_lightPending = false;
+
 /* The P1 value with every row low, for one half. The LED shares P1 with the
  * rows, so every row write carries it -- otherwise the scan would put the
- * caps-lock light out on the first key. */
+ * caps-lock light out on the first key, or back on while the panel sleeps. */
 uint8_t rowsLow(uint8_t address) {
-    const bool lit = s_capsLock && address == BOARD.keyboard.keyboardLeft;
+    const bool lit = s_capsLock && !s_panelAsleep && address == BOARD.keyboard.keyboardLeft;
     return static_cast<uint8_t>(lit ? (ROWS_LOW & ~LED_GREEN) : ROWS_LOW);
 }
 
@@ -161,9 +172,29 @@ Modules::Probe probe() {
     return attached ? Modules::Probe::Present : Modules::Probe::Absent;
 }
 
+/* The caps-lock light as it should be now: the left half's P1 between scans,
+ * every row low and the LED bit as rowsLow() has it. Never the LED bit
+ * alone -- the rows are in the same register. */
+void showCapsLockLight() {
+    const uint8_t left = BOARD.keyboard.keyboardLeft;
+    s_lightPending = !writeRows(left, rowsLow(left));
+}
+
+/* Modules::Driver::panelSleep. Between frames, on the loop task, so never in
+ * the middle of a scan -- and a scan while the panel sleeps (the keys are
+ * still read, since a key wakes it) carries the same value. */
+void panelSleep(bool asleep) {
+    s_panelAsleep = asleep;
+    showCapsLockLight();
+}
+
 char typedChar() {
     const uint8_t address[2] = {BOARD.keyboard.keyboardLeft, BOARD.keyboard.keyboardRight};
     const char* const layout[2] = {BOARD.keyboard.leftLayout, BOARD.keyboard.rightLayout};
+
+    if (s_lightPending) {
+        showCapsLockLight();
+    }
 
     /* A failed read is not a key released: keep the last state, so a bus
      * glitch cannot type a character when it clears. */
@@ -192,8 +223,7 @@ char typedChar() {
     if (!shift && s_shiftWasDown && s_shiftTap) {
         s_capsLock = !s_capsLock;
         s_shiftTap = false;
-        const uint8_t left = BOARD.keyboard.keyboardLeft;
-        writeRows(left, rowsLow(left));
+        showCapsLockLight();
         Serial.printf("[keyboard] caps lock %s\n", s_capsLock ? "on" : "off");
     }
     s_shiftWasDown = shift;
@@ -253,6 +283,7 @@ constexpr Modules::Driver DRIVER = {
     /* heldControls   */ nullptr,
     /* typedChar      */ typedChar,
     /* readBattery    */ nullptr,
+    /* panelSleep     */ panelSleep,
 };
 const Modules::Registration REGISTRATION(DRIVER);
 

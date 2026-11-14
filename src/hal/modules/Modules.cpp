@@ -184,6 +184,14 @@ char typedChar() {
     return 0;
 }
 
+void panelSleep(bool asleep) {
+    for (uint8_t i = 0; i < s_count; ++i) {
+        if (s_present[i] && s_drivers[i]->panelSleep != nullptr) {
+            s_drivers[i]->panelSleep(asleep);
+        }
+    }
+}
+
 bool readBattery(float& volts, uint8_t& percent) {
     for (uint8_t i = 0; i < s_count; ++i) {
         if (s_drivers[i]->readBattery == nullptr) continue;

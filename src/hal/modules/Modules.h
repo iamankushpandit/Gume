@@ -52,7 +52,8 @@
  *
  * Built only where GUME_HAS_ATTAKY_MODULES is set. On every other board the
  * table does not exist, `allows()` is a constant true, and the image carries
- * none of it. Everything here runs on the loop task at boot, except
+ * none of it. Everything here runs on the loop task -- at boot, per frame, or
+ * as the panel sleeps and wakes -- except
  * readBattery(), which the battery task calls (see Board::sampleModuleBattery).
  * No allocation anywhere: the table is a fixed array of pointers to the
  * drivers' own constants. */
@@ -108,6 +109,12 @@ struct Driver {
      * state of charge, or PERCENT_FROM_VOLTS for a part that measures only
      * the voltage, which the board then reads through its LiPo curve. */
     bool (*readBattery)(float& volts, uint8_t& percent);
+    /* When the panel goes to sleep (true) and when it wakes (false), only if
+     * present: a module with a light of its own puts it out for as long as
+     * the console is dark, and back as it was. From Board::displaySleep() and
+     * displayWake(), on the loop task. A module whose light the host cannot
+     * reach -- the Power module's charge light -- has nothing to do here. */
+    void (*panelSleep)(bool asleep);
 };
 
 /* A driver's file puts it in the table with one of these at namespace
@@ -140,6 +147,9 @@ void describe(uint8_t index, char* out, size_t cap);
 void heldControls(HeldControls& into);
 char typedChar();
 
+/* Tell every present module the panel has gone to sleep, or woken. */
+void panelSleep(bool asleep);
+
 /* What a Battery driver puts in `percent` when its part knows only the
  * voltage (see Driver::readBattery). */
 constexpr uint8_t PERCENT_FROM_VOLTS = 0xFF;
@@ -159,6 +169,7 @@ inline bool allows(ModuleCapability capability) { return provides(capability); }
 
 /* No modules: nothing to look for, and nothing is gated on one. */
 inline void probeAll() {}
+inline void panelSleep(bool) {}
 constexpr bool allows(ModuleCapability) { return true; }
 
 #endif

@@ -366,6 +366,28 @@ struct MemoryProfile {
     uint32_t flashBytes;
 };
 
+/* An I2C expander the board carries that this firmware drives no port of.
+ *
+ * It is stated because leaving such a part alone is not the same as leaving
+ * its lines alone. An AW9523 does not power up as inputs: strapped to its
+ * lowest address it comes up with all sixteen ports OUTPUTS driving LOW
+ * (datasheet Table 1), and it stays that way until somebody writes its
+ * direction registers. On the Attaky Core the expander at 0x58 is wired to
+ * the interrupt outputs of the other chips -- touch, the IMU, the power
+ * module's gauge, the gamepad's and keyboard's halves, the second expander --
+ * so a firmware that never spoke to it held sixteen lines low against those
+ * chips' outputs and pull-ups for as long as it ran.
+ *
+ * `parkedExpander` is that part's address, or 0 for none, which is every
+ * other board. Board::begin() makes every port of it an input, in GPIO mode,
+ * as soon as the bus is up, and logs the two input registers it then reads.
+ * It must not be an expander the firmware does drive -- the touch reset's or
+ * the LED's -- since parking that one would let go of the line; BoardConfig.h
+ * refuses it. */
+struct ParkedExpanderProfile {
+    uint8_t parkedExpander;       // an AW9523's I2C address, or 0
+};
+
 /* Battery sense, in one of two shapes, never both.
  *
  * An ADC divider: `adcPin` is the sense line, `dividerRatio` the multiplier
@@ -419,6 +441,7 @@ struct BoardProfile {
     AudioProfile  audio;
     BatteryProfile battery;
     MemoryProfile memory;
+    ParkedExpanderProfile parked; // an expander to leave as inputs, or none
 
     /* The landscape canvas the games are authored against. Derived, because a
      * board that states both its panel size and its screen size can state them

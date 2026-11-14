@@ -25,8 +25,10 @@
  * else, held or idle. The probe leaves every port an input, which is the
  * part's power-on state but is written rather than trusted, since a previous
  * firmware may have left the LED ports driven; an input is also what leaves
- * each half's RGB LED off. A failed read is not a key released: the last
- * state stands, so a bus glitch cannot invent a press. */
+ * each half's RGB LED off, if it is wired as documented -- the probe logs
+ * what those lines read, so that can be seen (logLedLines()). A failed read
+ * is not a key released: the last state stands, so a bus glitch cannot
+ * invent a press. */
 
 #if GUME_HAS_ATTAKY_MODULES
 #include <Arduino.h>
@@ -35,6 +37,7 @@
 namespace {
 
 constexpr uint8_t TCA9555_INPUT_P0 = 0x00;
+constexpr uint8_t TCA9555_INPUT_P1 = 0x01;
 constexpr uint8_t TCA9555_CONFIG_P0 = 0x06;   // 1 = input
 
 /* Each half's port 0 as last read, kept for a failed read. Loop task only. */
@@ -48,16 +51,48 @@ bool setupHalf(uint8_t address) {
     return Wire.endTransmission() == 0;
 }
 
-/* Port 0 of one half; false on a bus error. Active low. */
-bool readPort0(uint8_t address, uint8_t& level) {
+/* One input register of one half; false on a bus error. */
+bool readInput(uint8_t address, uint8_t reg, uint8_t& level) {
     Wire.beginTransmission(address);
-    Wire.write(TCA9555_INPUT_P0);
+    Wire.write(reg);
     if (Wire.endTransmission(false) != 0 ||
         Wire.requestFrom(static_cast<int>(address), 1) != 1) {
         return false;
     }
     level = static_cast<uint8_t>(Wire.read());
     return true;
+}
+
+/* Port 0 of one half; false on a bus error. Active low. */
+bool readPort0(uint8_t address, uint8_t& level) {
+    return readInput(address, TCA9555_INPUT_P0, level);
+}
+
+/* What each half's LED lines read with nothing driving them, logged once.
+ *
+ * Attaky document each half's RGB LED on P1_5 (blue), P1_6 (green) and P1_7
+ * (red) as active low: anode to the supply, cathode to the port. Wired that
+ * way a port left an input sits at the supply through the LED and the part's
+ * own pull-up, so all three bits read HIGH (the top three bits of P1, 0xE0)
+ * and no current flows: the LED is off. A bit that reads LOW says that
+ * channel is wired the other way round -- anode to the port, cathode to
+ * ground -- and is then glowing dimly through the pull-up, which no input
+ * setting can put out; only driving the port low would.
+ *
+ * The test is one-sided. LOW is conclusive. HIGH is what the documented
+ * wiring gives, but a green or blue channel wired the other way could also
+ * read HIGH, its forward voltage at a few microamps being close to the
+ * part's input threshold; so all-HIGH with a light still showing wants a
+ * meter on the LED, not a conclusion from this line. Nothing here drives
+ * those ports: this is the measurement that says whether anything should.
+ * A half that did not answer logs 0x00 with "?" after it. */
+void logLedLines(uint8_t left, uint8_t right) {
+    uint8_t l = 0;
+    uint8_t r = 0;
+    const bool lOk = readInput(left, TCA9555_INPUT_P1, l);
+    const bool rOk = readInput(right, TCA9555_INPUT_P1, r);
+    Serial.printf("[gamepad] leds as inputs: left P1=0x%02X%s right P1=0x%02X%s\n",
+                  l, lOk ? "" : "?", r, rOk ? "" : "?");
 }
 
 Modules::Probe probe() {
@@ -69,6 +104,9 @@ Modules::Probe probe() {
      * is a module that is not seated properly, and half of it would be a
      * puzzle. */
     const bool attached = setupHalf(g.padLeftExpander) && setupHalf(g.padRightExpander);
+    if (attached) {
+        logLedLines(g.padLeftExpander, g.padRightExpander);
+    }
     return attached ? Modules::Probe::Present : Modules::Probe::Absent;
 }
 
@@ -102,6 +140,7 @@ constexpr Modules::Driver DRIVER = {
     /* heldControls   */ heldControls,
     /* typedChar      */ nullptr,
     /* readBattery    */ nullptr,
+    /* panelSleep     */ nullptr,
 };
 const Modules::Registration REGISTRATION(DRIVER);
 

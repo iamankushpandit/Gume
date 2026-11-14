@@ -32,16 +32,18 @@ namespace {
  * input, which is high-impedance and therefore the safest thing this
  * firmware can leave a line it does not use. setupLed() then makes the LED's
  * three ports outputs, by read-modify-write, and nothing else. */
+constexpr uint8_t AW9523_INPUT_P0  = 0x00;
 constexpr uint8_t AW9523_OUTPUT_P0 = 0x02;
 constexpr uint8_t AW9523_CONFIG_P0 = 0x04;   // 1 = input, 0 = output
+constexpr uint8_t AW9523_INT_P0    = 0x06;   // 1 = no interrupt from this port
 constexpr uint8_t AW9523_MODE_P0   = 0x12;   // 1 = GPIO, 0 = LED current
 constexpr uint8_t AW9523_MODE_P1   = 0x13;
 
-void aw9523Write(uint8_t address, uint8_t reg, uint8_t value) {
+bool aw9523Write(uint8_t address, uint8_t reg, uint8_t value) {
     Wire.beginTransmission(address);
     Wire.write(reg);
     Wire.write(value);
-    Wire.endTransmission();
+    return Wire.endTransmission() == 0;
 }
 
 bool aw9523Read(uint8_t address, uint8_t reg, uint8_t& value) {
@@ -56,13 +58,17 @@ bool aw9523Read(uint8_t address, uint8_t reg, uint8_t& value) {
 }
 
 /* Change only `mask`'s bits of one register. A failed read writes nothing:
- * guessing the other bits is how a colour would reach the touch reset. */
-void aw9523Update(uint8_t address, uint8_t reg, uint8_t mask, uint8_t bits) {
-    if (mask == 0) return;
+ * guessing the other bits is how a colour would reach the touch reset.
+ *
+ * True when the register is known to hold those bits afterwards -- it read
+ * back that way, or the write was acknowledged. False when the part did not
+ * answer, so the caller can try again rather than believe it. */
+bool aw9523Update(uint8_t address, uint8_t reg, uint8_t mask, uint8_t bits) {
+    if (mask == 0) return true;
     uint8_t value = 0;
-    if (!aw9523Read(address, reg, value)) return;
+    if (!aw9523Read(address, reg, value)) return false;
     const uint8_t next = static_cast<uint8_t>((value & ~mask) | (bits & mask));
-    if (next != value) aw9523Write(address, reg, next);
+    return next == value || aw9523Write(address, reg, next);
 }
 
 /* The LED's port bits in bank `bank` (0 = P0, 1 = P1), and of those, the
@@ -116,11 +122,15 @@ void setupLed() {
     }
 }
 
-void driveLed(bool red, bool green, bool blue) {
+bool driveLed(bool red, bool green, bool blue) {
+    bool took = true;
     for (uint8_t bank = 0; bank < 2; ++bank) {
-        aw9523Update(BOARD.rgb.expander, AW9523_OUTPUT_P0 + bank, ledMask(bank),
-                     ledLevels(bank, red, green, blue));
+        /* Both banks are tried whatever the first said: a channel that can
+         * be put right is put right. */
+        took = aw9523Update(BOARD.rgb.expander, AW9523_OUTPUT_P0 + bank, ledMask(bank),
+                            ledLevels(bank, red, green, blue)) && took;
     }
+    return took;
 }
 
 void allInputs(uint8_t address) {
@@ -128,6 +138,21 @@ void allInputs(uint8_t address) {
     aw9523Write(address, AW9523_MODE_P1, 0xFF);
     aw9523Write(address, AW9523_CONFIG_P0, 0xFF);
     aw9523Write(address, AW9523_CONFIG_P0 + 1, 0xFF);
+}
+
+void park(uint8_t address) {
+    allInputs(address);
+    /* Interrupts are enabled for every port at power-on, and they only ever
+     * fire for inputs -- so making the ports inputs is what would start
+     * them. Nothing reads this part's INTN, and a latched one is a line held
+     * low through its pull-up until somebody reads the input registers. */
+    aw9523Write(address, AW9523_INT_P0, 0xFF);
+    aw9523Write(address, AW9523_INT_P0 + 1, 0xFF);
+}
+
+bool readInputs(uint8_t address, uint8_t& p0, uint8_t& p1) {
+    return aw9523Read(address, AW9523_INPUT_P0, p0) &&
+           aw9523Read(address, AW9523_INPUT_P0 + 1, p1);
 }
 
 }  // namespace BoardExpander

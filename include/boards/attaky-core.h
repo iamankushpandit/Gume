@@ -109,7 +109,9 @@ inline constexpr BoardProfile BOARD = {
      * MAX17048 fuel gauge (0x36). The touch controller, the 0x59 expander
      * and the fuel gauge are spoken to -- the gauge from the battery task on
      * core 0, which Wire's own bus lock keeps out of the touch read's way --
-     * and the keyboard's and gamepad's halves when they are clipped on.
+     * and the keyboard's and gamepad's halves when they are clipped on. The
+     * 0x58 expander is written once, at boot, to make its ports inputs; see
+     * the parked expander at the end of this profile.
      *
      * RESET is port P1_3 of the AW9523 at 0x59 -- port 11 in the 0..15
      * numbering -- active low. Board::begin() drives it through the expander,
@@ -311,5 +313,16 @@ inline constexpr BoardProfile BOARD = {
      * other board, which uses 3 MB of it. */
     MemoryProfile{
         /* flashBytes */ 16u * 1024u * 1024u,
+    },
+
+    /* The Core's other AW9523, at 0x58. Nothing this firmware reads or
+     * drives is on it: its ports are where the other chips' interrupt lines
+     * arrive -- touch on P0_4, the power module's gauge alert on P0_2, the
+     * IMU on P1_5 and P1_6, the 0x59 expander's own interrupt on P1_7, the
+     * gamepad's halves on P1_4 and P0_7, the keyboard's left half on P0_1
+     * (Attaky's hardware catalog). Strapped to 0x58 the part powers up with
+     * all sixteen driven LOW, so Board::begin() makes them inputs. */
+    ParkedExpanderProfile{
+        /* parkedExpander */ (GUME_HAS_IO_EXPANDER ? 0x58 : 0),
     },
 };

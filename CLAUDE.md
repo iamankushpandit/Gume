@@ -914,6 +914,30 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
   the channels at least half as bright as its brightest, and the bus is
   written only when that changes -- the saver sets a colour per rally.
+  **What is remembered is what the part took, not what was asked**:
+  `driveLed()` says whether the bus answered, and a write it did not take
+  leaves the state unknown, so the next call tries again. Recorded before
+  the write, one failed transaction on the way into sleep left the LED lit
+  and the firmware sure it was off. While the panel sleeps, off is read
+  back from the part and held (`Board::keepExpanderRgbDark()`, from
+  `displaySleep()` and every `tickRgb()`), at no bus cost once confirmed.
+- **The firmware's lights are out while the panel sleeps -- on the Attaky
+  Core, where there is more than one.** The status LED as above; and each
+  module that is clipped on is told through `Modules::Driver::panelSleep`,
+  called from `Board::displaySleep()` and `displayWake()`, so the keyboard
+  puts its caps-lock light out and brings it back on wake. The battery
+  pack's light is the charging hardware's and no line of the host's reaches
+  it; do not go looking for one. The gamepad's LEDs are left inputs, and
+  the probe logs what those lines read (`[gamepad] leds as inputs: ...`)
+  -- **they are not to be driven until that has been read on a device**.
+- **An expander the firmware drives no port of is parked, not ignored.**
+  An AW9523 strapped to 0x58 powers up with all sixteen ports outputs
+  driving LOW, and the Core's is wired to the other chips' interrupt
+  lines, so a firmware that never wrote to it held them all low.
+  `BoardProfile::parked.parkedExpander` names it (0 on every other board),
+  `Board::begin()` calls `BoardExpander::park()` before the touch reset is
+  released -- every port an input, the part's own interrupt output off --
+  and logs `[expander] 0x58 inputs P0=0x.. P1=0x..`. See `src/hal/CLAUDE.md`.
 - **Neither the SD slot nor the speaker is brought up over another
   module's lines.** On the Attaky Core three Expand modules share IO5-8, and
   the speaker's I2S (IO17/IO18/IO21) is the LoRa/GPS module's GPS UART and
@@ -1579,7 +1603,8 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           maintenance, TouchTypes, BoardKeys (the keys,
                           as one held set: HeldControls), ControlJobs
                           (what each button is for -- shared with the
-                          Linux host), BoardExpander (the Core's AW9523s),
+                          Linux host), BoardExpander (the Core's AW9523s:
+                          one driven, one parked as inputs),
                           BoardModules + modules/ (what is clipped on,
                           found at boot: the module table and one driver
                           file a module -- keyboard, gamepad, fuel gauge,

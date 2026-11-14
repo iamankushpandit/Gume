@@ -85,9 +85,11 @@ static_assert((GUME_HAS_AUDIO_CODEC ? 1 : 0) + (GUME_HAS_AUDIO_DAC ? 1 : 0) +
 /* Fields spelled out rather than read through the has...() members, for the
  * GCC 8 -Os reason given at the Expand-probe assert further down. */
 static_assert(((BOARD.touch.resetExpanderAddress != 0 || BOARD.rgb.expander != 0 ||
-                BOARD.keys.keyExpander != 0) ? 1 : 0) == (GUME_HAS_IO_EXPANDER ? 1 : 0),
+                BOARD.keys.keyExpander != 0 || BOARD.parked.parkedExpander != 0) ? 1 : 0) ==
+                  (GUME_HAS_IO_EXPANDER ? 1 : 0),
     "GUME_HAS_IO_EXPANDER must be 1 exactly when the profile puts the touch "
-    "reset, the RGB LED or the navigation keys on an AW9523");
+    "reset, the RGB LED or the navigation keys on an AW9523, or names one to "
+    "park as inputs");
 static_assert(((BOARD.keys.keyExpander != 0 || BOARD.gamepad.padLeftExpander != 0) ? 1 : 0) ==
                   (GUME_HAS_NAV_KEYS ? 1 : 0),
     "GUME_HAS_NAV_KEYS must be 1 exactly when the profile has navigation keys "
@@ -314,6 +316,20 @@ static_assert(BOARD.rgb.expander == 0
                       && gumeLedPortOk(BOARD.rgb.g) && gumeLedPortOk(BOARD.rgb.b)),
               "an RGB LED on an expander needs a capacitive board's I2C bus, "
               "ports in 0..15, and none of them the touch reset");
+
+/* A parked expander is one the firmware drives no port of: Board::begin()
+ * makes all sixteen inputs. Naming the touch reset's expander or the LED's
+ * there would let go of the reset and put the LED out for good, so it has to
+ * be a different part. The keys' expander is inputs already and needs no
+ * parking; naming it twice would only be a second statement to keep true. */
+static_assert(BOARD.parked.parkedExpander == 0
+                  || (BOARD.touch.isCapacitive()
+                      && BOARD.parked.parkedExpander != BOARD.touch.resetExpanderAddress
+                      && BOARD.parked.parkedExpander != BOARD.rgb.expander
+                      && BOARD.parked.parkedExpander != BOARD.keys.keyExpander),
+              "a parked expander needs a capacitive board's I2C bus and must "
+              "not be the expander the touch reset, the RGB LED or the keys "
+              "are on -- parking makes every port an input");
 
 /* The Expand-module probe guards an SD slot, uses Wire1 -- which only the
  * capacitive builds link -- and needs each half it names complete.

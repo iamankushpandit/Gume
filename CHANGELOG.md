@@ -434,6 +434,36 @@ is built from is on System Info and the `[boot]` line. First run on a Cyber
 Deck Plus on 2026-11-12. Nothing here is published: the tag makes a draft
 release and the web installer does not list the board.
 
+**Locked, the Attaky Core's own lights go out, and it stops holding sixteen
+lines low.** With a Cyber Deck Plus locked and its panel dark, three lights
+stayed on: one above the display, one on the gamepad, one on the battery
+pack. Three things changed, and one cannot. The status LED's off is now
+certain: the firmware used to record the colour before writing it, so a
+single I2C write the expander did not take would leave the LED lit with
+every later "off" skipped as already done; it now records only what the
+expander took,
+reads the LED's state back as the panel goes to sleep, and keeps asking on
+every poll of the sleeping console until off is confirmed. The keyboard's
+caps-lock light goes out while the panel sleeps and comes back on wake, by a
+new `panelSleep` hook every module driver can take. The gamepad's lights are
+left inputs, which is off as Attaky document their wiring, and since one was
+seen lit the boot log now reports what those lines read -- `[gamepad] leds
+as inputs: left P1=0x.. right P1=0x..` -- so they are driven only once that
+has been read on a device. The battery pack's light is the charging
+hardware's own, with no line the Core can reach.
+
+Looking for those lights found something else. The Core has a second AW9523
+expander, at 0x58, carrying the other chips' interrupt lines -- touch, the
+motion sensor, the power module's gauge, the gamepad's and keyboard's
+halves. The firmware reads none of them and had never written to that part,
+but an AW9523 at that address powers up with all sixteen ports as outputs
+driving low, so every one of those lines was held low against the chip on
+its other end for as long as the console ran. Boot now makes them inputs and
+switches that expander's interrupt output off, before the touch controller
+leaves reset, and logs `[expander] 0x58 inputs P0=0x.. P1=0x..`. The board
+profile gained `parkedExpander` for it, 0 on every other board, whose images
+carry none of this. Not yet run on a device.
+
 **Its keys work every screen, the way the RG40XX V's do.** The D-pad moves a
 selector to every control -- buttons, tiles, keyboard keys, tabs, and the
 header's Home, padlock, speaker, gear and player name -- and A presses it, as

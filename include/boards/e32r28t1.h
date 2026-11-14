@@ -206,4 +206,9 @@ inline constexpr BoardProfile BOARD = {
     MemoryProfile{
         /* flashBytes */ 4u * 1024u * 1024u,
     },
+
+    /* No expander to park: nothing on this board is behind one. */
+    ParkedExpanderProfile{
+        /* parkedExpander */ 0,
+    },
 };

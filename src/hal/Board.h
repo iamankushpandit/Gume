@@ -556,7 +556,8 @@ public:
      * translucent case; on an I2C expander each channel is on or off, and
      * only a change of colour reaches the bus. setRgbColor() holds a colour; pulseRgb() shows
      * one for a moment and then fades out via tickRgb(), which the main loop
-     * calls every frame. */
+     * calls every frame. On an expander tickRgb() also holds the LED off for
+     * as long as the panel sleeps -- see keepExpanderRgbDark(). */
     void setRgbColor(uint8_t r, uint8_t g, uint8_t b);
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms);
     void tickRgb();
@@ -858,10 +859,20 @@ private:
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;
 #if GUME_HAS_IO_EXPANDER
-    /* What an expander LED was last driven to, one bit a channel; 0xFF until
-     * the first write, so that one is never skipped. */
-    uint8_t rgbExpanderBits_ = 0xFF;
+    /* What an expander LED is KNOWN to show, one bit a channel -- recorded
+     * only when the bus took the write -- or RGB_EXPANDER_UNKNOWN: before the
+     * first write, after one the part did not answer, and on the way into
+     * panel sleep, when it is checked against the part rather than believed.
+     * Unknown never equals a colour, so the next call always reaches the bus. */
+    static constexpr uint8_t RGB_EXPANDER_UNKNOWN = 0xFF;
+    uint8_t rgbExpanderBits_ = RGB_EXPANDER_UNKNOWN;
     void driveExpanderRgb(bool red, bool green, bool blue);
+    /* The expander LED held off while the panel sleeps; nothing otherwise.
+     * `recheck` forgets what the LED was believed to show first, so the part
+     * itself is asked. Costs no bus traffic once off has been confirmed. */
+    void keepExpanderRgbDark(bool recheck);
+#else
+    void keepExpanderRgbDark(bool) {}
 #endif
     uint32_t lastTimeSyncMs_ = 0;
     time_t lastTimeSyncEpoch_ = 0;

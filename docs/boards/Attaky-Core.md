@@ -134,7 +134,8 @@ R2, R1, X, A, B, Y, Menu, Start. Their catalog says each shoulder pin is wired
 to two keys -- the edge shoulder and the pill below it -- and L2 and R2 are the
 pin left over on each half, mirroring L1 and R1. Seen on the device: the D-pad
 on the left half's bits 2-5, and bits 0, 1, 6 and 7 of both halves answering.
-Each half's LED is left off.
+Each half's LED is left an input, which is off as Attaky document its wiring
+-- see the lights, below.
 
 **The Core's own keys did not answer on the first device**: its expander's
 port (0x59 P0) never changed while the strip under the screen was pressed.
@@ -173,6 +174,54 @@ with the right and wrong sounds, the screen saver's rally colour -- through
 the same I2C expander as the keys. Each colour is on or off there, so it shows
 seven colours rather than a blend. Worth checking that green is green: red,
 green and blue are stated as the catalog states them.
+
+**Locked, the firmware's lights are out.** On a Cyber Deck Plus on
+2026-11-14, with the console locked and the panel dark, three lights stayed
+on: one above the display, one on the gamepad and one on the battery pack.
+What was found, and what this build does about each -- none of it seen on
+the device yet:
+
+- **The status LED** was switched off on the way into sleep, but the
+  firmware recorded it as off before the write and never looked again, so
+  a single I2C write the expander did not take would leave it lit until
+  the next colour change. Whether that is what happened on the device is
+  not known. It now records only what the expander took, reads the
+  LED's state back from the expander as the panel goes to sleep, and keeps
+  asking for off on every poll of the sleeping console until it is
+  confirmed.
+- **The keyboard's caps-lock light** stayed on with caps lock. It now goes
+  out while the panel sleeps and comes back on wake if caps lock is still
+  on.
+- **The gamepad's two lights** are left as inputs, which is off if they are
+  wired as Attaky document them (active low on P1_5, P1_6 and P1_7 of each
+  half). A light was seen there all the same, so the boot log now says what
+  those lines read: `[gamepad] leds as inputs: left P1=0x.. right P1=0x..`.
+  The top three bits of each (0xE0) all set is the documented wiring at
+  rest; one clear is a channel wired the other way round and glowing
+  through the expander's pull-up. The firmware does not drive those lines
+  until that has been read -- a wrong guess would light them for certain.
+- **The battery pack's light is the pack's own.** It belongs to the
+  charging hardware. The Standard Cell 1.1's only device on the bus is its
+  INA219 monitor, and Attaky's documents show no line from the Core to that
+  light, so no firmware can switch it.
+
+**The Core's second expander is no longer left driving its lines.** The
+Core carries two AW9523 expanders. The one at 0x59 has the touch reset, the
+status LED and the keys; the one at 0x58 is where the other chips' interrupt
+lines arrive -- touch, the motion sensor, the power module's gauge, the
+gamepad's and keyboard's halves, and the 0x59 expander's own. This firmware
+uses none of those lines and never wrote to that part. But an AW9523 at
+0x58 powers up with all sixteen ports as outputs driving low (its datasheet,
+and Attaky's own driver notes), so every one of those lines was held low
+against the chip on the other end for as long as the console ran. Boot now
+makes all sixteen inputs and switches that expander's interrupt output off,
+before the touch controller is let out of reset, and logs what they read:
+`[expander] 0x58 inputs P0=0x.. P1=0x..`. Worth checking on a device:
+
+- that line appears, and is not `[expander] 0x58 not answering`;
+- touch, the keyboard, the gamepad and the battery badge behave as before;
+- which of the three lights are still on with the console locked, and what
+  the `[gamepad] leds as inputs` line says if the gamepad's is one of them.
 
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter

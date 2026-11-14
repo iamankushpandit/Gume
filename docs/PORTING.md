@@ -105,6 +105,13 @@ Things worth getting right the first time:
 - **`expander`** on the LED is 0 when `r`/`g`/`b` are GPIOs. A board whose
   LED hangs off an AW9523 I2C expander puts that expander's address here,
   and `r`/`g`/`b` become its ports (0..15); each channel is then on or off.
+- **`parkedExpander`** is 0 unless the board carries an AW9523 I2C expander
+  that the firmware drives no port of. That part still has to be named: an
+  AW9523 does not power up as inputs (strapped to 0x58, all sixteen ports
+  come up outputs driving low), so leaving it alone holds its lines low
+  against whatever is wired to them. The firmware makes every port of the
+  named part an input at boot and logs what they read. It must not be the
+  expander the touch reset, the LED or the keys are on.
 - **`bootPin`** is the BOOT key, which nearly every ESP32 board brings out on
   GPIO0 because the ROM needs it for serial download mode. The firmware reads
   it only at runtime, as a shortcut to Home; holding it while the board starts
@@ -128,7 +135,8 @@ Things worth getting right the first time:
   refuses a profile and macros that disagree. A board with none of that
   hardware defines none of them and fills the fields with 0 and `PIN_NONE`
   (`KeysProfile`, `KeyboardProfile`, `GamepadProfile`, `ExpandProbeProfile`,
-  `fuelGaugeAddress`), and its image then carries none of the code. For a
+  `ParkedExpanderProfile`, `fuelGaugeAddress`), and its image then carries
+  none of the code. For a
   board that takes plug-in modules, **the profile says where a module could
   be; boot decides whether it is there**: state the addresses, never assume
   the module is attached, and see `src/hal/modules/` for the driver a new
