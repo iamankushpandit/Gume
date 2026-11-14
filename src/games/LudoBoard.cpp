@@ -204,6 +204,15 @@ void LudoGame::drawToken(Ui::Renderer& tft, int16_t cx, int16_t cy, uint8_t seat
             break;
         case 1:
             tft.fillRect(cx - r + 1, cy - r + 1, 2 * r - 1, 2 * r - 1, fill);
+            /* One pixel of that same fill, painted again: nothing on the panel
+             * changes, and it comes between the fill and its outline. A fill
+             * followed at once by an outline of the same rectangle is what the
+             * d-pad's selector takes for a control, and in the lobby it stopped
+             * on Green's token instead of Green's chip. Drawing the outline
+             * first and the fill inside it would do too, but only on a panel
+             * the canvas is not stretched onto: stretched, the two are rounded
+             * apart and the square under them shows in between. */
+            tft.fillRect(cx, cy, 1, 1, fill);
             tft.drawRect(cx - r + 1, cy - r + 1, 2 * r - 1, 2 * r - 1, ink());
             break;
         case 2:
@@ -402,8 +411,11 @@ void LudoGame::drawBoard(Ui::Renderer& tft) const {
 
 uint16_t LudoGame::highlights() const {
     if (mode_ != Mode::Play || phase_ != Phase::Choose || isComputer(state_.turn) ||
-        !ownsSeat(state_.turn)) {
-        return 0;   // and never another console's choice
+        !ownsSeat(state_.turn) || (net_ && watch_.paused())) {
+        /* Never another console's choice either -- nor ours while the table
+         * is paused for a quiet console: lit says "tap", and a tap would do
+         * nothing. */
+        return 0;
     }
     return static_cast<uint16_t>(Ludo::movable(state_) << (state_.turn * Ludo::TOKENS));
 }

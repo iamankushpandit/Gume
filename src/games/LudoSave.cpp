@@ -10,8 +10,137 @@
 #include "LudoGame.h"
 
 /* Remembering a game: the flat blob in NVS, and refusing one that a game
- * could not have reached. Split from LudoGame.cpp for size; the layout and
- * why it is fixed are in LudoGame.h beside Saved. */
+ * could not have reached; and leaving the screen and coming back to it, which
+ * is the same subject. Split from LudoGame.cpp for size; the layout and why
+ * it is fixed are in LudoGame.h beside Saved. */
+
+namespace {
+
+/* How long a last word stays on the air before anything may replace it. The
+ * scanner's longest stretch of hearing nothing is about four seconds, so this
+ * is that and a margin. */
+constexpr uint32_t LAST_WORD_HOLD_MS = 6000;
+
+}   // namespace
+
+void LudoGame::begin(AppContext& host) {
+    const uint32_t now = millis();
+    confirmUntilMs_ = 0;
+    confirmShown_ = false;
+    const bool atTable = mode_ == Mode::Play && net_;
+    const SaveSays says = atTable ? saveSays(host) : SaveSays::Nothing;
+    if (atTable && (says == SaveSays::ThisTable || says == tableSaid_)) {
+        /* Still at a table from before the screen was left. The screen is one
+         * instance for the life of the console, so the game is all here, and
+         * it is kept rather than read back: the Guest profile's saves are
+         * dropped, and for anybody a saved table is at best the same thing.
+         * Finished or not -- a finished one still shows how it ended. Only
+         * what belongs to the visit that ended starts over. */
+        tableSaid_ = says;
+        watch_.reset();
+        pausePainted_ = false;
+        wordHeld_ = false;
+        if (phase_ != Phase::Moving) {
+            enterTurn(now, rollBonus_);   // the message, and timers that ran out
+        }
+    } else {
+        /* Anything else comes back from the save -- and so does a table in
+         * memory once the save has stopped answering for it. Another player
+         * has picked the console up since (going idle hands an
+         * administrator's console to Guest), and they get their own game
+         * rather than somebody else's, which would be written over theirs on
+         * the way out. A table its player had saved is still in that save, to
+         * come back to. One that was in nobody's save is gone for good: the
+         * others at it are told, the way End game tells them, rather than
+         * left waiting for a console that will not move. */
+        const bool lost = atTable && tableSaid_ != SaveSays::ThisTable && !state_.over;
+        const uint8_t lostSession = session_;
+        const uint8_t lostPly = applied_;
+        if (mode_ == Mode::Table) {
+            /* Reached without end() before it: the runtime starts a screen
+             * over when going idle has ended an administrator's session. */
+            quitTable(host, now);
+        }
+        if (!restoreGame(host)) {
+            leaveTable(host);
+            mode_ = Mode::Lobby;
+        }
+        if (!(mode_ == Mode::Play && net_)) {
+            if (lost) {
+                host.nearbyEnd(lostSession, Ludo::Net::nextPly(lostPly), lostPly);
+                holdWord(now);
+            } else if (!wordHolding(now)) {
+                /* In no game across consoles now: a word this screen left on
+                 * the air on its way out has nobody to carry on with. */
+                host.nearbyStop();
+                wordHeld_ = false;
+            }
+        }
+    }
+    lobbyStale_ = true;
+    markFullDirty();
+}
+
+void LudoGame::end(AppContext& host) {
+    saveGame(host);
+    /* Leaving the screen does not end a game played across consoles: only End
+     * game does. So a table's last move stays on the air while this console
+     * is elsewhere -- the others may not have heard it yet, and taking it off
+     * would strand them waiting for a move that had already been made. That
+     * holds for a finished game too: its last move is how the others find out
+     * it finished. begin() picks the table up again. */
+    if (mode_ == Mode::Play && net_) {
+        return;
+    }
+    const uint32_t now = millis();
+    if (mode_ == Mode::Table) {
+        /* A table still being gathered is left: no game has started at it. */
+        quitTable(host, now);
+    }
+    /* Anything else of ours comes off the air, an invitation included. A word
+     * still being held stays up instead; begin() takes it down. */
+    if (!wordHolding(now)) {
+        host.nearbyStop();
+        wordHeld_ = false;
+    }
+}
+
+void LudoGame::holdWord(uint32_t now) {
+    wordAtMs_ = now;
+    wordHeld_ = true;
+}
+
+bool LudoGame::wordHolding(uint32_t now) const {
+    return wordHeld_ && now - wordAtMs_ < LAST_WORD_HOLD_MS;
+}
+
+void LudoGame::tickWord(AppContext& host, uint32_t now) {
+    if (!wordHeld_ || wordHolding(now)) {
+        return;
+    }
+    /* It has had its time, so the next thing may replace it. In the lobbies
+     * it stays up until something does, or the screen is left: Ludo has no
+     * score it could be keeping off the air, and a console that has still not
+     * heard it gets that much longer to. A local game takes it down, since
+     * nothing in one would. */
+    wordHeld_ = false;
+    if (mode_ == Mode::Play) {
+        host.nearbyStop();
+    }
+}
+
+LudoGame::SaveSays LudoGame::saveSays(AppContext& host) const {
+    Saved in{};
+    host.loadBlob("game", &in, sizeof(in));
+    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) {
+        return SaveSays::Nothing;   // never written, as Guest's never is
+    }
+    /* Every save made at a table names it, finished or not, so the player who
+     * was at it has exactly this in theirs. */
+    return in.net != 0 && in.session == session_ && sameId(in.hostId, hostId_)
+               ? SaveSays::ThisTable
+               : SaveSays::Other;
+}
 
 void LudoGame::saveGame(AppContext& host) const {
     Saved out{};
@@ -135,6 +264,7 @@ bool LudoGame::restoreGame(AppContext& host) {
     }
     face_ = state_.pending;
     mode_ = Mode::Play;
+    tableSaid_ = SaveSays::ThisTable;   // it came out of this player's save
     enterTurn(millis(), false);
     return true;
 }

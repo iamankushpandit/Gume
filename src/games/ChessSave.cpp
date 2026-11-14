@@ -43,6 +43,17 @@ void ChessGame::saveGame(AppContext& host) const {
     host.saveBlob("game", &out, sizeof(out));
 }
 
+bool ChessGame::saveIsAnotherGame(AppContext& host) const {
+    Saved in{};
+    host.loadBlob("game", &in, sizeof(in));
+    if (in.magic != SAVE_MAGIC || in.version != SAVE_VERSION) return false;
+    /* Leaving the screen writes the nearby game, so the player who was in it
+     * always has exactly this in their save. */
+    return static_cast<Mode>(in.mode) != Mode::Remote ||
+           in.session != session_ ||
+           strncmp(in.opponent, opponent_, sizeof(opponent_)) != 0;
+}
+
 bool ChessGame::restoreGame(AppContext& host) {
     Saved in{};
     host.loadBlob("game", &in, sizeof(in));

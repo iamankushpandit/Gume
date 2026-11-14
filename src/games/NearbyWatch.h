@@ -24,6 +24,12 @@
  * card, so five games cannot each answer "how long is too long" differently.
  *
  *   Present   heard within NearbyPlay::PEER_QUIET_MS. Play on.
+ *   Away      heard, but saying no move in this game for
+ *             NearbyPlay::PEER_AWAY_MS: it lost the game, started another or
+ *             switched Nearby off. (A console that only left the screen keeps
+ *             its move on the air and stays Present.) Paused like Quiet, and
+ *             the card says so -- the only other sign would be a turn that
+ *             never comes.
  *   Quiet     not heard for longer than that. Missing a few advertisements
  *             is ordinary; fifteen seconds is many. The game PAUSES -- it cannot
  *             proceed anyway, nothing of theirs is arriving -- and the card
@@ -48,7 +54,7 @@
  * is already there. */
 class NearbyWatch {
 public:
-    enum class State : uint8_t { Present, Quiet, Gone };
+    enum class State : uint8_t { Present, Away, Quiet, Gone };
     enum class Press : uint8_t { None, Wait, End, Extra };
 
     /* Forget everything: a game just started, or this console left one. */

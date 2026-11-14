@@ -9,6 +9,8 @@
 
 #include "LudoGame.h"
 
+#include "engine/NearbyPlay.h"
+
 /* The lobby: who sits in each seat, and how hard the computer plays -- drawn
  * here, and answered here too (updateLobby(), at the end).
  *
@@ -16,7 +18,10 @@
  * tap; the level toggle; a hint that says why Start is greyed when it is; and
  * Start. Everything here is redrawn whole on any change -- the lobby is a
  * handful of fixed rectangles, each painted by an idempotent function, so
- * there is nothing to be gained by tracking which one changed. */
+ * there is nothing to be gained by tracking which one changed.
+ *
+ * The table lobby -- the consoles in the room, who is asked and who has
+ * answered -- is the second half of this file. */
 
 namespace {
 
@@ -49,6 +54,16 @@ constexpr Rect TABLE_START_RECT{202, 204, 110, 30};
 static_assert(ROWS_TOP + (ROWS_SHOWN - 1) * ROW_PITCH + ROW_H + Ui::BUTTON_SHADOW_DY <=
                   COMPUTERS_RECT.y,
               "the console rows run into the computers chip");
+
+/* How often the list of consoles is re-read. It changes every few seconds at
+ * most, and reading it walks a table under a lock. */
+constexpr uint32_t PEERS_REFRESH_MS = 1000;
+/* An invitation is on the air for the service's poke time (six seconds), and
+ * only one can be at once -- a second replaces the first. So the host asks one
+ * console at a time, and moves on when that one has had its turn. */
+constexpr uint32_t INVITE_ROTATE_MS = 6500;
+/* How often to look again for somebody still to invite, once all are asked. */
+constexpr uint32_t INVITE_RECHECK_MS = 1000;
 
 }   // namespace
 
@@ -289,5 +304,246 @@ void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
         } else {
             host.beepError();
         }
+    }
+}
+
+// ---- the table lobby ---------------------------------------------------------
+
+void LudoGame::openTable(AppContext& host) {
+    /* Whatever this console was advertising belongs to a game that is over.
+     * An ending still being held is the exception: it stays up for the
+     * consoles that have not heard it, and nothing of this table's goes on
+     * the air until it has had its time (updateTable()). */
+    if (!wordHeld_) {
+        host.nearbyStop();
+    }
+    mode_ = Mode::Table;
+    role_ = Role::None;
+    net_ = false;
+    ended_ = false;
+    droppedChairs_ = 0;
+    pendingDrop_ = Ludo::Net::MAX_HUMANS;
+    watch_.reset();
+    pausePainted_ = false;
+    invitedCount_ = 0;
+    inviteCursor_ = 0;
+    nextInviteMs_ = 0;
+    peerCount_ = 0;
+    peersAtMs_ = 0;
+    tableSig_ = 0;
+    refreshPeers(host);
+    tableStale_ = true;
+    markFullDirty();
+}
+
+void LudoGame::leaveTable(AppContext& host) {
+    /* Our last word is not touched here: a console that has not yet heard the
+     * final move, or our ending, can still pick it up. Whoever calls this
+     * decides how long it stays -- see holdWord(). */
+    (void)host;
+    role_ = Role::None;
+    invitedCount_ = 0;
+    net_ = false;
+    /* A pause belongs to the table it was measuring, and so does its card's
+     * hold on the d-pad's selector. A table ended from another console while
+     * the card was up left that hold in place, and in the lobby nothing but
+     * what stood where the card had been could be reached with the keys. */
+    watch_.reset();
+    pausePainted_ = false;
+}
+
+void LudoGame::quitTable(AppContext& host, uint32_t now) {
+    if (role_ == Role::Guest && !wordHeld_) {
+        /* We had answered. Going silent would leave the host counting a
+         * console that has gone, and able to start a game with it -- so say
+         * that we left, the way a game is ended. */
+        host.nearbyEnd(session_, 0, Ludo::Net::NOT_STARTED);
+        holdWord(now);
+    }
+    leaveTable(host);
+    mode_ = Mode::Lobby;
+}
+
+bool LudoGame::joined(AppContext& host, const char* id) {
+    NearbyTurn t;
+    /* Answered, and still being heard. An answer is remembered for as long
+     * as its console is in the room, so without the second half a console
+     * switched off after answering would go on counting as at the table. */
+    return host.nearbyTurnFrom(id, session_, t) && !t.ended && t.ply == 0 &&
+           t.from == Ludo::Net::PRESENCE && t.to == Ludo::Net::PRESENCE &&
+           host.nearbyPeerSilentMs(id) < NearbyPlay::PEER_QUIET_MS;
+}
+
+uint8_t LudoGame::joinedCount(AppContext& host) {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < invitedCount_; ++i) {
+        n = static_cast<uint8_t>(n + (joined(host, invited_[i]) ? 1 : 0));
+    }
+    return n;
+}
+
+bool LudoGame::hostCanStart(AppContext& host) {
+    if (role_ != Role::Host) {
+        return false;
+    }
+    const uint8_t people = static_cast<uint8_t>(1 + joinedCount(host));
+    return people >= 2 && people + computers_ <= Ludo::SEATS;
+}
+
+void LudoGame::refreshPeers(AppContext& host) {
+    NearbySeat fresh[MAX_PEERS];
+    uint8_t count = 0;
+    const uint8_t n = host.nearbySeatCount();
+    for (uint8_t i = 0; i < n && count < MAX_PEERS; ++i) {
+        if (host.nearbySeatAt(i, fresh[count])) {
+            ++count;
+        }
+    }
+    for (uint8_t i = 0; i < count; ++i) {
+        peers_[i] = fresh[i];
+    }
+    peerCount_ = count;
+
+    /* What the rows would say, folded into one number, so the lobby repaints
+     * when a row's meaning changes -- somebody answering, or starting to
+     * invite us -- and not merely when somebody arrives or leaves. */
+    uint32_t sig = 2166136261U ^ count;
+    for (uint8_t i = 0; i < count; ++i) {
+        for (uint8_t c = 0; c < 4; ++c) {
+            sig = (sig ^ static_cast<uint8_t>(peers_[i].deviceId[c])) * 16777619U;
+        }
+        const bool mine = role_ == Role::Host && joined(host, peers_[i].deviceId);
+        sig = (sig ^ ((peers_[i].inviting && peers_[i].forThisGame) ? 1U : 0U) ^
+               (mine ? 2U : 0U)) * 16777619U;
+    }
+    if (sig != tableSig_) {
+        tableSig_ = sig;
+        tableStale_ = true;
+        markDirty();
+    }
+}
+
+void LudoGame::updateTable(AppContext& host, const TouchPoint& touch) {
+    const uint32_t now = millis();
+    if (now - peersAtMs_ >= PEERS_REFRESH_MS) {
+        peersAtMs_ = now;
+        refreshPeers(host);
+    }
+
+    /* Neither an invitation nor an answer goes out while the ending of the
+     * last table is still being held: either would replace it. */
+    if (role_ == Role::Host && !wordHeld_ && now >= nextInviteMs_) {
+        /* Ask the next console that has not answered. Nothing else of ours may
+         * be on the air meanwhile: a turn would replace the invitation. */
+        nextInviteMs_ = now + INVITE_RECHECK_MS;
+        for (uint8_t k = 0; k < invitedCount_; ++k) {
+            const uint8_t i = static_cast<uint8_t>((inviteCursor_ + k) % invitedCount_);
+            if (joined(host, invited_[i])) {
+                continue;
+            }
+            bool unused = false;   // who moves first comes from the seed, not the toss
+            host.nearbyInvite(invited_[i], session_, unused);
+            inviteCursor_ = static_cast<uint8_t>(i + 1);
+            nextInviteMs_ = now + INVITE_ROTATE_MS;
+            break;
+        }
+    } else if (role_ == Role::Guest && !wordHeld_) {
+        /* Our answer: presence in the host's session, not yet started. */
+        host.nearbyPublish(session_, 0, Ludo::Net::PRESENCE, Ludo::Net::PRESENCE,
+                           Ludo::Net::NOT_STARTED);
+        if (guestTryStart(host)) {
+            return;
+        }
+    }
+
+    if (!touch.justPressed) {
+        return;
+    }
+    if (tableBackRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        quitTable(host, now);
+        if (!wordHeld_) {
+            host.nearbyStop();   // an invitation of ours, when we were asking
+        }
+        lobbyStale_ = true;
+        host.playSound(Sound::Select);
+        markFullDirty();
+        return;
+    }
+    if (role_ == Role::Guest) {
+        return;   // waiting for the host; Back is the only thing to press
+    }
+    if (tableComputersRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        computers_ = static_cast<uint8_t>((computers_ + 1) % (Ludo::Net::MAX_COMPUTERS + 1));
+        tableStale_ = true;
+        host.playSound(Sound::Tap);
+        markDirty();
+        return;
+    }
+    if (tableLevelRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        level_ = level_ == Ludo::Level::Easy ? Ludo::Level::Normal : Ludo::Level::Easy;
+        tableStale_ = true;
+        host.playSound(Sound::Tap);
+        markDirty();
+        return;
+    }
+    if (tableStartRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (hostCanStart(host)) {
+            hostStart(host);
+        } else {
+            host.beepError();
+        }
+        return;
+    }
+    const uint8_t rows = peerCount_ < 4 ? peerCount_ : 4;
+    for (uint8_t r = 0; r < rows; ++r) {
+        if (!tableRowRect(r).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            continue;
+        }
+        const NearbySeat& p = peers_[r];
+        if (p.inviting && p.forThisGame) {
+            /* Joining: their session, their table. Any invitations of our own
+             * are dropped -- a console sits at one table. */
+            if (!wordHeld_) {
+                host.nearbyStop();
+            }
+            role_ = Role::Guest;
+            session_ = p.session;
+            copyId(hostId_, p.deviceId);
+            invitedCount_ = 0;
+            tableStale_ = true;
+            host.playSound(Sound::Select);
+            markDirty();
+            return;
+        }
+        for (uint8_t i = 0; i < invitedCount_; ++i) {
+            if (sameId(invited_[i], p.deviceId)) {
+                /* Tapped again: not invited after all. */
+                for (uint8_t j = i; j + 1 < invitedCount_; ++j) {
+                    copyId(invited_[j], invited_[j + 1]);
+                }
+                --invitedCount_;
+                tableStale_ = true;
+                host.playSound(Sound::Tap);
+                markDirty();
+                return;
+            }
+        }
+        if (invitedCount_ >= Ludo::Net::MAX_HUMANS - 1) {
+            host.beepError();   // four consoles is a full table
+            return;
+        }
+        if (role_ == Role::None) {
+            role_ = Role::Host;
+            /* From the service: off the clock, so two consoles setting up
+             * tables at once are unlikely to pick the same number, and never
+             * the number of a table whose last word is still about. */
+            session_ = host.nearbyFreshSession();
+        }
+        copyId(invited_[invitedCount_++], p.deviceId);
+        nextInviteMs_ = now;   // ask straight away
+        tableStale_ = true;
+        host.playSound(Sound::Select);
+        markDirty();
+        return;
     }
 }

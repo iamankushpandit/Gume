@@ -344,6 +344,17 @@ public:
     void loadBlob(const char* key, void* dst, size_t len);
     void saveBlob(const char* key, const void* src, size_t len);
 
+    /* Blobs that belong to the console rather than to a player: the state of
+     * a game being played against another console. Kept under a slot of
+     * their own (CONSOLE_SLOT), so they are untouched by a change of player,
+     * by removing one, and by Guest's rule that nothing is written -- the
+     * other console is playing THIS console, whoever is holding it. Scores
+     * and progress never go here. */
+    static constexpr uint8_t CONSOLE_SLOT = 9;
+    void loadConsoleBlob(const char* key, void* dst, size_t len);
+    void saveConsoleBlob(const char* key, const void* src, size_t len);
+    void clearConsoleBlob(const char* key);
+
     ThemeMode themeMode();
     void setThemeMode(ThemeMode mode);
     /* Backlight brightness as a percentage. The floor is deliberately well

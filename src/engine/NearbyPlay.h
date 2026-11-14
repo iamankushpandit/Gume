@@ -68,6 +68,7 @@ struct PeerView {
     const char* gameTitle = nullptr;   // nullptr: idle, or a game we don't have
     bool sharing = false;
     uint32_t theirScore = 0;
+    bool haveTheirScore = false;   // false while a move or a poke has its place
     bool haveOwnScore = false;
     uint32_t yourScore = 0;
     bool beatsYou = false;
@@ -206,6 +207,16 @@ uint32_t peerGeneration();
  * Shared so that five games cannot disagree about what "gone quiet" means. */
 constexpr uint32_t PEER_QUIET_MS = 15000;
 
+/* A peer that is still heard but has said no move in our game for this long
+ * has left the game: it lost it, started another, or switched Nearby off. A
+ * console that only left the SCREEN keeps its move on the air and is not
+ * this. Longer than a poke takes a move's place for, plus the scan's misses. */
+constexpr uint32_t PEER_AWAY_MS = 20000;
+
+/* A peer counts as in a game for this long after its move was last on the
+ * air -- what a lobby shows, so it rides out a poke and a missed scan. */
+constexpr uint32_t PEER_IN_GAME_MS = 12000;
+
 /* Returned when the peer is not in the table at all -- either we never heard
  * it, or BleScan::SIGHTING_TTL_MS has passed and it was dropped. A game should
  * read this as "at least that long, and we no longer know anything", which is
@@ -216,6 +227,11 @@ constexpr uint32_t PEER_SILENT_UNKNOWN = UINT32_MAX;
  * over at most MAX_SIGHTINGS entries, no NVS and no radio, so it is safe every
  * frame. */
 uint32_t peerSilentMs(const char* deviceId);
+
+/* How long the named peer, though heard, has said no move in the session this
+ * console's own turn is in. 0 when it cannot be judged: no turn of ours on the
+ * air, or the peer is not heard at all (which is silence, above). */
+uint32_t peerAwayMs(const char* deviceId);
 
 /** Peers currently visible, strongest signal first. */
 uint8_t seatCount();
@@ -245,6 +261,21 @@ void publishTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
  * module's business and no game should know what it is. */
 void publishEnd(uint8_t session, uint8_t ply, uint8_t ack);
 void stopTurns();
+/* A session number for a new game: from the clock, and never one this console
+ * still holds a turn for -- its own on the air, or any peer's last -- nor one
+ * a peer is offering somebody now. `lowBits` are kept as its low
+ * `lowBitCount` bits (0 to 4), for a game that states a setting there. */
+uint8_t freshSession(uint8_t lowBits = 0, uint8_t lowBitCount = 0);
+/* Nearby went off: every turn and invitation leaves the payload. */
+void dropTurnsForOff();
+/* A game that is over is being left with its last word still on the air: the
+ * other console may not have heard it yet, so it stays -- for this long, and
+ * then it goes, or the console would look busy and share no score until that
+ * game was opened again. Saying a turn again cancels it. */
+constexpr uint32_t LAST_WORD_MS = 60000;
+void stopTurnsLater();
+/** Once a frame, from tick(): takes a last word down when its time is up. */
+void tickSessions();
 /** The named peer's latest move in `session`. */
 bool turnFrom(const char* deviceId, uint8_t session, NearbyTurn& out);
 /* Our own advertised tag, or "" while sessions are not allowed. Already on the

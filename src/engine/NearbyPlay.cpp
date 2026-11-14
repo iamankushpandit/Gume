@@ -137,6 +137,12 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
     if (!seen.sharesActivity || seen.gameIndex == BleBeacon::GAME_NONE) {
         return;
     }
+    /* A peer with a move or a poke on the air is sending no score: the
+     * number held is not one for this game, and nought would "beat" every
+     * lower-is-better record. */
+    if (!seen.haveScore) {
+        return;
+    }
     const AppScoreInfo* score = gameScore(seen.gameIndex);
     const char* title = gameTitle(seen.gameIndex);
     if (score == nullptr || title == nullptr) {
@@ -182,6 +188,11 @@ void recordSession(Known& entry, const BleScan::Sighting& seen) {
         strncpy(entry.inviteTarget, seen.inviteTarget, sizeof(entry.inviteTarget) - 1);
         entry.inviteTarget[sizeof(entry.inviteTarget) - 1] = 0;
         entry.inviteSession = seen.inviteSession;
+        /* See BleScan's record(): an old game's move under the number now
+         * being offered must not be read as the new game's. */
+        if (entry.hasTurn && entry.turnSession == (seen.inviteSession & 0x3F)) {
+            entry.hasTurn = false;
+        }
     }
     if (seen.hasTurn) {
         entry.hasTurn = true;
@@ -190,6 +201,7 @@ void recordSession(Known& entry, const BleScan::Sighting& seen) {
         entry.turnFrom = seen.turnFrom;
         entry.turnTo = seen.turnTo;
         entry.turnAck = seen.turnAck;
+        entry.lastTurnMs = seen.lastTurnMs;
     }
 }
 
@@ -207,6 +219,9 @@ void recordSession(Known& entry, const BleScan::Sighting& seen) {
  * with nothing added here. */
 void evaluateInvite(Board& board, Known& entry, const BleScan::Sighting& seen) {
     if (!seen.inviting) {
+        /* The invitation is over, so the next one is new whatever its byte:
+         * a later one that happened to repeat it used to arrive silently. */
+        entry.sawInvite = false;
         return;
     }
     const char* mine = BleBeacon::configured().deviceId;
@@ -414,6 +429,7 @@ void setEnabled(Board& board, bool on) {
     if (!enabled_) {
         BleScan::clear();
         resetPeers();
+        dropTurnsForOff();
     }
     publish(board);
 }
@@ -526,6 +542,7 @@ void tick(Board& board) {
         BleScan::setEnabled(enabled_);
         if (!enabled_) {
             resetPeers();
+            dropTurnsForOff();
         }
         publish(board);
     }
@@ -537,6 +554,8 @@ void tick(Board& board) {
     /* Takes our own poke off air once it has had its few seconds. Idempotent
      * and free when there is no poke live. */
     BleBeacon::clearExpiredPoke();
+    /* And a finished game's last word, once it has had its minute. */
+    tickSessions();
 
     const uint32_t generation = BleScan::generation();
     if (generation != lastScanGeneration_) {
@@ -611,6 +630,7 @@ PeerView peerAt(Board& board, uint8_t index) {
     view.sharing = seen.sharesActivity;
     view.rssi = seen.rssi;
     view.theirScore = seen.bestScore;
+    view.haveTheirScore = seen.haveScore;
     view.gameTitle = seen.sharesActivity ? gameTitle(seen.gameIndex) : nullptr;
 
     const AppScoreInfo* score = seen.sharesActivity ? gameScore(seen.gameIndex) : nullptr;
@@ -621,7 +641,8 @@ PeerView peerAt(Board& board, uint8_t index) {
     view.haveOwnScore = board.hasScore(score->bestKey);
     if (view.haveOwnScore) {
         view.yourScore = board.getScore(score->bestKey);
-        view.beatsYou = better(seen.bestScore, view.yourScore, score->lowerIsBetter);
+        view.beatsYou = seen.haveScore &&
+                        better(seen.bestScore, view.yourScore, score->lowerIsBetter);
     }
     return view;
 }

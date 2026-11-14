@@ -72,8 +72,12 @@ bool BackgammonGame::restoreGame(AppContext& host) {
         Bg::checkerTotal(in.pos, Bg::BLACK) != Bg::CHECKERS) {
         return false;
     }
-    if (static_cast<Phase>(in.phase) == Phase::Over) {
-        return false;   // a finished game is not worth reopening
+    if (static_cast<Phase>(in.phase) == Phase::Over &&
+        !(mode == Mode::Remote && in.outboxCount > 0)) {
+        /* A finished game is not worth reopening -- except a nearby one whose
+         * winning moves had not all gone out: the other console is still
+         * waiting for them and does not know it lost. */
+        return false;
     }
 
     mode_ = mode;
@@ -105,21 +109,22 @@ bool BackgammonGame::restoreGame(AppContext& host) {
     myTo_ = in.myTo;
     outboxCount_ = in.outboxCount;
     ended_ = false;
+    lastWordOnAir_ = false;
+    away_ = false;
+    lastAcked_ = false;         // not known until the other console says
+    lastHeardMs_ = millis();    // and it gets a whole grace to say it in
+    watch_.reset();
+    pausePainted_ = false;
     selected_ = Bg::NO_POINT;
     planned_ = false;   // the computer re-plans from the position it finds
     timerMs_ = millis();
-    refreshLegal();
-
-    switch (phase_) {
-        case Phase::Opening: setMessage("Tap Roll to start"); break;
-        case Phase::Roll: setMessage("Tap Roll"); break;
-        case Phase::Moving: setMessage("Pick a checker"); break;
-        case Phase::DoneReady: setMessage(legalCount_ == 0 && turnCount_ == 0 ? "No moves: Done"
-                                                                             : "Tap Done"); break;
-        case Phase::Computer: setMessage("Thinking..."); break;
-        case Phase::Remote: setMessage("Their turn"); break;
-        case Phase::Over: break;
+    if (phase_ == Phase::Over) {
+        turnCount_ = 0;     // the board takes no more moves
+        legalCount_ = 0;
+    } else {
+        refreshLegal();
     }
+    setPhaseMessage();
     if (mode_ == Mode::Remote) {
         /* Say the same thing again: our word went when the screen was left. */
         host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);

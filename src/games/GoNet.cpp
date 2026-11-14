@@ -11,6 +11,8 @@
 
 #include <string.h>
 
+#include "ui/Stops.h"
+
 /* Go on two consoles, and the lobby that starts it.
  *
  * Everything on the air is the nearby service's two-player turn -- the same
@@ -32,6 +34,9 @@
 namespace {
 
 constexpr uint32_t SEATS_REFRESH_MS = 1000;
+/* How long the service keeps an invitation on the air. Past it, the console
+ * we asked can no longer be accepting ours. */
+constexpr uint32_t INVITE_ON_AIR_MS = 6000;
 
 }   // namespace
 
@@ -112,7 +117,8 @@ void GoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
             host.playSound(Sound::Select);
             startRemote(host, seats_[i], seats_[i].session, seats_[i].weMoveFirst, false);
         } else {
-            const uint8_t session = static_cast<uint8_t>((millis() >> 3) & 0x3F);
+            /* Never a number an old game's last move is still held under. */
+            const uint8_t session = host.nearbyFreshSession();
             bool weAreBlack = false;
             if (host.nearbyInvite(seats_[i].deviceId, session, weAreBlack)) {
                 host.playSound(Sound::Select);
@@ -146,7 +152,12 @@ void GoGame::startRemote(AppContext& host, const NearbySeat& seat, uint8_t sessi
     theirPly_ = 0;
     ourFrom_ = 0;
     ourTo_ = 0;
+    theirAck_ = 0;
+    haveAck_ = false;
+    lastWordOurs_ = false;
+    settling_ = false;   // whatever was left on the air is replaced by this game
     if (waiting) {
+        invitedAtMs_ = millis();
         setMessage("Asking...");
     } else {
         publishOurs(host);   // ply 0, 0,0: our presence is the acceptance
@@ -159,11 +170,81 @@ void GoGame::publishOurs(AppContext& host) {
     host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
 }
 
+void GoGame::sendWord(AppContext& host, Go::Net::Kind kind, uint16_t p) {
+    ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+    Go::Net::encode(kind, p, ourFrom_, ourTo_);
+    lastWordOurs_ = true;
+    publishOurs(host);
+}
+
+bool GoGame::remoteMayMark(AppContext& host) {
+    if (mode_ != Mode::Remote || peerCaughtUp()) return true;
+    host.beepError();   // our last word is still on its way to them
+    setMessage("Wait for them...");
+    markDirty();
+    return false;
+}
+
+void GoGame::pressEndInMarking(AppContext& host, uint32_t now) {
+    /* The marking has no Resume across consoles, so that slot is End game,
+     * asked twice as in play: a marking the other player never agrees to
+     * must not be a screen with no way out. */
+    if (now < confirmUntilMs_) {
+        confirmUntilMs_ = 0;
+        endRemoteByUs(host);
+        return;
+    }
+    confirmUntilMs_ = now + CONFIRM_MS;
+    buttonsStale_ = true;
+    host.playSound(Sound::Tap);
+    markDirty();
+}
+
+void GoGame::settleAir(AppContext& host) {
+    /* A finished game's last move, or our ending, is still on the air. It
+     * comes down when the other console has it: it acked the word, it ended
+     * the game itself, or it has stopped advertising the game -- which is
+     * what a console does once it has heard, and what one out of range looks
+     * like too. When the last word was theirs there is nothing of ours to be
+     * acked; ours stays up, carrying our ack, until theirs has gone. */
+    NearbyTurn t;
+    const bool heard = host.nearbyTurnFrom(opponent_, session_, t);
+    if (heard && !t.ended && !(lastWordOurs_ && t.ack == settlePly_)) return;
+    host.nearbyStop();
+    settling_ = false;
+}
+
+void GoGame::updateStops() {
+    /* The result card is over the board with the two buttons that matter:
+     * while it is up, only what is inside it is a stop. */
+    const bool card = mode_ != Mode::Lobby && phase_ == Phase::Over;
+    if (card) {
+        Ui::setOverlayStops(resultRect());
+    } else if (resultOverlay_) {
+        Ui::clearOverlayStops();
+    }
+    resultOverlay_ = card;
+    if (mode_ == Mode::Lobby) {
+        Ui::clearBoardStops();
+        return;
+    }
+    /* The points stay drawn whoever is to move. They are stops only while a
+     * press on one does something for the player holding this console: their
+     * own turn, or the marking -- and never while an invitation is
+     * unanswered or the other console has gone quiet. */
+    bool live = false;
+    if (mode_ != Mode::Waiting && !(mode_ == Mode::Remote && watch_.paused())) {
+        live = phase_ == Phase::Marking || (phase_ == Phase::Play && humanTurn());
+    }
+    Ui::setBoardStops(boardRect(), live);
+}
+
 void GoGame::leaveRemote(AppContext& host, const char* note) {
     if (note != nullptr) {
         snprintf(lobbyNote_, sizeof(lobbyNote_), "%s", note);
     }
     host.nearbyStop();
+    settling_ = false;
     ended_ = true;
     watch_.reset();
     pausePainted_ = false;
@@ -178,7 +259,10 @@ void GoGame::endRemoteByUs(AppContext& host) {
     /* The service's own ending, which stays on the air after we leave so the
      * other console still hears it; it goes back to its lobby too
      * (pollRemote). Used by End game and by the pause card alike. */
-    host.nearbyEnd(session_, static_cast<uint8_t>((ourPly_ + 1) & 0x7F), theirPly_);
+    settlePly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
+    host.nearbyEnd(session_, settlePly_, theirPly_);
+    settling_ = true;
+    lastWordOurs_ = true;
     ended_ = true;
     watch_.reset();
     pausePainted_ = false;
@@ -190,7 +274,6 @@ void GoGame::endRemoteByUs(AppContext& host) {
 }
 
 void GoGame::pollRemote(AppContext& host, uint32_t now) {
-    (void)now;
     NearbyTurn t;
     const bool heard = host.nearbyTurnFrom(opponent_, session_, t);
     const char* who = opponentName_[0] != 0 ? opponentName_ : opponent_;
@@ -202,6 +285,23 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
             setMessage(humanTurn() ? "Tap a point" : "Their move first");
             turnStale_ = buttonsStale_ = true;
             markFullDirty();
+            return;
+        }
+        /* Our invitation leaves the air after a few seconds, and by the time
+         * they have opened Go their lobby offers "Play ... nearby" instead:
+         * tapping that invites US, in a session of theirs. Left alone, both
+         * consoles sat on "Asking..." in different sessions for ever. So an
+         * invitation from the console we asked is answered from here. When
+         * both invitations are live only one side may give way, or each
+         * would join the other's session: the larger tag does. */
+        NearbySeat seat;
+        if (host.nearbyInviteForUs(seat) && seat.forThisGame &&
+            strcmp(seat.deviceId, opponent_) == 0) {
+            const bool oursExpired = now - invitedAtMs_ >= INVITE_ON_AIR_MS;
+            if (oursExpired || strcmp(host.nearbySelfId(), opponent_) > 0) {
+                host.nearbyStop();   // ours comes down; theirs is the game
+                startRemote(host, seat, seat.session, seat.weMoveFirst, false);
+            }
         }
         return;
     }
@@ -209,8 +309,13 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
     /* Republish every frame. Unchanged values do not touch the radio, and a
      * turn must stay on the air until it is replaced -- from ply 0, which is
      * how an accepted invitation is answered. */
-    if (!ended_) publishOurs(host);
+    /* A finished game says its last word only until it has been heard. */
+    if (!ended_ && (phase_ != Phase::Over || settling_)) publishOurs(host);
     if (!heard) return;
+    /* Before the ply test: they repeat an unchanged turn with a newer ack,
+     * so this mostly arrives on a ply already taken. */
+    theirAck_ = t.ack;
+    haveAck_ = true;
 
     const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
     if (t.ply != expected) return;
@@ -234,6 +339,7 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
             if (phase_ != Phase::Play || humanTurn()) return;   // not their move to make
             if (!Go::legal(state_, p)) return;   // not legal here: never played
             theirPly_ = t.ply;
+            lastWordOurs_ = false;
             applyMove(host, p, false);
             return;
         case Go::Net::Kind::ToggleDead:
@@ -241,6 +347,7 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
                 return;
             }
             theirPly_ = t.ply;
+            lastWordOurs_ = false;
             Go::toggleDead(state_, dead_, p);
             Go::ownership(state_, dead_, own_);
             agreed_ = 0;
@@ -252,10 +359,21 @@ void GoGame::pollRemote(AppContext& host, uint32_t now) {
         case Go::Net::Kind::Accept:
             if (phase_ != Phase::Marking) return;
             theirPly_ = t.ply;
+            lastWordOurs_ = false;
+            /* An agreement made before they had seen our latest toggle is an
+             * agreement to a marking that no longer exists. It is used up,
+             * not kept: they repeat it with a newer ack every frame, and a
+             * kept one would pass later, after our toggle had already
+             * cleared it on their console. Plies wrap at seven bits. */
+            if (toggledThisMarking_ && ((t.ack - lastTogglePly_) & 0x7F) >= 64) {
+                saveGame(host);
+                return;
+            }
             agreed_ = static_cast<uint8_t>(agreed_ | agreedBit(Go::other(humanColour_)));
             if (agreed_ == agreedBoth()) {
                 finishGame(host);
             } else {
+                saveGame(host);
                 char line[26];
                 snprintf(line, sizeof(line), "%.10s agrees. You?", who);
                 setMessage(line);
@@ -275,6 +393,7 @@ bool GoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now
             pausePainted_ = false;
             markFullDirty();
         }
+        pauseHold_ = false;
         return false;
     }
     const NearbyWatch::State before = watch_.state();
@@ -284,6 +403,9 @@ bool GoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now
             snprintf(line, sizeof(line), "%.10s %s", sideName(Go::other(humanColour_)),
                      watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
             setMessage(line);
+            /* A ghost left from before the pause would make the first tap
+             * afterwards play a stone. */
+            setGhost(Go::NO_POINT);
         }
         markDirty();
     }
@@ -294,9 +416,14 @@ bool GoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now
                                              : "Their move");
         pausePainted_ = false;
         markFullDirty();
-        return false;
     }
-    if (!watch_.cardShown()) return false;
+    if (!watch_.cardShown()) {
+        /* The rest of a press that began on the card -- the one that pressed
+         * Keep waiting included -- reaches nothing until the finger lifts. */
+        if (!touch.down && !touch.justPressed) pauseHold_ = false;
+        return pauseHold_;
+    }
+    if (touch.justPressed || touch.down) pauseHold_ = true;
     switch (watch_.press(boardRect(), touch, false)) {
         case NearbyWatch::Press::Wait:
             watch_.dismiss();
@@ -310,7 +437,7 @@ bool GoGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now
         default:
             break;
     }
-    return touch.justPressed;
+    return touch.justPressed || touch.down;
 }
 
 void GoGame::drawPause(Ui::Renderer& tft) {

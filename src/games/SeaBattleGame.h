@@ -46,7 +46,9 @@ const AppMetadata& seaBattleAppMetadata();
  * them one square at a time, which is exactly how the board game works and
  * happens to be the most private thing this device does. A win is derived on
  * both sides from counting -- eleven hits taken is a loss, eleven scored is a
- * win -- so no result message is needed and none is sent.
+ * win -- so there is no result message. The loser does send one more turn:
+ * an answer otherwise travels on the next shot, and a sunk fleet has no next
+ * shot, so the answer to the last one goes out on a turn of its own.
  *
  * SHIPS ARE PLACED FOR YOU, with a Shuffle button. Tap-to-place with a rotate
  * control is four more controls and a lot of mis-taps at 25 pixels a cell, and
@@ -67,9 +69,10 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    /* Hands the radio back and writes the game out: a turn stays advertised
-     * until it is replaced, so leaving without clearing it would leave this
-     * console broadcasting a game it is no longer in. */
+    /* Writes the game out. A game against a nearby console stays on the air,
+     * finished or not: the other console may not have heard the last shot or
+     * the ending yet, and this screen keeps the game in memory to come back
+     * to. Anything else hands the radio back. */
     void end(AppContext& host) override;
     /* A sea being fired on comes back as it was left, with no question
      * asked: End game is this screen's own way out of one. A fleet still
@@ -161,6 +164,13 @@ private:
     void renderPass(AppContext& host) const;
     void renderLobby(AppContext& host);
     void updateLobby(AppContext& host, const TouchPoint& touch);
+    /* An invitation not answered yet: Cancel, the time limit, and the other
+     * console asking us at the same moment. */
+    void updateWaiting(AppContext& host, const TouchPoint& touch);
+    /** Back to the lobby with a fresh sea. Does not touch the radio. */
+    void toLobby();
+    /** Tells the d-pad's selector whether the sea takes a press just now. */
+    void noteStops() const;
 
     // ---- nearby ----------------------------------------------------------
     Rect lobbyRowRect(uint8_t row) const;
@@ -174,6 +184,25 @@ private:
     NearbyWatch watch_;
     bool pausePainted_ = false;
     uint16_t pauseSecondsDrawn_ = 0;
+    /* The last thing said in a game this screen has already left for the
+     * lobby -- the answer to the shot that sank us, or our End game -- while
+     * the other console may not have heard it. It stays on the air until they
+     * acknowledge it or go out of range, or a new game takes its place. */
+    bool lastWord_ = false;
+    char lastWordPeer_[5] = {0};
+    uint8_t lastWordSession_ = 0;
+    uint8_t lastWordPly_ = 0;
+    bool lastWordLanded(AppContext& host) const;
+    void tickLastWord(AppContext& host);
+    /* Saves are kept per player and this screen is not, so the save is how a
+     * game kept in memory is told from one somebody else was playing. False
+     * for Guest, whose saves are dropped: Guest's game is known by there
+     * being no save at all. In SeaBattleSave.cpp. */
+    bool savesKept_ = false;
+    /** At the start of a nearby game: write it out and see whether it stuck. */
+    void noteOwner(AppContext& host);
+    /** Is the nearby game still in memory the active player's own? */
+    bool keptGameIsOurs(AppContext& host) const;
     void startLocal();
     void startRemote(const NearbySeat& seat, uint8_t session, bool weFireFirst);
     bool ourTurn() const;
@@ -190,7 +219,7 @@ private:
         return won_ || lost_ || ended_;
     }
     /** Whose sea is on screen: player 1 or 2 locally, always us remotely. */
-    uint8_t viewer() const { return mode_ == Mode::Remote ? 0 : turnPlayer_; }
+    uint8_t viewer() const { return mode_ == Mode::Local ? turnPlayer_ : 0; }
 
     Side side_[2] = {};
     Mode mode_ = Mode::Lobby;
@@ -223,9 +252,19 @@ private:
     uint8_t ourShotCell_ = 0;
     uint8_t ourReplyCode_ = 0;
 
+    /* As many consoles as the lobby has rows for. The list is cut to this
+     * where it is gathered, so a row that is not drawn cannot be tapped. */
+    static constexpr uint8_t LOBBY_PEER_ROWS = 4;
     NearbySeat seats_[6];
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
+    /* When our invitation went out. It is on the air for a few seconds only,
+     * and nobody should sit on "Asking..." for ever. */
+    uint32_t invitedAtMs_ = 0;
+    static constexpr uint32_t INVITE_ON_AIR_MS = 6000;
+    /** An invitation counts as on the air only if heard this recently. */
+    static constexpr uint32_t INVITE_HEARD_MS = 3000;
+    static constexpr uint32_t WAITING_MS = 30000;
 
     uint32_t confirmUntilMs_ = 0;
     static constexpr uint32_t CONFIRM_MS = 3000;

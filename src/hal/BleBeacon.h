@@ -288,9 +288,11 @@ void clearExpiredPoke();
 /** True while a poke of ours is on air. */
 bool poking();
 
-/* Invite one peer to a two-player game, under `session`. Rides the beacon for
- * POKE_ADVERTISE_MS exactly as a poke does, and returns false for the same
- * reasons: sharing off, radio down, or a malformed id. */
+/* Invite one peer to a two-player game, under `session`. Rides the beacon in
+ * the poke's wire shape, and returns false for the same reasons: sharing off,
+ * radio down, or a malformed id. Unlike a poke it does not expire: it stands
+ * until the first turn replaces it, clearInvite() withdraws it, or another
+ * invitation or a poke takes its place. */
 bool invitePeer(const char* targetDeviceId, uint8_t session, uint8_t gameIndex);
 
 /* Put our latest move on air, and keep it there. Unlike a poke this is a
@@ -303,6 +305,9 @@ void setTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
 
 /** Stop advertising a game; the score field comes back. */
 void clearTurn();
+/* Take an invitation off the air before its time. Touches nothing else: a
+ * poke or a find shares its bytes and its timer, and is left to run. */
+void clearInvite();
 
 /** The setting. True does not by itself prove the radio came up -- see active(). */
 bool enabled();

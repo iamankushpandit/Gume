@@ -388,3 +388,23 @@ void Board::saveBlob(const char* key, const void* src, size_t len) {
     scopedKey(scoped, sizeof(scoped), key);
     prefs_.putBytes(scoped, src, len);
 }
+
+void Board::loadConsoleBlob(const char* key, void* dst, size_t len) {
+    char scoped[STORAGE_KEY_CAP];
+    scopedKeyForProfile(scoped, sizeof(scoped), CONSOLE_SLOT, key);
+    if (!prefs_.isKey(scoped)) return;
+    if (prefs_.getBytesLength(scoped) != len) return;
+    prefs_.getBytes(scoped, dst, len);
+}
+
+void Board::saveConsoleBlob(const char* key, const void* src, size_t len) {
+    char scoped[STORAGE_KEY_CAP];
+    scopedKeyForProfile(scoped, sizeof(scoped), CONSOLE_SLOT, key);
+    prefs_.putBytes(scoped, src, len);
+}
+
+void Board::clearConsoleBlob(const char* key) {
+    char scoped[STORAGE_KEY_CAP];
+    scopedKeyForProfile(scoped, sizeof(scoped), CONSOLE_SLOT, key);
+    if (prefs_.isKey(scoped)) prefs_.remove(scoped);
+}

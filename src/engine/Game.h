@@ -58,6 +58,23 @@ struct NearbySeat {
     /* Milliseconds since this console was last heard. A lobby can grey a row
      * that is on its way out of range; mid-game, use nearbyPeerSilentMs(). */
     uint32_t silentMs = 0;
+    /* That console has a move on the air: it is in a game with somebody, of
+     * some kind -- a move does not say which game it belongs to. A lobby
+     * shows it, so a player can see why that console is not answering. */
+    bool inGame = false;
+    /* Who with, when the other console of that game is in the room as well
+     * (the one saying moves in the same session). Empty when it is not, and
+     * `partnerName` is the owner's label for it, like `name`. */
+    char partner[5] = {0};
+    char partnerName[11] = {0};
+    /* The game it is in is one THIS console has a move on the air for: a
+     * game of ours, in this app or another, left in the middle. */
+    bool withUs = false;
+    /* That console is asking SOMEBODY ELSE to play the app open here: it is
+     * in its lobby, waiting on an answer. `partner` is who it asked and
+     * `session` the number it offered. A two-player lobby shows it as busy; a
+     * game with a table to sit at can let this console ask for a seat. */
+    bool asking = false;
 };
 
 /* The opponent's latest move, as heard on the air. `ack` is the highest ply of
@@ -165,6 +182,22 @@ public:
     virtual void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) = 0;
     /** Stop advertising a game. */
     virtual void nearbyStop() = 0;
+    /* For a game that is OVER and is being left: its last move or its ending
+     * stays on the air for a minute, so the other console can still hear it,
+     * and is then taken down. Until it is, this console looks busy and shares
+     * no score. A game still in play does not call this: its move stays. */
+    virtual void nearbyStopLater() = 0;
+    /* A game played across consoles belongs to the CONSOLE, not to the player
+     * who happened to be holding it: the other console is playing this one,
+     * whoever picks it up. So its state is kept here, apart from the players'
+     * own saves -- it survives a change of player, is kept for Guest, whose
+     * own saves are dropped, and never overwrites anybody's game against the
+     * computer. Same rules as loadBlob()/saveBlob(): a fixed-size blob, and a
+     * blob of another size is refused. Clear it when that game is finished
+     * with. Nothing here is transmitted. */
+    virtual void loadConsoleBlob(const char* key, void* dst, size_t len) = 0;
+    virtual void saveConsoleBlob(const char* key, const void* src, size_t len) = 0;
+    virtual void clearConsoleBlob(const char* key) = 0;
     /** The named peer's latest move in `session`, if it has one on the air. */
     virtual bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                                 NearbyTurn& out) = 0;
@@ -175,12 +208,25 @@ public:
      * anything, so this silence is the only notice anyone gets. Cheap enough
      * to ask every frame. */
     virtual uint32_t nearbyPeerSilentMs(const char* deviceId) = 0;
+    /* Milliseconds the named console, though still heard, has said no move in
+     * the game this console is in. Past NearbyPlay::PEER_AWAY_MS it has left
+     * the game -- lost it, or started another -- which a console that only
+     * left the screen has not. 0 when it cannot be judged. */
+    virtual uint32_t nearbyPeerAwayMs(const char* deviceId) = 0;
     /* This console's own tag, as its peers see it -- the four hex digits it
      * already advertises about itself -- or "" while sessions are not allowed.
      * A game with more than two seats needs it to put every console, itself
      * included, in the same order on every console. It is the same identifier
      * every peer already has, so handing it to an app reveals nothing new. */
     virtual const char* nearbySelfId() = 0;
+    /* The session number for a game about to be offered. Never one this
+     * console still holds a turn for, so an old game's last move or ending
+     * cannot be read as the new game's. */
+    /* `lowBits`, when `lowBitCount` is not 0, are fixed as the number's low
+     * bits: a game whose two consoles must agree a setting before the first
+     * move (Go's rules and board size) states it there, and the console that
+     * accepts reads it back out of NearbySeat::session. At most four. */
+    virtual uint8_t nearbyFreshSession(uint8_t lowBits = 0, uint8_t lowBitCount = 0) = 0;
 };
 
 class GameHost : public AppContext {

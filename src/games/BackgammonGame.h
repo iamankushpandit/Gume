@@ -53,7 +53,9 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    /** Saves, and hands the radio back if a nearby game was on it. */
+    /* Saves. A nearby game stays on the air and in this instance, so it is
+     * still here when the screen comes back; anything else hands the radio
+     * back. */
     void end(AppContext& host) override;
     /* A game on the board comes back as it was left, with no question asked:
      * End is this screen's own way out of one. In BackgammonSave.cpp. */
@@ -98,6 +100,15 @@ private:
     bool humanTurn() const;
     const char* sideName(uint8_t side) const;
     void setMessage(const char* text);
+    /* The panel's line as the state of the game alone says it: after a
+     * restore, and once a pause is over -- the turn may have moved on while
+     * the other console was quiet. */
+    void setPhaseMessage();
+    /** Does a press on the board do something for the player right now? */
+    bool boardLive() const;
+    /* A nearby game this console won whose last moves the other console has
+     * not acknowledged yet. Until it has, leaving would lose them the result. */
+    bool undelivered() const;
 
     // ---- nearby (BackgammonNet.cpp) ------------------------------------------
     void updateLobby(AppContext& host, const TouchPoint& touch);
@@ -128,6 +139,8 @@ private:
     static Rect trayRect();
     /** The whole board, for the pause card to centre on. */
     static Rect boardArea();
+    /** The board and the tray: everything that is pressed only while moving. */
+    static Rect stopsRect();
     static Rect lobbyRowRect(uint8_t row);
     static Rect rollRect();
     static Rect undoRect();
@@ -204,12 +217,24 @@ private:
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
     /* The other console going quiet. NearbyWatch says when; what Backgammon
-     * does about it is in BackgammonNet.cpp. The message the pause displaced
-     * is kept so the panel says what it said before once they are back. */
+     * does about it is in BackgammonNet.cpp. */
     NearbyWatch watch_;
     bool pausePainted_ = false;
     uint16_t pauseSecondsDrawn_ = 0;
-    char pausedMessage_[24] = {0};
+    /* The other console can also be in the room and not in this game: it
+     * left for its lobby, or started another game. Its beacon is still heard,
+     * so the watch above sees nothing wrong. `lastHeardMs_` is when it last
+     * said anything in our session and `away_` that the panel says so. */
+    uint32_t lastHeardMs_ = 0;
+    bool away_ = false;
+    /** Has the other console acknowledged the last ply we put on the air? */
+    bool lastAcked_ = true;
+    /* Our last word in a game this console has left is on the air: its
+     * ending, or the acknowledgement of the move that won it. It is left
+     * there when this screen is left, because the other console may not have
+     * heard it yet, and taken down when the screen comes back or another game
+     * replaces it. */
+    bool lastWordOnAir_ = false;
 
     // ---- what is on the panel -------------------------------------------------------
     uint32_t dirtyPlaces_ = 0;   // bit per point, then BAR, then OFF

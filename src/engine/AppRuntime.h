@@ -129,7 +129,13 @@ public:
                        uint8_t ack) override;
     void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) override;
     void nearbyStop() override;
+    void nearbyStopLater() override;
+    void loadConsoleBlob(const char* key, void* dst, size_t len) override;
+    void saveConsoleBlob(const char* key, const void* src, size_t len) override;
+    void clearConsoleBlob(const char* key) override;
     const char* nearbySelfId() override;
+    uint8_t nearbyFreshSession(uint8_t lowBits = 0, uint8_t lowBitCount = 0) override;
+    uint32_t nearbyPeerAwayMs(const char* deviceId) override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;
     uint32_t nearbyPeerSilentMs(const char* deviceId) override;

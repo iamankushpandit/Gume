@@ -9,6 +9,8 @@
 
 #include "LudoGame.h"
 
+#include "ui/Stops.h"
+
 /* The panel beside the board: whose turn it is, the die, one line of news,
  * the seats and their places, and the one button. Split from LudoBoard.cpp for
  * size. Each part is repainted on its own when what it shows changes -- see
@@ -48,6 +50,35 @@ Rect LudoGame::dieRect() {
 }
 
 Rect LudoGame::actionRect() { return ACTION_RECT; }
+
+void LudoGame::tellStops() const {
+    if (mode_ != Mode::Play) {
+        Ui::clearBoardStops();   // the lobbies are buttons, always pressable
+        return;
+    }
+    /* A press on the board or the die does something only when a person at
+     * this console has to roll or to pick a token -- not on another console's
+     * turn or a computer's, during a hop or a notice, once the game is over,
+     * or while the table is paused for a quiet console. */
+    const bool live = !state_.over && !ended_ &&
+                      (phase_ == Phase::Roll || phase_ == Phase::Choose) &&
+                      ownsSeat(state_.turn) && !isComputer(state_.turn) &&
+                      !(net_ && watch_.paused());
+    const Rect board = boardRect();
+    const Rect die = dieRect();
+    const Rect action = actionRect();
+    const int16_t w = static_cast<int16_t>(die.x + die.w - board.x);
+    if (live) {
+        Ui::setBoardStops(Rect{board.x, board.y, w, board.h}, true);
+        return;
+    }
+    /* Quiet takes in the board and the die and must leave End game alone,
+     * which sits under the die. One rectangle cannot do all of that, so it
+     * stops three pixels short of the button's middle: that covers every yard
+     * and every row of the track but the last. */
+    const int16_t bottom = static_cast<int16_t>(action.y + action.h / 2 - 3);
+    Ui::setBoardStops(Rect{board.x, board.y, w, static_cast<int16_t>(bottom - board.y)}, false);
+}
 
 // ---- the panel ---------------------------------------------------------------
 

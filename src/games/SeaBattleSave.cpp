@@ -126,3 +126,27 @@ void SeaBattleGame::resume(AppContext& host, uint32_t awayMs) {
     (void)awayMs;
     confirmUntilMs_ = 0;
 }
+
+/* Whose game is the one still in memory?
+ *
+ * A player with a save has this game in it from the moment it started, so a
+ * save naming another game -- or none, which is what Guest reads -- means the
+ * console has changed hands. Guest's own game is the other way round: nothing
+ * was ever written, so it is Guest's for as long as nothing can be read. A
+ * player who has never opened Sea Battle reads nothing either and is taken
+ * for Guest; that is the one case this cannot tell apart. */
+void SeaBattleGame::noteOwner(AppContext& host) {
+    saveGame(host);
+    Saved in{};
+    host.loadBlob("game", &in, sizeof(in));
+    savesKept_ = in.magic == SAVE_MAGIC && in.version == SAVE_VERSION;
+}
+
+bool SeaBattleGame::keptGameIsOurs(AppContext& host) const {
+    Saved in{};
+    host.loadBlob("game", &in, sizeof(in));
+    const bool saved = in.magic == SAVE_MAGIC && in.version == SAVE_VERSION;
+    if (!savesKept_) return !saved;
+    return saved && in.session == session_ &&
+           memcmp(in.opponent, opponent_, sizeof(in.opponent)) == 0;
+}

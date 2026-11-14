@@ -9,6 +9,8 @@
 
 #include "BackgammonGame.h"
 
+#include "engine/NearbyPlay.h"
+
 /* Backgammon on two consoles, and the lobby that starts it.
  *
  * Everything on the air is the nearby service's two-player turn -- the same
@@ -112,7 +114,9 @@ void BackgammonGame::updateLobby(AppContext& host, const TouchPoint& touch) {
             host.playSound(Sound::Select);
             startRemote(host, seats_[i], seats_[i].session, seats_[i].weMoveFirst, false);
         } else {
-            const uint8_t session = static_cast<uint8_t>((millis() >> 3) & 0x3F);
+            /* Never a number either console still holds a turn for: an old
+             * game's last move, or its ending, would be read as this one's. */
+            const uint8_t session = host.nearbyFreshSession();
             bool weAreWhite = false;
             if (host.nearbyInvite(seats_[i].deviceId, session, weAreWhite)) {
                 host.playSound(Sound::Select);
@@ -144,6 +148,10 @@ void BackgammonGame::startRemote(AppContext& host, const NearbySeat& seat, uint8
     myPly_ = 0;
     myFrom_ = 0;
     myTo_ = 0;
+    lastHeardMs_ = millis();
+    away_ = false;
+    lastAcked_ = true;    // nothing of ours to acknowledge yet
+    lastWordOnAir_ = false;    // the invitation, or our first word, replaces it
     if (waiting) {
         setMessage("Asking...");
     } else {
@@ -159,6 +167,10 @@ void BackgammonGame::leaveRemote(AppContext& host, const char* note) {
     }
     host.nearbyStop();
     ended_ = true;
+    lastWordOnAir_ = false;
+    away_ = false;
+    watch_.reset();
+    pausePainted_ = false;
     mode_ = Mode::Lobby;
     lobbyStale_ = true;
     host.playSound(Sound::GameOver);
@@ -184,6 +196,7 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
          * invitation. */
         if (heard) {
             mode_ = Mode::Remote;
+            lastHeardMs_ = now;
             host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
             doOpening(host);
             markFullDirty();
@@ -195,6 +208,33 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
         host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
     }
 
+    /* In the room but not in this game: it went back to its lobby, or began
+     * another game, and whatever it said about that was missed. Its beacon is
+     * still heard, so the watch never pauses; without this the panel would
+     * say "Their turn" for ever. It is said, not acted on -- they may come
+     * back -- and End is there for the player who would rather not wait.
+     * Real silence is the watch's to report, not this. */
+    if (heard) {
+        lastHeardMs_ = now;
+        lastAcked_ = atOrAfter(t.ack, myPly_);
+        if (away_) {
+            away_ = false;
+            setPhaseMessage();
+            markDirty();
+        }
+    } else if (phase_ == Phase::Over && !undelivered()) {
+        lastHeardMs_ = now;   // nothing more is owed either way
+    } else if (host.nearbyPeerSilentMs(opponent_) >= NearbyPlay::PEER_QUIET_MS) {
+        lastHeardMs_ = now;
+        away_ = false;
+    } else if (!away_ && now - lastHeardMs_ >= NearbyPlay::PEER_QUIET_MS) {
+        away_ = true;
+        char line[24];
+        snprintf(line, sizeof(line), "%.10s not in game", who);
+        setMessage(line);
+        markDirty();
+    }
+
     /* Our turn, one move per ply, each once they have the one before. */
     if (outboxCount_ > 0 && heard && atOrAfter(t.ack, myPly_)) {
         const Bg::Move m = outbox_[0];
@@ -204,6 +244,7 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
         myFrom_ = m.from;
         myTo_ = m.to;
         applied_ = myPly_;
+        lastAcked_ = false;
         host.nearbyPublish(session_, myPly_, myFrom_, myTo_, applied_);
         saveGame(host);
     }
@@ -242,6 +283,9 @@ void BackgammonGame::endRemoteByUs(AppContext& host) {
      * (pollRemote). Used by End game and by the pause card alike. */
     host.nearbyEnd(session_, static_cast<uint8_t>((applied_ + 1) & 0x7F), applied_);
     ended_ = true;
+    lastWordOnAir_ = true;
+    away_ = false;
+    outboxCount_ = 0;
     watch_.reset();
     pausePainted_ = false;
     mode_ = Mode::Lobby;
@@ -256,11 +300,12 @@ void BackgammonGame::endRemoteByUs(AppContext& host) {
  * NearbyWatch decides what quiet means; this is what Backgammon does about
  * it. Only a live remote game is watched -- not an invitation still
  * unanswered, which has its own "Asking..." and its own End, and not a game
- * that is over. It is watched on OUR turn as much as theirs: a move of ours
- * cannot be acknowledged by a console that is not there, so the outbox would
- * simply stall. */
+ * that is over, unless this console won it and the winning moves have not all
+ * arrived: the other console still has to be there for those. It is watched
+ * on OUR turn as much as theirs: a move of ours cannot be acknowledged by a
+ * console that is not there, so the outbox would simply stall. */
 bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint32_t now) {
-    if (mode_ != Mode::Remote || phase_ == Phase::Over) {
+    if (mode_ != Mode::Remote || (phase_ == Phase::Over && !undelivered())) {
         if (watch_.paused()) {
             watch_.reset();
             pausePainted_ = false;
@@ -271,9 +316,6 @@ bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint
     const NearbyWatch::State before = watch_.state();
     if (watch_.tick(host, opponent_, now)) {
         if (watch_.state() != before) {
-            if (before == NearbyWatch::State::Present) {
-                snprintf(pausedMessage_, sizeof(pausedMessage_), "%s", message_);
-            }
             char line[24];
             snprintf(line, sizeof(line), "%.10s %s", sideName(ourWhite_ ? Bg::BLACK : Bg::WHITE),
                      watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
@@ -283,7 +325,9 @@ bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint
     }
     if (watch_.resumed()) {
         host.playSound(Sound::Pop);
-        setMessage(pausedMessage_);
+        /* From the game as it stands now, not the line the pause displaced:
+         * after Keep waiting the turn may have been played and handed over. */
+        setPhaseMessage();
         pausePainted_ = false;
         markFullDirty();
         return false;
@@ -306,7 +350,8 @@ bool BackgammonGame::updatePause(AppContext& host, const TouchPoint& touch, uint
 }
 
 void BackgammonGame::drawPause(Ui::Renderer& tft) {
-    if (mode_ != Mode::Remote || phase_ == Phase::Over || !watch_.cardShown()) {
+    if (mode_ != Mode::Remote || (phase_ == Phase::Over && !undelivered()) ||
+        !watch_.cardShown()) {
         pausePainted_ = false;
         return;
     }

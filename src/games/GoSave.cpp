@@ -116,6 +116,18 @@ bool GoGame::restoreGame(AppContext& host) {
     ourFrom_ = in.ourFrom;
     ourTo_ = in.ourTo;
     ended_ = in.ended != 0;
+    /* What the other console has heard is not saved: nothing more is said in
+     * the marking until it has acked again, and an agreement of theirs counts
+     * only once it has seen everything we said before the console was put
+     * down. A finished nearby game says its last word until that is heard. */
+    haveAck_ = false;
+    lastTogglePly_ = ourPly_;
+    toggledThisMarking_ = mode_ == Mode::Remote && phase_ == Phase::Marking;
+    if (mode_ == Mode::Remote) {
+        settling_ = phase_ == Phase::Over;
+        settlePly_ = ourPly_;
+        lastWordOurs_ = true;
+    }
     ghost_ = Go::NO_POINT;
     haveUndo_ = false;
     deadPlayoutsLeft_ = 0;

@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include "engine/NearbyPlay.h"
+#include "ui/Stops.h"
 
 /* See NearbyWatch.h. The thresholds are the service's, not this file's:
  * NearbyPlay::PEER_QUIET_MS and the scanner's SIGHTING_TTL_MS decide when a
@@ -35,6 +36,7 @@ void NearbyWatch::reset() {
     who_ = 0;
     seconds_ = 0;
     resumed_ = false;
+    Ui::clearOverlayStops();
 }
 
 NearbyWatch::State NearbyWatch::stateFor(uint32_t silentMs) {
@@ -60,8 +62,16 @@ bool NearbyWatch::tickTable(AppContext& host, const char (*ids)[5], uint8_t coun
     uint8_t worstWho = who_;
     for (uint8_t i = 0; i < count; ++i) {
         if (i == skip || (dropped & (1U << i)) != 0) continue;
-        const uint32_t ms = host.nearbyPeerSilentMs(ids[i]);
-        const State s = stateFor(ms);
+        uint32_t ms = host.nearbyPeerSilentMs(ids[i]);
+        State s = stateFor(ms);
+        if (s == State::Present) {
+            /* Heard -- but is it still in this game? */
+            const uint32_t away = host.nearbyPeerAwayMs(ids[i]);
+            if (away >= NearbyPlay::PEER_AWAY_MS) {
+                s = State::Away;
+                ms = away;
+            }
+        }
         if (s > worst || (s == worst && s != State::Present && ms > worstMs)) {
             worst = s;
             worstMs = ms;
@@ -81,12 +91,16 @@ bool NearbyWatch::tickTable(AppContext& host, const char (*ids)[5], uint8_t coun
         }
         state_ = State::Present;
         seconds_ = 0;
+        Ui::clearOverlayStops();
         return resumed_;
     }
 
     state_ = worst;
     who_ = worstWho;
     seconds_ = worst == State::Gone ? 0 : static_cast<uint16_t>(worstMs / 1000);
+    /* Set again by draw() when the card is painted; taken down here on the
+     * frame after Keep waiting. */
+    if (!cardShown()) Ui::clearOverlayStops();
     /* Report a change the screen would draw: the state, the card coming up,
      * or the seconds line while the card is up. A dismissed card counting in
      * the background is not a repaint. */
@@ -133,9 +147,15 @@ void NearbyWatch::draw(Ui::Renderer& tft, const Rect& area, const char* who,
     const bool hasExtra = extra != nullptr;
     const Rect c = cardRect(area, hasExtra);
     tft.fillRoundRect(c.x + 2, c.y + Ui::BUTTON_SHADOW_DY, c.w, c.h, 8, Ui::shade(Ui::bg(), 60));
-    tft.fillRoundRect(c.x, c.y, c.w, c.h, 8, Ui::surface());
-    tft.drawRoundRect(c.x, c.y, c.w, c.h, 8,
+    /* The border is a fill under the face, not an outline over it: a fill
+     * and an outline of one rectangle is what the d-pad's selector takes for
+     * a control, and the card as a whole is not one -- A on its middle
+     * landed between the buttons and counted as Keep waiting. */
+    tft.fillRoundRect(c.x, c.y, c.w, c.h, 8,
                       state_ == State::Gone ? Ui::error() : Ui::warning());
+    tft.fillRoundRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2, 7, Ui::surface());
+    /* While the card is up, only its buttons take a press. */
+    Ui::setOverlayStops(c);
 
     char line[40];
     snprintf(line, sizeof(line), "Waiting for %s", who != nullptr ? who : "");
@@ -163,6 +183,8 @@ void NearbyWatch::drawSeconds(Ui::Renderer& tft, const Rect& area, bool hasExtra
     char line[40];
     if (state_ == State::Gone) {
         snprintf(line, sizeof(line), "Out of range, or switched off");
+    } else if (state_ == State::Away) {
+        snprintf(line, sizeof(line), "Not in this game for %us", static_cast<unsigned>(seconds_));
     } else {
         snprintf(line, sizeof(line), "Nothing heard for %us", static_cast<unsigned>(seconds_));
     }

@@ -10,6 +10,7 @@
 #include "BackgammonGame.h"
 #include "engine/AppRegistry.h"
 #include "engine/Entropy.h"
+#include "ui/Stops.h"
 
 /* Turn flow, input and the computer's pacing. Drawing is in BackgammonDraw,
  * the nearby session in BackgammonNet, saving in BackgammonSave; the rules
@@ -52,8 +53,28 @@ const char* BackgammonGame::title() const {
 void BackgammonGame::begin(AppContext& host) {
     confirmUntilMs_ = 0;
     confirmShown_ = false;
-    if (!restoreGame(host)) {
-        mode_ = Mode::Lobby;
+    if (mode_ == Mode::Remote) {
+        /* A nearby game is still in this instance from before the screen was
+         * left, finished or not, and it is the one to carry on with: the save
+         * may hold nothing at all -- a Guest's is never written -- while the
+         * other console is still waiting for this one. Only what belonged to
+         * the last visit's screen is put away. */
+        if (selected_ != Bg::NO_POINT) {
+            selected_ = Bg::NO_POINT;
+            setMessage("Pick a checker");
+        }
+        pausePainted_ = false;
+        lastHeardMs_ = millis();   // a whole grace before "not in game"
+    } else {
+        if (!restoreGame(host)) {
+            mode_ = Mode::Lobby;
+        }
+        if (mode_ != Mode::Remote) {
+            /* Whatever this game left on the air -- an ending, or the last
+             * move of a game it can no longer show -- has had its time. */
+            host.nearbyStop();
+            lastWordOnAir_ = false;
+        }
     }
     lobbyStale_ = true;
     panelStale_ = true;
@@ -61,14 +82,28 @@ void BackgammonGame::begin(AppContext& host) {
 }
 
 void BackgammonGame::end(AppContext& host) {
+    if (mode_ == Mode::Waiting) {
+        /* An invitation nobody is here to see answered is taken back, and as
+         * an ending rather than as silence: a console that accepted in this
+         * same moment hears it and goes back to its lobby, where plain silence
+         * would leave it in a game with nobody. */
+        host.nearbyEnd(session_, static_cast<uint8_t>((applied_ + 1) & 0x7F), applied_);
+        lastWordOnAir_ = true;
+        ended_ = true;
+        mode_ = Mode::Lobby;
+    }
     saveGame(host);
     /* Leaving the screen does not end a game played across consoles: only End
- * game does. So a nearby game's last move stays on the air while this console
- * is elsewhere -- the other console may not have heard it yet, and taking it
- * off would strand them waiting for a move that had already been made. It is
- * replaced when this screen comes back and the game carries on, or when a new
- * game starts. Every other mode hands the radio back. */
-    if (mode_ != Mode::Remote) host.nearbyStop();
+     * game does. So a nearby game's last move stays on the air while this
+     * console is elsewhere -- the other console may not have heard it yet,
+     * and taking it off would strand them waiting for a move that had already
+     * been made -- and the game itself stays in this instance, finished or
+     * not, for begin() to find. Our last word in a game already left stays
+     * up for the same reason. Everything else hands the radio back. */
+    if (mode_ == Mode::Remote || lastWordOnAir_) {
+        return;
+    }
+    host.nearbyStop();
 }
 
 void BackgammonGame::setMessage(const char* text) {
@@ -82,6 +117,43 @@ bool BackgammonGame::humanTurn() const {
         case Mode::Computer: return toMove_ == Bg::WHITE;
         case Mode::Remote: return toMove_ == (ourWhite_ ? Bg::WHITE : Bg::BLACK);
         default: return false;
+    }
+}
+
+bool BackgammonGame::boardLive() const {
+    /* After Keep waiting the card is gone and our own turn can still be
+     * played -- the moves queue until the other console is back -- so only
+     * the card itself stops the board. */
+    return phase_ == Phase::Moving && humanTurn() && !watch_.cardShown();
+}
+
+bool BackgammonGame::undelivered() const {
+    return mode_ == Mode::Remote && phase_ == Phase::Over &&
+           winner_ == (ourWhite_ ? Bg::WHITE : Bg::BLACK) && (outboxCount_ > 0 || !lastAcked_);
+}
+
+void BackgammonGame::setPhaseMessage() {
+    switch (phase_) {
+        case Phase::Opening: setMessage("Tap Roll to start"); break;
+        case Phase::Roll: setMessage("Tap Roll"); break;
+        case Phase::Moving:
+            setMessage(selected_ != Bg::NO_POINT ? "Pick a point" : "Pick a checker");
+            break;
+        case Phase::DoneReady:
+            setMessage(legalCount_ == 0 && turnCount_ == 0 ? "No moves: Done" : "Tap Done");
+            break;
+        case Phase::Computer: setMessage("Thinking..."); break;
+        case Phase::Remote:
+            setMessage(legalCount_ == 0 ? "They can't move" : "Their turn");
+            break;
+        case Phase::Over: {
+            static const char* const HOW[4] = {"", "wins", "wins a gammon", "wins a backgammon"};
+            char line[24];
+            snprintf(line, sizeof(line), "%s %s", sideName(winner_),
+                     HOW[static_cast<uint8_t>(result_)]);
+            setMessage(line);
+            break;
+        }
     }
 }
 
@@ -302,6 +374,7 @@ void BackgammonGame::finishGame(AppContext& host) {
     winner_ = toMove_;
     result_ = Bg::result(pos_, winner_);
     phase_ = Phase::Over;
+    confirmUntilMs_ = 0;   // an End half-pressed is not a New game half-pressed
     if (mode_ == Mode::Remote && humanTurn()) {
         /* The winning moves still have to reach the other console: no Done is
          * needed to finish, so they go to the outbox now. */
@@ -310,10 +383,7 @@ void BackgammonGame::finishGame(AppContext& host) {
         }
         turnCount_ = 0;
     }
-    static const char* const HOW[4] = {"", "wins", "wins a gammon", "wins a backgammon"};
-    char line[24];
-    snprintf(line, sizeof(line), "%s %s", sideName(winner_), HOW[static_cast<uint8_t>(result_)]);
-    setMessage(line);
+    setPhaseMessage();
     const bool ours = mode_ == Mode::Local || humanTurn();
     if (ours) {
         host.pulseRgb(0, 255, 40, 450);
@@ -325,9 +395,43 @@ void BackgammonGame::finishGame(AppContext& host) {
 
 void BackgammonGame::pressAction(AppContext& host, uint32_t now) {
     if (phase_ == Phase::Over) {
-        if (outboxCount_ > 0) {
-            host.beepError();   // the winning moves are still on their way
-            return;
+        if (mode_ == Mode::Remote) {
+            /* The winning moves are still on their way, and the other console
+             * is there to take them, so the first press only says so. It must
+             * not be the only thing this button can do, though: a console
+             * left on another screen still looks present and takes nothing,
+             * and this game stays in the instance however often the screen is
+             * left. A second press leaves. Once the other console has gone --
+             * quiet, or off to another game -- nobody is left to wait for. */
+            if (undelivered() && !watch_.paused() && !away_ && now >= confirmUntilMs_) {
+                confirmUntilMs_ = now + CONFIRM_MS;
+                setMessage("Again to leave");
+                host.beepError();
+                markDirty();
+                return;
+            }
+            confirmUntilMs_ = 0;
+            if (!undelivered()) {
+                if (winner_ == (ourWhite_ ? Bg::WHITE : Bg::BLACK)) {
+                    host.nearbyStop();   // every move arrived
+                } else {
+                    /* Our last word is the acknowledgement the winner is
+                     * waiting for before it can leave. It may not have heard
+                     * it yet. */
+                    lastWordOnAir_ = true;
+                }
+            } else {
+                /* Moves that never went out cannot be caught up, so the other
+                 * console is told the game is over rather than left waiting
+                 * for them; a last move already on the air stays there. */
+                if (outboxCount_ > 0) {
+                    host.nearbyEnd(session_, static_cast<uint8_t>((applied_ + 1) & 0x7F), applied_);
+                }
+                lastWordOnAir_ = true;
+            }
+            outboxCount_ = 0;
+            watch_.reset();
+            pausePainted_ = false;
         }
         mode_ = Mode::Lobby;
         lobbyStale_ = true;
@@ -421,6 +525,11 @@ void BackgammonGame::updateBoard(AppContext& host, const TouchPoint& touch, uint
         panelStale_ = true;
         markDirty();
     }
+    if (phase_ == Phase::Over && confirmUntilMs_ != 0 && now >= confirmUntilMs_) {
+        confirmUntilMs_ = 0;   // "Again to leave" was not taken up
+        setPhaseMessage();
+        markDirty();
+    }
     if (mode_ == Mode::Remote || mode_ == Mode::Waiting) {
         pollRemote(host, now);
         if (mode_ == Mode::Lobby) {
@@ -469,8 +578,17 @@ void BackgammonGame::updateBoard(AppContext& host, const TouchPoint& touch, uint
 
 void BackgammonGame::update(AppContext& host, const TouchPoint& touch) {
     if (mode_ == Mode::Lobby) {
+        Ui::clearBoardStops();
         updateLobby(host, touch);
         return;
     }
     updateBoard(host, touch, millis());
+    /* The points, the bar and the tray stay drawn on everybody's turn, so the
+     * d-pad's selector is told each frame whether they take a press. The
+     * panel's buttons are outside the rectangle and are stops throughout. */
+    if (mode_ == Mode::Lobby) {
+        Ui::clearBoardStops();
+    } else {
+        Ui::setBoardStops(stopsRect(), boardLive());
+    }
 }

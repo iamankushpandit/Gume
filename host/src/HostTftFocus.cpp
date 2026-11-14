@@ -17,6 +17,7 @@
 #include <algorithm>
 
 #include "BoardConfig.h"   // TOUCH_HIT_SLOP
+#include "ui/Stops.h"      // what the screen says about its board
 
 namespace {
 /* Ui::BUTTON_SHADOW_DX and DY, the offset of the fill drawn before the button.
@@ -110,8 +111,14 @@ int TFT_eSPI::focusTargets(FocusBox* out, int max) const {
     const bool cardsAreControls = buttons == 0 || cards >= MIN_CARD_CONTROLS;
     for (const FocusMark& m : focus_) {
         if (!m.valid || count >= max) continue;
+        /* The screen's own word about its board comes first: a quiet board
+         * has no stops, whatever is drawn on it, and on a live one every
+         * square is a stop however few are left. */
+        const Ui::StopRule rule = Ui::stopRuleAt(static_cast<int16_t>(m.x + m.w / 2),
+                                                 static_cast<int16_t>(m.y + m.h / 2));
+        if (rule == Ui::StopRule::Quiet) continue;
         if (!m.button) {
-            if (!cardsAreControls) continue;
+            if (!cardsAreControls && rule != Ui::StopRule::Live) continue;
             /* Too big, or with a control inside it, it is the panel under them. */
             if (m.w * m.h > quarter) continue;
             bool holdsAnother = false;

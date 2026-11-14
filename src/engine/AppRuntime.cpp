@@ -19,6 +19,7 @@
 #include "hal/PowerMonitor.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
+#include "ui/Stops.h"
 
 // Home, Lock and the gear all come from LauncherLayout, so a hit target and
 // the glyph Ui paints into it cannot drift apart.
@@ -579,6 +580,9 @@ void BrainoApp::leaveActiveGame() {
     activeGame_->end(*this);
     activeGame_ = nullptr;
     activeApp_ = nullptr;
+    /* What the screen said about its board goes with the screen. */
+    Ui::clearBoardStops();
+    Ui::clearOverlayStops();
     Watchdog::noteScreenLeft(leaving, heapAtLaunch_);
 }
 

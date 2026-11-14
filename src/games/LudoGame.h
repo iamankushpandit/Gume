@@ -9,6 +9,9 @@
 
 #pragma once
 
+#include <stdio.h>
+#include <string.h>
+
 #include "engine/Game.h"
 #include "games/LudoRules.h"
 #include "games/NearbyWatch.h"
@@ -146,14 +149,38 @@ private:
     bool dieFlashing() const;
     void saveGame(AppContext& host) const;
     bool restoreGame(AppContext& host);
+    /* What the active player's save says about the table in memory. Saves are
+     * kept per player and this screen is not, so the save is how a table that
+     * is still here is told from one somebody else was sitting at. */
+    enum class SaveSays : uint8_t { Nothing, ThisTable, Other };
+    SaveSays saveSays(AppContext& host) const;
+    /* Tell the d-pad's selector whether the board and the die take a press
+     * just now. Every frame; it draws nothing. See ui/Stops.h. */
+    void tellStops() const;
 
-    // ---- a table of consoles (LudoTable.cpp) ------------------------------
+    // ---- our last word (LudoSave.cpp) --------------------------------------
+    /* An ending, or the last move of a finished game, is the one word nobody
+     * can ask us to repeat, and a console between two scan windows has not
+     * heard it yet. So it is not taken off the air the moment this console
+     * moves on: it is held for LAST_WORD_HOLD_MS first, and whatever would
+     * replace it -- an invitation, a presence, the plain stop -- waits. */
+    void holdWord(uint32_t now);
+    /** A held word that has not had its time yet. */
+    bool wordHolding(uint32_t now) const;
+    /* Once a held word has had its time, let the next thing replace it; a
+     * local game, where nothing would, takes it down. Every frame. */
+    void tickWord(AppContext& host, uint32_t now);
+
+    // ---- a table of consoles (LudoTable.cpp; its lobby in LudoLobby.cpp) ----
     /* The nearby service carries it; LudoRules' Net namespace spells it. What
      * is here is the part only a screen can do: who was invited, who has
      * answered, when to start, and taking each console's turn off the air in
      * order. See LudoRules.h for the encoding. */
     void openTable(AppContext& host);
     void leaveTable(AppContext& host);
+    /* Leave a table that is still being gathered, for the lobby. A guest who
+     * had answered says that it left, and that word is held like any last. */
+    void quitTable(AppContext& host, uint32_t now);
     void updateTable(AppContext& host, const TouchPoint& touch);
     void refreshPeers(AppContext& host);
     /** A peer that answered our invitation with its presence. */
@@ -166,10 +193,14 @@ private:
     void startNetGame(AppContext& host, const Ludo::Net::Start& st);
     /** Every frame of a game across consoles: our word, endings, others' turns. */
     void pollTable(AppContext& host, uint32_t now);
+    static bool sameId(const char* a, const char* b) { return strncmp(a, b, 4) == 0; }
+    static void copyId(char* dst, const char* src) { snprintf(dst, 5, "%s", src); }
     /* A console at the table going quiet: the whole table pauses, the card
      * names the seat, and on the host it offers to play on without it. True
      * when the press was on (or through) the card. */
     bool updatePause(AppContext& host, const TouchPoint& touch, uint32_t now);
+    /** The message line while paused: who is quiet, or away. */
+    void sayWhoIsQuiet();
     /** The card over the board while paused, or nothing. End of both renders. */
     void drawPause(Ui::Renderer& tft);
     /* The host playing on without chair `chair`: its seat becomes a computer
@@ -321,6 +352,11 @@ private:
      * the next tap, so a young player whose game vanished is told why. */
     char lobbyNote_[32] = {0};
     bool lastBlink_ = false;
+    /* A press to roll that had to be refused because another console had not
+     * caught up: "One moment..." is up, and the prompt it replaced comes back
+     * when the roll is possible. rollBonus_ is which prompt that was. */
+    bool rollHeld_ = false;
+    bool rollBonus_ = false;
 
     // ---- a table of consoles ------------------------------------------------
     /* One console at the table. The label is the owner's own name for that
@@ -365,6 +401,16 @@ private:
     NearbyWatch watch_;
     bool pausePainted_ = false;
     uint16_t pauseSecondsDrawn_ = 0;
+    /* A last word of ours that is on the air and may not be replaced yet,
+     * and when it went up. See holdWord(). Not saved: after a restart nothing
+     * is on the air. */
+    bool wordHeld_ = false;
+    uint32_t wordAtMs_ = 0;
+    /* What the save said when the table in memory formed, or was last carried
+     * on with: ThisTable for a player whose saves are kept, Nothing for Guest,
+     * whose saves are dropped. begin() keeps the table for as long as the
+     * save still says that, or names this table. */
+    SaveSays tableSaid_ = SaveSays::Nothing;
 
     // The table lobby.
     static constexpr uint8_t MAX_PEERS = 6;

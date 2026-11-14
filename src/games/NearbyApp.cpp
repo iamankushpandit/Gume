@@ -184,7 +184,12 @@ void NearbyApp::rebuildRows(GameHost& host) {
             rows_.addRow("Playing", peer.gameTitle);
 
             char theirs[SCORE_TEXT_CAP];
-            scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
+            if (peer.haveTheirScore) {
+                scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
+            } else {
+                /* A move or a poke has the score's place on the air. */
+                snprintf(theirs, sizeof(theirs), "--");
+            }
             rows_.addRow("Their best", theirs, peer.beatsYou ? Ui::warning() : 0);
 
             char yours[SCORE_TEXT_CAP];

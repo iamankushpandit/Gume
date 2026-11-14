@@ -310,6 +310,13 @@ void SeaBattleGame::drawTally(AppContext& host) const {
 
 void SeaBattleGame::drawButtons(AppContext& host) const {
     Ui::Renderer& tft = host.display();
+    if (mode_ == Mode::Waiting) {
+        /* No Ready and no Shuffle until they answer: there is no game yet,
+         * and a button drawn is a button a finger or the d-pad lands on. */
+        Ui::drawButton(tft, actionRect(), "Cancel", Ui::panel(), Ui::outline(),
+                       Ui::text(), false, 2);
+        return;
+    }
     if (phase_ == Phase::Placing) {
         Ui::drawButton(tft, readyRect(), "Ready", Ui::success(), Ui::outline(),
                        Ui::bg(), false, 2);

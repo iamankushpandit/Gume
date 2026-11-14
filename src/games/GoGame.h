@@ -66,7 +66,8 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    /** Saves, and hands the radio back if a nearby game was on it. */
+    /** Saves. A nearby game's last word stays on the air; anything else
+     *  hands the radio back. */
     void end(AppContext& host) override;
     /* A game on the board comes back as it was left, with no question asked:
      * End game is this screen's own way out of one. In GoSave.cpp. */
@@ -119,6 +120,18 @@ private:
                      bool waiting);
     void pollRemote(AppContext& host, uint32_t now);
     void publishOurs(AppContext& host);
+    /** Our next numbered word: a stone, a pass, a toggle or an agreement. */
+    void sendWord(AppContext& host, Go::Net::Kind kind, uint16_t p);
+    /** Has the other console applied everything we have said so far? */
+    bool peerCaughtUp() const { return haveAck_ && theirAck_ == ourPly_; }
+    /** In the marking: may we say something now? Says "wait" when not. */
+    bool remoteMayMark(AppContext& host);
+    /** End game from the marking phase of a nearby game, asked twice. */
+    void pressEndInMarking(AppContext& host, uint32_t now);
+    /** Takes a finished game's last word off the air once it has been heard. */
+    void settleAir(AppContext& host);
+    /** Tells the d-pad's selector whether the board takes a press just now. */
+    void updateStops();
     void leaveRemote(AppContext& host, const char* note);
     void endRemoteByUs(AppContext& host);
     bool updatePause(AppContext& host, const TouchPoint& touch, uint32_t now);
@@ -233,6 +246,27 @@ private:
     uint8_t ourFrom_ = 0;
     uint8_t ourTo_ = 0;
     bool ended_ = false;
+    /* The highest ply of ours the other console says it has applied. A turn
+     * is one state on the air, so a second word sent before the first was
+     * heard replaces it and the first is lost for good: in the marking phase,
+     * where both sides speak when they like, nothing more is sent until this
+     * has caught up with ourPly_. */
+    uint8_t theirAck_ = 0;
+    bool haveAck_ = false;
+    /* Our last dead-group toggle in this marking. An agreement from the other
+     * console counts only if it had seen that toggle when it agreed. */
+    uint8_t lastTogglePly_ = 0;
+    bool toggledThisMarking_ = false;
+    /* A game that finished, or that we ended, leaves its last word on the air
+     * until the other console has heard it -- taken down at once, they would
+     * wait for ever on a move that had been made. settlePly_ is that word;
+     * lastWordOurs_ says whether the last numbered word was ours (then their
+     * ack ends it) or theirs (then we keep acking until they go quiet). */
+    bool settling_ = false;
+    bool lastWordOurs_ = false;
+    uint8_t settlePly_ = 0;
+    /* When our invitation went out. It is on the air for a few seconds only. */
+    uint32_t invitedAtMs_ = 0;
     NearbySeat seats_[6] = {};
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
@@ -240,6 +274,11 @@ private:
     NearbyWatch watch_;
     bool pausePainted_ = false;
     uint16_t pauseSecondsDrawn_ = 0;
+    /* A press that began on the pause card is the card's until the finger
+     * lifts: let through, the rest of it put a ghost on the board. */
+    bool pauseHold_ = false;
+    /* The result card is the selector's overlay while it is up. */
+    bool resultOverlay_ = false;
 
     // ---- what is on the screen ----------------------------------------------------
     uint8_t dirty_[(Go::MAX_POINTS + 7) / 8] = {};

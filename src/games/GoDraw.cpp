@@ -324,8 +324,11 @@ void GoGame::drawBoard(Ui::Renderer& tft) const {
 void GoGame::drawTurn(Ui::Renderer& tft) const {
     const Rect r = turnRect();
     tft.fillRect(r.x, r.y, r.w + Ui::BUTTON_SHADOW_DX, r.h + Ui::BUTTON_SHADOW_DY, Ui::bg());
-    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
-    tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+    /* The border is a fill under the face, not an outline over it: a fill
+     * and an outline of one rectangle is what the d-pad's selector takes for
+     * a control, and this box is nothing to press. */
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+    tft.fillRoundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 5, Ui::surface());
     const uint8_t side = phase_ == Phase::Over ? state_.winner : state_.toMove;
     const int16_t sr = big() ? 6 : 8;
     drawStone(tft, r.x + 4 + sr, r.y + r.h / 2, sr, side == Go::EMPTY ? Go::BLACK : side, false);
@@ -390,8 +393,9 @@ void GoGame::drawInfo(Ui::Renderer& tft) const {
     }
     const Rect r = infoRect();
     tft.fillRect(r.x, r.y, r.w, r.h, Ui::bg());
-    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
-    tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+    /* Border as a fill under the face, as in drawTurn(): not a control. */
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+    tft.fillRoundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 5, Ui::surface());
     tft.setTextDatum(TL_DATUM);
     if (ghost_ != Go::NO_POINT && phase_ == Phase::Play) {
         char at[8];
@@ -425,8 +429,8 @@ void GoGame::drawMagnifier(Ui::Renderer& tft) const {
      * check before Place. With no ghost, the centre of the board. */
     const Rect r = infoRect();
     tft.fillRect(panelX(), r.y, panelW(), r.h, Ui::bg());
-    tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, wood());
-    tft.drawRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::outline());   // see drawTurn()
+    tft.fillRoundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 3, wood());
     const uint16_t centre = ghost_ != Go::NO_POINT ? ghost_ : Go::point(state_.n, 9, 9);
     const int16_t cr = Go::rowOf(state_.n, centre);
     const int16_t cc = Go::colOf(state_.n, centre);
@@ -475,7 +479,14 @@ void GoGame::drawButtons(Ui::Renderer& tft, bool sure) const {
     const bool ours = playing && humanTurn();
     const uint8_t font = big() ? 1 : 2;
     if (phase_ == Phase::Marking) {
-        Ui::drawPagerButton(tft, passRect(), "Resume", mode_ != Mode::Remote);
+        if (mode_ == Mode::Remote) {
+            /* No resuming across consoles: the slot is the way out. */
+            Ui::drawButton(tft, passRect(), sure ? "Sure?" : "End game",
+                           sure ? Ui::warning() : Ui::panel(), Ui::outline(),
+                           sure ? Ui::bg() : Ui::text(), false, font);
+        } else {
+            Ui::drawPagerButton(tft, passRect(), "Resume", true);
+        }
         Ui::drawPagerButton(tft, undoRect(), "Undo", false);
         if (big()) Ui::drawPagerButton(tft, placeRect(), "Place", false);
         /* "Agreed" means we have agreed and are waiting for somebody else,
@@ -521,7 +532,8 @@ void GoGame::drawPanel(Ui::Renderer& tft) {
         drawInfo(tft);
         infoStale_ = false;
     }
-    const bool sure = phase_ == Phase::Play && millis() < confirmUntilMs_;
+    const bool sure = (phase_ == Phase::Play || phase_ == Phase::Marking) &&
+                      millis() < confirmUntilMs_;
     if (buttonsStale_ || sure != confirmShown_) {
         drawButtons(tft, sure);
         confirmShown_ = sure;

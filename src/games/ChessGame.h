@@ -67,9 +67,9 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    /* Hands the radio back: a move stays advertised until replaced, so
-     * leaving the screen without clearing it would leave this console
-     * broadcasting a game it is no longer in. */
+    /* Saves, and hands the radio back unless this console is in a game
+     * against a nearby one: that game's last move stays advertised, because
+     * the other console may not have heard it yet. */
     void end(AppContext& host) override;
 #if GUME_HAS_NAV_KEYS
     bool repaintUnderRing(AppContext& host, const Rect& box) override;
@@ -208,6 +208,11 @@ private:
     void saveGame(AppContext& host) const;
     /** Restore a game left part-finished. False if there was nothing to take. */
     bool restoreGame(AppContext& host);
+    /* True when the active player's save holds something other than the nearby
+     * game this instance is in. Saves are kept per player, so that is a
+     * different player at the console. No save at all answers false: that is
+     * what a Guest, whose game lives only here, looks like. */
+    bool saveIsAnotherGame(AppContext& host) const;
 
     // ---- nearby play -----------------------------------------------------
     /* Our colour in a remote game. Whoever moves first is White, and which
@@ -261,8 +266,30 @@ private:
     uint16_t pauseSecondsDrawn_ = 0;
     void startLocal();
     void startRemote(const NearbySeat& seat, uint8_t session, bool weAreWhite);
-    /** True when it is this console's turn in a remote game. */
+    /* True when the side to move is this console's player. Never while an
+     * invitation is still unanswered: that board has no opponent yet. */
     bool ourTurn() const;
+    /* Would a press on the board do something for the player right now? What
+     * the d-pad's selector is told every frame, so its ring does not walk a
+     * board that is waiting for somebody else. */
+    bool boardTakesPress() const;
+    /** One frame of the game. update() runs it and then states the above. */
+    void step(AppContext& host, const TouchPoint& touch);
+
+    /* Back to the lobby from a game that is over, or from an invitation
+     * nobody answered. In ChessNet.cpp. */
+    void backToLobby(AppContext& host);
+    /* The last thing this console said in a nearby game -- the move that
+     * ended it, or "I am stopping" -- may not have been heard when the player
+     * presses New game. It is left on the air from the lobby until the other
+     * console acknowledges it or FAREWELL_MS has gone, whichever is first.
+     * farewellUntilMs_ is 0 when nothing is owed. */
+    void tickFarewell(AppContext& host);
+    static constexpr uint32_t FAREWELL_MS = 20000;
+    uint32_t farewellUntilMs_ = 0;
+    char farewellPeer_[5] = {0};
+    uint8_t farewellSession_ = 0;
+    uint8_t farewellPly_ = 0;
 
     /* ---- the computer -------------------------------------------------
      *
@@ -371,8 +398,11 @@ private:
      * repeat.
      *
      * Guest drops writes, silently, which is what makes Guest a guest. So a
-     * guest's game does not survive leaving the screen, and that is the same
-     * answer Guest gives to scores and mastery. Do not special-case it here.
+     * guest's game on this console alone does not survive leaving the screen,
+     * and that is the same answer Guest gives to scores and mastery. Do not
+     * special-case it here. (A game against a nearby console outlives the
+     * screen without the save -- see begin() -- for as long as the console
+     * stays on, because somebody else is still playing it.)
      *
      * Fixed layout, and loadBlob() refuses a blob whose length has changed, so
      * altering this struct retires old saves rather than misreading them.

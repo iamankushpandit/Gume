@@ -175,11 +175,14 @@ void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
             host.playSound(Sound::Select);
             startRemote(seats_[i], seats_[i].session, seats_[i].weMoveFirst);
         } else {
-            /* Inviting: our session id, derived from the clock rather than a
-             * counter so two consoles inviting each other at once are unlikely
-             * to pick the same number. Which of us is White is NOT ours to
-             * decide -- nearbyInvite() tosses for it and tells us. */
-            const uint8_t session = static_cast<uint8_t>((millis() >> 3) & 0x3F);
+            /* Inviting: our session id comes from the service, which starts
+             * from the clock rather than a counter so two consoles inviting
+             * each other at once are unlikely to pick the same number, and
+             * steps past any session this console still holds a turn for --
+             * an old game's last move must not read as this one's. Which of
+             * us is White is NOT ours to decide -- nearbyInvite() tosses for
+             * it and tells us. */
+            const uint8_t session = host.nearbyFreshSession();
             bool weMoveFirst = false;
             if (host.nearbyInvite(seats_[i].deviceId, session, weMoveFirst)) {
                 host.playSound(Sound::Select);
@@ -215,6 +218,10 @@ void ChessGame::updateLobby(AppContext& host, const TouchPoint& touch) {
 void ChessGame::pollOpponent(AppContext& host) {
     if (mode_ != Mode::Remote && mode_ != Mode::Waiting) return;
     if (opponent_[0] == 0) return;
+    /* A finished board takes nothing more. A late "I am stopping" must not
+     * relabel a checkmate as a game somebody walked away from, nor answer a
+     * game this console had already stopped itself. */
+    if (gameOver()) return;
 
     NearbyTurn turn;
     if (!host.nearbyTurnFrom(opponent_, session_, turn)) return;
@@ -229,20 +236,28 @@ void ChessGame::pollOpponent(AppContext& host) {
         markFullDirty();
     }
 
-    const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
-    if (turn.ply != expected) return;
-
     /* They stopped the game. This is tested BEFORE the whose-turn check on
      * purpose: a player gives up when they are stuck, which is usually while
      * they are waiting for us, and a declaration that only arrived on their
      * own turn would be one that mostly never arrived. The reserved encoding
-     * belongs to the nearby service, not here -- this only reads the flag. */
+     * belongs to the nearby service, not here -- this only reads the flag.
+     *
+     * It is also tested before the exact-ply test, and taken one ply late. A
+     * turn is one state on the air: an ending sent straight after a move we
+     * never heard has replaced that move for good, and it arrives numbered
+     * one past the ply we are waiting for. Moves alternate, so one unheard
+     * move is the most there can be. */
     if (turn.ended) {
+        const uint8_t ahead = static_cast<uint8_t>((turn.ply - theirPly_) & 0x7F);
+        if (ahead != 1 && ahead != 2) return;
         theirPly_ = turn.ply;
         declareEnd(host, false);
         host.playSound(Sound::GameOver);
         return;
     }
+
+    const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
+    if (turn.ply != expected) return;
 
     if (ourTurn()) return;              // not their move to make
 
@@ -263,6 +278,54 @@ void ChessGame::pollOpponent(AppContext& host) {
     playMove(host, turn.from, turn.to, false);
 }
 
+/* ---- leaving a game that is over ---------------------------------------------
+ *
+ * Always back to the lobby, whichever way the game was being played: a new
+ * game across consoles needs a new session and a fresh invitation. What it
+ * must not do is take this console's last word off the air before the other
+ * console has it. */
+void ChessGame::backToLobby(AppContext& host) {
+    /* Is the turn on the air news the other console needs? Our ending is, an
+     * invitation just taken back is, and so is the move that finished the
+     * game if it was ours -- the side left to move is the one that did not
+     * make it. Their ending or their last move leaves nothing owed. */
+    const bool lastWordOurs =
+        mode_ == Mode::Waiting ||
+        (mode_ == Mode::Remote &&
+         (status_ == Status::Ended ? endedByUs_
+                                   : pos_.whiteToMove != remoteIsWhite_));
+    if (lastWordOurs) {
+        memcpy(farewellPeer_, opponent_, sizeof(farewellPeer_));
+        farewellPeer_[sizeof(farewellPeer_) - 1] = 0;
+        farewellSession_ = session_;
+        farewellPly_ = ourPly_;
+        farewellUntilMs_ = millis() + FAREWELL_MS;
+        if (farewellUntilMs_ == 0) farewellUntilMs_ = 1;   // 0 means none owed
+    } else if (mode_ == Mode::Remote) {
+        host.nearbyStop();
+    }
+    mode_ = Mode::Lobby;
+    opponent_[0] = 0;
+    opponentName_[0] = 0;
+    session_ = 0;
+    seatCount_ = 0;
+    seatsAtMs_ = 0;
+    newGame();
+    saveGame(host);
+}
+
+void ChessGame::tickFarewell(AppContext& host) {
+    if (farewellUntilMs_ == 0) return;
+    NearbyTurn turn;
+    const bool heard =
+        host.nearbyTurnFrom(farewellPeer_, farewellSession_, turn) &&
+        turn.ack == farewellPly_;
+    /* Not for ever: a console that has left the room, or never accepted the
+     * invitation, will not acknowledge anything. */
+    if (!heard && static_cast<int32_t>(millis() - farewellUntilMs_) < 0) return;
+    farewellUntilMs_ = 0;
+    host.nearbyStop();
+}
 
 /* ---- the other console going quiet -----------------------------------------
  *

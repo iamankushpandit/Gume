@@ -93,11 +93,21 @@ range, and it can pick the game up from any later window. The acknowledgement
 rides the opponent's own advertisement, so there is no separate ack message
 that could itself go missing.
 
-An *invitation*, by contrast, is an event and uses the poke's exact wire shape
-and timer. That reuse is deliberate: an invitation is the same kind of thing —
-aimed at one peer, repeated because scan windows have gaps, acted on once per
-(device id, nonce) — and sharing the layout means sharing the idempotence
-argument rather than writing a second one slightly differently.
+An *invitation* uses the poke's exact wire shape. That reuse is deliberate: an
+invitation is the same kind of thing — aimed at one peer, repeated because
+scan windows have gaps, acted on once per (device id, nonce) — and sharing the
+layout means sharing the idempotence argument rather than writing a second one
+slightly differently.
+
+It does not share the poke's timer. An invitation is a question somebody is
+waiting on: the console that asked sits in its lobby until it is answered. It
+used to leave the air after `POKE_ADVERTISE_MS`, which left that console
+waiting for an answer nobody could give any more, and turned the other
+player's tap, a moment late, into a second invitation crossing the first. It
+now stays on the air until it is answered (the first turn takes its place),
+withdrawn (the console that asked leaves its lobby, or switches Nearby off) or
+replaced by another. While it is up it is still a broadcast: everyone in range
+hears who invited whom, to which game, for as long as the question stands.
 
 The invitation's nonce byte doubles as the session id, in its low six bits,
 with **bit 6 saying which of the two consoles moves first**. That bit is set by

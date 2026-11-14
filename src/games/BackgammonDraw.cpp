@@ -299,8 +299,11 @@ void BackgammonGame::drawDice(Ui::Renderer& tft) const {
             for (uint8_t i = 0; i < dice_.count; ++i) live = live || dice_.value[i] == face;
         }
         const int16_t x = static_cast<int16_t>(DICE_RECT.x + 2 + k * (DIE + 8));
-        tft.fillRoundRect(x, DICE_Y, DIE, DIE, 5, live ? dieFace() : dieUsed());
-        tft.drawRoundRect(x, DICE_Y, DIE, DIE, 5, ink());
+        /* The edge is a fill under the face, not an outline over it: a fill
+         * and an outline of one rectangle is what the d-pad's selector stops
+         * at, and a die is never pressed. */
+        tft.fillRoundRect(x, DICE_Y, DIE, DIE, 5, ink());
+        tft.fillRoundRect(x + 1, DICE_Y + 1, DIE - 2, DIE - 2, 4, live ? dieFace() : dieUsed());
         const int16_t cx = static_cast<int16_t>(x + DIE / 2);
         const int16_t cy = static_cast<int16_t>(DICE_Y + DIE / 2);
         constexpr int16_t D = 8;
@@ -475,6 +478,12 @@ void BackgammonGame::renderDynamic(AppContext& host) {
     drawPanel(tft);
     drawPause(tft);
 }
+
+Rect BackgammonGame::stopsRect() {
+    return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),
+                static_cast<int16_t>(TRAY_X + TRAY_W - BX + 2), static_cast<int16_t>(BOARD_H + 4)};
+}
+static_assert(TRAY_X + TRAY_W <= PANEL_X, "the board's stops would take in the panel's buttons");
 
 Rect BackgammonGame::boardArea() {
     return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),

@@ -65,6 +65,14 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     for (uint8_t i = 0; i < used_; ++i) {
         if (strncmp(table_[i].deviceId, obs.deviceId, sizeof(table_[i].deviceId)) == 0) {
             table_[i].sharesActivity = obs.sharesActivity;
+            /* A score belongs to the game it was heard with. A peer that
+             * changes game while a move has its score's place on the air --
+             * one left in the middle of a nearby game -- has sent no number
+             * for the new game, and the old one must not be read as it. */
+            if (!obs.haveScore && table_[i].gameIndex != obs.gameIndex) {
+                table_[i].haveScore = false;
+                table_[i].bestScore = 0;
+            }
             table_[i].gameIndex = obs.gameIndex;
             /* A peer that is poking has displaced its score to make room, so
              * this advertisement carries no number. Keep the last one we heard
@@ -86,6 +94,14 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
                 snprintf(table_[i].inviteTarget, sizeof(table_[i].inviteTarget),
                          "%s", obs.inviteTarget);
                 table_[i].inviteSession = obs.inviteSession;
+                /* A console that invites has no move on the air, so a move
+                 * still remembered from it under the number it now offers is
+                 * an old game's. Kept, it would be read as the first move of
+                 * the new one by whoever accepts. */
+                if (table_[i].hasTurn &&
+                    table_[i].turnSession == (obs.inviteSession & 0x3F)) {
+                    table_[i].hasTurn = false;
+                }
             }
             /* A move is a state, so the last one heard is kept even once the
              * peer stops advertising it -- unlike a poke, which is an event
@@ -97,6 +113,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
                 table_[i].turnFrom = obs.turnFrom;
                 table_[i].turnTo = obs.turnTo;
                 table_[i].turnAck = obs.turnAck;
+                table_[i].lastTurnMs = nowMs;
             }
             table_[i].rssi = rssi;
             table_[i].lastSeenMs = nowMs;
@@ -143,6 +160,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     s.turnFrom = obs.turnFrom;
     s.turnTo = obs.turnTo;
     s.turnAck = obs.turnAck;
+    s.lastTurnMs = obs.hasTurn ? nowMs : 0;
     s.rssi = rssi;
     s.lastSeenMs = nowMs;
     ++generation_;

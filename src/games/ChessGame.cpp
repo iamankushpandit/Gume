@@ -13,6 +13,7 @@
 
 #include "ChessInternal.h"
 #include "engine/AppRegistry.h"
+#include "ui/Stops.h"
 
 /* Chess: the screen. Six files against one header --
  *   ChessGame.cpp   this: the game's life, a fresh board, a tap on it
@@ -99,18 +100,48 @@ void ChessGame::newGame() {
 }
 
 void ChessGame::begin(AppContext& host) {
+    /* Still in a game against a nearby console from before this screen was
+     * left. The game is kept exactly as it stood, finished or not, rather
+     * than read back from the save: a Guest has no save, and a finished game
+     * is not restored, yet in both the other console is still looking at
+     * this one. Only what belonged to the last visit's picture is reset.
+     *
+     * Unless another player has picked the console up since. Their own save
+     * says so, and they get their own game rather than somebody else's --
+     * which would otherwise be written over theirs on the way out. The game
+     * that was here is still in its player's save. */
+    if (mode_ == Mode::Remote && !saveIsAnotherGame(host)) {
+        selected_ = NO_SQ;
+        targetCount_ = 0;
+        dirtyCount_ = 0;
+        confirmUntilMs_ = 0;
+        pausePainted_ = false;
+        statusStale_ = true;
+        panelStale_ = true;
+        markFullDirty();
+        return;
+    }
+
     newGame();
     mode_ = Mode::Lobby;
+    /* A pause belongs to the opponent it was measuring. */
+    watch_.reset();
+    pausePainted_ = false;
     seatCount_ = 0;
     seatsAtMs_ = 0;
     opponent_[0] = 0;
     opponentName_[0] = 0;
     session_ = 0;
+    farewellUntilMs_ = 0;
 
     /* A game left part-finished comes back. Anything else -- no save, a save
      * from an older layout, a game that had already ended -- falls through to
      * the lobby, which is also what a first visit gets. */
     restoreGame(host);
+    /* No nearby game to show, so nothing of this game's may stay on the air:
+     * a move from a game this screen can no longer bring back would keep the
+     * other console waiting on it. */
+    if (mode_ != Mode::Remote) host.nearbyStop();
     markFullDirty();
 }
 
@@ -118,9 +149,11 @@ void ChessGame::begin(AppContext& host) {
 /* Leaving the screen does not end a game played across consoles: only End
  * game does. So a nearby game's last move stays on the air while this console
  * is elsewhere -- the other console may not have heard it yet, and taking it
- * off would strand them waiting for a move that had already been made. It is
- * replaced when this screen comes back and the game carries on, or when a new
- * game starts. Every other mode hands the radio back.
+ * off would strand them waiting for a move that had already been made. That
+ * holds for a finished game too, whose last move or ending is news the other
+ * console still needs. It is replaced when this screen comes back and the
+ * game carries on, or when a new game starts. Every other mode hands the
+ * radio back, an unanswered invitation included.
  *
  * The board is written here as well as after each move. After each move is
  * what survives a flat battery; here is what survives everything else, and
@@ -130,7 +163,10 @@ void ChessGame::end(AppContext& host) {
         mode_ == Mode::Remote) {
         saveGame(host);
     }
-    if (mode_ != Mode::Remote) host.nearbyStop();
+    if (mode_ != Mode::Remote) {
+        farewellUntilMs_ = 0;
+        host.nearbyStop();
+    }
 }
 
 void ChessGame::recordCapture(int8_t piece) {
@@ -211,13 +247,26 @@ void ChessGame::startRemote(const NearbySeat& seat, uint8_t session,
     session_ = static_cast<uint8_t>(session & 0x3F);
     remoteIsWhite_ = weAreWhite;
     mode_ = Mode::Remote;
+    /* This game's first word replaces whatever the last one still had on the
+     * air, so there is nothing left to take down later. */
+    farewellUntilMs_ = 0;
     newGame();
 }
 
 bool ChessGame::ourTurn() const {
     if (mode_ == Mode::Computer) return humanTurn();
+    /* Nobody has accepted yet. A move made now would never be sent, and the
+     * game that started when they did accept would begin from a board the
+     * two consoles did not share. */
+    if (mode_ == Mode::Waiting) return false;
     if (mode_ != Mode::Remote) return true;
     return pos_.whiteToMove == remoteIsWhite_;
+}
+
+bool ChessGame::boardTakesPress() const {
+    if (mode_ == Mode::Lobby || gameOver() || !ourTurn()) return false;
+    /* A paused game is waiting for the other console, card or no card. */
+    return !(mode_ == Mode::Remote && watch_.paused());
 }
 
 bool ChessGame::humanTurn() const {
@@ -348,6 +397,20 @@ void ChessGame::refreshStatus() {
 
 
 void ChessGame::update(AppContext& host, const TouchPoint& touch) {
+    step(host, touch);
+    /* Said after the frame's work, so it describes the board as it now
+     * stands: a move just played has already made it the other side's. The
+     * action button is in the panel, outside this rectangle, and stays a
+     * stop throughout. */
+    if (mode_ == Mode::Lobby) {
+        Ui::clearBoardStops();
+    } else {
+        Ui::setBoardStops(boardRect(host), boardTakesPress());
+    }
+}
+
+void ChessGame::step(AppContext& host, const TouchPoint& touch) {
+    tickFarewell(host);
     if (mode_ == Mode::Lobby) {
         updateLobby(host, touch);
         return;
@@ -370,9 +433,19 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
      * this only published once we had moved, neither side could ever start.
      * The receiver's expected-ply test discards ply 0 as a move, so saying it
      * costs nothing and means the handshake needs no second message, which is
-     * the message that would have gone missing. */
-    if (mode_ == Mode::Remote && status_ != Status::Ended) {
-        host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+     * the message that would have gone missing.
+     *
+     * A game we stopped says so again instead, never the move before it. A
+     * game they stopped still says our last move, because the ack beside it
+     * is how they learn their ending arrived. Both are said every frame for
+     * one more reason: switching Nearby off takes the turn out of the
+     * payload, and this is what puts it back. */
+    if (mode_ == Mode::Remote) {
+        if (status_ == Status::Ended && endedByUs_) {
+            host.nearbyEnd(session_, ourPly_, theirPly_);
+        } else {
+            host.nearbyPublish(session_, ourPly_, ourFrom_, ourTo_, theirPly_);
+        }
     }
 
     /* Are they still there? Tested after the poll and the republish, so a
@@ -410,15 +483,17 @@ void ChessGame::update(AppContext& host, const TouchPoint& touch) {
              * all, short of ending a game you did not want to end. Persistence
              * quietly took that route away; this is where it comes back. */
             host.playSound(Sound::Select);
-            if (mode_ == Mode::Remote) host.nearbyStop();
-            mode_ = Mode::Lobby;
-            opponent_[0] = 0;
-            opponentName_[0] = 0;
-            session_ = 0;
-            seatCount_ = 0;
-            seatsAtMs_ = 0;
-            newGame();
-            saveGame(host);
+            backToLobby(host);
+        } else if (confirmUntilMs_ != 0 && mode_ == Mode::Waiting) {
+            /* Taking back an invitation is not a result, so there is no
+             * "Game ended" to read: straight to the lobby. The ending is
+             * still said, in the invitation's own session. It replaces the
+             * invitation on the air, and a console that accepted in the
+             * moment before hears it instead of sitting in a game alone. */
+            ourPly_ = 1;
+            host.nearbyEnd(session_, ourPly_, 0);
+            host.playSound(Sound::Select);
+            backToLobby(host);
         } else if (confirmUntilMs_ != 0) {
             declareEnd(host, true);
             host.playSound(Sound::GameOver);
