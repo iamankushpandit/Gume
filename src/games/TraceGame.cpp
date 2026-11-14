@@ -113,3 +113,9 @@ void TraceGame::update(AppContext& host, const TouchPoint& touch) {
 void TraceGame::render(AppContext& host) {
     tracer_.render(host, title(), needsFullRender());
 }
+
+#if GUME_HAS_NAV_KEYS
+bool TraceGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    return tracer_.repaintUnderRing(host.display(), box);
+}
+#endif

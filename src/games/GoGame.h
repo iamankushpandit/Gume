@@ -57,6 +57,10 @@ const AppMetadata& goAppMetadata();
  * Score: wins against the computer, per profile. */
 class GoGame : public AppGame {
 public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered (Game.h). */
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;

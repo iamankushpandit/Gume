@@ -259,6 +259,10 @@ void GoGame::repaintPoint(Ui::Renderer& tft, uint16_t p) const {
     const int16_t cx = pointX(p);
     const int16_t cy = pointY(p);
     tft.fillRect(c.x, c.y, c.w, c.h, wood());
+    /* An outline in the wood's own colour, under the grid, so nothing on the
+     * panel changes: a fill and an outline of one rectangle is what the
+     * d-pad's selector stops at, so it moves point to point and A plays. */
+    tft.drawRect(c.x, c.y, c.w, c.h, wood());
     /* The grid through the cell, no further than the outer lines. */
     const int16_t gx0 = pointX(0);
     const int16_t gy0 = pointY(0);
@@ -731,3 +735,18 @@ void GoGame::renderDynamic(AppContext& host) {
     }
     drawPause(tft);
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring crosses the grid lines at the point's edge, so painting the wood
+ * back would cut them: the point is drawn again whole. */
+bool GoGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (mode_ == Mode::Lobby || big()) return false;
+    const Rect b = boardRect();
+    if (box.x < b.x || box.y < b.y || box.x + box.w > b.x + b.w || box.y + box.h > b.y + b.h) {
+        return false;
+    }
+    repaintPoint(host.display(), pointAt(static_cast<int16_t>(box.x + box.w / 2),
+                                         static_cast<int16_t>(box.y + box.h / 2)));
+    return true;
+}
+#endif

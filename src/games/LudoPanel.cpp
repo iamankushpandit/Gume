@@ -80,6 +80,10 @@ void LudoGame::drawDie(Ui::Renderer& tft, bool frameOn) const {
                            : frameOn            ? seatColour(state_.turn)
                                                 : Ui::bg();
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, frame);
+    /* An outline in the frame's own colour, so nothing changes on the panel:
+     * a fill and an outline of one rectangle is what the d-pad's selector
+     * stops at, and A on the die rolls it. */
+    tft.drawRoundRect(r.x, r.y, r.w, r.h, 8, frame);
     tft.fillRoundRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8, 6, dieFace());
     if (face_ < 1 || face_ > 6) {
         return;   // blank until rolled

@@ -135,6 +135,10 @@ Rect LudoGame::yardRect(uint8_t seat) {
 void LudoGame::yardSpot(uint8_t seat, uint8_t token, int16_t& x, int16_t& y) {
     static_assert(SPOT_FAR + SPOT_R < YARD_CELLS * CELL - YARD_INSET + 1,
                   "a yard spot spills out of the yard's inner square");
+    static_assert(SPOT_NEAR - SPOT_R - 1 >= YARD_INSET + 6 &&
+                  SPOT_FAR + SPOT_R + 1 < YARD_CELLS * CELL - YARD_INSET &&
+                  SPOT_NEAR + SPOT_R + 1 < SPOT_FAR - SPOT_R - 1,
+                  "a yard spot's square leaves the paper or meets its neighbour's");
     const Rect r = yardRect(seat);
     x = static_cast<int16_t>(r.x + ((token & 1) ? SPOT_FAR : SPOT_NEAR));
     y = static_cast<int16_t>(r.y + ((token & 2) ? SPOT_FAR : SPOT_NEAR));
@@ -273,6 +277,14 @@ void LudoGame::drawCellAt(Ui::Renderer& tft, Cell c) const {
     const Rect r = cellRect(c);
     tft.fillRect(r.x, r.y, r.w, r.h, rule());
     tft.fillRect(r.x + 1, r.y + 1, r.w - 1, r.h - 1, lit ? hilite() : base);
+    if (groups != 0) {
+        /* A square with a token on it is a stop for the d-pad's selector: a
+         * fill and an outline of one rectangle, the outline in the square's
+         * own colour so nothing on the panel changes. An empty square is not,
+         * and its rule fill above, wider than that pair, is what takes a stop
+         * away when the token leaves. */
+        tft.drawRect(r.x + 1, r.y + 1, r.w - 1, r.h - 1, lit ? hilite() : base);
+    }
     const int16_t cx = static_cast<int16_t>(r.x + CELL / 2 + 1);
     const int16_t cy = static_cast<int16_t>(r.y + CELL / 2 + 1);
     if (isStar && groups == 0) {
@@ -302,6 +314,16 @@ void LudoGame::drawYardSpot(Ui::Renderer& tft, uint8_t seat, uint8_t token) cons
     yardSpot(seat, token, x, y);
     const bool here = shown_[seat][token] == Ludo::YARD;
     const bool lit = here && ((hi_ >> (seat * Ludo::TOKENS + token)) & 1);
+    /* The spot's square of the yard's paper, painted back as it was: with a
+     * token on it, as a fill and an outline of one rectangle, which is a stop
+     * for the d-pad's selector; without, a pixel wider, which takes that stop
+     * away. Both stay inside the paper (see yardSpot()). */
+    if (here) {
+        tft.fillRect(x - SPOT_R, y - SPOT_R, 2 * SPOT_R + 1, 2 * SPOT_R + 1, paper());
+        tft.drawRect(x - SPOT_R, y - SPOT_R, 2 * SPOT_R + 1, 2 * SPOT_R + 1, paper());
+    } else {
+        tft.fillRect(x - SPOT_R - 1, y - SPOT_R - 1, 2 * SPOT_R + 3, 2 * SPOT_R + 3, paper());
+    }
     tft.fillCircle(x, y, SPOT_R, lit ? hilite() : spot());
     tft.drawCircle(x, y, SPOT_R, seatColour(seat));
     if (here) {
@@ -520,3 +542,33 @@ void LudoGame::renderDynamic(AppContext& host) {
     }
     drawPause(tft);
 }
+
+#if GUME_HAS_NAV_KEYS
+/* A token's square or yard spot is drawn again whole, token and all: the ring
+ * runs across the token. The die needs nothing -- its ring lies on the frame. */
+bool LudoGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (mode_ != Mode::Play) return false;
+    const int16_t cx = static_cast<int16_t>(box.x + box.w / 2);
+    const int16_t cy = static_cast<int16_t>(box.y + box.h / 2);
+    if (cx < BOARD_X || cy < BOARD_Y || cx >= BOARD_X + BOARD_PX || cy >= BOARD_Y + BOARD_PX) {
+        return false;
+    }
+    for (uint8_t s = 0; s < Ludo::SEATS; ++s) {
+        for (uint8_t t = 0; t < Ludo::TOKENS; ++t) {
+            int16_t x = 0;
+            int16_t y = 0;
+            yardSpot(s, t, x, y);
+            const int16_t dx = static_cast<int16_t>(x - cx);
+            const int16_t dy = static_cast<int16_t>(y - cy);
+            if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) {
+                drawPlace(host.display(), static_cast<uint8_t>(GRID * GRID + s * Ludo::TOKENS + t));
+                return true;
+            }
+        }
+    }
+    const uint8_t col = static_cast<uint8_t>((cx - BOARD_X) / CELL);
+    const uint8_t row = static_cast<uint8_t>((cy - BOARD_Y) / CELL);
+    drawPlace(host.display(), static_cast<uint8_t>(row * GRID + col));
+    return true;
+}
+#endif

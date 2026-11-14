@@ -128,3 +128,9 @@ void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
 void CursiveGame::render(AppContext& host) {
     tracer_.render(host, title(), needsFullRender());
 }
+
+#if GUME_HAS_NAV_KEYS
+bool CursiveGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    return tracer_.repaintUnderRing(host.display(), box);
+}
+#endif

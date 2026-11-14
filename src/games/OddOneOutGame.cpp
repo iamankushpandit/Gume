@@ -123,7 +123,11 @@ void OddOneOutGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_
             tft.drawCircle(cx, cy, size, Ui::outline());
             break;
         case Shape::Square:
-            tft.fillRoundRect(cx - size, cy - size, size * 2, size * 2, 3, color);
+            /* The fill a pixel inside its outline, which covers that pixel
+             * anyway: a fill and an outline of one rectangle is what the
+             * d-pad's selector stops at, and a square in a card would make the
+             * card a panel with a control in it rather than the control. */
+            tft.fillRoundRect(cx - size + 1, cy - size + 1, size * 2 - 2, size * 2 - 2, 2, color);
             tft.drawRoundRect(cx - size, cy - size, size * 2, size * 2, 3, Ui::outline());
             break;
         case Shape::Triangle:

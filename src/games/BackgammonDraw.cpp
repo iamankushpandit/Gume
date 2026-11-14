@@ -157,6 +157,10 @@ void BackgammonGame::drawPoint(Ui::Renderer& tft, uint8_t i) const {
     const bool top = i >= 12;
     const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
     tft.fillRect(r.x, r.y, r.w, r.h, felt());
+    /* An outline in the fill's own colour, before anything is drawn on it, so
+     * nothing on the panel changes: a fill and an outline of one rectangle is
+     * what the d-pad's selector stops at, and A presses this place. */
+    tft.drawRect(r.x, r.y, r.w, r.h, felt());
     const uint16_t tri = (i & 1) ? triDark() : triLight();
     if (top) {
         tft.fillTriangle(r.x, r.y, r.x + r.w - 1, r.y, cx, r.y + TRI_H, tri);
@@ -203,6 +207,7 @@ void BackgammonGame::drawPoint(Ui::Renderer& tft, uint8_t i) const {
 
 void BackgammonGame::drawBar(Ui::Renderer& tft) const {
     tft.fillRect(BAR_X, BY, BAR_W, BOARD_H, wood());
+    tft.drawRect(BAR_X, BY, BAR_W, BOARD_H, wood());   // a stop, as a point is
     const int16_t cx = static_cast<int16_t>(BAR_X + BAR_W / 2);
     const int16_t mid = static_cast<int16_t>(BY + BOARD_H / 2);
     /* White waits above the middle, Black below: each nearer the side of the
@@ -234,6 +239,7 @@ void BackgammonGame::drawBar(Ui::Renderer& tft) const {
 
 void BackgammonGame::drawTray(Ui::Renderer& tft) const {
     tft.fillRect(TRAY_X, BY, TRAY_W, BOARD_H, trayWood());
+    tft.drawRect(TRAY_X, BY, TRAY_W, BOARD_H, trayWood());   // a stop, as a point is
     /* Borne-off checkers as edge-on slabs: Black's at the top, beside its
      * home; White's at the bottom, beside its. Fifteen fit either half. */
     for (uint8_t n = 0; n < pos_.off[Bg::BLACK]; ++n) {
@@ -474,3 +480,23 @@ Rect BackgammonGame::boardArea() {
     return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),
                 static_cast<int16_t>(BOARD_R - BX + 4), static_cast<int16_t>(BOARD_H + 4)};
 }
+
+#if GUME_HAS_NAV_KEYS
+/* A point's stop is under its triangle and checkers, and the bar's and the
+ * tray's under theirs, so each is drawn again whole. */
+bool BackgammonGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (mode_ == Mode::Lobby) return false;
+    const uint8_t place = placeAt(static_cast<int16_t>(box.x + box.w / 2),
+                                  static_cast<int16_t>(box.y + box.h / 2));
+    if (place == Bg::NO_POINT) return false;
+    Ui::Renderer& tft = host.display();
+    if (place == Bg::BAR) {
+        drawBar(tft);
+    } else if (place == Bg::OFF) {
+        drawTray(tft);
+    } else {
+        drawPoint(tft, place);
+    }
+    return true;
+}
+#endif

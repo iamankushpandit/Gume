@@ -222,6 +222,12 @@ void GreWordsGame::renderFlip(AppContext& host) {
     const GreWord& word = GRE_WORDS[currentWord_];
     const Rect card = cardRect();
 
+    /* A shadow in the background's own colour, which this full repaint has
+     * just painted anyway: it makes the card a button to the d-pad's
+     * selector, which otherwise reads one card beside three buttons as
+     * something to look at, and the card is pressed to turn it over. */
+    tft.fillRoundRect(card.x + Ui::BUTTON_SHADOW_DX, card.y + Ui::BUTTON_SHADOW_DY, card.w, card.h, 8,
+                      Ui::bg());
     tft.fillRoundRect(card.x, card.y, card.w, card.h, 8, Ui::surface());
     tft.drawRoundRect(card.x, card.y, card.w, card.h, 8, Ui::outline());
 

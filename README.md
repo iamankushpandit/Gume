@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-82.5%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-82.6%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,596,009 / 3,145,728 bytes of the app partition (**82.5%**) |
-| RAM | 90,932 / 327,680 bytes (**27.7%**) |
+| Flash | 2,597,537 / 3,145,728 bytes of the app partition (**82.6%**) |
+| RAM | 90,956 / 327,680 bytes (**27.7%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1034,9 +1034,8 @@ speaker, gear and player name. **A** presses what it is on, **B** is Home,
 **L1** and **R1** turn pages, **L2** mutes, **R2** locks, **Menu** goes to
 the next tab (or Settings), and **Select + Start** held for three seconds
 restarts. Pushing past the end of a row turns the page, and past the end of a
-list scrolls it. A finger on the glass puts the selector away. Boards drawn
-as one picture -- Maze, Tic-Tac-Toe, Microku, the Chess and Go boards -- have
-nothing for the selector to stop on, and are played by touch for now.
+list scrolls it. A finger on the glass puts the selector away. It stops on
+every square of every board too, so every game plays from the keys.
 
 ### Scores, Profiles, About and System Info
 
@@ -1475,8 +1474,8 @@ play works over Bluetooth wherever Linux has a Bluetooth controller; see
 
 The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
 it turns the console into a Braino appliance: it boots straight into Braino
-behind a Braino splash. The D-pad moves a selector from button to button, and
-the stick moves a crosshair for anything else, such as a chess board. A is the
+behind a Braino splash. The D-pad moves a selector from button to button and
+square to square, and the stick moves a crosshair anywhere on the screen. A is the
 tap, B goes Home, L1 and R1 turn pages, and a list scrolls when either the
 selector or the crosshair is pushed against its end.
 
@@ -1492,15 +1491,13 @@ stick. Nothing is lost with a job, because a button is only ever a shortcut:
 Home, the padlock, the speaker, the gear, the tabs and the page buttons are
 all on the screen, and the D-pad's selector reaches every one.
 
-**What a console without a stick cannot do.** Tic-Tac-Toe, Whack A Mole,
-Piano, Maze, the Elements table, Microku, both tracing games, and the boards
-of Chess, Go, Sea Battle and Backgammon are each drawn as one picture and
-work out the square from where the finger lands. No button is drawn on them
-for the selector to stop at, so the crosshair is the only way onto them, and
-the crosshair needs a stick. On a console that has none, those games open
-and their boards cannot be played; every other game, and every button around
-those boards, works as it does anywhere. That is a property of how those
-games are drawn, and it is left as it is.
+**Every game plays from the D-pad, with or without a stick.** The squares of
+every board -- Chess, Go, Sea Battle, Backgammon, Ludo, Tic-Tac-Toe, Whack A
+Mole, Maze, Microku, the Elements table and Piano's keys -- are each a stop
+for the selector, and A presses the one it is on. In Maze, A steps the dot
+towards the square selected. In the two tracing games the selector waits on
+the next dot of the letter and A draws to it, so a letter is traced in the
+order it is written.
 
 When Braino sleeps it switches off the console's backlight, its Wi-Fi
 and three of its four cores, and any button wakes it; Wi-Fi

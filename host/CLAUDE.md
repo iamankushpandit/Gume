@@ -79,11 +79,17 @@ window like the crosshair, never into the panel's frame.
   a grid of controls. That is measured off every screen by opening each with a
   d-pad press and photographing it (`BRAINO_SHOTS` logs how many controls it
   found), so a new screen needs the same look.
-- **A board drawn as one picture has nothing to select.** Tic-Tac-Toe, Whack A
-  Mole, Piano, Maze, the Elements table, the squares in Chess, Go, Sea Battle
-  and Backgammon, Microku's cells and the tracing games work the square out from
-  where the finger landed, so nothing marks a cell, and the stick's crosshair is
-  the way onto them. The buttons around them still take the selector.
+- **Every board is drawn as stops.** A fill and an outline of one rectangle
+  is noted whether its corners are square or rounded -- `fillRect()` and
+  `drawRect()` as well as the rounded pair, as the firmware's own recorder
+  does -- and the shim's own primitives fill through `fillRectQuiet()` so a
+  rounded fill or a glyph's pixels are not a second fill. Each game draws its
+  squares that way, the outline in the fill's own colour or the pair under
+  what sits on it, so the panel is unchanged (`src/games/CLAUDE.md` has the
+  rule). The tracing games' stop is a square round the next dot, moved as the
+  dot is claimed. `MAX_FOCUS` is 160 because the Elements table is 118
+  squares. Go's 19x19 board, on a 480px panel only, has 10px points, under
+  `SMALLEST_CONTROL`, so it is the one board the selector cannot cross.
 - **The first press only brings it up**, on the control nearest the crosshair,
   because nobody has seen where it is yet. Pushing the stick puts it away.
 - **Past the end of a row is the next page and past the end of a column is the
@@ -137,13 +143,10 @@ no job -- X and Y on the RG40XX V. The log says both, once
   and is missing on the next console.
 - **Pairs go together or not at all.** A page-back button with no page-forward
   is half a control, and the restart hold needs both of its buttons free.
-- **The crosshair has no stand-in, on purpose.** A board drawn as one picture
-  has no stop for the selector (see "The d-pad's selector"), so on a console
-  with no stick those boards cannot be played: Tic-Tac-Toe, Whack A Mole,
-  Piano, Maze, the Elements table, Microku, both tracing games, and the
-  boards of Chess, Go, Sea Battle and Backgammon. The maintainer's decision
-  is to say so and leave it: the README says it to owners, and nothing here
-  hides those games or steers the crosshair from the d-pad.
+- **The crosshair has no stand-in, and needs none.** Every board is drawn as
+  stops for the selector (see "The d-pad's selector"), so a console with no
+  stick plays every game. The maintainer once decided to leave those boards
+  stick-only, and reversed it on 2026-11-13: every game playable from keys.
 - **Adding a console is a profile, and a profile is a claim.** Write
   `controls` from the console's device tree or from the console itself,
   never from a product page, and say in the file which it was.

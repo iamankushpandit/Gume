@@ -208,7 +208,8 @@ public:
         int16_t x0, y0, x1, y1;   // inclusive
         bool header;              // a header icon rather than part of the screen
     };
-    static constexpr int MAX_FOCUS = 100;
+    /* The periodic table is 118 squares, and its tabs and header besides. */
+    static constexpr int MAX_FOCUS = 160;
     int focusTargets(FocusBox* out, int max) const;
     bool displayOn() const { return displayOn_ && !sleeping_; }
     bool asleep() const { return sleeping_; }
@@ -230,6 +231,9 @@ private:
     void notePagerLabel(const char* text, int32_t x, int32_t y, int32_t w, int32_t h);
     void forgetMarks();
     void forgetMarksUnder(int32_t x, int32_t y, int32_t w, int32_t h);
+    /* fillRect() without noting a control: what the shim's own primitives use
+     * underneath, so a rounded fill or a glyph's pixels are not a second fill. */
+    void fillRectQuiet(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
 
     /* A pager label's centre: logical and absolute (for fills, which arrive
      * in logical coordinates) and in the frame (for the tap). */

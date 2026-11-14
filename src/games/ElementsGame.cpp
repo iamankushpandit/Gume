@@ -342,6 +342,11 @@ void ElementsGame::drawCell(Ui::Renderer& tft, uint8_t index, CellStyle style) {
         const uint16_t edge = (style == CellStyle::Pending) ? Ui::warning() : Ui::text();
         tft.drawRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, edge);
         tft.drawRect(r.x, r.y, r.w, r.h, edge);
+    } else {
+        /* An outline in the cell's own colour, so nothing on the panel
+         * changes: a fill and an outline of one rectangle is what the d-pad's
+         * selector stops at, and every square on the chart is pressed. */
+        tft.drawRect(r.x, r.y, r.w, r.h, fill);
     }
 
     tft.setTextDatum(MC_DATUM);
@@ -510,3 +515,21 @@ void ElementsGame::render(AppContext& host) {
         tft.drawString(buf, 8, SCORE_Y, 1);
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring crosses the symbol on a 16x14 square, so the square is drawn again. */
+bool ElementsGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (tab_ != Tab::Explore) return false;
+    for (uint8_t i = 0; i < ELEMENT_COUNT; ++i) {
+        const Rect r = cellRect(ELEMENTS[i].col, ELEMENTS[i].row);
+        if (r.x != box.x || r.y != box.y) continue;
+        if (i == selected_) {
+            drawCell(host.display(), i, CellStyle::Selected);
+        } else {
+            drawCellResting(host.display(), i);
+        }
+        return true;
+    }
+    return false;
+}
+#endif

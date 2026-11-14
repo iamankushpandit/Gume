@@ -703,9 +703,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,596,009 / 3,145,728 bytes,
-**82.5%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 90,932 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,597,537 / 3,145,728 bytes,
+**82.6%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 90,956 / 327,680 (27.7%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -891,14 +891,16 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   finds the four as drawn, so no quiz changed). Only while
   `Modules::allows(NavKeys)` says the gamepad was found at boot: the
   symbols are a promise about keys that are physically there.
-  A real finger puts the selector away. A board drawn as one picture --
-  Maze, Tic-Tac-Toe, the Go board -- offers no stop, and with no stick on
-  this console there is no crosshair either: those need the d-pad game by
-  game. **Chess is the first**: each square is a fill and an outline in its
-  own colour, so the panel is unchanged and the selector stops on all 64,
-  and `Game::repaintUnderRing()` redraws the square when the ring leaves it,
-  because a piece's rim reaches the square's edge and painting the fill
-  back would notch it. A board that follows does both. Everything is behind
+  A real finger puts the selector away. **Every board is drawn as stops**:
+  each square of Chess, Go, Backgammon, Ludo, Sea Battle, Tic-Tac-Toe,
+  Whack A Mole, Maze, Microku, the Elements table and Piano's keys is a
+  fill and an outline of one rectangle in the colours already there, and
+  the tracing games put one on the next dot (`src/games/CLAUDE.md` has the
+  rule). Where something is drawn over a stop -- a piece, a token, a
+  grid line, a symbol -- painting its fill back would notch it, so that
+  game's `Game::repaintUnderRing()` redraws the square when the ring
+  leaves it. `Focus::MAX_TARGETS` is 160 for the 118-square Elements
+  table. A new board does both. Everything is behind
   `GUME_HAS_NAV_KEYS`, so the boards without keys carry none of it -- see
   the next invariant. **Nothing may become reachable only by key**,
   exactly as with BOOT, and every job is also a control on the screen.
@@ -1247,7 +1249,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 82.5%. As synthesis it is under a kilobyte.
+  artwork, on a budget already at 82.6%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.

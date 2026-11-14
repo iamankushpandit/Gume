@@ -232,6 +232,9 @@ void WhackAMoleGame::renderStatic(AppContext& host) {
      * colour is the theme's -- neither depends on where the mole is. */
     for (uint8_t i = 0; i < GRID * GRID; ++i) {
         const Rect r = cellRect(i);
+        /* Filled first, so each cell is a fill and an outline of one
+         * rectangle: that pair is what the d-pad's selector stops at. */
+        tft.fillRect(r.x, r.y, r.w, r.h, CELL_FILL);
         tft.drawRect(r.x, r.y, r.w, r.h, Ui::outline());
     }
 
@@ -312,3 +315,19 @@ void WhackAMoleGame::renderDynamic(AppContext& host) {
         drawnOver_ = true;
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring's inner line crosses the mole, and a hit or a miss is not the
+ * resting fill: the cell's outline and inside are drawn again. */
+bool WhackAMoleGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    for (uint8_t i = 0; i < CELL_COUNT; ++i) {
+        const Rect r = cellRect(i);
+        if (r.x != box.x || r.y != box.y) continue;
+        Ui::Renderer& tft = host.display();
+        tft.drawRect(r.x, r.y, r.w, r.h, Ui::outline());
+        drawCell(tft, i, drawnCell_[i]);
+        return true;
+    }
+    return false;
+}
+#endif

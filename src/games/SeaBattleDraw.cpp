@@ -325,6 +325,20 @@ void SeaBattleGame::drawButtons(AppContext& host) const {
                    confirming ? Ui::bg() : Ui::text(), false, 2);
 }
 
+/* A fill and an outline of one rectangle in the background's own colour,
+ * under the words, so nothing changes on the panel: it gives the d-pad's
+ * selector something on the curtain to stop on besides Home, and A on it is
+ * the tap the curtain is waiting for. */
+constexpr Rect READY_RECT{GAME_CANVAS_WIDTH / 2 - 80, 168, 160, 24};
+
+static void drawReadyLine(Ui::Renderer& tft) {
+    tft.fillRect(READY_RECT.x, READY_RECT.y, READY_RECT.w, READY_RECT.h, Ui::bg());
+    tft.drawRect(READY_RECT.x, READY_RECT.y, READY_RECT.w, READY_RECT.h, Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.drawString("Tap when ready", GAME_CANVAS_WIDTH / 2, READY_RECT.y + READY_RECT.h / 2, 2);
+}
+
 /* The curtain. Nothing of either sea on it, which is the entire point: this
  * screen exists so that one player can hand the console to the other without
  * handing over the answers. */
@@ -348,7 +362,7 @@ void SeaBattleGame::renderPass(AppContext& host) const {
                                                 : "then take your shot";
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.drawString(sub, GAME_CANVAS_WIDTH / 2, 140, 2);
-    tft.drawString("Tap when ready", GAME_CANVAS_WIDTH / 2, 180, 2);
+    drawReadyLine(tft);
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -398,3 +412,13 @@ void SeaBattleGame::renderDynamic(AppContext& host) {
     }
     drawPause(host);
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring's inner line crosses the words on the curtain. */
+bool SeaBattleGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (phase_ != Phase::Passing || box.x != READY_RECT.x || box.y != READY_RECT.y) return false;
+    drawReadyLine(host.display());
+    host.display().setTextDatum(TL_DATUM);
+    return true;
+}
+#endif

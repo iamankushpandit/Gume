@@ -168,6 +168,7 @@ void LetterTracer::loadGlyph() {
     planArrows();
     updateGuide();
     guideOnPanel_ = false;   // whatever is on the panel belongs to the old glyph
+    stopOnPanel_ = false;
     markFullDirty();
 }
 

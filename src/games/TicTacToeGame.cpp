@@ -183,6 +183,15 @@ void TicTacToeGame::renderStatic(AppContext& host) {
     tft.fillRoundRect(BOARD_RECT.x - 4, BOARD_RECT.y - 4, BOARD_RECT.w + 8,
                       BOARD_RECT.h + 8, 8, Ui::panel());
     const int16_t cellSize = BOARD_RECT.w / 3;
+    /* Each cell a fill and an outline of one rectangle, both in the board's
+     * own colour and clear of the bars, so nothing on the panel changes: that
+     * pair is what the d-pad's selector stops at. */
+    for (uint8_t i = 0; i < 9; ++i) {
+        const int16_t cx = static_cast<int16_t>(BOARD_RECT.x + (i % 3) * cellSize + 2);
+        const int16_t cy = static_cast<int16_t>(BOARD_RECT.y + (i / 3) * cellSize + 2);
+        tft.fillRect(cx, cy, cellSize - 4, cellSize - 4, Ui::panel());
+        tft.drawRect(cx, cy, cellSize - 4, cellSize - 4, Ui::panel());
+    }
     for (uint8_t i = 1; i < 3; ++i) {
         tft.fillRect(BOARD_RECT.x + i * cellSize - 2, BOARD_RECT.y, 4, BOARD_RECT.h, TFT_DARKGREY);
         tft.fillRect(BOARD_RECT.x, BOARD_RECT.y + i * cellSize - 2, BOARD_RECT.w, 4, TFT_DARKGREY);

@@ -441,9 +441,15 @@ drawn and presses one as a tap. Only with the gamepad clipped on. Option,
 the circle, had no name before and now does. The d-pad selector also
 keeps System Info's tabs within reach after its list has been scrolled.
 
-**The d-pad plays Chess.** Every square of the board is a stop for the
-selector, A picks a piece up and puts it down, and the square is redrawn
-whole when the selector moves on, so no piece is left with a notch in it.
+**The d-pad plays every game.** Every board's squares are stops for the
+selector, so all 40 games play from the keys: Chess, Go, Backgammon and
+Ludo pick up and put down with A, Tic-Tac-Toe, Whack A Mole, Microku, Piano
+and the Elements table press the square selected, Maze steps the dot towards
+it, and in Trace and Cursive the selector waits on the next dot and A draws
+to it. Ludo's die, the GRE study card and Sea Battle's hand-over screen can
+be pressed too. Every screen looks as it did, and a square is redrawn whole
+when the selector moves on, so no piece, token or grid line is left with a
+notch in it.
 
 **A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
 run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8

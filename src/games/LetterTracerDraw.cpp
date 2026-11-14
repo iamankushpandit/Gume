@@ -95,13 +95,14 @@ Rect LetterTracer::arrowBox(const Arrow& a) const {
  * inside that box: drawGhost() and drawAllDots() paint exactly what is already
  * there, so running them clipped to the box restores what the erase took and
  * touches nothing else. */
-void LetterTracer::moveGuide(Ui::Renderer& tft) {
+bool LetterTracer::moveGuide(Ui::Renderer& tft) {
     const bool same = guideOnPanel_ && guideShown_ &&
                       guideDrawn_.tailX == guide_.tailX &&
                       guideDrawn_.tailY == guide_.tailY &&
                       guideDrawn_.tipX == guide_.tipX &&
                       guideDrawn_.tipY == guide_.tipY;
-    if (same) return;
+    if (same) return false;
+    const bool wasOnPanel = guideOnPanel_;
 
     if (guideOnPanel_) {
         const Rect r = arrowBox(guideDrawn_);
@@ -118,6 +119,60 @@ void LetterTracer::moveGuide(Ui::Renderer& tft) {
         drawArrow(tft, guide_, Ui::warning());
         guideDrawn_ = guide_;
         guideOnPanel_ = true;
+    }
+    return wasOnPanel || guideOnPanel_;
+}
+
+/* Half the stop's side: 13px across, the smallest the selector takes. */
+constexpr int16_t STOP_HALF = 6;
+
+bool LetterTracer::stopBox(Rect& out) const {
+    if (complete_ || activeStroke_ >= strokeCount_ || nextPoint_ >= strokeLen_[activeStroke_]) {
+        return false;
+    }
+    const Pt& p = pts_[strokeStart_[activeStroke_] + nextPoint_];
+    out = Rect{static_cast<int16_t>(p.x - STOP_HALF), static_cast<int16_t>(p.y - STOP_HALF),
+               static_cast<int16_t>(2 * STOP_HALF + 1), static_cast<int16_t>(2 * STOP_HALF + 1)};
+    return true;
+}
+
+/* Everything the canvas shows inside r, painted over the background. Each of
+ * these is idempotent, so clipped to r they restore exactly what was there. */
+void LetterTracer::repaintCanvasIn(Ui::Renderer& tft, const Rect& r) {
+    tft.setViewport(r.x, r.y, r.w, r.h, false);
+    drawGhost(tft);
+    drawAllDots(tft);
+    drawArrows(tft);
+    drawStartRing(tft);
+    if (guideOnPanel_) drawArrow(tft, guideDrawn_, Ui::warning());
+    tft.resetViewport();
+}
+
+/* Move the stop to the dot being aimed at. The old one is taken away by a
+ * fill a pixel wider than it, which is what tells the selector it has gone
+ * (a fill inside a control is the control repainting itself). force: the
+ * guide's erase may have been over the stop, so paint it again regardless. */
+void LetterTracer::placeStop(Ui::Renderer& tft, bool force) {
+    Rect want{};
+    const bool has = stopBox(want);
+    const bool same = has && stopOnPanel_ && want.x == stopDrawn_.x && want.y == stopDrawn_.y;
+    if (stopOnPanel_ && (!same || force)) {
+        const Rect wide{static_cast<int16_t>(stopDrawn_.x - 1), static_cast<int16_t>(stopDrawn_.y - 1),
+                        static_cast<int16_t>(stopDrawn_.w + 2), static_cast<int16_t>(stopDrawn_.h + 2)};
+        tft.setViewport(wide.x, wide.y, wide.w, wide.h, false);
+        tft.fillRect(wide.x, wide.y, wide.w, wide.h, Ui::bg());
+        tft.resetViewport();
+        repaintCanvasIn(tft, wide);
+        stopOnPanel_ = false;
+    }
+    if (has && !stopOnPanel_) {
+        tft.setViewport(want.x, want.y, want.w, want.h, false);
+        tft.fillRect(want.x, want.y, want.w, want.h, Ui::bg());
+        tft.drawRect(want.x, want.y, want.w, want.h, Ui::bg());
+        tft.resetViewport();
+        repaintCanvasIn(tft, want);
+        stopDrawn_ = want;
+        stopOnPanel_ = true;
     }
 }
 
@@ -316,6 +371,8 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         drawStartRing(tft);
         guideOnPanel_ = false;
         moveGuide(tft);
+        stopOnPanel_ = false;   // the clear took it
+        placeStop(tft, false);
         drawProgress(tft);
         if (complete_) drawCompleteStatus(tft);
         paintedStroke_ = activeStroke_;
@@ -360,7 +417,22 @@ void LetterTracer::render(AppContext& host, const char* title, bool fullRender) 
         paintedPoint_ = nextPoint_;
     }
 
-    moveGuide(tft);
+    const bool guideMoved = moveGuide(tft);
+    placeStop(tft, guideMoved);
     drawProgress(tft);
     tft.setTextDatum(TL_DATUM);
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The stop is the background with the letter painted over it, so the ring
+ * comes off by painting both back. */
+bool LetterTracer::repaintUnderRing(Ui::Renderer& tft, const Rect& box) {
+    if (!stopOnPanel_ || box.x != stopDrawn_.x || box.y != stopDrawn_.y) return false;
+    tft.setViewport(box.x, box.y, box.w, box.h, false);
+    tft.fillRect(box.x, box.y, box.w, box.h, Ui::bg());
+    tft.drawRect(box.x, box.y, box.w, box.h, Ui::bg());
+    tft.resetViewport();
+    repaintCanvasIn(tft, box);
+    return true;
+}
+#endif

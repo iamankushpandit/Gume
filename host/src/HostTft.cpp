@@ -192,7 +192,17 @@ void TFT_eSPI::drawFastVLine(int32_t x, int32_t y, int32_t h, uint32_t color) {
     for (int32_t i = 0; i < h; ++i) plot(x, y + i, static_cast<uint16_t>(color));
 }
 
+/* A square-cornered fill and outline of one rectangle is a control too, as it
+ * is to the firmware's own recorder (ui/FocusRecorder.cpp, which notes
+ * fillRect() and drawRect() at radius 0): a board's squares, a piano's keys
+ * and a puzzle's cells are drawn that way. */
 void TFT_eSPI::fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
+    if (w <= 0 || h <= 0) return;
+    fillRectQuiet(x, y, w, h, color);
+    noteFocusFill(x, y, w, h);
+}
+
+void TFT_eSPI::fillRectQuiet(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
     if (w <= 0 || h <= 0) return;
     forgetMarksUnder(x, y, w, h);
     noteTabSquare(x, y, w, h);
@@ -201,6 +211,7 @@ void TFT_eSPI::fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t col
 
 void TFT_eSPI::drawRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
     if (w <= 0 || h <= 0) return;
+    noteFocusOutline(x, y, w, h);
     drawFastHLine(x, y, w, color);
     drawFastHLine(x, y + h - 1, w, color);
     drawFastVLine(x, y, h, color);
@@ -307,7 +318,7 @@ void TFT_eSPI::fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t
     noteFocusFill(x, y, w, h);
     r = std::min(r, std::min(w, h) / 2);
     if (r < 0) r = 0;
-    fillRect(x + r, y, w - 2 * r, h, color);
+    fillRectQuiet(x + r, y, w - 2 * r, h, color);
     const uint16_t c = static_cast<uint16_t>(color);
     fillCircleHalves(x + w - r - 1, y + r, r, 1, h - 2 * r - 1, c);
     fillCircleHalves(x + r, y + r, r, 2, h - 2 * r - 1, c);
@@ -402,9 +413,9 @@ int16_t TFT_eSPI::drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font) {
             uint8_t line = col < 5 ? ::font[code * 5 + col] : 0;
             for (int32_t row = 0; row < 8; ++row, line >>= 1) {
                 if (line & 1) {
-                    fillRect(x + col * size, y + row * size, size, size, textFg_);
+                    fillRectQuiet(x + col * size, y + row * size, size, size, textFg_);
                 } else if (fillBg) {
-                    fillRect(x + col * size, y + row * size, size, size, textBg_);
+                    fillRectQuiet(x + col * size, y + row * size, size, size, textBg_);
                 }
             }
         }
@@ -425,9 +436,9 @@ int16_t TFT_eSPI::drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font) {
                 const bool on = col < rowBytes * 8
                     && (data[row * rowBytes + col / 8] & (0x80 >> (col % 8)));
                 if (on) {
-                    fillRect(x + col * size, y + row * size, size, size, textFg_);
+                    fillRectQuiet(x + col * size, y + row * size, size, size, textFg_);
                 } else if (fillBg) {
-                    fillRect(x + col * size, y + row * size, size, size, textBg_);
+                    fillRectQuiet(x + col * size, y + row * size, size, size, textBg_);
                 }
             }
         }
@@ -446,9 +457,9 @@ int16_t TFT_eSPI::drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font) {
             const int32_t col = pc % width;
             const int32_t row = pc / width;
             if (ink) {
-                fillRect(x + col * size, y + row * size, size, size, textFg_);
+                fillRectQuiet(x + col * size, y + row * size, size, size, textFg_);
             } else if (fillBg) {
-                fillRect(x + col * size, y + row * size, size, size, textBg_);
+                fillRectQuiet(x + col * size, y + row * size, size, size, textBg_);
             }
             ++pc;
         }

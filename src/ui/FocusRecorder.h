@@ -72,8 +72,8 @@ struct ScrollArea {
     bool moreBelow = false;
 };
 
-/* A chessboard is 64 stops before its buttons. */
-constexpr int MAX_TARGETS = 96;
+/* The Elements table is 118 stops before its tabs and the header. */
+constexpr int MAX_TARGETS = 160;
 
 #if GUME_HAS_NAV_KEYS
 /* From Ui::TftRenderer, for every primitive it draws. */

@@ -231,7 +231,21 @@ private:
     Rect arrowBox(const Arrow& a) const;
     /* Repaint the guide, and the letter under where it was, without clearing
      * the screen. */
-    void moveGuide(Ui::Renderer& tft);
+    bool moveGuide(Ui::Renderer& tft);   // true when it changed the panel
+    /* The d-pad's stop on the dot to aim at next: a square around it, painted
+     * as a fill and an outline of one rectangle in the background colour with
+     * the letter repainted over it, so nothing changes on the panel. A on it
+     * is a touch there, which is how a player without a finger on the glass
+     * traces -- one dot at a time, in the order the letter is written. */
+    bool stopBox(Rect& out) const;
+    void repaintCanvasIn(Ui::Renderer& tft, const Rect& r);
+    void placeStop(Ui::Renderer& tft, bool force);
+public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered on the stop. */
+    bool repaintUnderRing(Ui::Renderer& tft, const Rect& box);
+#endif
+private:
     /** Dot radius for the current set, and for the dot being aimed at. */
     int16_t dotRadius() const;
     void drawTracedSegment(Ui::Renderer& tft, uint8_t from, uint8_t to);
@@ -297,6 +311,8 @@ private:
      * pixels it drew last time. */
     Arrow guideDrawn_ = {};
     bool guideOnPanel_ = false;
+    Rect stopDrawn_ = {};
+    bool stopOnPanel_ = false;
     uint8_t strokeStart_[MAX_STROKES] = {};
     uint8_t strokeLen_[MAX_STROKES] = {};
     uint8_t strokeCount_ = 0;

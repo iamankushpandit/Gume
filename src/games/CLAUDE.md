@@ -74,6 +74,18 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
   example is in the root `CLAUDE.md`: the tracer's direction arrow cleared
   the screen eleven times per word before this was written down.
 - `RowList` section headings are struck through by a rule that starts a fixed 54px in, so keep them to about six characters. `NearbyApp` puts the peer's tag in the heading and everything else about it in rows for exactly this reason.
+- **Everything a player presses is drawn as a stop for the d-pad.** A console
+  with keys finds its controls as they are drawn: a fill followed by an
+  outline of the same rectangle, square or rounded. A board drawn as one
+  picture has nothing to stop on, so draw each square, key or cell as such a
+  pair -- the outline in the fill's own colour changes nothing on the panel
+  (Chess, Go, Backgammon, Tic-Tac-Toe, Elements, Piano's lower keys), or put
+  the pair under what is drawn on it. A stop goes away when a fill wider than
+  it covers its middle; a fill inside it is it repainting itself. Keep what
+  is not pressed from being a pair (Maze's walls, Odd One Out's squares), and
+  the stops under 160 and at least 12px a side. A screen that waits for a tap
+  anywhere still needs one stop that is not the header (Sea Battle's
+  hand-over). Check with the host: `BRAINO_FOCUS_LOG=1` logs every stop.
 - Never block `update()` for more than a second or two. The loop is watchdogged (`Watchdog::TIMEOUT_SECONDS = 12`) and a long busy-wait reboots the device. Games do not feed or touch the watchdog themselves; if you genuinely must block, ask `Board` to do it behind a `Watchdog::Pause`.
 
 ## The four-button quiz screens
