@@ -188,12 +188,13 @@ private:
         uint32_t leftAtMs = 0;
         uint8_t profile = 0;
         uint8_t epoch = 0;
-        bool waiting = false;
+        Game::Keep how = Game::Keep::No;
     };
     void noteGameLeft();
-    bool keptGameWaits(const AppDefinition& app);
+    Game::Keep keptHow(const AppDefinition& app);
     void enterApp(const AppDefinition& app, bool carryOn, uint32_t awayMs);
     void askCarryOn(const AppDefinition& app);
+    void resumeKept(const AppDefinition& app);
     void settleCarryOn();
     void syncCourse();
     static constexpr uint8_t COURSE_SLOTS = 80;

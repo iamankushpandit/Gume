@@ -32,7 +32,7 @@ public:
     void renderStatic(GameHost& host) override;
     /* Leaving the question is not leaving a game: the game it asks about is
      * still waiting, and this screen has nothing of its own to keep. */
-    bool keepsGame() const override { return false; }
+    Keep keepsGame() const override { return Keep::No; }
 
 private:
     const AppDefinition* app_ = nullptr;

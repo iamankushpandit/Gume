@@ -85,12 +85,18 @@ void BrainoApp::openApp(const AppDefinition& app) {
 void BrainoApp::launch(const AppDefinition& app) {
     leaveActiveGame();
 
-    /* A game this player left with something in it is still in memory: ask
-     * whether to carry on before begin() throws it away. See
+    /* A game this player left with something in it is still in memory:
+     * bring it back, or ask, before begin() throws it away. See
      * Game::keepsGame() and AppRuntimeKeep.cpp. */
-    if (keptGameWaits(app)) {
-        askCarryOn(app);
-        return;
+    switch (keptHow(app)) {
+        case Game::Keep::Ask:
+            askCarryOn(app);
+            return;
+        case Game::Keep::Quietly:
+            resumeKept(app);
+            return;
+        case Game::Keep::No:
+            break;
     }
     enterApp(app, false, 0);
 }

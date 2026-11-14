@@ -118,7 +118,7 @@ void BrainoApp::noteGameLeft() {
         return;
     }
     KeptGame& kept = kept_[activeApp_->launcherIndex()];
-    kept.waiting = pressedInGame_ && activeGame_->keepsGame();
+    kept.how = pressedInGame_ ? activeGame_->keepsGame() : Game::Keep::No;
     kept.profile = board_.activeProfile();
     kept.epoch = board_.playersEpoch();
     kept.leftAtMs = millis();
@@ -129,19 +129,24 @@ void BrainoApp::noteGameLeft() {
  * instance of each game. The epoch is for a player removed in between: the
  * players after them move down a slot, and a slot number alone would hand
  * the game to whoever now sits in it. */
-bool BrainoApp::keptGameWaits(const AppDefinition& app) {
+Game::Keep BrainoApp::keptHow(const AppDefinition& app) {
     if (!app.isCatalogApp()) {
-        return false;
+        return Game::Keep::No;
     }
     KeptGame& kept = kept_[app.launcherIndex()];
-    if (!kept.waiting) {
-        return false;
+    if (kept.how != Game::Keep::No &&
+        (kept.profile != board_.activeProfile() || kept.epoch != board_.playersEpoch())) {
+        kept.how = Game::Keep::No;
     }
-    if (kept.profile != board_.activeProfile() || kept.epoch != board_.playersEpoch()) {
-        kept.waiting = false;
-        return false;
-    }
-    return true;
+    return kept.how;
+}
+
+/* Straight back into a game that asked for no question. */
+void BrainoApp::resumeKept(const AppDefinition& app) {
+    KeptGame& kept = kept_[app.launcherIndex()];
+    const uint32_t awayMs = millis() - kept.leftAtMs;
+    kept.how = Game::Keep::No;
+    enterApp(app, true, awayMs);
 }
 
 /* The one way onto a game's screen: begun, or taken up where it was left. */
@@ -216,7 +221,7 @@ void BrainoApp::settleCarryOn() {
     const AppDefinition& app = *activeApp_;
     KeptGame& kept = kept_[app.launcherIndex()];
     const uint32_t awayMs = millis() - kept.leftAtMs;
-    kept.waiting = false;
+    kept.how = Game::Keep::No;
     board_.playSound(Sound::Select);
     leaveActiveGame();      // the question is a screen like any other
     enterApp(app, choice == CarryOnScreen::Choice::CarryOn, awayMs);

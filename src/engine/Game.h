@@ -307,26 +307,34 @@ public:
      * game they left is still in memory -- it was begin(), run again on the
      * way back in, that threw it away. So the runtime remembers that a game
      * was left with something in it, and the next time the same player opens
-     * it, asks: Carry on, or New game. Carry on calls resume() INSTEAD of
-     * begin(); New game calls begin() as before. Kept until the console is
-     * switched off, and never across a change of player.
+     * it, the game comes back: resume() is called INSTEAD of begin(). Kept
+     * until the console is switched off, and never across a change of player.
      *
      * keepsGame() is asked as the screen is left, before end(): does this
-     * game, as it stands, hold something a player would want back? The
-     * runtime already requires a press since begin(), so the default is yes.
-     * Say no where coming back would be coming back to nothing: a result
-     * screen, a menu, a tool with no game in it. A game that looks after its
-     * own return (the five that can be played across consoles have a lobby
-     * and a saved game) says no always.
+     * game, as it stands, hold something a player would want back, and how
+     * should it come back? The runtime already requires a press since
+     * begin(), so a game opened and left untouched is never kept.
      *
-     * resume() is called when the game comes back without begin(): from that
-     * card, and also after the screen saver, sleep and the lock screen, where
-     * the game stayed up but was not being updated. `awayMs` is how long.
-     * A game with a deadline or a stopwatch moves it on by that much
-     * (movedOn() below), so the time away does not count against the player;
-     * anything end() gave back is taken again here. The runtime asks for a
-     * full repaint afterwards, so nothing needs drawing. */
-    virtual bool keepsGame() const { return true; }
+     *   Ask      the default. A game with a round, a score or a puzzle in
+     *            it: the runtime asks "Carry on? / New game" first, because
+     *            leaving and coming back used to be how a player started
+     *            again, and for most games it is the only way there is.
+     *   Quietly  straight back to where it was, no question. For a screen
+     *            with a place rather than a game -- which letter is being
+     *            traced, where a table was scrolled to -- and for a game
+     *            that has its own way of ending one (End game, Reset).
+     *   No       coming back would be coming back to nothing: a result
+     *            screen, a menu, a tool with no game in it. begin() as ever.
+     *
+     * resume() is called when the game comes back without begin(): from the
+     * card or quietly, and also after the screen saver, sleep and the lock
+     * screen, where the game stayed up but was not being updated. `awayMs`
+     * is how long. A game with a deadline or a stopwatch moves it on by that
+     * much (movedOn() below), so the time away does not count against the
+     * player; anything end() gave back is taken again here. The runtime asks
+     * for a full repaint afterwards, so nothing needs drawing. */
+    enum class Keep : uint8_t { No, Ask, Quietly };
+    virtual Keep keepsGame() const { return Keep::Ask; }
     virtual void resume(GameHost& host, uint32_t awayMs) {
         (void)host;
         (void)awayMs;
