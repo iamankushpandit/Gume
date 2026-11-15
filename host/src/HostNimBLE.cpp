@@ -33,18 +33,23 @@
 
 #include <NimBLEDevice.h>
 
+#include <dirent.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <mutex>
+#include <string>
 #include <thread>
 
 #include "HostPlatform.h"
@@ -98,6 +103,114 @@ uint8_t replyStatus = 0xFF;
 
 NimBLEAdvertising advertising;
 NimBLEScan scan;
+
+/* ---- the loopback radio ---------------------------------------------------
+ *
+ * BRAINO_BLE_LOOPBACK names a folder, and with it set no controller is opened
+ * at all: every braino process on this machine that names the same folder
+ * hears every other one. Each writes the exact advertisement bytes BleBeacon
+ * built to <folder>/<its radio id>.adv while it advertises, rewriting the file
+ * every LOOP_TICK_MS, and reads the others' files on the same tick into the
+ * same onResult() the HCI reader calls -- so BleBeacon::decode() and the
+ * scanner run unchanged, which is the point: it is the firmware's radio code
+ * under test, not a second one. A file not rewritten for LOOP_STALE_S seconds
+ * is a console that has gone quiet (a process stopped with kill -STOP, or
+ * killed), and is heard no more, exactly as one carried out of range.
+ *
+ * It is for driving two consoles' nearby games on one PC. It carries nothing a
+ * real radio would not and adds no outbound flow: the folder is local, and
+ * only processes on this machine can read it. Each process needs its own
+ * BRAINO_DATA_DIR, which is what gives it its own device id and radio id. */
+constexpr uint32_t LOOP_TICK_MS = 150;
+constexpr time_t LOOP_STALE_S = 2;
+
+std::string loopDir;
+std::string loopOwnFile;
+std::mutex loopMutex;               // the payload below, shared with the loop thread
+uint8_t loopPayload[31] = {0};
+size_t loopLength = 0;
+bool loopAdvertising = false;
+std::atomic<bool> loopRunning{false};
+std::thread loopThread;
+
+bool loopback() { return !loopDir.empty(); }
+
+void loopLoop() {
+    ::pthread_setname_np(::pthread_self(), "ble-loop");
+    NimBLEAdvertisedDevice device;
+    const std::string tmp = loopOwnFile + ".tmp";
+    while (loopRunning) {
+        uint8_t mine[31];
+        size_t mineLength = 0;
+        bool on = false;
+        {
+            std::lock_guard<std::mutex> lock(loopMutex);
+            on = loopAdvertising;
+            mineLength = loopLength;
+            std::memcpy(mine, loopPayload, mineLength);
+        }
+        if (on) {
+            /* Written aside and renamed over, so a reader never sees half. */
+            if (FILE* f = std::fopen(tmp.c_str(), "wb")) {
+                std::fwrite(mine, 1, mineLength, f);
+                std::fclose(f);
+                std::rename(tmp.c_str(), loopOwnFile.c_str());
+            }
+        }
+        NimBLEAdvertisedDeviceCallbacks* cb = scan.hostCallbacks();
+        if (scan.isScanning() && cb != nullptr) {
+            if (DIR* dir = ::opendir(loopDir.c_str())) {
+                const time_t now = std::time(nullptr);
+                while (const dirent* e = ::readdir(dir)) {
+                    const std::string name = e->d_name;
+                    if (name.size() < 5 || name.compare(name.size() - 4, 4, ".adv") != 0) continue;
+                    const std::string path = loopDir + "/" + name;
+                    if (path == loopOwnFile) continue;
+                    struct stat st;
+                    if (::stat(path.c_str(), &st) != 0 || now - st.st_mtime > LOOP_STALE_S) continue;
+                    uint8_t heard[31];
+                    FILE* f = std::fopen(path.c_str(), "rb");
+                    if (f == nullptr) continue;
+                    const size_t n = std::fread(heard, 1, sizeof(heard), f);
+                    std::fclose(f);
+                    if (n == 0) continue;
+                    device.hostSet(heard, n, -45);
+                    cb->onResult(&device);
+                }
+                ::closedir(dir);
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_TICK_MS));
+    }
+}
+
+bool loopbackInit() {
+    const char* env = std::getenv("BRAINO_BLE_LOOPBACK");
+    if (env == nullptr || *env == 0) return false;
+    loopDir = env;
+    ::mkdir(loopDir.c_str(), 0777);
+    HostPlatform::radioId(address);
+    address[0] = static_cast<uint8_t>(address[0] | 0xC0);
+    char name[16];
+    std::snprintf(name, sizeof(name), "%02x%02x%02x%02x%02x%02x", address[0], address[1],
+                  address[2], address[3], address[4], address[5]);
+    loopOwnFile = loopDir + "/" + name + ".adv";
+    ::unlink(loopOwnFile.c_str());
+    loopRunning = true;
+    loopThread = std::thread(loopLoop);
+    std::printf("[ble] host: loopback radio through %s, as %s\n", loopDir.c_str(),
+                NimBLEAddress(address).toString().c_str());
+    std::fflush(stdout);
+    return true;
+}
+
+void loopbackSay(const std::string& payload, bool on) {
+    std::lock_guard<std::mutex> lock(loopMutex);
+    loopAdvertising = on;
+    loopLength = payload.size() > sizeof(loopPayload) ? sizeof(loopPayload) : payload.size();
+    std::memcpy(loopPayload, payload.data(), loopLength);
+    if (!on) ::unlink(loopOwnFile.c_str());
+}
 
 int deviceIndex() {
     const char* env = std::getenv("BRAINO_HCI_DEV");
@@ -211,6 +324,10 @@ std::string NimBLEAddress::toString() const {
 
 void NimBLEDevice::init(const std::string&) {
     if (initialised) return;
+    if (loopbackInit()) {
+        initialised = true;
+        return;
+    }
     const int dev = deviceIndex();
 
     /* Power the controller up if the OS left it down; harmless if it is up. */
@@ -271,6 +388,15 @@ bool NimBLEDevice::getInitialized() { return initialised; }
 
 void NimBLEDevice::deinit(bool) {
     if (!initialised) return;
+    if (loopback()) {
+        advertising.stop();
+        scan.stop();
+        loopRunning = false;
+        if (loopThread.joinable()) loopThread.join();
+        ::unlink(loopOwnFile.c_str());
+        initialised = false;
+        return;
+    }
     advertising.stop();
     scan.stop();
     initialised = false;
@@ -288,6 +414,11 @@ NimBLEAddress NimBLEDevice::getAddress() { return NimBLEAddress(address); }
 
 bool NimBLEAdvertising::start() {
     if (!initialised) return false;
+    if (loopback()) {
+        loopbackSay(payload_, true);
+        advertising_ = true;
+        return true;
+    }
     if (advertising_) stop();
     uint8_t params[15] = {0};
     params[0] = static_cast<uint8_t>(minUnits_ & 0xFF);
@@ -309,6 +440,11 @@ bool NimBLEAdvertising::start() {
 }
 
 bool NimBLEAdvertising::stop() {
+    if (loopback()) {
+        loopbackSay(payload_, false);
+        advertising_ = false;
+        return true;
+    }
     const uint8_t off = 0;
     if (initialised) command(OP_LE_SET_ADV_ENABLE, &off, 1);
     advertising_ = false;
@@ -319,6 +455,12 @@ bool NimBLEAdvertising::stop() {
 
 bool NimBLEScan::start(uint32_t, void (*)(NimBLEScanResults), bool) {
     if (!initialised) return false;
+    if (loopback()) {
+        scanning_ = true;
+        std::printf("[ble] host: loopback scan running\n");
+        std::fflush(stdout);
+        return true;
+    }
     const uint16_t interval = msToUnits(intervalMs_);
     const uint16_t window = msToUnits(windowMs_ > intervalMs_ ? intervalMs_ : windowMs_);
     uint8_t params[7] = {0};
@@ -339,6 +481,10 @@ bool NimBLEScan::start(uint32_t, void (*)(NimBLEScanResults), bool) {
 }
 
 bool NimBLEScan::stop() {
+    if (loopback()) {
+        scanning_ = false;
+        return true;
+    }
     const uint8_t off[2] = {0, 0};
     if (initialised) command(OP_LE_SET_SCAN_ENABLE, off, 2);
     scanning_ = false;

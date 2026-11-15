@@ -316,6 +316,28 @@ used to tear down on its own and skip that, and a `std::thread` still joinable
 when statics are destroyed aborts the program: the handheld's log ended in
 `terminate called without an active exception`. Do not add a second way out.
 
+### The loopback radio: two consoles on one PC
+
+`BRAINO_BLE_LOOPBACK=<folder>` opens no controller at all. Every `braino`
+process on the machine that names the same folder hears every other one: each
+writes the exact advertisement bytes `BleBeacon` built to
+`<folder>/<radio id>.adv` while it advertises, rewriting it every 150ms, and
+reads the others' files on the same tick into the same `onResult()` the HCI
+reader calls. So `BleBeacon::decode()`, the scanner, `NearbyPlay` and every
+nearby game run unchanged -- it is the firmware's radio code under test, not a
+second copy of it. **Give each process its own `BRAINO_DATA_DIR`**: that is
+where its device id and radio id come from, and two processes sharing one are
+one console twice.
+
+A file not rewritten for two seconds is not heard, so a process stopped with
+`kill -KILL` (or `-STOP`) goes quiet the way a console carried out of range
+does, and the other one's waiting card comes up on the same clocks a real pair
+would show. What it cannot show is the air itself: there are no missed scan
+windows, no collisions and no range, so a game that works through the loopback
+has proved its sessions, turns and acks, not its tolerance of a lossy medium.
+That still needs two real radios. It adds no outbound flow: the folder is
+local and only processes on this machine can read it.
+
 ## The light ring
 
 The host board profile declares three virtual RGB pins, so the firmware's
