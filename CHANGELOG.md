@@ -122,6 +122,18 @@ make: counting the shapes taken away, not taking any away, or counting only
 one of the two groups. The screen no longer clears itself while a question
 plays out -- each shape is drawn as it arrives, and only the ones taken away
 are repainted as they blink and go.
+
+**Fingers is a course, and showing a number can now be wrong.** "Show me N"
+scored the moment N fingers were up, so tapping fingers one after another
+without counting always won. Showing a number now ends on Done. The game has
+six levels: one hand, raised in order from the thumb; a whole hand and some
+more; any fingers; how many are down; both hands added together; and
+changing a number already shown. The level is shown in the header and kept
+between visits, an answer stays until the next tap, the wrong buttons
+include the likeliest mistake -- the fingers that are up when the question
+is how many are down, one hand when it is both -- and a finger tapped
+repaints its own hand rather than the whole screen.
+
 **A nearby game no longer pauses for a console that is right there.** Chess
 and the other games played across two consoles kept showing the "waiting
 for" card between moves. The scan listened 300ms in every 900ms against a

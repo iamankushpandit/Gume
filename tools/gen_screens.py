@@ -1430,13 +1430,23 @@ def hand(d, x0, raised, mirror):
     d.text((x0 + 2 * 26 + 11 - 12, 163), "Left" if not mirror else "Right", font=F2, fill=(150, 90, 88))
 
 
-def fingers_count():
+def _fingers_header(d, level, tally):
+    """FingerCountGame's header row: the level muted on the left, the tally
+    on the right, then the prompt (font 4, centred on 62) and the hint
+    (font 2, centred on 87)."""
+    d.text((8, 32), "Level %d" % level, font=F2, fill=MUTED)
+    d.text((W - 8 - d.textlength(tally, font=F2), 32), tally, font=F2, fill=TEXT)
+
+
+def fingers_count(answered=True):
+    """Level 3, any fingers: five up, scattered, answered right."""
     im, d = blank(); topbar(d, "Finger Counting")
-    d.text((W - 8 - d.textlength("4/6", font=F2), 32), "4/6", font=F2, fill=TEXT)
+    _fingers_header(d, 3, "5/6" if answered else "4/5")
     q = "How many fingers?"
-    d.text((W / 2 - d.textlength(q, font=F4) / 2, 41), q, font=F4, fill=TEXT)
-    h = "Count them, then tap the number"
-    d.text((W / 2 - d.textlength(h, font=F2) / 2, 71), h, font=F2, fill=MUTED)
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 53), q, font=F4, fill=TEXT)
+    h = "Yes! 5 - tap for next" if answered else "Count them, then tap the number"
+    d.text((W / 2 - d.textlength(h, font=F2) / 2, 80), h, font=F2,
+           fill=SUCCESS if answered else MUTED)
     hand(d, 22, [True, True, False, True, False], False)
     hand(d, 172, [False, True, True, False, False], True)
     for i, v in enumerate([4, 6, 5, 7]):
@@ -1446,17 +1456,21 @@ def fingers_count():
 
 
 def fingers_show(left=(True, True, True, False, False),
-                 right=(False, False, True, False, False)):
+                 right=(False, False, True, False, False), done=False):
+    """Level 2, a hand and more: "Show me 7", the count said as it goes,
+    and Done to answer."""
     im, d = blank(); topbar(d, "Finger Counting")
-    d.text((W - 8 - d.textlength("5/6", font=F2), 32), "5/6", font=F2, fill=TEXT)
+    up = sum(left) + sum(right)
+    _fingers_header(d, 2, "6/7" if done else "5/6")
     q = "Show me 7 fingers"
-    d.text((W / 2 - d.textlength(q, font=F4) / 2, 41), q, font=F4, fill=TEXT)
-    up = "Up: %d" % (sum(left) + sum(right))
-    d.text((W / 2 - d.textlength(up, font=F2) / 2, 71), up, font=F2, fill=MUTED)
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 53), q, font=F4, fill=TEXT)
+    h = "Yes! 7 - tap for next" if done else "Up: %d, then tap Done" % up
+    d.text((W / 2 - d.textlength(h, font=F2) / 2, 80), h, font=F2,
+           fill=SUCCESS if done or up == 7 else MUTED)
     hand(d, 22, list(left), False)
     hand(d, 172, list(right), True)
-    t = "Tap a finger to raise or lower it"
-    d.text((W / 2 - d.textlength(t, font=F2) / 2, 205), t, font=F2, fill=MUTED)
+    button(d, (88, 196, 144, 34), "Done", SUCCESS if done else PANEL,
+           (0, 0, 0) if done else TEXT, F4)
     return im
 
 

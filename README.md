@@ -380,7 +380,7 @@ needs without touching anyone else's. Only the admin can change it.
 | Game | What it is | What it builds |
 |---|---|---|
 | **Counting** | "How many objects?" — tap the matching number, over seven levels: to five in a row, to ten on a ten-frame, scattered with no pattern (none at all included), to twenty in two rows of ten, one more and one less, tens and ones to 99 with rods of ten, and counting in twos, fives and tens | One-to-one correspondence first — counting means one number for each object — then seeing five and ten at a glance, place value and skip counting, which adding and the times tables are built on. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, and one answered wrong comes back a few questions later |
-| **Fingers** | Alternates *"How many fingers?"* (count what's raised) and *"Show me 7 fingers"* (raise that many) | Counting on hands in **both** directions — recognising a quantity and producing one |
+| **Fingers** | Numbers to ten on two hands, over six levels: one hand, raised in order from the thumb; a whole hand and some more; any fingers; how many are down; both hands added together; and changing a number already shown (*"Make it 4"*). Each level asks *"How many fingers?"* and the player taps the number, or *"Show me 7 fingers"* and the player raises them and taps Done | Counting on hands in **both** directions — recognising a quantity and producing one — then five as a whole hand, the partners of ten, adding on two hands and counting on and back. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and showing a number ends on Done, so tapping fingers without counting can be wrong |
 | **Shape Arith** | Adding and taking away with shapes the player can count, over eight levels: adding to five, taking away within five, the same within ten in rows of five, zero (adding nothing, taking nothing, taking everything), how many more fill a frame of five to ten, adding past ten and taking away back past ten. A second group arrives a shape at a time; a group taken away blinks, goes, and stays in view beside what is left | Makes adding and taking away concrete before they are written: joining two groups and removing one, with every answer there to be counted, through zero and the step across ten that Math then asks with numerals only. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, one answered wrong comes back a few questions later, and the wrong buttons are the mistakes players really make, such as counting the shapes taken away instead of the ones left |
 | **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic |
 | **Math** | "Tap the answer" — adding and taking away in twelve levels, numerals only: sums to ten, number bonds (4 + ? = 10), crossing ten, tens and ones, carrying, borrowing, three-digit sums and two-digit missing numbers (? + 38 = 75). From level 4 about a third of the questions arrive as **word problems**: "Nia has 21 shells and gives 8 away. How many are left?" | Quick, sure recall of the adding and taking-away facts, then carrying, borrowing and finding a missing number, and working out which sum a sentence is asking for. Each player's level is kept: it goes up with steady right answers and quietly back down after repeated misses. On the first five levels every question comes up before any repeats and a missed one comes back a few questions later, and the wrong buttons are the mistakes players really make, such as forgetting to carry |
@@ -461,9 +461,10 @@ overrides by hand, and the choice persists.
 
 ### A level kept for each player
 
-**Math**, **Multiply**, **Counting** and **Shape Arith** are courses: twelve
-levels of adding and taking away, twelve of times tables and division, seven
-of counting, eight of adding and taking away with shapes. Each
+**Math**, **Multiply**, **Counting**, **Shape Arith** and **Fingers** are
+courses: twelve levels of adding and taking away, twelve of times tables and
+division, seven of counting, eight of adding and taking away with shapes, six
+of numbers to ten on the hands. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

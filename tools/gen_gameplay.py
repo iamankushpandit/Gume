@@ -226,7 +226,7 @@ def grewords():
 
 
 def fingers():
-    frames = quiz(gs.fingers_count)
+    frames = quiz(lambda: gs.fingers_count(answered=False), after=gs.fingers_count)
     right = [False, False, True, False, False]
     left = (True, True, True, False, False)
     for i in (1, 3, 4):                         # raise three: 4 up becomes 7
@@ -235,6 +235,9 @@ def fingers():
         x = 172 + i * 26 + 11
         frames += tap(before, gs.fingers_show(left, tuple(right)), (x, 128),
                       wait=500, after_ms=300)
+    shown = gs.fingers_show(left, tuple(right))
+    frames += tap(shown, gs.fingers_show(left, tuple(right), done=True), (160, 213),
+                  wait=500, after_ms=300)
     frames[-1] = (frames[-1][0], AFTER)
     return frames
 
