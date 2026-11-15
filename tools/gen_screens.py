@@ -3601,8 +3601,8 @@ def about_updates():
 
 def percent():
     im, d = blank(); topbar(d, "Percent")
-    q = "What percent?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
+    q = "What percent?"   # PercentCircleGame: font 4, centred on (200, 60)
+    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     # Draw circle at (96, 130) with radius 62
     cx, cy, r = 96, 130, 62
@@ -3640,7 +3640,7 @@ def percent():
     for i, pct in enumerate(["25%", "50%", "60%", "75%"]):
         rr = (164 + (i % 2) * 76, 96 + (i // 2) * 44, 70, 38)
         button(d, rr, pct, SUCCESS if pct == "60%" else PANEL,
-               (0, 0, 0) if pct == "60%" else TEXT)
+               on_fill(SUCCESS) if pct == "60%" else TEXT)
 
     # Score line
     d.text((8, 226), "Score: 15  Streak: 2  Lvl: 1", font=F1, fill=TEXT)

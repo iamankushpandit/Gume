@@ -527,6 +527,15 @@ And in both multiple-choice rounds a wrong tap flashed the *correct* button --
 in red, so it told the answer and mislabelled it at once. The button that was
 pressed is the one that flashes now.
 
+Percent's answer buttons also take their ink from the theme now. A right or
+wrong answer was written in black on the green or red fill whatever the
+theme, so on the themes whose success and error colours are dark the number
+on the button went dark with them. It is `Ui::onFill()` of the fill, as on
+every other quiz. And "Try again" was written in small type across the
+middle of the question for as long as the red flash lasted; it is in the
+strip along the bottom now, beside the score. The read-the-circle mock-up
+draws the question where the game does, large and centred over the buttons.
+
 ## attaky-1.0.0-SNAPSHOT — Unreleased
 
 Braino! for Attaky: the same console on Attaky's modular handhelds, released
