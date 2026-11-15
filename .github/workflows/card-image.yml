@@ -134,6 +134,7 @@ jobs:
         run: |
           zstd -dc "$RUNNER_TEMP/base/os-base.tar.zst" | tar -C "$HOME/braino-rg40xxv" -xf -
           rm -rf "$RUNNER_TEMP/base"
+          sh host/rg40xxv/os-base.sh settle
           du -sh "$HOME/braino-rg40xxv/out"
 
       # A full build reaches about 16 GB, and the source bundle and the
