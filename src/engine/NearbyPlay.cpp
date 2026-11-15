@@ -58,6 +58,13 @@ uint32_t lastScanGeneration_ = 0;
 uint32_t peerGeneration_ = 0;
 
 char events_[MAX_EVENTS][BANNER_MAX];
+/* Who a queued "wants to play" is from, beside its text; empty for every
+ * other notice. An invitation can be answered, or taken back, while its
+ * notice is still waiting its turn behind another, and a notice saying
+ * somebody wants a game the player has already started with them is wrong
+ * by the time it shows. So it is asked again when it reaches the front. */
+char eventInviter_[MAX_EVENTS][5];
+char bannerInviter_[5] = {0};   // the same, for the notice on screen
 uint8_t eventHead_ = 0;
 uint8_t eventCount_ = 0;
 
@@ -103,7 +110,7 @@ bool better(uint32_t candidate, uint32_t incumbent, bool lowerIsBetter) {
     return lowerIsBetter ? candidate < incumbent : candidate > incumbent;
 }
 
-void pushEvent(const char* text) {
+void pushEvent(const char* text, const char* inviter = nullptr) {
     if (eventCount_ == MAX_EVENTS) {
         /* A burst is more interesting at its newest end: drop the oldest
          * rather than refusing the arrival. */
@@ -112,6 +119,8 @@ void pushEvent(const char* text) {
     }
     const uint8_t slot = static_cast<uint8_t>((eventHead_ + eventCount_) % MAX_EVENTS);
     snprintf(events_[slot], BANNER_MAX, "%s", text);
+    snprintf(eventInviter_[slot], sizeof(eventInviter_[slot]), "%s",
+             inviter != nullptr ? inviter : "");
     ++eventCount_;
 }
 
@@ -244,7 +253,7 @@ void evaluateInvite(Board& board, Known& entry, const BleScan::Sighting& seen) {
         snprintf(text, sizeof(text), "%s wants to play",
                  displayName(board, seen.deviceId));
     }
-    pushEvent(text);
+    pushEvent(text, seen.deviceId);
     board.playSound(Sound::Pop);
 }
 
@@ -591,8 +600,28 @@ void tick(Board& board) {
     if (bannerHeld_ && now - bannerHeldAtMs_ >= BANNER_HOLD_MS) {
         bannerHeld_ = false;
     }
+    /* An invitation whose notice has waited its turn is shown only if it is
+     * still on the air: accepted, or withdrawn, it is dropped unseen -- and
+     * one already showing goes as soon as it stops being true. */
+    if (bannerActive_ && bannerInviter_[0] != '\0') {
+        const Known* from = findKnown(bannerInviter_);
+        if (from == nullptr || !from->sawInvite) {
+            bannerActive_ = false;
+            banner_[0] = '\0';
+            bannerInviter_[0] = '\0';
+            ++bannerGeneration_;
+        }
+    }
+    while (!bannerActive_ && !bannerHeld_ && eventCount_ > 0 &&
+           eventInviter_[eventHead_][0] != '\0') {
+        const Known* from = findKnown(eventInviter_[eventHead_]);
+        if (from != nullptr && from->sawInvite) break;
+        eventHead_ = static_cast<uint8_t>((eventHead_ + 1) % MAX_EVENTS);
+        --eventCount_;
+    }
     if (!bannerActive_ && !bannerHeld_ && eventCount_ > 0) {
         snprintf(banner_, sizeof(banner_), "%s", events_[eventHead_]);
+        snprintf(bannerInviter_, sizeof(bannerInviter_), "%s", eventInviter_[eventHead_]);
         eventHead_ = static_cast<uint8_t>((eventHead_ + 1) % MAX_EVENTS);
         --eventCount_;
         bannerActive_ = true;
