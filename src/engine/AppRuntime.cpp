@@ -166,6 +166,7 @@ void BrainoApp::loop() {
     tickBatteryWarning(nowMs);
     tickUpdateNotice(nowMs);
     tickBenchNotice(nowMs);
+    tickLightTest(nowMs);
     tickPowerMonitor(nowMs);
     tickSerialQuery();
 

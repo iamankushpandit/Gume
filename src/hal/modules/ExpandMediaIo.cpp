@@ -48,6 +48,8 @@ constexpr Modules::Driver DRIVER = {
     /* typedChar      */ nullptr,
     /* readBattery    */ nullptr,
     /* panelSleep     */ nullptr,
+    /* lightSteps     */ 0,
+    /* lightStep      */ nullptr,
 };
 const Modules::Registration REGISTRATION(DRIVER);
 

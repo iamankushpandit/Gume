@@ -1598,7 +1598,8 @@ src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPla
                           AppRuntime, AppRuntimeLock, AppRuntimeNotify (the
                           notice strip), AppRuntimeIdentity,
                           AppRuntimeSelector (the d-pad's selector, on a
-                          board with keys),
+                          board with keys), AppRuntimeLights (the
+                          console's light test),
                           AppRuntimeConsole (+Settings, +Profiles),
                           AppRuntimeKeep (the game a player left) +
                           CarryOnScreen (the question asked on the way
@@ -2044,6 +2045,13 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   - **It is not activity**: nothing touches `lastActivityMs_`, and
     `Board::setBrightness()` no longer lights the backlight over a sleeping
     panel -- unreachable from the slider, reachable from a cable.
+  - **`lights` is for a pair of eyes.** It blinks every light the firmware
+    drives, one at a time, and names each on the log: the status LED's three
+    channels through `Board::setRgbColor()`, then each module's own through
+    its driver's `lightStep` hook, and last every light at rest. A profile
+    says which pin is called red; only somebody looking can say which light
+    answers, whether low or high lights it, and which lights are not the
+    firmware's at all. It is gated like a change because it drives outputs.
   - **Deliberately absent**: factory reset, reading or clearing scores,
     changing the admin PIN or which profile is admin, peer labels, the update
     check and the NTP server. Each is a decision for the maintainer, not a

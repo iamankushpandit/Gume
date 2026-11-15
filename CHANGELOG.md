@@ -509,6 +509,14 @@ as inputs: left P1=0x.. right P1=0x..` -- so they are driven only once that
 has been read on a device. The battery pack's light is the charging
 hardware's own, with no line the Core can reach.
 
+With that build on the console all three lights were still on when it was
+locked. The serial console's new `lights` command asks the hardware which of
+them the firmware reaches: it blinks one light at a time, names each on the
+log, tries the gamepad's undriven lines both low and high, and ends with
+every light at rest. It works on every board, where it blinks the status
+LED's three channels by name -- which is how a red and a green declared the
+wrong way round is found.
+
 Looking for those lights found something else. The Core has a second AW9523
 expander, at 0x58, carrying the other chips' interrupt lines -- touch, the
 motion sensor, the power module's gauge, the gamepad's and keyboard's

@@ -148,6 +148,8 @@ const BrainoApp::ConsoleCommand* BrainoApp::consoleTable(size_t& count) {
          APP_CAP_PROFILES, 1, 2, &BrainoApp::cmdLevel},
         {"notice", "notice \"<words>\"", "show the words as a notice, to look at the strip",
          APP_CAP_DEVICE_SETTINGS, 1, 1, &BrainoApp::cmdNotice},
+        {"lights", "lights [<step>|off]", "blink every light the firmware drives, one at a time",
+         APP_CAP_DEVICE_SETTINGS, 0, 1, &BrainoApp::cmdLights},
         {"unlock", "unlock <admin PIN>", "allow changes for two minutes",
          APP_CAP_NONE, 1, 1, &BrainoApp::cmdUnlock},
         {"lock", "lock", "stop allowing changes",

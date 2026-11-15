@@ -192,6 +192,27 @@ void panelSleep(bool asleep) {
     }
 }
 
+uint8_t lightSteps() {
+    uint8_t total = 0;
+    for (uint8_t i = 0; i < s_count; ++i) {
+        if (s_present[i] && s_drivers[i]->lightStep != nullptr) {
+            total = static_cast<uint8_t>(total + s_drivers[i]->lightSteps);
+        }
+    }
+    return total;
+}
+
+void lightStep(uint8_t step, bool on, char* name, size_t cap) {
+    for (uint8_t i = 0; i < s_count; ++i) {
+        if (!s_present[i] || s_drivers[i]->lightStep == nullptr) continue;
+        if (step < s_drivers[i]->lightSteps) {
+            s_drivers[i]->lightStep(step, on, name, cap);
+            return;
+        }
+        step = static_cast<uint8_t>(step - s_drivers[i]->lightSteps);
+    }
+}
+
 bool readBattery(float& volts, uint8_t& percent) {
     for (uint8_t i = 0; i < s_count; ++i) {
         if (s_drivers[i]->readBattery == nullptr) continue;

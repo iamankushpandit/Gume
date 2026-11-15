@@ -90,12 +90,18 @@ bool s_panelAsleep = false;
  * would leave the light on until somebody pressed a key. */
 bool s_lightPending = false;
 
+/* A light the bench's light test is holding on, as the bit of P1 it drives
+ * low: one per half, 0 for none. See lightStep(). */
+uint8_t s_testLow[2] = {0, 0};
+
 /* The P1 value with every row low, for one half. The LED shares P1 with the
  * rows, so every row write carries it -- otherwise the scan would put the
  * caps-lock light out on the first key, or back on while the panel sleeps. */
 uint8_t rowsLow(uint8_t address) {
-    const bool lit = s_capsLock && !s_panelAsleep && address == BOARD.keyboard.keyboardLeft;
-    return static_cast<uint8_t>(lit ? (ROWS_LOW & ~LED_GREEN) : ROWS_LOW);
+    const bool left = address == BOARD.keyboard.keyboardLeft;
+    const bool lit = s_capsLock && !s_panelAsleep && left;
+    const uint8_t rows = static_cast<uint8_t>(lit ? (ROWS_LOW & ~LED_GREEN) : ROWS_LOW);
+    return static_cast<uint8_t>(rows & ~s_testLow[left ? 0 : 1]);
 }
 
 void aw9523Write(uint8_t address, uint8_t reg, uint8_t value) {
@@ -178,6 +184,22 @@ Modules::Probe probe() {
 void showCapsLockLight() {
     const uint8_t left = BOARD.keyboard.keyboardLeft;
     s_lightPending = !writeRows(left, rowsLow(left));
+}
+
+/* Modules::Driver::lightStep, for the serial console's `lights`. Six steps:
+ * each half's blue, green and red (P1_5, P1_6, P1_7), driven low, which is
+ * lit on this common-anode part. There is no "driven high" step as the
+ * gamepad has: these ports are outputs already, held high, and that is the
+ * off the test compares against. The bit rides in rowsLow() like the
+ * caps-lock light's, so a key scanned during the test does not put it out. */
+void lightStep(uint8_t step, bool on, char* name, size_t cap) {
+    static const char* const COLOUR[3] = {"blue", "green", "red"};
+    const uint8_t half = step >= 3 ? 1 : 0;
+    const uint8_t channel = static_cast<uint8_t>(step % 3);
+    const uint8_t address = half == 0 ? BOARD.keyboard.keyboardLeft : BOARD.keyboard.keyboardRight;
+    snprintf(name, cap, "Keyboard %s %s", half == 0 ? "left" : "right", COLOUR[channel]);
+    s_testLow[half] = on ? static_cast<uint8_t>(1u << (5 + channel)) : 0;
+    writeRows(address, rowsLow(address));
 }
 
 /* Modules::Driver::panelSleep. Between frames, on the loop task, so never in
@@ -284,6 +306,8 @@ constexpr Modules::Driver DRIVER = {
     /* typedChar      */ typedChar,
     /* readBattery    */ nullptr,
     /* panelSleep     */ panelSleep,
+    /* lightSteps     */ 6,
+    /* lightStep      */ lightStep,
 };
 const Modules::Registration REGISTRATION(DRIVER);
 

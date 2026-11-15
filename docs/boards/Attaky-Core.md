@@ -223,6 +223,26 @@ before the touch controller is let out of reset, and logs what they read:
 - which of the three lights are still on with the console locked, and what
   the `[gamepad] leds as inputs` line says if the gamepad's is one of them.
 
+**Which light is which: `lights`.** With that build on the same console all
+three lights were still on when it was locked, and plugging USB in or out
+changed none of them. So the question became which of them the firmware
+reaches at all, and that is asked of the hardware rather than the documents.
+Over the serial console, after `unlock`, `lights` blinks one light at a time
+for four seconds and names it on the log as it starts:
+
+| Steps | What is driven |
+|---|---|
+| 1 to 3 | the Core's status LED: red, green, blue (the AW9523 at 0x59, P1_0 to P1_2) |
+| then 6, with the keyboard on | each half's blue, green and red (P1_5 to P1_7 of the AW9523s at 0x5A and 0x5B), driven low |
+| then 12, with the gamepad on | each half's blue, green and red (P1_5 to P1_7 of the TCA9555s at 0x22 and 0x26), each driven low and then driven high |
+| the last | nothing: every light at rest |
+
+The gamepad's steps are the only time the firmware drives those lines. Both
+levels are tried because the document says low lights them and a light was
+seen with them undriven; neither level can push current anywhere it should
+not go. Whatever is still lit during the last step is not the firmware's to
+put out. `lights <step>` holds one step for twelve seconds, to look again.
+
 **The keyboard types into every text field:** a player's name, a Nearby
 peer's name, both admin PIN pads and the Wi-Fi password, with Delete and Enter
 doing what DEL and OK do. The name fields take capitals, digits and spaces, as

@@ -67,6 +67,7 @@ private:
     void cmdHelp(int argc, char** argv, Print& out);
     void cmdUnlock(int argc, char** argv, Print& out);
     void cmdLock(int argc, char** argv, Print& out);
+    void cmdLights(int argc, char** argv, Print& out);
     void cmdWifi(int argc, char** argv, Print& out);
     // AppRuntimeConsoleSettings.cpp
     void cmdGet(int argc, char** argv, Print& out);
@@ -317,6 +318,25 @@ private:
     /* Retires the notice the serial console's `notice` command raised. */
     void tickBenchNotice(uint32_t nowMs);
     void tickPowerMonitor(uint32_t nowMs);
+
+    /* The serial console's `lights` (AppRuntimeLights.cpp): every light the
+     * firmware drives, one at a time, each blinking under its own name. */
+    struct LightTest {
+        bool running = false;
+        bool lit = false;
+        uint8_t step = 0;        // the one in hand; == steps is the last, everything at rest
+        uint8_t steps = 0;       // not counting that last one
+        uint8_t stopAfter = 0;
+        uint32_t stepMs = 0;     // how long each step is held
+        uint32_t stepAtMs = 0;
+        uint32_t blinkAtMs = 0;
+    };
+    LightTest lightTest_;
+    void tickLightTest(uint32_t nowMs);
+    uint8_t lightTestSteps() const;
+    void lightTestDrive(uint8_t step, bool on, char* name, size_t cap);
+    void lightTestBegin(uint32_t nowMs);
+    void lightTestEnd();
 
     /* Mark the strip as needing to be looked at again: a notice has appeared,
      * changed its words or gone. */

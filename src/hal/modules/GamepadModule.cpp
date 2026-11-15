@@ -38,7 +38,9 @@ namespace {
 
 constexpr uint8_t TCA9555_INPUT_P0 = 0x00;
 constexpr uint8_t TCA9555_INPUT_P1 = 0x01;
+constexpr uint8_t TCA9555_OUTPUT_P1 = 0x03;
 constexpr uint8_t TCA9555_CONFIG_P0 = 0x06;   // 1 = input
+constexpr uint8_t TCA9555_CONFIG_P1 = 0x07;
 
 /* Each half's port 0 as last read, kept for a failed read. Loop task only. */
 uint8_t s_level[2] = {0xFF, 0xFF};
@@ -95,6 +97,46 @@ void logLedLines(uint8_t left, uint8_t right) {
                   l, lOk ? "" : "?", r, rOk ? "" : "?");
 }
 
+void writeRegister(uint8_t address, uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(address);
+    Wire.write(reg);
+    Wire.write(value);
+    Wire.endTransmission();
+}
+
+/* Modules::Driver::lightStep, for the serial console's `lights`. Twelve
+ * steps: each half's blue, green and red (P1_5, P1_6, P1_7), each driven LOW
+ * and then driven HIGH.
+ *
+ * This is the one place those ports are ever outputs. The driver leaves them
+ * inputs (see logLedLines()), because Attaky document the LEDs as lit by LOW
+ * and a light was seen there all the same -- so which level lights which
+ * light, if either does, is to be seen on the module before anything here
+ * drives them for real. Trying both is safe either way round: HIGH on a port
+ * wired as documented puts both ends of its LED at the supply, and LOW on
+ * one wired the other way puts both at ground. `on` false makes the whole
+ * port an input again, which is how the driver has it. */
+void lightStep(uint8_t step, bool on, char* name, size_t cap) {
+    static const char* const COLOUR[3] = {"blue", "green", "red"};
+    const auto& g = BOARD.gamepad;
+    const bool right = step >= 6;
+    const uint8_t channel = static_cast<uint8_t>((step % 6) / 2);
+    const bool high = (step % 2) != 0;
+    const uint8_t address = right ? g.padRightExpander : g.padLeftExpander;
+    const uint8_t bit = static_cast<uint8_t>(1u << (5 + channel));
+    snprintf(name, cap, "Gamepad %s %s, driven %s", right ? "right" : "left", COLOUR[channel],
+             high ? "high" : "low");
+    if (!on) {
+        writeRegister(address, TCA9555_CONFIG_P1, 0xFF);
+        return;
+    }
+    /* Level first, then direction, so the line is never driven to a value
+     * nobody chose. The other bits of the output register are don't-cares:
+     * their ports stay inputs. */
+    writeRegister(address, TCA9555_OUTPUT_P1, high ? 0xFF : static_cast<uint8_t>(~bit));
+    writeRegister(address, TCA9555_CONFIG_P1, static_cast<uint8_t>(~bit));
+}
+
 Modules::Probe probe() {
     const auto& g = BOARD.gamepad;
     if (g.padLeftExpander == 0) {
@@ -141,6 +183,8 @@ constexpr Modules::Driver DRIVER = {
     /* typedChar      */ nullptr,
     /* readBattery    */ nullptr,
     /* panelSleep     */ nullptr,
+    /* lightSteps     */ 12,
+    /* lightStep      */ lightStep,
 };
 const Modules::Registration REGISTRATION(DRIVER);
 

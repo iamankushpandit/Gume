@@ -115,6 +115,16 @@ struct Driver {
      * displayWake(), on the loop task. A module whose light the host cannot
      * reach -- the Power module's charge light -- has nothing to do here. */
     void (*panelSleep)(bool asleep);
+    /* The bench's light test, the serial console's `lights`. lightSteps is
+     * how many separate things this module can do to its own lights, and
+     * lightStep does number `step` of them (on), or leaves that light as the
+     * driver normally has it (off), and writes what the step is into `name`
+     * either way. A light on a port the driver never drives is a step for
+     * each level the port can be driven to, so that which level lights it is
+     * seen on the module rather than read off a document. 0 and nullptr for a
+     * module with no light the host can reach. Loop task, only if present. */
+    uint8_t lightSteps;
+    void (*lightStep)(uint8_t step, bool on, char* name, size_t cap);
 };
 
 /* A driver's file puts it in the table with one of these at namespace
@@ -150,6 +160,11 @@ char typedChar();
 /* Tell every present module the panel has gone to sleep, or woken. */
 void panelSleep(bool asleep);
 
+/* The light test's steps over every module that is present, in table order:
+ * how many there are, and one of them done (on) or undone, with its name. */
+uint8_t lightSteps();
+void lightStep(uint8_t step, bool on, char* name, size_t cap);
+
 /* What a Battery driver puts in `percent` when its part knows only the
  * voltage (see Driver::readBattery). */
 constexpr uint8_t PERCENT_FROM_VOLTS = 0xFF;
@@ -170,6 +185,8 @@ inline bool allows(ModuleCapability capability) { return provides(capability); }
 /* No modules: nothing to look for, and nothing is gated on one. */
 inline void probeAll() {}
 inline void panelSleep(bool) {}
+inline uint8_t lightSteps() { return 0; }
+inline void lightStep(uint8_t, bool, char*, size_t) {}
 constexpr bool allows(ModuleCapability) { return true; }
 
 #endif

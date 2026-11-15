@@ -1648,6 +1648,7 @@ PIN: after `unlock <PIN>`,
 | Games per player | `games` (every game id), `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
 | A notice | `notice "<words>"` shows the words as a [notice](#notices) for six seconds, to look at the strip on a panel; `notice ""` takes it down |
 | Levels | `level <game-id>` (the level the player in use has reached in that game; 0 if never set), `level <game-id> <1-63>` (put them on that level), `level <game-id>:<track> [<level>]` for a game that keeps more than one, tracks 0-3 |
+| Lights | `lights` blinks every light the firmware drives, one at a time and each for four seconds: the status LED's red, green and blue, then the lights of any module clipped on, and last of all every light at rest. The serial log names each step as it starts. `lights <step>` holds one step for twelve seconds, `lights off` stops |
 
 then `lock`. Every change goes through the same code the screens use, with the
 same refusals: the admin profile and the player currently in use cannot be
@@ -1707,6 +1708,7 @@ src/
     CarryOnScreen.cpp  the Carry on? / New game question on the way back in
     AppRuntimeNotify.cpp  the notice strip: battery, update, nearby
     AppRuntimeIdentity.cpp  boot banner: which board, which build
+    AppRuntimeLights.cpp  the console's light test: each light, by name
     AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded
     AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
     AppRuntimeConsoleSettings.cpp  console: get/set over one settings table
