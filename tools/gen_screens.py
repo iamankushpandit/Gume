@@ -3740,6 +3740,20 @@ def grewords_study():
     return im
 
 
+def scores_tab_row_note(d, text, w, try_large=True):
+    """ScoresApp::drawTabRowNote: right-aligned on the tab row, in the room
+    from the Device tab's right edge + 8 to w - 8, at font 2 if it fits, else
+    font 1, else not at all. The name used to be at y = 60 and the headings
+    at y = 64, inside row 0, which covered them on the panel."""
+    x0 = 80 + 80 + 8
+    room = w - 8 - x0
+    for f, ok in ((F2, try_large), (F1, True)):
+        if ok and d.textlength(text, font=f) <= room:
+            d.text((w - 8 - d.textlength(text, font=f), 34 + 9 - (7 if f is F2 else 5)),
+                   text, font=f, fill=TEXT if try_large else MUTED)
+            return
+
+
 def scores_mine():
     """Scores tab: this player's best and worst per game."""
     im, d = blank(); topbar(d, "Scores")
@@ -3756,10 +3770,8 @@ def scores_mine():
                font=F2, fill=TEXT if active else MUTED)
     d.line([(8, 52), (312, 52)], fill=OUTLINE)
 
-    # Profile name and column headings
-    d.text((8, 60), "Ava", font=F2, fill=TEXT)
-    d.text((244 - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
-    d.text((306 - d.textlength("worst", font=F1), 64), "worst", font=F1, fill=MUTED)
+    # The player's name on the tab row; no column headings.
+    scores_tab_row_note(d, "Ava", W)
 
     # Sample score rows
     rows = [
@@ -3770,14 +3782,21 @@ def scores_mine():
         ("Slide", "18moves", "25moves"),
     ]
     for i, (name, best, worst) in enumerate(rows):
-        y = 56 + (i + 1) * 30
+        y = 56 + i * 30   # ScoresApp::rowRect: SCORES_ROWS_TOP + row * pitch
         d.rounded_rectangle([8, y, 312, y + 28], 4, fill=SURFACE, outline=OUTLINE)
         d.text((16, y + 14 - 6), name, font=F2, fill=TEXT)
-        d.text((244 - d.textlength(best, font=F2) / 2, y + 14 - 6), best, font=F2, fill=SUCCESS)
-        d.text((306 - d.textlength(worst, font=F2) / 2, y + 14 - 6), worst, font=F2, fill=MUTED)
-        if i >= 2:  # Show "lower is better" on Memory
-            if i == 2:
-                d.text((100, y + 14 - 6), "lower is better", font=F1, fill=MUTED)
+        # ScoresApp::scoreColumns at 320px: right edges 238 and 306.
+        d.text((238 - d.textlength(best, font=F2), y + 14 - 6), best, font=F2, fill=SUCCESS)
+        d.text((306 - d.textlength(worst, font=F2), y + 14 - 6), worst, font=F2, fill=MUTED)
+        if i == 2:  # Memory: lower is better. ScoresApp puts the note right-
+            # aligned in the gap between the name and the best value.
+            gap_right = 238 - d.textlength(best, font=F2) - 6
+            gap_left = 16 + d.textlength(name, font=F2) + 6
+            for note in ("lower is better", "lower wins"):
+                if d.textlength(note, font=F1) <= gap_right - gap_left:
+                    d.text((gap_right - d.textlength(note, font=F1), y + 14 - 5),
+                           note, font=F1, fill=MUTED)
+                    break
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
@@ -3804,19 +3823,20 @@ def scores_device():
 
     # Sample device best rows
     rows = [
-        ("Multiply", "250pts", "Priya"),    # Priya is current player (gold)
+        ("Multiply", "250pts", "Priya"),    # Priya is current player (warning colour)
         ("Math", "150pts", "Kai"),
         ("Memory", "30s", "Liam"),
         ("Maze", "12lvl", "Ava"),
         ("Slide", "10moves", "Priya"),
     ]
     for i, (name, best, holder) in enumerate(rows):
-        y = 56 + (i + 1) * 30
+        y = 56 + i * 30   # ScoresApp::rowRect: SCORES_ROWS_TOP + row * pitch
         d.rounded_rectangle([8, y, 312, y + 28], 4, fill=SURFACE, outline=OUTLINE)
         d.text((16, y + 14 - 6), name, font=F2, fill=TEXT)
-        d.text((244 - d.textlength(best, font=F2) / 2, y + 14 - 6), best, font=F2, fill=SUCCESS)
-        holder_color = GOLD if holder == "Priya" else MUTED
-        d.text((312 - d.textlength(holder, font=F2) / 2, y + 14 - 6), holder, font=F2, fill=holder_color)
+        # ScoresApp::scoreColumns at 320px: right edges 238 and 306.
+        d.text((238 - d.textlength(best, font=F2), y + 14 - 6), best, font=F2, fill=SUCCESS)
+        holder_color = WARN if holder == "Priya" else MUTED
+        d.text((306 - d.textlength(holder, font=F2), y + 14 - 6), holder, font=F2, fill=holder_color)
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
@@ -4296,7 +4316,7 @@ def scores_tall():
         d.text((r[0] + r[2] / 2 - d.textlength(lab, font=F2) / 2, r[1] + 3), lab,
                font=F2, fill=TEXT if active else MUTED)
     d.line([(8, 52), (160, 52)], fill=OUTLINE)
-    d.text((8, 58), "Ava", font=F2, fill=TEXT)
+    scores_tab_row_note(d, "Ava", PW)
 
     pitch = max(30, ((PH - 32) - 56 - 4) // 5)
     rows = [("Memory Match", "18 moves"), ("Math", "24 pts"), ("Multiplication", "31 pts"),
@@ -4309,10 +4329,6 @@ def scores_tall():
     show_second = (row_w - 68 * 2 - 14) >= 96
     first_right = second_right - 68 if show_second else second_right
     label_max = first_right - 68 - 16 - 6
-    d.text((first_right - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
-    if show_second:
-        d.text((second_right - d.textlength("worst", font=F1), 64), "worst",
-               font=F1, fill=MUTED)
     for i, (name, value) in enumerate(rows):
         y = 56 + i * pitch
         h = pitch - 2
@@ -4328,7 +4344,7 @@ def scores_tall():
     footer_y = PH - 32
     button(d, (8, footer_y, int(PW * 0.275), 26), "Prev")
     sw = int(PW * 0.35)
-    button(d, ((PW - sw) // 2, footer_y, sw, 26), "Switch")
+    button(d, ((PW - sw) // 2, footer_y, sw, 26), "Switch", ACCENT, on_fill(ACCENT))
     button(d, (PW - 8 - int(PW * 0.275), footer_y, int(PW * 0.275), 26), "Next")
     return im
 
@@ -4548,7 +4564,7 @@ THEME_SHEET_SCREENS = (
     "settings-admin",       # destructive actions, the error colour
     "settings-pin",         # a keypad and its dots
     "systeminfo-memory",    # dense rows, meters, muted labels
-    "scores",               # a list with values
+    "scores-mine",          # a list with values
     "math",                 # a game: big text and answer buttons
     "trace",                # a game with its own canvas colours
     "wakelock",             # chrome on the bare ground

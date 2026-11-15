@@ -90,6 +90,44 @@ Rect ScoresApp::deviceTabRect() const {
     return Rect{80, 34, 80, 18};
 }
 
+/* The room on the tab row to the right of the two tabs, out to the margin.
+ *
+ * The player's name (Mine) and the one-player note (Device) used to sit at
+ * y = 60, and the column headings at y = 64 -- inside row 0, which starts at
+ * SCORES_ROWS_TOP and is drawn after them, so on every board and in both
+ * orientations the row covered all three. There is no height to give them:
+ * five rows fill exactly what lies between the tabs and the footer at
+ * 320x240. The tab row has width to spare, so they live there, derived from
+ * the tabs' own rects so the two cannot overlap. */
+Rect ScoresApp::tabRowNoteRect(int16_t screenW) const {
+    const Rect tabs = deviceTabRect();
+    const int16_t x = static_cast<int16_t>(tabs.x + tabs.w + SCORES_MARGIN);
+    const int16_t w = static_cast<int16_t>(screenW - SCORES_MARGIN - x);
+    return Rect{x, mineTabRect().y, w > 0 ? w : static_cast<int16_t>(0), mineTabRect().h};
+}
+
+/* Right-aligned in that room, and either whole or not at all: font 2 when the
+ * caller allows it and it fits, font 1 when that fits. A name is at most
+ * PROFILE_NAME_MAX characters, which font 1 fits in the narrowest room this
+ * leaves (64px, a 240px portrait panel), so a name is always drawn whole. A
+ * sentence that fits neither is left out rather than cut mid-word. */
+void ScoresApp::drawTabRowNote(Ui::Renderer& tft, const char* text, bool tryLargeFont,
+                               int16_t screenW) const {
+    const Rect room = tabRowNoteRect(screenW);
+    uint8_t font = 0;
+    if (tryLargeFont && tft.textWidth(text, 2) <= room.w) {
+        font = 2;
+    } else if (tft.textWidth(text, 1) <= room.w) {
+        font = 1;
+    }
+    if (font == 0) {
+        return;
+    }
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(text, room.x + room.w, room.y + room.h / 2, font);
+    tft.setTextDatum(TL_DATUM);
+}
+
 /* Prev and Next hug the edges, Switch is centred between them. The fractions
  * are the old widths over 320, so the original board keeps 88 / 112 / 88 at
  * x = 8 / 104 / 224 exactly. */
@@ -260,21 +298,10 @@ void ScoresApp::render(GameHost& host) {
 
     if (activeTab_ == Tab::Mine) {
         // Mine tab: current player's scores
-        tft.setTextDatum(TL_DATUM);
+        /* No column headings: best is drawn in success and worst in muted,
+         * and a game where lower is better says so in its row. */
         tft.setTextColor(Ui::text(), Ui::bg());
-        tft.drawString(board.profileName(board.activeProfile()), 8, 60, 2);
-
-        // Column headings, over the columns they name.
-        if (needsFullRender()) {
-            const ScoreColumns head = scoreColumns(rowRect(0, sW, sH));
-            tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.setTextDatum(TR_DATUM);
-            tft.drawString("best", head.firstRight, 64, 1);
-            if (head.showSecond) {
-                tft.drawString("worst", head.secondRight, 64, 1);
-            }
-            tft.setTextDatum(TL_DATUM);
-        }
+        drawTabRowNote(tft, board.profileName(board.activeProfile()).c_str(), true, sW);
 
         const uint8_t total = playedCount(host);
         if (total == 0) {
@@ -319,13 +346,29 @@ void ScoresApp::render(GameHost& host) {
                 tft.drawString(value, col.secondRight, r.y + r.h / 2, 2);
             }
 
-            /* Only where the label was not already using that room -- on a
-             * narrow panel this note and the name are after the same pixels,
-             * and the name is the one that has to win. */
-            if (score->lowerIsBetter && col.showSecond) {
-                tft.setTextColor(Ui::muted(), Ui::surface());
-                tft.setTextDatum(ML_DATUM);
-                tft.drawString("lower is better", r.x + 100, r.y + r.h / 2, 1);
+            /* In the gap between the name and the best value, measured from
+             * both. It was at a typed-in r.x + 100, which ran under a value
+             * as wide as "35moves". The longest wording that fits whole is
+             * drawn, or none: the name and the numbers are the ones that
+             * have to win. */
+            if (score->lowerIsBetter) {
+                snprintf(value, sizeof(value), "%u%s", best, score->unit);
+                /* The name as drawn: fitted() never returns one wider than
+                 * labelMaxW, so the shorter of the two is its width. */
+                const int16_t nameW = min<int16_t>(tft.textWidth(score->label, 2),
+                                                   col.labelMaxW);
+                const int16_t gapLeft = static_cast<int16_t>(r.x + 8 + nameW + 6);
+                const int16_t gapRight = static_cast<int16_t>(
+                    col.firstRight - tft.textWidth(value, 2) - 6);
+                static const char* const NOTES[] = {"lower is better", "lower wins"};
+                for (const char* note : NOTES) {
+                    if (tft.textWidth(note, 1) <= gapRight - gapLeft) {
+                        tft.setTextColor(Ui::muted(), Ui::surface());
+                        tft.setTextDatum(MR_DATUM);
+                        tft.drawString(note, gapRight, r.y + r.h / 2, 1);
+                        break;
+                    }
+                }
             }
         }
 
@@ -333,8 +376,8 @@ void ScoresApp::render(GameHost& host) {
         const bool canPrev = page_ > 0;
         const bool canNext = page_ + 1 < pages;
         Ui::drawPagerButton(tft, prevRect(sW, sH), "Prev", canPrev);
-        Ui::drawButton(tft, switchRect(sW, sH), "Switch player", Ui::rgb(36, 132, 204),
-                       Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, switchRect(sW, sH), "Switch player", Ui::accent(),
+                       Ui::outline(), Ui::onFill(Ui::accent()), false, 2);
         Ui::drawPagerButton(tft, nextRect(sW, sH), "Next", canNext);
     } else {
         // Device tab: device-wide best
@@ -343,9 +386,8 @@ void ScoresApp::render(GameHost& host) {
         if (needsFullRender()) {
             if (playerCount == 1) {
                 // Only one player, explain the situation
-                tft.setTextDatum(TL_DATUM);
                 tft.setTextColor(Ui::muted(), Ui::bg());
-                tft.drawString("Add a player to compete", 8, 60, 1);
+                drawTabRowNote(tft, "Add a player to compete", false, sW);
             }
         }
 
@@ -382,13 +424,15 @@ void ScoresApp::render(GameHost& host) {
                 tft.setTextColor(Ui::success(), Ui::surface());
                 tft.drawString(scoreStr, col.firstRight, r.y + r.h / 2, 2);
 
-                /* Who holds it, in the second -- gold when it is this player.
+                /* Who holds it, in the second -- the theme's warning colour
+                 * when it is this player. It was a fixed gold, which vanished
+                 * on the light themes' cards.
                  * On a panel with room for only one column the score stays and
                  * the name goes: a record with no holder is still a record,
                  * but a holder with no number says nothing at all. */
                 if (col.showSecond && db.holder < Board::MAX_PLAYERS) {
                     uint16_t holderColor = (board.activeProfile() == db.holder)
-                        ? Ui::rgb(255, 200, 0)
+                        ? Ui::warning()
                         : Ui::muted();
                     tft.setTextColor(holderColor, Ui::surface());
                     tft.setTextDatum(MR_DATUM);
@@ -403,8 +447,8 @@ void ScoresApp::render(GameHost& host) {
         const bool canPrev = page_ > 0;
         const bool canNext = page_ + 1 < pages;
         Ui::drawPagerButton(tft, prevRect(sW, sH), "Prev", canPrev);
-        Ui::drawButton(tft, switchRect(sW, sH), "Switch player", Ui::rgb(36, 132, 204),
-                       Ui::outline(), TFT_WHITE, false, 2);
+        Ui::drawButton(tft, switchRect(sW, sH), "Switch player", Ui::accent(),
+                       Ui::outline(), Ui::onFill(Ui::accent()), false, 2);
         Ui::drawPagerButton(tft, nextRect(sW, sH), "Next", canNext);
     }
 
