@@ -2257,7 +2257,7 @@ def screensaver():
 
 
 # ---- Go --------------------------------------------------------------------
-# Geometry from src/games/GoDraw.cpp: BX, BY, STEP and MARGIN for the 9x9
+# Geometry from src/games/GoDrawArt.h and GoLayout.cpp: BX, BY, STEP and MARGIN for the 9x9
 # board, and the panel rectangles derived from the board's box.
 GO_BX, GO_BY, GO_STEP, GO_MARGIN = 5, 34, 23, 9
 GO_BOX = 8 * GO_STEP + 2 * GO_MARGIN
@@ -2296,7 +2296,7 @@ def go(played=False):
 
     The board is drawn as the device draws it -- wood, the grid, the five
     star points, stones at 46% of a step -- and every rectangle in the panel
-    is the one GoDraw.cpp derives from the board's box."""
+    is the one GoLayout.cpp derives from the board's box."""
     im, d = blank(); topbar(d, "Go")
     d.rectangle([GO_BX, GO_BY, GO_BX + GO_BOX - 1, GO_BY + GO_BOX - 1], fill=GO_WOOD)
     for i in range(9):

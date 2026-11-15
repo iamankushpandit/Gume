@@ -294,7 +294,11 @@ private:
     uint16_t alive_[Go::MAX_POINTS] = {};
     Go::Score score_{};
 
-    char message_[26] = {0};
+    /* What the info box says. Sized to the box rather than to the longest
+     * message: two lines of 15 font-1 characters, so the buffer is never the
+     * limit. It was 26, which cut the last letter off "Tap groups that cannot
+     * live" and "CPU marked. Fix, then Agree". */
+    char message_[31] = {0};
     uint32_t confirmUntilMs_ = 0;
 
     // ---- a nearby game ------------------------------------------------------------

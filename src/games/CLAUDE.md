@@ -591,9 +591,11 @@ computer, declared in the same header), both pure and host-tested by
 Split like Backgammon: `GoRules` (the rules, scoring and the wire encoding)
 and `GoAi.cpp` (both computer levels and the dead-stone estimate, declared
 in the same header), both pure and host-tested by
-`test/host/go_rules_test.cpp`; `GoGame.cpp` (flow and input), `GoDraw.cpp`,
-`GoNet.cpp` (the lobby and the nearby game) and `GoSave.cpp`. `GoRules.h`
-states the rules as played.
+`test/host/go_rules_test.cpp`; `GoGame.cpp` (flow and input), `GoLayout.cpp`
+(every rectangle), `GoDraw.cpp` (the board, the result card, render),
+`GoPanel.cpp` (the side panel), all three over the constants and colours in
+`GoDrawArt.h`; `GoNet.cpp` (the lobby and the nearby game) and `GoSave.cpp`.
+`GoRules.h` states the rules as played.
 
 - **Legality has one definition: `Go::legal()`**, and one way to change the
   board: `Go::play()`, which refuses an illegal move and changes nothing.
@@ -604,8 +606,10 @@ states the rules as played.
   button greys and the computer plays its least bad move rather than
   passing. Territory sets `over` on the second pass with `winner` still
   EMPTY: the marking phase decides, through `score(dead)`.
-- **The computer never fills its own eye** -- `fillsOwnEye()` is the one
-  veto in the move generator and in the random playouts, because a playout
+- **The computer never fills its own eye while it has another move** --
+  under a Capture rule set, with no pass, eyes can be all that is left, and
+  then it must fill one. `fillsOwnEye()` is the one veto in the move
+  generator and in the random playouts, because a playout
   that fills its own eyes kills its own groups and judges every position
   wrong. Easy is `chooseEasy()`, now. Medium is `beginSearch()` then
   `stepSearch()` with a microsecond budget each frame (`CPU_SLICE_US`)
