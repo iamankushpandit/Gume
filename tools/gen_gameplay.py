@@ -568,7 +568,8 @@ SEQUENCES = {
     "fractions": lambda: quiz(gs.fractions),
     "counting": counting,
     "shapearith": lambda: quiz(lambda: gs.shapearith(answered=False), after=gs.shapearith),
-    "numberline": lambda: quiz(gs.numberline),
+    # The answer, 9, is the second button: (14 + 74, 194, 64, 38).
+    "numberline": lambda: tap(gs.numberline(False), gs.numberline(True), (120, 213)),
     "calendar": lambda: quiz(gs.calendar),
     "colormix": lambda: quiz(gs.colormix),
     "percent": lambda: quiz(gs.percent),

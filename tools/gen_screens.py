@@ -3260,26 +3260,45 @@ def calendar():
     return im
 
 
-def numberline():
+def numberline(answered=True):
+    """Number Line, level 2: the question first, then the frog checks it.
+
+    Geometry from NumberLineGame.cpp: header at y=34, the question centred on
+    y=62 in font 4, the note on y=90, the line at y=162 from x=22 over 276px,
+    the frog 14px above it, buttons at (14 + i*74, 194, 64, 38). The options
+    are NumberLineCourse's for 6 + 3: the start counted as a hop (8), the
+    frog sent the wrong way and the hop count read off (both 3), one past.
+    """
     im, d = blank(); topbar(d, "Number Line")
-    d.text((8, 34), "3 + 4 = ?", font=F4, fill=TEXT)
-    d.text((W - 8 - d.textlength("2/5", font=F2), 38), "2/5", font=F2, fill=TEXT)
-    y = 130
-    x0, x1 = 24, 296
-    d.line([(x0, y), (x1, y)], fill=TEXT, width=2)
+    d.text((8, 34), "Level 2", font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("4/5", font=F2), 34), "4/5", font=F2, fill=TEXT)
+    q = "6 + 3 = 9" if answered else "6 + 3 = ?"
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 49), q, font=F4,
+           fill=SUCCESS if answered else TEXT)
+    note = "Correct!" if answered else "Where will the frog land?"
+    d.text((W / 2 - d.textlength(note, font=F2) / 2, 82), note, font=F2,
+           fill=SUCCESS if answered else MUTED)
+    y = 162
+
+    def nx(n):
+        return 22 + n * 276 // 10
+
+    if answered:
+        for k in range(3):
+            d.arc([nx(6 + k), y - 20, nx(7 + k), y + 20], 180, 360, fill=(255, 200, 0), width=2)
+    d.line([(18, y), (302, y)], fill=TEXT, width=1)
     for n in range(11):
-        x = x0 + n * (x1 - x0) // 10
+        x = nx(n)
         d.line([(x, y - 6), (x, y + 6)], fill=TEXT)
-        d.text((x - 3, y + 10), str(n), font=F1, fill=MUTED)
-    hx = x0 + 3 * (x1 - x0) // 10
-    d.ellipse([hx - 8, y - 8, hx + 8, y + 8], fill=(255, 246, 178), outline=(160, 140, 60))
-    for k in range(3):
-        ax = x0 + (3 + k) * (x1 - x0) // 10
-        bx = x0 + (4 + k) * (x1 - x0) // 10
-        d.arc([ax, y - 26, bx, y], 180, 360, fill=SUCCESS, width=2)
-    for i, v in enumerate(["7", "6", "8", "5"]):
+        d.text((x - d.textlength(str(n), font=F1) / 2, y + 9), str(n), font=F1, fill=TEXT)
+    at = 9 if answered else 6
+    fx, fy = nx(at), y - 14
+    d.ellipse([fx - 9, fy - 9, fx + 9, fy + 9], fill=(80, 230, 80), outline=TEXT)
+    d.text((fx - d.textlength(str(at), font=F1) / 2, fy - 4), str(at), font=F1, fill=(0, 0, 0))
+    for i, v in enumerate(["8", "9", "3", "10"]):
+        ok = answered and v == "9"
         button(d, (14 + i * 74, 194, 64, 38), v,
-               SUCCESS if v == "7" else PANEL, (0, 0, 0) if v == "7" else TEXT, F4)
+               SUCCESS if ok else (36, 132, 204), (0, 0, 0) if ok else (255, 255, 255), F4)
     return im
 
 

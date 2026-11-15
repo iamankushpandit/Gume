@@ -134,6 +134,22 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Number Line is a course of nine levels, and no longer gives the answer
+away.** The frog used to hop to the answer and stand on it with the number
+written inside before the buttons appeared, so a player who could read a
+numeral could not be wrong, and there were thirty questions. Now only the
+first level shows the hops first and asks where the frog landed; from the
+second the question comes first and the frog hops afterwards to check it.
+The levels: adding within five, adding and taking away within ten, how many
+hops from one mark to another, crossing ten in two hops -- to ten and then
+the rest -- hops of ten to a hundred, which ten a number is nearest, equal
+hops from zero, and the line from -5 to 5. The level is kept between visits,
+every question of a level comes up before any repeats, the wrong buttons are
+the mistakes the line invites -- the starting mark counted as a hop, the
+hop count read off as the answer, a ten lost crossing ten -- and a hop
+repaints the line and nothing else, where it used to clear everything under
+the top bar.
+
 **Time is a course of ten levels.** It used to work its level out of the
 visit's score, so every visit began at o'clock, and its wrong answers were
 whole hours away on the first two levels -- the minute hand was never tested

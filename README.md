@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-84.2%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-84.3%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,648,545 / 3,145,728 bytes of the app partition (**84.2%**) |
-| RAM | 92,988 / 327,680 bytes (**28.4%**) |
+| Flash | 2,651,997 / 3,145,728 bytes of the app partition (**84.3%**) |
+| RAM | 93,124 / 327,680 bytes (**28.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -382,7 +382,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Counting** | "How many objects?" — tap the matching number, over seven levels: to five in a row, to ten on a ten-frame, scattered with no pattern (none at all included), to twenty in two rows of ten, one more and one less, tens and ones to 99 with rods of ten, and counting in twos, fives and tens | One-to-one correspondence first — counting means one number for each object — then seeing five and ten at a glance, place value and skip counting, which adding and the times tables are built on. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, and one answered wrong comes back a few questions later |
 | **Fingers** | Numbers to ten on two hands, over six levels: one hand, raised in order from the thumb; a whole hand and some more; any fingers; how many are down; both hands added together; and changing a number already shown (*"Make it 4"*). Each level asks *"How many fingers?"* and the player taps the number, or *"Show me 7 fingers"* and the player raises them and taps Done | Counting on hands in **both** directions — recognising a quantity and producing one — then five as a whole hand, the partners of ten, adding on two hands and counting on and back. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and showing a number ends on Done, so tapping fingers without counting can be wrong |
 | **Shape Arith** | Adding and taking away with shapes the player can count, over eight levels: adding to five, taking away within five, the same within ten in rows of five, zero (adding nothing, taking nothing, taking everything), how many more fill a frame of five to ten, adding past ten and taking away back past ten. A second group arrives a shape at a time; a group taken away blinks, goes, and stays in view beside what is left | Makes adding and taking away concrete before they are written: joining two groups and removing one, with every answer there to be counted, through zero and the step across ten that Math then asks with numerals only. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, one answered wrong comes back a few questions later, and the wrong buttons are the mistakes players really make, such as counting the shapes taken away instead of the ones left |
-| **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic |
+| **Number Line** | A frog hops along a number line, over nine levels: first the player watches the hops and reads where it landed; from then on the question comes first and the frog checks the answer. Adding and taking away within ten, how many hops from one mark to another (*3 + ? = 8*), crossing ten in two hops — to ten, then the rest — hops of ten to a hundred, which ten a number is nearest, equal hops from zero, and the line below zero | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic — then the strategies built on it: bridging through ten, counting in tens, rounding, skip counting and negative numbers. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the mistakes the line invites, such as counting the starting mark as the first hop |
 | **Math** | "Tap the answer" — adding and taking away in twelve levels, numerals only: sums to ten, number bonds (4 + ? = 10), crossing ten, tens and ones, carrying, borrowing, three-digit sums and two-digit missing numbers (? + 38 = 75). From level 4 about a third of the questions arrive as **word problems**: "Nia has 21 shells and gives 8 away. How many are left?" | Quick, sure recall of the adding and taking-away facts, then carrying, borrowing and finding a missing number, and working out which sum a sentence is asking for. Each player's level is kept: it goes up with steady right answers and quietly back down after repeated misses. On the first five levels every question comes up before any repeats and a missed one comes back a few questions later, and the wrong buttons are the mistakes players really make, such as forgetting to carry |
 | **Multiply** | "Tap the product" — the times tables in teaching order, twelve levels: twos, fives and tens; threes and fours; 0 and 1; sixes and eights; sevens and nines; elevens and twelves; all of them mixed. Then missing numbers (? x 7 = 56) and division as the same facts backwards, up to 144 ÷ 12 | Fluent recall of the multiplication facts, then the link between multiplying and dividing. Each player's level is kept and goes up or down with their answers, every fact in a level comes up before any repeats, and a missed one comes back a few questions later. The wrong buttons are the neighbouring facts, such as 49 offered for 7 x 8 |
 | **Fractions** | "Pick the matching fraction" against a pie chart | Connects the written fraction to the amount it represents |
@@ -461,10 +461,11 @@ overrides by hand, and the choice persists.
 
 ### A level kept for each player
 
-**Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers** and
-**Time** are courses: twelve levels of adding and taking away, twelve of times
-tables and division, seven of counting, eight of adding and taking away with
-shapes, six of numbers to ten on the hands, ten of reading a clock. Each
+**Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**
+and **Number Line** are courses: twelve levels of adding and taking away,
+twelve of times tables and division, seven of counting, eight of adding and
+taking away with shapes, six of numbers to ten on the hands, ten of reading a
+clock, nine on the number line. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 
