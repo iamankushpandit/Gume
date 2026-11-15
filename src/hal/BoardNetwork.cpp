@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <time.h>
+#include "SleepPower.h"
 #include "Watchdog.h"
 
 namespace {
@@ -330,6 +331,9 @@ bool Board::timeSynced() const {
 }
 
 void Board::beginTimeSync() {
+    /* A stopped station cannot join, and asking it to would only log a
+     * failure; waking brings it back and resets the state machine. */
+    if (wifiResting_) return;
     if (!ntpEnabled() || !hasWifiCredentials()) return;
     if (timeSyncState_ == TimeSyncState::Connecting ||
         timeSyncState_ == TimeSyncState::Syncing) return;
@@ -370,6 +374,12 @@ void Board::beginTimeSync() {
      * remembers. So persistence is off, and there is exactly one copy of the
      * password on the device -- the one this code owns, clears and can
      * account for. It is still plain text; see Board::setWifiCredentials(). */
+    joinSavedNetwork(now);
+    timeSyncStartedMs_ = now;
+    timeSyncState_ = TimeSyncState::Connecting;
+}
+
+void Board::joinSavedNetwork(uint32_t now) {
     WiFi.persistent(false);
     applyWifiHostname();
     WiFi.mode(WIFI_STA);
@@ -382,8 +392,6 @@ void Board::beginTimeSync() {
     applyWifiHostname();
     WiFi.begin(ssid.c_str(), pass.c_str());
     lastWifiBeginMs_ = now;
-    timeSyncStartedMs_ = now;
-    timeSyncState_ = TimeSyncState::Connecting;
 }
 
 /* Program lwIP's SNTP client, at most once per real configuration change.
@@ -529,6 +537,11 @@ void Board::syncTimeNow() {
 }
 
 void Board::tickTimeSync() {
+    /* Asleep with the station stopped: nothing here may start it again. The
+     * Synced branch in particular would see the link gone at its next resync
+     * and go back to Idle, and Idle joins -- the radio would be back on
+     * within the hour, all night. */
+    if (wifiResting_) return;
     const uint32_t now = millis();
 
     switch (timeSyncState_) {
@@ -593,5 +606,61 @@ void Board::tickTimeSync() {
                 }
             }
             break;
+    }
+}
+
+/* WI-FI IS STOPPED WHILE THE PANEL SLEEPS, AND COMES BACK WITH IT.
+ *
+ * Before this the station stayed associated all night behind a dark panel,
+ * waking for the router's beacons and answering its keep-alives, and that
+ * was one of the three things that flattened a 3000 mAh pack overnight on an
+ * E32R40T. Nothing needs the network while nobody is looking: the clock keeps
+ * time on its own, and the update check is daily.
+ *
+ * The station is stopped, not switched off -- see SleepPower::stopStation()
+ * for why the difference is a panic -- so the Bluetooth beacon and the Nearby
+ * scanner carry on, and a find from another console still wakes this one.
+ *
+ * On the way back the state machine is told to start again rather than left
+ * where it was. A clock that was Synced stays Synced, so a wake costs a join
+ * and no NTP query; the resync cadence then carries on from where it was, and
+ * finding the link down at that point is the ordinary Idle path. Anything
+ * else goes back to Idle with no attempt on record, so it joins at once.
+ * lastWifiBeginMs_ is cleared because its 30 s throttle is about our own
+ * WiFi.begin() storms, and the stop ended the last one. */
+void Board::restWifiForSleep() {
+    if (wifiResting_) return;
+    bool stopped = false;
+    {
+        const Watchdog::Pause wdtPause;
+        stopped = SleepPower::stopStation();
+    }
+    if (!stopped) return;
+    wifiResting_ = true;
+    Serial.println("[sleep] wifi station stopped while the panel sleeps");
+    logNetworkActivity("WiFi stopped (asleep)");
+}
+
+void Board::wakeWifiFromSleep() {
+    if (!wifiResting_) return;
+    wifiResting_ = false;
+    bool started = false;
+    {
+        const Watchdog::Pause wdtPause;
+        /* The interface keeps the name it was given at its last start, since
+         * a stop does not destroy the netif; applied again anyway, so the
+         * rule that every start is preceded by it holds here as well. */
+        applyWifiHostname();
+        started = SleepPower::startStation();
+    }
+    Serial.printf("[sleep] wifi station %s\n",
+                  started ? "started again" : "did not start");
+    logNetworkActivity(started ? "WiFi started (awake)" : "WiFi start failed");
+    lastWifiBeginMs_ = 0;
+    if (timeSyncState_ == TimeSyncState::Synced) {
+        if (hasWifiCredentials()) joinSavedNetwork(millis());
+    } else {
+        timeSyncState_ = TimeSyncState::Idle;
+        lastSyncAttemptMs_ = 0;
     }
 }

@@ -478,6 +478,27 @@ The runtime owns when (`BrainoApp::tickDeepSleep()`,
 `enter()` blocks for as long as the device sleeps, so its caller holds a
 `Watchdog::Pause`.
 
+## SleepPower: what panel sleep switches off besides the panel
+
+`SleepPower.h`, shaped like `SystemSuspend`: `SleepPowerEsp32.cpp` lowers the
+processor to 80 MHz (`lowerClock()` / `restoreClock()`) and stops and starts
+the Wi-Fi station (`stopStation()` / `startStation()`); the host's answers
+no, since `HostSleep` does the Linux equivalent. The runtime decides when
+(`enterSleep()`, `tickStationRest()`, `wakeFromSleep()`), and `Board::
+restWifiForSleep()` / `wakeWifiFromSleep()` keep the time sync state machine
+still while the station is down and set it going again after.
+
+**Stop, never `WiFi.mode(WIFI_OFF)`.** The core's `mode(WIFI_OFF)` follows
+`esp_wifi_stop()` with `esp_wifi_deinit()`, and a de-init beside a live
+Bluetooth controller is the teardown that has panicked this device (see
+BleBeacon below). `esp_wifi_stop()` keeps the driver and its netif. The
+core's own started flag stays set, so `WiFi.getMode()` still reads STA:
+`BleBeacon::tickRadio()` therefore keeps any deferred controller teardown
+deferred, which is the safe direction, and the next `WiFi.mode(WIFI_STA)`
+returns early as it always did. `esp_wifi_start()` raises STA_START, where
+the core re-applies its stored modem-sleep choice -- which is why
+`WifiApp::end()` must put that choice back to on.
+
 ## No charge detection
 
 There is no charging state, and there should not be one again without a

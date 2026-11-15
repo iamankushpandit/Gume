@@ -39,6 +39,21 @@ void WifiApp::startScan(GameHost& host) {
     markFullDirty();
 }
 
+/* MODEM SLEEP GOES BACK ON THE MOMENT THIS SCREEN IS LEFT.
+ *
+ * runScan() turns power saving off while the Bluetooth controller is down,
+ * because a sleeping radio misses probe responses. The core keeps that choice
+ * in a static and re-applies it at every start of the station, so nothing
+ * else ever turned it back on: once an owner had set Wi-Fi up, the radio
+ * stayed awake between beacons until the next reboot -- all night, behind a
+ * dark panel. That was one third of a pack going flat overnight on an
+ * E32R40T. Joining is done here too, so it is the screen being left, not the
+ * scan finishing, that ends the need. A short call with no wait in it. */
+void WifiApp::end(GameHost& host) {
+    (void)host;
+    WiFi.setSleep(true);
+}
+
 void WifiApp::runScan() {
     /* THIS BLOCKS FOR ABOUT FOUR AND A HALF SECONDS, ON PURPOSE.
      *

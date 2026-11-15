@@ -240,6 +240,10 @@ private:
      * sleep setting on, and wakes the panel when it comes back. */
     void tickDeepSleep(uint32_t nowMs);
     uint32_t deepSleepDueMs_ = 0;
+    /* The panel has been asleep SleepPower::STATION_REST_AFTER_MS: stop the
+     * Wi-Fi station until the next wake (Board::restWifiForSleep()). */
+    void tickStationRest(uint32_t nowMs);
+    uint32_t stationRestDueMs_ = 0;
 
     /* Going idle ends an admin session, exactly as a reboot does.
      *

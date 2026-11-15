@@ -11,6 +11,7 @@
 
 #include <math.h>
 #include "AppVersion.h"
+#include "hal/SleepPower.h"
 #include "hal/SystemSuspend.h"
 #include "hal/Watchdog.h"
 
@@ -51,9 +52,28 @@ void BrainoApp::enterSleep() {
     }
     board_.setRgbColor(0, 0, 0);
     board_.displaySleep();
+    /* After the panel, so the last thing drawn went over SPI at full speed.
+     * Nothing is drawn at the lower clock: wakeFromSleep() puts it back
+     * before the panel wakes. */
+    SleepPower::lowerClock();
     Watchdog::setContext("Asleep");
     view_ = View::Asleep;
     deepSleepDueMs_ = millis() + SystemSuspend::AFTER_ASLEEP_MS;
+    stationRestDueMs_ = millis() + SleepPower::STATION_REST_AFTER_MS;
+}
+
+/* Asleep for a while: the Wi-Fi station goes off until the next wake. Not at
+ * once, so a console put down for a moment comes back still on the network;
+ * a wake before the deadline never stopped anything. Asked again every poll
+ * rather than once, and Board answers nothing when it is already resting or
+ * there is no station to stop -- no Wi-Fi configured, or the platform
+ * (the Linux host) handles its own radio. */
+void BrainoApp::tickStationRest(uint32_t nowMs) {
+    if (board_.wifiResting()) return;
+    if (static_cast<int32_t>(nowMs - stationRestDueMs_) < 0) return;
+    board_.restWifiForSleep();
+    /* A station that would not stop is not retried every 100 ms. */
+    stationRestDueMs_ = nowMs + SleepPower::STATION_REST_AFTER_MS;
 }
 
 /* The panel has been dark for a while and nobody has touched it: stop the
@@ -90,6 +110,12 @@ void BrainoApp::wakeFromSleep() {
     const bool lock = board_.wakeLockEnabled() || lockOnWake_;
     {
         Watchdog::Pause guard;
+        /* Full clock before anything is drawn, and the station started
+         * before the screen comes back, so the join is under way while the
+         * owner unlocks. The join itself is the state machine's and does not
+         * block. */
+        SleepPower::restoreClock();
+        board_.wakeWifiFromSleep();
         board_.displayWake();
         /* The lock screen's first paint goes inside the guard as well. The
          * panel has to be painted in the same frame it lights -- otherwise it

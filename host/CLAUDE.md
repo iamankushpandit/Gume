@@ -182,8 +182,10 @@ synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
 What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
-regex: the hardware watchdog, the codec/DAC backend, and the two per-platform
-interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Host*.cpp`, and each says why.
+regex: the hardware watchdog, the codec/DAC backend, and the three per-platform
+interfaces, `PowerProbe`, `SystemSuspend` and `SleepPower` (which answers no
+to everything here: `HostSleep` already slows the cores and takes the Wi-Fi
+interface down). Their host versions are in `src/Host*.cpp`, and each says why.
 
 ## How it fits together
 

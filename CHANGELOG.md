@@ -10,6 +10,24 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**An asleep console no longer drains its battery overnight.** A tester's
+4-inch console went from a full 3000 mAh pack to about a tenth overnight with
+the screen dark. Sleep only switched the panel off; three other things kept
+running, and all three are fixed on the ESP32 boards:
+
+- **Wi-Fi power saving comes back on when you leave the Wi-Fi screen.**
+  Scanning turns it off so that no network is missed, and nothing turned it
+  back on until a restart, so a console that had ever had Wi-Fi set up kept
+  its radio fully awake from then on.
+- **Wi-Fi switches off after five minutes asleep**, and reconnects as soon as
+  the screen is touched, while you unlock. The clock keeps time meanwhile and
+  is not asked to sync again just for waking. Bluetooth is left alone, so a
+  console with the beacon on is still seen in Nearby and can still be found.
+- **The processor slows from 240 MHz to 80 MHz while asleep**, and is back at
+  full speed before anything is drawn.
+
+None of this has been measured on a board yet.
+
 **A notice is along the bottom of the screen now, and the header stays whole.**
 A low battery, a newer firmware and Nearby each raise a one-line strip. It was
 painted over the top bar, so for as long as it was up there was no Home, no
