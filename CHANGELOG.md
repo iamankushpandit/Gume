@@ -551,6 +551,37 @@ message too long even for two ends in a mark rather than losing words. The
 message buffer was one character short for the two longest messages, which
 had lost their last letter; it is now sized to what the box can show.
 
+Percent's answer buttons also take their ink from the theme now. A right or
+wrong answer was written in black on the green or red fill whatever the
+theme, so on the themes whose success and error colours are dark the number
+on the button went dark with them. It is `Ui::onFill()` of the fill, as on
+every other quiz. And "Try again" was written in small type across the
+middle of the question for as long as the red flash lasted; it is in the
+strip along the bottom now, beside the score. The read-the-circle mock-up
+draws the question where the game does, large and centred over the buttons.
+
+**Scores shows whose scores they are.** The player's name and the `best` /
+`worst` headings were drawn inside the first row, which was painted after
+them, so on every board and in both orientations the screen showed five rows
+and no name ([issue 143](https://github.com/iamankushpandit/Gume/issues/143)).
+The rows already use all the height there is, so the name moved up to the tab
+row, right-aligned beside the Mine and Device tabs, and the headings are gone:
+best is green, worst is grey, and a game where lower is better says so in its
+row. All five rows a page are kept. The Device tab's "Add a player to compete"
+moved to the same place, and is left out on a panel too narrow to hold it
+whole. The mock-ups had drawn the rows a row lower than the device does, which
+is how this went unseen; they now match it. "lower is better" sat at a fixed
+place in its row and ran under a best score as wide as `35moves`; it now goes
+in the gap between the game's name and the score, as "lower wins" where that
+is all that fits, and not at all where nothing does.
+
+The same screen ignored the theme in two places: Switch player was a fixed
+blue with white text, and the record holder's name, when it is you, a fixed
+gold that disappeared on the light themes' cards. They are the theme's accent
+and warning colours now. Scores is also on the theme sheets again -- they
+asked for a screen called `scores` that no longer existed, and left it out
+without saying so.
+
 ## attaky-1.0.0-SNAPSHOT — Unreleased
 
 Braino! for Attaky: the same console on Attaky's modular handhelds, released

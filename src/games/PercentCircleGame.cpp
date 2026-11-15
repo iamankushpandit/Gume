@@ -17,6 +17,9 @@ constexpr uint16_t PERCENT_OUTLINE = 0x2478;  // Ui::rgb(36, 132, 204) - blue
 constexpr int16_t CIRCLE_CX = 96;
 constexpr int16_t CIRCLE_CY = 130;
 constexpr int16_t CIRCLE_RADIUS = 62;
+/* The strip along the bottom: the score line, and "Try again" beside it. */
+constexpr int16_t STRIP_Y = 222;
+constexpr int16_t STRIP_H = 18;
 
 /* A flashIndex_ that is not one of the four option buttons: the make round's
  * OK was pressed on the wrong amount. That round has no option to flash, and
@@ -268,11 +271,11 @@ void PercentCircleGame::drawReadCircleMode(Ui::Renderer& tft) const {
 
         if (roundComplete_ && i == correctButton_) {
             fill = Ui::success();
-            text = TFT_BLACK;
+            text = Ui::onFill(fill);
             outline = Ui::success();
         } else if (flashIndex_ == i) {
             fill = Ui::error();
-            text = TFT_BLACK;
+            text = Ui::onFill(fill);
             outline = Ui::error();
         }
 
@@ -323,11 +326,11 @@ void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft) const {
 
         if (roundComplete_ && i == correctButton_) {
             fill = Ui::success();
-            text = TFT_BLACK;
+            text = Ui::onFill(fill);
             outline = Ui::success();
         } else if (flashIndex_ == i) {
             fill = Ui::error();
-            text = TFT_BLACK;
+            text = Ui::onFill(fill);
             outline = Ui::error();
         }
 
@@ -449,7 +452,7 @@ void PercentCircleGame::renderDynamic(AppContext& host) {
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.fillRect(0, 222, GAME_CANVAS_WIDTH, 18, Ui::bg());
+    tft.fillRect(0, STRIP_Y, GAME_CANVAS_WIDTH, STRIP_H, Ui::bg());
     char scoreStr[48];
     snprintf(scoreStr, sizeof(scoreStr), "Score: %u  Streak: %u  Lvl: %u", score_, streak_, level());
     tft.drawString(scoreStr, 8, 226, 1);
@@ -463,11 +466,14 @@ void PercentCircleGame::renderDynamic(AppContext& host) {
         tft.drawString("Tap next", 160, 150, 2);
         tft.setTextDatum(TL_DATUM);
     } else if (flashIndex_ >= 0 && flashIndex_ != SUBMIT_REFUSED) {
-        /* Not for the make round: its refusal is the OK button itself, and
-         * this line would be written across the middle of "Shade N%". */
+        /* In the score strip, right of the score line, which the strip's own
+         * fill above clears on every repaint. It was centred on (160, 60) --
+         * the middle of the question, drawn over "What percent?" in a smaller
+         * font for as long as the red flash lasted. Not for the make round:
+         * its refusal is the OK button itself. */
         tft.setTextColor(Ui::error(), Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", 160, 60, 2);
+        tft.setTextDatum(MR_DATUM);
+        tft.drawString("Try again", GAME_CANVAS_WIDTH - 8, STRIP_Y + STRIP_H / 2, 2);
         tft.setTextDatum(TL_DATUM);
     }
 }
