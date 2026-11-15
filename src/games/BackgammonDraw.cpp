@@ -409,7 +409,7 @@ void BackgammonGame::drawPanel(Ui::Renderer& tft) {
 void BackgammonGame::drawSeatRow(Ui::Renderer& tft, const Rect& r, const NearbySeat& seat) {
     const RowKind kind = rowKind(seat);
     char label[40] = {0};
-    auto word = [&](const char* who, const char* partner) {
+    auto phrase = [&](const char* who, const char* partner) {
         switch (kind) {
             case RowKind::Invites: snprintf(label, sizeof(label), "%s invites you", who); break;
             case RowKind::Asking:
@@ -426,10 +426,10 @@ void BackgammonGame::drawSeatRow(Ui::Renderer& tft, const Rect& r, const NearbyS
     };
     /* The owner's names for the two consoles when they fit the row, and the
      * tags they advertise -- four characters, which always fit -- when not. */
-    word(seat.name[0] != 0 ? seat.name : seat.deviceId,
+    phrase(seat.name[0] != 0 ? seat.name : seat.deviceId,
          seat.partnerName[0] != 0 ? seat.partnerName : seat.partner);
     if (tft.textWidth(label, 2) > r.w - 12) {
-        word(seat.deviceId, seat.partner);
+        phrase(seat.deviceId, seat.partner);
     }
     if (!rowPressable(kind)) {
         /* Busy with somebody else, and so not a button: a flat fill with no
