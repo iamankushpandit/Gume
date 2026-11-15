@@ -14,6 +14,7 @@
 #include "AppVersion.h"
 #include "FirmwareVersion.h"
 #include "BuildStamp.h"
+#include "hal/PanelSize.h"
 
 /* The boot banner: what this board is and which firmware it is running,
  * printed once from begin(). Kept out of AppRuntime.cpp so the runtime
@@ -122,7 +123,7 @@ void BrainoApp::logIdentity() {
      * one that does not touch the panel at all. */
     Serial.printf("[boot] panel=%s%s %dx%d bl=IO%d\n",
                   GUME_PANEL_DRIVER, GUME_PANEL_INVERTED ? "+inv" : "",
-                  (int)BOARD.panel.nativeWidth, (int)BOARD.panel.nativeHeight,
+                  (int)PanelSize::nativeWidth(), (int)PanelSize::nativeHeight(),
                   (int)BOARD.panel.backlightPin);
 
     Serial.printf("[boot] touch=%s cs=IO%d irq=IO%d sd=%s rgb=%s bat=%s\n",

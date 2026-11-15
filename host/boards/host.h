@@ -28,10 +28,15 @@
  * pixels and has nothing to calibrate, so BoardTouch.cpp runs exactly the path
  * it runs on the FNK0104B and the calibration wizard is never offered.
  *
- * The panel is the canvas size exactly, 240x320 native and landscape at
- * rotation 1, so ScaledRenderer stays a passthrough and the window scales the
- * finished picture instead -- 2x on a 640x480 handheld, which is an exact
- * fit. */
+ * The panel stated here is NOT the panel. It is the canvas size, 240x320
+ * native and landscape at rotation 1, because a profile is compile-time and
+ * the static_asserts in BoardConfig.h want a size to check: this is the
+ * smallest panel the build accepts. The real one is found when the program
+ * starts -- the handheld's display mode, the desktop's, or BRAINO_PANEL --
+ * and src/ reads it through PanelSize (src/hal/PanelSize.h,
+ * host/src/HostPanelSize.cpp), never through SCREEN_WIDTH / SCREEN_HEIGHT.
+ * The landscape rotation must stay odd: the host's frame is landscape at
+ * rotation 1. */
 
 namespace HostPin {
 constexpr int8_t BACKLIGHT = 1;

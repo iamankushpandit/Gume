@@ -456,10 +456,15 @@ Before adding support for a new hardware variant, complete a comprehensive hardw
 
 ### 3. Architecture changes for multi-board support (applies if adding non-playable-game code)
 
-1. **`ScaledRenderer` or similar display scaling** — if supporting different resolutions (e.g., 240×320 vs 480×320)
-   - Games author to fixed 320×240 logical canvas
-   - Renderer stretches to physical panel size
-   - Touch reverse-scales from physical space back to logical canvas
+1. **Every platform draws at its own resolution** — 240×320, 480×320, 640×480 or anything else
+   - The panel's size is `PanelSize` (`src/hal/PanelSize.h`), one implementation per
+     platform: a board answers from its profile, the host from the display it finds at
+     start-up. Read it, never `SCREEN_WIDTH`/`SCREEN_HEIGHT`, wherever you mean the
+     panel in front of the player; nothing draws 320×240 to be stretched afterwards
+   - Games author to fixed 320×240 logical canvas; `ScaledRenderer` fits it — the largest
+     whole scale, centred, text included, from twice the canvas up, the fractional fill below
+   - Touch maps back through the same transform (`ScaledRenderer::toCanvasX/Y`)
+   - System screens lay out against the live `tft.width()`/`tft.height()`
 
 2. **Pin abstraction layer** — already built; use it rather than adding to it
    - Do NOT hardcode pins in driver code. Read `BOARD` (`include/BoardProfile.h`)

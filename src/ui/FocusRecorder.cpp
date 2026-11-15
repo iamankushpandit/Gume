@@ -19,6 +19,7 @@
 
 #include <string.h>
 
+#include "hal/PanelSize.h"
 #include "ui/Stops.h"   // what the screen says about its board
 
 namespace Focus {
@@ -251,7 +252,8 @@ int targets(Target* out, int max) {
      * from the fourth they are a grid of controls. Measured on the host across
      * every screen. */
     const bool cardsAreControls = buttons == 0 || cards >= MIN_CARD_CONTROLS;
-    const int32_t quarter = static_cast<int32_t>(SCREEN_WIDTH) * SCREEN_HEIGHT / 4;
+    const int32_t quarter =
+        static_cast<int32_t>(PanelSize::landscapeWidth()) * PanelSize::landscapeHeight() / 4;
     for (const Mark& m : s_marks) {
         if (!m.valid || count >= max) continue;
         /* The screen's own word about its board comes first: a quiet board

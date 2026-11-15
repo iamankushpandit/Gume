@@ -569,6 +569,21 @@ the road to Linux handhelds such as the Anbernic RG40XXV, and it is already
 the quickest way to see a real screen without a board. `host/CLAUDE.md` is
 the guide. Three things about it are load-bearing:
 
+- **Every platform draws at its own resolution, found at run time.** The
+  panel's size is `PanelSize` (`src/hal/PanelSize.h`), one implementation per
+  platform: a board answers from its profile (`hal/PanelSizeEsp32.cpp`), the
+  host from the display it found when it started -- 640x480 on the RG40XX V,
+  or `BRAINO_PANEL=WxH` (`host/src/HostPanelSize.cpp`). Nothing draws a
+  320x240 picture to be stretched by somebody else. Anything that means "the
+  panel in front of the player" -- the canvas fit, touch mapping, the boot
+  banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
+  are the profile's compile-time panel and on the host only the floor the
+  static_asserts check. System screens read `tft.width()` / `tft.height()`,
+  which is the same size turned to their rotation. Games keep their 320x240
+  canvas and `ScaledRenderer` fits it: the largest whole scale, centred, with
+  text at that scale, on a panel at least twice the canvas both ways (640x480
+  is exactly 2x); the fractional fill below that (the 4-inch board's
+  480x320). **A new platform implements `PanelSize` and gets the rest.**
 - **`host/` adapts to `src/`, never the reverse.** There is no host `#ifdef`
   under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
   answered by `host/src/`. It is deliberately outside `include/boards/`,
@@ -1693,7 +1708,7 @@ So: write the geometry once, at file scope, and derive every clear rectangle fro
 
 Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
-Playable games are authored against a fixed 320Ã—240 landscape canvas. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
+Playable games are authored against a fixed 320Ã—240 landscape canvas, which `ScaledRenderer` fits to the panel `PanelSize` reports -- a whole scale centred from twice the canvas up, the fractional fill below it. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
 
 **System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
@@ -1785,6 +1800,8 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           (what each button is for -- shared with the
                           Linux host), BoardExpander (the Core's AW9523s:
                           one driven, one parked as inputs),
+                          PanelSize (how big the panel is: the profile's
+                          on a board, found at start-up on the host),
                           BoardModules + modules/ (what is clipped on,
                           found at boot: the module table and one driver
                           file a module -- keyboard, gamepad, fuel gauge,

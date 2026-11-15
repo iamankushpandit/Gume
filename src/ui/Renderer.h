@@ -109,6 +109,12 @@ public:
     virtual float imageScaleX() const { return 1.0f; }
     virtual float imageScaleY() const { return 1.0f; }
 
+    /* Where the canvas's origin sits on the physical panel: non-zero only
+     * when ScaledRenderer has centred the canvas on a panel bigger than a
+     * whole multiple of it. Image helpers add it to the origin they compute. */
+    virtual float imageOriginX() const { return 0.0f; }
+    virtual float imageOriginY() const { return 0.0f; }
+
     /* The underlying physical renderer, bypassing any coordinate transform.
      * Image-blitting code that computes its own scaled origin and pushes raw
      * pixel data needs this -- ScaledRenderer's setAddrWindow would otherwise

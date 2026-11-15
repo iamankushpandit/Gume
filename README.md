@@ -1785,6 +1785,8 @@ src/
     PowerMonitor.cpp    where the battery went: the recorder
     PowerLedger.cpp     where the battery went: the analysis
     PowerProbeEsp32.cpp what an ESP32 board can measure of it
+    PanelSize.h         how big the panel is: every platform's own answer
+    PanelSizeEsp32.cpp  a board's: the profile's panel
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
     BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task

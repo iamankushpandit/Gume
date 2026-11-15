@@ -26,7 +26,8 @@ class TFT_eSPI;
 namespace HostPlatform {
 
 /* Where the pointer is pressing, in the rotation-1 landscape frame
- * (0..319, 0..239), or down=false. Read by the emulated FT6336U. */
+ * (0..panelWidth()-1, 0..panelHeight()-1), or down=false. Read by the
+ * emulated FT6336U. */
 struct Contact {
     bool down = false;
     int16_t x = 0;
@@ -35,6 +36,15 @@ struct Contact {
 
 bool begin(int argc, char** argv);
 void shutdown();
+
+/* The panel the firmware draws on, in the landscape frame (rotation 1), found
+ * by begin() and fixed for the run: the handheld's display mode, the desktop's
+ * when fullscreen, or the window's -- BRAINO_PANEL=WxH, 640x480 when not
+ * given -- and BRAINO_PANEL overrides the other two. Never smaller than the
+ * 320x240 game canvas. src/ reads it as PanelSize (host/src/HostPanelSize.cpp),
+ * and the frame the panel shim keeps is exactly this size. */
+int panelWidth();
+int panelHeight();
 
 /* Pump events and show the frame. Returns false once the user has asked to
  * quit. Cheap to call often: it presents at most once per display frame. */
@@ -46,7 +56,7 @@ bool quitRequested();
 void outputSize(int& w, int& h);
 
 /* Pump events and show `rgb` (w x h, 3 bytes a pixel) across the whole
- * window at its own resolution, instead of the 320x240 canvas. The boot
+ * window at its own resolution, instead of the firmware's frame. The boot
  * splash uses it; nothing the firmware draws does. Returns false once the
  * user has asked to quit. */
 bool presentImage(const uint8_t* rgb, int w, int h);

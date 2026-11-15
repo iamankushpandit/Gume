@@ -96,7 +96,7 @@ void TFT_eSPI::forgetFocus() {
 
 int TFT_eSPI::focusTargets(FocusBox* out, int max) const {
     int count = 0;
-    const int32_t quarter = FRAME_W * FRAME_H / 4;
+    const int32_t quarter = frameW_ * frameH_ / 4;
     int buttons = 0, cards = 0;
     for (const FocusMark& m : focus_) {
         if (m.valid) ++(m.button ? buttons : cards);

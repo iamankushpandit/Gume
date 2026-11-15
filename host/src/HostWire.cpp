@@ -14,12 +14,14 @@
  * flag in XH's top bits, which the firmware masks off. Coordinates are in
  * the panel's native portrait frame, the inverse of the quarter-turn
  * Board::mapTouch() applies: landscape (lx, ly) is reported as
- * (nativeWidth - 1 - ly, lx). */
+ * (nativeWidth - 1 - ly, lx), where nativeWidth is the panel's as found at
+ * start-up (PanelSize), not the profile's. */
 
 #include <Wire.h>
 
 #include "HostPlatform.h"
 #include "boards/host.h"
+#include "hal/PanelSize.h"
 
 TwoWire Wire;
 
@@ -60,7 +62,7 @@ uint8_t TwoWire::requestFrom(uint8_t address, uint8_t quantity, bool) {
     uint8_t regs[16] = {0};
     const HostPlatform::Contact c = HostPlatform::contact();
     if (c.down) {
-        const uint16_t rawX = static_cast<uint16_t>(BOARD.panel.nativeWidth - 1 - c.y);
+        const uint16_t rawX = static_cast<uint16_t>(PanelSize::nativeWidth() - 1 - c.y);
         const uint16_t rawY = static_cast<uint16_t>(c.x);
         regs[FT_REG_TD_STATUS] = 1;
         regs[FT_REG_TD_STATUS + 1] = static_cast<uint8_t>(0x80 | ((rawX >> 8) & 0x0F));   // contact event
