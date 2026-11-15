@@ -191,6 +191,18 @@ void BrainoApp::enterApp(const AppDefinition& app, bool carryOn, uint32_t awayMs
     Watchdog::setContext(app.title());
     applyRotation(rotationForActiveScreen());
     heapAtLaunch_ = ESP.getFreeHeap();
+    /* Somebody is asking this console for a game of this very app. The notice
+     * that said so is how the player got here, and the game's lobby is where
+     * it can be answered -- so the screen is begun, not taken up: begin() is
+     * where each nearby game puts its lobby in front of the player's own game
+     * (which it reads back from the save) and carries on with a nearby game
+     * still in the instance. resume() knows nothing of invitations. Asked
+     * after setActiveApp(), because that is what "this game" is read from. */
+    NearbySeat invitation;
+    if (carryOn && app.isCatalogApp() && NearbyPlay::inviteForUs(board_, invitation) &&
+        invitation.forThisGame) {
+        carryOn = false;
+    }
     if (carryOn) {
         activeGame_->resume(*this, awayMs);
     } else {
