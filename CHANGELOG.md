@@ -173,6 +173,38 @@ now runs 260ms in every 780ms -- the same share of the radio's time -- which
 never lets the two fall out of step for long, and a game waits fifteen
 seconds rather than six before pausing.
 
+**Every game played across consoles has a lobby that shows the room.**
+Chess, Go, Backgammon, Sea Battle and Ludo list every console nearby and what
+it is doing: inviting you, asking somebody else, playing whom, or free. A row
+that only describes a console is not drawn as a button. Three changes, each
+agreed with the maintainer as a change to how the existing beacon is used and
+none adding a byte to it:
+
+- **An invitation stands until it is answered** (issue 232). It left the air
+  after six seconds, so the console that asked waited for ever and a late tap
+  on the other became a second invitation crossing the first. It now stays up
+  until it is accepted, taken back or replaced; two consoles that ask each
+  other at once are settled by tag, with no clock.
+- **A game across consoles is the console's.** It is saved in the console's
+  own slot rather than the player's, kept through a change of player and a
+  power cut -- Guest included -- and never written over a player's own game
+  against the computer. Each game saves under its own key; all five shared
+  one, so playing Ludo destroyed a Chess game in the middle.
+- **Go states its rules and board in the session number**, so two consoles
+  with different chips can no longer play different games at each other.
+
+A console that is heard but has left the game -- lost it, started another,
+switched Nearby off -- now pauses the game like one gone quiet, with "Not in
+this game" on the card. On the other player's turn the board takes no press
+and the d-pad's selector does not stop on it. In Go the press that left the
+lobby no longer goes on to put a stone's ghost on the board, and the console
+that asked for a game of Go now takes in the answer. Go and Backgammon now
+take an ending that arrives after a move they never heard, and Sea Battle
+refuses a shot sent out of turn. A console you are playing no longer raises
+"is playing" notices over the board -- one sat on Sea Battle's End game --
+and the waiting card's *Keep waiting* is no longer cut short. Walked on two
+and three PC consoles through the loopback radio; not yet on two real radios.
+
 **Leaving a nearby game no longer ends it.** Going Home in the middle of a
 game of Chess, Go, Backgammon, Sea Battle or Ludo played across consoles
 saves it and keeps its last move on the air, so the other console still

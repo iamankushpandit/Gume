@@ -519,12 +519,20 @@ void GoGame::updateStops() {
 }
 
 void GoGame::update(AppContext& host, const TouchPoint& touch) {
-    const uint32_t now = millis();
+    frame(host, touch);
+    /* After the frame's work, not before: on the frame a move is played or
+     * arrives, or the card goes up, the stops must already say so. */
     updateStops();
+}
+
+void GoGame::frame(AppContext& host, const TouchPoint& touch) {
+    const uint32_t now = millis();
     if (mode_ == Mode::Lobby) {
         updateLobby(host, touch);
+        lobbyHold_ = mode_ != Mode::Lobby && (touch.justPressed || touch.down);
         return;
     }
+    if (lobbyHold_ && (touch.justPressed || !touch.down)) lobbyHold_ = false;   // a new press
     if (confirmShown_ && now >= confirmUntilMs_) {
         buttonsStale_ = true;
         markDirty();
@@ -563,6 +571,7 @@ void GoGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
     if (!touch.justPressed && !touch.down) return;
+    if (lobbyHold_) return;   // the rest of the press that left the lobby
     if (touch.justPressed && actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         pressAction(host, now);
         return;

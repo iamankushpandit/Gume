@@ -236,7 +236,12 @@ void evaluateInvite(Board& board, Known& entry, const BleScan::Sighting& seen) {
     const char* mine = BleBeacon::configured().deviceId;
     if (mine[0] == '\0' ||
         strncmp(seen.inviteTarget, mine, sizeof(seen.inviteTarget)) != 0) {
-        return;   // aimed at somebody else; a broadcast is heard by everyone
+        /* Aimed at somebody else; a broadcast is heard by everyone. If it was
+         * aimed at us a moment ago, ours is over -- withdrawn and put to
+         * another console, as a Ludo host does seat by seat -- and a notice
+         * still saying it is waiting must go with it. */
+        entry.sawInvite = false;
+        return;
     }
     if (entry.sawInvite && entry.lastInviteByte == seen.inviteSession) {
         return;   // the same invitation, still on air
@@ -331,7 +336,14 @@ void reconcile(Board& board) {
             entry->lastGame = seen.gameIndex;
             entry->lastScore = seen.bestScore;
 
-            if (gameChanged) {
+            /* Not about the console this one is playing a game with: its
+             * player is across the table, and a console that only went Home
+             * and back to the game would otherwise put a notice over the
+             * board -- over End game, in Sea Battle and Ludo. */
+            const BleBeacon::Advertisement& ours = BleBeacon::configured();
+            const bool partner = ours.hasTurn && entry->hasTurn &&
+                                 entry->turnSession == ours.turnSession;
+            if (gameChanged && !partner) {
                 const char* title = gameTitle(seen.gameIndex);
                 if (seen.sharesActivity && title != nullptr) {
                     snprintf(text, sizeof(text), "%s is playing %s",

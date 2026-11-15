@@ -130,6 +130,17 @@ the caller's. Four more things follow from a turn outliving its screen:
   with no score, and `PeerView::haveTheirScore` lets the Nearby screen print a
   dash instead of a nought that "beats" every lower-is-better record.
 
+**One toss per session.** `invite()` remembers the last coin with its game
+and session, and asking again under the same session -- Ludo putting its
+invitation back up for each console it seats -- reuses it: a second toss
+could tell a console that had read the first that the other side moves first
+now. The toss is spent once a turn goes up or the invitation is withdrawn,
+because `freshSession()` can hand a finished game's number out again. It also
+cancels a pending `stopTurnsLater()`, whose turn the invitation
+has just replaced, and `stopTurnsLater()` withdraws an invitation exactly as
+`stopTurns()` does. `inviteForUs()` returns an invitation for the app open here
+before one for another app, since that is the one the screen can answer.
+
 **What a lobby is told about a peer** is `fillSeat()`, the one place a
 `Known` becomes a `NearbySeat`: `inviting` (aimed at this console only),
 `forThisGame`, `asking` (inviting somebody else to the app open here),

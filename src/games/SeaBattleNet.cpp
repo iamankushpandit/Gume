@@ -371,6 +371,11 @@ void SeaBattleGame::pollOpponent(AppContext& host) {
      * console took longer over Shuffle. */
     if (phase_ == Phase::Placing) return;
     if (turn.from >= CELLS) return;
+    /* Their shot, on their turn only: a word out of turn would flip whose
+     * turn it is (that is worked out from the ply counts) and the two seas
+     * would disagree. One answering our shot is the exception, since that
+     * shot is what made it their turn. */
+    if (pendingCell_ == NO_CELL && ourTurn()) return;
 
     theirPly_ = turn.ply;
 

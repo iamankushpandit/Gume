@@ -56,6 +56,18 @@ uint32_t stopAtMs_ = 0;
  * its own way out, must not take it down. GAME_NONE: nobody's. */
 uint8_t turnOwner_ = BleBeacon::GAME_NONE;
 
+/* The last coin tossed, and for which game's which session. Asking again
+ * under the same session -- Ludo puts its invitation back up for each console
+ * it seats, and a game may re-ask after the radio blinked -- tosses nothing:
+ * a second toss could tell a console that has already read the first that the
+ * other side moves first now. The toss is spent once the invitation is
+ * answered (a turn goes up) or withdrawn: freshSession() can hand a finished
+ * game's number out again, and that is a new game and a new toss. */
+bool coinValid_ = false;
+uint8_t coinSession_ = 0;
+uint8_t coinGame_ = 0;
+bool coinWeMoveFirst_ = false;
+
 /* How an invitation's one payload byte is divided.
  *
  * Six bits of session id -- the app's own name for the game about to happen,
@@ -220,7 +232,16 @@ bool invite(const char* deviceId, uint8_t session, bool& weMoveFirst) {
      * the hardware generator: this does not need to be unpredictable to an
      * attacker, but it does need to not be the same every time, which is
      * exactly what a seeded PRNG on a device with no clock would give. */
-    weMoveFirst = (esp_random() & 1u) != 0;
+    const uint8_t s6 = static_cast<uint8_t>(session & SESSION_MASK);
+    if (coinValid_ && coinSession_ == s6 && coinGame_ == activeGameIndex_) {
+        weMoveFirst = coinWeMoveFirst_;
+    } else {
+        weMoveFirst = (esp_random() & 1u) != 0;
+        coinValid_ = true;
+        coinSession_ = s6;
+        coinGame_ = activeGameIndex_;
+        coinWeMoveFirst_ = weMoveFirst;
+    }
     const uint8_t payload = static_cast<uint8_t>(
         (session & SESSION_MASK) | (weMoveFirst ? 0 : SIDE_BIT));
     /* Which game, stated by the service rather than left for the caller to
@@ -230,6 +251,9 @@ bool invite(const char* deviceId, uint8_t session, bool& weMoveFirst) {
     /* An invitation takes the turn's place on the air (the payload has room
      * for one or the other), so whatever turn was there is nobody's now. */
     turnOwner_ = BleBeacon::GAME_NONE;
+    /* And a finished game's last word, if one was on its minute, has just
+     * been replaced: nothing is left for that clock to take down later. */
+    stopAtMs_ = 0;
     return BleBeacon::invitePeer(deviceId, payload, activeGameIndex_);
 }
 
@@ -268,13 +292,22 @@ bool inviteForUs(Board& board, NearbySeat& out) {
     if (!sessionsAllowed()) {
         return false;
     }
+    /* Two consoles can be asking this one at once, for two games. The one
+     * for the app open here comes first: that is the one this screen can
+     * answer, and the keep path asks exactly that when it reopens a game. */
     const char* mine = BleBeacon::configured().deviceId;
-    for (uint8_t i = 0; i < knownCount_; ++i) {
-        const Known& k = known_[i];
-        if (!k.inviting) continue;
-        if (strncmp(k.inviteTarget, mine, sizeof(k.inviteTarget)) != 0) continue;
-        fillSeat(board, k, out);
-        return true;
+    for (uint8_t pass = 0; pass < 2; ++pass) {
+        for (uint8_t i = 0; i < knownCount_; ++i) {
+            const Known& k = known_[i];
+            if (!k.inviting) continue;
+            if (strncmp(k.inviteTarget, mine, sizeof(k.inviteTarget)) != 0) continue;
+            if (pass == 0 && (activeGameIndex_ == BleBeacon::GAME_NONE ||
+                              k.lastGame != activeGameIndex_)) {
+                continue;
+            }
+            fillSeat(board, k, out);
+            return true;
+        }
     }
     return false;
 }
@@ -288,6 +321,7 @@ void publishTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
     BleBeacon::setTurn(session, ply, from, to, ack);
     turnOwner_ = activeGameIndex_;
     stopAtMs_ = 0;
+    coinValid_ = false;   // the invitation is answered: its toss is spent
 }
 
 void publishEnd(uint8_t session, uint8_t ply, uint8_t ack) {
@@ -301,6 +335,7 @@ void publishEnd(uint8_t session, uint8_t ply, uint8_t ack) {
     BleBeacon::setTurn(session, ply, END_SQUARE, END_SQUARE, ack);
     turnOwner_ = activeGameIndex_;
     stopAtMs_ = 0;
+    coinValid_ = false;
 }
 
 void stopTurns() {
@@ -308,6 +343,7 @@ void stopTurns() {
      * screen can send one. Left up, it could be accepted after the game that
      * sent it had gone, and the peer would wait in a game nobody is in. */
     BleBeacon::clearInvite();
+    coinValid_ = false;   // withdrawn: asking again is a new question
     /* The turn is taken down only by the game that put it up. */
     if (turnOwner_ != BleBeacon::GAME_NONE && turnOwner_ != activeGameIndex_) {
         return;
@@ -318,6 +354,11 @@ void stopTurns() {
 }
 
 void stopTurnsLater() {
+    /* An invitation on the air is always the caller's, as in stopTurns():
+     * a game leaving with its last word up must not leave a question
+     * standing for nobody to answer. */
+    BleBeacon::clearInvite();
+    coinValid_ = false;
     /* Only the game whose turn it is may set it going. */
     if (turnOwner_ != activeGameIndex_ || !BleBeacon::configured().hasTurn) {
         return;
@@ -337,6 +378,7 @@ void tickSessions() {
 
 void dropTurnsForOff() {
     stopAtMs_ = 0;
+    coinValid_ = false;
     /* Nearby or the beacon was switched off. Sessions are over, whichever
      * game they belonged to: a turn left in the payload would keep its flag
      * on the air with sharing off, and come back, stale, when it was switched

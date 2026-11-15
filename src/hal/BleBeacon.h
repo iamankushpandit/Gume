@@ -180,9 +180,10 @@ struct Advertisement {
     uint8_t pokeNonce = 0;
 
     /* An outgoing game invitation. Shares pokeTarget and pokeNonce with a
-     * poke -- same four-byte hole, same wire shape, same expiry -- and differs
-     * only in the flag bit, because what it means is different and a receiver
-     * must not have to guess. The nonce carries the session id. */
+     * poke -- same four-byte hole, same wire shape -- and differs only in the
+     * flag bit, because what it means is different and a receiver must not
+     * have to guess. Unlike a poke it does not expire: it stands until it is
+     * answered, withdrawn or replaced. The nonce carries the session id. */
     bool inviting = false;
 
     /* A live two-player game. `hasTurn` and `poking` are mutually exclusive on the

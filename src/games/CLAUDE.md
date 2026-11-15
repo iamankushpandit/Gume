@@ -358,12 +358,23 @@ and one card, so the games cannot each decide what "too long" means:
   board says who it is waiting for and for how long, with **Keep waiting**
   and **End game**. Keep waiting takes the card away and leaves the game
   paused with its own status line saying why; the card comes back once if
-  the peer then goes Gone, because that is a new fact.
+  the peer then goes Gone, because that is a new fact. Chess, Go and
+  Backgammon then take a move, which waits on the air for the other console
+  to come back; Sea Battle and Ludo keep the board still until it does --
+  Ludo because a seat may not move until every console has acked the last
+  ply, Sea Battle because a shot is only half a turn until it is answered.
+  Each game's touch handler and its board stops agree on which.
 - *Gone* -- the scanner has dropped the peer (`SIGHTING_TTL_MS`, 45s). Same
   card, "out of range". Waiting has no time limit: the game is saved after
   every move, so waiting costs nothing. A game with more than two seats can
   offer something here that a two-player game cannot: Ludo's host gets a
   third button, *Play without* (see the Ludo section).
+
+The first fifteen seconds after `NearbyWatch::reset()` are a grace for a
+peer not heard at all: a console just switched on, or a game just restored,
+has not had a scan yet, and an "out of range" card on the first frame only
+flashes up and goes. Quiet and Away are things actually heard and are never
+graced.
 
 Coming back needs nothing. A turn is state that stays on the air, so a
 console that reappears in the same session re-hears the current move and
@@ -594,8 +605,9 @@ in the same header), both pure and host-tested by
 `test/host/go_rules_test.cpp`; `GoGame.cpp` (flow and input), `GoLayout.cpp`
 (every rectangle), `GoDraw.cpp` (the board, the result card, render),
 `GoPanel.cpp` (the side panel), all three over the constants and colours in
-`GoDrawArt.h`; `GoNet.cpp` (the lobby and the nearby game) and `GoSave.cpp`.
-`GoRules.h` states the rules as played.
+`GoDrawArt.h`; `GoLobby.cpp` (the lobby, drawn and answered), `GoNet.cpp`
+(invitations and the nearby game) and `GoSave.cpp`. `GoRules.h` states the
+rules as played.
 
 - **Legality has one definition: `Go::legal()`**, and one way to change the
   board: `Go::play()`, which refuses an illegal move and changes nothing.

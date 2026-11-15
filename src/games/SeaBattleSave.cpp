@@ -172,14 +172,19 @@ bool SeaBattleGame::restoreOwn(AppContext& host) {
  * for Guest this is the only way a game survives Home at all.
  *
  * Once both fleets are out and the shooting has started, it comes back
- * quietly: End game is right there on the panel. While a fleet is still being
- * laid out there is no End game beside it -- only Ready and Shuffle -- so a
- * game kept there asks. Not kept: the lobby, an invitation still waiting for
+ * quietly: End game is right there on the panel. While a local fleet is still
+ * being laid out there is no End game beside it -- only Ready and Shuffle --
+ * so a game kept there asks. Not kept: the lobby, an invitation still waiting for
  * an answer, a game won, lost or ended, and a local game where neither
  * player has pressed Ready, which is two random fleets and nothing more. */
 Game::Keep SeaBattleGame::keepsGame() const {
     if (mode_ != Mode::Local && mode_ != Mode::Remote) return Keep::No;
     if (gameOver()) return Keep::No;
+    /* A nearby game comes back quietly even while our fleet is being laid
+     * out. It is the console's and only End game ends it, so "New game" on
+     * the way back in could only have been a lie (begin() keeps it anyway);
+     * and Ready is right there, with End game beside the board after it. */
+    if (mode_ == Mode::Remote) return Keep::Quietly;
     const bool fleetsOut = mode_ == Mode::Remote ? placed_[0] : placed_[0] && placed_[1];
     if (fleetsOut) return Keep::Quietly;
     if (mode_ == Mode::Local && !placed_[0] && !placed_[1]) return Keep::No;

@@ -284,7 +284,11 @@ void BackgammonGame::pollRemote(AppContext& host, uint32_t now) {
     const bool heard = host.nearbyTurnFrom(opponent_, session_, t);
     const char* who = opponentName_[0] != 0 ? opponentName_ : opponent_;
 
-    if (heard && t.ended) {
+    /* They stopped -- only an ending numbered past everything applied here,
+     * so an old game's ending left under this session number is not this
+     * game's. It may be several plies ahead: a turn is up to four moves, and
+     * an ending sent straight after them replaces them all on the air. */
+    if (heard && t.ended && t.ply != applied_ && atOrAfter(t.ply, applied_)) {
         char note[32];
         snprintf(note, sizeof(note), "%s ended the game", who);
         leaveRemote(host, note);

@@ -100,6 +100,7 @@ void GoGame::begin(AppContext& host) {
     watch_.reset();
     pausePainted_ = false;
     pauseHold_ = false;
+    lobbyHold_ = false;
     resultOverlay_ = false;
     rng_.x = Entropy::below(0xFFFFFFFFU) | 1U;
     lobbyStale_ = true;

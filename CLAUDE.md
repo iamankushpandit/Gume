@@ -1088,6 +1088,11 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   `pollControls`, `pollTypedChar`, `typedChar`, `selectorFrame`,
   `Focus::`, `BoardExpander`, `sampleModuleBattery`, `Modules::` or
   `i2sUp`, and it carries no RAM beyond what the shared code costs.
+  **One stated exception: `src/ui/Stops.{h,cpp}`**, what a game says about
+  its board (`Ui::setBoardStops()`) and a card over it. It compiles on every
+  board because the PC and RG40XX V builds read it (`HostTftFocus.cpp`), and
+  they define no `GUME_HAS_NAV_KEYS` -- their selector is the host's. It is
+  two rectangles and a flag, assigned per frame and drawn by nothing.
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -1342,7 +1347,11 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the first game's -- the payload has room for one -- and the first says it
   again when its screen comes back; meanwhile its peer sees it as Away. A new
   game's session number comes from `nearbyFreshSession()`, which steps past
-  every session this console still holds a turn for.
+  every session this console still holds a turn for. **A known gap:** it
+  knows only the turns in RAM, so a game kept in the console's slot whose
+  turn was since replaced by another game's is in no table, and a later game
+  with the same peer can be given its number. When the kept game reopens,
+  its ply and legality checks are what refuse the other game's moves.
 - **An invitation stands until it is answered.** It used to leave the air
   after six seconds, like a poke; the console that asked then waited for ever
   and the other player's late tap became a second invitation crossing the
