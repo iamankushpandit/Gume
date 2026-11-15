@@ -86,6 +86,8 @@ inline constexpr BoardProfile BOARD = {
         HostPin::TOUCH_SDA,       // sda
         HostPin::TOUCH_SCL,       // scl
         PIN_NONE,                 // reset
+        0,                        // resetExpanderAddress -- no expander
+        0,                        // resetExpanderPort
         0x38,                     // i2cAddress -- the FT6336U's own
         400000,                   // i2cHz
         0,                        // pressureThreshold (capacitive)
@@ -95,13 +97,27 @@ inline constexpr BoardProfile BOARD = {
         HostPin::HOME,            // bootPin
         true,                     // activeLow
     },
+    /* No keys, keyboard or gamepad behind an expander: the PC build's
+     * controls come from SDL (host/src/HostControls.h), not from these. */
+    KeysProfile{
+        0, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, true,
+    },
+    KeyboardProfile{
+        0, 0, nullptr, nullptr,
+    },
+    GamepadProfile{
+        0, 0, nullptr, nullptr, nullptr, nullptr,
+    },
     SdProfile{
         PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, 0,
+    },
+    ExpandProbeProfile{
+        0, PIN_NONE, PIN_NONE, PIN_NONE, 0,
     },
     /* The handheld's light, as the firmware's status LED: see
      * host/src/HostLed.h. A device without one simply shows nothing. */
     RgbLedProfile{
-        HostPin::LED_R, HostPin::LED_G, HostPin::LED_B, false,
+        HostPin::LED_R, HostPin::LED_G, HostPin::LED_B, false, 0,
     },
     AudioProfile{
         PIN_NONE,                 // speakerPin
@@ -120,11 +136,11 @@ inline constexpr BoardProfile BOARD = {
      * it, and esp_adc_cal_raw_to_voltage() is exact on the host, so the
      * firmware multiplies back to the voltage Linux reported. */
     BatteryProfile{
-        HostPin::BATTERY, 2.0f, 4.50f,
+        HostPin::BATTERY, 2.0f, 4.50f, 0,
     },
 #else
     BatteryProfile{
-        PIN_NONE, 0.0f, 0.0f,
+        PIN_NONE, 0.0f, 0.0f, 0,
     },
 #endif
     MemoryProfile{
