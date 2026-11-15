@@ -15,7 +15,7 @@
  * shipped profiles under host/consoles/ are read too, so a typo in one fails
  * here rather than on a console:
  *
- *   g++ -std=c++17 -O2 -Wall -Wextra -Ihost/src test/host/host_controls_test.cpp host/src/HostConsole.cpp -o controls_test && ./controls_test
+ *   g++ -std=c++17 -O2 -Wall -Wextra -Werror -Ihost/src test/host/host_controls_test.cpp host/src/HostConsole.cpp -o controls_test && ./controls_test
  *
  * Run it from the top of the repository: it opens host/consoles/. */
 
