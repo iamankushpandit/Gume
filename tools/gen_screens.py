@@ -100,6 +100,20 @@ def button(d, r, label, fill=None, tc=None, f=F2):
     d.text((x + (w - d.textlength(s, font=f)) / 2, y + h / 2 - f.size / 2 - 1), s, font=f, fill=tc)
 
 
+def plain_row(d, r, label, f=F2):
+    """A lobby row that only says what another console is doing: a plain
+    fill with no outline and no shadow, and muted words -- not a button,
+    because nothing happens when it is pressed (drawPlainRow() in the games'
+    lobby code)."""
+    x, y, w, h = r
+    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], 6, fill=SURFACE)
+    s = label
+    while s and d.textlength(s, font=f) > w - 12:
+        s = s[:-1]
+    d.text((x + (w - d.textlength(s, font=f)) / 2, y + h / 2 - f.size / 2 - 1), s, font=f,
+           fill=MUTED)
+
+
 def fitted_text(d, text, max_w, f):
     s = text
     while len(s) > 2 and d.textlength(s, font=f) > max_w:
@@ -909,12 +923,17 @@ def backgammon(selected=12, targets=frozenset({7, 9}), moves=()):
 
 def backgammon_lobby():
     """Backgammon: three ways to play -- one console, the computer, or a
-    console nearby. One nearby console is offering a game."""
+    console nearby. Each console in the room is a row saying what it is
+    doing: one offers this console a game, one is playing a third, which is
+    a plain row because pressing it does nothing."""
     im, d = blank(); topbar(d, "Backgammon")
     rows = [("Two players", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
-            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("B1C3 is playing 7E09", None, None)]
     for r, (label, fill, ink) in enumerate(rows):
-        button(d, (10, 38 + r * 34, 300, 30), label, fill=fill, tc=ink)
+        if fill is None:
+            plain_row(d, (10, 38 + r * 34, 300, 30), label)
+        else:
+            button(d, (10, 38 + r * 34, 300, 30), label, fill=fill, tc=ink)
     note = "Moves travel by Bluetooth. Anyone near hears them."
     d.text(((W - d.textlength(note, font=F1)) / 2, H - 14), note, font=F1, fill=MUTED)
     return im
@@ -2360,9 +2379,13 @@ def go_lobby():
         d.text((x + 7, 48), value, font=F2, fill=TEXT)
         d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
     rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
-            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+            ("A4F2 invites you: Capture 1", SUCCESS, (0, 0, 0)),
+            ("B1C3 is asking 7E09", None, None)]
     for r, (label, fill, ink) in enumerate(rows):
-        button(d, (8, 70 + r * 36, W - 16, 31), label, fill=fill, tc=ink)
+        if fill is None:
+            plain_row(d, (8, 70 + r * 36, W - 16, 31), label)
+        else:
+            button(d, (8, 70 + r * 36, W - 16, 31), label, fill=fill, tc=ink)
     d.text((W // 2, H - 4), "Moves travel by Bluetooth. Anyone near hears them.",
            font=F1, fill=MUTED, anchor="ms")
     return im
@@ -2389,7 +2412,7 @@ def chess_lobby():
         d.text((x + 7, 48), value, font=F2, fill=TEXT)
         d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
     rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
-            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", PANEL, TEXT)]
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3", SURFACE, TEXT)]
     for r, (label, fill, ink) in enumerate(rows):
         button(d, (10, 70 + r * 36, W - 20, 30), label, fill=fill, tc=ink)
     d.text((W // 2, H - 6), "Moves travel by Bluetooth. Anyone near hears them.",

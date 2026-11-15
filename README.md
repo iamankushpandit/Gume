@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,644,341 / 3,145,728 bytes of the app partition (**84.1%**) |
-| RAM | 92,836 / 327,680 bytes (**28.3%**) |
+| Flash | 2,645,037 / 3,145,728 bytes of the app partition (**84.1%**) |
+| RAM | 92,868 / 327,680 bytes (**28.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1370,7 +1370,7 @@ is not derived from anything a player entered. Advertising is **non-connectable*
 there is no GATT server, so there is nothing to connect to.
 
 **Consoles can play each other over it.** When players start a game from the
-Chess, Sea Battle, Ludo or Backgammon lobby, each console advertises its latest turn: a
+Chess, Go, Sea Battle, Ludo or Backgammon lobby, each console advertises its latest turn: a
 session number, a move number, two small numbers saying what was played, and
 how far it has caught up with everyone else. In Chess the two numbers are
 squares; in Ludo they are a seat and a token, in Backgammon the point a checker
@@ -1382,6 +1382,14 @@ score travels with a move, and the moves occupy the same four bytes the best
 score normally uses, because the advertisement is already full at 31 bytes.
 Ludo seats up to four consoles; that uses the same turn, read by more consoles,
 and adds nothing to what any one of them transmits.
+
+**Each lobby shows the room.** Every console nearby is a row saying what it is
+doing -- inviting you, asking somebody else, playing whom, or free -- all read
+from what consoles already advertise. An invitation stays on the air until it
+is answered or taken back, so the other player can take their time; Go's says
+which rules and board it offers, inside the session number it already carries.
+A game across consoles is saved as the console's, not the player's, so it is
+still there after a change of player or a power cut, for Guest too.
 
 **If the other console goes quiet, the game pauses and says so.** A battery
 going flat or a young player walking into the next room cannot send anything, so the
