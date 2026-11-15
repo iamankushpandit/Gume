@@ -11,7 +11,7 @@
 // the questions each one asks. Like engine/Course.h, the header is pure C++,
 // and this file is what proves it, since it will not compile otherwise.
 //
-// Not run by CI and not picked up by pio test. Build and run it with any host
+// Run by CI (tools/run_host_tests.py), not by pio test. Build and run it with any host
 // C++17 compiler:
 //
 //   g++ -std=c++17 -O2 -Wall -Wextra -I src -I src/games test/host/counting_course_test.cpp -o counting_course_test && ./counting_course_test

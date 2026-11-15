@@ -16,7 +16,7 @@
 // honest; the translation unit was not; nothing could tell until something
 // tried to build it on a host. This file is that something.
 //
-// Not run by CI; build it with any host C++17 compiler:
+// Run by CI (tools/run_host_tests.py); build it by hand with any host C++17 compiler:
 //
 //   g++ -std=c++17 -O2 -Wall -Wextra -I src/games test/host/chess_rules_test.cpp src/games/ChessRules.cpp src/games/ChessAi.cpp -o chess_test && ./chess_test
 //
