@@ -180,6 +180,15 @@ bool readBattery(float& volts, uint8_t& percent);
 /* Whether the console may use what `capability` needs. */
 inline bool allows(ModuleCapability capability) { return provides(capability); }
 
+#if GUME_HAS_KEYBOARD
+/* Whether the keyboard boot found is still answering: false once its scan
+ * has failed for several frames in a row, as it does when the module comes
+ * off, and true again when a scan succeeds. Costs nothing -- it counts the
+ * per-frame scan's own failures. ui/TypingPanel.h brings a text field's
+ * on-screen keypad back on it. Defined in KeyboardModule.cpp. */
+bool keyboardAnswering();
+#endif
+
 #else
 
 /* No modules: nothing to look for, and nothing is gated on one. */

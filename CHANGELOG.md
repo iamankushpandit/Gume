@@ -650,6 +650,22 @@ The same console on Attaky's modular handhelds. It reports this version as
 attaches the image to the run, and no release, installer or update manifest
 carries it. First run on a Cyber Deck Plus on 2026-11-12.
 
+**With the keyboard clipped on, the text fields leave the on-screen keypad
+off.** A player's name, a Nearby peer's name, both admin PIN pads and the
+Wi-Fi password used to draw the whole on-screen keypad beside a keyboard that
+was already typing into them. When boot found the keyboard, those screens now
+draw the field larger -- the PIN's dots too -- with "Type on the keyboard"
+under it, and keep only what is not a key: OK or JOIN, Cancel or Back, and
+Show on the password. The keyboard has its own Delete, so no DEL is drawn.
+The module comes off and is looked for only at boot, so nothing is reachable
+only by typing: a small button with a keyboard on it brings the keypad back
+for the rest of that visit, which is also the way to a password symbol the
+keyboard does not have, and if the keyboard stops answering -- five frames of
+failed scans, counted on the scan that already runs every frame -- the keypad
+comes back by itself and the log says `[keyboard] not answering`. The Wi-Fi
+field keeps its size, for now. Other boards carry none of it. Not yet seen on
+a device.
+
 **Locked, the Attaky Core's own lights go out, and it stops holding sixteen
 lines low.** With a Cyber Deck Plus locked and its panel dark, three lights
 stayed on: one above the display, one on the gamepad, one on the battery

@@ -23,6 +23,11 @@ constexpr int16_t PIN_PAD_TOP  = 58;
 constexpr int16_t PIN_DOT_Y    = 38;
 constexpr int16_t PIN_DOT_R    = 7;
 constexpr uint8_t PIN_LENGTH   = 4;
+/* The dots with the keypad off: larger, and centred between the heading
+ * and the bottom row, with the hint under them. */
+constexpr int16_t PIN_DOT_R_BIG     = 12;
+constexpr int16_t PIN_DOT_PITCH_BIG = 40;
+int16_t pinDotY(int16_t screenH) { return static_cast<int16_t>(screenH / 2 - 12); }
 }  // namespace
 
 /* Standard PIN pad: three columns, four rows, stacked vertically and centred.
@@ -73,6 +78,7 @@ void ProfileApp::beginPinEntry(uint8_t profile, PinPurpose purpose) {
     adminPinAttempt_ = 0;
     adminPinDigitCount_ = 0;
     phase_ = Phase::PinEntry;
+    keypad_.begin();
     markFullDirty();
 }
 
@@ -88,6 +94,17 @@ void ProfileApp::updatePinEntry(GameHost& host, const TouchPoint& touch) {
         adminPinAttempt_ = 0;
         adminPinDigitCount_ = 0;
         markFullDirty();
+        return;
+    }
+    if (keypad_.hidden()) {
+        /* A keyboard is typing the digits: Back above, and the keyboard
+         * button and OK below, are all there is to press. */
+        if (Ui::Typing::toggleRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            keypad_.show();
+            markFullDirty();
+        } else if (Ui::Typing::acceptRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            confirmPin(host);
+        }
         return;
     }
     if (pinConfirmRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -205,6 +222,17 @@ void ProfileApp::renderPinPadChrome(GameHost& host) {
     tft.setTextDatum(TC_DATUM);
     tft.drawString("Enter Admin PIN", W / 2, 6, 2);
 
+    if (keypad_.hidden()) {
+        /* The keypad's twelve keys are the keyboard's now. The dots move to
+         * the middle of the panel and grow (renderPinDots()), and the hint
+         * goes under them. */
+        Ui::Typing::drawHint(tft, W, static_cast<int16_t>(pinDotY(H) + PIN_DOT_R_BIG + 14));
+        Ui::Typing::drawToggle(tft, Ui::Typing::toggleRect(W, H));
+        Ui::Typing::drawAccept(tft, Ui::Typing::acceptRect(W, H), "OK");
+        tft.setTextDatum(TL_DATUM);
+        return;
+    }
+
     /* Rows 0-2 are 1-9; row 3 is DEL / 0 / OK. */
     for (uint8_t row = 0; row < PIN_PAD_ROWS; ++row) {
         for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
@@ -248,12 +276,17 @@ void ProfileApp::renderPinDots(GameHost& host) {
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
 
-    const int16_t dotPitch = 26;
+    /* Larger, and in the middle of the panel, while the keypad is off: the
+     * dots are then all there is to look at. */
+    const bool big = keypad_.hidden();
+    const int16_t dotPitch = big ? PIN_DOT_PITCH_BIG : 26;
+    const int16_t dotR     = big ? PIN_DOT_R_BIG : PIN_DOT_R;
+    const int16_t dotY     = big ? pinDotY(static_cast<int16_t>(tft.height())) : PIN_DOT_Y;
     const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
     for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
         const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
         const uint16_t fill = i < adminPinDigitCount_ ? Ui::success() : Ui::panel();
-        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
-        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
+        tft.fillCircle(x, dotY, dotR, fill);
+        tft.drawCircle(x, dotY, dotR, Ui::outline());
     }
 }

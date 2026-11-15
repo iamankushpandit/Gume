@@ -3996,6 +3996,79 @@ def nearby_name():
     return im
 
 
+# ------------------------------------------------- keyboard attached
+# Mirrors ui/TypingPanel: on the Attaky Core with its clip-on keyboard found at
+# boot, a text field leaves the on-screen keypad off. The field grows into the
+# space and a hint says where to type; the bottom row is the keyboard button
+# (which brings the keypad back), Cancel where it was, and OK. Keep in step
+# with TypingPanel.cpp.
+def _typing_toggle(d, r):
+    button(d, r, "")
+    x, y, w, h = r
+    gx, gy = x + (w - 24) // 2, y + (h - 12) // 2
+    d.rounded_rectangle([gx, gy, gx + 23, gy + 11], 2, outline=TEXT)
+    for row in range(2):
+        for col in range(5):
+            kx, ky = gx + 3 + col * 4, gy + 2 + row * 3
+            d.rectangle([kx, ky, kx + 1, ky + 1], fill=TEXT)
+    d.rectangle([gx + 7, gy + 8, gx + 16, gy + 9], fill=TEXT)
+
+
+def _typing_row(d, sw=None, sh=None):
+    sw = W if sw is None else sw
+    sh = H if sh is None else sh
+    _typing_toggle(d, (8, sh - 30, 52, 22))
+    button(d, (sw - 8 - 60, sh - 30, 60, 22), "OK", (45, 154, 96), TEXT, F2)
+
+
+def _typing_hint(d, y, sw=None):
+    sw = W if sw is None else sw
+    lab = "Type on the keyboard"
+    d.text((sw / 2 - d.textlength(lab, font=F2) / 2, y), lab, font=F2, fill=MUTED)
+
+
+def _typing_field(sw, sh, top):
+    """TypingPanel's fieldRect(): 44px tall, centred with its hint above the
+    bottom row."""
+    bottom = sh - 30 - 8
+    block = 44 + 10 + 16
+    y = max(top, top + (bottom - top - block) // 2)
+    w = min(280, sw - 24)
+    return ((sw - w) // 2, y, w, 44)
+
+
+def profiles_rename_typing():
+    """Name entry with the keyboard attached: no keypad, a larger field."""
+    im, d = blank()
+    lab = "New player"
+    d.text((W / 2 - d.textlength(lab, font=F2) / 2, 8), lab, font=F2, fill=TEXT)
+    fx, fy, fw, fh = _typing_field(W, H, 28)
+    d.rounded_rectangle([fx, fy, fx + fw, fy + fh], 4, fill=SURFACE, outline=OUTLINE)
+    draft = "Ada"
+    d.text((W / 2 - d.textlength(draft, font=F4) / 2, fy + fh / 2 - 13), draft, font=F4, fill=TEXT)
+    _typing_hint(d, fy + fh + 10)
+    button(d, ((W - 52) // 2, H - 30, 52, 22), "Cancel", f=F1)
+    _typing_row(d)
+    return im
+
+
+def profiles_pin_typing():
+    """The admin PIN with the keyboard attached: larger dots, no pad."""
+    im, d = blank()
+    button(d, (6, 6, 52, 22), "Back", f=F1)
+    lab = "Enter Admin PIN"
+    d.text((W / 2 - d.textlength(lab, font=F2) / 2, 6), lab, font=F2, fill=TEXT)
+    cy, r, pitch = H // 2 - 12, 12, 40
+    x0 = W // 2 - (pitch * 3) // 2
+    for i in range(4):
+        cx = x0 + i * pitch
+        d.ellipse([cx - r, cy - r, cx + r, cy + r],
+                  fill=SUCCESS if i < 3 else PANEL, outline=OUTLINE)
+    _typing_hint(d, cy + r + 14)
+    _typing_row(d)
+    return im
+
+
 # Geometry below comes from DiceGame's and CoinFlipGame's own Rect helpers:
 # the count buttons at (86 + i*52, 46, 44, 26), the action button at
 # (85, 198, 150, 34), dice at 68px on a 14px gap, coin at r=34 centred on
@@ -4510,6 +4583,8 @@ EXTRA_SCREENS = [
     ("profiles-rename", profiles_rename, "Profiles: the name entry for Add / Rename"),
     ("nearby", nearby, "Nearby: who else is playing"),
     ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
+    ("profiles-rename-typing", profiles_rename_typing, "Profiles: the name entry with a keyboard attached"),
+    ("profiles-pin-typing", profiles_pin_typing, "Profiles: the admin PIN with a keyboard attached"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("systeminfo-battery", systeminfo_battery, "System Info: where the battery went"),

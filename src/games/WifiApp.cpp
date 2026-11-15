@@ -146,6 +146,12 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
     }
     if (phase_ == Phase::Connecting) { checkConnect(host); return; }
 
+    /* The keyboard came off with the keys left off: put them back. */
+    if (phase_ == Phase::Keyboard && keypad_.lost()) {
+        keyboardPainted_ = false;
+        markFullDirty();
+    }
+
     /* A keyboard types into the password and nowhere else, and never runs
      * the touch tests below, whose coordinates are stale on its frame. */
     const char typed = hostTypedChar(host);
@@ -206,6 +212,7 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
                 capsLock_ = false;
                 showPassword_ = false;
                 phase_ = Phase::Keyboard;
+                keypad_.begin();
                 markFullDirty();
                 return;
             }
@@ -219,6 +226,22 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
         if (showRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             showPassword_ = !showPassword_;
             markDirty();
+            return;
+        }
+        if (keypad_.hidden()) {
+            /* A keyboard is typing the password: the keyboard button where
+             * CAPS was, JOIN, Show and back are all there is to press. */
+            if (baseRect(2, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                keypad_.show();
+                keyboardPainted_ = false;
+                markFullDirty();
+                return;
+            }
+            if (baseRect(246, 208, 72, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startConnect(host); return; }
+            if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                phase_ = Phase::List;
+                markFullDirty();
+            }
             return;
         }
         for (uint8_t row = 0; row < 4; ++row) {
@@ -563,7 +586,23 @@ void WifiApp::renderDynamic(GameHost& host) {
          * repaint. The keys change only when the LAYER does -- caps, symbols
          * -- or when the screen underneath was cleared, and both of those say
          * so by clearing keyboardPainted_. */
-        if (!keyboardPainted_) {
+        if (keypad_.hidden()) {
+            /* A keyboard is typing: no keys, a hint where they were, the
+             * keyboard button where CAPS was -- which is also the way to a
+             * symbol the keyboard does not have -- and JOIN. The keyboard
+             * has its own Delete. Painted once, like the keys. */
+            if (!keyboardPainted_) {
+                Ui::Typing::drawHint(tft, panelW_, baseY(118));
+                tft.setTextColor(Ui::muted(), Ui::bg());
+                tft.setTextDatum(TC_DATUM);
+                tft.drawString("The keyboard button has every symbol.",
+                               static_cast<int16_t>(panelW_ / 2), baseY(142), 1);
+                tft.setTextDatum(TL_DATUM);
+                Ui::Typing::drawToggle(tft, baseRect(2, 208, 52, 24));
+                Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
+                keyboardPainted_ = true;
+            }
+        } else if (!keyboardPainted_) {
             for (uint8_t row = 0; row < 4; ++row) {
                 for (uint8_t col = 0; col < 10; ++col) {
                     char buf[2] = {keys[row][col], 0};
@@ -572,15 +611,17 @@ void WifiApp::renderDynamic(GameHost& host) {
             }
             keyboardPainted_ = true;
         }
-        Ui::drawButton(tft, baseRect(2, 208, 52, 24), "CAPS",
-                       capsLock_ ? Ui::accent() : Ui::surface(), Ui::outline(),
-                       capsLock_ ? TFT_WHITE : Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(58, 208, 52, 24), symbols_ ? "abc" : "!#$",
-                       symbols_ ? Ui::accent() : Ui::surface(), Ui::outline(),
-                       symbols_ ? TFT_WHITE : Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(114, 208, 74, 24), "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(192, 208, 50, 24), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
+        if (!keypad_.hidden()) {
+            Ui::drawButton(tft, baseRect(2, 208, 52, 24), "CAPS",
+                           capsLock_ ? Ui::accent() : Ui::surface(), Ui::outline(),
+                           capsLock_ ? TFT_WHITE : Ui::text(), false, 1);
+            Ui::drawButton(tft, baseRect(58, 208, 52, 24), symbols_ ? "abc" : "!#$",
+                           symbols_ ? Ui::accent() : Ui::surface(), Ui::outline(),
+                           symbols_ ? TFT_WHITE : Ui::text(), false, 1);
+            Ui::drawButton(tft, baseRect(114, 208, 74, 24), "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
+            Ui::drawButton(tft, baseRect(192, 208, 50, 24), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+            Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
+        }
 
     } else if (phase_ == Phase::Connecting) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
