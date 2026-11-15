@@ -197,7 +197,7 @@ void BrainoApp::cmdGames(int argc, char** argv, Print& out) {
     bool first = true;
     for (uint8_t i = 0; i < playableAppCount(); ++i) {
         const AppDefinition& app = playableAppAt(i);
-        if (!board_.gameVisibleFor(app.launcherIndex(), slot, app.defaultVisible())) {
+        if (!board_.gameVisibleFor(app.visibilityKey(), slot, app.defaultVisible())) {
             if (!first) out.print(',');
             out.print(app.id());
             first = false;
@@ -218,18 +218,19 @@ void BrainoApp::cmdGame(int, char** argv, Print& out) {
     if (!app) { out.println("err range unknown game id"); return; }
     bool on = false;
     if (!parseOnOff(argv[2], on)) { out.println("err usage game <slot|all> <game-id> on|off"); return; }
-    /* Visibility is a fixed-width mask per player and the catalogue is
-     * longer, so the last games cannot be hidden at all. Say so rather than
-     * answer ok for a change that did not happen. */
-    if (app->launcherIndex() >= Board::gameVisibilityLimit()) {
-        out.printf("err limit this game cannot be hidden yet: visibility holds %u games\n",
-                   (unsigned)Board::gameVisibilityLimit());
-        return;
-    }
     const uint8_t from = all ? 0 : slot;
     const uint8_t to = all ? n : static_cast<uint8_t>(slot + 1);
+    /* Every game can be hidden: visibility is keyed by the game's id, with
+     * room for half as many games again. A table full of other games is the
+     * one refusal left, and it is said rather than answered ok for a change
+     * that did not happen. */
     for (uint8_t p = from; p < to; ++p) {
-        board_.setGameVisibleFor(app->launcherIndex(), p, on);
+        if (!board_.setGameVisibleFor(app->visibilityKey(), p, on)) {
+            refreshAfterProfileChange();
+            out.printf("err limit profile %u has no room for another game's setting\n",
+                       (unsigned)p);
+            return;
+        }
     }
     refreshAfterProfileChange();
     out.printf("ok game=\"%s\" visible=\"%d\" profiles=\"%u\"\n", app->id(), (int)on,

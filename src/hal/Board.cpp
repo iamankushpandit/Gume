@@ -573,53 +573,57 @@ void Board::setDeepSleepEnabled(bool enabled) {
     deepSleepCached_ = true;
 }
 
-bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
+bool Board::gameVisible(GameVisibility::Key game, bool fallback) {
     if (isGuest()) return true;
-    return gameVisibleFor(catalogIndex, activeProfile(), fallback);
+    return gameVisibleFor(game, activeProfile(), fallback);
 }
 
-void Board::setGameVisible(uint8_t catalogIndex, bool visible) {
+void Board::setGameVisible(GameVisibility::Key game, bool visible) {
     if (isGuest()) return;
-    setGameVisibleFor(catalogIndex, activeProfile(), visible);
+    setGameVisibleFor(game, activeProfile(), visible);
 }
 
-void Board::visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex) {
-    snprintf(out, cap, "p%u_gv%u", profileIndex, catalogIndex);
+void Board::visibilityKey(char* out, size_t cap, uint8_t profileIndex) {
+    snprintf(out, cap, "p%u_gvis", profileIndex);
 }
 
-void Board::loadVisibility(uint8_t profileIndex, bool fallback) {
-    uint32_t mask = 0;
+void Board::loadVisibility(uint8_t profileIndex) {
     char key[16];
-    for (uint8_t i = 0; i < VISIBILITY_BITS; ++i) {
-        visibilityKey(key, sizeof(key), profileIndex, i);
-        if (prefs_.getBool(key, fallback)) {
-            mask |= (1UL << i);
-        }
+    visibilityKey(key, sizeof(key), profileIndex);
+    uint8_t blob[GameVisibility::BLOB_BYTES] = {};
+    size_t len = 0;
+    if (prefs_.isKey(key)) {
+        len = prefs_.getBytesLength(key);
+        if (len > sizeof(blob)) len = sizeof(blob);
+        prefs_.getBytes(key, blob, len);
     }
-    visibilityMask_ = mask;
+    visibility_.load(blob, len);
     visibilityProfile_ = profileIndex;
     visibilityCached_ = true;
 }
 
-bool Board::gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback) {
+bool Board::gameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool fallback) {
     if (profileIndex == GUEST_INDEX) return true;
-    if (catalogIndex >= VISIBILITY_BITS) return fallback;
     if (!visibilityCached_ || visibilityProfile_ != profileIndex) {
-        loadVisibility(profileIndex, fallback);
+        loadVisibility(profileIndex);
     }
-    return ((visibilityMask_ >> catalogIndex) & 1UL) != 0;
+    return visibility_.shown(game.value, fallback);
 }
 
-void Board::setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible) {
-    if (profileIndex == GUEST_INDEX || catalogIndex >= VISIBILITY_BITS) return;
-    char key[16];
-    visibilityKey(key, sizeof(key), profileIndex, catalogIndex);
-    prefs_.putBool(key, visible);
-    if (visibilityCached_ && visibilityProfile_ == profileIndex) {
-        if (visible) {
-            visibilityMask_ |= (1UL << catalogIndex);
-        } else {
-            visibilityMask_ &= ~(1UL << catalogIndex);
-        }
+bool Board::setGameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool visible) {
+    if (profileIndex == GUEST_INDEX) return false;
+    if (!visibilityCached_ || visibilityProfile_ != profileIndex) {
+        loadVisibility(profileIndex);
     }
+    if (!visibility_.set(game.value, visible)) {
+        Serial.printf("[storage] p%u visibility table full, game %u not stored\n",
+                      profileIndex, game.value);
+        return false;
+    }
+    char key[16];
+    visibilityKey(key, sizeof(key), profileIndex);
+    uint8_t blob[GameVisibility::BLOB_BYTES];
+    visibility_.store(blob);
+    prefs_.putBytes(key, blob, sizeof(blob));
+    return true;
 }

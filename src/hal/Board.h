@@ -15,6 +15,7 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "hal/GameVisibility.h"
 #include "hal/HeldControls.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
@@ -464,12 +465,20 @@ public:
     static constexpr uint32_t PANEL_SLEEP_SETTLE_MS = 120;
     bool displayAsleep() const { return displayAsleep_; }
     DisplaySleepTelemetry displaySleepTelemetry() const { return displaySleepTelemetry_; }
-    bool gameVisible(uint8_t catalogIndex, bool fallback = true);
-    void setGameVisible(uint8_t catalogIndex, bool visible);
-    bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true);
-    void setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible);
-    /** Launcher indices at or above this cannot be hidden (see VISIBILITY_BITS). */
-    static constexpr uint8_t gameVisibilityLimit() { return VISIBILITY_BITS; }
+    /* Per-player game visibility, keyed by the game's id
+     * (GameVisibility::keyFor(id)), never by its launcher index. */
+    bool gameVisible(GameVisibility::Key game, bool fallback = true);
+    void setGameVisible(GameVisibility::Key game, bool visible);
+    bool gameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool fallback = true);
+    /** False only when the player's table is full of other games and nothing
+     *  was stored -- SLOTS is half as long again as the catalogue. */
+    bool setGameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool visible);
+    /* Schema 2 -> 3: the per-index visibility keys ("p0_gv12") become each
+     * player's id-keyed blob. Board cannot know which game sits at an index,
+     * so the runtime calls this straight after begin() with the key of the
+     * game at each launcher index -- the index the old keys were read
+     * against, so every player sees exactly what they saw before. */
+    void migrateGameVisibility(const uint16_t* keyAtIndex, uint8_t count);
     String wifiSsid();
     String wifiPassword();
     /* The char* form is the real one, as with addPlayer(): the serial console
@@ -704,7 +713,12 @@ private:
     String wifiSsidCache_;
     String wifiPassCache_;
     bool wifiCacheLoaded_ = false;
-    static constexpr uint16_t STORAGE_SCHEMA_VERSION = 2;
+    /* 2: the scoped key format, migrated in begin(). 3: game visibility
+     * keyed by id, migrated by migrateGameVisibility() once the runtime can
+     * say which game is at which index. "schema" reads 3 only when both are
+     * done. */
+    static constexpr uint16_t KEY_SCHEMA_VERSION = 2;
+    static constexpr uint16_t STORAGE_SCHEMA_VERSION = 3;
     static constexpr size_t STORAGE_KEY_CAP = 16;   // NVS keys cap at 15 chars + NUL
     void loadWifiCache();
     void migrateStorageSchema();
@@ -808,22 +822,16 @@ private:
     char appliedTz_[TZ_SPEC_CAP] = {0};
     bool sntpConfigured_ = false;
 
-    /* Game visibility as a bitmask for one profile: bit i = catalog index i.
-     * Loaded in one pass, then answered from RAM.
-     *
-     * 32 bits is now a real ceiling rather than headroom: the catalog is at 30.
-     * gameVisibleFor() and setGameVisibleFor() both bound-check against
-     * VISIBILITY_BITS, so a 33rd game would not corrupt anything -- it would
-     * silently pin itself to its default and refuse to be hidden from Settings,
-     * which is worse, because it looks like a Settings bug. Widen this to
-     * uint64_t before adding the 33rd. */
-    static constexpr uint8_t VISIBILITY_BITS = 32;
+    /* The game visibility of one profile, mirrored from its "p<N>_gvis" blob
+     * (see GameVisibility.h). Loaded in one read, then answered from RAM:
+     * gameVisible() is asked for every tile on every launcher repaint. A game
+     * with no entry is at its default, which the caller passes in. */
     bool visibilityCached_ = false;
     uint8_t visibilityProfile_ = 0xFF;
-    uint32_t visibilityMask_ = 0;
-    void loadVisibility(uint8_t profileIndex, bool fallback);
-    /** Build "p<N>_gv<I>" without allocating. */
-    static void visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex);
+    GameVisibility::Table visibility_;
+    void loadVisibility(uint8_t profileIndex);
+    /** Build "p<N>_gvis" without allocating. */
+    static void visibilityKey(char* out, size_t cap, uint8_t profileIndex);
 
     /* One battery sample shared by every accessor. Two battery getters were
      * once called while drawing a single top bar, and each ran its own

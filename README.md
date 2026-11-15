@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,644,341 / 3,145,728 bytes of the app partition (**84.1%**) |
-| RAM | 92,836 / 327,680 bytes (**28.3%**) |
+| Flash | 2,645,677 / 3,145,728 bytes of the app partition (**84.1%**) |
+| RAM | 92,956 / 327,680 bytes (**28.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1663,8 +1663,9 @@ removed, and Nearby needs the beacon. The password is never echoed, and three
 wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
 game off for every player at once. A level set while that game is open, or
 kept to carry on, is where the next game of it starts (the reply says
-`applies="next visit"`); the one in progress keeps its own. Chess, Sea Battle, Cursive, Ludo and
-Backgammon cannot be hidden yet (a known limit of per-player visibility).
+`applies="next visit"`); the one in progress keeps its own. Every game can be
+switched off, and the setting follows the game rather than its place in the
+launcher.
 
 `python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
 which port. To set up several boards at once, copy

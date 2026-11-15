@@ -289,8 +289,8 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
                     return;
                 }
                 const AppDefinition& app = playableAppAt(gi);
-                board.setGameVisibleFor(app.launcherIndex(), menuFor_,
-                    !board.gameVisibleFor(app.launcherIndex(), menuFor_, app.defaultVisible()));
+                board.setGameVisibleFor(app.visibilityKey(), menuFor_,
+                    !board.gameVisibleFor(app.visibilityKey(), menuFor_, app.defaultVisible()));
                 markFullDirty(); return;
             }
         }
@@ -536,7 +536,7 @@ void ProfileApp::renderDynamic(GameHost& host) {
             if (gi >= playableAppCount()) break;
             const AppDefinition& app = playableAppAt(gi);
             const Rect r = gameCheckRect(row, W);
-            const bool on = board.gameVisibleFor(app.launcherIndex(), menuFor_,
+            const bool on = board.gameVisibleFor(app.visibilityKey(), menuFor_,
                                                  app.defaultVisible());
             const uint16_t tick = canEdit ? Ui::success() : Ui::rgb(70, 96, 78);
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());

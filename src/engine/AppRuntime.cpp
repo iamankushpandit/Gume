@@ -71,6 +71,16 @@ Ui::Renderer& BrainoApp::display() {
 
 void BrainoApp::begin() {
     board_.begin();
+    /* Before anything asks which games a player sees: the old per-index
+     * visibility keys are read against the game at each index today. Board
+     * cannot know the catalogue, so the runtime hands it over. */
+    {
+        uint16_t keyAtIndex[PLAYABLE_APP_COUNT];
+        for (uint8_t i = 0; i < PLAYABLE_APP_COUNT; ++i) {
+            keyAtIndex[i] = playableAppAt(i).visibilityKey().value;   // index i is tile i (check_catalog.py)
+        }
+        board_.migrateGameVisibility(keyAtIndex, PLAYABLE_APP_COUNT);
+    }
     /* Games always render landscape, so the panel's landscape extent is the
      * physical size their fixed canvas has to fill. SCREEN_WIDTH/HEIGHT are
      * exactly that -- BoardConfig.h derives them from the profile's panel size

@@ -10,6 +10,17 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Every game can be switched off for a player now.** Chess, Sea Battle,
+Cursive, Ludo, Backgammon, Go, Space and Roman -- the last eight in
+the launcher -- could not be hidden, from Profiles or from the console's
+`game` command, because which games a player sees was stored one switch per
+launcher position and held in a mask with room for 32. It is kept per game
+now, by the game's id, in one small record per player with room for 64, so a
+game added to the launcher later no longer moves anybody's settings onto the
+game next to it. The first start of this firmware carries every player's
+existing choices across, and the console's `game` no longer answers
+`err limit` for those eight.
+
 **A notice is along the bottom of the screen now, and the header stays whole.**
 A low battery, a newer firmware and Nearby each raise a one-line strip. It was
 painted over the top bar, so for as long as it was up there was no Home, no
