@@ -24,8 +24,8 @@
  * E32R28T-1's red and green were once declared the wrong way round on
  * exactly that kind of reading. So: one step for each thing the firmware can
  * do to a light, held for a few seconds, blinking so that it stands out from
- * a light that is simply on, with the step's name on the serial log as it
- * starts. The last step is every light at rest. That is the one the test was
+ * a light that is simply on, with the step's name on the serial log and
+ * along the bottom of the screen as it starts. The last step is every light at rest. That is the one the test was
  * written for: whatever is still lit then is not the firmware's to put out.
  *
  * Nothing here blocks. tickLightTest() runs every frame and reaches the bus
@@ -72,6 +72,12 @@ void BrainoApp::lightTestBegin(uint32_t nowMs) {
     t.blinkAtMs = nowMs;
     Serial.printf("[lights] %u/%u %s\n", static_cast<unsigned>(t.step + 1),
                   static_cast<unsigned>(t.steps + 1), name);
+    /* And on the panel, as a notice, for as long as the step lasts: whoever
+     * is watching the lights is holding the console, not reading a log. */
+    char line[48];
+    snprintf(line, sizeof(line), "%u/%u %s", static_cast<unsigned>(t.step + 1),
+             static_cast<unsigned>(t.steps + 1), name);
+    showBenchNotice(line, t.stepMs);
 }
 
 /* Whatever the step in hand had lit goes back to how its driver leaves it. */

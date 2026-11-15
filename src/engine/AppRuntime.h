@@ -315,7 +315,11 @@ private:
      * the admin: a parent who is not holding the device has no other way to
      * learn, and the wording tells a young player what to do about it. */
     void tickUpdateNotice(uint32_t nowMs);
-    /* Retires the notice the serial console's `notice` command raised. */
+    /* Words as a notice for `ms`, ahead of whatever else is due: the serial
+     * console's `notice`, and anything else at the bench with a line for the
+     * person holding the console to read. Empty words take it down. */
+    void showBenchNotice(const char* words, uint32_t ms);
+    /* Retires it. */
     void tickBenchNotice(uint32_t nowMs);
     void tickPowerMonitor(uint32_t nowMs);
 
@@ -612,10 +616,11 @@ private:
     char updateBanner_[48] = {0};
     bool updateBannerActive_ = false;
     uint32_t updateBannerShownMs_ = 0;
-    /* The words the serial console's `notice` command asked to see. */
+    /* The words showBenchNotice() was given, and for how long. */
     char benchNotice_[48] = {0};
     bool benchNoticeActive_ = false;
     uint32_t benchNoticeShownMs_ = 0;
+    uint32_t benchNoticeMs_ = BENCH_NOTICE_MS;
     uint32_t batteryCheckMs_ = 0;
     uint32_t batteryShownMs_ = 0;
     uint32_t batteryHiddenMs_ = 0;

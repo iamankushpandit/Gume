@@ -248,15 +248,20 @@ void BrainoApp::dismissNotice(uint32_t nowMs) {
  * screen comes back from under it are things to look at on a panel, on every
  * board. Empty words take it down again. */
 void BrainoApp::cmdNotice(int, char** argv, Print& out) {
-    snprintf(benchNotice_, sizeof(benchNotice_), "%s", argv[0]);
-    benchNoticeActive_ = benchNotice_[0] != '\0';
-    benchNoticeShownMs_ = millis();
-    requestBannerRepaint();
+    showBenchNotice(argv[0], BENCH_NOTICE_MS);
     out.println(benchNoticeActive_ ? "ok notice=\"shown\"" : "ok notice=\"cleared\"");
 }
 
+void BrainoApp::showBenchNotice(const char* words, uint32_t ms) {
+    snprintf(benchNotice_, sizeof(benchNotice_), "%s", words);
+    benchNoticeActive_ = benchNotice_[0] != '\0';
+    benchNoticeShownMs_ = millis();
+    benchNoticeMs_ = ms;
+    requestBannerRepaint();
+}
+
 void BrainoApp::tickBenchNotice(uint32_t nowMs) {
-    if (benchNoticeActive_ && nowMs - benchNoticeShownMs_ >= BENCH_NOTICE_MS) {
+    if (benchNoticeActive_ && nowMs - benchNoticeShownMs_ >= benchNoticeMs_) {
         benchNoticeActive_ = false;
         requestBannerRepaint();
     }
