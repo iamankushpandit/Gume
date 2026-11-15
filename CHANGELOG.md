@@ -527,6 +527,16 @@ And in both multiple-choice rounds a wrong tap flashed the *correct* button --
 in red, so it told the answer and mislabelled it at once. The button that was
 pressed is the one that flashes now.
 
+**Go's info box says the whole message.** On the 9x9 board the box under
+Captured showed one line of about fifteen characters and dropped the rest with
+no sign, so "Tap groups that cannot live" read "Tap groups that" and "Waiting
+for them to agree" read "Waiting for"
+([issue 231](https://github.com/iamankushpandit/Gume/issues/231)). It now
+wraps the message against the panel into two lines, centred in the box, and a
+message too long even for two ends in a mark rather than losing words. The
+message buffer was one character short for the two longest messages, which
+had lost their last letter; it is now sized to what the box can show.
+
 ## attaky-1.0.0-SNAPSHOT — Unreleased
 
 Braino! for Attaky: the same console on Attaky's modular handhelds, released

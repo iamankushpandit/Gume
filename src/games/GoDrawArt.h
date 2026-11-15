@@ -38,6 +38,12 @@ static_assert(GAME_CANVAS_WIDTH - (BX + BOX_BIG + PANEL_GAP) - 4 >= 100,
 inline constexpr int16_t TURN_Y = 34, TURN_H = 22;
 inline constexpr int16_t CAPT_Y = 60, CAPT_H = 32;
 inline constexpr int16_t INFO_Y = 96, INFO_H = 34;
+/* The info box's message: up to two lines of font 1 (8px tall), 12px apart,
+ * inside the box's 1px border with daylight above and below. */
+inline constexpr uint8_t INFO_LINES = 2;
+inline constexpr int16_t INFO_FONT_H = 8, INFO_LINE_H = 12, INFO_PAD_X = 6;
+static_assert((INFO_LINES - 1) * INFO_LINE_H + INFO_FONT_H <= INFO_H - 2 * 4,
+              "the info box's two lines do not fit inside its border");
 inline constexpr int16_t PASS_Y = 136, PASS_H = 26;
 inline constexpr int16_t UNDO_Y = 166, UNDO_H = 24;
 inline constexpr int16_t ACTION_Y = 194, ACTION_H = 26;

@@ -9,6 +9,8 @@
 
 #include "GoDrawArt.h"
 
+#include <string.h>
+
 /* Go's side panel: whose turn, the captures, the info box (the magnifier on
  * 19x19) and the buttons. Each part repaints itself whole when what it shows
  * changed, behind its own stale flag in drawPanel(). */
@@ -111,10 +113,35 @@ void GoGame::drawInfo(Ui::Renderer& tft) const {
         tft.drawString(line, r.x + 6, r.y + 16, 2);
         return;
     }
-    Ui::drawWrappedText(tft, message_,
-                        Rect{static_cast<int16_t>(r.x + 6), static_cast<int16_t>(r.y + 4),
-                             static_cast<int16_t>(r.w - 12), static_cast<int16_t>(r.h - 8)},
-                        Ui::text(), 1, Align::Left);
+    /* The message, wrapped against the live panel at font 1 into at most
+     * INFO_LINES lines and centred in the box. drawWrappedText() spaced its
+     * lines 18px apart, so only the first fitted in this box and the rest of
+     * the words went unseen. A message that would need a third line keeps
+     * what fits of it on the second, cut as Ui::fitted() cuts and ending in
+     * its mark, rather than losing words with no sign. Fixed buffers, no
+     * String: this box repaints on every move. */
+    const int16_t maxW = static_cast<int16_t>(r.w - 2 * INFO_PAD_X);
+    char lines[INFO_LINES + 1][Ui::WRAP_LINE_MAX];
+    const uint8_t need = Ui::wrapLines(tft, message_, maxW, 1, lines, INFO_LINES + 1);
+    if (need == 0) return;
+    if (need > INFO_LINES) {
+        char* last = lines[INFO_LINES - 1];
+        char rest[2 * Ui::WRAP_LINE_MAX];
+        snprintf(rest, sizeof(rest), "%s %s", last, lines[INFO_LINES]);
+        size_t len = strlen(rest);
+        if (len > Ui::WRAP_LINE_MAX - 1) rest[len = Ui::WRAP_LINE_MAX - 1] = '\0';
+        while (len > 2 && tft.textWidth(rest, 1) > maxW) rest[--len] = '\0';
+        rest[len - 1] = '.';
+        memcpy(last, rest, len + 1);
+    }
+    const uint8_t shown = need > INFO_LINES ? INFO_LINES : need;
+    const int16_t block = static_cast<int16_t>((shown - 1) * INFO_LINE_H + INFO_FONT_H);
+    int16_t y = static_cast<int16_t>(r.y + (r.h - block) / 2);
+    tft.setTextColor(Ui::text(), Ui::surface());
+    for (uint8_t i = 0; i < shown; ++i) {
+        tft.drawString(lines[i], r.x + INFO_PAD_X, y, 1);
+        y = static_cast<int16_t>(y + INFO_LINE_H);
+    }
 }
 
 void GoGame::drawMagnifier(Ui::Renderer& tft) const {
