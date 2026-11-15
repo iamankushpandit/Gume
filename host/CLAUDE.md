@@ -15,6 +15,21 @@ cmake --build build/host -j
 ./build/host/braino
 ```
 
+CI does the same on every pull request that touches source (`ci.yml`'s
+`host` job, with `verify` waiting on it), and runs every test in
+`test/host/` beside it on every pull request through
+`tools/run_host_tests.py` -- the same command, from Linux or WSL:
+
+```bash
+python3 tools/run_host_tests.py               # every test
+python3 tools/run_host_tests.py go_rules_test # one
+```
+
+The runner builds each test with the `g++` line written in its own header,
+so a new test states that line or fails. The card image is
+`.github/workflows/card-image.yml`: on changes here, on a `card-rg40xxv-*`
+tag, and in full once a week.
+
 A mouse click is a finger on the glass. With a gamepad, the left stick moves a
 crosshair, the d-pad (the arrow keys) moves a selector from control to control,
 and A (Enter, Space) presses under whichever is showing; see "The d-pad's

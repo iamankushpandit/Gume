@@ -14,7 +14,7 @@
 // viewport; the PC build's panel keeps a paint clip of its own and never runs
 // that half, so this is where it is checked.
 //
-// Not run by CI and not picked up by pio test. From the repository root:
+// Run by CI (tools/run_host_tests.py), not by pio test. From the repository root:
 //   g++ -std=c++17 -Wall -Wextra -Isrc test/host/paint_clip_test.cpp -o /tmp/paint_clip && /tmp/paint_clip
 
 #include <cstdio>

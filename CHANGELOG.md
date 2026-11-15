@@ -169,6 +169,20 @@ never one a pull request made, since a base goes into published images. The
 source bundle of a build on a base is the base's, with Braino's source,
 licence and manifest row replaced by the commit's own.
 
+**CI runs every host test, and builds the card image weekly from source.**
+`ci.yml`'s `host` job ran one of the thirteen tests in `test/host/`; it now
+runs all of them on every pull request, documentation-only ones included,
+through `tools/run_host_tests.py`. The runner has no list: it builds each
+test with the `g++` line its own header gives a reader, so the documented
+command and CI's cannot drift, and a test with no such line fails rather than
+being skipped. Each test runs whatever the others did and prints its whole
+output, and the summary names every one. `card-image.yml` gained a weekly
+run that builds the whole image from source, ignoring the stored OS base,
+so a source tarball that disappears upstream is found within a week rather
+than on the day an OS change needs a full build; it also keeps the stored
+base fresh. Its Buildroot output now goes to the log in full as it runs,
+rather than only the step names.
+
 **CI builds the RG40XX V's card image, and a tag publishes it.**
 `card-image.yml` builds the image with Buildroot on every change to what it is
 made from, and uploads it with its source bundle: Buildroot's `legal-info`,

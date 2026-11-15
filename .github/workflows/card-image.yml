@@ -16,7 +16,9 @@ name: Card image
 # takes about an hour -- a cross toolchain, a kernel, U-Boot and every
 # library -- and because what it protects is a download, not the firmware
 # every change touches. It runs when something the image is built from
-# changes. Most runs are not full builds: when only Braino changed, a run
+# changes, and once a week in full (GitHub runs a schedule from the default
+# branch's copy of this file, so that starts once it reaches main). Most
+# runs are not full builds: when only Braino changed, a run
 # builds Braino on top of an OS base an earlier run stored (see "Look for a
 # stored OS base" below), which takes minutes.
 #
@@ -48,12 +50,24 @@ on:
       - ".github/workflows/card-image.yml"
     # Path filters do not apply to tags: a tag always builds.
     tags: ["card-rg40xxv-*"]
+  # Once a week, a FULL build from source on the default branch, ignoring any
+  # stored OS base. Every other run builds Braino on top of a base and so
+  # downloads nothing and compiles no OS: it cannot notice a source tarball
+  # that has vanished from upstream, a mirror that moved, or a runner image
+  # that no longer builds the toolchain. That is found here, on a Monday
+  # morning, rather than on the day an OS change needs a full build. It also
+  # stores a fresh base, so the base never reaches its 90-day expiry.
+  schedule:
+    - cron: "17 5 * * 1"
   workflow_dispatch:
 
 # A newer push to the same branch makes an older build worthless, and a full
 # one holds a runner for an hour.
+#
+# The weekly build has a group of its own: it runs on the default branch, and a
+# push there must not cancel the one full build of the week, nor it the push.
 concurrency:
-  group: card-image-${{ github.ref }}
+  group: card-image-${{ github.event_name == 'schedule' && 'weekly' || github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
@@ -100,6 +114,9 @@ jobs:
       # above all -- runs code nobody has reviewed yet: one that stored a
       # base under the right name could put anything into the next release.
       # Pull requests build on bases; they never store one.
+      #
+      # The weekly run looks for none: proving the OS still builds from
+      # source is what it is for.
       - name: Look for a stored OS base
         id: base
         env:
@@ -108,6 +125,11 @@ jobs:
         run: |
           key=$(sh host/rg40xxv/os-base.sh key)
           echo "key=$key" >>"$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            echo "Weekly build: ignoring any stored OS base $key and building everything."
+            echo "run=" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           run=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=rg40xxv-os-$key&per_page=100" \
             --jq "[.artifacts[] | select(.expired == false
                      and .workflow_run.head_repository_id == $REPO_ID
@@ -160,16 +182,18 @@ jobs:
           key: card-dl-${{ hashFiles('host/rg40xxv/configs/**', 'host/rg40xxv/package/**', 'host/rg40xxv/board/*.fragment') }}
           restore-keys: card-dl-
 
-      # Buildroot's own output runs to hundreds of thousands of lines, so it
-      # goes to a file, which is uploaded if the build fails; the log here
-      # keeps only the step names.
+      # Buildroot's whole output goes to this step's log, as it runs: a build
+      # that sits for an hour must be seen to be doing something, and the
+      # line that failed is wherever it failed, not in the last 200. It runs
+      # to hundreds of thousands of lines, so a copy also goes to a file,
+      # which is uploaded if the build fails -- easier to search than the
+      # web view of a log that size.
       - name: Build the card image
         run: |
           set -o pipefail
-          host/rg40xxv/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered '>>> ' || {
-            tail -n 200 "$RUNNER_TEMP/build.log"
-            exit 1
-          }
+          echo "Building the card image; Buildroot's full output follows."
+          host/rg40xxv/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"
+          echo "Card image built."
           ls -l "$HOME/braino-rg40xxv/out/images"
 
       - name: Keep the build log
@@ -181,7 +205,7 @@ jobs:
           retention-days: 7
 
       - name: Save the downloaded sources
-        if: steps.base.outputs.run == '' && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        if: steps.base.outputs.run == '' && (github.event_name == 'push' || github.event_name == 'schedule') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
         uses: actions/cache/save@v4
         with:
           path: ~/braino-rg40xxv/dl
@@ -210,10 +234,7 @@ jobs:
           set -eu
           L="$HOME/braino-rg40xxv/legal-info"
           if [ -z "$FROM_BASE" ]; then
-            host/rg40xxv/build.sh legal-info >"$RUNNER_TEMP/legal-info.log" 2>&1 || {
-              tail -n 100 "$RUNNER_TEMP/legal-info.log"
-              exit 1
-            }
+            host/rg40xxv/build.sh legal-info
             rm -rf "$L"
             mv "$HOME/braino-rg40xxv/out/legal-info" "$L"
             rm -rf "$L/host-sources" "$L"/sources/linux-firmware-*
@@ -275,14 +296,14 @@ jobs:
       # Kept 90 days, the longest an artifact can be. A base that expires
       # costs the next run one full build, which stores a new one.
       - name: Cut the build down to the OS base
-        if: steps.base.outputs.run == '' && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        if: steps.base.outputs.run == '' && (github.event_name == 'push' || github.event_name == 'schedule') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
         run: |
           sh host/rg40xxv/os-base.sh trim
           tar -C "$HOME/braino-rg40xxv" -cf - out legal-info | zstd -T0 -3 -q -o "$RUNNER_TEMP/os-base.tar.zst"
           ls -l "$RUNNER_TEMP/os-base.tar.zst"
 
       - name: Store the OS base
-        if: steps.base.outputs.run == '' && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        if: steps.base.outputs.run == '' && (github.event_name == 'push' || github.event_name == 'schedule') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
         uses: actions/upload-artifact@v4
         with:
           name: rg40xxv-os-${{ steps.base.outputs.key }}

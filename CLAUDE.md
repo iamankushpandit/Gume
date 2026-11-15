@@ -424,7 +424,7 @@ What follows from the classification:
 
 - **CI builds every product environment** on a push to `main` or `dev`,
   and on a pull request builds `app` plus whatever the diff reaches.
-- **Each environment builds in its own job, in parallel.** `ci.yml` is three
+- **Each environment builds in its own job, in parallel.** `ci.yml` is four
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
   installs all the toolchains once into the one cache it alone saves; `build`
   is a matrix with one runner per environment and `fail-fast: false`, each
@@ -432,13 +432,33 @@ What follows from the classification:
   `BOARD_NAME` from the board section, so a red job says which board broke and
   the environment beside it says how to reproduce it), each
   restoring that toolchain cache read-only plus its own per-environment object
-  cache; `verify` waits for both and fails if either did. One runner building
+  cache; `host` builds the PC program and runs the host tests (below);
+  `verify` waits for all three and fails if any did. One runner building
   seven boards in turn was 14-15 minutes on a push to `dev`. **`verify` is the
   required status check in the branch rulesets -- never rename it, and never
   make the matrix jobs required instead:** their names carry the environment,
   so the set changes with the diff, and a ruleset can only wait for names it
   knows. `verify` runs `if: always()` so a docs-only pull request, where
   `build` is skipped, still reports.
+- **Every test in `test/host/` runs on every pull request**, in the `host`
+  job, through `tools/run_host_tests.py`. There is no list of tests: each
+  `*_test.cpp` states its own `g++` line in its header, the runner builds it
+  with exactly that line and runs it, and a test with no such line fails
+  rather than being skipped. **A new host test therefore states its build
+  line in that shape** (`//   g++ ... test/host/<name>_test.cpp ... -o <exe>`)
+  and is run from the commit that adds it. Every test runs whatever the
+  others did, with its whole output, and any failure fails `host` and so
+  `verify`; there is no allow-list of known failures, and none may be added
+  -- a red test is fixed or the change that broke it waits. The tests run
+  even on a docs-only pull request (they need only the runner's g++); the
+  SDL build beside them waits for source to change.
+- **The RG40XX V's card image is `card-image.yml`, not a check.** It builds
+  on a pull request or push that touches `host/`, `src/` or `include/`, on a
+  `card-rg40xxv-*` tag (which publishes it as a pre-release), and once a week
+  in full from source, ignoring the stored OS base, so a vanished upstream
+  tarball is found on a Monday rather than on the day an OS change needs it.
+  It is not part of `verify`: it takes an hour when the OS changed, and it
+  protects a download rather than the firmware.
 - **A diagnostic is built only when its own source or `platformio.ini`
   moves** -- `tools/envs.py --for-changes` derives that from each one's
   `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
@@ -555,9 +575,10 @@ the guide. Three things about it are load-bearing:
   radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
   through `host/shim/NimBLEDevice.h` on a raw HCI socket).
 - **A new platform call in `src/` breaks the host build until `host/shim/`
-  answers it.** The shims hold only what `src/` calls. CI does not build the
-  host yet, so check it yourself when you reach for a new Arduino or ESP-IDF
-  API.
+  answers it.** The shims hold only what `src/` calls. CI builds the host
+  on every pull request that touches source (`ci.yml`'s `host` job, which
+  `verify` waits for), so a missing shim is a red pull request; building it
+  yourself first is still quicker than waiting for CI to say so.
 - **The host's network is the firmware's, and nothing more.** Wi-Fi is the
   computer's own radio, driven through NetworkManager or wpa_supplicant
   (`host/src/HostWifiOs.cpp`), and UDP and HTTP are real sockets. But the
@@ -1782,7 +1803,8 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           a Wayback Machine copy
 .github/workflows/        ci.yml validates checks, then builds one job per
                           environment in parallel (`verify` is the required
-                          check that judges them); pages.yml publishes
+                          check that judges them), builds the PC program
+                          and runs every test in test/host/; pages.yml publishes
                           the site from the same firmware set;
                           release.yml publishes a tagged release with
                           every firmware image attached; card-image.yml
@@ -1790,7 +1812,7 @@ site/                     index.template.html â€” the GitHub Pages landing 
                           bundle -- Braino alone, on an OS base a full build
                           on dev or main stored, unless the OS changed --
                           and a card-rg40xxv-* tag publishes both as a
-                          pre-release
+                          pre-release; it also runs in full once a week
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
                           gameplay/ (the stills played, from gen_gameplay.py),
                           boards/ (one page per supported board; the pin

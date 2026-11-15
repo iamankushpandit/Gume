@@ -12,7 +12,7 @@
 // MathCourse.h is pure C++ with no Arduino in it, and this file is what
 // proves that still holds, since it will not compile otherwise.
 //
-// It is not run by CI and not picked up by pio test (the folder name does not
+// It is run by CI (tools/run_host_tests.py), not by pio test (the folder name does not
 // start with test_). Build and run it with any host C++17 compiler:
 //
 //   g++ -std=c++17 -O2 -Wall -Wextra -I src -I src/games test/host/math_course_test.cpp -o math_course_test && ./math_course_test
