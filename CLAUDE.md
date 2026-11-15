@@ -768,7 +768,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 Flash is global and nearly the binding constraint (2,644,753 / 3,145,728 bytes,
 **84.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 92,836 / 327,680 (28.3%) -- higher than it was, deliberately: RowList traded
+at 92,956 / 327,680 (28.4%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1150,6 +1150,20 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   every player. The Games list stays readable by anyone on purpose: a player who
   can see a game is switched off is better served than one facing a launcher
   that is short for unexplained reasons.
+- **Which games a player sees is keyed by the game's id, never by its tile.**
+  One blob per player, `p<N>_gvis`, of `GameVisibility::SLOTS` (64) two-byte
+  entries: the 14-bit key of the id -- the same FNV-1a fold the course levels
+  use, so `check_catalog.py`'s collision check covers both -- and a shown bit;
+  a game with no entry is at its default (`src/hal/GameVisibility.h`, tested
+  by `test/host/game_visibility_test.cpp`). It was one bool per launcher index
+  in a 32-bit RAM mask, so the last eight of forty games could not be hidden,
+  and inserting a game slid every later player's setting onto its neighbour.
+  `Board` takes a `GameVisibility::Key`, a type of its own, so a caller still
+  passing an index does not compile. The old keys are folded in once, by
+  storage schema 3: `Board::migrateGameVisibility()`, called by the runtime
+  right after `begin()` with each index's key, because the board cannot know
+  the catalogue. **Renaming a game's id resets its visibility for every
+  player**, as it resets their level in it.
 - **Settings is readable by everyone and writable only by the admin.** There is
   no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
   early return in `SettingsApp::update()`, sitting *below* tab switching so a
@@ -2109,9 +2123,9 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   - **The same refusals as the screens, and two more.** The admin profile
     cannot be removed; the *active* player cannot be removed either (from a
     cable that would pull a profile out from under a running game); two
-    players cannot share a name. Games at launcher index 32+ cannot be hidden
-    yet -- visibility is a 32-bit mask and the catalogue is 38 -- and the
-    console says so rather than answering ok.
+    players cannot share a name. Every game can be hidden; the one refusal
+    `game` has left is a player whose visibility table is full of other games
+    (`err limit`), which the catalogue would have to grow past 64 to reach.
   - **Serial only.** A console over Wi-Fi or BLE would be a new outbound flow
     under the closed privacy list.
   - **It goes through the same doors as the screens**: the same `Board`

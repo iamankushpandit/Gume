@@ -204,11 +204,11 @@ void migrateDynamicScoreRange(Preferences& prefs, uint8_t profileIndex, const ch
 
 void Board::migrateStorageSchema() {
     const uint16_t stored = prefs_.getUShort("schema", 0);
-    if (stored >= STORAGE_SCHEMA_VERSION) {
+    if (stored >= KEY_SCHEMA_VERSION) {
         return;
     }
 
-    Serial.printf("[storage] migrating schema %u -> %u\n", stored, STORAGE_SCHEMA_VERSION);
+    Serial.printf("[storage] migrating schema %u -> %u\n", stored, KEY_SCHEMA_VERSION);
     for (uint8_t profile = 0; profile < MAX_PLAYERS; ++profile) {
         for (size_t i = 0; i < STORAGE_KEY_COUNT; ++i) {
             migrateProfileKey(prefs_, profile, STORAGE_KEYS[i].legacy,
@@ -217,7 +217,57 @@ void Board::migrateStorageSchema() {
         migrateDynamicScoreRange(prefs_, profile, "mazeB", "maze_b", 0, 99, true);
         migrateDynamicScoreRange(prefs_, profile, "slideB", "slide_b", 2, 3, true);
     }
+    prefs_.putUShort("schema", KEY_SCHEMA_VERSION);
+}
+
+/* Schema 2 -> 3. Up to 5.x a player's visibility was one bool per game,
+ * "p<N>_gv<I>", I being the launcher index, and only I < 32 could ever be
+ * written. Each one found is read against the game at that index today --
+ * which is what the firmware being replaced read it as, so nobody's launcher
+ * changes -- folded into the player's id-keyed blob, and removed. A key past
+ * the end of today's catalogue names no game and is just removed.
+ *
+ * At most 5 x 32 key lookups, once, at the first boot of this firmware. */
+void Board::migrateGameVisibility(const uint16_t* keyAtIndex, uint8_t count) {
+    const uint16_t stored = prefs_.getUShort("schema", 0);
+    if (stored >= STORAGE_SCHEMA_VERSION) {
+        return;
+    }
+    Serial.printf("[storage] migrating schema %u -> %u\n", stored, STORAGE_SCHEMA_VERSION);
+    unsigned moved = 0;
+    for (uint8_t profile = 0; profile < MAX_PLAYERS; ++profile) {
+        GameVisibility::Table table;
+        char blobKey[STORAGE_KEY_CAP];
+        visibilityKey(blobKey, sizeof(blobKey), profile);
+        if (prefs_.isKey(blobKey)) {
+            uint8_t blob[GameVisibility::BLOB_BYTES] = {};
+            size_t len = prefs_.getBytesLength(blobKey);
+            if (len > sizeof(blob)) len = sizeof(blob);
+            prefs_.getBytes(blobKey, blob, len);
+            table.load(blob, len);
+        }
+        bool changed = false;
+        for (uint8_t i = 0; i < GameVisibility::LEGACY_INDEX_LIMIT; ++i) {
+            char oldKey[STORAGE_KEY_CAP];
+            snprintf(oldKey, sizeof(oldKey), "p%u_gv%u", profile, i);
+            if (!prefs_.isKey(oldKey)) {
+                continue;
+            }
+            if (i < count && table.foldLegacy(keyAtIndex[i], prefs_.getBool(oldKey, true))) {
+                changed = true;
+                ++moved;
+            }
+            prefs_.remove(oldKey);
+        }
+        if (changed) {
+            uint8_t blob[GameVisibility::BLOB_BYTES];
+            table.store(blob);
+            prefs_.putBytes(blobKey, blob, sizeof(blob));
+        }
+    }
+    Serial.printf("[storage] game visibility: %u setting(s) now keyed by game\n", moved);
     prefs_.putUShort("schema", STORAGE_SCHEMA_VERSION);
+    visibilityCached_ = false;
 }
 
 void Board::legacyScopedKeyForProfile(char* out, size_t cap, uint8_t profileIndex, const char* key) {

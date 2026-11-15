@@ -84,17 +84,17 @@ public:
     void saveBlob(const char* key, const void* src, size_t len) {
         board_.saveBlob(key, src, len);
     }
-    bool gameVisible(uint8_t catalogIndex, bool fallback = true) {
-        return board_.gameVisible(catalogIndex, fallback);
+    bool gameVisible(GameVisibility::Key game, bool fallback = true) {
+        return board_.gameVisible(game, fallback);
     }
-    void setGameVisible(uint8_t catalogIndex, bool visible) {
-        board_.setGameVisible(catalogIndex, visible);
+    void setGameVisible(GameVisibility::Key game, bool visible) {
+        board_.setGameVisible(game, visible);
     }
-    bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true) {
-        return board_.gameVisibleFor(catalogIndex, profileIndex, fallback);
+    bool gameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool fallback = true) {
+        return board_.gameVisibleFor(game, profileIndex, fallback);
     }
-    void setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible) {
-        board_.setGameVisibleFor(catalogIndex, profileIndex, visible);
+    bool setGameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool visible) {
+        return board_.setGameVisibleFor(game, profileIndex, visible);
     }
 
 private:

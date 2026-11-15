@@ -38,7 +38,7 @@ NVS via `Preferences`, in the legacy application namespace.
 
 Five player slots plus a permanent Guest (`MAX_PLAYERS = 5`, `GUEST_INDEX = 5`, names capped at `PROFILE_NAME_MAX = 9` — `NAME_MAX` is a POSIX macro, hence the odd name). **Guest drops every write** through the scoped setters; that is deliberate, not a bug to fix.
 
-Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Global: theme, layout, screen flip, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Visibility is one `p<N>_gvis` blob keyed by each game's id, never its launcher index -- `GameVisibility.h` is the table, pure and host-tested, and `Board` keeps the active player's in RAM because the launcher asks it for every tile. Schema 3 (`migrateGameVisibility()`, called by the runtime after `begin()` because only it knows which game is at which index) folds the old per-index `p<N>_gv<I>` bools in. Global: theme, layout, screen flip, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
 
 **One slot is the console's own.** `loadConsoleBlob()` / `saveConsoleBlob()` /
 `clearConsoleBlob()` keep a blob under `CONSOLE_SLOT` (9), outside the players'
