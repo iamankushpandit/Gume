@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,644,341 / 3,145,728 bytes of the app partition (**84.1%**) |
-| RAM | 92,836 / 327,680 bytes (**28.3%**) |
+| Flash | 2,644,897 / 3,145,728 bytes of the app partition (**84.1%**) |
+| RAM | 92,852 / 327,680 bytes (**28.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -1773,6 +1773,8 @@ src/
     PowerMonitor.cpp    where the battery went: the recorder
     PowerLedger.cpp     where the battery went: the analysis
     PowerProbeEsp32.cpp what an ESP32 board can measure of it
+    PanelSize.h         how big the panel is: every platform's own answer
+    PanelSizeEsp32.cpp  a board's: the profile's panel
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
     BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
