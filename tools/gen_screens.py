@@ -3247,16 +3247,28 @@ def shapearith(answered=True):
 
 
 def calendar():
+    """Calendar, Days at level 2: across the join of the week.
+
+    Geometry from SequenceGame.cpp: the track buttons, the tally and the
+    level right of them, the prompt on y=70, the subject's box at
+    (60, 84, 200, 52), the tiles at (8 + col*159, 152 + row*48, 152, 40).
+    The wrong tiles are CalendarCourse's: the day on the other side, the day
+    the question starts from, and one too far.
+    """
     im, d = blank(); topbar(d, "Calendar")
     for m, lab in enumerate(["Days", "Months"]):
         r = (8 + m * 124, 32, 120, 26)
         button(d, r, lab, BLUE if m == 0 else PANEL, WHITE if m == 0 else TEXT)
-    q = "What comes after Wednesday?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
-    for i, day in enumerate(["Thursday", "Tuesday", "Friday", "Monday"]):
+    d.text((W - 8 - d.textlength("4/5", font=F2), 33), "4/5", font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("Level 2", font=F1), 50), "Level 2", font=F1, fill=TEXT)
+    q = "What comes AFTER:"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 62), q, font=F2, fill=TEXT)
+    d.rounded_rectangle([60, 84, 259, 135], 8, fill=SURFACE, outline=BLUE)
+    d.text((W / 2 - d.textlength("Sunday", font=F4) / 2, 97), "Sunday", font=F4, fill=TEXT)
+    for i, day in enumerate(["Saturday", "Monday", "Sunday", "Tuesday"]):
         r = (8 + (i % 2) * 159, 152 + (i // 2) * 48, 152, 40)
-        button(d, r, day, SUCCESS if day == "Thursday" else PANEL,
-               (0, 0, 0) if day == "Thursday" else TEXT)
+        button(d, r, day, SUCCESS if day == "Monday" else PANEL,
+               (0, 0, 0) if day == "Monday" else TEXT)
     return im
 
 

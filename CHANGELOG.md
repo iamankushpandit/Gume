@@ -134,6 +134,19 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Calendar is two courses, days and months, with a level each.** It had
+thirty-four questions and no levels, never asked across the join -- after
+Sunday, after December -- and offered wrong tiles drawn at random, so most
+questions could be answered by striking out the far-away names. The Days
+button now runs the next day, round the week, two or three days on, and a
+week and more; the Months button the next month, round the year, which
+month is which number, how many days a month (and a week, a year, a leap
+year) has, and several months on. Each track's level is kept between
+visits, every question of a level comes up before any repeats, the wrong
+tiles are the mistakes players make -- the day before given for the day
+after, the starting day counted as the first, the month one out on a
+number -- and answering repaints the tiles rather than the whole screen.
+
 **Number Line is a course of nine levels, and no longer gives the answer
 away.** The frog used to hop to the answer and stand on it with the number
 written inside before the buttons appeared, so a player who could read a
