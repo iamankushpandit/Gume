@@ -1795,6 +1795,7 @@ src/
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
+    Stops.cpp           whether a board takes a press now, for the d-pad
 host/
   CMakeLists.txt        builds src/ unchanged as a desktop program (SDL2)
   boards/host.h         the virtual board: every pin answered by host/src

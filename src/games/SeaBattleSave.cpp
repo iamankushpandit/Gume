@@ -197,7 +197,6 @@ void SeaBattleGame::resume(AppContext& host, uint32_t awayMs) {
     (void)awayMs;
     confirmUntilMs_ = 0;
 }
-}
 
 bool SeaBattleGame::ownGameKept(AppContext& host) const {
     Saved in{};

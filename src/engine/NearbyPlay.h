@@ -42,7 +42,7 @@ struct AppDefinition;
 
 namespace NearbyPlay {
 
-/* How long one notification stays in the header before it is removed. Long
+/* How long one notice stays along the bottom before it is removed. Long
  * enough to read a short line, short enough that it is gone before it becomes
  * furniture. */
 constexpr uint32_t BANNER_MS = 5000;

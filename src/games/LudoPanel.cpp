@@ -306,8 +306,8 @@ void LudoGame::drawLobbyHint(Ui::Renderer& tft) const {
         return;
     }
     if (inviteWaiting_) {
-        /* The header banner announced it and has gone; this is where it is
-         * still answerable from. */
+        /* The notice announced it and has gone; this is where it is still
+         * answerable from. */
         Ui::drawLabel(tft, HINT_RECT, "Invitation waiting: tap Nearby", Ui::success(), 2,
                       Align::Center);
         return;
@@ -348,7 +348,7 @@ void LudoGame::renderLobby(AppContext& host) {
 }
 
 void LudoGame::updateLobby(AppContext& host, const TouchPoint& touch) {
-    /* An invitation to Ludo is announced in the header by the service; the
+    /* An invitation to Ludo is announced in a notice by the service; the
      * lobby says where to answer it, and says so too when somebody in the
      * room is gathering a table. Re-read on the peer cadence, not every
      * frame. */
