@@ -134,6 +134,21 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Color Mix is a course of six levels.** It had six questions, and its
+wrong buttons came from seven names one of which, brown, was never the
+answer, so a player learned to skip it; "pink" was a magenta swatch. It now
+mixes the first six, then lighter and darker with white or black, then the
+same mixes backwards ("red + ? = pink"), the colours in between a primary
+and its neighbour, opposite colours that make brown, and mixing light, where
+red and green make yellow. The level is kept between visits and every
+question of a level comes up before any repeats. The wrong buttons are the
+colours a mix is mistaken for -- another mix sharing one of its colours,
+darker for lighter, and for light what the same two colours make as paint --
+never a second right answer, and never two look-alike shades on one
+question. A question has one try: the right colour is ringed and the line
+says what the pair makes, where any number of taps used to find it. Button
+labels take their ink from the colour they sit on.
+
 **Calendar is two courses, days and months, with a level each.** It had
 thirty-four questions and no levels, never asked across the join -- after
 Sunday, after December -- and offered wrong tiles drawn at random, so most

@@ -144,7 +144,7 @@ that, so a label that overflows looks perfect in every mock-up.
 
 ## A quiz that is a course
 
-Math, Multiplication, Counting, Shape Arith, Fingers, Time, Number Line and Calendar keep each player's level between visits and
+Math, Multiplication, Counting, Shape Arith, Fingers, Time, Number Line, Calendar and Color Mix keep each player's level between visits and
 deal every question of a level before any comes back. The pieces are
 `../engine/Course.h` (`Course::Ladder`, `Course::QuestionDeck`) and, for each
 game, a pure `<Game>Course.h` that knows its levels: how many questions each

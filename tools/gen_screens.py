@@ -3157,17 +3157,39 @@ def sorting(done=((0, 1),), nxt="Next: 4"):
     return im
 
 
-def colormix():
+def colormix(answered=True):
+    """Color Mix, level 1: red and yellow.
+
+    Geometry from ColorMixGame.cpp: the header on y=35, the line on
+    (10, 52, 300, 18), swatches at (56, 78, 60, 44) and (204, 78, 60, 44)
+    with their names 12px under, buttons at (26 + col*148, 142 + row*44,
+    120, 34) filled with their own colour, and once answered a ring round
+    the right one. Fills are ColorMixCourse's SWATCHES. The wrong buttons
+    are mixes that share a colour with this one, as the course builds them.
+    """
+    sw = {"red": (225, 30, 30), "yellow": (250, 220, 30), "orange": (250, 140, 20),
+          "pink": (250, 170, 190), "green": (40, 170, 60), "purple": (130, 40, 170)}
     im, d = blank(); topbar(d, "Color Mix")
-    q = "What do you get?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 40), q, font=F2, fill=MUTED)
-    d.ellipse([84, 66, 138, 120], fill=(230, 60, 60))
-    d.ellipse([182, 66, 236, 120], fill=(240, 210, 60))
-    d.text((153, 84), "+", font=F4, fill=TEXT)
-    for i, lab in enumerate(["orange", "purple", "green", "brown"]):
-        r = (26 + (i % 2) * 148, 142 + (i // 2) * 44, 120, 34)
-        button(d, r, lab, SUCCESS if lab == "orange" else PANEL,
-               (0, 0, 0) if lab == "orange" else TEXT)
+    d.text((10, 35), "Level 1", font=F2, fill=TEXT)
+    tally = "3/4  Best 3" if answered else "2/3  Best 3"
+    d.text((W - 8 - d.textlength(tally, font=F2), 35), tally, font=F2, fill=TEXT)
+    q = "Correct!" if answered else "What do you get?"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 53), q, font=F2,
+           fill=SUCCESS if answered else TEXT)
+    for (x, name) in ((56, "red"), (204, "yellow")):
+        d.rounded_rectangle([x, 78, x + 59, 121], 6, fill=sw[name], outline=OUTLINE)
+        d.text((x + 30 - d.textlength(name, font=F1) / 2, 130), name, font=F1, fill=TEXT)
+    d.text((W / 2 - d.textlength("+", font=F4) / 2, 88), "+", font=F4, fill=TEXT)
+    for i, lab in enumerate(["orange", "pink", "green", "purple"]):
+        x, y = 26 + (i % 2) * 148, 142 + (i // 2) * 44
+        fill = sw[lab]
+        ink = (0, 0, 0) if sum(fill) > 380 else (255, 255, 255)
+        d.rounded_rectangle([x, y, x + 119, y + 33], 6, fill=fill, outline=OUTLINE)
+        d.text((x + 60 - d.textlength(lab, font=F2) / 2, y + 9), lab, font=F2, fill=ink)
+        if answered and lab == "orange":
+            for k in (2, 3):
+                d.rounded_rectangle([x - k, y - k, x + 119 + k, y + 33 + k], 6 + k,
+                                    outline=SUCCESS)
     return im
 
 

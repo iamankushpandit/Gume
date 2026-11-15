@@ -571,7 +571,8 @@ SEQUENCES = {
     # The answer, 9, is the second button: (14 + 74, 194, 64, 38).
     "numberline": lambda: tap(gs.numberline(False), gs.numberline(True), (120, 213)),
     "calendar": lambda: quiz(gs.calendar),
-    "colormix": lambda: quiz(gs.colormix),
+    # The answer, orange, is the first button: (26, 142, 120, 34).
+    "colormix": lambda: tap(gs.colormix(False), gs.colormix(True), (86, 159)),
     "percent": lambda: quiz(gs.percent),
     "grewords": grewords,
     "fingers-count": fingers,
