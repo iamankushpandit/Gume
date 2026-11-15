@@ -1775,7 +1775,8 @@ src/
     PowerProbeEsp32.cpp what an ESP32 board can measure of it
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
-    BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
+    AudioSynth.cpp      the synthesiser: script, oscillator, resonators (pure)
+    BoardAudio.cpp      arming the synthesiser, and the task that runs it
     BoardAudioBackend.cpp  the hardware under it: codec, I2S, amp, DAC idle
     BoardAudioCues.cpp  the vocabulary: every cue, and the spoken phrase
     Sound.h             the console's sound vocabulary, as an enum

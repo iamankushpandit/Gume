@@ -22,8 +22,13 @@ A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOAR
   compare, and the once-a-day gate. A notice, never an update -- nothing here
   downloads or installs firmware. See `include/UpdateChannel.h`
 - `BoardFeedback.cpp` - RGB LED, BLE and Nearby enable switches
-- `BoardAudio.cpp` - the sound engine: codec bring-up, the cue tables, the
-  phoneme table for the spoken boot phrase, and the per-sample synthesiser
+- `AudioSynth.cpp` - the per-sample synthesiser: script, oscillator,
+  resonators, gain. Pure C++, rendered off the device by
+  `test/host/audio_synth_test.cpp`
+- `BoardAudio.cpp` - arming the synthesiser, and the `braino-audio` task
+  that runs it
+- `BoardAudioCues.cpp` - the cue tables and the phoneme table for the
+  spoken boot phrase
 - `Sound.h` - the cue vocabulary, shared with app code without pulling in
   `Board.h`
 - `BoardStorage.cpp` - scoped persistence, schema versioning, migration

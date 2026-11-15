@@ -1074,7 +1074,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Ui` | `src/ui/Ui.h` | Stateless themed drawing helpers; owns the colour palette |
 | GameCatalog | src/engine/GameCatalog.h | Derived compatibility view over playable-game metadata |
 | AppRegistry | src/engine/AppRegistry.h | Single source of truth for launchable apps and instance bindings |
-| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudioCues.cpp` / `BoardAudio.cpp` / `BoardAudioBackend.cpp` | The console's sound vocabulary, the synthesiser that generates every one of them a sample at a time, and the codec/I2S/DAC hardware under it |
+| `Sound` / `BoardAudio` | `src/hal/Sound.h` / `BoardAudioCues.cpp` / `AudioSynth.cpp` / `BoardAudio.cpp` / `BoardAudioBackend.cpp` | The console's sound vocabulary, the synthesiser that generates every one of them a sample at a time, and the codec/I2S/DAC hardware under it |
 | `PowerMonitor` / `PowerProbe` / `PowerLedger` | `src/hal/Power*.h` | The battery drain diagnostic: one recorder and one analysis on every platform, over one small interface each platform implements |
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
@@ -1376,7 +1376,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   to NVS and nothing is transmitted. See `src/hal/CLAUDE.md`.
 - **There are no audio files, and there must never be one.** Every sound the
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
-  the spoken "Let's play Braino!" at boot -- is *generated* by `BoardAudio.cpp`
+  the spoken "Let's play Braino!" at boot -- is *generated* by `AudioSynth.cpp`
   (the cue tables themselves live in `BoardAudioCues.cpp`)
   from a script of oscillator, noise and formant segments. No WAV, no PCM
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
@@ -1708,7 +1708,8 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           BleBeaconPayload (the one description of what goes
                           on air, and decode(), its exact inverse),
                           BleScanner, BoardAccess facades,
-                          per-concern HAL units, BoardAudio (the synthesiser) +
+                          per-concern HAL units, AudioSynth (the synthesiser,
+                          pure and host-tested) + BoardAudio (its task) +
                           BoardAudioBackend (codec, I2S, amp) + BoardAudioCues
                           (every cue and the spoken phrase),
                           Sound.h (the cue vocabulary), BoardButton (the BOOT
