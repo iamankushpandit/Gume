@@ -18,6 +18,24 @@ start)
         sort -u | xargs -n 1 modprobe -q 2>/dev/null
     modprobe -q rocknix-singleadc-joypad 2>/dev/null
 
+    # The Bluetooth half of the Wi-Fi chip is on a UART and takes its power
+    # from the Wi-Fi half, which the kernel switches on when it finds the
+    # Wi-Fi on its SDIO bus. The Bluetooth driver is built into the kernel and
+    # starts before that: it calls a chip with no power, is never answered,
+    # and no hci0 ever appears -- Nearby sat on "Radio starting" for ever.
+    # Starting the driver again here, with the chip up, brings it in (seen on
+    # the console: hci0 and its firmware within a second of the rebind).
+    for d in /sys/bus/serial/drivers/hci_uart_h5/serial*; do
+        [ -e "$d" ] || continue
+        echo "${d##*/}" >/sys/bus/serial/drivers/hci_uart_h5/unbind 2>/dev/null
+        echo "${d##*/}" >/sys/bus/serial/drivers/hci_uart_h5/bind 2>/dev/null
+    done
+    # Braino opens the radio once, when it starts: wait for it to exist.
+    for i in 1 2 3; do
+        [ -e /sys/class/bluetooth/hci0 ] && break
+        sleep 1
+    done
+
     hwclock -s -u 2>/dev/null
 
     # The kernel boots with the performance governor, which holds every core

@@ -54,7 +54,10 @@ loopback interface):
   formatted, because a console that keeps no setting is worse than one that
   starts over.
 - `S05hardware` loads the joypad driver, sets the clock from the RTC, opens
-  the codec's mixer, and powers the light ring's controller. It also writes
+  the codec's mixer, and powers the light ring's controller. It rebinds the
+  Bluetooth driver once the Wi-Fi chip is powered, because the driver probes
+  before the chip has power and no `hci0` appears otherwise (not yet
+  confirmed on the device). It also writes
   `hardware.txt` (what the kernel named every LED, serial port, input, sound
   card and display connector) and `dmesg.txt` next to Braino's own log in
   `BRAINODATA/braino/`, so a card brought back to a PC explains itself. They

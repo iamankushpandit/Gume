@@ -285,6 +285,17 @@ never the controller's factory address, which a board does broadcast. It
 still needs root (true under muOS) and a controller the OS has powered.
 Without one, the beacon logs why and Nearby sees an empty room.
 
+**On the RG40XX V the controller can be missing at boot, and `S05hardware`
+rebinds its driver.** The Bluetooth half of the Wi-Fi chip sits on a UART and
+is powered through the Wi-Fi half, which the kernel switches on only once it
+finds the Wi-Fi on SDIO. The built-in `hci_uart_h5` driver probes before
+that, gets no answer, and no `hci0` appears, so Nearby stayed on "Radio
+starting". `S05hardware` unbinds and rebinds every `hci_uart_h5` device and
+waits up to three seconds for `hci0`, because Braino opens the radio once, at
+start. On the serial console `hci0` and its firmware appeared within a second
+of the rebind; card images with it have been built, but **it is not yet
+confirmed on the device that Nearby now works.**
+
 **The controller outlives the program.** It keeps advertising after a crash,
 and it refuses new advertising parameters (`HCI 0x2006 refused (status 0x0c)`)
 until told to stop, so `NimBLEDevice::init()` switches advertising and scanning

@@ -150,6 +150,12 @@ saves it and keeps its last move on the air, so the other console still
 receives it; coming back carries on where it was. A game across consoles
 ends only when a player presses End game.
 
+**The RG40XX V's Bluetooth should now come up at boot.** The built-in driver
+probed the Bluetooth half of the Wi-Fi chip before the chip had power, so no
+radio appeared and Nearby stayed on "Radio starting". `S05hardware` now
+rebinds the driver once the chip is up and waits for the radio. Card images
+with the fix have been built; it is not yet confirmed on the device.
+
 **A change to Braino builds the RG40XX V's card in minutes, not an hour.**
 Every card-image build compiled the toolchain, glibc, the kernel and every
 library from scratch, 58 to 79 minutes a run, though a change to a game
