@@ -44,11 +44,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/ColorMixGame.cpp": {
-      "String": 2,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/FingerCountGame.cpp": {
       "String": 6,
       "delay": 0,
@@ -94,11 +89,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/NumberLineGame.cpp": {
-      "String": 7,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/ProfileApp.h": {
       "String": 1,
       "delay": 0,
@@ -130,16 +120,6 @@
       "heap": 0
     },
     "src/games/TicTacToeGame.h": {
-      "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/TimeGame.cpp": {
-      "String": 2,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/TimeGame.h": {
       "String": 1,
       "delay": 0,
       "heap": 0

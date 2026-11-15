@@ -9,48 +9,59 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
+
+#include "CalendarCourse.h"
 
 struct AppMetadata;
 
 const AppMetadata& sequenceAppMetadata();
 
+/* Calendar: a course in the week and the year. Each of the two buttons is a
+ * track with its own level; what each level asks, and the wrong tiles, are
+ * in CalendarCourse.h. */
 class SequenceGame : public AppGame {
 public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    /* Two-phase render. renderStatic() is the clear and the top bar;
-     * renderDynamic() is everything else. Split mechanically by
-     * tools/split_render.py -- see the note in the .cpp. */
+    /* Two-phase render, and within renderDynamic() three parts each
+     * repainted only when it changed: the track buttons with the level and
+     * tally, the question, and the four tiles. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
     Keep keepsGame() const override;
     void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
-    enum class Mode : uint8_t { Days, Months };
-    enum class QType : uint8_t { After, Before };
-
-    static const char* DAY_NAMES[7];
-    static const char* MONTH_NAMES[12];
-
     Rect modeBtn(uint8_t m) const;
     Rect answerTile(uint8_t i) const;
+    void startTrack(uint8_t track);
     void newQuestion();
-    const char* itemName(uint8_t idx) const;
-    uint8_t itemCount() const;
 
-    Mode   mode_       = Mode::Days;
-    QType  qtype_      = QType::After;
-    uint8_t subject_   = 0;
-    uint8_t correct_   = 0;
-    uint8_t correctPos_= 0;
-    uint8_t options_[4]= {};
+    /* Days is track 0 and Months track 1, as AppContext stores them. */
+    uint8_t track_ = CalendarCourse::DAYS;
+    Course::Ladder ladders_[CalendarCourse::TRACKS];
+    Course::QuestionDeck deck_;
+    CalendarCourse::Question q_;
+    uint16_t item_ = 0;
+    bool    announce_  = false;
+    bool    banner_    = false;
     int8_t  selected_  = -1;
     bool    answered_  = false;
     uint32_t feedbackUntil_ = 0;
     uint16_t score_  = 0;
     uint16_t rounds_ = 0;
+
+    /* What is on the panel. */
+    bool    drawnHeader_ = false;
+    uint8_t drawnTrack_ = 0xFF;
+    uint8_t drawnLevel_ = 0;
+    uint16_t drawnScore_ = 0xFFFF;
+    uint16_t drawnRounds_ = 0xFFFF;
+    bool    drawnQuestion_ = false;
+    /* Tiles: 0xFF not drawn, 0 waiting, 1 answered. */
+    uint8_t drawnTiles_ = 0xFF;
 };

@@ -17,6 +17,7 @@ constexpr uint16_t RED = 0xE8E4;
 constexpr uint16_t CLOCK_FACE = 0xF7BE;
 constexpr uint16_t HAND = 0x0843;
 constexpr uint16_t MINUTE_HAND = 0xE8E4;
+constexpr uint16_t YELLOW = 0xFEC0;
 
 /* The dial, at file scope because two functions need to agree about where it
  * is. drawClock() draws it; renderDynamic() has to clear the score header
@@ -57,6 +58,11 @@ static_assert(HEADER_W > 90,
               "dial has grown enough to squeeze it, move the dial down or "
               "shrink it -- do not let the header clear over it again.");
 
+/* The question line, between the dial's outer ring (133) and the top of the
+ * buttons (152). */
+constexpr Rect PROMPT_RECT = {8, 136, 304, 16};
+static_assert(CLOCK_CY + CLOCK_OUTER < 136, "the question line must clear the dial");
+
 constexpr AppScoreInfo TIME_GAME_SCORE = {
     "time", "Time", "timeBest", "pts", false
 };
@@ -83,10 +89,17 @@ const char* TimeGame::title() const {
     return timeGameAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the score and the streak
+ * start over, the level does not. It is the player's, kept by the runtime;
+ * it used to be worked out of this visit's score, so every visit began at
+ * o'clock however well the player read a clock. */
 void TimeGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(timeGameAppMetadata().score->bestKey, 0));
+    ladder_.start(TimeCourse::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announce_ = false;
     newQuestion();
     markDirty();
 }
@@ -98,35 +111,16 @@ Game::Keep TimeGame::keepsGame() const {
     return score_ > 0 ? Keep::Ask : Keep::No;
 }
 
-uint8_t TimeGame::level() const {
-    return min<uint8_t>(5, 1 + score_ / 4);
-}
-
 Rect TimeGame::answerRect(uint8_t index) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;
     return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(152 + row * 40), 132, 34};
 }
 
-String TimeGame::formatTime(uint16_t minutes) const {
-    minutes %= 12 * 60;
-    uint8_t hour = minutes / 60;
-    const uint8_t minute = minutes % 60;
-    if (hour == 0) {
-        hour = 12;
-    }
-    char buffer[8];
-    snprintf(buffer, sizeof(buffer), "%u:%02u", hour, minute);
-    return String(buffer);
-}
-
-bool TimeGame::optionExists(uint16_t minutes, uint8_t upTo) const {
-    for (uint8_t i = 0; i < upTo; ++i) {
-        if (options_[i] == minutes) {
-            return true;
-        }
-    }
-    return false;
+/* A new level is a new deck, and a new history for the drawn ones. */
+void TimeGame::startLevel() {
+    deck_.reset(TimeCourse::poolSize(ladder_.level()));
+    recent_.reset();
 }
 
 void TimeGame::newQuestion() {
@@ -141,75 +135,25 @@ void TimeGame::newQuestion() {
     markDirty();
     drawnClock_ = false;
     drawnHeader_ = false;
+    drawnPrompt_ = false;
     for (uint8_t i = 0; i < 4; ++i) {
         drawnButton_[i] = 0xFF;
     }
     selected_ = -1;
     answered_ = false;
+    banner_ = announce_;
+    announce_ = false;
 
-    const uint8_t currentLevel = level();
-    const uint8_t hour = random(12);
-    uint8_t minute = 0;
-    if (currentLevel == 1) {
-        minute = 0;
-    } else if (currentLevel == 2) {
-        minute = random(2) == 0 ? 0 : 30;
-    } else if (currentLevel == 3) {
-        minute = random(4) * 15;
-    } else if (currentLevel == 4) {
-        minute = random(12) * 5;
+    questionLevel_ = ladder_.level();
+    if (TimeCourse::numbered(questionLevel_)) {
+        item_ = deck_.next(esp_random());
+        TimeCourse::makeNumbered(questionLevel_, item_, esp_random(), question_);
     } else {
-        minute = random(60);
-    }
-    answerMinutes_ = static_cast<uint16_t>(hour * 60 + minute);
-    makeOptions();
-}
-
-void TimeGame::makeOptions() {
-    correctButton_ = random(4);
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i] = 0;
-    }
-    options_[correctButton_] = answerMinutes_;
-
-    const uint8_t currentLevel = level();
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) {
-            continue;
+        for (uint8_t tries = 0; tries < 20; ++tries) {
+            TimeCourse::makeDrawn(questionLevel_, esp_random(), question_);
+            if (!recent_.recentlyUsed(TimeCourse::token(question_))) break;
         }
-
-        uint16_t candidate = answerMinutes_;
-        uint8_t attempts = 0;
-        while ((candidate == answerMinutes_ || optionExists(candidate, i)) && attempts < 50) {
-            int16_t delta = 60;
-            if (currentLevel <= 2) {
-                delta = static_cast<int16_t>((random(5) - 2) * 60);
-                if (delta == 0) {
-                    delta = 60;
-                }
-            } else if (currentLevel == 3) {
-                delta = static_cast<int16_t>((random(7) - 3) * 15);
-                if (delta == 0) {
-                    delta = 15;
-                }
-            } else if (currentLevel == 4) {
-                delta = static_cast<int16_t>((random(9) - 4) * 5);
-                if (delta == 0) {
-                    delta = 5;
-                }
-            } else {
-                delta = static_cast<int16_t>(random(-18, 19));
-                if (delta == 0) {
-                    delta = 1;
-                }
-            }
-            candidate = static_cast<uint16_t>((static_cast<int16_t>(answerMinutes_) + delta + 12 * 60) % (12 * 60));
-            ++attempts;
-        }
-        while (candidate == answerMinutes_ || optionExists(candidate, i)) {
-            candidate = static_cast<uint16_t>((candidate + 5) % (12 * 60));
-        }
-        options_[i] = candidate;
+        recent_.remember(TimeCourse::token(question_));
     }
 }
 
@@ -225,23 +169,44 @@ void TimeGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            selected_ = i;
-            answered_ = true;
-            if (i == correctButton_) {
-                ++score_;
-                ++streak_;
-                if (host.saveBestScore(timeGameAppMetadata().score->bestKey, streak_, false)) {
-                    bestStreak_ = streak_;
-                }
-                host.beepOk();
-            } else {
-                streak_ = 0;
-                host.beepError();
-            }
-            markDirty();
-            return;
+        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            continue;
         }
+        selected_ = static_cast<int8_t>(i);
+        answered_ = true;
+        const bool right = i == question_.correct;
+        if (right) {
+            ++score_;
+            ++streak_;
+            if (host.saveBestScore(timeGameAppMetadata().score->bestKey, streak_, false)) {
+                bestStreak_ = streak_;
+            }
+        } else {
+            streak_ = 0;
+            /* Before the ladder moves: a step resets the deck, and the item
+             * number belongs to the level that dealt it. */
+            if (TimeCourse::numbered(questionLevel_)) deck_.missed(item_);
+        }
+        /* One try, so the first press is the only one the ladder hears. */
+        const Course::Ladder::Step step = ladder_.answer(right);
+        if (step != Course::Ladder::Step::Stay) {
+            host.setCourseLevel(ladder_.level());
+            startLevel();
+        }
+        if (step == Course::Ladder::Step::Up) {
+            /* The flourish in place of the tick, and the colour by hand,
+             * since playSound() does not pulse the LED. A step down says
+             * nothing: the questions get easier, and that is the whole of it. */
+            announce_ = true;
+            host.pulseRgb(0, 255, 40, 450);
+            host.playSound(Sound::LevelUp);
+        } else if (right) {
+            host.beepOk();
+        } else {
+            host.beepError();
+        }
+        markDirty();
+        return;
     }
 }
 
@@ -284,9 +249,22 @@ void TimeGame::drawClock(Ui::Renderer& tft) const {
         const int16_t y2 = cy + static_cast<int16_t>(sinf(angle) * (radius - 3));
         tft.drawLine(x1, y1, x2, y2, HAND);
     }
+    /* From "Any minute" on, the sixty minutes are marked round the rim:
+     * counting on from a numeral needs something to count. Short, and
+     * outside the numerals, so the face still reads at a glance. */
+    if (question_.minuteMarks) {
+        for (uint8_t i = 0; i < 60; ++i) {
+            if (i % 5 == 0) continue;
+            const float angle = -PI / 2.0f + i * PI / 30.0f;
+            tft.drawLine(cx + static_cast<int16_t>(cosf(angle) * (radius - 5)),
+                         cy + static_cast<int16_t>(sinf(angle) * (radius - 5)),
+                         cx + static_cast<int16_t>(cosf(angle) * (radius - 2)),
+                         cy + static_cast<int16_t>(sinf(angle) * (radius - 2)), HAND);
+        }
+    }
 
-    const uint8_t hour = answerMinutes_ / 60;
-    const uint8_t minute = answerMinutes_ % 60;
+    const uint8_t hour = question_.shown / 60;
+    const uint8_t minute = question_.shown % 60;
     const float hourAngle = -PI / 2.0f + (hour + minute / 60.0f) * PI / 6.0f;
     const float minuteAngle = -PI / 2.0f + minute * PI / 30.0f;
     const int16_t hx = cx + static_cast<int16_t>(cosf(hourAngle) * 22);
@@ -305,9 +283,6 @@ void TimeGame::renderStatic(AppContext& host) {
     Ui::clear(tft);
     host.drawTopBar(title());
 
-    Ui::drawLabel(tft, Rect{8, 136, 304, 16}, "Which time is shown?",
-                  Ui::text(), 2, Align::Center);
-
     for (uint8_t i = 0; i < 4; ++i) {
         drawnButton_[i] = 0xFF;
     }
@@ -315,7 +290,25 @@ void TimeGame::renderStatic(AppContext& host) {
     drawnStreak_ = 0xFFFF;
     drawnAnswered_ = !answered_;
     drawnHeader_ = false;
+    drawnLevel_ = 0;
+    drawnPrompt_ = false;
     drawnClock_ = false;
+}
+
+/* The question, between the clock and the buttons. It changes with the
+ * level, so it is drawn with the question rather than once with the screen;
+ * the strip is filled first, so a shorter question leaves no tail. */
+void TimeGame::drawPrompt(Ui::Renderer& tft) const {
+    char line[TimeCourse::PROMPT_MAX + 8];
+    TimeCourse::prompt(question_, line, sizeof(line));
+    tft.fillRect(PROMPT_RECT.x, PROMPT_RECT.y, PROMPT_RECT.w, PROMPT_RECT.h, Ui::bg());
+    /* Font 2 where it fits -- "What time will it be 45 minutes later?" is
+     * measured, not trusted -- and font 1 where it does not. */
+    const uint8_t font = tft.textWidth(line, 2) <= PROMPT_RECT.w ? 2 : 1;
+    tft.setTextColor(Ui::text(), Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(line, PROMPT_RECT.x + PROMPT_RECT.w / 2, PROMPT_RECT.y + PROMPT_RECT.h / 2, font);
+    tft.setTextDatum(TL_DATUM);
 }
 
 void TimeGame::renderDynamic(AppContext& host) {
@@ -330,6 +323,10 @@ void TimeGame::renderDynamic(AppContext& host) {
         drawClock(tft);
         drawnClock_ = true;
     }
+    if (!drawnPrompt_) {
+        drawPrompt(tft);
+        drawnPrompt_ = true;
+    }
 
     /* THIS SCREEN CANNOT REPAINT JUST THE TWO BUTTONS THAT CHANGED.
      *
@@ -342,6 +339,8 @@ void TimeGame::renderDynamic(AppContext& host) {
      * fixed: clear the strip, repaint all four buttons over it, then write the
      * prompt on top, which is the layering the screen already had. It still
      * leaves the clock face alone, which is the win worth having here. */
+    /* The strip also names a new level over its first question, until that
+     * question is answered. */
     const bool answerChanged = (answered_ != drawnAnswered_);
     if (answerChanged) {
         tft.fillRect(20, 216, GAME_CANVAS_WIDTH - 40, 20, Ui::bg());
@@ -350,14 +349,15 @@ void TimeGame::renderDynamic(AppContext& host) {
         }
     }
 
-    if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_) {
+    if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_ ||
+        questionLevel_ != drawnLevel_) {
         tft.fillRect(HEADER_MARGIN, HEADER_Y, HEADER_W, HEADER_H, Ui::bg());
         tft.fillRect(static_cast<int16_t>(GAME_CANVAS_WIDTH - HEADER_MARGIN - HEADER_W),
                      HEADER_Y, HEADER_W, HEADER_H, Ui::bg());
         char buf[20];
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "Level %u", level());
+        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(questionLevel_));
         tft.drawString(buf, 10, 35, 2);
         snprintf(buf, sizeof(buf), "Score %u", score_);
         tft.drawString(buf, 10, 52, 2);
@@ -369,13 +369,14 @@ void TimeGame::renderDynamic(AppContext& host) {
         tft.setTextDatum(TL_DATUM);
         drawnScore_ = score_;
         drawnStreak_ = streak_;
+        drawnLevel_ = questionLevel_;
         drawnHeader_ = true;
     }
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint8_t state = 0;
         if (answered_) {
-            if (i == correctButton_) state = 1;
+            if (i == question_.correct) state = 1;
             else if (i == selected_) state = 2;
         }
         if (state == drawnButton_[i]) {
@@ -383,20 +384,26 @@ void TimeGame::renderDynamic(AppContext& host) {
         }
         const uint16_t fill = state == 1 ? GREEN : (state == 2 ? RED : BLUE);
         const uint16_t text = state == 0 ? TFT_WHITE : TFT_BLACK;
-        Ui::drawButton(tft, answerRect(i), formatTime(options_[i]), fill,
-                       Ui::outline(), text, false, 2);
+        char label[TimeCourse::LABEL_MAX];
+        TimeCourse::format(question_.label, question_.options[i], label, sizeof(label));
+        Ui::drawButton(tft, answerRect(i), label, fill, Ui::outline(), text, false, 2);
         drawnButton_[i] = state;
     }
 
     if (answerChanged) {
+        tft.setTextDatum(MC_DATUM);
         if (answered_) {
-            tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-            tft.setTextDatum(MC_DATUM);
-            tft.drawString(selected_ == correctButton_ ? "Correct - tap for next"
-                                                       : "Try the green time next",
+            tft.setTextColor(selected_ == question_.correct ? GREEN : RED, Ui::bg());
+            tft.drawString(selected_ == question_.correct ? "Correct - tap for next"
+                                                          : "Green is correct - tap next",
                            GAME_CANVAS_WIDTH / 2, 226, 2);
-            tft.setTextDatum(TL_DATUM);
+        } else if (banner_) {
+            char banner[TimeCourse::LEVEL_LINE_MAX + 1];
+            TimeCourse::levelLine(questionLevel_, banner, sizeof(banner));
+            tft.setTextColor(YELLOW, Ui::bg());
+            tft.drawString(banner, GAME_CANVAS_WIDTH / 2, 226, 2);
         }
+        tft.setTextDatum(TL_DATUM);
         drawnAnswered_ = answered_;
     }
 }

@@ -222,6 +222,65 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Color Mix is a course of six levels.** It had six questions, and its
+wrong buttons came from seven names one of which, brown, was never the
+answer, so a player learned to skip it; "pink" was a magenta swatch. It now
+mixes the first six, then lighter and darker with white or black, then the
+same mixes backwards ("red + ? = pink"), the colours in between a primary
+and its neighbour, opposite colours that make brown, and mixing light, where
+red and green make yellow. The level is kept between visits and every
+question of a level comes up before any repeats. The wrong buttons are the
+colours a mix is mistaken for -- another mix sharing one of its colours,
+darker for lighter, and for light what the same two colours make as paint --
+never a second right answer, and never two look-alike shades on one
+question. A question has one try: the right colour is ringed and the line
+says what the pair makes, where any number of taps used to find it. Button
+labels take their ink from the colour they sit on.
+
+**Calendar is two courses, days and months, with a level each.** It had
+thirty-four questions and no levels, never asked across the join -- after
+Sunday, after December -- and offered wrong tiles drawn at random, so most
+questions could be answered by striking out the far-away names. The Days
+button now runs the next day, round the week, two or three days on, and a
+week and more; the Months button the next month, round the year, which
+month is which number, how many days a month (and a week, a year, a leap
+year) has, and several months on. Each track's level is kept between
+visits, every question of a level comes up before any repeats, the wrong
+tiles are the mistakes players make -- the day before given for the day
+after, the starting day counted as the first, the month one out on a
+number -- and answering repaints the tiles rather than the whole screen.
+
+**Number Line is a course of nine levels, and no longer gives the answer
+away.** The frog used to hop to the answer and stand on it with the number
+written inside before the buttons appeared, so a player who could read a
+numeral could not be wrong, and there were thirty questions. Now only the
+first level shows the hops first and asks where the frog landed; from the
+second the question comes first and the frog hops afterwards to check it.
+The levels: adding within five, adding and taking away within ten, how many
+hops from one mark to another, crossing ten in two hops -- to ten and then
+the rest -- hops of ten to a hundred, which ten a number is nearest, equal
+hops from zero, and the line from -5 to 5. The level is kept between visits,
+every question of a level comes up before any repeats, the wrong buttons are
+the mistakes the line invites -- the starting mark counted as a hop, the
+hop count read off as the answer, a ten lost crossing ten -- and a hop
+repaints the line and nothing else, where it used to clear everything under
+the top bar.
+
+**Time is a course of ten levels.** It used to work its level out of the
+visit's score, so every visit began at o'clock, and its wrong answers were
+whole hours away on the first two levels -- the minute hand was never tested
+-- and a single minute away on the last, closer than the dial can show. It
+now goes o'clock, half past, quarter past and quarter to, minutes past and
+minutes to in fives, and any minute, with the sixty minutes marked round the
+rim; then the time in words, in 24-hour time, twenty minutes later or
+fifteen earlier, and how many minutes until the next o'clock. The level is
+kept between visits, every question of a level comes up before any repeats,
+and the wrong buttons are the readings players really make: the hands read
+the wrong way round, the hour hand read as the next number when it is nearly
+there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. as 13:00. The
+question above the buttons changes with the level, and a new level is named
+over its first question.
+
 **A nearby game no longer pauses for a console that is right there.** Chess
 and the other games played across two consoles kept showing the "waiting
 for" card between moves. The scan listened 300ms in every 900ms against a

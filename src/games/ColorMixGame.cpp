@@ -11,19 +11,28 @@
 #include "engine/AppRegistry.h"
 
 namespace {
-constexpr ColorMixDefinition MIXES[] = {
-    {"red", "blue", "purple", 0xF800, 0x041F, 0x9813},
-    {"blue", "yellow", "green", 0x041F, 0xFFE0, 0x07E0},
-    {"red", "yellow", "orange", 0xF800, 0xFFE0, 0xFC00},
-    {"red", "white", "pink", 0xF800, 0xFFFF, 0xF81F},
-    {"blue", "white", "light blue", 0x041F, 0xFFFF, 0x867F},
-    {"black", "white", "gray", 0x0000, 0xFFFF, 0x8410},
-};
-constexpr uint8_t MIX_COUNT = sizeof(MIXES) / sizeof(MIXES[0]);
+namespace CMC = ColorMixCourse;
+constexpr uint16_t YELLOW = 0xFEC0;
 
-constexpr const char* DECOY_LABELS[] = {"purple", "green", "orange", "pink", "light blue", "gray", "brown"};
-constexpr uint16_t DECOY_COLORS[] = {0x9813, 0x07E0, 0xFC00, 0xF81F, 0x867F, 0x8410, 0x8200};
-constexpr uint8_t DECOY_COUNT = sizeof(DECOY_COLORS) / sizeof(DECOY_COLORS[0]);
+/* The screen, top to bottom, each part cleared only inside its own strip. */
+constexpr int16_t HEADER_Y = 33;
+constexpr int16_t HEADER_H = 17;
+constexpr Rect LINE_RECT = {10, 52, 300, 18};
+constexpr Rect LEFT_SWATCH = {56, 78, 60, 44};
+constexpr Rect RIGHT_SWATCH = {204, 78, 60, 44};
+/* The swatches, the sign between them and the names hung 12px under them in
+ * font 1. */
+constexpr int16_t QUESTION_TOP = 74;
+constexpr int16_t QUESTION_H = 64;
+constexpr int16_t BUTTON_TOP = 142;
+/* A ring round a button sits 2 and 3 px outside it. */
+constexpr int16_t RING = 3;
+static_assert(HEADER_Y + HEADER_H <= LINE_RECT.y, "header and line overlap");
+static_assert(LINE_RECT.y + LINE_RECT.h <= QUESTION_TOP, "line and question overlap");
+static_assert(QUESTION_TOP + QUESTION_H <= BUTTON_TOP - RING, "question and rings overlap");
+
+constexpr uint32_t RIGHT_HOLD_MS = 900;
+constexpr uint32_t WRONG_HOLD_MS = 1800;
 
 constexpr AppScoreInfo COLOR_MIX_SCORE = {
     "colormix", "Color Mix", "mixBest", "pts", false
@@ -53,11 +62,16 @@ const char* ColorMixGame::title() const {
         : colorMixAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the score starts over,
+ * the level does not. */
 void ColorMixGame::begin(AppContext& host) {
     score_ = 0;
     attempts_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(colorMixAppMetadata().score->bestKey, 0));
+    ladder_.start(CMC::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announce_ = false;
     newQuestion();
     markDirty();
 }
@@ -68,49 +82,34 @@ Game::Keep ColorMixGame::keepsGame() const {
     return attempts_ > 0 ? Keep::Ask : Keep::No;
 }
 
-/* The Correct or Try again panel keeps the rest of its time, so the player
- * sees how the last answer went before the next question arrives. */
+/* The answer stays shown for the rest of its time, so the player sees how
+ * the last one went before the next question arrives. */
 void ColorMixGame::resume(AppContext& host, uint32_t awayMs) {
     (void)host;
-    movedOn(flashUntil_, awayMs);
+    movedOn(feedbackUntil_, awayMs);
 }
 
 Rect ColorMixGame::answerRect(uint8_t index) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(26 + col * 148), static_cast<int16_t>(142 + row * 44), 120, 34};
+    return Rect{static_cast<int16_t>(26 + col * 148), static_cast<int16_t>(BUTTON_TOP + row * 44), 120, 34};
+}
+
+void ColorMixGame::startLevel() {
+    deck_.reset(CMC::poolSize(ladder_.level()));
 }
 
 void ColorMixGame::newQuestion() {
-    active_ = &MIXES[random(MIX_COUNT)];
-    correct_ = random(4);
-    for (uint8_t i = 0; i < 4; ++i) {
-        labels_[i] = nullptr;
-        colors_[i] = 0;
-    }
-    labels_[correct_] = active_->result;
-    colors_[correct_] = active_->resultColor;
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correct_) {
-            continue;
-        }
-        bool unique = false;
-        while (!unique) {
-            const uint8_t pick = random(DECOY_COUNT);
-            labels_[i] = DECOY_LABELS[pick];
-            colors_[i] = DECOY_COLORS[pick];
-            unique = strcmp(labels_[i], active_->result) != 0;
-            for (uint8_t j = 0; j < i; ++j) {
-                if (labels_[j] != nullptr && strcmp(labels_[j], labels_[i]) == 0) {
-                    unique = false;
-                }
-            }
-        }
-    }
-    correctFlash_ = false;
-    wrongFlash_ = false;
-    flashUntil_ = 0;
+    questionLevel_ = ladder_.level();
+    item_ = deck_.next(esp_random());
+    CMC::make(questionLevel_, item_, esp_random(), q_);
+    banner_ = announce_;
+    announce_ = false;
+    selected_ = -1;
+    answered_ = false;
+    feedbackUntil_ = 0;
+    drawnQuestion_ = false;
+    drawnLine_ = 0xFF;
 }
 
 int8_t ColorMixGame::touchedAnswer(int16_t x, int16_t y) const {
@@ -123,40 +122,52 @@ int8_t ColorMixGame::touchedAnswer(int16_t x, int16_t y) const {
 }
 
 void ColorMixGame::update(AppContext& host, const TouchPoint& touch) {
-    if (correctFlash_ && millis() > flashUntil_) {
-        newQuestion();
-        markDirty();
+    if (answered_) {
+        if (millis() >= feedbackUntil_) {
+            newQuestion();
+            markDirty();
+        }
         return;
     }
-    if (wrongFlash_ && millis() > flashUntil_) {
-        wrongFlash_ = false;
-        flashUntil_ = 0;
-        markDirty();
-    }
-
-    if (!touch.justPressed || correctFlash_) {
+    if (!touch.justPressed) {
         return;
     }
-
     const int8_t answer = touchedAnswer(touch.x, touch.y);
     if (answer < 0) {
         return;
     }
+    /* One try: the answer is shown either way. Four taps used to find any
+     * answer, and a wrong tap said nothing about what the pair makes. */
     ++attempts_;
-    if (answer == correct_) {
+    selected_ = answer;
+    answered_ = true;
+    const bool right = answer == q_.correct;
+    if (right) {
         ++score_;
         ++streak_;
         if (host.saveBestScore(colorMixAppMetadata().score->bestKey, streak_, false)) {
             bestStreak_ = streak_;
         }
-        correctFlash_ = true;
-        wrongFlash_ = false;
-        flashUntil_ = millis() + 750UL;
     } else {
         streak_ = 0;
-        wrongFlash_ = true;
-        flashUntil_ = millis() + 450UL;
+        /* Before the ladder moves: a step resets the deck. */
+        deck_.missed(item_);
     }
+    const Course::Ladder::Step step = ladder_.answer(right);
+    if (step != Course::Ladder::Step::Stay) {
+        host.setCourseLevel(ladder_.level());
+        startLevel();
+    }
+    if (step == Course::Ladder::Step::Up) {
+        announce_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else if (right) {
+        host.beepOk();
+    } else {
+        host.beepError();
+    }
+    feedbackUntil_ = millis() + (right ? RIGHT_HOLD_MS : WRONG_HOLD_MS);
     markDirty();
 }
 
@@ -164,63 +175,111 @@ void ColorMixGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
+    drawnHeader_ = false;
+    drawnQuestion_ = false;
+    drawnLine_ = 0xFF;
 }
 
 void ColorMixGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
-    /* Split mechanically, and only half done.
-     *
-     * What this saves is the top bar -- a battery read and five glyphs -- and
-     * the strip of clear above the content, on every repaint that is not a
-     * full one. What it does NOT yet do is leave the question panel alone when
-     * only the answer buttons change, which is the win this screen actually
-     * has: answering recolours four buttons and rewrites one line, and the
-     * question above them does not move.
-     *
-     * Doing that needs the region cleared below to shrink to the parts that
-     * change, and the next-question path to call markFullDirty(). See this
-     * screen's entry in docs/RENDER_AUDIT.md before attempting it: the traps
-     * are text that gets narrower, things that stop being drawn, and
-     * right-aligned text whose stale characters are left at the LEFT end. */
-    tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH,
-                 GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
+    char buf[40];
 
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Score ") + score_ + "/" + attempts_, 10, 35, 2);
-    tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 35, 2);
-    Ui::drawLabel(tft, Rect{10, 52, 300, 18}, "What do you get?", Ui::text(), 2, Align::Center);
-
-    const Rect left{56, 78, 60, 44};
-    const Rect right{204, 78, 60, 44};
-    tft.fillRoundRect(left.x, left.y, left.w, left.h, 6, active_->leftColor);
-    tft.drawRoundRect(left.x, left.y, left.w, left.h, 6, Ui::outline());
-    tft.fillRoundRect(right.x, right.y, right.w, right.h, 6, active_->rightColor);
-    tft.drawRoundRect(right.x, right.y, right.w, right.h, 6, Ui::outline());
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(MC_DATUM);
-    tft.drawString("+", GAME_CANVAS_WIDTH / 2, 100, 4);
-    tft.drawString(active_->left, left.x + left.w / 2, left.y + left.h + 12, 1);
-    tft.drawString(active_->right, right.x + right.w / 2, right.y + right.h + 12, 1);
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        const Rect r = answerRect(i);
-        tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, colors_[i]);
-        tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
-        const uint16_t labelBg = colors_[i];
-        const uint16_t labelText = (colors_[i] == 0x0000 || colors_[i] == 0x041F || colors_[i] == 0x9813 || colors_[i] == 0x8200) ? TFT_WHITE : TFT_BLACK;
-        tft.setTextColor(labelText, labelBg);
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(labels_[i], r.x + r.w / 2, r.y + r.h / 2, 2);
+    if (!drawnHeader_ || score_ != drawnScore_ || attempts_ != drawnAttempts_ ||
+        questionLevel_ != drawnLevel_) {
+        tft.fillRect(0, HEADER_Y, GAME_CANVAS_WIDTH, HEADER_H, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(questionLevel_));
+        tft.drawString(buf, 10, 35, 2);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "%u/%u  Best %u", static_cast<unsigned>(score_),
+                 static_cast<unsigned>(attempts_), static_cast<unsigned>(bestStreak_));
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnHeader_ = true;
+        drawnScore_ = score_;
+        drawnAttempts_ = attempts_;
+        drawnLevel_ = questionLevel_;
     }
 
-    if (correctFlash_ || wrongFlash_) {
-        const uint16_t color = correctFlash_ ? Ui::success() : Ui::error();
-        tft.fillRoundRect(96, 96, 128, 34, 8, color);
-        tft.setTextColor(TFT_BLACK, color);
+    /* The line under the header: the question, or the new level's name over
+     * its first question, or once answered what the pair makes. */
+    const uint8_t line = answered_ ? 1 : 0;
+    if (line != drawnLine_) {
+        const bool right = selected_ == static_cast<int8_t>(q_.correct);
+        uint16_t colour = Ui::text();
+        const char* text = q_.prompt();
+        if (answered_) {
+            colour = right ? Ui::success() : Ui::error();
+            if (right) {
+                text = "Correct!";
+            } else {
+                snprintf(buf, sizeof(buf), q_.backwards ? "It was %s" : "It makes %s",
+                         CMC::SWATCHES[q_.answer].name);
+                text = buf;
+            }
+        } else if (banner_) {
+            CMC::levelLine(questionLevel_, buf, sizeof(buf));
+            text = buf;
+            colour = YELLOW;
+        }
+        tft.fillRect(LINE_RECT.x, LINE_RECT.y, LINE_RECT.w, LINE_RECT.h, Ui::bg());
+        tft.setTextColor(colour, Ui::bg());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(correctFlash_ ? "Correct" : "Try again", GAME_CANVAS_WIDTH / 2, 113, 2);
+        tft.drawString(text, LINE_RECT.x + LINE_RECT.w / 2, LINE_RECT.y + LINE_RECT.h / 2, 2);
+        tft.setTextDatum(TL_DATUM);
+        drawnLine_ = line;
     }
-    tft.setTextDatum(TL_DATUM);
+
+    /* The two swatches: forwards the two colours and a plus, backwards the
+     * colour, "+ ? =" and what it made. And the four buttons, unringed. */
+    if (!drawnQuestion_) {
+        tft.fillRect(0, QUESTION_TOP, GAME_CANVAS_WIDTH, QUESTION_H, Ui::bg());
+        const uint8_t shown[2] = {q_.left, q_.right};
+        const Rect swatch[2] = {LEFT_SWATCH, RIGHT_SWATCH};
+        tft.setTextDatum(MC_DATUM);
+        for (uint8_t k = 0; k < 2; ++k) {
+            const Rect& r = swatch[k];
+            tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, CMC::SWATCHES[shown[k]].fill);
+            tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+            tft.setTextColor(Ui::text(), Ui::bg());
+            tft.drawString(CMC::SWATCHES[shown[k]].name, r.x + r.w / 2, r.y + r.h + 12, 1);
+        }
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.drawString(q_.backwards ? "+ ? =" : "+", GAME_CANVAS_WIDTH / 2,
+                       LEFT_SWATCH.y + LEFT_SWATCH.h / 2, 4);
+
+        const Rect first = answerRect(0);
+        const Rect last = answerRect(3);
+        tft.fillRect(first.x - RING, first.y - RING, last.x + last.w - first.x + 2 * RING,
+                     last.y + last.h - first.y + 2 * RING, Ui::bg());
+        for (uint8_t i = 0; i < 4; ++i) {
+            const Rect r = answerRect(i);
+            const uint16_t fill = CMC::SWATCHES[q_.options[i]].fill;
+            tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, fill);
+            tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+            tft.setTextColor(Ui::onFill(fill), fill);
+            tft.drawString(CMC::SWATCHES[q_.options[i]].name, r.x + r.w / 2, r.y + r.h / 2, 2);
+        }
+        tft.setTextDatum(TL_DATUM);
+        drawnQuestion_ = true;
+        drawnRings_ = false;
+    }
+
+    /* Answered: the buttons are their own colours, so the answer is marked
+     * with a ring round it rather than a fill -- green round the right one,
+     * red round the one tapped if that was not it. */
+    if (answered_ && !drawnRings_) {
+        for (uint8_t i = 0; i < 4; ++i) {
+            const bool isRight = i == q_.correct;
+            const bool isTapped = i == static_cast<uint8_t>(selected_);
+            if (!isRight && !isTapped) continue;
+            const Rect r = answerRect(i);
+            const uint16_t colour = isRight ? Ui::success() : Ui::error();
+            for (int16_t k = 2; k <= RING; ++k) {
+                tft.drawRoundRect(r.x - k, r.y - k, r.w + 2 * k, r.h + 2 * k, 6 + k, colour);
+            }
+        }
+        drawnRings_ = true;
+    }
 }

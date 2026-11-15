@@ -2908,7 +2908,9 @@ def time_game(answered=False):
     q = "Which time is shown?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 136), q, font=F2, fill=TEXT)
 
-    for i, a in enumerate(["6:00", "5:00", "2:00", "4:00"]):
+    # Level 1's options: the hour either side, and the hands read the wrong
+    # way round (TimeCourse::swapped(): 6:00 so read is 12:30).
+    for i, a in enumerate(["6:00", "12:30", "7:00", "5:00"]):
         r2 = (18 + (i % 2) * 152, 152 + (i // 2) * 40, 132, 34)
         ok = answered and a == "6:00"
         button(d, r2, a, SUCCESS if ok else PANEL, (0, 0, 0) if ok else TEXT)
@@ -3178,17 +3180,39 @@ def sorting(done=((0, 1),), nxt="Next: 4"):
     return im
 
 
-def colormix():
+def colormix(answered=True):
+    """Color Mix, level 1: red and yellow.
+
+    Geometry from ColorMixGame.cpp: the header on y=35, the line on
+    (10, 52, 300, 18), swatches at (56, 78, 60, 44) and (204, 78, 60, 44)
+    with their names 12px under, buttons at (26 + col*148, 142 + row*44,
+    120, 34) filled with their own colour, and once answered a ring round
+    the right one. Fills are ColorMixCourse's SWATCHES. The wrong buttons
+    are mixes that share a colour with this one, as the course builds them.
+    """
+    sw = {"red": (225, 30, 30), "yellow": (250, 220, 30), "orange": (250, 140, 20),
+          "pink": (250, 170, 190), "green": (40, 170, 60), "purple": (130, 40, 170)}
     im, d = blank(); topbar(d, "Color Mix")
-    q = "What do you get?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 40), q, font=F2, fill=MUTED)
-    d.ellipse([84, 66, 138, 120], fill=(230, 60, 60))
-    d.ellipse([182, 66, 236, 120], fill=(240, 210, 60))
-    d.text((153, 84), "+", font=F4, fill=TEXT)
-    for i, lab in enumerate(["orange", "purple", "green", "brown"]):
-        r = (26 + (i % 2) * 148, 142 + (i // 2) * 44, 120, 34)
-        button(d, r, lab, SUCCESS if lab == "orange" else PANEL,
-               (0, 0, 0) if lab == "orange" else TEXT)
+    d.text((10, 35), "Level 1", font=F2, fill=TEXT)
+    tally = "3/4  Best 3" if answered else "2/3  Best 3"
+    d.text((W - 8 - d.textlength(tally, font=F2), 35), tally, font=F2, fill=TEXT)
+    q = "Correct!" if answered else "What do you get?"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 53), q, font=F2,
+           fill=SUCCESS if answered else TEXT)
+    for (x, name) in ((56, "red"), (204, "yellow")):
+        d.rounded_rectangle([x, 78, x + 59, 121], 6, fill=sw[name], outline=OUTLINE)
+        d.text((x + 30 - d.textlength(name, font=F1) / 2, 130), name, font=F1, fill=TEXT)
+    d.text((W / 2 - d.textlength("+", font=F4) / 2, 88), "+", font=F4, fill=TEXT)
+    for i, lab in enumerate(["orange", "pink", "green", "purple"]):
+        x, y = 26 + (i % 2) * 148, 142 + (i // 2) * 44
+        fill = sw[lab]
+        ink = (0, 0, 0) if sum(fill) > 380 else (255, 255, 255)
+        d.rounded_rectangle([x, y, x + 119, y + 33], 6, fill=fill, outline=OUTLINE)
+        d.text((x + 60 - d.textlength(lab, font=F2) / 2, y + 9), lab, font=F2, fill=ink)
+        if answered and lab == "orange":
+            for k in (2, 3):
+                d.rounded_rectangle([x - k, y - k, x + 119 + k, y + 33 + k], 6 + k,
+                                    outline=SUCCESS)
     return im
 
 
@@ -3268,39 +3292,70 @@ def shapearith(answered=True):
 
 
 def calendar():
+    """Calendar, Days at level 2: across the join of the week.
+
+    Geometry from SequenceGame.cpp: the track buttons, the tally and the
+    level right of them, the prompt on y=70, the subject's box at
+    (60, 84, 200, 52), the tiles at (8 + col*159, 152 + row*48, 152, 40).
+    The wrong tiles are CalendarCourse's: the day on the other side, the day
+    the question starts from, and one too far.
+    """
     im, d = blank(); topbar(d, "Calendar")
     for m, lab in enumerate(["Days", "Months"]):
         r = (8 + m * 124, 32, 120, 26)
         button(d, r, lab, BLUE if m == 0 else PANEL, WHITE if m == 0 else TEXT)
-    q = "What comes after Wednesday?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
-    for i, day in enumerate(["Thursday", "Tuesday", "Friday", "Monday"]):
+    d.text((W - 8 - d.textlength("4/5", font=F2), 33), "4/5", font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("Level 2", font=F1), 50), "Level 2", font=F1, fill=TEXT)
+    q = "What comes AFTER:"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 62), q, font=F2, fill=TEXT)
+    d.rounded_rectangle([60, 84, 259, 135], 8, fill=SURFACE, outline=BLUE)
+    d.text((W / 2 - d.textlength("Sunday", font=F4) / 2, 97), "Sunday", font=F4, fill=TEXT)
+    for i, day in enumerate(["Saturday", "Monday", "Sunday", "Tuesday"]):
         r = (8 + (i % 2) * 159, 152 + (i // 2) * 48, 152, 40)
-        button(d, r, day, SUCCESS if day == "Thursday" else PANEL,
-               (0, 0, 0) if day == "Thursday" else TEXT)
+        button(d, r, day, SUCCESS if day == "Monday" else PANEL,
+               (0, 0, 0) if day == "Monday" else TEXT)
     return im
 
 
-def numberline():
+def numberline(answered=True):
+    """Number Line, level 2: the question first, then the frog checks it.
+
+    Geometry from NumberLineGame.cpp: header at y=34, the question centred on
+    y=62 in font 4, the note on y=90, the line at y=162 from x=22 over 276px,
+    the frog 14px above it, buttons at (14 + i*74, 194, 64, 38). The options
+    are NumberLineCourse's for 6 + 3: the start counted as a hop (8), the
+    frog sent the wrong way and the hop count read off (both 3), one past.
+    """
     im, d = blank(); topbar(d, "Number Line")
-    d.text((8, 34), "3 + 4 = ?", font=F4, fill=TEXT)
-    d.text((W - 8 - d.textlength("2/5", font=F2), 38), "2/5", font=F2, fill=TEXT)
-    y = 130
-    x0, x1 = 24, 296
-    d.line([(x0, y), (x1, y)], fill=TEXT, width=2)
+    d.text((8, 34), "Level 2", font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("4/5", font=F2), 34), "4/5", font=F2, fill=TEXT)
+    q = "6 + 3 = 9" if answered else "6 + 3 = ?"
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 49), q, font=F4,
+           fill=SUCCESS if answered else TEXT)
+    note = "Correct!" if answered else "Where will the frog land?"
+    d.text((W / 2 - d.textlength(note, font=F2) / 2, 82), note, font=F2,
+           fill=SUCCESS if answered else MUTED)
+    y = 162
+
+    def nx(n):
+        return 22 + n * 276 // 10
+
+    if answered:
+        for k in range(3):
+            d.arc([nx(6 + k), y - 20, nx(7 + k), y + 20], 180, 360, fill=(255, 200, 0), width=2)
+    d.line([(18, y), (302, y)], fill=TEXT, width=1)
     for n in range(11):
-        x = x0 + n * (x1 - x0) // 10
+        x = nx(n)
         d.line([(x, y - 6), (x, y + 6)], fill=TEXT)
-        d.text((x - 3, y + 10), str(n), font=F1, fill=MUTED)
-    hx = x0 + 3 * (x1 - x0) // 10
-    d.ellipse([hx - 8, y - 8, hx + 8, y + 8], fill=(255, 246, 178), outline=(160, 140, 60))
-    for k in range(3):
-        ax = x0 + (3 + k) * (x1 - x0) // 10
-        bx = x0 + (4 + k) * (x1 - x0) // 10
-        d.arc([ax, y - 26, bx, y], 180, 360, fill=SUCCESS, width=2)
-    for i, v in enumerate(["7", "6", "8", "5"]):
+        d.text((x - d.textlength(str(n), font=F1) / 2, y + 9), str(n), font=F1, fill=TEXT)
+    at = 9 if answered else 6
+    fx, fy = nx(at), y - 14
+    d.ellipse([fx - 9, fy - 9, fx + 9, fy + 9], fill=(80, 230, 80), outline=TEXT)
+    d.text((fx - d.textlength(str(at), font=F1) / 2, fy - 4), str(at), font=F1, fill=(0, 0, 0))
+    for i, v in enumerate(["8", "9", "3", "10"]):
+        ok = answered and v == "9"
         button(d, (14 + i * 74, 194, 64, 38), v,
-               SUCCESS if v == "7" else PANEL, (0, 0, 0) if v == "7" else TEXT, F4)
+               SUCCESS if ok else (36, 132, 204), (0, 0, 0) if ok else (255, 255, 255), F4)
     return im
 
 
