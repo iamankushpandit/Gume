@@ -79,6 +79,37 @@ inline int step(const Box* boxes, int count, const Box& from, int dx, int dy) {
     return best;
 }
 
+/* Up or down when step() found nothing: the nearest box lying wholly above
+ * or below `from`, however far to the side, or -1 when there is none. Never
+ * for left and right, where nothing in the cone means the next page.
+ *
+ * The cone keeps a press from sliding sideways, but a lone control set off to
+ * one side of a wide row -- the Wi-Fi password's Show checkbox, at the right
+ * end of the field above a keyboard -- is then reachable only from the two or
+ * three keys under it, and up from any other key does nothing at all. That
+ * was a control with no way in from most of the screen. Callers try this
+ * only once a list that scrolls that way has had its turn, so the rest of a
+ * list still comes before a control beyond it. Sideways distance counts
+ * double, as in step(). */
+inline int stepBeyond(const Box* boxes, int count, const Box& from, int dy) {
+    if (dy == 0) return -1;
+    int best = -1;
+    int32_t bestScore = 0;
+    for (int i = 0; i < count; ++i) {
+        const Box& b = boxes[i];
+        const bool beyond = dy < 0 ? b.y1 < from.y0 : b.y0 > from.y1;
+        if (!beyond) continue;
+        const int32_t along = (b.cy() - from.cy()) * dy;
+        const int32_t across = std::abs(b.cx() - from.cx());
+        const int32_t score = along + 2 * across;
+        if (best < 0 || score < bestScore) {
+            best = i;
+            bestScore = score;
+        }
+    }
+    return best;
+}
+
 /* After a page turn: the box at the far end of `from`'s row, where the eye
  * expects to arrive, or -1 when nothing else shares the row. */
 inline int rowEnd(const Box* boxes, int count, const Box& from, bool leftmost) {

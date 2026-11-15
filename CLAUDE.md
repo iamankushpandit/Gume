@@ -745,7 +745,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,644,341 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,644,325 / 3,145,728 bytes,
 **84.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 92,836 / 327,680 (28.3%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -895,7 +895,9 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   no idea what a selected control is: every screen takes one touch point,
   so pressing is an ordinary touch at the control's middle and no screen
   changed for it. Four pieces, two of them dev's own and now in `src/`:
-  `ui/FocusMath.h` (where the selector goes next) and `hal/ControlJobs.h`
+  `ui/FocusMath.h` (where the selector goes next: within a cone, and for
+  up and down then the nearest control wholly that way, so a lone control at
+  the end of a wide row is never stranded) and `hal/ControlJobs.h`
   (which control does which job, given the controls a console has); the
   Linux host's `HostFocus.h` and `HostControls.h` are one-line forwarders
   to them, so the two consoles cannot come to disagree. The firmware's own

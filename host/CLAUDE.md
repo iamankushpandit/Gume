@@ -108,6 +108,11 @@ control painted over, and comes back when the strip is redrawn.
   unplayable), and a card put up over the board makes everything outside it
   Quiet. The header's controls are never asked about. The firmware says it;
   the host only obeys, so there is nothing here to keep in step.
+- **Up and down reach a control off to one side.** Within a cone first, so
+  a press does not slide sideways; then, when nothing is there and no list
+  scrolls that way, the nearest control wholly above or below
+  (`stepBeyond()`). Left and right never fall back: nothing in the cone
+  there is the next page.
 - **The first press only brings it up**, on the control nearest the crosshair,
   because nobody has seen where it is yet. Pushing the stick puts it away.
 - **Past the end of a row is the next page and past the end of a column is the

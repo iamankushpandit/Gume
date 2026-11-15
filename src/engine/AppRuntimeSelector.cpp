@@ -361,6 +361,15 @@ void BrainoApp::selectorMove(int dx, int dy) {
         selectorDrag(area, dy);
         return;
     }
+    /* Nothing in the cone above or below, and no list to scroll: the nearest
+     * control that way, wherever it sits along the row. */
+    next = FocusMath::stepBeyond(boxes, n, from, dy);
+    if (next >= 0) {
+        selectorErase();
+        sel_.sel = targets[next];
+        sel_.dirty = true;
+        return;
+    }
     /* Nothing further along the row: the page after, arriving at the near end
      * of the same row. Not from the header, whose row is not what the pages
      * are made of. */
