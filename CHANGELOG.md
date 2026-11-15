@@ -111,6 +111,17 @@ on an Attaky Core and on the RG40XX V. Every sync now follows one rule: with
 the zone on automatic, the first one after boot looks it up, whichever path
 that is -- still the one `ip-api.com` request a boot makes.
 
+**Shape Arith is a course too.** It asked thirty-two questions, sums to eight
+and differences to four, and began every visit with squares. It now has eight
+levels: adding to five, taking away within five, the same within ten, zero,
+how many more fill a frame, adding past ten and taking away back past ten.
+Shapes sit in rows of five, as on a ten-frame, up to eighteen in a panel. The
+level is shown beside the score and kept between visits, an answer stays on
+the screen until the next tap, and the wrong buttons are the mistakes players
+make: counting the shapes taken away, not taking any away, or counting only
+one of the two groups. The screen no longer clears itself while a question
+plays out -- each shape is drawn as it arrives, and only the ones taken away
+are repainted as they blink and go.
 **A nearby game no longer pauses for a console that is right there.** Chess
 and the other games played across two consoles kept showing the "waiting
 for" card between moves. The scan listened 300ms in every 900ms against a

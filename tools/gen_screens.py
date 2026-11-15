@@ -3192,18 +3192,26 @@ def oddone(picked=False, score="Score 5/7"):
     return im
 
 
-def shapearith():
+def shapearith(answered=True):
+    """ObjectAddGame at level 2, a take-away just answered. Geometry from the
+    game: panels (8|180, 50, 132, 110), shapes in rows of five at x + 18 +
+    col * 24, y + 50 + row * 26, radius 10; the strip under the panels at 166;
+    the level and the tally right-aligned in the header row."""
     im, d = blank(); topbar(d, "Shape Arith")
     d.text((8, 34), "5 take away 2 circles", font=F2, fill=TEXT)
-    d.text((W - 8 - d.textlength("3/6", font=F2), 34), "3/6", font=F2, fill=TEXT)
+    tally = "Level 2  3/6"
+    d.text((W - 8 - d.textlength(tally, font=F2), 34), tally, font=F2, fill=TEXT)
+
+    def cell(p, i):
+        return p[0] + 18 + (i % 5) * 24, p[1] + 50 + (i // 5) * 26
+
     lp = (8, 50, 132, 110)
     d.rounded_rectangle([lp[0], lp[1], lp[0] + lp[2], lp[1] + lp[3]], 6, fill=PANEL, outline=OUTLINE)
     d.text((lp[0] + lp[2] / 2 - d.textlength("left", font=F1) / 2, lp[1] + 7),
            "left", font=F1, fill=MUTED)
     for i in range(3):
-        cx = lp[0] + 18 + (i % 4) * 28
-        cy = lp[1] + 34 + (i // 4) * 32
-        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(110, 190, 255), outline=OUTLINE)
+        cx, cy = cell(lp, i)
+        d.ellipse([cx - 10, cy - 10, cx + 10, cy + 10], fill=(110, 190, 255), outline=OUTLINE)
     d.line([(148, 106), (172, 106)], fill=(249, 158, 158), width=2)
     d.polygon([(172, 106), (164, 101), (164, 111)], fill=(249, 158, 158))
     rp = (180, 50, 132, 110)
@@ -3211,12 +3219,12 @@ def shapearith():
     d.text((rp[0] + rp[2] / 2 - d.textlength("take away", font=F1) / 2, rp[1] + 7),
            "take away", font=F1, fill=MUTED)
     for i in range(2):
-        cx = rp[0] + 18 + i * 28
-        cy = rp[1] + 34
-        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(249, 158, 158), outline=OUTLINE)
-    d.text((W / 2 - d.textlength("How many are left?", font=F1) / 2, 162),
-           "How many are left?", font=F1, fill=MUTED)
-    for i, v in enumerate(["2", "3", "4", "1"]):
+        cx, cy = cell(rp, i)
+        d.ellipse([cx - 10, cy - 10, cx + 10, cy + 10], fill=(249, 158, 158), outline=OUTLINE)
+    msg = "Correct - tap for next" if answered else "How many are left?"
+    d.text((W / 2 - d.textlength(msg, font=F1) / 2, 162), msg, font=F1,
+           fill=SUCCESS if answered else MUTED)
+    for i, v in enumerate(["2", "3", "4", "5"]):
         button(d, (15 + i * 76, 172, 62, 42), v,
                SUCCESS if v == "3" else PANEL, (0, 0, 0) if v == "3" else TEXT, F4)
     return im

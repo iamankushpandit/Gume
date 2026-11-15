@@ -564,7 +564,7 @@ SEQUENCES = {
     "money": lambda: quiz(gs.money, gs.BLUE, gs.TEXT),
     "fractions": lambda: quiz(gs.fractions),
     "counting": counting,
-    "shapearith": lambda: quiz(gs.shapearith),
+    "shapearith": lambda: quiz(lambda: gs.shapearith(answered=False), after=gs.shapearith),
     "numberline": lambda: quiz(gs.numberline),
     "calendar": lambda: quiz(gs.calendar),
     "colormix": lambda: quiz(gs.colormix),
