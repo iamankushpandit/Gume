@@ -197,9 +197,15 @@ void BrainoApp::enterApp(const AppDefinition& app, bool carryOn, uint32_t awayMs
      * where each nearby game puts its lobby in front of the player's own game
      * (which it reads back from the save) and carries on with a nearby game
      * still in the instance. resume() knows nothing of invitations. Asked
-     * after setActiveApp(), because that is what "this game" is read from. */
+     * after setActiveApp(), because that is what "this game" is read from.
+     *
+     * Not for Guest: Guest's saves are dropped, so the game kept in the
+     * instance is the only copy there is, and begin() would read back nothing
+     * and lose it. Guest is taken back into that game, whose own End game
+     * leads to the lobby where the invitation still stands. */
     NearbySeat invitation;
-    if (carryOn && app.isCatalogApp() && NearbyPlay::inviteForUs(board_, invitation) &&
+    if (carryOn && app.isCatalogApp() && !board_.isGuest() &&
+        NearbyPlay::inviteForUs(board_, invitation) &&
         invitation.forThisGame) {
         carryOn = false;
     }

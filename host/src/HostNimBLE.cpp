@@ -150,11 +150,19 @@ void loopLoop() {
             std::memcpy(mine, loopPayload, mineLength);
         }
         if (on) {
-            /* Written aside and renamed over, so a reader never sees half. */
+            /* Written aside and renamed over, so a reader never sees half.
+             * The rename is under the lock: an advertisement stopped (and its
+             * file unlinked) between the snapshot and here must not come back
+             * with a fresh time on it, heard for two seconds after it ended. */
             if (FILE* f = std::fopen(tmp.c_str(), "wb")) {
                 std::fwrite(mine, 1, mineLength, f);
                 std::fclose(f);
-                std::rename(tmp.c_str(), loopOwnFile.c_str());
+                std::lock_guard<std::mutex> lock(loopMutex);
+                if (loopAdvertising) {
+                    std::rename(tmp.c_str(), loopOwnFile.c_str());
+                } else {
+                    ::unlink(tmp.c_str());
+                }
             }
         }
         NimBLEAdvertisedDeviceCallbacks* cb = scan.hostCallbacks();
