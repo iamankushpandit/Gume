@@ -91,8 +91,9 @@ inline constexpr uint8_t TOP = 12;
 inline constexpr uint16_t MAX_SHOWN = 999;
 /* What the deck in engine/Course.h can number. */
 inline constexpr uint16_t MAX_POOL = 256;
-/* The longest level name, in characters. */
-inline constexpr uint8_t NAME_MAX = 22;
+/* The longest level name, in characters. Not NAME_MAX: that is a POSIX macro,
+ * which the PC build never sees and the ESP32 toolchain does. */
+inline constexpr uint8_t LEVEL_NAME_MAX = 22;
 
 constexpr const LevelSpec& spec(uint8_t level) {
     return LEVELS[(level < 1 ? 1 : (level > LEVEL_COUNT ? LEVEL_COUNT : level)) - 1];
@@ -169,7 +170,7 @@ constexpr bool everyNameFits() {
     for (uint8_t l = 0; l < LEVEL_COUNT; ++l) {
         uint8_t n = 0;
         while (LEVELS[l].name[n] != '\0') ++n;
-        if (n == 0 || n > NAME_MAX) return false;
+        if (n == 0 || n > LEVEL_NAME_MAX) return false;
     }
     return true;
 }
@@ -491,6 +492,6 @@ inline void levelBanner(char* out, size_t size, uint8_t level) {
     snprintf(out, size, "Level %u: %s", static_cast<unsigned>(level), spec(level).name);
 }
 /* "Level 12: " plus the longest name, and its terminator. */
-inline constexpr size_t BANNER_SIZE = 10 + NAME_MAX + 1;
+inline constexpr size_t BANNER_SIZE = 10 + LEVEL_NAME_MAX + 1;
 
 }   // namespace MultiplicationCourse
