@@ -17,6 +17,7 @@
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/PowerMonitor.h"
+#include "hal/PanelSize.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
 #include "ui/Stops.h"
@@ -72,11 +73,11 @@ Ui::Renderer& BrainoApp::display() {
 void BrainoApp::begin() {
     board_.begin();
     /* Games always render landscape, so the panel's landscape extent is the
-     * physical size their fixed canvas has to fill. SCREEN_WIDTH/HEIGHT are
-     * exactly that -- BoardConfig.h derives them from the profile's panel size
-     * and landscape rotation -- so on a board that is already canvas-sized
+     * physical size their fixed canvas has to fill. PanelSize answers it on
+     * every platform -- from the profile on a board, from the display found
+     * at start-up on the host -- so on a panel that is already canvas-sized
      * this configures a scale of 1.0 and the wrapper becomes a passthrough. */
-    scaledRenderer_.configure(SCREEN_WIDTH, SCREEN_HEIGHT);
+    scaledRenderer_.configure(PanelSize::landscapeWidth(), PanelSize::landscapeHeight());
     Watchdog::begin();
     PowerMonitor::begin(board_);
     if (!board_.hasTouchCalibration()) {
@@ -407,10 +408,8 @@ void BrainoApp::loop() {
              * canvas coordinates to hit-test with, which is the bug this
              * comment describes, arrived at from the opposite direction. */
             TouchPoint gameTouch = touch;
-            gameTouch.x = static_cast<int16_t>(lroundf(
-                touch.x * static_cast<float>(GAME_CANVAS_WIDTH) / SCREEN_WIDTH));
-            gameTouch.y = static_cast<int16_t>(lroundf(
-                touch.y * static_cast<float>(GAME_CANVAS_HEIGHT) / SCREEN_HEIGHT));
+            gameTouch.x = scaledRenderer_.toCanvasX(touch.x);
+            gameTouch.y = scaledRenderer_.toCanvasY(touch.y);
             if (gameTouch.justPressed) {
                 pressedInGame_ = true;      // there is now something to keep
             }

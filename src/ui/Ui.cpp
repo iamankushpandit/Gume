@@ -1392,8 +1392,8 @@ static void physicalImageOrigin(Ui::Renderer& tft, const Rect& r,
     *phys = tft.physicalRenderer();
     const float sxAxis = tft.imageScaleX();
     const float syAxis = tft.imageScaleY();
-    *px = static_cast<int32_t>(lroundf(r.x * sxAxis + (r.w * sxAxis - imgW) / 2.0f));
-    *py = static_cast<int32_t>(lroundf(r.y * syAxis + (r.h * syAxis - imgH) / 2.0f));
+    *px = static_cast<int32_t>(lroundf(tft.imageOriginX() + r.x * sxAxis + (r.w * sxAxis - imgW) / 2.0f));
+    *py = static_cast<int32_t>(lroundf(tft.imageOriginY() + r.y * syAxis + (r.h * syAxis - imgH) / 2.0f));
 }
 
 void drawCountryImage(Ui::Renderer& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor) {
