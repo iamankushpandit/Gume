@@ -119,6 +119,26 @@ enum class Sound : uint8_t {
  * re-trigger drifts out of step with the sound and you get a stutter. */
 constexpr uint16_t SOUND_NOTE_MS = 320;
 
+/* How often a caller asks for a held note again. NOT "a little before
+ * SOUND_NOTE_MS", which is what it was, and why a held piano key fell silent
+ * once, about a third of a second in, and then held perfectly.
+ *
+ * The note is generated ahead of the speaker, not with it. When a sound is
+ * armed on a quiet console the generator fills the whole DMA at once -- 96ms
+ * on the codec, 64ms on the built-in DAC, plus a block -- and from then on
+ * stays that far ahead. So at the first re-arm, 280ms of wall time after the
+ * press, the engine had already made 384ms of a 320ms note, faded it out,
+ * and stopped; the re-arm started a fresh note after a gap. Later re-arms
+ * found the generator paced by the DMA and arrived in time, so it happened
+ * exactly once per held key.
+ *
+ * The re-arm therefore has to land before the note ends by the DMA's lead
+ * and a slow frame or two. BoardAudio.cpp static_asserts exactly that against
+ * the real DMA size, and test/host/audio_synth_test.cpp replays a held key on
+ * that timeline. Asking more often costs nothing audible: the same script
+ * arriving while it sounds is a continuation and changes no sample. */
+constexpr uint16_t SOUND_NOTE_REARM_MS = 120;
+
 /** Number of entries in the NoteC4..NoteC5 run. */
 constexpr uint8_t SOUND_NOTE_COUNT =
     static_cast<uint8_t>(Sound::NoteC5) - static_cast<uint8_t>(Sound::NoteC4) + 1;

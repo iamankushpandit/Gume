@@ -92,6 +92,26 @@ That is the rule for every platform from here on: it states how big its
 panel is (`PanelSize`), and nothing is stretched after the fact. The ESP32
 boards' pictures do not change.
 
+**Three clicks are gone from the sounds, and nothing else about them
+changed.** Rendered off the device, sample by sample, each had one cause:
+
+- **Wrong, Your Turn, High Score and the Bell clicked at their rests.** A
+  rest output nothing from its first sample, so the sound stopped wherever
+  its wave stood -- for Wrong's first buzz a step of nearly the whole
+  amplitude. A rest now lets the note before it fade over the same 4ms every
+  sound already starts with. The notes, their lengths and their spacing are
+  as they were.
+- **"Let's play Braino!" ended on a click** for the same reason: its last
+  segment is a rest. Its pauses between words are faded the same way.
+- **A held piano key went quiet once, about a third of a second in.** The
+  sound is made ahead of the speaker, so the first "keep sounding" arrived
+  after the note had already ended. Piano now asks again every 120ms, which
+  is early enough by a stated margin and changes nothing that is heard.
+
+The synthesiser is now its own file, `src/hal/AudioSynth.cpp`, with no board
+in it, and `test/host/audio_synth_test.cpp` renders the cues and fails on any
+of the three.
+
 **A game left by mistake is still there.** Home is one press, and on a
 console with keys it is the key beside the one that answers; players pressed
 it and lost their game. Every game is now kept when it is left in the middle,

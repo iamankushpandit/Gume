@@ -26,8 +26,13 @@ A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOAR
   experimental image (`GUME_EXPERIMENTAL`) takes only its own board's line of
   the manifest, never the `*` fallback
 - `BoardFeedback.cpp` - RGB LED, BLE and Nearby enable switches
-- `BoardAudio.cpp` - the sound engine: codec bring-up, the cue tables, the
-  phoneme table for the spoken boot phrase, and the per-sample synthesiser
+- `AudioSynth.cpp` - the per-sample synthesiser: script, oscillator,
+  resonators, gain. Pure C++, rendered off the device by
+  `test/host/audio_synth_test.cpp`
+- `BoardAudio.cpp` - arming the synthesiser, and the `braino-audio` task
+  that runs it
+- `BoardAudioCues.cpp` - the cue tables and the phoneme table for the
+  spoken boot phrase
 - `Sound.h` - the cue vocabulary, shared with app code without pulling in
   `Board.h`
 - `BoardStorage.cpp` - scoped persistence, schema versioning, migration
@@ -576,6 +581,13 @@ Separately, and on both backends, **a sound fades out as well as in**: a
 spent script keeps its last waveform running while the gain slews to zero
 (`RELEASE_FLOOR`, ~25ms), because stopping a sine at its crest is a step of
 the full amplitude. Mute uses the same fade rather than cutting.
+A rest inside a script fades the same way: it keeps the last sounding
+segment's waveform running while the gain falls, because a rest that
+outputs zero from its first sample is the same step (`AudioSynth.cpp`;
+`test/host/audio_synth_test.cpp` fails on it). And a held note is asked for
+again every `SOUND_NOTE_REARM_MS`, well inside `SOUND_NOTE_MS`, because
+the generator runs a DMA ahead of the speaker -- `BoardAudio.cpp`
+static_asserts the margin.
 
 **The sample rate is not the same on both backends, and this is measured.** The
 built-in DAC's clock divider cannot reach low rates: below 22050 Hz it wraps

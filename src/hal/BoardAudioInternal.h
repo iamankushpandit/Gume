@@ -17,10 +17,13 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include "AudioSynth.h"
+
 /* The seam between the three halves of the audio subsystem.
  *
- * BoardAudio.cpp is the synthesiser -- the script, the oscillator, the
- * resonators, and the task that turns them into samples. BoardAudioBackend.cpp
+ * AudioSynth.cpp is the synthesiser -- the script, the oscillator, the
+ * resonators -- and is pure C++, so a PC can render it. BoardAudio.cpp arms
+ * it and runs the task that turns it into samples. BoardAudioBackend.cpp
  * is the hardware underneath it: the ES8311's registers, the I2S peripheral,
  * the amplifier enable, the built-in DAC's idle level and the bare I2S
  * amplifier's plain setup. BoardAudioCues.cpp
@@ -47,35 +50,11 @@ constexpr int AUDIO_RATE = 24000;
 constexpr int AUDIO_RATE = 16000;
 #endif
 
-/* The longest script the firmware can arm -- the spoken boot phrase sets it. */
-constexpr int MAX_SEGMENTS = 36;
-
 constexpr int BLOCK_FRAMES = 128;
 constexpr int DMA_BUF_COUNT = 6;
 constexpr int DMA_BUF_LEN = 256;
 
-enum class Wave : uint8_t {
-    Silence,
-    Tone,       // sine, optionally swept from a to b
-    Square,     // brighter, for the chiptune-ish cues
-    Noise,      // band-passed white noise: a = centre Hz, b = bandwidth Hz
-    Voiced,     // formant resonators driven by a monotone impulse train
-    Unvoiced,   // the same resonators driven by noise -- fricatives and stops
-};
-
-/* One step of a sound. What `a`, `b` and `c` mean depends on the wave, which
- * is the only way to keep a segment at ten bytes; a union with named members
- * would read better and would double the size of the const tables it exists
- * for. The shorthands in BoardAudioCues.cpp are what the cue tables actually
- * use, so no caller sees the positional form. */
-struct Segment {
-    uint16_t a;
-    uint16_t b;
-    uint16_t c;
-    uint16_t ms;
-    uint8_t  amp;    // 0-100, beneath the codec's own volume setting
-    Wave     wave;
-};
+/* Wave, Segment and MAX_SEGMENTS are AudioSynth.h's. */
 
 /* ---- state the three files share ---- */
 
@@ -89,9 +68,6 @@ extern bool i2sUp;
 constexpr bool i2sUp = false;
 #endif
 extern bool ampOn;
-extern bool playing;
-extern bool releasing;
-extern float gainTarget;
 extern uint32_t ampIdleSinceMs;
 extern SemaphoreHandle_t audioLock;
 extern TaskHandle_t audioTask;
