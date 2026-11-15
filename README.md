@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-84.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-84.2%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,644,341 / 3,145,728 bytes of the app partition (**84.1%**) |
-| RAM | 92,836 / 327,680 bytes (**28.3%**) |
+| Flash | 2,648,545 / 3,145,728 bytes of the app partition (**84.2%**) |
+| RAM | 92,988 / 327,680 bytes (**28.4%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -400,7 +400,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **State Flags** | A real state flag, name the state, then its capital | Fifty more flags with the same reward loop |
 | **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition |
 | **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time |
-| **Time** | "Which time is shown?" on an analogue clock | Reading a clock face |
+| **Time** | Reading an analogue clock, over ten levels: o'clock, half past, quarter past and quarter to, minutes past and minutes to in fives, then any minute with the minutes marked round the rim; then the same clock said in words (*"quarter to 4"*), in 24-hour time, twenty minutes later or fifteen earlier, and how many minutes until the next o'clock | Telling the time from the hands, then saying it the ways people say it and working with it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the readings players really make: the hands read the wrong way round, the hour hand read as the next number when it is nearly there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. written as 13:00 |
 | **Space** | Forty-four questions about the solar system and the layers of air above it — the planets in order, why Venus beats Mercury, where the ozone is, which layer the Space Station orbits in. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Three levels, so a younger player is never asked about the Karman line |
 | **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a young player can make something rather than be tested on it, and the note names are on the keys so the naming comes for free |
@@ -461,10 +461,10 @@ overrides by hand, and the choice persists.
 
 ### A level kept for each player
 
-**Math**, **Multiply**, **Counting**, **Shape Arith** and **Fingers** are
-courses: twelve levels of adding and taking away, twelve of times tables and
-division, seven of counting, eight of adding and taking away with shapes, six
-of numbers to ten on the hands. Each
+**Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers** and
+**Time** are courses: twelve levels of adding and taking away, twelve of times
+tables and division, seven of counting, eight of adding and taking away with
+shapes, six of numbers to ten on the hands, ten of reading a clock. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 
@@ -483,7 +483,7 @@ random instead and never comes back within ten.
 The wrong buttons are the mistakes players make at that level: a carry
 forgotten, the smaller digit taken from the larger, the sign in `4 + ? = 10`
 done instead of undone, the neighbouring fact in a times table, the tens and
-ones digits swapped.
+ones digits swapped, a clock's hands read the wrong way round.
 
 The level is stored per player like a score, and Guest's lasts only until
 another player takes the console. Starting a new game on the *Carry on?*

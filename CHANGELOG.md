@@ -134,6 +134,21 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Time is a course of ten levels.** It used to work its level out of the
+visit's score, so every visit began at o'clock, and its wrong answers were
+whole hours away on the first two levels -- the minute hand was never tested
+-- and a single minute away on the last, closer than the dial can show. It
+now goes o'clock, half past, quarter past and quarter to, minutes past and
+minutes to in fives, and any minute, with the sixty minutes marked round the
+rim; then the time in words, in 24-hour time, twenty minutes later or
+fifteen earlier, and how many minutes until the next o'clock. The level is
+kept between visits, every question of a level comes up before any repeats,
+and the wrong buttons are the readings players really make: the hands read
+the wrong way round, the hour hand read as the next number when it is nearly
+there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. as 13:00. The
+question above the buttons changes with the level, and a new level is named
+over its first question.
+
 **A nearby game no longer pauses for a console that is right there.** Chess
 and the other games played across two consoles kept showing the "waiting
 for" card between moves. The scan listened 300ms in every 900ms against a

@@ -2885,7 +2885,9 @@ def time_game(answered=False):
     q = "Which time is shown?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 136), q, font=F2, fill=TEXT)
 
-    for i, a in enumerate(["6:00", "5:00", "2:00", "4:00"]):
+    # Level 1's options: the hour either side, and the hands read the wrong
+    # way round (TimeCourse::swapped(): 6:00 so read is 12:30).
+    for i, a in enumerate(["6:00", "12:30", "7:00", "5:00"]):
         r2 = (18 + (i % 2) * 152, 152 + (i // 2) * 40, 132, 34)
         ok = answered and a == "6:00"
         button(d, r2, a, SUCCESS if ok else PANEL, (0, 0, 0) if ok else TEXT)
