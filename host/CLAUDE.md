@@ -71,6 +71,16 @@ ends and so every button, launcher tile and keyboard key. `src/HostFocus.h` is
 where the selector goes next, and is pure arithmetic. It is drawn over the
 window like the crosshair, never into the panel's frame.
 
+**It is drawn only inside the panel's paint clip** (`selectorField()`). While
+a notice is up the runtime keeps every painter out of the notice's strip
+through `Ui::TftRenderer::setPaintClip()`, and the selector is the one thing
+not painted through the panel, so it asks the shim (`paintClipFrame()`) and
+stops at the strip's edge. The shim keeps that clip apart from the viewport:
+controls are read off what a screen draws against the viewport the *screen*
+set, and a clip laid over it for a notice has to hide pixels and nothing else.
+A control whose middle the notice covers drops out of the list like any
+control painted over, and comes back when the strip is redrawn.
+
 - **A button has a shadow; a card does not, and that is the whole test for what
   gets a stop.** A fill and outline with no shadow might be a control (Memory's
   cards, Cinnamon's pads, Ludo's seats) or something to look at (a quiz's

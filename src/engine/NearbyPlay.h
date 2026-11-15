@@ -148,6 +148,12 @@ const char* banner();
  * that the screen underneath needs repainting without diffing strings. */
 uint32_t bannerGeneration();
 
+/* Put the banner away before its time, because the player pressed it. An
+ * event waiting behind it is held back for a moment rather than shown in its
+ * place: a notice that changed its words under the finger would look as
+ * though the press had done nothing. */
+void dismissBanner(uint32_t nowMs);
+
 /** How many peers are currently in range, strongest signal first. */
 uint8_t peerCount();
 

@@ -887,8 +887,9 @@ adversary.
 
 **Off by default.** Turned on, the console listens for other Brainos in range
 and shows who is there, which game they have open, and their best score for it.
-When somebody's score beats the record on this device, a strip appears over the
-header for a few seconds and is then removed.
+When somebody's score beats the record on this device, a strip appears along
+the bottom of the screen for a few seconds and is then removed (see
+[Notices](#notices)).
 
 It is anonymous by construction. A peer is **four hex digits of its own
 Bluetooth MAC** — the same id already used to name the device — and the only
@@ -902,8 +903,8 @@ Two switches guard it, in this order: the **BLE beacon** must be on, and then
 scan is passive, so listening never transmits anything.
 
 **Poke.** Each peer in the list carries a *Poke* button. Pressing it nudges that
-console: a strip appears over its header saying who poked it, and it makes a
-sound. It is the one notification here that does — everything else Nearby raises
+console: a strip appears along the bottom of its screen saying who poked it,
+and it makes a sound. It is the one notification here that does — everything else Nearby raises
 is ambient news about the room, while a poke is a person asking for your
 attention.
 
@@ -1065,7 +1066,9 @@ It is a shortcut and never the only way to do anything. Everything it reaches
 is reachable by touch, so a board that does not wire the key behaves as it
 always did. Two places ignore it on purpose: the **Hold to unlock** screen,
 because a key pressed through the side of a bag is the accident that screen
-exists to catch, and the launcher, where you are already home.
+exists to catch, and the launcher, where you are already home. While a
+[notice](#notices) is up, the first press puts the notice away instead, on
+every screen; the next one is Home as usual.
 
 Holding it while the console starts is unchanged and has nothing to do with
 this — that is a message to the chip's own ROM, which reads the pin at reset,
@@ -1087,6 +1090,30 @@ the next tab (or Settings), and **Select + Start** held for three seconds
 restarts. Pushing past the end of a row turns the page, and past the end of a
 list scrolls it. A finger on the glass puts the selector away. It stops on
 every square of every board too, so every game plays from the keys.
+
+### Notices
+
+Three things can interrupt a screen to say something: a low battery, a newer
+firmware, and Nearby. Each is one line on a strip **along the bottom of the
+screen**, shown for a few seconds and then taken away. The header stays whole
+above it: Home, the padlock, the clock and the battery badge are all still
+there, and still work, while a notice is up.
+
+<p>
+  <img src="docs/screens/notice.png" width="280" alt="Math with a notice along its bottom edge: Battery low, time to charge. The top bar is untouched, and the lower half of the bottom two answers is under the strip">
+</p>
+
+Down there it lies over part of the screen, such as the bottom row of answers
+or the launcher's Prev and Next. So **a press on the notice puts it away**, and
+does nothing else: whatever is under it is not pressed. On a console with no
+touch screen the **BOOT** key (B on a gamepad) does the same. Left alone, it
+goes by itself.
+
+While a notice is up, nothing else is drawn on its strip. A game that repaints
+under it does not disturb it, and the d-pad's selector stops at its edge
+instead of being drawn across the words. A control the notice hides completely
+cannot be selected until it has gone. When it goes, only the strip it covered
+is redrawn; the rest of the screen does not blink.
 
 ### Scores, Profiles, About and System Info
 
@@ -1181,7 +1208,7 @@ number centred inside it, so it does not shrink as the battery drops from 10%
 to 9%. The status rows around it are still laid out from its measured width,
 because a board with no battery sense shows no icon at all.
 
-At **15% or less** a strip also appears across the top of whatever screen is
+At **15% or less** a strip also appears along the bottom of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
 charger* at 5%. It shows for six seconds and repeats every two minutes, so it
 stays a warning rather than becoming furniture. It is driven by the percentage
@@ -1295,7 +1322,7 @@ writing the password readably; it asks for it again after a restart.
 
 Once a day, a console with Wi-Fi configured downloads one small file listing the
 current firmware version of every supported board, compares it with its own
-version, and — if there is something newer — says so in the header and on
+version, and — if there is something newer — says so in a notice and on
 *About -> Updates*. **Braino never updates itself.** Nothing is downloaded,
 nothing is installed, and no firmware image is fetched; a person decides, and
 does it from the web installer.
@@ -1619,6 +1646,7 @@ PIN: after `unlock <PIN>`,
 | Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
 | Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
 | Games per player | `games` (every game id), `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+| A notice | `notice "<words>"` shows the words as a [notice](#notices) for six seconds, to look at the strip on a panel; `notice ""` takes it down |
 | Levels | `level <game-id>` (the level the player in use has reached in that game; 0 if never set), `level <game-id> <1-63>` (put them on that level), `level <game-id>:<track> [<level>]` for a game that keeps more than one, tracks 0-3 |
 
 then `lock`. Every change goes through the same code the screens use, with the
@@ -1677,7 +1705,7 @@ src/
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
     AppRuntimeKeep.cpp  the game a player left, kept until switch-off
     CarryOnScreen.cpp  the Carry on? / New game question on the way back in
-    AppRuntimeNotify.cpp  the header banner: battery, update, nearby
+    AppRuntimeNotify.cpp  the notice strip: battery, update, nearby
     AppRuntimeIdentity.cpp  boot banner: which board, which build
     AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded
     AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
@@ -1754,6 +1782,7 @@ src/
   ui/
     Renderer.h          app-facing drawing interface, no TFT driver include
     TftRenderer.h       TFT_eSPI adapter used by firmware runtime
+    PaintClip.h         the arithmetic of that adapter's paint clip
     LauncherIcons.cpp   launcher tile icon drawing
     LogoMask.cpp        the product mark, generated -- see tools/gen_logo_mask.py
     LauncherLayout.cpp  launcher header, profile and tile geometry

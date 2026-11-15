@@ -2573,6 +2573,31 @@ def math_words(question="Nia has 21 shells and gives 8 away. How many are left?"
     return im
 
 
+def notification(d, text, w=W, h=H):
+    """Ui::drawNotification: the strip along the bottom edge of the panel,
+    NOTIFICATION_HEIGHT (26) tall and the panel's full width, with its
+    hairline on the edge that meets the screen and a bell at its left end.
+    Black ink whatever the theme: the fill is the warning colour."""
+    y = h - 26
+    ink = (0, 0, 0)
+    d.rectangle([0, y, w - 1, h - 1], fill=WARN)
+    d.line([(0, y), (w, y)], fill=shade(WARN, 60))
+    cx, cy = 16, y + 13
+    d.ellipse([cx - 5, cy - 6, cx + 5, cy + 4], fill=ink)
+    d.rectangle([cx - 6, cy + 2, cx + 6, cy + 3], fill=ink)
+    d.rectangle([cx - 1, cy + 5, cx + 1, cy + 6], fill=ink)
+    d.text((30, cy - 8), fitted_text(d, text, w - 40, F2), font=F2, fill=ink)
+
+
+def notice():
+    """A notice, on Math. It lies along the bottom, over the lower half of the
+    bottom row of answers and over none of the top bar, which is the point of
+    it being there. The words are the battery warning's own."""
+    im = math_game()
+    notification(ImageDraw.Draw(im), "Battery low - time to charge")
+    return im
+
+
 def carry_on(title="Math"):
     """The runtime's question on the way back into a game that was left.
 
@@ -4422,6 +4447,7 @@ EXTRA_SCREENS = [
     ("math", math_game, "Math"),
     ("math-words", math_words, "Math: a word problem"),
     ("carry-on", carry_on, "Carry on? -- the question on the way back into a game"),
+    ("notice", notice, "A notice: one line along the bottom, the header left whole"),
     ("multiply", multiply, "Multiplication"),
     ("time", time_game, "Time"),
     ("whack", whack, "Whack A Mole"),

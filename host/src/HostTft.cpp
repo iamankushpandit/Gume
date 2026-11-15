@@ -73,6 +73,7 @@ uint16_t nextCodepoint(const char*& s) {
 void TFT_eSPI::begin(uint8_t) {
     rotation_ = 1;
     resetViewport();
+    clipOn_ = false;
     forgetMarks();
     std::fill(std::begin(frame_), std::end(frame_), 0);
     ++frameGen_;
@@ -82,6 +83,7 @@ void TFT_eSPI::begin(uint8_t) {
 void TFT_eSPI::setRotation(uint8_t r) {
     rotation_ = r & 3;
     resetViewport();
+    clipOn_ = false;   // it was in the old rotation's coordinates
     forgetMarks();
 }
 
@@ -154,7 +156,36 @@ bool TFT_eSPI::toFrame(int32_t x, int32_t y, int32_t& fx, int32_t& fy) const {
     return fx >= 0 && fy >= 0 && fx < FRAME_W && fy < FRAME_H;
 }
 
+void TFT_eSPI::setPaintClip(int32_t x, int32_t y, int32_t w, int32_t h) {
+    clipX_ = x;
+    clipY_ = y;
+    clipW_ = w;
+    clipH_ = h;
+    clipOn_ = true;
+}
+
+void TFT_eSPI::clearPaintClip() {
+    clipOn_ = false;
+}
+
+bool TFT_eSPI::paintClipFrame(int16_t& x0, int16_t& y0, int16_t& x1, int16_t& y1) const {
+    if (!clipOn_ || clipW_ <= 0 || clipH_ <= 0) return false;
+    int16_t ax = 0, ay = 0, bx = 0, by = 0;
+    logicalToFrame(clipX_, clipY_, ax, ay);
+    logicalToFrame(clipX_ + clipW_ - 1, clipY_ + clipH_ - 1, bx, by);
+    x0 = std::min(ax, bx);
+    y0 = std::min(ay, by);
+    x1 = std::max(ax, bx);
+    y1 = std::max(ay, by);
+    return true;
+}
+
 void TFT_eSPI::plot(int32_t x, int32_t y, uint16_t color) {
+    if (clipOn_) {
+        const int32_t ax = vpDatum_ ? x + vpX_ : x;
+        const int32_t ay = vpDatum_ ? y + vpY_ : y;
+        if (ax < clipX_ || ay < clipY_ || ax >= clipX_ + clipW_ || ay >= clipY_ + clipH_) return;
+    }
     int32_t fx = 0, fy = 0;
     if (toFrame(x, y, fx, fy)) {
         frame_[fy * FRAME_W + fx] = color;

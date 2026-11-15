@@ -356,8 +356,9 @@ public:
 
     /* Repaint the header strip alone, leaving the screen under it untouched.
      *
-     * The battery badge, the clock and the notification banner all change on
-     * their own schedule rather than the screen's, and the runtime used to
+     * The battery badge and the clock change on their own schedule rather
+     * than the screen's (a notice did too, until it moved to a strip of its
+     * own along the bottom of the panel), and the runtime used to
      * answer that with requestRender() -- a full 320x240 wipe, ~150KB over SPI
      * and roughly 30ms of visible blanking, for a change confined to the top
      * 30 pixels. The strip is an eighth of the panel, so this costs about 4ms

@@ -115,8 +115,8 @@ void LudoGame::drawLobbyHint(Ui::Renderer& tft) const {
         return;
     }
     if (inviteWaiting_) {
-        /* The header banner announced it and has gone; this is where it is
-         * still answerable from. */
+        /* The notice announced it and has gone; this is where it is still
+         * answerable from. */
         Ui::drawLabel(tft, HINT_RECT, "Invitation waiting: tap Nearby", Ui::success(), 2,
                       Align::Center);
         return;

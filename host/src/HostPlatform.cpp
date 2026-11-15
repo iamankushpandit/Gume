@@ -720,20 +720,60 @@ SDL_Rect selectorRect() {
     return SDL_Rect{x0, y0, x1 - x0 + 1, y1 - y0 + 1};
 }
 
+/* Where the selector may be drawn: the whole frame, or with a notice up, all
+ * of it but the notice's strip. The runtime keeps every painter out of that
+ * strip through the panel's paint clip, and the selector is the one thing
+ * drawn here rather than through the panel, so it asks. Drawn across a
+ * notice it hid the words; cut off at the strip's edge, it still shows which
+ * control it is on. */
+SDL_Rect selectorField() {
+    int16_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    if (panel && panel->paintClipFrame(x0, y0, x1, y1)) {
+        return SDL_Rect{x0, y0, x1 - x0 + 1, y1 - y0 + 1};
+    }
+    return SDL_Rect{0, 0, FRAME_W, FRAME_H};
+}
+
+/* The parts of these rectangles that lie in the selector's field. Returns how
+ * many are left; `out` holds as many as `in`. */
+int inSelectorField(const SDL_Rect* in, int count, SDL_Rect* out) {
+    const SDL_Rect field = selectorField();
+    int n = 0;
+    for (int i = 0; i < count; ++i) {
+        if (SDL_IntersectRect(&in[i], &field, &out[n])) ++n;
+    }
+    return n;
+}
+
+/* An outline one pixel thick, as its four edges, cut to the field. */
+int outlineInField(const SDL_Rect& r, SDL_Rect out[4]) {
+    const SDL_Rect edges[4] = {{r.x, r.y, r.w, 1},
+                               {r.x, r.y + r.h - 1, r.w, 1},
+                               {r.x, r.y, 1, r.h},
+                               {r.x + r.w - 1, r.y, 1, r.h}};
+    return inSelectorField(edges, 4, out);
+}
+
+void renderOutline(const SDL_Rect& r) {
+    SDL_Rect edges[4];
+    const int n = outlineInField(r, edges);
+    if (n > 0) SDL_RenderFillRects(renderer, edges, n);
+}
+
 void drawSelector() {
     const bool pressing = padTouch || padStickClick || keyTouch;
     const SDL_Rect outer = selectorRect();
     const SDL_Rect middle{outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2};
     const SDL_Rect inner{outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4};
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderDrawRect(renderer, &inner);
+    renderOutline(inner);
     if (pressing) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     } else {
         SDL_SetRenderDrawColor(renderer, 255, 210, 0, 255);
     }
-    SDL_RenderDrawRect(renderer, &outer);
-    SDL_RenderDrawRect(renderer, &middle);
+    renderOutline(outer);
+    renderOutline(middle);
 }
 
 void saveShot(uint32_t now) {
@@ -752,7 +792,9 @@ void saveShot(uint32_t now) {
         const SDL_Rect r = selectorRect();
         const int x = r.x, y = r.y, w = r.w, h = r.h;
         const SDL_Rect edges[4] = {{x, y, w, 2}, {x, y + h - 2, w, 2}, {x, y, 2, h}, {x + w - 2, y, 2, h}};
-        SDL_FillRects(s, edges, 4, ring);
+        SDL_Rect shown[4];
+        const int n = inSelectorField(edges, 4, shown);
+        if (n > 0) SDL_FillRects(s, shown, n, ring);
     }
     char path[512];
     std::snprintf(path, sizeof(path), "%s/shot-%06u.bmp", dataDir().c_str(),
@@ -883,11 +925,14 @@ void drmFill(uint32_t* buf, int stride, int x, int y, int w, int h, uint32_t col
     }
 }
 
+/* The selector's outlines, and nothing else: each edge is cut to the field
+ * the selector may be drawn in (selectorField()). */
 void drmOutline(uint32_t* buf, int stride, const SDL_Rect& r, uint32_t color) {
-    drmFill(buf, stride, r.x, r.y, r.w, 1, color);
-    drmFill(buf, stride, r.x, r.y + r.h - 1, r.w, 1, color);
-    drmFill(buf, stride, r.x, r.y, 1, r.h, color);
-    drmFill(buf, stride, r.x + r.w - 1, r.y, 1, r.h, color);
+    SDL_Rect edges[4];
+    const int n = outlineInField(r, edges);
+    for (int i = 0; i < n; ++i) {
+        drmFill(buf, stride, edges[i].x, edges[i].y, edges[i].w, edges[i].h, color);
+    }
 }
 
 constexpr uint32_t DRM_BLACK = 0x000000, DRM_WHITE = 0xffffff, DRM_YELLOW = 0xffd200;

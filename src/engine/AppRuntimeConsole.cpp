@@ -146,6 +146,8 @@ const BrainoApp::ConsoleCommand* BrainoApp::consoleTable(size_t& count) {
         {"level", "level <game-id>[:<track>] [<level>]",
          "the active player's level in a game; with a level, set it",
          APP_CAP_PROFILES, 1, 2, &BrainoApp::cmdLevel},
+        {"notice", "notice \"<words>\"", "show the words as a notice, to look at the strip",
+         APP_CAP_DEVICE_SETTINGS, 1, 1, &BrainoApp::cmdNotice},
         {"unlock", "unlock <admin PIN>", "allow changes for two minutes",
          APP_CAP_NONE, 1, 1, &BrainoApp::cmdUnlock},
         {"lock", "lock", "stop allowing changes",

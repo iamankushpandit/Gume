@@ -85,7 +85,7 @@ over at most eight entries. Never lower the threshold below a few scan
 intervals: the scanner listens 300ms in 900, so silence of a second or two is
 ordinary.
 
-Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the header notifications. `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
+Policy half of Nearby play: resolves a peer's game index against `AppRegistry`, compares its score against this profile's record, and raises the notices (one line along the bottom of the screen; `AppRuntimeNotify.cpp` decides which of battery, update and Nearby is up and keeps the strip to itself while it is). `hal/BleScanner` listens and `hal/BleBeacon` transmits; neither knows what a game is.
 
 - **Off by default, and gated on the beacon.** `tick()` re-derives `board.nearbyEnabled() && BleBeacon::enabled()` every frame rather than relying on an ordering contract with Settings, so the feature follows the radio in both directions. Both reads are from RAM.
 - **NVS reads are change-driven.** A peer's record is looked up only when its game or score actually changed. A beacon repeats every second; looking a record up at that rate would put a flash lookup inside the frame budget for no new information.

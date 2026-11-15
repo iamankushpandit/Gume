@@ -10,6 +10,28 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**A notice is along the bottom of the screen now, and the header stays whole.**
+A low battery, a newer firmware and Nearby each raise a one-line strip. It was
+painted over the top bar, so for as long as it was up there was no Home, no
+padlock, no clock and no battery badge, and on a console with a d-pad the
+selector was drawn across it. It lies along the bottom edge instead, and three
+things came with the move:
+
+- **A press on it puts it away**, and presses nothing under it. The BOOT key
+  (B on a gamepad) does the same, for a console with no touch screen; the
+  next press is Home as before.
+- **Nothing else is drawn on it.** A game repainting under a notice used to
+  paint over it and have it painted back, which flickered. The strip is now
+  out of reach of every other painter while a notice is up, the selector
+  included: its ring stops at the strip's edge, and a control the notice
+  hides completely cannot be selected until the notice has gone.
+- **When it goes, only that strip is redrawn.** The rest of the screen does
+  not blink.
+
+`notice "<words>"` on the serial console raises one on demand, after
+`unlock`, so the strip can be looked at on a panel without running a battery
+down.
+
 **A game left by mistake is still there.** Home is one press, and on a
 console with keys it is the key beside the one that answers; players pressed
 it and lost their game. Every game is now kept when it is left in the middle,
@@ -64,7 +86,7 @@ unchanged.
 
 **The player picker shows the battery**, between Add Player and Done, and it
 repaints only what changed: the badge when the charge moves, the speaker when
-mute is toggled, the header strip when a notification comes or goes. It used
+mute is toggled. It used
 to answer every header change with a full repaint, which was harmless only
 while it showed nothing that changed.
 

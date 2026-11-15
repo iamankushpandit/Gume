@@ -271,9 +271,9 @@ screen with no top bar and the previous one showing through, because
 repaint is an optimisation within a screen's lifetime. Entering one is not the
 place to be greedy** -- a stable picture is worth more than the frame it costs.
 
-**And ask whether the screen needs to repaint at all.** Three things change the
-header on their own schedule rather than the screen's -- the clock, the battery
-badge and the notification banner -- and the runtime used to answer each with
+**And ask whether the screen needs to repaint at all.** Two things change the
+header on their own schedule rather than the screen's -- the clock and the
+battery badge -- and the runtime used to answer each with
 `requestRender()`, wiping all 240 rows to change something in the top 30. The
 battery made that constant: one percent is about 2mV on the LiPo plateau, under
 two ADC counts, so the reading crossed a boundary every couple of seconds and
@@ -291,10 +291,44 @@ redraws the time alone, over the old one with its background filled, so
 nothing is cleared: the top bar's default is `Ui::drawTopBarClock()`, the
 launcher has its own, and the player picker, with no clock, says done. It
 answers false when the time changed width -- that moves the title's budget
-or the sync check beside it -- and only that minute takes the strip, as it
-does under a notification banner. The picker's `renderChrome()` repaints
+or the sync check beside it -- and only that minute takes the strip. The
+picker's `renderChrome()` repaints
 its battery badge, its speaker or its header strip, whichever changed --
 it used to return false, which is a full repaint for every badge tick.
+
+**A notice is the third thing on its own schedule, and it is not in the header
+any more.** It was painted over the top bar, where it hid Home, the padlock,
+the clock and the battery for as long as it was up, and the d-pad's selector
+was painted over *it*. It is a strip along the bottom of the panel now
+(`Ui::notificationRect()`), and because there is no framebuffer two things
+about it are load-bearing:
+
+- **While it is up, its strip is its own.** `BrainoApp::settleNotice()` gives
+  the renderer a paint clip that leaves the strip out
+  (`Ui::TftRenderer::setPaintClip()`), so the screen, its chrome, the first
+  frame of a screen just launched and the selector all draw as they always do
+  and none of it lands on the notice. It is painted once. Do not go back to
+  painting it again after every repaint of the screen: that flickers on a
+  screen that draws often, and loses to any frame drawn outside the loop.
+- **Taking it away redraws the strip and nothing else.** The screen is asked
+  for a full render with the clip turned round, so the rows that were covered
+  come back and the rest of the panel is not touched. A plain
+  `requestRender()` there would blank the whole panel every time a notice
+  left, which is the flash this file keeps warning about.
+
+The clip comes off wherever something else takes the whole panel
+(`enterScreenSaver()`, `enterSleep()`, `enterLock()`) and when the panel turns
+(`applyRotation()`), all through `noticeOffPanel()`. **A new way of taking the
+panel away from the active screen needs the same call**, or it draws with a
+strip missing. A press on the notice puts it away and is swallowed whole, for
+the reason Home's is: what is under the strip cannot be seen. The driver has
+one viewport, so the clip and a screen's own viewport are resolved into one
+(`src/ui/PaintClip.h`, checked by `test/host/paint_clip_test.cpp`); an image
+goes through a raw window that no viewport clips, so `TftRenderer::pushPixels()`
+cuts it to the clip a row at a time. The PC build's panel keeps a paint clip
+of its own instead, apart from the viewport, because it reads the d-pad's
+controls off the viewport the *screen* set -- intersecting the two there left
+the selector, after a notice went, with only the controls inside the strip.
 
 ## Memory rule â€” there is no garbage collector
 
@@ -841,7 +875,9 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the frame would drop a simultaneous touch), the lock screen ignores it
   entirely (a key pressed through the side of a bag is the accident that
   screen exists to catch), and `View::Asleep` and the saver treat it exactly
-  as a touch. It counts as activity, or the saver would arrive a moment after
+  as a touch. With a notice up it puts the notice away instead of going Home,
+  on the launcher too: a console with no touch panel has nothing else to press
+  a notice with. It counts as activity, or the saver would arrive a moment after
   you pressed Home. **Nothing may become reachable only through it** --
   `BOARD.hasBootButton()` can be false and the console has to remain complete.
   It fires on the press edge, which is what a hold gesture would have to
@@ -1035,7 +1071,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 | `Watchdog` | `src/hal/Watchdog.h` | Background supervisor: reboots a hung loop, logs stalls and heap, keeps a crash breadcrumb |
 | `BleBeacon` | `src/hal/BleBeacon.h` | Opt-in non-connectable BLE presence beacon. Owns the one authoritative advertisement payload, and its inverse `decode()` |
 | `BleScan` | `src/hal/BleScanner.h` | Passive observer for other Braino beacons. Radio only -- no opinion about scores |
-| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, header notifications, the sharing switch, and the two-player session service |
+| `NearbyPlay` | `src/engine/NearbyPlay.h` | Nearby play policy: peer scores, notices, the sharing switch, and the two-player session service |
 
 ### Invariants worth knowing before editing
 
@@ -1522,8 +1558,10 @@ flashing. The fix was fifteen lines (erase the arrow's own box, repaint the
 ghost and the dots over it) and the reasoning that produced the bug was a guess
 about frequency that was never checked.
 
-The same rule holds for the top bar: route clock, battery and notification
-changes through `requestChromeRender()`, not `requestRender()`.
+The same rule holds for the top bar: route clock and battery changes through
+`requestChromeRender()`, not `requestRender()`. A notice is neither. It has
+its own strip along the bottom, and `requestBannerRepaint()` is all it asks
+for.
 
 - `render()` should guard static chrome behind `if (needsFullRender())` and draw dynamic parts unconditionally.
 
@@ -1558,7 +1596,7 @@ src/s3_diag.cpp           standalone ESP32-S3 bring-up probe (env:s3diag only)
 src/diag4.cpp             standalone 4-inch ST7796 bring-up probe (env:diag4 only)
 src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPlay,
                           AppRuntime, AppRuntimeLock, AppRuntimeNotify (the
-                          header banner), AppRuntimeIdentity,
+                          notice strip), AppRuntimeIdentity,
                           AppRuntimeSelector (the d-pad's selector, on a
                           board with keys),
                           AppRuntimeConsole (+Settings, +Profiles),
@@ -1633,7 +1671,8 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           found at boot: the module table and one driver
                           file a module -- keyboard, gamepad, fuel gauge,
                           the three Expand modules), Clock, Watchdog
-src/ui/                   Renderer, TftRenderer, Ui, Keypad, LauncherIcons,
+src/ui/                   Renderer, TftRenderer, PaintClip (the arithmetic of
+                          the renderer's paint clip), Ui, Keypad, LauncherIcons,
                           FocusRecorder (the controls on the panel, as
                           drawn), FocusMath (where the selector goes next;
                           shared with the Linux host),
@@ -1976,6 +2015,12 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     on at the level it has, `applies="next start"` that nothing holds it.
     Wi-Fi is create/update and delete (`wifi`, `wifi clear`), read only as
     a flag.
+  - **One command puts words on the screen, and it is gated like a change.**
+    `notice "<words>"` raises a notice with those words, because there is no
+    other way to see one when it is wanted: a battery has to run down, a newer
+    firmware has to exist, or another console has to be in the room. It reads
+    nothing and stores nothing, and it needs the PIN because words on a
+    player's screen are not a status read.
   - **Device reads are open; writes, and reads of player data, need the
     PIN.** `needsUnlock()` keys on the row's capability (settings, network,
     profiles, scores, factory reset), so a new row cannot forget the gate.

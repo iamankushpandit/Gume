@@ -238,8 +238,10 @@ flashing. The fix was fifteen lines (erase the arrow's own box, repaint the
 ghost and the dots over it) and the reasoning that produced the bug was a guess
 about frequency that was never checked.
 
-The same rule holds for the top bar: route clock, battery and notification
-changes through `requestChromeRender()`, not `requestRender()`.
+The same rule holds for the top bar: route clock and battery changes through
+`requestChromeRender()`, not `requestRender()`. A notice is neither. It has
+its own strip along the bottom, and `requestBannerRepaint()` is all it asks
+for.
 
 Related: `Game` has two levels of invalidation for exactly this reason.
 `markDirty()` repaints the moving parts; `markFullDirty()` repaints the

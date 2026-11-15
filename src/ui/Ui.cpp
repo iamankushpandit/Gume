@@ -674,17 +674,21 @@ void drawNotification(Ui::Renderer& tft, const char* text) {
     if (text == nullptr || text[0] == '\0') {
         return;
     }
-    const int16_t w = static_cast<int16_t>(tft.width());
+    const Rect strip = notificationRect(static_cast<int16_t>(tft.width()),
+                                        static_cast<int16_t>(tft.height()));
+    const int16_t w = strip.w;
     const uint16_t fill = warning();
     /* The warning colour is a light amber on both themes, so the text on it is
      * always the dark one -- COLOR_BAR_TEXT would vanish. */
     const uint16_t ink = TFT_BLACK;
-    tft.fillRect(0, 0, w, TOP_BAR_HEIGHT, fill);
-    tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, w, shade(fill, 60));
+    tft.fillRect(strip.x, strip.y, strip.w, strip.h, fill);
+    /* The hairline goes on the edge that meets the screen, which is the upper
+     * one now that the strip lies along the bottom. */
+    tft.drawFastHLine(strip.x, strip.y, strip.w, shade(fill, 60));
 
     // Small bell, so the strip reads as a notice before it is read as words.
     const int16_t cx = 16;
-    const int16_t cy = TOP_BAR_HEIGHT / 2;
+    const int16_t cy = static_cast<int16_t>(strip.y + strip.h / 2);
     tft.fillCircle(cx, static_cast<int16_t>(cy - 1), 5, ink);
     tft.fillRect(static_cast<int16_t>(cx - 6), static_cast<int16_t>(cy + 2), 13, 2, ink);
     tft.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(cy + 5), 3, 2, ink);

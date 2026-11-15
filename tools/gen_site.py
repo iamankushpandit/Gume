@@ -303,6 +303,7 @@ SCREEN_CAPTIONS = {
     "math": "Math",
     "math-words": "Math: a word problem",
     "carry-on": "Carry on? A game left by mistake is still there",
+    "notice": "A notice along the bottom of the screen",
     "maze": "Maze",
     "memory": "Memory",
     "microku": "Microku",

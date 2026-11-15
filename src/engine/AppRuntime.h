@@ -79,6 +79,7 @@ private:
     void cmdGames(int argc, char** argv, Print& out);
     void cmdGame(int argc, char** argv, Print& out);
     void cmdLevel(int argc, char** argv, Print& out);
+    void cmdNotice(int argc, char** argv, Print& out);
     void replyIdentify(Print& out);
     void repaintAfterConsoleChange();
     void refreshAfterProfileChange();
@@ -285,14 +286,20 @@ private:
     void onScreenSaverHit();
     void resetScreenSaverRally(int16_t effW, int16_t effH);
     void renderScreenSaver();
-    /* Paint the current header notification, if there is one. Called after the
-     * screen has drawn itself, so it lands on top. The battery warning wins
-     * over a Nearby event: one of them is a nicety, the other is the reason
-     * the console is about to switch off. */
-    void drawHeaderBanner(bool screenRepainted);
-    /* The notification on the header now, if any: the battery's, the
-     * update's or Nearby's, in that order. */
-    const char* headerBannerText() const;
+    /* The notice due now, or nullptr. The battery warning wins over a Nearby
+     * event: one of them is a nicety, the other is the reason the console is
+     * about to switch off. */
+    const char* noticeText() const;
+    /* Put the notice on the panel, change its words, or take it away. Called
+     * once a frame, after the screen has drawn. True when the strip changed
+     * hands either way: a notice painted over part of the screen, or that
+     * part of the screen painted again. */
+    bool settleNotice();
+    /* The notice is not on the panel any more, whatever was: another view is
+     * taking the whole panel, or the panel is turning. */
+    void noticeOffPanel();
+    /* A press on the notice puts it away. */
+    void dismissNotice(uint32_t nowMs);
 
     /* Ask for a header-only repaint. Cheap enough to call on every tick that
      * changes a badge; the flag collapses several in one frame into one
@@ -307,9 +314,12 @@ private:
      * the admin: a parent who is not holding the device has no other way to
      * learn, and the wording tells a young player what to do about it. */
     void tickUpdateNotice(uint32_t nowMs);
+    /* Retires the notice the serial console's `notice` command raised. */
+    void tickBenchNotice(uint32_t nowMs);
     void tickPowerMonitor(uint32_t nowMs);
 
-    /* Mark the strip as needing paint and make the screen under it redraw. */
+    /* Mark the strip as needing to be looked at again: a notice has appeared,
+     * changed its words or gone. */
     void requestBannerRepaint();
 
     /* Long enough to read at a glance, and repeated rarely enough that it
@@ -321,6 +331,7 @@ private:
     /* Long enough to read a version number and an instruction, and no longer:
      * it repeats daily, so it does not need to be insistent once. */
     static constexpr uint32_t UPDATE_BANNER_MS = 6000;
+    static constexpr uint32_t BENCH_NOTICE_MS = 6000;
     static constexpr uint32_t BATTERY_REPEAT_MS = 120000;
 
     Board board_;
@@ -504,6 +515,11 @@ private:
     void selectorErase();
     void selectorPaintRing(const Focus::Target& t, bool on);
     void selectorFollowScreen();
+    /* Whatever the selector was pressing is let go, as when a finger takes
+     * over: the rest of a press it was making is not delivered. */
+    void selectorLetGo() { sel_.script = SelectorState::Script::None; }
+#else
+    void selectorLetGo() {}
 #endif
 #if GUME_HAS_KEYBOARD
     char frameTyped_ = 0;     /* the same, for a typed character */
@@ -556,11 +572,15 @@ private:
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;
+    /* A notice is painted on the panel, and the renderer's paint clip is
+     * keeping everything else out of its strip. The two are set and cleared
+     * together, in settleNotice() and noticeOffPanel() and nowhere else. */
+    bool noticeOnPanel_ = false;
 
-    /* Something in the header changed -- the clock, the battery badge, a
-     * notification -- but nothing the screen itself draws. Answered by
-     * Game::renderChrome(), which repaints the 30px strip instead of the
-     * 240px panel. See requestChromeRender(). */
+    /* Something in the header changed -- the clock or the battery badge --
+     * but nothing the screen itself draws. Answered by Game::renderChrome(),
+     * which repaints the 30px strip instead of the 240px panel. See
+     * requestChromeRender(). */
     bool chromeNeedsPaint_ = false;
 
     /* The battery warning currently on screen, or nullptr. Points at a string
@@ -572,6 +592,10 @@ private:
     char updateBanner_[48] = {0};
     bool updateBannerActive_ = false;
     uint32_t updateBannerShownMs_ = 0;
+    /* The words the serial console's `notice` command asked to see. */
+    char benchNotice_[48] = {0};
+    bool benchNoticeActive_ = false;
+    uint32_t benchNoticeShownMs_ = 0;
     uint32_t batteryCheckMs_ = 0;
     uint32_t batteryShownMs_ = 0;
     uint32_t batteryHiddenMs_ = 0;

@@ -65,6 +65,10 @@ char banner_[BANNER_MAX] = {0};
 bool bannerActive_ = false;
 uint32_t bannerAtMs_ = 0;
 uint32_t bannerGeneration_ = 0;
+/* After a banner was pressed away: how long the next one waits its turn. */
+constexpr uint32_t BANNER_HOLD_MS = 2500;
+bool bannerHeld_ = false;
+uint32_t bannerHeldAtMs_ = 0;
 
 /* The find alert. `alertWasMuted_` is the whole of the mute contract: the
  * switch is genuinely flipped when an alert starts, and put back by
@@ -383,6 +387,7 @@ void resetPeers() {
     eventHead_ = 0;
     eventCount_ = 0;
     bannerActive_ = false;
+    bannerHeld_ = false;
     banner_[0] = '\0';
     ++bannerGeneration_;
     ++peerGeneration_;
@@ -564,7 +569,10 @@ void tick(Board& board) {
         banner_[0] = '\0';
         ++bannerGeneration_;
     }
-    if (!bannerActive_ && eventCount_ > 0) {
+    if (bannerHeld_ && now - bannerHeldAtMs_ >= BANNER_HOLD_MS) {
+        bannerHeld_ = false;
+    }
+    if (!bannerActive_ && !bannerHeld_ && eventCount_ > 0) {
         snprintf(banner_, sizeof(banner_), "%s", events_[eventHead_]);
         eventHead_ = static_cast<uint8_t>((eventHead_ + 1) % MAX_EVENTS);
         --eventCount_;
@@ -576,6 +584,15 @@ void tick(Board& board) {
 
 const char* banner() {
     return bannerActive_ ? banner_ : nullptr;
+}
+
+void dismissBanner(uint32_t nowMs) {
+    if (!bannerActive_) return;
+    bannerActive_ = false;
+    banner_[0] = '\0';
+    ++bannerGeneration_;
+    bannerHeld_ = true;
+    bannerHeldAtMs_ = nowMs;
 }
 
 uint32_t bannerGeneration() { return bannerGeneration_; }

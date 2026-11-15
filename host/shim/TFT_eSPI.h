@@ -74,6 +74,11 @@
 #define C_BASELINE 10
 #define R_BASELINE 11
 
+/* This panel keeps a paint clip of its own (setPaintClip() below), which the
+ * driver it stands in for does not. Ui::TftRenderer reads this to know which
+ * of the two it is drawing through. */
+#define TFT_ESPI_PAINT_CLIP 1
+
 class TFT_eSPI {
 public:
     static constexpr int16_t FRAME_W = 320;
@@ -139,6 +144,26 @@ public:
 
     void setViewport(int32_t x, int32_t y, int32_t w, int32_t h, bool vpDatum = true);
     void resetViewport();
+
+    /* A paint clip laid over the viewport, in absolute logical coordinates:
+     * no pixel lands outside it. The runtime sets one through
+     * Ui::TftRenderer while a notice is up, to keep every painter out of the
+     * notice's strip, and once more with the strip alone to redraw what the
+     * notice covered.
+     *
+     * It is kept apart from the viewport on purpose. The controls the d-pad's
+     * selector stops on are read off what a screen draws, clipped to the
+     * viewport the SCREEN set (a row half scrolled out of its list is pressed
+     * where it can be seen). A clip laid over the top for a notice has to
+     * hide pixels and nothing else, or redrawing the strip under a notice
+     * would leave the selector with only the controls inside that strip.
+     *
+     * paintClipFrame() gives it in the rotation-1 frame, corners inclusive,
+     * for the selector itself, which HostPlatform draws over the frame and
+     * keeps inside the clip. False when there is none. */
+    void setPaintClip(int32_t x, int32_t y, int32_t w, int32_t h);
+    void clearPaintClip();
+    bool paintClipFrame(int16_t& x0, int16_t& y0, int16_t& x1, int16_t& y1) const;
 
     void startWrite() {}
     void endWrite() {}
@@ -324,6 +349,9 @@ private:
     int32_t vpX_ = 0, vpY_ = 0, vpW_ = FRAME_W, vpH_ = FRAME_H;
     bool vpDatum_ = false;
     bool vpActive_ = false;
+
+    int32_t clipX_ = 0, clipY_ = 0, clipW_ = 0, clipH_ = 0;
+    bool clipOn_ = false;
 
     int32_t winX_ = 0, winY_ = 0, winW_ = 0, winH_ = 0, winAt_ = 0;
 

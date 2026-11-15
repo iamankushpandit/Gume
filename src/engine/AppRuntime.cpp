@@ -165,21 +165,19 @@ void BrainoApp::loop() {
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
     tickUpdateNotice(nowMs);
+    tickBenchNotice(nowMs);
     tickPowerMonitor(nowMs);
     tickSerialQuery();
 
-    /* A notification appearing or expiring changes the header, and the header
-     * belongs to the screen underneath -- so the chrome has to repaint before
-     * the strip is painted over it. Doing this here, ahead of the render
-     * below, keeps both in the same frame.
-     *
-     * The strip is all that changes, so only the strip is repainted. This used
-     * to call requestRender() and wipe the whole panel to put a banner in the
-     * top 30 pixels. */
+    /* A Nearby notice appearing, changing its words or expiring. The strip is
+     * all that changes and settleNotice(), below, is all that answers it: the
+     * notice lies along the bottom of the panel, over none of the header, so
+     * nothing of the screen's has to repaint for one to arrive. This used to
+     * ask for the chrome as well, when the strip was painted over the top
+     * bar, and before that for the whole panel. */
     if (NearbyPlay::bannerGeneration() != lastBannerGeneration_) {
         lastBannerGeneration_ = NearbyPlay::bannerGeneration();
         bannerNeedsPaint_ = true;
-        requestChromeRender();
     }
 
     /* A console being looked for lights its panel, and any press stops it.
@@ -241,11 +239,12 @@ void BrainoApp::loop() {
         lastClockMinute_ = minuteNow;
         /* The digits alone, where the screen can: a few characters drawn over
          * the old ones, not the header wiped and redrawn once a minute. Not
-         * under a notification, which owns those pixels until it goes, nor
          * outside a live screen -- requestChromeRender() is what knows that,
-         * and it is the fallback for both. */
+         * and it is the fallback. A notice used to own those pixels while it
+         * was up; it is along the bottom now and the clock does not wait for
+         * it. */
         const bool inPlace = view_ == View::Game && activeGame_ != nullptr &&
-                             !chromeNeedsPaint_ && headerBannerText() == nullptr &&
+                             !chromeNeedsPaint_ &&
                              (beginScreenPaint(), activeGame_->renderClock(*this));
         if (!inPlace) {
             requestChromeRender();
@@ -331,17 +330,44 @@ void BrainoApp::loop() {
         const uint8_t selectorJobs = 0;
 #endif
         const bool powerLock = keys.power() || (selectorJobs & SELECTOR_LOCK) != 0;
-        const bool bootHome = !powerLock &&
-                              (boot.justPressed || (selectorJobs & SELECTOR_HOME) != 0) &&
-                              activeGame_ != &launcher_;
-        const bool keyMute = !powerLock && !bootHome && (selectorJobs & SELECTOR_MUTE) != 0;
-        offerKeys(keys, bootHome || powerLock || keyMute);
+        const bool homeKey = !powerLock &&
+                             (boot.justPressed || (selectorJobs & SELECTOR_HOME) != 0);
+        /* With a notice up, Home's key puts the notice away and does not go
+         * Home. A console with no touch panel has nothing to press the
+         * notice with, and what it covers -- the bottom row of answers, the
+         * launcher's Prev and Next -- is out of reach until it goes. The key
+         * that means "back" is the one a hand goes to, and one more press is
+         * Home as ever. On the launcher too, where the key otherwise does
+         * nothing at all. */
+        const bool noticeAway = homeKey && noticeOnPanel_;
+        const bool bootHome = homeKey && !noticeAway && activeGame_ != &launcher_;
+        const bool keyMute = !powerLock && !homeKey && (selectorJobs & SELECTOR_MUTE) != 0;
+        offerKeys(keys, bootHome || powerLock || keyMute || noticeAway);
         if (powerLock) {
             lockAndSleepNow();
+        } else if (noticeAway) {
+            dismissNotice(nowMs);
         } else if (bootHome) {
             goHome();
         } else if (keyMute) {
             toggleMute();
+        } else if (touch.justPressed && noticeOnPanel_ &&
+                   Ui::notificationRect(renderer_.width(), renderer_.height())
+                       .contains(touch.x, touch.y)) {
+            /* A press on a notice puts it away, and does nothing else. It is
+             * taken up here, above the screen, for the reason Home and Lock
+             * are: the notice lies over the bottom of the screen, and a press
+             * that also reached the screen would press whatever is under it,
+             * which the player cannot see. The rest of the press is swallowed
+             * as well, so the button under the strip is not handed the
+             * release of a press it never saw begin -- and that goes for a
+             * press the d-pad's selector was making, which is let go here.
+             *
+             * No slop. A strip that took presses from just above itself would
+             * be taking them from the controls it lies beside. */
+            dismissNotice(nowMs);
+            swallowTouch_ = true;
+            selectorLetGo();
         } else if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
@@ -398,6 +424,8 @@ void BrainoApp::loop() {
          * the game it stands in front of; this is where it reads the answer.
          * A no-op on every other screen, and after a press the chrome took. */
         settleCarryOn();
+        /* Whether the screen, or its chrome, painted this frame: the
+         * selector's ring was painted over if so, and goes back on after. */
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();
@@ -411,9 +439,6 @@ void BrainoApp::loop() {
             beginScreenPaint();
             if (activeGame_->renderChrome(*this)) {
                 chromeNeedsPaint_ = false;
-                /* The banner paints over the same strip, so a chrome repaint
-                 * erases it exactly as a full one does. Both have to tell
-                 * drawHeaderBanner() to put it back. */
                 repainted = true;
             } else {
                 /* The screen cannot do it in isolation. Fall back rather than
@@ -422,7 +447,15 @@ void BrainoApp::loop() {
                 activeGame_->requestRender();
             }
         }
-        drawHeaderBanner(repainted);
+        /* After the screen, never before: the notice is painted over what the
+         * screen has just drawn, and from then on the screen cannot draw
+         * there. Neither branch above has to tell it anything -- a repaint of
+         * the screen or of its chrome no longer lands on the notice. It says
+         * when the strip changed hands, which the selector has to hear: the
+         * control it was on may be under a notice now, or have come back. */
+        if (settleNotice()) {
+            repainted = true;
+        }
 #if GUME_HAS_NAV_KEYS
         paintSelector(repainted);
 #endif
@@ -474,6 +507,10 @@ void BrainoApp::requestChromeRender() {
 
 void BrainoApp::applyRotation(uint8_t rotation) {
     if (board_.displayRotation() != rotation) {
+        /* The bottom of the panel is about to be somewhere else, and the
+         * driver drops its viewport when it turns. A notice that is up is
+         * painted again where the bottom now is, after the screen. */
+        noticeOffPanel();
         board_.setDisplayRotation(rotation);
     }
     swallowTouch_ = true;

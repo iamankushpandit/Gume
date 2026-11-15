@@ -25,6 +25,7 @@ void BrainoApp::endAdminSessionForIdle() {
 }
 
 void BrainoApp::enterScreenSaver() {
+    noticeOffPanel();
     endAdminSessionForIdle();
     board_.setRgbColor(0, 140, 255);
     /* Only a live screen is worth remembering. Coming back here from the lock
@@ -42,6 +43,7 @@ void BrainoApp::enterScreenSaver() {
 }
 
 void BrainoApp::enterSleep() {
+    noticeOffPanel();
     endAdminSessionForIdle();
     if (view_ == View::Game) {
         ssavPrevView_ = view_;
