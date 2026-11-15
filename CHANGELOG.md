@@ -162,6 +162,15 @@ selector uses the same two pieces as the RG40XX V's; the host keeps its old
 names as forwarders. `ControlJobs::bit()` is now `maskOf()`, because Arduino
 defines `bit` as a macro.
 
+**The d-pad reaches the Wi-Fi password's Show box.** It was always a stop, but
+up from a key went only to a control in that key's column or close beside it,
+and Show sits alone at the right end of the field: from the middle of the
+keyboard, where the selector arrives, up did nothing at all. Up and down now
+go to the nearest control above or below when nothing lies in that column,
+once a list that scrolls that way has had its turn, so a control set off to
+one side of a wide row is reachable on every screen. The same on the RG40XX V
+and the Attaky Core. The RG40XX V's card no longer logs the selector's list.
+
 **Joining Wi-Fi sets the clock to the right time zone straight away.** A
 console that joined a network from the Wi-Fi screen synced its clock at once
 but in UTC, because that path skipped the timezone lookup the boot connect

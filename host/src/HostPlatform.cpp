@@ -603,6 +603,14 @@ int stepFocus(uint32_t now) {
             panel->scrollArea(area) && area.moreAbove) {
             next = -1;
         }
+        /* Nothing in the cone above or below, and no list to scroll that way:
+         * the nearest control that way, wherever it sits along the row. The
+         * firmware's selector does the same (AppRuntimeSelector.cpp). */
+        if (next < 0 && dy != 0) {
+            const bool listMoves = panel && panel->scrollArea(area) &&
+                                   (dy > 0 ? area.moreBelow : area.moreAbove);
+            if (!listMoves) next = HostFocus::stepBeyond(boxes, count, focusBox, dy);
+        }
         if (next < 0) scroll = dy;
         if (newPress || repeat) {
             if (next >= 0) {

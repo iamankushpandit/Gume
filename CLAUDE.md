@@ -964,7 +964,9 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   no idea what a selected control is: every screen takes one touch point,
   so pressing is an ordinary touch at the control's middle and no screen
   changed for it. Four pieces, two of them dev's own and now in `src/`:
-  `ui/FocusMath.h` (where the selector goes next) and `hal/ControlJobs.h`
+  `ui/FocusMath.h` (where the selector goes next: within a cone, and for
+  up and down then the nearest control wholly that way, so a lone control at
+  the end of a wide row is never stranded) and `hal/ControlJobs.h`
   (which control does which job, given the controls a console has); the
   Linux host's `HostFocus.h` and `HostControls.h` are one-line forwarders
   to them, so the two consoles cannot come to disagree. The firmware's own

@@ -84,6 +84,11 @@ background no stop at all, and every square of a live board a stop, the
 same rule `host/src/HostTftFocus.cpp` applies. Fixed tables, no allocation,
 and on every other board every call is an empty inline. `FocusMath.h` is the
 pure step-and-nearest arithmetic, shared with `host/` -- change it for both.
+`step()` keeps to a cone so a press does not slide sideways; up and down
+then fall back to `stepBeyond()`, the nearest control wholly above or below,
+once a list that scrolls that way has had its turn. Without it a lone
+control at one end of a wide row -- Wi-Fi's Show box, beside its field --
+was reachable only from the keys under it. `test/host/focus_math_test.cpp`.
 
 ## Renderer
 

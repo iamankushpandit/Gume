@@ -251,10 +251,6 @@ bundle is what a release must offer beside the image.
 - **HDMI is untested on the device**, and HDMI sound is not routed: ROCKNIX
   ships the H700's HDMI audio (its `ahub` sound card) disabled in this
   device tree.
-- **The Wi-Fi password's Show checkbox is not reached by the d-pad** on the
-  device, though it is drawn as a button. `braino-run` sets
-  `BRAINO_FOCUS_LOG=1` for now, which logs the selector's list on every
-  screen; remove it once that is understood.
 - **Wi-Fi scans use the radio's real hardware address**, as a board's do, so
   anyone in radio range can hear it while the Wi-Fi screen scans or the
   console joins. The driver supports scanning from a random address
