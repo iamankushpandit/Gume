@@ -48,41 +48,85 @@ def fail(problems, message):
     problems.append(message)
 
 
-# Each release line, the constant its images report and how its CHANGELOG
-# heading spells the version. tools/pack_release.py's LINES is the release
-# side of the same table.
-RELEASE_LINES = {"braino": ("BRAINO_VERSION", "%s"),
-                 "attaky": ("ATTAKY_VERSION", "attaky-%s")}
+VERSION_TAG_RE = re.compile(r'^#define\s+GUME_VERSION_TAG\s+"([^"]*)"', re.M)
 
 
-def check_release_lines(problems):
-    """Every release line a product environment ships on has a version and
-    a CHANGELOG section for it.
+def strip_comments(source):
+    """C/C++ source with its comments removed, so a rule about code is not
+    tripped by a sentence about it."""
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
+    return re.sub(r"//[^\n]*", " ", source)
 
-    The release workflow lifts its notes from that section and fails on the
-    tag without one -- after the tag is pushed, which is the worst moment to
-    learn it. So the section has to exist on every commit, not on the day.
+
+def check_one_version(problems):
+    """One version for every platform, and the device only after a "+".
+
+    The owner decided on 2026-11-13 that every build carries the same
+    BRAINO_VERSION, reported with build metadata naming the device --
+    5.14.0+e32r28t1 -- and retired the separate release line one board had.
+    So, checked here because each of these has a way of coming back:
+
+    - AppVersion.h states exactly one version, BRAINO_VERSION, as a plain
+      literal (the tools read it there), and it carries no "+".
+    - No CHANGELOG heading carries a "+": the release notes are lifted from
+      a heading, and a published version never names a device.
+    - Every board header names its device with GUME_VERSION_TAG, lower case
+      [0-9a-z-], and no two boards share one.
+    - Under src/, only the update comparison reads BRAINO_VERSION. Everything
+      that reports a version goes through FIRMWARE_VERSION, the one accessor
+      (include/FirmwareVersion.h).
     """
     header = read("include", "AppVersion.h")
-    changelog = read("CHANGELOG.md")
-    ini = read("platformio.ini")
-    lines = {envs_tool.release_line(env, ini)
-             for env in envs_tool.of_kind(envs_tool.PRODUCT, ini)}
-    for line in sorted(lines):
-        if line not in RELEASE_LINES:
-            fail(problems, "an environment ships on release line '%s', which "
-                           "no tool knows how to version" % line)
+    defined = re.findall(r'^#define\s+(\w+_VERSION)\s+"([^"]*)"', header, re.M)
+    if [name for name, _ in defined] != ["BRAINO_VERSION"]:
+        fail(problems, "AppVersion.h must define exactly one version, "
+                       "BRAINO_VERSION, as a string literal; found %s"
+                       % ([name for name, _ in defined] or "none"))
+    for name, value in defined:
+        if "+" in value:
+            fail(problems, "AppVersion.h: %s is %s -- the '+device' part is "
+                           "added by FIRMWARE_VERSION and never belongs to a "
+                           "published version" % (name, value))
+
+    for heading in re.findall(r"^##\s+(\S+)", read("CHANGELOG.md"), re.M):
+        if "+" in heading:
+            fail(problems, "CHANGELOG.md has a '## %s' section: a published "
+                           "version never carries a '+'" % heading)
+
+    tags = {}
+    boards_dir = os.path.join(ROOT, "include", "boards")
+    for name in sorted(os.listdir(boards_dir)):
+        if not name.endswith(".h"):
             continue
-        constant, heading = RELEASE_LINES[line]
-        match = re.search(r'%s\s+"([^"]+)"' % constant, header)
-        if not match:
-            fail(problems, "AppVersion.h: %s not found, and the %s line "
-                           "needs it" % (constant, line))
+        found = VERSION_TAG_RE.findall(read("include", "boards", name))
+        if len(found) != 1:
+            fail(problems, "include/boards/%s must define GUME_VERSION_TAG "
+                           "once, the device part of the version" % name)
             continue
-        wanted = heading % match.group(1)
-        if not re.search(r"^##\s+%s\b" % re.escape(wanted), changelog, re.M):
-            fail(problems, "CHANGELOG.md has no '## %s' section; the %s "
-                           "release notes are lifted from it" % (wanted, line))
+        tag = found[0]
+        if not re.match(r"^[0-9a-z-]+$", tag):
+            fail(problems, "include/boards/%s: GUME_VERSION_TAG \"%s\" must be "
+                           "lower case [0-9a-z-]" % (name, tag))
+        if tag in tags:
+            fail(problems, "include/boards/%s and %s share GUME_VERSION_TAG "
+                           "\"%s\"; it has to say which device" % (
+                               name, tags[tag], tag))
+        tags[tag] = name
+
+    for folder, _dirs, files in os.walk(os.path.join(ROOT, "src")):
+        for name in files:
+            if not name.endswith((".cpp", ".h")):
+                continue
+            path = os.path.join(folder, name)
+            relative = os.path.relpath(path, ROOT).replace(os.sep, "/")
+            if relative == "src/hal/BoardUpdate.cpp":
+                continue
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                code = strip_comments(handle.read())
+            if re.search(r"\bBRAINO_VERSION\b", code):
+                fail(problems, "%s reads BRAINO_VERSION; a version shown to "
+                               "anybody is FIRMWARE_VERSION, which names the "
+                               "device too" % relative)
 
 
 def check_version(problems):
@@ -377,6 +421,7 @@ def check_site(problems):
     # platformio.ini instead of an environment name repeated across three
     # workflows, one of which was always the one somebody forgot.
     product = set(envs_tool.of_kind(envs_tool.PRODUCT, ini))
+    experimental = set(envs_tool.of_kind(envs_tool.EXPERIMENTAL, ini))
     if "tools/envs.py" not in workflow:
         fail(problems, "the Pages workflow no longer derives its build list "
                        "from tools/envs.py -- a hand-written list of "
@@ -386,6 +431,8 @@ def check_site(problems):
         if not re.search(r"^\[env:%s\]" % re.escape(env), ini, re.M):
             fail(problems, "gen_site.py offers firmware '%s', which is not a "
                            "platformio.ini environment" % env)
+        elif env in experimental:
+            continue        # kept in VARIANTS; gen_site.py leaves it off the page
         elif env not in product:
             fail(problems, "gen_site.py offers firmware '%s', but [env:%s] is "
                            "not `custom_env_kind = product`, so the Pages "
@@ -609,7 +656,7 @@ def main():
 
     problems = []
     check_version(problems)
-    check_release_lines(problems)
+    check_one_version(problems)
     check_game_count(problems)
     check_source_tree(problems)
     check_size_agreement(problems)

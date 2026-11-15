@@ -215,6 +215,12 @@ interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Ho
 | `src/HostConsole.cpp`, `HostConsoleDetect.cpp` | Which handheld this is: reading a profile from `consoles/`, and finding this console's from the device tree. Nothing under `include/boards/` has a counterpart chosen at run time; this is it. |
 | `src/HostControls.h` | Which control does which job on that console. Pure arithmetic, tested for every combination of controls. |
 
+**The version names the build's device.** `FIRMWARE_VERSION` is the
+release, a `+` and `GUME_VERSION_TAG` (`include/FirmwareVersion.h`), and here
+the tag comes from CMake's `BRAINO_VERSION_TAG`: `host` on a desktop, `h700`
+in the card image (`rg40xxv/package/braino/braino.mk`). A new handheld family
+passes its own, lower case `[0-9a-z-]`.
+
 ## Wi-Fi is the computer's radio; the requests are still the firmware's
 
 `src/HostWifiOs.cpp` drives the real radio through whichever manager owns it:

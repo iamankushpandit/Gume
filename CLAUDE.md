@@ -111,7 +111,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 
 | About shows | Derived from |
 |---|---|
-| Version | `BRAINO_VERSION` |
+| Version | `FIRMWARE_VERSION` -- `BRAINO_VERSION`, `+`, the board's tag |
 | Game count and every game name/blurb | `AppRegistry` playable apps |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
@@ -406,7 +406,7 @@ silently, and the count goes stale with no conflict to say so.
 Each one states which it is, once, beside itself:
 
 ```ini
-custom_env_kind = product      ; or: diagnostic
+custom_env_kind = product      ; or: experimental, or: diagnostic
 ```
 
 `tools/envs.py` reads that and is the only place any workflow, checker or
@@ -422,7 +422,9 @@ completeness, so it has to be derived.
 
 What follows from the classification:
 
-- **CI builds every product environment** on a push to `main` or `dev`,
+- **CI builds every product and experimental environment** on a push to
+  `main` or `dev` (an experimental one is never published -- see "An
+  experimental board is built and never published"),
   and on a pull request builds `app` plus whatever the diff reaches.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is four
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
@@ -1106,7 +1108,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 
 - **The board is described in two files and nowhere else.** `include/boards/<id>.h` holds the whole board -- pins, rotations, the battery divider, which peripherals exist; the `[board_<id>]` section in `platformio.ini` holds only what TFT_eSPI must be told at compile time. **No file under `src/` may name a GPIO number, a panel size or a divider ratio.** If you need one, read it off `BOARD`; if `BOARD` does not have it, add the field to `include/BoardProfile.h` and fill it in for every existing board in the same commit. `tools/check_boards.py` enforces the completeness, and `BoardConfig.h` static_asserts the overlap with TFT_eSPI. See `docs/PORTING.md`.
 - **Some boards cannot be supported, and that is a compile error, not a degradation.** Braino needs a panel of at least `GAME_CANVAS_WIDTH`x`GAME_CANVAS_HEIGHT` in landscape, a touch controller, the backlight on a GPIO, and 4 MB of flash. `BoardConfig.h` static_asserts each with a message naming what is missing. Optional hardware -- SD slot, RGB LED, speaker, battery sense -- is `PIN_NONE` plus a `has...()` guard, and the firmware does without it. **Do not blur the two:** turning a requirement into a quiet degradation ships a board that flashes and then cannot be read or pressed.
-- **A supported board must be flashable from the web installer.** `tools/gen_site.py` derives the picker's board list from the `[board_*]` sections rather than a hand-kept list, and refuses to generate until a new board has a `BOARD_DETAILS` label, an offered environment and a CI build behind it. `tools/check_boards.py` reports the same gaps without a build. "Supported" means someone who owns the board can flash it from the page, not that it builds here. The one exception is a board on an unpublished release line (`tools/envs.py` `PUBLISHED_LINES`): it keeps its label and offered environment so publishing is one word, and `gen_site.py` skips it -- today, the Attaky Core.
+- **A supported board must be flashable from the web installer.** `tools/gen_site.py` derives the picker's board list from the `[board_*]` sections rather than a hand-kept list, and refuses to generate until a new board has a `BOARD_DETAILS` label, an offered environment and a CI build behind it. `tools/check_boards.py` reports the same gaps without a build. "Supported" means someone who owns the board can flash it from the page, not that it builds here. The one exception is a board whose images are all `custom_env_kind = experimental`: it keeps its label and offered environment so publishing is one word, and `gen_site.py` skips it -- today, the Attaky Core.
 - **`SCREEN_WIDTH` / `SCREEN_HEIGHT` are derived, not stated.** They come out of `BOARD.screenWidth()` / `screenHeight()`, which rotate the panel's native size by the profile's landscape rotation. Do not reintroduce a literal 320 or 240 next to them; a board that states its size twice will eventually state it two different ways.
 - **Which way up the screen sits is decided in one function, from two facts with two owners.** `BrainoApp::effectiveRotation()` takes the board profile's landscape or portrait rotation -- a fact about where the USB socket is -- and adds half a turn when `Board::screenFlipped()` is set, which is a fact about the enclosure the board was put in and therefore the owner's to state, not the profile's. Every caller goes through it (launch, home, the saver, resume), so no screen calls `setRotation()` and a new caller cannot forget the flip. A screen or console command that changes either setting calls `applyOrientation()`, which turns the screen that is up only when its rotation actually changed -- Settings is always landscape, so choosing Portrait from it must not repaint anything. The flip turns games as well as menus; the layout still turns only the menus. Settings shows the two as ONE four-position control and stores them as two, because the layout is what the launcher and every `followsLayout` screen already read. **Rotations 1 and 2 were never reached by the product before this**, so a new board has to be checked for drawing and touch in all four positions, not two. The touch calibration wizard is the one thing that still draws in a fixed rotation of its own.
 - **Every screen is a `Game`.** Launcher, Settings, Wi-Fi, Profiles, Scores, System Info and About are all `Game` subclasses with the same `begin`/`update`/`render`/`end` lifecycle.
@@ -1676,6 +1678,7 @@ Playable games are authored against a fixed 320Ã—240 landscape canvas. Launch
 include/BoardProfile.h    the contract every board fills in
 include/BoardConfig.h     selects one profile; derives SCREEN_* from it
 include/BuildStamp.h      branch/commit/build-time accessors
+include/FirmwareVersion.h FIRMWARE_VERSION: the version plus +<device>
 include/boards/           one header per supported board -- the ONLY place
                           in the tree that names a GPIO      include/AppVersion.h
 src/main.cpp              bringup entrypoint + normal app setup/loop
@@ -1897,51 +1900,61 @@ The tag and `BRAINO_VERSION` must agree, and the workflow fails if they do
 not. That check exists because a published release cannot be quietly
 corrected: people have already downloaded it.
 
-### The Attaky Core is its own release line
+### One version, and the device it was built for
 
-Braino! for Attaky ships from the same codebase and the same `main`, on its
-own cadence: it is released when it has passed testing on Attaky hardware,
-without moving the generic boards, and the other way round.
+Every platform ships the same `BRAINO_VERSION` under the same `v*` tag, and
+what an image *reports* is `FIRMWARE_VERSION`: that version, a `+`, and the
+board's `GUME_VERSION_TAG` -- `5.14.0+e32r28t1`, `5.14.0+attaky`,
+`5.14.0+h700`, `5.14.0+host`. The owner decided it on 2026-11-13: one release
+number everywhere, and a version string that says which device it is for and
+nothing else. It replaced a separate release line one board had, with its own
+version constant, its own tags and its own CHANGELOG headings; none of that
+exists any more, and `check_docs.py` refuses a second version constant.
 
-```bash
-git tag -a attaky-v1.0.0 -m "Braino! for Attaky 1.0.0" && git push origin attaky-v1.0.0
-```
+- **`FIRMWARE_VERSION` is the one accessor** (`include/FirmwareVersion.h`).
+  The `[boot]` line, `identify`, About and System Info read it. Under `src/`
+  only the update comparison in `BoardUpdate.cpp` reads `BRAINO_VERSION`,
+  and `check_docs.py` holds that line. It stays a macro and a string
+  literal, so a screen can put it beside other text without allocating, and
+  `BRAINO_VERSION` stays a plain literal in `AppVersion.h` because the tools
+  read it there.
+- **The tag is a board fact**, declared in each `include/boards/<id>.h`
+  beside the other `GUME_` macros, lower case `[0-9a-z-]`, one per board;
+  `FirmwareVersion.h` refuses to build without it and `check_docs.py`
+  refuses two boards with one. The host build defaults to `host`, and a
+  handheld image names its family from CMake (`-DBRAINO_VERSION_TAG=h700`
+  in `host/rg40xxv/package/braino/braino.mk`).
+- **Nothing that compares or publishes uses the part after the `+`.** It is
+  semver build metadata, so it never decides which version is newer. The
+  update check compares `BRAINO_VERSION`; the manifest, the release tag and
+  the release notes carry only that. A published version never carries a
+  `+`: `check_docs.py` (AppVersion.h and every CHANGELOG heading),
+  `pack_release.py`, `gen_site.py`'s `latest.txt` and `release.yml` each
+  refuse one. `check_privacy.py` refuses the update URL if it is ever
+  parameterised with `FIRMWARE_VERSION` or the tag, which would make the
+  request say which board asked.
 
-- **The line is stated once, on the environment**: `-D GUME_LINE_ATTAKY=1` in
-  `[env:app_attaky_core]`. `include/FirmwareLine.h` reads it to pick
-  `FIRMWARE_VERSION`, and `tools/envs.py`'s `release_line()` reads the same
-  flag, so the firmware and the tools cannot disagree.
-- **`ATTAKY_VERSION` in `AppVersion.h` is that line's version**, with its own
-  sequence starting at 1.0.0. Everything that reports a version -- the
-  `[boot]` line, `identify`, About, System Info, the update comparison --
-  reads `FIRMWARE_VERSION`, never either constant directly. An Attaky image
-  also reports the Braino it is built from, on System Info and as
-  `braino=` on the `[boot]` line.
-- **The `attaky` line is not published, by the maintainer's decision.**
-  `tools/envs.py`'s `PUBLISHED_LINES` lists the lines offered to the public
-  and holds only `braino`. A board whose images are all on an unpublished
-  line is skipped by `gen_site.py` -- not in the picker, the buying table or
-  `latest.txt` -- and the Pages workflow builds `--product --published`, so
-  it does not compile it either; `release.yml` makes that line's tag a
-  `--draft`. CI still builds the environment and attaches its image to the
-  run. Do not put it on the Experimental page or anywhere else public.
-  Publishing it is adding `"attaky"` to that tuple, and is the
-  maintainer's call.
-- **`v*` tags release the `braino` line and `attaky-v*` tags the `attaky`
-  line.** `release.yml` derives the line from the tag, checks the tag against
-  that line's constant, and builds and packs `envs.py --product --line <line>`
-  only. A generic release therefore carries no Attaky image, and an Attaky
-  release is published with `--latest=false`, so the repository's Latest and
-  the installer's older-releases list stay the generic boards'.
-- **Its notes are `## attaky-<version>` in `CHANGELOG.md`**, and
-  `check_docs.py` fails while a line's current version has no section, so
-  the tag cannot be the moment that is found out. That section sits after the
-  Braino section, so `main`'s first-heading check is unaffected.
-- **The update manifest tells each board its own line's version.** A board
-  whose line has no release yet gets no line in `latest.txt` at all, and an
-  image on any line but `braino` never reads the `*` fallback, which is the
-  braino line's number: before its first release an Attaky console reports
-  nothing to update to, rather than Braino's version as if it were newer.
+### An experimental board is built and never published
+
+`custom_env_kind = experimental` is the third kind, beside `product` and
+`diagnostic`, for Braino! on a board that is not offered yet. CI builds it
+on every push to `main` or `dev` exactly as it builds a product, and attaches
+its image to the run so a tester holding the board can flash it. Nothing
+public carries it: `release.yml` and `pack_release.py` take `--product` only,
+the Pages workflow builds `--product` only, and `gen_site.py` skips a board
+whose every image is experimental -- not in the picker, the buying table or
+`latest.txt`. It keeps its `BOARD_DETAILS` label and its `VARIANTS` entry,
+so publishing it is changing the one word.
+
+The firmware has to know one thing about it, and it is stated once more
+beside the word: `-D GUME_EXPERIMENTAL=1`. An experimental image reads only
+the manifest line naming its own board, never the `*` line, which is the
+newest release -- a release it is not in. `envs.py` refuses an experimental
+environment without the flag and a flag on any other kind, so the two
+cannot drift. Today the one experimental environment is
+`[env:app_attaky_core]`, kept unpublished by the maintainer's decision; do
+not put it on the Experimental page or anywhere else public. Publishing it
+is the maintainer's call.
 
 Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
 flashed from `dev` cannot be mistaken for the release it is ahead of.

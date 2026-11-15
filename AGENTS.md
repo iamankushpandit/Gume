@@ -83,7 +83,7 @@ The fix, and the standing rule, is to **derive rather than restate**:
 
 | About shows | Derived from |
 |---|---|
-| Version | `BRAINO_VERSION` |
+| Version | `FIRMWARE_VERSION` -- `BRAINO_VERSION`, `+`, the board's tag |
 | Game count and every game name/blurb | `GAME_CATALOG` |
 | Board name | `BOARD_NAME` |
 | Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |

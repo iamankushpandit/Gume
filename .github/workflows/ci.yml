@@ -205,12 +205,13 @@ jobs:
       # had existed for months. A list of environments maintained in YAML is a
       # list that is wrong and cannot say so.
       #
-      # The rule the tool applies: the five `product` environments are Braino!
-      # and are what CI is protecting. The ten `diagnostic` ones are bench
-      # probes -- they are built when their own source or platformio.ini moves,
-      # and not otherwise. A push to main or dev builds every product
-      # environment regardless, because that is the branch the installer and
-      # the release are cut from.
+      # The rule the tool applies: the `product` environments are Braino! and
+      # are what CI is protecting, and an `experimental` one -- Braino! for a
+      # board not offered yet -- is built exactly like them. The `diagnostic`
+      # ones are bench probes -- they are built when their own source or
+      # platformio.ini moves, and not otherwise. A push to main or dev builds
+      # every product and experimental environment regardless, because that
+      # is the branch the installer and the release are cut from.
       - name: Decide which environments to build
         id: environments
         if: steps.scope.outputs.code == 'true'
@@ -324,10 +325,12 @@ jobs:
       # a tester flashes is what the release will ship. --only packs this
       # job's environment alone; a release still packs every one.
       #
-      # Only a product environment is worth attaching: nobody flashes a
-      # bench probe from a download, and a release does not ship one.
+      # A product or an experimental environment is worth attaching: nobody
+      # flashes a bench probe from a download, and a release does not ship
+      # one. An experimental image is attached here and nowhere else -- this
+      # run is the only way it reaches a tester.
       - name: Pack ${{ matrix.target.name }} for testers
-        if: matrix.target.kind == 'product'
+        if: matrix.target.kind == 'product' || matrix.target.kind == 'experimental'
         run: >-
           python tools/pack_release.py
           --only ${{ matrix.target.env }}
@@ -336,7 +339,7 @@ jobs:
           (commit $(git rev-parse --short=7 HEAD)), not a release"
 
       - name: Attach ${{ matrix.target.name }} to the run
-        if: matrix.target.kind == 'product'
+        if: matrix.target.kind == 'product' || matrix.target.kind == 'experimental'
         uses: actions/upload-artifact@v4
         with:
           name: braino-${{ matrix.target.env }}

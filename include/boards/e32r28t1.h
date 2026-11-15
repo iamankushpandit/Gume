@@ -19,6 +19,10 @@
  * already at 75%. The TouchKind below is derived from this macro rather than
  * stated alongside it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 0
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "e32r28t1"
 
 /* No codec; DAC output on GPIO26 (ESP32 DAC2). The I2S peripheral drives it
  * directly (I2S_DAC_BUILT_IN), which is why `driver/i2s.h` is still needed --

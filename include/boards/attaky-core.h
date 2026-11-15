@@ -14,6 +14,10 @@
 /* Capacitive touch, as a macro the preprocessor can act on -- see
  * fnk0104b.h, which explains why this cannot be the profile field alone. */
 #define GUME_TOUCH_CAPACITIVE 1
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "attaky"
 
 /* A bare I2S amplifier (the Media I/O module's NS4168), so neither the codec
  * nor the built-in DAC backend -- see the audio block below. */

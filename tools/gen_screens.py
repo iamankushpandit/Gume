@@ -3476,8 +3476,7 @@ def about_intro():
     """
     import re as _re
     from app_registry_parser import playable_apps
-    version = _re.search(r'BRAINO_VERSION\s+"([^"]+)"',
-                         (ROOT / "include" / "AppVersion.h").read_text(encoding="utf-8")).group(1)
+    version = _firmware_version()
     board = _re.search(r'BOARD_NAME=\\"([^"\\]+)',
                        (ROOT / "platformio.ini").read_text(encoding="utf-8")).group(1)
     im, d = blank(); topbar(d, "About")
@@ -3488,7 +3487,10 @@ def about_intro():
             (70, COPYRIGHT_SHORT, F1, MUTED),
             (84, "Educational games for the %s." % board, F1, MUTED),
             (98, "Copyright 2026.", F1, MUTED),
-            (116, "Version %s" % version, F2, TEXT),
+            # AboutApp drops "Version " rather than cut the version short.
+            (116, ("Version %s" % version
+                   if d.textlength("Version %s" % version, font=F2) <= W - 28
+                   else version), F2, TEXT),
             (140, "%d games built in" % len(playable_apps()), F2, TEXT),
             (156, "195 flags and 50 US states, stored.", F1, MUTED),
             (170, "Two-console play: experimental.", F1, MUTED),
@@ -4349,6 +4351,17 @@ def scores_tall():
     return im
 
 
+def _firmware_version():
+    """FIRMWARE_VERSION as the E32R28T-1 the mock-ups show would report it:
+    BRAINO_VERSION, "+", and that board's GUME_VERSION_TAG."""
+    import re as _re
+    version = _re.search(r'BRAINO_VERSION\s+"([^"]+)"',
+                         (ROOT / "include" / "AppVersion.h").read_text(encoding="utf-8")).group(1)
+    tag = _re.search(r'GUME_VERSION_TAG\s+"([^"]+)"',
+                     (ROOT / "include" / "boards" / "e32r28t1.h").read_text(encoding="utf-8")).group(1)
+    return "%s+%s" % (version, tag)
+
+
 def about_tall():
     """About (intro page) in portrait -- AboutApp::panelRect, which is
     PANEL_TOP=38 down to FOOTER_H=44 off the bottom, with every line fitted to
@@ -4373,7 +4386,10 @@ def about_tall():
     line(70, "(C) GoodTime Micro Company", F1, MUTED)
     line(84, "Educational games for the E32R28T-1.", F1, MUTED)
     line(98, "Copyright 2026.", F1, MUTED)
-    line(116, "Version 5.11.0-SNAPSHOT")
+    version = "Version " + _firmware_version()
+    # AboutApp drops "Version " rather than cut the version short.
+    line(116, version if d.textlength(version, font=F2) <= PW - 28
+         else _firmware_version())
     line(140, "37 games built in")
     line(162, "195 flags and 50 US states, stored.", F1, MUTED)
     line(176, "Two-console play: experimental.", F1, MUTED)

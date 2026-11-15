@@ -14,6 +14,10 @@
 /* Resistive XPT2046 on its own bit-banged bus. See e32r28t1.h for why this is
  * a macro and not only a profile field. */
 #define GUME_TOUCH_CAPACITIVE 0
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "2432s028-inv"
 
 #define GUME_HAS_AUDIO_CODEC 0
 /* DAC audio on GPIO26, with the touch clock on the other DAC pad, GPIO25.

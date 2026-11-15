@@ -9,7 +9,7 @@
 
 #include "AboutApp.h"
 #include "AppVersion.h"
-#include "FirmwareLine.h"
+#include "FirmwareVersion.h"
 #include "BuildStamp.h"
 #include "UpdateChannel.h"
 #include "engine/AppRegistry.h"
@@ -146,7 +146,13 @@ void AboutApp::renderIntro(Ui::Renderer& tft) {
     drawLine(tft, 84, String("Educational games for the ") + BOARD_NAME + ".", 1);
     drawLine(tft, 98, "Copyright 2026.", 1);
     tft.setTextColor(Ui::text(), Ui::surface());
-    drawLine(tft, 116, String("Version ") + FIRMWARE_VERSION, 2);
+    /* The whole version, device part included: a dropped "Version " is
+     * better than a version cut short, which is what fitted() would do to
+     * a snapshot in portrait. */
+    static const char VERSION_LINE[] = "Version " FIRMWARE_VERSION;
+    const char* version = tft.textWidth(VERSION_LINE, 2) <= tft.width() - 28
+                              ? VERSION_LINE : FIRMWARE_VERSION;
+    drawLine(tft, 116, version, 2);
     drawLine(tft, 140, String(playableAppCount()) + " games built in", 2);
     tft.setTextColor(Ui::muted(), Ui::surface());
     /* The last three sit clear of the panel's bottom edge, which is at

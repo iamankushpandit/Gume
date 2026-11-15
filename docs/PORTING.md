@@ -144,6 +144,14 @@ Things worth getting right the first time:
 - **Use the vendor's pin table, not a generic ESP32 pinout, and never another
   CYD variant's.** GPIO34 is battery sense on the E32R28T-1 and the light
   sensor on the classic ESP32-2432S028R. They look like the same board.
+- **Name the device in its version.** Define `GUME_VERSION_TAG` in the
+  header, lower case, from `[0-9a-z-]` -- the board's model, as an owner
+  would recognise it (`e32r28t1`). The image reports `<version>+<tag>`;
+  `include/FirmwareVersion.h` will not build without it.
+- **A new board can start experimental.** `custom_env_kind = experimental`
+  with `-D GUME_EXPERIMENTAL=1` gets it built by CI, with the image attached
+  to the run for whoever is testing it, and keeps it out of releases and the
+  web installer until it is changed to `product`.
 
 ## 2. The platformio.ini section
 

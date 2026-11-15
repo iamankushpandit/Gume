@@ -14,6 +14,10 @@
 /* Which touch controller this board wires, as a macro so the preprocessor can
  * act on it -- see e32r28t1.h for why this cannot just be the profile field. */
 #define GUME_TOUCH_CAPACITIVE 0
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "e32r40t"
 
 /* No codec; DAC output on GPIO26 (ESP32 DAC2), same as the 2.8-inch board. */
 #define GUME_HAS_AUDIO_CODEC 0

@@ -57,6 +57,12 @@ constexpr int8_t BATTERY   = 12;
 #endif
 
 #define GUME_TOUCH_CAPACITIVE 1
+/* The device part of the version (include/FirmwareVersion.h). A desktop
+ * build is "host"; a handheld image names its chip family from CMake
+ * (-DBRAINO_VERSION_TAG=h700, which host/CMakeLists.txt passes on). */
+#ifndef GUME_VERSION_TAG
+#define GUME_VERSION_TAG "host"
+#endif
 /* The synthesiser's codec path is the one that emits signed 16-bit stereo at
  * 16 kHz, which is what an SDL audio device wants. host/src/HostI2s.cpp plays
  * the role of the ES8311 and its volume register. */

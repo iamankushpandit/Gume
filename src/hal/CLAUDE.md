@@ -20,7 +20,11 @@ A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOAR
 - `BoardNetwork.cpp` - Wi-Fi credentials, timezone, NTP sync, network activity log
 - `BoardUpdate.cpp` - the update-availability check: fetch, parse, version
   compare, and the once-a-day gate. A notice, never an update -- nothing here
-  downloads or installs firmware. See `include/UpdateChannel.h`
+  downloads or installs firmware. See `include/UpdateChannel.h`. It compares
+  `BRAINO_VERSION`, the one place under `src/` that reads it: everything that
+  shows a version shows `FIRMWARE_VERSION`, which adds `+<device>`. An
+  experimental image (`GUME_EXPERIMENTAL`) takes only its own board's line of
+  the manifest, never the `*` fallback
 - `BoardFeedback.cpp` - RGB LED, BLE and Nearby enable switches
 - `BoardAudio.cpp` - the sound engine: codec bring-up, the cue tables, the
   phoneme table for the spoken boot phrase, and the per-sample synthesiser
