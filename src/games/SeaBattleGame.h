@@ -172,6 +172,9 @@ private:
     void toLobby();
     /** Tells the d-pad's selector whether the sea takes a press just now. */
     void noteStops() const;
+    /* The frame's work; update() calls it and then notes the stops, so they
+     * describe the frame as it ends. */
+    void frame(AppContext& host, const TouchPoint& touch);
 
     // ---- nearby ----------------------------------------------------------
     Rect lobbyRowRect(uint8_t row) const;

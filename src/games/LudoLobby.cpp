@@ -305,8 +305,16 @@ void LudoGame::refreshPeers(AppContext& host) {
             ++count;
         }
     }
-    for (uint8_t i = 0; i < count; ++i) {
-        peers_[i] = fresh[i];
+    /* Whoever is asking this console goes first, as in every other lobby:
+     * an invitation must be the row nobody has to look for, and with more
+     * consoles in the room than rows, never the one left off. The rest keep
+     * the service's order. */
+    uint8_t placed = 0;
+    for (uint8_t pass = 0; pass < 2; ++pass) {
+        for (uint8_t i = 0; i < count; ++i) {
+            if ((fresh[i].inviting && fresh[i].forThisGame) != (pass == 0)) continue;
+            peers_[placed++] = fresh[i];
+        }
     }
     peerCount_ = count;
 

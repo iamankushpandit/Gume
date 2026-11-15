@@ -175,6 +175,9 @@ private:
     /** Tells the d-pad's selector whether the board takes a press just now
      *  (GoGame.cpp, beside the input it describes). */
     void updateStops();
+    /* The frame's work; update() calls it and then says what the board's
+     * stops are, so they describe the frame as it ends. */
+    void frame(AppContext& host, const TouchPoint& touch);
 
     // ---- a nearby game ending (GoSave.cpp) -----------------------------------
     /** A finished game's last word, said once more and left for a minute. */
@@ -337,6 +340,10 @@ private:
     /* A press that began on the pause card is the card's until the finger
      * lifts: let through, the rest of it put a ghost on the board. */
     bool pauseHold_ = false;
+    /* Likewise a press that left the lobby -- an invitation, an acceptance,
+     * Carry on -- is the lobby's: a stone's ghost follows a held finger, and
+     * the rest of that press put one on the point under the row. */
+    bool lobbyHold_ = false;
     /* The result card is the selector's overlay while it is up. */
     bool resultOverlay_ = false;
 

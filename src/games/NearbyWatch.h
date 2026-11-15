@@ -57,7 +57,13 @@ public:
     enum class State : uint8_t { Present, Away, Quiet, Gone };
     enum class Press : uint8_t { None, Wait, End, Extra };
 
-    /* Forget everything: a game just started, or this console left one. */
+    /* Forget everything: a game just started, or this console left one.
+     * The first NearbyPlay::PEER_QUIET_MS of ticks after it are a grace for
+     * a peer not heard at all: a console just switched on, or a game just
+     * restored, has not had a scan yet, and "out of range" on the first
+     * frame is a card that flashes up and goes as soon as the scanner
+     * catches the peer. A peer still unheard when the grace is over is
+     * waited for as usual; Quiet and Away are never graced. */
     void reset();
 
     /* One peer, every frame. Returns true when something the screen shows
@@ -108,4 +114,8 @@ private:
     uint8_t who_ = 0;
     uint16_t seconds_ = 0;
     bool resumed_ = false;
+    /* When the grace after reset() began: set by the first tick after it,
+     * since reset() is not handed the time. */
+    bool graceArmed_ = true;
+    uint32_t graceFromMs_ = 0;
 };

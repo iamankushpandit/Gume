@@ -263,17 +263,23 @@ void GoGame::pollRemote(AppContext& host) {
     theirAck_ = t.ack;
     haveAck_ = true;
 
-    const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
-    if (t.ply != expected) return;
-
-    /* They stopped. Tested BEFORE the whose-turn check: a player gives up
-     * while waiting for us. */
+    /* They stopped. Tested BEFORE the whose-turn check -- a player gives up
+     * while waiting for us -- and before the exact-ply test, taken up to one
+     * ply late as Chess does: a turn is one state on the air, so an ending
+     * sent straight after a move this console never heard (it was off the
+     * screen) has replaced that move for good. */
     if (t.ended) {
+        const uint8_t ahead = static_cast<uint8_t>((t.ply - theirPly_) & 0x7F);
+        if (ahead != 1 && ahead != 2) return;
+        theirPly_ = t.ply;
         char note[32];
         snprintf(note, sizeof(note), "%s ended the game", who);
         leaveRemote(host, note);
         return;
     }
+
+    const uint8_t expected = static_cast<uint8_t>((theirPly_ + 1) & 0x7F);
+    if (t.ply != expected) return;
 
     Go::Net::Kind kind;
     uint16_t p = Go::PASS;

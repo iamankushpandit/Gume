@@ -387,7 +387,13 @@ void SeaBattleGame::declareEnd(AppContext& host, bool byUs) {
 // ---------------------------------------------------------------- update
 
 void SeaBattleGame::update(AppContext& host, const TouchPoint& touch) {
+    frame(host, touch);
+    /* After the frame's work, not before: on the frame a shot is fired or
+     * arrives, or the card goes up, the stops must already say so. */
     noteStops();
+}
+
+void SeaBattleGame::frame(AppContext& host, const TouchPoint& touch) {
     tickLastWord(host);
 
     if (mode_ == Mode::Lobby) {
