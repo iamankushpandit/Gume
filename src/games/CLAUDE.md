@@ -592,7 +592,8 @@ Split like Backgammon: `GoRules` (the rules, scoring and the wire encoding)
 and `GoAi.cpp` (both computer levels and the dead-stone estimate, declared
 in the same header), both pure and host-tested by
 `test/host/go_rules_test.cpp`; `GoGame.cpp` (flow and input), `GoDraw.cpp`,
-`GoNet.cpp` (the lobby and the nearby game) and `GoSave.cpp`. `GoRules.h`
+`GoLobby.cpp` (the lobby, drawn and answered), `GoNet.cpp` (invitations
+and the nearby game) and `GoSave.cpp`. `GoRules.h`
 states the rules as played.
 
 - **Legality has one definition: `Go::legal()`**, and one way to change the
