@@ -78,7 +78,10 @@ button if a shadow was drawn just before it, and shadowless cards count only
 where there are no buttons or four or more of them. `drawTab()`,
 `drawPagerButton()` and `RowList::drawScrollBar()` say what drawing cannot:
 a tab, a Prev or Next, a list that scrolls. A fill over a control's middle
-takes it away unless the fill sits inside it. Fixed tables, no allocation,
+takes it away unless the fill sits inside it. A screen's own word comes
+first: `Ui::stopRuleAt()` (`Stops.h`) makes a quiet board or an overlay's
+background no stop at all, and every square of a live board a stop, the
+same rule `host/src/HostTftFocus.cpp` applies. Fixed tables, no allocation,
 and on every other board every call is an empty inline. `FocusMath.h` is the
 pure step-and-nearest arithmetic, shared with `host/` -- change it for both.
 

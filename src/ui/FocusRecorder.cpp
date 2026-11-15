@@ -19,6 +19,8 @@
 
 #include <string.h>
 
+#include "ui/Stops.h"   // what the screen says about its board
+
 namespace Focus {
 namespace {
 
@@ -252,8 +254,15 @@ int targets(Target* out, int max) {
     const int32_t quarter = static_cast<int32_t>(SCREEN_WIDTH) * SCREEN_HEIGHT / 4;
     for (const Mark& m : s_marks) {
         if (!m.valid || count >= max) continue;
+        /* The screen's own word about its board comes first: a quiet board
+         * has no stops, whatever is drawn on it, and on a live one every
+         * square is a stop however few are left. The same rule as the PC
+         * build's (host/src/HostTftFocus.cpp). */
+        const Ui::StopRule rule = Ui::stopRuleAt(static_cast<int16_t>(m.x + m.w / 2),
+                                                 static_cast<int16_t>(m.y + m.h / 2));
+        if (rule == Ui::StopRule::Quiet) continue;
         if (!m.button) {
-            if (!cardsAreControls) continue;
+            if (!cardsAreControls && rule != Ui::StopRule::Live) continue;
             /* Too big, or with a control inside it, it is the panel under them. */
             if (static_cast<int32_t>(m.w) * m.h > quarter) continue;
             bool holdsAnother = false;
