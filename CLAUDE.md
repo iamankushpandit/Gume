@@ -1052,6 +1052,12 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   - **`resume()` is also what a game gets after the screen saver, sleep and the lock screen**, with how long it was not being updated. A game with a deadline or a stopwatch moves it on (`Game::movedOn()`), so time away is not counted: before this a countdown ran out behind a dark panel. So `resume()` has to be right when nothing was lost at all, and harmless on a result screen.
   - **Quietly is only for a state the player can get out of.** A game that comes straight back with no question and no control of its own to start over is a game the player is shut in until the console is switched off. If a state has no such control, the answer is Ask.
   - **The question is the runtime's screen, drawn as the game it stands in front of** -- that game's title in the top bar, its canvas and its rotation -- and neither `begin()` nor `resume()` runs until it is answered. Leaving it by Home answers nothing and the game goes on waiting.
+- **A quiz that teaches is a course, and its level is the player's, not the visit's.** `src/engine/Course.h` is two pieces, pure C++ and host-tested (`test/host/course_test.cpp`). `Course::Ladder` is a player's level in one game: a meter a right answer pushes up by one and a miss pulls down by two, a step up at +6 and down at -6, so two right in three holds a player where they are; the meter starts again every visit and only the level is kept. `Course::QuestionDeck` deals every item of a level once per pass in a new order each pass, holds back the last eighth so the end of a pass cannot be counted down to, and brings a missed item back after `RETRY_AFTER` (three) others. Math, Multiplication and Counting are built on them, each over a pure `...Course.h` of levels, questions and wrong options with a host test of its own. Five things are load-bearing:
+  - **The level comes from `AppContext::courseLevel()` and goes back through `setCourseLevel()`, never from the score.** All three worked it out of the visit (`1 + score / 5`), so every visit began at level 1 and no level could ever fall. Read it in `begin()` and nowhere else -- `resume()` carries on with the ladder it has -- and store only when `Ladder::answer()` returns Up or Down. That pair is what makes the console's `level` command honest: a level set while the game is open or kept is the one its next `begin()` reads (`applies="next visit"`), and nothing overwrites it on the way out -- only a level move in the game still open, which stores that game's own level over it. New game on the *Carry on?* question starts the score again and keeps the level.
+  - **One blob per player holds every game's level** (`AppRuntimeKeep.cpp`): `COURSE_SLOTS` entries of a two-byte key and a level byte, because a stored number per game would be two hundred NVS entries of the five hundred there are, against ten per player. The key is an FNV-1a hash of the game's id with the track in its top `COURSE_TRACK_BITS`, never the launcher index -- a game inserted in the list would slide every later game's level onto its neighbour -- and `tools/check_catalog.py` refuses two ids with one key. The runtime reads the blob once per change of player, so `courseLevel()` is a RAM read. Guest's level is held in memory until another player takes the console, and dropped like every other Guest write.
+  - **Only the first try at a question moves the ladder.** These screens have no second try; a game that offers one calls `answer()` for the first press only, or guessing all four buttons would climb.
+  - **The deck is for a level that can be numbered, `RecentQuestions` for one that cannot.** Up to 256 items, `QuestionDeck` guarantees coverage. A level of hundreds or millions of questions -- Math from level 6 -- draws at random and draws again while the question is among the last ten. Call `deck_.missed(item)` BEFORE the ladder moves: a step resets the deck, and an item number belongs to the level that dealt it.
+  - **Up is announced and down is not.** A step up plays `Sound::LevelUp` with a green `pulseRgb()` in place of `beepOk()` -- a tick armed first is cut off by the flourish -- and the new level's name stands over its first question. A step down says nothing at all; the questions get easier, and that is the whole of it.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player.
@@ -1060,7 +1066,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   deep sleep.
   Sound belongs on that list for a reason worth stating: the speaker belongs to
   whoever is in the room, and a console that came back loud because a different
-  player picked it up is a poor thing to hand a young player in a quiet house. Per-profile: scores, mastery blobs, game visibility.
+  player picked it up is a poor thing to hand a young player in a quiet house. Per-profile: scores, mastery blobs, game visibility, course levels.
 - **The admin PIN gates every route to admin powers**: switching to the admin
   profile, opening its Edit menu (rename plus its per-player game list), and
   the serial console's `unlock` (see Hardware notes). One profile is admin
@@ -1388,6 +1394,7 @@ Work through all four groups. Nothing here is optional for a screen that ships.
    launcher index and default visibility in that metadata block, not in the registry.
 3. If it records a score, declare one local `AppScoreInfo` and point the metadata at it.
 3b. Say what the game owes a player who leaves in the middle: `keepsGame()` in every state the screen can be in (Ask, Quietly or No -- the rule is in `src/games/CLAUDE.md`), and `resume()` if it has a deadline or a stopwatch. Then leave it in the middle and come back, on the PC build or a board.
+3c. If it asks questions at levels, make it a course rather than working a level out of the score: a `Course::Ladder` started from `courseLevel()` in `begin()`, `setCourseLevel()` when the ladder moves, a `QuestionDeck` for a level that can be numbered or `RecentQuestions` for one that cannot, and the level's real mistakes as the wrong options -- in a pure `<Game>Course.h` with a test in `test/host/`. The wiring is in `src/games/CLAUDE.md`, the invariant under "A quiz that teaches is a course" above.
 4. `src/engine/AppRegistry.cpp` — add a `metadataCatalogApp(...AppMetadata(), instance)` entry at the intended playable position.
 5. `src/engine/AppRegistry.h` — update `PLAYABLE_APP_COUNT`.
 
@@ -1560,7 +1567,9 @@ src/engine/               Game, LauncherApp, GameCatalog, AppRegistry, NearbyPla
                           back into it),
                           ConsoleText,
                           ScoreCatalog, Progress,
-                          RecentQuestions, ContentLoader
+                          RecentQuestions, Course (the kept level and
+                          the deck that turn a quiz into a course; pure,
+                          host-tested), ContentLoader
 src/games/                one .h/.cpp pair per game + GameInstances.h +
                           LetterTracer (the finger-tracing engine Trace and
                           Cursive share: logic, Draw, Arrows, Words and a
@@ -1570,6 +1579,11 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           WifiConnect (scan, join, rejoin); Profiles is
                           ProfileApp, ProfileRename and ProfilePin (the
                           admin PIN pad).
+                          MathCourse, MultiplicationCourse and
+                          CountingCourse are those three courses'
+                          levels, questions and wrong options -- pure
+                          headers, host-tested beside Course in
+                          test/host/.
                           SystemInfoPower is System Info's Batt tab.
                           Settings is three .cpp against one header --
                           SettingsApp (tabs + routing), SettingsPanels
@@ -1951,13 +1965,22 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     offer, with those screens' choices -- a new setting is a row there too.
     Players are full CRUD: `profiles`, `profile-add`, `profile-rename`,
     `profile-remove`. Per-player games are Read and Update: `games <slot>`,
-    `game <slot|all> <id> on|off` (`all` is the classroom case). Wi-Fi is
-    create/update and delete (`wifi`, `wifi clear`), read only as a flag.
+    `game <slot|all> <id> on|off` (`all` is the classroom case); `games`
+    with no slot lists every id. A player's level in a game is Read and
+    Update, for the ACTIVE player, Guest included (in memory only):
+    `level <id>` reads, `level <id> <1..63>` sets, and a track rides on the
+    id as `level money:2 5`, because a separate track argument would make
+    `level money 2` mean two things. It acts on the game named, never the
+    one open, and does not reach into an open game: the reply's
+    `applies="next visit"` says the game on screen or kept to carry on goes
+    on at the level it has, `applies="next start"` that nothing holds it.
+    Wi-Fi is create/update and delete (`wifi`, `wifi clear`), read only as
+    a flag.
   - **Device reads are open; writes, and reads of player data, need the
     PIN.** `needsUnlock()` keys on the row's capability (settings, network,
     profiles, scores, factory reset), so a new row cannot forget the gate.
-    `profiles` prints names, so it carries the profiles capability and is
-    gated like a change. Three wrong PINs lock the console out for 30s, and
+    `profiles` prints names and `level` how far a player has got, so both
+    carry the profiles capability and are gated like a change. Three wrong PINs lock the console out for 30s, and
     only exactly four digits are judged.
   - **The same refusals as the screens, and two more.** The admin profile
     cannot be removed; the *active* player cannot be removed either (from a

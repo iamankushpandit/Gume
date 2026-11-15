@@ -2459,23 +2459,12 @@ def memory(faces=None, pairs="Pairs 3/12"):
     return im
 
 
-def _quiz4(title, eq, prompt, answers, correct, ay, ah, eq_y=96):
-    im, d = blank(); topbar(d, title)
-    d.text((10, 36), "Score 4/6", font=F2, fill=TEXT)
-    d.text((W / 2 - d.textlength(eq, font=F4) / 2, eq_y), eq, font=F4, fill=TEXT)
-    d.text((W / 2 - d.textlength(prompt, font=F2) / 2, 129), prompt, font=F2, fill=MUTED)
-    for i, a in enumerate(answers):
-        r = (18 + (i % 2) * 152, ay + (i // 2) * (ah + 8), 132, ah)
-        ok = (a == correct)
-        button(d, r, a, SUCCESS if ok else PANEL, (0, 0, 0) if ok else TEXT, F4)
-    return im
-
-
 # ----------------------------------------------- the four-button quiz screens
 #
-# Math, Space and Roman are one layout with three question panels, so the
-# geometry lives here once and each screen passes what differs. The rects are
-# the ones in the C++ -- MathGame's PANEL_*/BUTTON_TOP block and SpaceGame's
+# Math, Multiplication, Space and Roman are one layout with three question
+# panels, so the geometry lives here once and each screen passes what differs.
+# The rects are the ones in the C++ -- MathGame's PANEL_*/BUTTON_TOP block
+# (Multiplication's MultiplicationCourse.h Screen block is the same) and SpaceGame's
 # questionRect()/noteRect() -- because a mock-up that approximates a rectangle
 # is a mock-up that cannot show you the rectangle is wrong.
 #
@@ -2536,27 +2525,50 @@ def _quiz_panel_text(d, rect, text, f, line_h):
         ty += line_h
 
 
-def math_game():
-    """Math: the plain sum. Panel is PANEL_Y..PANEL_Y+PANEL_H, prompt below it."""
+def _quiz_strip(d, text, fill):
+    """The strip between the panel and the buttons, PROMPT_Y..BUTTON_TOP, one
+    line of font 2 centred in it. Before an answer it is the prompt in the
+    warning colour -- or, on the first question of a level just reached, that
+    level's name in the same colour; after one it is the verdict."""
+    d.text((W / 2 - d.textlength(text, font=F2) / 2, 128), text, font=F2, fill=fill)
+
+
+# What MathGame draws in the strip once the right button has been pressed.
+QUIZ_RIGHT = "Correct - tap for next"
+
+
+def math_game(eq="? + 29 = 96", answers=("57", "125", "67", "77"), correct="67",
+              header=("Level 12", "Correct 6  1:12", "Streak 3", "Best 9 / 2:05"),
+              prompt="Tap the answer", answered=False):
+    """Math: the plain sum. Panel is PANEL_Y..PANEL_Y+PANEL_H, prompt below it.
+
+    The still is level 12, a missing number with the gap in front, and its
+    wrong buttons are that level's own mistakes: 125 is the sign shown done
+    (96 + 29), 57 and 77 are ten either side. `prompt` is the strip before an
+    answer -- "Level 4: Cross ten" on the first question of a level just
+    reached -- and `answered` puts the verdict there instead."""
     im, d = blank(); topbar(d, "Math")
-    _quiz_header(d, "Level 2", "Correct 6  1:12", "Streak 3", "Best 9 / 2:05")
+    _quiz_header(d, *header)
     d.rounded_rectangle([26, 70, 294, 126], 8, fill=PANEL, outline=OUTLINE)
-    eq = "12 - 7 = ?"
     d.text((W / 2 - d.textlength(eq, font=F4) / 2, 88), eq, font=F4, fill=TEXT)
-    p = "Tap the answer"
-    d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
-    _quiz_buttons(d, ["5", "4", "6", "9"], "5")
+    _quiz_strip(d, QUIZ_RIGHT if answered else prompt, SUCCESS if answered else WARN)
+    _quiz_buttons(d, list(answers), correct)
     return im
 
 
 def math_words(question="Nia has 21 shells and gives 8 away. How many are left?",
-               answers=("13", "11", "29", "12"), correct="13"):
-    """Math: the same sum as a word problem, wrapped into the same panel."""
+               answers=("23", "13", "27", "12"), correct="13",
+               header=("Level 7", "Correct 11  2:40", "Streak 4", "Best 14 / 3:02"),
+               answered=False):
+    """Math: the same sum as a word problem, wrapped into the same panel.
+
+    Stories begin at level 4. This one is level 7, ones taken across a ten,
+    and 27 is the mistake that level always offers: the smaller digit taken
+    from the larger (8 - 1) and the borrowed ten never paid back."""
     im, d = blank(); topbar(d, "Math")
-    _quiz_header(d, "Level 3", "Correct 11  2:40", "Streak 4", "Best 14 / 3:02")
+    _quiz_header(d, *header)
     _quiz_panel_text(d, (26, 70, 268, 56), question, F2, 18)
-    p = "Tap the answer"
-    d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
+    _quiz_strip(d, QUIZ_RIGHT if answered else "Tap the answer", SUCCESS if answered else WARN)
     _quiz_buttons(d, list(answers), correct)
     return im
 
@@ -2763,8 +2775,39 @@ def shapes_concave():
 
 
 
-def multiply():
-    return _quiz4("Multiplication", "6 x 7 = ?", "Tap the product", ["42", "36", "48", "40"], "42", 144, 38)
+# MultiplicationCourse.h's Screen block: the operator stands at a fixed x,
+# the left number right-aligned OP_GAP before it and the rest left-aligned
+# OP_GAP after, so the sign does not move from one question to the next.
+MULT_OP_X, MULT_OP_GAP = 142, 12
+MULT_DIVIDE_BAR_STEP = 3        # MultiplicationGame.cpp: the bar, three times
+
+
+def multiply(left="56", op="divide", right="8 = ?",
+             answers=("6", "7", "9", "8"), correct="7",
+             header=("Level 10", "Score 6", "Streak 3", "Best 9"),
+             prompt="Tap the answer", answered=False):
+    """Multiplication: one question, in the same panel and strip as Math.
+
+    The still is level 10, a division. Font 4 has no division sign, so the
+    game draws its colon and lays its minus over it three times, 3px apart;
+    this does the same with this file's font, which is not the panel's, so
+    the sign here is a likeness and not evidence. `op` is "times" for a
+    product or a missing number ("? x 7 = 56")."""
+    im, d = blank(); topbar(d, "Multiplication")
+    _quiz_header(d, *header)
+    d.rounded_rectangle([26, 70, 294, 126], 8, fill=PANEL, outline=OUTLINE)
+    y = 88
+    d.text((MULT_OP_X - MULT_OP_GAP - d.textlength(left, font=F4), y), left, font=F4, fill=TEXT)
+    d.text((MULT_OP_X + MULT_OP_GAP, y), right, font=F4, fill=TEXT)
+    if op == "times":
+        d.text((MULT_OP_X - d.textlength("x", font=F4) / 2, y), "x", font=F4, fill=TEXT)
+    else:
+        d.text((MULT_OP_X - d.textlength(":", font=F4) / 2, y), ":", font=F4, fill=TEXT)
+        for dx in (-MULT_DIVIDE_BAR_STEP, 0, MULT_DIVIDE_BAR_STEP):
+            d.text((MULT_OP_X + dx - d.textlength("-", font=F4) / 2, y), "-", font=F4, fill=TEXT)
+    _quiz_strip(d, QUIZ_RIGHT if answered else prompt, SUCCESS if answered else WARN)
+    _quiz_buttons(d, list(answers), correct)
+    return im
 
 
 def time_game(answered=False):
@@ -2851,22 +2894,93 @@ def microku(grid=None, selected=None):
     return im
 
 
-def counting():
+# CountingGame.cpp's screen, top to bottom. The panel ends two rows above the
+# strip and the strip two rows above the buttons, both derived there from the
+# button row, and every picture is centred on the panel's middle.
+CNT_PROMPT_CY, CNT_PROMPT_W = 45, W - 32
+CNT_PANEL = (18, 76, 284, 90)
+CNT_STRIP_CY = 177
+CNT_CX, CNT_CY = 18 + 284 // 2, 76 + 90 // 2
+# Its five dot colours, RGB565 as the panel expands them; and the ring round
+# a dot is TFT_DARKGREY, a constant there rather than a theme role.
+CNT_DOTS_565 = (0xE8E4, 0x24BD, 0x05D1, 0xFEC0, 0xAA9F)
+CNT_DOT_EDGE = (123, 125, 123)
+
+
+def _cnt_dot(d, x, y, r, fill):
+    d.ellipse([x - r, y - r, x + r, y + r], fill=fill, outline=CNT_DOT_EDGE)
+
+
+def _cnt_picture(d, picture, shown):
+    """drawPicture(): the row, the ten-frame, the twenty-frame and the rods.
+    Empty slots of a frame are rings in the outline colour, and each five is
+    one colour, so seven on a ten-frame also reads as three short of ten."""
+    dots = [_palette_rgb(v) for v in CNT_DOTS_565]
+    if picture == "row":
+        x0 = CNT_CX - (shown - 1) * 39 // 2
+        for i in range(shown):
+            _cnt_dot(d, x0 + i * 39, CNT_CY, 10, dots[i % 5])
+    elif picture in ("fives", "tens"):
+        cols, pitch, gap, pitch_y, r = (5, 39, 0, 30, 10) if picture == "fives" else (10, 24, 10, 26, 9)
+        width = (cols - 1) * pitch + (gap if cols > 5 else 0)
+        x0, y0 = CNT_CX - width // 2, CNT_CY - pitch_y // 2
+        for i in range(cols * 2):
+            col = i % cols
+            x = x0 + col * pitch + (gap if col >= 5 else 0)
+            y = y0 + (i // cols) * pitch_y
+            if i < shown:
+                _cnt_dot(d, x, y, r, dots[(i // 5) % 5])
+            else:
+                d.ellipse([x - r, y - r, x + r, y + r], outline=OUTLINE)
+    elif picture == "rods":
+        tens, ones = divmod(shown, 10)
+        rod_w, rod_h, rod_pitch, dot_pitch = 12, 10 * 7 + 4, 16, 7
+        ones_cols, ones_pitch, ones_gap, ones_r = 3, 14, 18, 5
+        width = (tens - 1) * rod_pitch + rod_w
+        if ones:
+            width += ones_gap + (min(ones, ones_cols) - 1) * ones_pitch + 2 * ones_r
+        x0, top = CNT_CX - width // 2, CNT_CY - rod_h // 2
+        for t in range(tens):
+            x = x0 + t * rod_pitch
+            d.rounded_rectangle([x, top, x + rod_w - 1, top + rod_h - 1], 3, outline=OUTLINE)
+            for k in range(10):
+                cy = top + 2 + dot_pitch // 2 + k * dot_pitch
+                d.ellipse([x + rod_w // 2 - 3, cy - 3, x + rod_w // 2 + 3, cy + 3], fill=dots[1])
+        rows = (ones + ones_cols - 1) // ones_cols
+        ox = x0 + (tens - 1) * rod_pitch + rod_w + ones_gap + ones_r
+        oy = CNT_CY - (rows - 1) * ones_pitch // 2
+        for i in range(ones):
+            _cnt_dot(d, ox + (i % ones_cols) * ones_pitch, oy + (i // ones_cols) * ones_pitch,
+                     ones_r, dots[0])
+
+
+def counting(picture="rods", shown=43, ask="How many dots?",
+             answers=("34", "42", "43", "53"), correct="43",
+             stats="Score 9/11   Streak 4   Best 7", level_line=None, answered=False):
+    """Counting: the question line, the stats, one picture, four buttons in a row.
+
+    The still is level 6, tens and ones: four rods of ten and three loose
+    dots, and its wrong buttons are that level's mistakes -- the digits the
+    wrong way round, one ten out, one out. `level_line` is the first
+    question of a level just reached: the level's name takes the question
+    line in the accent colour, and the question moves to the strip under the
+    panel until it is answered."""
     im, d = blank(); topbar(d, "Counting")
-    q = "How many objects?"
-    d.text((W / 2 - d.textlength(q, font=F4) / 2, 32), q, font=F4, fill=TEXT)
-    st = "Score 3/5   Streak 2   Best 5"
-    d.text((W / 2 - d.textlength(st, font=F1) / 2, 60), st, font=F1, fill=MUTED)
-    d.rounded_rectangle([18, 76, 302, 174], 8, fill=PANEL, outline=OUTLINE)
-    import random
-    random.seed(4)
-    for i in range(7):
-        cx = 18 + 24 + (i % 7) * 39
-        cy = 76 + 24 + (i // 7) * 30
-        d.ellipse([cx - 10, cy - 10, cx + 10, cy + 10], fill=(255, 170, 90), outline=(120, 120, 128))
-    for i, v in enumerate(["6", "7", "8", "5"]):
+    top = level_line or ask
+    f = F4 if d.textlength(top, font=F4) <= CNT_PROMPT_W else F2
+    d.text((W / 2 - d.textlength(top, font=f) / 2, CNT_PROMPT_CY - (13 if f is F4 else 8)),
+           top, font=f, fill=ACCENT if level_line else TEXT)
+    d.text((W / 2 - d.textlength(stats, font=F1) / 2, 60), stats, font=F1, fill=MUTED)
+    x, y, w, h = CNT_PANEL
+    d.rounded_rectangle([x, y, x + w, y + h], 8, fill=PANEL, outline=OUTLINE)
+    _cnt_picture(d, picture, shown)
+    strip, ink = (QUIZ_RIGHT, SUCCESS) if answered else ((ask, TEXT) if level_line else ("", TEXT))
+    if strip:
+        d.text((W / 2 - d.textlength(strip, font=F2) / 2, CNT_STRIP_CY - 8), strip, font=F2, fill=ink)
+    for i, v in enumerate(answers):
+        ok = v == correct
         button(d, (15 + i * 76, 188, 62, 40), v,
-               SUCCESS if v == "7" else PANEL, (0, 0, 0) if v == "7" else TEXT, F4)
+               SUCCESS if ok else BLUE, (0, 0, 0) if ok else WHITE, F4)
     return im
 
 

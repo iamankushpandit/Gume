@@ -10,17 +10,60 @@
 #include "MultiplicationGame.h"
 #include "engine/AppRegistry.h"
 
+#include <esp_system.h>   // esp_random(), for dealing and for the options
+
+namespace MC = MultiplicationCourse;
+
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
 constexpr uint16_t YELLOW = 0xFEC0;
 
-constexpr uint8_t LEVEL1_TABLES[] = {2, 5, 10};
-constexpr uint8_t LEVEL2_TABLES[] = {1, 2, 3, 4, 5, 10};
-constexpr uint8_t LEVEL3_TABLES[] = {1, 2, 3, 4, 5, 6, 10};
-constexpr uint8_t LEVEL4_TABLES[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-constexpr uint8_t LEVEL5_TABLES[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+/* The vertical stack, written once and derived from rather than typed in
+ * twice -- the same fix MathGame records. The panel used to be drawn on rows
+ * 76..129 and the prompt strip cleared from row 125, after it, so the bottom
+ * five rows of the panel and its rounded border were erased on every paint
+ * and every answer. The panel's own numbers live in MultiplicationCourse.h,
+ * where the host test measures every question against them. */
+constexpr int16_t PANEL_X = MC::Screen::PANEL_X;
+constexpr int16_t PANEL_Y = MC::Screen::PANEL_Y;
+constexpr int16_t PANEL_W = MC::Screen::PANEL_W;
+constexpr int16_t PANEL_H = MC::Screen::PANEL_H;
+constexpr int16_t HEADER_Y = 33;
+constexpr int16_t HEADER_H = 36;
+constexpr int16_t BUTTON_TOP = 144;
+constexpr int16_t BUTTON_W = MC::Screen::BUTTON_W;
+constexpr int16_t PROMPT_Y = PANEL_Y + PANEL_H + 1;
+constexpr int16_t PROMPT_H = BUTTON_TOP - PROMPT_Y - 1;
+static_assert(MC::Screen::CANVAS_W == GAME_CANVAS_WIDTH,
+              "the course measures its questions against a different canvas");
+static_assert(HEADER_Y + HEADER_H <= PANEL_Y, "the header clear would erase the panel's top");
+static_assert(PROMPT_Y > PANEL_Y + PANEL_H - 1,
+              "the prompt strip would erase the question panel's bottom border");
+static_assert(PROMPT_H >= 16, "the prompt strip is too short for a font 2 line");
+
+/* Font 4's figures are all 14px wide, its space 5 and its "=" 14. The host
+ * test measures every real question with the whole width table; these say
+ * the widest possible ones fit, beside the code that draws them. */
+constexpr int16_t FONT4_FIGURE = 14;
+constexpr int16_t FONT4_SPACE = 5;
+constexpr int16_t FONT4_EQUALS = 14;
+static_assert(MC::MAX_SHOWN <= 999, "the labels and the sides are sized for three figures");
+static_assert(3 * FONT4_FIGURE <= MC::Screen::LEFT_MAX_W, "144 does not fit left of the sign");
+static_assert(5 * FONT4_FIGURE + 2 * FONT4_SPACE + FONT4_EQUALS <= MC::Screen::RIGHT_MAX_W,
+              "\"12 = 144\" does not fit right of the sign");
+static_assert(3 * FONT4_FIGURE <= BUTTON_W - 16, "three figures do not fit on a button");
+/* How far apart the division sign's three bars are drawn. The whole sign must
+ * stay inside the gap the two sides leave it. */
+constexpr int16_t DIVIDE_BAR_STEP = 3;
+constexpr int16_t FONT4_MINUS = 8;           // font 4's advance for '-'
+static_assert(2 * DIVIDE_BAR_STEP + FONT4_MINUS < 2 * MC::Screen::OP_GAP,
+              "the division sign would run into the numbers either side");
+
+/* The course checks every pool against MAX_POOL; this ties that to the deck. */
+static_assert(MC::MAX_POOL <= Course::QuestionDeck::MAX_ITEMS,
+              "the course numbers more questions than the deck can deal");
 
 constexpr AppScoreInfo MULTIPLICATION_SCORE = {
     "multiply", "Multiply", "multBest", "pts", false
@@ -32,7 +75,7 @@ constexpr AppMetadata MULTIPLICATION_METADATA = {
     "Multiplication",
     "times tables",
     "Multiply",
-    "Practice multiplication facts.",
+    "Times tables, then division.",
     &MULTIPLICATION_SCORE,
     LauncherIcon::Multiplication,
     10,
@@ -50,10 +93,17 @@ const char* MultiplicationGame::title() const {
         : multiplicationAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the score and the streak
+ * start over, the level does not. It is the player's, kept by the runtime,
+ * and it used to be worked out of this visit's score -- so every visit began
+ * with the twos, however well the player knew their nines. */
 void MultiplicationGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(multiplicationAppMetadata().score->bestKey, 0));
+    ladder_.start(MC::LEVEL_COUNT, host.courseLevel());
+    deck_.reset(MC::poolSize(ladder_.level()));
+    announce_ = false;
     newQuestion();
     markDirty();
 }
@@ -62,38 +112,11 @@ Game::Keep MultiplicationGame::keepsGame() const {
     return score_ > 0 ? Keep::Ask : Keep::No;
 }
 
-uint8_t MultiplicationGame::level() const {
-    return min<uint8_t>(5, 1 + score_ / 5);
-}
-
 Rect MultiplicationGame::answerRect(uint8_t index) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;
-    return Rect{static_cast<int16_t>(18 + col * 152), static_cast<int16_t>(144 + row * 46), 132, 38};
-}
-
-uint8_t MultiplicationGame::pickTable(uint8_t currentLevel) const {
-    switch (currentLevel) {
-        case 1:
-            return LEVEL1_TABLES[random(sizeof(LEVEL1_TABLES))];
-        case 2:
-            return LEVEL2_TABLES[random(sizeof(LEVEL2_TABLES))];
-        case 3:
-            return LEVEL3_TABLES[random(sizeof(LEVEL3_TABLES))];
-        case 4:
-            return LEVEL4_TABLES[random(sizeof(LEVEL4_TABLES))];
-        default:
-            return LEVEL5_TABLES[random(sizeof(LEVEL5_TABLES))];
-    }
-}
-
-bool MultiplicationGame::optionExists(int16_t value, uint8_t upTo) const {
-    for (uint8_t i = 0; i < upTo; ++i) {
-        if (options_[i] == value) {
-            return true;
-        }
-    }
-    return false;
+    return Rect{static_cast<int16_t>(18 + col * 152),
+                static_cast<int16_t>(BUTTON_TOP + row * 46), BUTTON_W, 38};
 }
 
 void MultiplicationGame::updateBest(AppContext& host) {
@@ -104,18 +127,15 @@ void MultiplicationGame::updateBest(AppContext& host) {
 }
 
 void MultiplicationGame::newQuestion() {
-    const uint8_t currentLevel = level();
     selected_ = -1;
     answered_ = false;
-    left_ = pickTable(currentLevel);
-    right_ = random(1, currentLevel <= 2 ? 11 : 13);
-    if (random(2) == 0) {
-        const int16_t tmp = left_;
-        left_ = right_;
-        right_ = tmp;
-    }
-    answer_ = left_ * right_;
-    makeOptions();
+    questionLevel_ = ladder_.level();
+    /* Every level is small enough to number, so the deck deals all of it
+     * before anything comes back; nothing here needs RecentQuestions. */
+    item_ = deck_.next(esp_random());
+    question_ = MC::makeQuestion(questionLevel_, item_, esp_random());
+    banner_ = announce_;
+    announce_ = false;
     /* Everything a new question changes, together. The buttons are not
      * optional: the loop below repaints one only when its state changed, and
      * the two that were never highlighted go 0 -> 0, so without this they keep
@@ -123,46 +143,9 @@ void MultiplicationGame::newQuestion() {
      * cheap. */
     drawnQuestion_ = false;
     drawnHeader_ = false;
+    drawnPrompt_ = false;
     for (uint8_t i = 0; i < 4; ++i) {
         drawnButton_[i] = 0xFF;
-    }
-}
-
-void MultiplicationGame::makeOptions() {
-    correctButton_ = random(4);
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i] = 0;
-    }
-    options_[correctButton_] = answer_;
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) {
-            continue;
-        }
-        int16_t candidate = answer_;
-        uint8_t attempts = 0;
-        while ((candidate == answer_ || optionExists(candidate, i)) && attempts < 50) {
-            int16_t nearbyTable = left_ + random(-2, 3);
-            int16_t nearbyFactor = right_ + random(-2, 3);
-            if (nearbyTable < 1) {
-                nearbyTable = 1;
-            }
-            if (nearbyFactor < 1) {
-                nearbyFactor = 1;
-            }
-            candidate = nearbyTable * nearbyFactor;
-            if (random(3) == 0) {
-                candidate = answer_ + random(-12, 13);
-            }
-            if (candidate < 0) {
-                candidate = abs(candidate);
-            }
-            ++attempts;
-        }
-        while (candidate == answer_ || optionExists(candidate, i)) {
-            ++candidate;
-        }
-        options_[i] = candidate;
     }
 }
 
@@ -173,7 +156,7 @@ void MultiplicationGame::update(AppContext& host, const TouchPoint& touch) {
 
     if (answered_) {
         newQuestion();
-        /* A new product, four new options and the prompt back to its first
+        /* A new question, four new options and the prompt back to its first
          * wording. All of it is content in fixed places, drawn over itself
          * opaquely -- nothing about the layout changes -- so this is
          * markDirty(). It used to wipe and repaint the whole panel, top bar
@@ -183,21 +166,44 @@ void MultiplicationGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     for (uint8_t i = 0; i < 4; ++i) {
-        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            selected_ = i;
-            answered_ = true;
-            if (i == correctButton_) {
-                ++score_;
-                ++streak_;
-                updateBest(host);
-                host.beepOk();
-            } else {
-                streak_ = 0;
-                host.beepError();
-            }
-            markDirty();
-            return;
+        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            continue;
         }
+        selected_ = static_cast<int8_t>(i);
+        answered_ = true;
+        const bool right = i == question_.correct;
+        if (right) {
+            ++score_;
+            ++streak_;
+            updateBest(host);
+        } else {
+            streak_ = 0;
+            /* Before the ladder moves: a step down resets the deck, and the
+             * item number belongs to the level it was dealt from. */
+            deck_.missed(item_);
+        }
+        /* One answer, one move. There is no second try on this screen, so
+         * the first press is the only one the ladder ever hears about. */
+        const Course::Ladder::Step step = ladder_.answer(right);
+        if (step != Course::Ladder::Step::Stay) {
+            host.setCourseLevel(ladder_.level());
+            deck_.reset(MC::poolSize(ladder_.level()));
+        }
+        if (step == Course::Ladder::Step::Up) {
+            /* The level flourish in place of the plain tick, and the colour
+             * by hand, since playSound() does not pulse the LED. A step down
+             * says nothing at all: the questions get easier, and that is the
+             * whole of it. */
+            announce_ = true;
+            host.pulseRgb(0, 255, 40, 450);
+            host.playSound(Sound::LevelUp);
+        } else if (right) {
+            host.beepOk();
+        } else {
+            host.beepError();
+        }
+        markDirty();
+        return;
     }
 }
 
@@ -211,42 +217,70 @@ void MultiplicationGame::renderStatic(AppContext& host) {
     }
     drawnScore_ = 0xFFFF;
     drawnStreak_ = 0xFFFF;
-    drawnAnswered_ = !answered_;
+    drawnLevel_ = 0;
+    drawnPrompt_ = false;
     drawnHeader_ = false;
     drawnQuestion_ = false;
+}
+
+/* The equation, hung off a fixed operator (see MC::Screen). Font 4 has no
+ * division sign, but it has a colon and a minus, and the minus already sits
+ * between the colon's two dots: drawn one over the other, without a
+ * background so the second does not wipe the first, they are one. */
+void MultiplicationGame::drawEquation(Ui::Renderer& tft) const {
+    char left[MC::LEFT_SIZE];
+    char right[MC::RIGHT_SIZE];
+    question_.sides(left, sizeof(left), right, sizeof(right));
+    const int16_t cy = static_cast<int16_t>(PANEL_Y + PANEL_H / 2);
+
+    tft.fillRoundRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 8, Ui::panel());
+    tft.drawRoundRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 8, Ui::outline());
+    tft.setTextColor(Ui::text(), Ui::panel());
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(left, MC::Screen::OP_X - MC::Screen::OP_GAP, cy, 4);
+    tft.setTextDatum(ML_DATUM);
+    tft.drawString(right, MC::Screen::OP_X + MC::Screen::OP_GAP, cy, 4);
+    tft.setTextDatum(MC_DATUM);
+    if (question_.op == MC::Op::Times) {
+        tft.drawString("x", MC::Screen::OP_X, cy, 4);
+    } else {
+        /* The bar three times, a few pixels apart: font 4's minus alone is
+         * barely wider than the colon's dots, and on the panel the sign
+         * read as a colon with a smudge in it. */
+        tft.setTextColor(Ui::text());
+        tft.drawString(":", MC::Screen::OP_X, cy, 4);
+        for (int16_t dx = -DIVIDE_BAR_STEP; dx <= DIVIDE_BAR_STEP; dx += DIVIDE_BAR_STEP) {
+            tft.drawString("-", static_cast<int16_t>(MC::Screen::OP_X + dx), cy, 4);
+        }
+    }
+    tft.setTextDatum(TL_DATUM);
 }
 
 void MultiplicationGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
 
-    /* The product. Gated because it changes only with a new question, but
+    /* The question. Gated because it changes only with a new question, but
      * dynamic rather than static because a new question must not cost a full
-     * repaint. The rect is fixed and fillRoundRect covers it opaquely before
-     * the text goes down, so a shorter product cannot leave a tail. */
+     * repaint. The panel is filled opaquely before the text goes down, so a
+     * shorter question cannot leave a tail. */
     if (!drawnQuestion_) {
-        char equation[24];
-        snprintf(equation, sizeof(equation), "%d x %d = ?",
-                 static_cast<int>(left_), static_cast<int>(right_));
-        tft.fillRoundRect(26, 76, 268, 54, 8, Ui::panel());
-        tft.drawRoundRect(26, 76, 268, 54, 8, Ui::outline());
-        tft.setTextColor(Ui::text(), Ui::panel());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(equation, GAME_CANVAS_WIDTH / 2, 103, 4);
-        tft.setTextDatum(TL_DATUM);
+        drawEquation(tft);
         drawnQuestion_ = true;
     }
 
-    /* Score and Streak move on an answer, and Streak resets to zero. The
-     * right-hand pair is TR_DATUM, so a shrinking string leaves its stale
-     * characters at the LEFT end -- that rect is measured leftward from the
-     * margin rather than sized around where the text starts. */
-    if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_) {
-        tft.fillRect(10, 33, 150, 36, Ui::bg());
-        tft.fillRect(GAME_CANVAS_WIDTH - 10 - 160, 33, 160, 36, Ui::bg());
+    /* Score and Streak move on an answer, and Streak resets to zero; the
+     * level moves with the question after a climb. The right-hand pair is
+     * TR_DATUM, so a shrinking string leaves its stale characters at the
+     * LEFT end -- that rect is measured leftward from the margin rather than
+     * sized around where the text starts. */
+    if (!drawnHeader_ || score_ != drawnScore_ || streak_ != drawnStreak_ ||
+        questionLevel_ != drawnLevel_) {
+        tft.fillRect(10, HEADER_Y, 150, HEADER_H, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 10 - 160, HEADER_Y, 160, HEADER_H, Ui::bg());
         char buf[28];
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(level()));
+        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(questionLevel_));
         tft.drawString(buf, 10, 35, 2);
         snprintf(buf, sizeof(buf), "Score %u", static_cast<unsigned>(score_));
         tft.drawString(buf, 10, 52, 1);
@@ -262,13 +296,14 @@ void MultiplicationGame::renderDynamic(AppContext& host) {
         tft.setTextDatum(TL_DATUM);
         drawnScore_ = score_;
         drawnStreak_ = streak_;
+        drawnLevel_ = questionLevel_;
         drawnHeader_ = true;
     }
 
     for (uint8_t i = 0; i < 4; ++i) {
         uint8_t state = 0;
         if (answered_) {
-            if (i == correctButton_) state = 1;
+            if (i == question_.correct) state = 1;
             else if (i == selected_) state = 2;
         }
         if (state == drawnButton_[i]) {
@@ -277,27 +312,34 @@ void MultiplicationGame::renderDynamic(AppContext& host) {
         const uint16_t fill = state == 1 ? GREEN : (state == 2 ? RED : BLUE);
         const uint16_t text = state == 0 ? TFT_WHITE : TFT_BLACK;
         char label[12];
-        snprintf(label, sizeof(label), "%d", static_cast<int>(options_[i]));
+        snprintf(label, sizeof(label), "%u", static_cast<unsigned>(question_.options[i]));
         Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
         drawnButton_[i] = state;
     }
 
-    /* Stops at 143, one row above answerRect(0) at 144 -- this block runs after
-     * the button loop, so a rect that reached into them would erase two rows
-     * with nothing to put them back. */
-    if (answered_ != drawnAnswered_) {
-        tft.fillRect(20, 125, GAME_CANVAS_WIDTH - 40, 18, Ui::bg());
+    /* The strip between the panel and the buttons, derived from both, so it
+     * can reach neither. Before an answer it says what to tap -- or, on the
+     * first question after a climb, which level this is now. */
+    if (!drawnPrompt_ || answered_ != drawnAnswered_) {
+        tft.fillRect(MC::Screen::PROMPT_X, PROMPT_Y, MC::Screen::PROMPT_W, PROMPT_H, Ui::bg());
+        const int16_t cy = static_cast<int16_t>(PROMPT_Y + PROMPT_H / 2);
         tft.setTextDatum(MC_DATUM);
         if (answered_) {
-            tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-            tft.drawString(selected_ == correctButton_ ? "Correct - tap for next"
-                                                       : "Green is correct - tap next",
-                           GAME_CANVAS_WIDTH / 2, 136, 2);
+            tft.setTextColor(selected_ == question_.correct ? GREEN : RED, Ui::bg());
+            tft.drawString(selected_ == question_.correct ? "Correct - tap for next"
+                                                          : "Green is correct - tap next",
+                           GAME_CANVAS_WIDTH / 2, cy, 2);
+        } else if (banner_) {
+            char banner[MC::BANNER_SIZE];
+            MC::levelBanner(banner, sizeof(banner), questionLevel_);
+            tft.setTextColor(YELLOW, Ui::bg());
+            tft.drawString(banner, GAME_CANVAS_WIDTH / 2, cy, 2);
         } else {
             tft.setTextColor(YELLOW, Ui::bg());
-            tft.drawString("Tap the product", GAME_CANVAS_WIDTH / 2, 136, 2);
+            tft.drawString(question_.prompt(), GAME_CANVAS_WIDTH / 2, cy, 2);
         }
         tft.setTextDatum(TL_DATUM);
         drawnAnswered_ = answered_;
+        drawnPrompt_ = true;
     }
 }

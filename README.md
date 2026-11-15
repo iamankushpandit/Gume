@@ -379,12 +379,12 @@ needs without touching anyone else's. Only the admin can change it.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Counting** | "How many objects?" — tap the matching number | One-to-one correspondence: the idea that counting means one number per object |
+| **Counting** | "How many objects?" — tap the matching number, over seven levels: to five in a row, to ten on a ten-frame, scattered with no pattern (none at all included), to twenty in two rows of ten, one more and one less, tens and ones to 99 with rods of ten, and counting in twos, fives and tens | One-to-one correspondence first — counting means one number for each object — then seeing five and ten at a glance, place value and skip counting, which adding and the times tables are built on. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, and one answered wrong comes back a few questions later |
 | **Fingers** | Alternates *"How many fingers?"* (count what's raised) and *"Show me 7 fingers"* (raise that many) | Counting on hands in **both** directions — recognising a quantity and producing one |
 | **Shape Arith** | Objects appear one by one to add; subtraction splits left vs. take-away boxes | Makes arithmetic concrete before it's symbolic. The subtraction display keeps the removed group visible while the player counts what is left |
 | **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic |
-| **Math** | "Tap the answer" — addition and subtraction, difficulty rises with level. From level 2 about a third of the questions arrive as **word problems**: "Nia has 12 shells and gives 7 away. How many are left?" | Recall speed once the concept is solid, then the harder half — working out which sum a sentence is asking for. Level 1 stays pure arithmetic, because a young player still learning that 3 + 4 is 7 is being asked to read as well, and the reading is the harder job at that stage |
-| **Multiply** | "Tap the product" — times tables | Multiplication facts |
+| **Math** | "Tap the answer" — adding and taking away in twelve levels, numerals only: sums to ten, number bonds (4 + ? = 10), crossing ten, tens and ones, carrying, borrowing, three-digit sums and two-digit missing numbers (? + 38 = 75). From level 4 about a third of the questions arrive as **word problems**: "Nia has 21 shells and gives 8 away. How many are left?" | Quick, sure recall of the adding and taking-away facts, then carrying, borrowing and finding a missing number, and working out which sum a sentence is asking for. Each player's level is kept: it goes up with steady right answers and quietly back down after repeated misses. On the first five levels every question comes up before any repeats and a missed one comes back a few questions later, and the wrong buttons are the mistakes players really make, such as forgetting to carry |
+| **Multiply** | "Tap the product" — the times tables in teaching order, twelve levels: twos, fives and tens; threes and fours; 0 and 1; sixes and eights; sevens and nines; elevens and twelves; all of them mixed. Then missing numbers (? x 7 = 56) and division as the same facts backwards, up to 144 ÷ 12 | Fluent recall of the multiplication facts, then the link between multiplying and dividing. Each player's level is kept and goes up or down with their answers, every fact in a level comes up before any repeats, and a missed one comes back a few questions later. The wrong buttons are the neighbouring facts, such as 49 offered for 7 x 8 |
 | **Fractions** | "Pick the matching fraction" against a pie chart | Connects the written fraction to the amount it represents |
 | **Money** | "How much is this?" — count coins, compare amounts, make change | Coin values and everyday arithmetic |
 | **Percent** | Read, make and calculate percentages on a circle | Percentage as a portion of a whole, before it is an algorithm |
@@ -458,6 +458,36 @@ one player's progress never moves another's.
 Three tiers — **Easy** (30 familiar countries), **Medium** (62), **Hard** (all
 195). Six correct in a row promotes a tier automatically. The tier button still
 overrides by hand, and the choice persists.
+
+### A level kept for each player
+
+**Math**, **Multiply** and **Counting** are courses: twelve levels of adding
+and taking away, twelve of times tables and division, seven of counting. Each
+player's level in each of them is kept between visits, so a player starts
+where they left off, not at the first level.
+
+The level moves both ways. Right answers move the player up -- six in a row
+from the start of a level -- with a flourish and the new level's name over its
+first question. A miss counts twice as much as a right answer, and enough of
+them move the player down one, with no message: the questions just get
+easier. Two right answers in three keep a player where they are.
+
+Within a level, every question comes up once before any comes back, in a new
+order each time round, and a question answered wrong comes back after three
+others until it is answered right. Math's levels from tens and ones upwards
+have hundreds of questions or more each, so there a question is drawn at
+random instead and never comes back within ten.
+
+The wrong buttons are the mistakes players make at that level: a carry
+forgotten, the smaller digit taken from the larger, the sign in `4 + ? = 10`
+done instead of undone, the neighbouring fact in a times table, the tens and
+ones digits swapped.
+
+The level is stored per player like a score, and Guest's lasts only until
+another player takes the console. Starting a new game on the *Carry on?*
+question starts the score again and keeps the level. With the admin PIN, the
+serial console reads or sets the level of the player in use (`level
+<game-id>`, see [Diagnostics](#diagnostics)).
 
 ### A game left by mistake is still there
 
@@ -576,15 +606,15 @@ One screen per game, in launcher order.
 ### Numbers and early maths
 
 <p align="center">
-  <img src="docs/screens/counting.png" width="300" alt="Counting">
+  <img src="docs/screens/counting.png" width="300" alt="Counting: tens and ones, rods of ten and the ones beside them">
   <img src="docs/screens/fingers-count.png" width="300" alt="Finger Counting: count them">
   <img src="docs/screens/fingers-show.png" width="300" alt="Finger Counting: show me N">
   <img src="docs/screens/shapearith.png" width="300" alt="Shape Arith">
 </p>
 <p align="center">
   <img src="docs/screens/numberline.png" width="300" alt="Number Line">
-  <img src="docs/screens/math.png" width="300" alt="Math">
-  <img src="docs/screens/multiply.png" width="300" alt="Multiplication">
+  <img src="docs/screens/math.png" width="300" alt="Math: a missing number on level 12">
+  <img src="docs/screens/multiply.png" width="300" alt="Multiplication: a division on level 10">
 </p>
 <p align="center">
   <img src="docs/screens/fractions.png" width="300" alt="Fractions">
@@ -1588,13 +1618,16 @@ PIN: after `unlock <PIN>`,
 | Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, deep_sleep (only where the device can suspend), light, beacon, nearby, ntp, ntp_hours, timezone |
 | Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
 | Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
-| Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+| Games per player | `games` (every game id), `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+| Levels | `level <game-id>` (the level the player in use has reached in that game; 0 if never set), `level <game-id> <1-63>` (put them on that level), `level <game-id>:<track> [<level>]` for a game that keeps more than one, tracks 0-3 |
 
 then `lock`. Every change goes through the same code the screens use, with the
 same refusals: the admin profile and the player currently in use cannot be
 removed, and Nearby needs the beacon. The password is never echoed, and three
 wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
-game off for every player at once. Chess, Sea Battle, Cursive, Ludo and
+game off for every player at once. A level set while that game is open, or
+kept to carry on, is where the next game of it starts (the reply says
+`applies="next visit"`); the one in progress keeps its own. Chess, Sea Battle, Cursive, Ludo and
 Backgammon cannot be hidden yet (a known limit of per-player visibility).
 
 `python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
@@ -1658,6 +1691,8 @@ src/
     NearbyPlay.cpp      anonymous peer scores, notifications, sharing switch
     NearbySession.cpp   games on nearby consoles: seats, invites, turns
     Progress.cpp        per-item mastery, spaced repetition
+    Course.h            a quiz as a course: the kept level, and a deck that
+                        deals all of a level before anything repeats
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
     SettingsApp.cpp    Settings: lifecycle, the four tabs, touch routing
@@ -1673,6 +1708,9 @@ src/
     LetterTracer.cpp    finger-tracing engine shared by Trace and Cursive
     LetterTracerArrows.cpp  where the numbered direction arrows go
     LetterTracerWords.cpp   printed words spelled out of the alphabet
+    MathCourse.h, MultiplicationCourse.h, CountingCourse.h
+                        each course's levels, questions and wrong answers;
+                        no Arduino, tested on a PC in test/host/
   hal/
     Board.cpp           board bring-up, profiles, layout/idle settings
     BoardAccess.h       narrow display/touch/storage/power/network/feedback facades

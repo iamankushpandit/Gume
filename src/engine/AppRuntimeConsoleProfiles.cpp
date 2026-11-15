@@ -20,13 +20,25 @@ using namespace ConsoleText;
  *   profile-add "Sam"                 ok profile="3" existed="0"
  *   profile-rename <slot> "Sam"       ok profile="3" name="Sam"
  *   profile-remove <slot>             ok removed="3" count="3"
+ *   games                             ok games="backgammon,calendar,..."
  *   games <slot>                      ok profile="1" hidden="chess,maze"
  *   game <slot|all> <game-id> on|off  ok game="chess" visible="0" profiles="3"
+ *   level <game-id>[:<track>]         ok game="money" track="2" level="5" profile="1"
+ *   level <game-id>[:<track>] <n>     ok game="money" track="2" level="5" profile="1"
+ *                                        saved="1" applies="next start"
  *
- * All of it is behind the PIN (APP_CAP_PROFILES), including the two reads:
- * `profiles` is the one command that prints player names, which is player
- * data, so it is gated like a change. A slot is the 0-based index `profiles`
- * reports; Guest is not a slot and cannot be renamed, removed or edited.
+ * All of it is behind the PIN (APP_CAP_PROFILES), including the reads:
+ * `profiles` is the one command that prints player names, and a level is how
+ * far one player has got, which is player data, so both are gated like a
+ * change. A slot is the 0-based index `profiles` reports; Guest is not a slot
+ * and cannot be renamed, removed or edited.
+ *
+ * `level` is about the ACTIVE player, the same one a game asks about, so it
+ * needs no slot and works for Guest -- whose level then lives in memory only,
+ * as everything of Guest's does, and the reply says saved="0". The track
+ * hangs off the id with a colon rather than being an argument of its own,
+ * because `level money 2` would otherwise mean either "read track 2" or "set
+ * level 2", and a tool should never have to guess which it sent.
  *
  * The same refusals the Profiles screen makes, plus two of its own:
  *   - the admin profile cannot be removed (ProfileApp never offers it);
@@ -41,7 +53,8 @@ using namespace ConsoleText;
  *
  * After any change, refreshAfterProfileChange(): the Profiles screen caches
  * which slot a menu is open on, so if it is up it is started over rather
- * than repainted; anything else just repaints. */
+ * than repainted; anything else just repaints. `level` is the exception and
+ * repaints nothing, because nothing on any screen shows a stored level. */
 namespace {
 
 bool parseSlot(const char* s, uint8_t count, uint8_t& out) {
@@ -163,7 +176,18 @@ void BrainoApp::cmdProfileRemove(int, char** argv, Print& out) {
                (unsigned)board_.playerCount());
 }
 
-void BrainoApp::cmdGames(int, char** argv, Print& out) {
+void BrainoApp::cmdGames(int argc, char** argv, Print& out) {
+    /* Without a slot: every id, in launcher order -- what `game` and `level`
+     * take, so a tool never has to carry its own copy of the catalogue. */
+    if (argc == 0) {
+        out.print("ok games=\"");
+        for (uint8_t i = 0; i < playableAppCount(); ++i) {
+            if (i > 0) out.print(',');
+            out.print(playableAppAt(i).id());
+        }
+        out.println('"');
+        return;
+    }
     uint8_t slot = 0;
     if (!parseSlot(argv[0], board_.playerCount(), slot)) {
         out.println("err range no such slot -- profiles lists them");
@@ -210,4 +234,60 @@ void BrainoApp::cmdGame(int, char** argv, Print& out) {
     refreshAfterProfileChange();
     out.printf("ok game=\"%s\" visible=\"%d\" profiles=\"%u\"\n", app->id(), (int)on,
                (unsigned)(to - from));
+}
+
+/* `level math`, `level math 7`, `level money:2`, `level money:2 5`.
+ *
+ * It acts on the game named, never on whichever game is open, and it does not
+ * reach into a game that is open: that game took its level when it began and
+ * holds it on its own ladder, and a screen changed underneath by a cable is
+ * the kind of surprise the console promises not to make. So the reply says
+ * when the level will be met. applies="next start" when nothing holds the
+ * game; applies="next visit" when it is on screen (or under the saver, sleep
+ * or the lock screen), waiting behind the carry-on question, or kept for this
+ * player to come back to -- that game goes on at the level it has, and may
+ * store its own when it next moves a level, over this one. */
+void BrainoApp::cmdLevel(int argc, char** argv, Print& out) {
+    long track = 0;
+    char* colon = strchr(argv[0], ':');
+    if (colon != nullptr) {
+        *colon = '\0';
+        if (!parseRange(colon + 1, 0, COURSE_TRACKS - 1, track)) {
+            out.printf("err range track is 0-%u\n", (unsigned)(COURSE_TRACKS - 1));
+            return;
+        }
+    }
+    const AppDefinition* app = playableById(argv[0]);
+    if (!app) { out.println("err range unknown game id -- games lists them"); return; }
+
+    char profile[8];
+    const uint8_t active = board_.activeProfile();
+    if (active == Board::GUEST_INDEX) {
+        snprintf(profile, sizeof(profile), "guest");
+    } else {
+        snprintf(profile, sizeof(profile), "%u", (unsigned)active);
+    }
+    const uint8_t t = static_cast<uint8_t>(track);
+
+    if (argc == 1) {
+        out.printf("ok game=\"%s\" track=\"%u\" level=\"%u\" profile=\"%s\"\n", app->id(),
+                   (unsigned)t, (unsigned)courseLevelOf(app->id(), t), profile);
+        return;
+    }
+
+    long level = 0;
+    if (!parseRange(argv[1], 1, COURSE_LEVEL_MAX, level)) {
+        out.printf("err range level is 1-%u\n", (unsigned)COURSE_LEVEL_MAX);
+        return;
+    }
+    if (!storeCourseLevel(app->id(), t, static_cast<uint8_t>(level))) {
+        out.println("err full this player has a level kept in every slot");
+        return;
+    }
+    const bool open = (activeApp_ != nullptr && strcmp(activeApp_->id(), app->id()) == 0) ||
+                      keptHow(*app) != Game::Keep::No;
+    out.printf("ok game=\"%s\" track=\"%u\" level=\"%u\" profile=\"%s\" saved=\"%d\" "
+               "applies=\"%s\"\n",
+               app->id(), (unsigned)t, (unsigned)level, profile, (int)!board_.isGuest(),
+               open ? "next visit" : "next start");
 }

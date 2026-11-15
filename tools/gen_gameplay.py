@@ -142,9 +142,68 @@ def flags_country():
 
 
 def math():
-    words = lambda: gs.math_words("Nia has 20 shells and gives 8 away. How many are left?",
-                                  ("12", "11", "28", "14"), "12")
-    return quiz(gs.math_game, gs.BLUE, gs.WHITE) + quiz(words, gs.BLUE, gs.WHITE)
+    """A number bond answered on level 3 moves the player up; the header says
+    Level 4 at once, the strip names the new level over its first question,
+    and level 4 is the first with stories."""
+    def bond(answered):
+        header = (("Level 4", "Correct 6  0:58", "Streak 6", "Best 9 / 2:05") if answered
+                  else ("Level 3", "Correct 5  0:52", "Streak 5", "Best 9 / 2:05"))
+        return gs.math_game("6 + ? = 10", ("4", "16", "5", "3"), "4", header,
+                            answered=answered)
+
+    def cross(answered):
+        header = ("Level 4", "Correct 7  1:04" if answered else "Correct 6  0:58",
+                  "Streak 7" if answered else "Streak 6", "Best 9 / 2:05")
+        return gs.math_game("8 + 6 = ?", ("15", "4", "14", "86"), "14", header,
+                            "Level 4: Cross ten", answered)
+
+    def story(answered):
+        header = ("Level 4", "Correct 8  1:11" if answered else "Correct 7  1:04",
+                  "Streak 8" if answered else "Streak 7", "Best 9 / 2:05")
+        return gs.math_words("Kofi has 7 stickers and finds 5 more. How many now?",
+                             ("2", "12", "75", "11"), "12", header, answered)
+
+    return (quiz(lambda: bond(False), gs.BLUE, gs.WHITE, after=lambda: bond(True))
+            + quiz(lambda: cross(False), gs.BLUE, gs.WHITE, after=lambda: cross(True))
+            + quiz(lambda: story(False), gs.BLUE, gs.WHITE, after=lambda: story(True)))
+
+
+def multiply():
+    """A missing number on level 8, then the first question of level 9, a
+    division, with the level's name in the strip. The header changes with
+    that question, not with the answer before it."""
+    def missing(answered):
+        header = ("Level 8", "Score 6" if answered else "Score 5",
+                  "Streak 6" if answered else "Streak 5", "Best 9")
+        return gs.multiply("?", "times", "7 = 56", ("9", "8", "6", "7"), "8", header,
+                           "Tap the missing number", answered)
+
+    def divide(answered):
+        header = ("Level 9", "Score 7" if answered else "Score 6",
+                  "Streak 7" if answered else "Streak 6", "Best 9")
+        return gs.multiply("40", "divide", "5 = ?", ("7", "8", "5", "9"), "8", header,
+                           "Level 9: Divide by 2, 5, 10", answered)
+
+    return (quiz(lambda: missing(False), gs.BLUE, gs.WHITE, after=lambda: missing(True))
+            + quiz(lambda: divide(False), gs.BLUE, gs.WHITE, after=lambda: divide(True)))
+
+
+def counting():
+    """Four dots on level 1, the answer that moves the player up, and the
+    first question of level 2: its name on the question line, the question
+    itself in the strip, and seven on a ten-frame with its empty slots."""
+    def row(answered):
+        stats = "Score 6/7   Streak 6   Best 7" if answered else "Score 5/6   Streak 5   Best 7"
+        return gs.counting("row", 4, "How many objects?", ("2", "3", "4", "5"), "4",
+                           stats, answered=answered)
+
+    def frame(answered):
+        stats = "Score 7/8   Streak 7   Best 7" if answered else "Score 6/7   Streak 6   Best 7"
+        return gs.counting("fives", 7, "How many objects?", ("6", "7", "8", "9"), "7",
+                           stats, "Level 2: To ten", answered)
+
+    return (quiz(lambda: row(False), gs.BLUE, gs.WHITE, after=lambda: row(True))
+            + quiz(lambda: frame(False), gs.BLUE, gs.WHITE, after=lambda: frame(True)))
 
 
 def space():
@@ -498,13 +557,13 @@ SEQUENCES = {
     "stateflags": lambda: quiz(gs.stateflags),
     "statemaps": lambda: quiz(gs.statemaps),
     "math": math,
-    "multiply": lambda: quiz(gs.multiply),
+    "multiply": multiply,
     "space": space,
     "roman": roman,
     "time": time,
     "money": lambda: quiz(gs.money, gs.BLUE, gs.TEXT),
     "fractions": lambda: quiz(gs.fractions),
-    "counting": lambda: quiz(gs.counting),
+    "counting": counting,
     "shapearith": lambda: quiz(gs.shapearith),
     "numberline": lambda: quiz(gs.numberline),
     "calendar": lambda: quiz(gs.calendar),

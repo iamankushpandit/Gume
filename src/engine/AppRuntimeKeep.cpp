@@ -37,23 +37,27 @@ namespace {
  * game added in the middle of the list moves every index after it, and each
  * player's levels would slide onto the next game along. tools/check_catalog.py
  * refuses two ids with the same key. */
-constexpr uint8_t COURSE_TRACKS = 4;
 constexpr char COURSE_KEY[] = "course";
 
-uint16_t courseKey(const char* id, uint8_t track) {
+}   // namespace
+
+uint16_t BrainoApp::courseKey(const char* id, uint8_t track) {
+    /* The id takes the bits the track leaves. Fewer than eight would leave
+     * the forty games too few keys to stay apart. */
+    constexpr uint8_t ID_BITS = 16 - COURSE_TRACK_BITS;
+    static_assert(ID_BITS >= 8, "the track must leave the game's id most of the key");
+    constexpr uint32_t ID_MASK = (1UL << ID_BITS) - 1U;
     uint32_t h = 2166136261UL;                 // FNV-1a
     for (const char* p = id; *p != '\0'; ++p) {
         h ^= static_cast<uint8_t>(*p);
         h *= 16777619UL;
     }
-    uint16_t key = static_cast<uint16_t>(((h >> 16) ^ (h & 0xFFFFU)) & 0x3FFFU);
+    uint16_t key = static_cast<uint16_t>(((h >> 16) ^ (h & 0xFFFFU)) & ID_MASK);
     if (key == 0) {
         key = 1;                               // 0 is an empty entry
     }
-    return static_cast<uint16_t>(key | (static_cast<uint16_t>(track) << 14));
+    return static_cast<uint16_t>(key | (static_cast<uint16_t>(track) << ID_BITS));
 }
-
-}   // namespace
 
 /* The levels in memory are the active player's. Read once per change of
  * player, never per question: Preferences is flash-backed, and a getter that
@@ -71,12 +75,29 @@ void BrainoApp::syncCourse() {
     courseLoaded_ = true;
 }
 
+/* A game asks about itself; the console asks about any game by its id. Both
+ * end in the same two functions below, so a level set from a cable is the
+ * one the game reads, and not a second copy of it. */
 uint8_t BrainoApp::courseLevel(uint8_t track) {
-    if (activeApp_ == nullptr || !activeApp_->isCatalogApp() || track >= COURSE_TRACKS) {
+    if (activeApp_ == nullptr || !activeApp_->isCatalogApp()) {
+        return 0;
+    }
+    return courseLevelOf(activeApp_->id(), track);
+}
+
+void BrainoApp::setCourseLevel(uint8_t level, uint8_t track) {
+    if (activeApp_ == nullptr || !activeApp_->isCatalogApp()) {
+        return;
+    }
+    storeCourseLevel(activeApp_->id(), track, level);
+}
+
+uint8_t BrainoApp::courseLevelOf(const char* id, uint8_t track) {
+    if (track >= COURSE_TRACKS) {
         return 0;
     }
     syncCourse();
-    const uint16_t key = courseKey(activeApp_->id(), track);
+    const uint16_t key = courseKey(id, track);
     for (uint8_t i = 0; i < COURSE_SLOTS; ++i) {
         const uint8_t* entry = &course_[i * COURSE_ENTRY];
         if ((entry[0] | (entry[1] << 8)) == key) {
@@ -86,12 +107,12 @@ uint8_t BrainoApp::courseLevel(uint8_t track) {
     return 0;
 }
 
-void BrainoApp::setCourseLevel(uint8_t level, uint8_t track) {
-    if (activeApp_ == nullptr || !activeApp_->isCatalogApp() || track >= COURSE_TRACKS) {
-        return;
+bool BrainoApp::storeCourseLevel(const char* id, uint8_t track, uint8_t level) {
+    if (track >= COURSE_TRACKS) {
+        return false;
     }
     syncCourse();
-    const uint16_t key = courseKey(activeApp_->id(), track);
+    const uint16_t key = courseKey(id, track);
     uint8_t* slot = nullptr;
     for (uint8_t i = 0; i < COURSE_SLOTS; ++i) {
         uint8_t* entry = &course_[i * COURSE_ENTRY];
@@ -105,10 +126,10 @@ void BrainoApp::setCourseLevel(uint8_t level, uint8_t track) {
         }
     }
     if (slot == nullptr) {
-        return;                 // every entry taken: the level lasts the visit
+        return false;           // every entry taken: the level lasts the visit
     }
     if ((slot[0] | (slot[1] << 8)) == key && slot[2] == level) {
-        return;                 // nothing changed, so nothing is written
+        return true;            // nothing changed, so nothing is written
     }
     slot[0] = static_cast<uint8_t>(key & 0xFF);
     slot[1] = static_cast<uint8_t>(key >> 8);
@@ -116,6 +137,7 @@ void BrainoApp::setCourseLevel(uint8_t level, uint8_t track) {
     /* Dropped for Guest by Board::saveBlob(), like every write of Guest's;
      * the copy in memory still serves until another player takes over. */
     board_.saveBlob(COURSE_KEY, course_, sizeof(course_));
+    return true;
 }
 
 /* ---- the game a player left ---------------------------------------------

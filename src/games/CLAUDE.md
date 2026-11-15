@@ -106,12 +106,15 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 
 ## The four-button quiz screens
 
-Math, Multiplication, Counting, Time, Flag, Percent, Space and Roman are one
-layout: header counters, a question panel, four answer buttons at
-`(18 + col * 152, 144 + row * 46, 132, 38)`, a strip between them. If you add a
-ninth, copy `MathGame` or `SpaceGame` rather than inventing the rects again --
-two screens with the same shape should not put their buttons in two
-nearly-identical places.
+Math, Multiplication, Time, Flag, Percent, Space and Roman are one layout:
+header counters, a question panel, four answer buttons at
+`(18 + col * 152, 144 + row * 46, 132, 38)`, a strip between them. Math and
+Multiplication share the panel too, `(26, 70, 268, 56)`. If you add another,
+copy `MathGame` or `SpaceGame` rather than inventing the rects again -- two
+screens with the same shape should not put their buttons in two
+nearly-identical places. Counting is the cousin: the same header and strip
+idea, but a picture panel and four buttons in one row at
+`(15 + i * 76, 188, 62, 40)`.
 
 Three things about that family are load-bearing, and all three are mistakes
 somebody already made here:
@@ -125,6 +128,8 @@ somebody already made here:
 - **Derive the strip below the panel from the panel's own bottom edge.** Math
   typed both in and they overlapped by five rows for two releases, erasing the
   panel's border on every answer. `docs/RENDER_AUDIT.md` has the full story.
+  Multiplication and Counting carried the same overlap, five rows and six,
+  until they became courses.
 
 **Wrap text with `Ui::wrapLines()`, not `Ui::drawWrappedText()`.** The second
 builds every line with `String`, which is right where it is used (a game
@@ -137,12 +142,88 @@ the overflow on the panel. TFT_eSPI cuts an overlong string at the viewport
 edge with no mark and mid-word, and `tools/gen_screens.py` cannot reproduce
 that, so a label that overflows looks perfect in every mock-up.
 
+## A quiz that is a course
+
+Math, Multiplication and Counting keep each player's level between visits and
+deal every question of a level before any comes back. The pieces are
+`../engine/Course.h` (`Course::Ladder`, `Course::QuestionDeck`) and, for each
+game, a pure `<Game>Course.h` that knows its levels: how many questions each
+has, how to make question number `item`, and which wrong answers a player at
+that level actually gives. The game itself only wires the two together, in
+three places. From `MathGame`:
+
+```cpp
+void MathGame::begin(AppContext& host) {
+    score_ = 0;                                   // the visit's, not the level's
+    ladder_.start(MathCourse::LEVEL_COUNT, host.courseLevel());
+    startLevel();                                 // deck_.reset(poolSize(level)), recent_.reset()
+    newQuestion();
+}
+
+void MathGame::newQuestion() {
+    const uint8_t level = ladder_.level();
+    if (MathCourse::numbered(level)) {            // levels 1-5: a few dozen questions each
+        item_ = deck_.next(esp_random());
+        MathCourse::makeNumbered(level, item_, question_);
+    } else {                                      // levels 6-12: too many to number
+        for (uint8_t tries = 0; tries < 20; ++tries) {
+            MathCourse::makeDrawn(level, esp_random(), question_);
+            if (!recent_.recentlyUsed(MathCourse::token(level, question_))) break;
+        }
+        recent_.remember(MathCourse::token(level, question_));
+    }
+    MathCourse::makeOptions(level, question_, esp_random());
+}
+
+// in update(), on the one press a question gets:
+if (!right && MathCourse::numbered(ladder_.level())) {
+    deck_.missed(item_);                          // before the ladder moves
+}
+const Course::Ladder::Step step = ladder_.answer(right);
+if (step != Course::Ladder::Step::Up) right ? host.beepOk() : host.beepError();
+if (step != Course::Ladder::Step::Stay) {         // climb()
+    host.setCourseLevel(ladder_.level());
+    startLevel();                                 // a new level is a new deck
+    if (step == Course::Ladder::Step::Up) {
+        announceNext_ = ladder_.level();          // "Level 4: Cross ten" in the strip
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    }
+}
+```
+
+What each line is guarding against:
+
+- **`courseLevel()` in `begin()` only.** Not in `resume()`: a game taken up
+  again carries on with the ladder it has. And `begin()` is also New game on
+  the *Carry on?* question, which starts the score again and must not start
+  the level again.
+- **`setCourseLevel()` only on Up or Down.** Storing every answer would be a
+  flash write a question, and storing on the way out would write over a level
+  the console set while the game was open.
+- **`missed()` before `answer()`.** A step resets the deck, and an item number
+  means something only on the level that dealt it.
+- **One `answer()` per question.** Every screen in the family has one try; a
+  game that offers a second must not let the second move the ladder.
+- **The level's name, not a message about failing.** A step up names the new
+  level in the strip over its first question (Counting, whose strip is under
+  the picture, puts it on the question line and the question in the strip).
+  A step down says nothing.
+- **The wrong options are the course header's job, and its test's.** Each
+  `<Game>Course.h` builds them from the level's own mistakes -- the carry
+  forgotten, the smaller digit taken from the larger, the neighbouring fact --
+  places the answer at random among them, and its host test checks the answer
+  is not given away by where it ranks among the four (Math's, by its last
+  digit as well).
+  Noise around the answer does both of those, which is what these games had.
+
 ## Adding a game
 
 The full checklist lives in the root `CLAUDE.md` under "Adding a game or an app": work through that, not this summary. It covers the docs, the screenshots and the verification steps, which is where things have actually been shipped broken. The code edits alone are:
 
 1. In the game's own `.cpp`, add one `AppMetadata` declaration and a `...AppMetadata()` accessor. Keep `id` stable; blurb must stay under ~46 chars. The metadata block also owns launcher icon, launcher index and default visibility.
 2. If the game records a score, declare one `AppScoreInfo` there too and point the metadata at it.
+2b. If it asks questions at levels, make it a course (above): the level from `courseLevel()`, never from the score.
 3. `../engine/AppRegistry.cpp`: add a `metadataCatalogApp(...AppMetadata(), instance)` line at the same playable position as the metadata launcher index. `tools/check_catalog.py` verifies the index, icon binding and `AppGame` subclass.
 4. `../engine/AppRegistry.h`: update `PLAYABLE_APP_COUNT`.
 

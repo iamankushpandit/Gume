@@ -78,6 +78,7 @@ private:
     void cmdProfileRemove(int argc, char** argv, Print& out);
     void cmdGames(int argc, char** argv, Print& out);
     void cmdGame(int argc, char** argv, Print& out);
+    void cmdLevel(int argc, char** argv, Print& out);
     void replyIdentify(Print& out);
     void repaintAfterConsoleChange();
     void refreshAfterProfileChange();
@@ -197,8 +198,26 @@ private:
     void resumeKept(const AppDefinition& app);
     void settleCarryOn();
     void syncCourse();
+    /* The active player's level in the game called `id`. By id and not "the
+     * game that is open", because the console reads and sets the level of a
+     * game nobody has open; courseLevel() and setCourseLevel() are these two
+     * with the open game's id. storeCourseLevel() returns false for a track
+     * past COURSE_TRACKS or when every entry is taken, and then the level is
+     * not held anywhere. */
+    static uint16_t courseKey(const char* id, uint8_t track);
+    uint8_t courseLevelOf(const char* id, uint8_t track);
+    bool storeCourseLevel(const char* id, uint8_t track, uint8_t level);
     static constexpr uint8_t COURSE_SLOTS = 80;
     static constexpr uint8_t COURSE_ENTRY = 3;      // key low, key high, level
+    /* The track rides in the top bits of an entry's key, so how many tracks
+     * there are is how many bits it is given there. */
+    static constexpr uint8_t COURSE_TRACK_BITS = 2;
+    static constexpr uint8_t COURSE_TRACKS = 1U << COURSE_TRACK_BITS;
+    /* The highest level the console will set. The entry holds a byte, but no
+     * game's ladder comes near this, and Course::Ladder::start() brings a
+     * stored level past a game's top down to it -- so the cap is only there
+     * to refuse a number that can be nothing but a slip of the keyboard. */
+    static constexpr uint8_t COURSE_LEVEL_MAX = 63;
     const char* activeAppTitle() const;
 
     const AppDefinition& appById(const char* id) const;

@@ -22,6 +22,29 @@ either: a countdown or a stopwatch stops while its game is off the screen and
 while the console sleeps or is locked, where it used to run out behind a dark
 panel.
 
+**Math, Multiply and Counting remember how far each player has got.** All
+three started at level 1 on every visit and drew their questions at random,
+so the same sums came round again while others never came up at all. Each is
+now a course with many more levels -- twelve in Math, from sums to ten
+through number bonds, crossing ten, carrying and borrowing to three-digit
+sums and missing numbers; twelve in Multiply, from the twos, fives and tens
+through every table to missing numbers and division; seven in Counting, from
+counting to five through ten-frames, one more and one less, and tens and
+ones to counting in twos, fives and tens. Each player's level is kept between
+visits. It goes up after a run of right answers, with a flourish and the new
+level's name over its first question, and quietly back down after repeated
+misses. Every question of a level comes up before any comes back, and one
+answered wrong returns three questions later. The wrong buttons are the
+mistakes players really make -- a carry forgotten, a borrowed ten never paid
+back, the next fact along in a times table -- and the right answer no longer
+gives itself away by its last digit or by always sitting in the middle. Math's word problems now start at
+level 4 and never have one of anything. Multiply asks "Tap the missing
+number" or shows a division sign when that is the question. The bottom edge
+of the question panel in Multiply and Counting is no longer rubbed out on
+every answer, and Counting no longer reads a number range from an SD card.
+The serial console's new `level` command reads or sets the level of the
+player in use, and `games` with no slot lists every game id.
+
 **The Attaky Core is ported, on its own release line, and not published.**
 Its entries are under `attaky-1.0.0` below, because that build is tagged
 `attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. The

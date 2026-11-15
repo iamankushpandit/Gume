@@ -9,7 +9,17 @@
 
 #pragma once
 
+/* Arduino.h defines bit() as a macro, and Course.h has a member of that name,
+ * so whichever file reaches Arduino.h first would turn the deck's own helper
+ * into a shift and stop the build. The macro is set aside only while the
+ * header is read; nothing after it calls the deck's bit(). */
+#pragma push_macro("bit")
+#undef bit
+#include "engine/Course.h"
+#pragma pop_macro("bit")
 #include "engine/Game.h"
+#include "engine/RecentQuestions.h"
+#include "MathCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -21,53 +31,58 @@ public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    /* Two-phase. The equation panel belongs to the question, so it is static:
+    /* Two-phase. Only the top bar is static. The equation panel belongs to
+     * the question, so it is drawn once per question in renderDynamic():
      * answering recolours at most two of the four buttons and rewrites one
      * line, and the sum above them does not move. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
     /* Endless, with no menu and no result screen, so the only empty case is a
-     * visit with no correct answer in it yet. */
+     * visit with no correct answer in it yet. The level is not a reason to
+     * keep the game: it is stored, and New game finds it where it was. */
     Keep keepsGame() const override;
     void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
-    enum class Operation : uint8_t {
-        Add,
-        Subtract
-    };
-
     Rect answerRect(uint8_t index) const;
+    void startLevel();
     void newQuestion();
-    void makeOptions();
-    void makeWordProblem();
-    uint8_t level() const;
-    bool optionExists(int16_t value, uint8_t upTo) const;
+    void climb(AppContext& host, Course::Ladder::Step step);
     uint16_t elapsedSeconds() const;
     void formatSeconds(uint16_t seconds, char* out, size_t len) const;
     void updateBest(AppContext& host);
     void drawQuestion(Ui::Renderer& tft);
 
-    int16_t left_ = 0;
-    int16_t right_ = 0;
-    int16_t answer_ = 0;
-    int16_t options_[4] = {};
+    /* The question on screen and its four options, all made once when it is
+     * dealt (games/MathCourse.h says what each level asks). */
+    MathCourse::Question question_;
+    /* Where this player is in the course, kept by the runtime between visits,
+     * and how the level's questions are dealt: the deck on the five levels
+     * small enough to number, so every one comes up before any comes back,
+     * and RecentQuestions on the levels above, where there are too many. */
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    RecentQuestions recent_;
+    uint16_t item_ = 0;
+    /* The level the prompt strip names for this question, after a step up;
+     * 0 for the plain "Tap the answer". Set for the question after the one
+     * that climbed, because that is the first question of the new level. */
+    uint8_t announce_ = 0;
+    uint8_t announceNext_ = 0;
 
     /* The same sum, in words.
      *
      * A young player who can answer "12 - 7 = ?" often cannot answer "Nia has 12
      * shells and gives 7 away", and the second is the one that turns up in
-     * school and in life. So from level 2 some questions are dressed as a
+     * school and in life. So from level 4 some questions are dressed as a
      * story: the arithmetic underneath is unchanged and so are the four
      * buttons, which is what keeps this a variation on the screen rather than
      * a second screen.
      *
      * A fixed buffer rather than a String, and filled once per question: the
      * memory rule in the root CLAUDE.md is about small allocations repeated
-     * for hours, and a quiz question every few seconds is exactly that shape.
-     * 128 is the longest template with three-digit numbers and the longest
-     * name and noun in the tables, plus room. */
-    char problem_[128] = {};
+     * for hours, and a quiz question every few seconds is exactly that shape. */
+    char problem_[MathCourse::STORY_MAX] = {};
     bool wordProblem_ = false;
 
     /* What each button currently shows: 0 unanswered, 1 correct, 2 wrong.
@@ -82,8 +97,6 @@ private:
     /* The equation panel is dynamic, not static: a new question changes it,
      * and a new question must not cost a full repaint. See renderDynamic(). */
     bool drawnQuestion_ = false;
-    uint8_t correctButton_ = 0;
-    Operation operation_ = Operation::Add;
     uint16_t score_ = 0;
     uint16_t streak_ = 0;
     uint16_t bestCorrect_ = 0;
