@@ -158,6 +158,16 @@ uint8_t pending[128 * 2 * sizeof(int16_t)];
 size_t pendingLength = 0;
 size_t pendingAt = 0;
 
+/* A held note is re-armed on the wall clock while the generator runs one DMA
+ * ahead of the speaker; the re-arm has to land before that lead has eaten the
+ * note, with two 40ms frames -- the firmware's own threshold for a bad one --
+ * to spare. See SOUND_NOTE_REARM_MS. */
+static_assert(SOUND_NOTE_REARM_MS
+                  + (DMA_BUF_COUNT * DMA_BUF_LEN + BLOCK_FRAMES) * 1000 / AUDIO_RATE
+                  + 2 * 40
+                  <= SOUND_NOTE_MS,
+              "a held note would fade out before PianoGame asks for it again");
+
 /* ------------------------------------------------------------- authoring
  *
  * A cue is a const Segment array; `arm()` copies it in and starts it. Copying

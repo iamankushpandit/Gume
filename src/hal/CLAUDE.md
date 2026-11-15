@@ -556,6 +556,13 @@ Separately, and on both backends, **a sound fades out as well as in**: a
 spent script keeps its last waveform running while the gain slews to zero
 (`RELEASE_FLOOR`, ~25ms), because stopping a sine at its crest is a step of
 the full amplitude. Mute uses the same fade rather than cutting.
+A rest inside a script fades the same way: it keeps the last sounding
+segment's waveform running while the gain falls, because a rest that
+outputs zero from its first sample is the same step (`AudioSynth.cpp`;
+`test/host/audio_synth_test.cpp` fails on it). And a held note is asked for
+again every `SOUND_NOTE_REARM_MS`, well inside `SOUND_NOTE_MS`, because
+the generator runs a DMA ahead of the speaker -- `BoardAudio.cpp`
+static_asserts the margin.
 
 **The sample rate is not the same on both backends, and this is measured.** The
 built-in DAC's clock divider cannot reach low rates: below 22050 Hz it wraps

@@ -29,6 +29,25 @@ int32_t segLeft = 0;         // samples of it still to generate
 /* The script is spent and the last segment is fading out. See nextSample(). */
 bool releasing = false;
 
+/* A REST IS FADED INTO, NOT FALLEN INTO.
+ *
+ * A Silence segment used to output zero from its first sample. The gain
+ * slewed towards the rest's level of 0 perfectly smoothly -- and multiplied
+ * a waveform that was already 0, so the slew did nothing and the sound
+ * stopped dead wherever its waveform stood. A sine stopped at its crest is a
+ * step of the whole amplitude; Wrong's first buzz is 160 Hz at amp 100, so
+ * that step was 30,000 of 32,000 counts. Every cue with a rest in it clicked
+ * at the rest -- Wrong, Your Turn, High Score and the Bell -- and so did the
+ * spoken phrase at its pauses, and at its very end, which is a rest.
+ *
+ * So a rest keeps the last sounding segment's waveform running, at that
+ * segment's final pitch, while the gain fades to the rest's level, exactly as
+ * the release at the end of a script does. `voiceAt` is that segment. By the
+ * time the rest is over the gain is a few parts in a hundred thousand, so the
+ * next sound starts from silence as it always did. */
+uint8_t voiceAt = 0;
+bool hasVoice = false;
+
 /* A two-pole resonator. The input coefficient is sin(theta) rather than the
  * textbook (1 - b1 - b2): that normalises the PEAK of the impulse response to
  * roughly 1.0 whatever the centre frequency. Without it F2 comes out several
@@ -146,6 +165,10 @@ void startSegment() {
     if (segTotal < 1) segTotal = 1;
     segLeft = segTotal;
     gainTarget = s.amp * 0.01f;
+    if (s.wave != Wave::Silence) {
+        voiceAt = scriptAt;
+        hasVoice = true;
+    }
 
     switch (s.wave) {
         case Wave::Noise:
@@ -212,6 +235,7 @@ void synthLoad(const Segment* segments, uint8_t count) {
         }
         phase = 0.0f;
         pitchCounter = 0;
+        hasVoice = false;
     }
     playing = true;
     releasing = false;
@@ -245,11 +269,16 @@ bool nextSample(int16_t& out) {
         return false;
     }
 
-    const Segment& s = script[scriptAt];
     if (!releasing) --segLeft;   // a release holds the segment's last pitch
 
+    /* What sounds is the segment being played, or in a rest the one before
+     * it, fading. `carried` is true in the rest, and holds the pitch where
+     * that segment ended. */
+    const bool carried = voiceAt != scriptAt;
+    const Segment& s = script[voiceAt];
+
     float value = 0.0f;
-    switch (s.wave) {
+    switch (hasVoice ? s.wave : Wave::Silence) {
         case Wave::Silence:
             break;
 
@@ -258,7 +287,8 @@ bool nextSample(int16_t& out) {
             /* A sweep is linear across the segment. `progress` runs 0 to 1,
              * so a segment with a == b costs the same arithmetic and simply
              * does not move. */
-            const float progress = 1.0f - static_cast<float>(segLeft) / segTotal;
+            const float progress =
+                carried ? 1.0f : 1.0f - static_cast<float>(segLeft) / segTotal;
             const float hz = s.a + (static_cast<float>(s.b) - s.a) * progress;
             phase += hz / rate;
             if (phase >= 1.0f) phase -= 1.0f;
