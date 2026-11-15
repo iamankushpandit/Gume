@@ -1009,8 +1009,8 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   screen, and reaches nothing the padlock does not. The long press switches
   the power in hardware and never reaches the firmware -- build nothing on
   it.
-- **A physical keyboard types into the text fields, beside the on-screen
-  keypad and never instead of it.** `KeyboardProfile` names the two halves
+- **A physical keyboard types into the text fields, and while it does, the
+  on-screen keypad is off -- one tap away, never gone.** `KeyboardProfile` names the two halves
   of Attaky's clip-on keyboard and spells out each half's 25 positions;
   the module table probes both at boot and the keyboard is off unless both
   answer, because the module is detachable. `Board::pollTypedChar()` reads one
@@ -1031,6 +1031,22 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the last touch's, and running the hit tests would press that again.
   Each screen reads it through `hostTypedChar()`, a constant 0 where
   `GUME_HAS_KEYBOARD` is off, so the boards without one carry none of this.
+  **With the keyboard found at boot, those five fields draw no keypad**
+  (`ui/TypingPanel.h`): the field is drawn larger, the PIN's dots too, with
+  "Type on the keyboard" under it, and only what is not a key stays -- OK or
+  JOIN, Cancel or Back, Show. No DEL: the keyboard has Delete. Three things
+  are load-bearing. **Each screen keeps a `Ui::KeypadChoice`, decided as
+  the field opens**, so the choice is per visit and the next visit asks
+  again. **A keyboard button on every one of them brings the keypad back
+  for that visit** -- the module comes off and boot is the only time
+  anybody looks, so without it a field could be reachable only by key, and
+  it is also the way to a password symbol the keyboard lacks. **And the
+  keypad comes back by itself when the keyboard stops answering**:
+  `Modules::keyboardAnswering()` counts the per-frame scan's own failures
+  (five in a row is gone), and each screen asks `KeypadChoice::lost()`
+  every frame and repaints fully on a yes. Elsewhere `KeypadChoice` is an
+  empty class with a constant-false `hidden()` and the drawing helpers are
+  inline no-ops, so every screen's branch folds away.
 - **The profile says where a module could be; boot decides whether it is
   there.** A board that takes plug-in modules -- the Attaky Core's keyboard,
   gamepad, Power module and Expand modules all come off -- states in its
@@ -1727,7 +1743,10 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           file a module -- keyboard, gamepad, fuel gauge,
                           the three Expand modules), Clock, Watchdog
 src/ui/                   Renderer, TftRenderer, PaintClip (the arithmetic of
-                          the renderer's paint clip), Ui, Keypad, LauncherIcons,
+                          the renderer's paint clip), Ui, Keypad,
+                          TypingPanel (a text field with the keyboard
+                          typing: no keypad, and the button that brings it
+                          back), LauncherIcons,
                           FocusRecorder (the controls on the panel, as
                           drawn), FocusMath (where the selector goes next;
                           shared with the Linux host),

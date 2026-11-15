@@ -90,6 +90,11 @@ bool s_panelAsleep = false;
  * would leave the light on until somebody pressed a key. */
 bool s_lightPending = false;
 
+/* Scans that failed in a row, and how many say the keyboard has gone: five
+ * frames, a tenth of a second, so one bus glitch does not count. */
+uint8_t s_failedScans = 0;
+constexpr uint8_t GONE_AFTER_FAILED_SCANS = 5;
+
 /* A light the bench's light test is holding on, as the bit of P1 it drives
  * low: one per half, 0 for none. See lightStep(). */
 uint8_t s_testLow[2] = {0, 0};
@@ -223,9 +228,17 @@ char typedChar() {
     uint32_t down[2];
     for (uint8_t half = 0; half < 2; ++half) {
         if (!scanHalf(address[half], down[half])) {
+            if (s_failedScans < 0xFF) ++s_failedScans;
+            if (s_failedScans == GONE_AFTER_FAILED_SCANS) {
+                Serial.println("[keyboard] not answering");
+            }
             return 0;
         }
     }
+    if (s_failedScans >= GONE_AFTER_FAILED_SCANS) {
+        Serial.println("[keyboard] answering again");
+    }
+    s_failedScans = 0;
 
     bool shift = false;
     bool otherFresh = false;
@@ -312,5 +325,9 @@ constexpr Modules::Driver DRIVER = {
 const Modules::Registration REGISTRATION(DRIVER);
 
 }  // namespace
+
+bool Modules::keyboardAnswering() {
+    return s_failedScans < GONE_AFTER_FAILED_SCANS;
+}
 
 #endif  /* GUME_HAS_KEYBOARD */

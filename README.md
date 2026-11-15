@@ -1799,6 +1799,7 @@ src/
     FocusMath.h         where the selector goes next (shared with host/)
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
+    TypingPanel.cpp     a text field with a clip-on keyboard typing: no keypad
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
     Stops.cpp           whether a board takes a press now, for the d-pad
 host/

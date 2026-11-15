@@ -178,6 +178,27 @@ caller: 26px on a 320px landscape panel, 42px on the 4-inch, and **20px in
 240px portrait**, which is the narrowest target in the firmware and is only
 usable because `TOUCH_HIT_SLOP` widens it. Do not add an eleventh column.
 
+## TypingPanel -- the keypad's absence
+
+On a board with `GUME_HAS_KEYBOARD`, with the clip-on keyboard found at boot,
+the five text fields (a player's name, a Nearby peer's, both admin PIN pads,
+the Wi-Fi password) leave `Ui::Keypad` -- or Wi-Fi's own grid -- off.
+`TypingPanel.h` holds what they share: `KeypadChoice`, decided by `begin()`
+as the field opens and kept for that visit; `Typing::fieldRect()`, the larger
+field centred in the space the keypad left; the hint line; and the bottom
+row -- the keyboard button at the left, OK at the right, Cancel staying
+centred where it was. **The keyboard button is not optional**: it is what
+keeps every field reachable by touch with the module off, and the way to the
+symbols the keyboard does not have. `KeypadChoice::lost()` turns the keypad
+back on, once, when `Modules::keyboardAnswering()` goes false, and the screen
+repaints fully -- the layout changed, so this is a scene change. The button
+is a `drawButton()` with a glyph drawn inside it, so the d-pad's selector
+finds it like any other control. Without the keyboard macro `KeypadChoice` is
+an empty class whose `hidden()` is a constant false and the helpers are
+inline no-ops, so the screens need no `#if` and the image carries nothing.
+`tools/gen_screens.py` draws two of these screens (`profiles-rename-typing`,
+`profiles-pin-typing`), in landscape only.
+
 ## RowList
 
 `RowList` is the scrolling label/value widget System Info is built from — sections, text rows, meters and a tappable action chip, with scrollbar and clamping.

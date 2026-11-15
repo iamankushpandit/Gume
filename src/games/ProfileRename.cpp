@@ -33,6 +33,17 @@ void ProfileApp::updateRename(GameHost& host, const TouchPoint& touch) {
         markFullDirty();
         return;
     }
+    if (keypad_.hidden()) {
+        /* A keyboard is typing the name: Cancel, the keyboard button and OK
+         * are all there is to press. */
+        if (Ui::Typing::toggleRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            keypad_.show();
+            markFullDirty();
+        } else if (Ui::Typing::acceptRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            applyRenameKey(host, Ui::Keypad::ACCEPT);
+        }
+        return;
+    }
     /* Shift keyboard up so Cancel (at bottom) sits above it, both visible.
      * Portrait: keyboard bottom (default) = 92 + 160 + 36 = 288.
      * Cancel top = 290.  Gap = 2px.  For 4px gap: keyboard bottom = 286.
@@ -89,7 +100,11 @@ void ProfileApp::renderRename(GameHost& host) {
 
     tft.drawString(editing_ == 0xFF ? "New player" : "Name", W / 2, 8, 2);
     const int16_t fieldW = static_cast<int16_t>(min<int16_t>(240, W - 40));
-    const Rect field{static_cast<int16_t>((W - fieldW) / 2), 28, fieldW, 30};
+    /* With the keypad off the field takes its space: wider, taller, and in
+     * the middle of the panel with the hint under it. */
+    const Rect field = keypad_.hidden()
+        ? Ui::Typing::fieldRect(W, H, 28)
+        : Rect{static_cast<int16_t>((W - fieldW) / 2), 28, fieldW, 30};
     tft.fillRoundRect(field.x, field.y, field.w, field.h, 4, Ui::surface());
     tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::surface());
@@ -101,6 +116,12 @@ void ProfileApp::renderRename(GameHost& host) {
     Ui::drawButton(tft, renameCancelRect(W, H), "Cancel", Ui::panel(), Ui::outline(),
                    Ui::text(), false, 1);
 
-    Ui::Keypad::draw(tft, W, H, Ui::Keypad::FOOTER_BUTTON);
+    if (keypad_.hidden()) {
+        Ui::Typing::drawHint(tft, W, static_cast<int16_t>(field.y + field.h + 10));
+        Ui::Typing::drawToggle(tft, Ui::Typing::toggleRect(W, H));
+        Ui::Typing::drawAccept(tft, Ui::Typing::acceptRect(W, H), "OK");
+    } else {
+        Ui::Keypad::draw(tft, W, H, Ui::Keypad::FOOTER_BUTTON);
+    }
     tft.setTextDatum(TL_DATUM);
 }

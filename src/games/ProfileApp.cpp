@@ -152,6 +152,11 @@ uint8_t ProfileApp::profileForRow(Board& board, uint8_t row) const {
 }
 
 void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
+    /* The keyboard came off with its field open and the keypad left off:
+     * put the keypad back, so the field can still be finished. */
+    if ((phase_ == Phase::Rename || phase_ == Phase::PinEntry) && keypad_.lost()) {
+        markFullDirty();
+    }
     const char typed = hostTypedChar(host);
     if (!touch.justPressed && typed == 0) return;
     if (!host.requireCapability(APP_CAP_PROFILES, "manage profiles")) {
@@ -211,6 +216,7 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
             editing_ = 0xFF;
             draft_ = "";
             phase_ = Phase::Rename;
+            keypad_.begin();
             markFullDirty();
             return;
         }
@@ -225,6 +231,7 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
             editing_ = menuFor_;
             draft_ = board.profileName(menuFor_);
             phase_ = Phase::Rename;
+            keypad_.begin();
             markFullDirty();
             return;
         }

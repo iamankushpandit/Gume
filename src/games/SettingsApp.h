@@ -11,6 +11,7 @@
 
 #include "BoardConfig.h"
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 /*
@@ -153,6 +154,9 @@ private:
     uint8_t enteredPinDigits_ = 0;
 
     PinTask pinTask_ = PinTask::None;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
     uint16_t pendingPin_ = 0;   // first entry of a new PIN, awaiting confirmation
 
     /* WHICH CONTROL CHANGED, so the repaint can be that control rather than

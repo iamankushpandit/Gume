@@ -11,6 +11,7 @@
 
 #include "BoardConfig.h"
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 class WifiApp : public Game {
@@ -31,6 +32,9 @@ private:
     static const char KEYS_SYMBOL[4][11];
 
     Phase phase_ = Phase::Idle;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
     int8_t netCount_ = 0;
     int8_t selectedNet_ = -1;
     uint8_t listPage_ = 0;

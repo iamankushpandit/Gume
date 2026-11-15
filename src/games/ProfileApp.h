@@ -10,6 +10,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 class ProfileApp : public Game {
@@ -112,4 +113,7 @@ private:
     uint8_t profileToSwitchTo_ = 0;
     PinPurpose pinPurpose_ = PinPurpose::Switch;
     String draft_;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
 };

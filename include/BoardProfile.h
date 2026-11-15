@@ -224,8 +224,11 @@ struct KeysProfile {
  * Optional twice over: a board without one says keyboardLeft 0, and a board
  * that can carry one may not have it attached -- the module is detachable,
  * so Board::begin() probes both addresses and the keyboard is off unless
- * both answer. Nothing may become reachable only by typing; every text field
- * keeps its on-screen keypad. */
+ * both answer. Nothing may become reachable only by typing: with the keyboard
+ * found, a text field leaves its on-screen keypad off, and a button on it
+ * brings the keypad back (ui/TypingPanel.h). Those fields draw no DEL then,
+ * because this layout has Delete ('<'); a keyboard without one would need
+ * it back. */
 struct KeyboardProfile {
     uint8_t     keyboardLeft;     // the left half's AW9523, or 0
     uint8_t     keyboardRight;    // the right half's AW9523
