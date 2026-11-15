@@ -47,11 +47,13 @@
 #include "HostFocus.h"
 #include "HostLed.h"
 #include "HostPlatform.h"
+#include "BoardConfig.h"
 
 #include <SDL.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
@@ -59,14 +61,22 @@
 #include <cstring>
 #include <random>
 #include <thread>
+#include <vector>
 
 #include <TFT_eSPI.h>
 
 namespace HostPlatform {
 namespace {
 
-constexpr int FRAME_W = TFT_eSPI::FRAME_W;
-constexpr int FRAME_H = TFT_eSPI::FRAME_H;
+/* The panel, in the landscape frame: found by begin() (findPanel()) and
+ * fixed from then on. The panel shim's frame is exactly this size. */
+int FRAME_W = 640;
+int FRAME_H = 480;
+/* How many panel pixels each pixel of the 320x240 canvas stands for, as a
+ * whole number: the cursor, its speed and a list's scrolling are stated per
+ * canvas pixel and multiplied by this, so they look and feel the same at any
+ * resolution. 1 on a 320x240 panel. */
+int uiScale = 2;
 constexpr uint32_t PRESENT_INTERVAL_MS = 16;
 constexpr int STICK_DEADZONE = 8000;
 /* The stick at full push, in canvas pixels per second. */
@@ -428,7 +438,7 @@ void pumpEvents() {
                 break;
             case SDL_KEYUP: onKey(e.key.keysym.sym, false); break;
             /* With a logical size set, SDL has already mapped mouse
-             * coordinates into the 320x240 frame, letterbox and all. */
+             * coordinates into the panel's frame, letterbox and all. */
             case SDL_MOUSEBUTTONDOWN:
                 if (e.button.button == SDL_BUTTON_LEFT) {
                     mouseDown = true;
@@ -490,9 +500,9 @@ void stepDrag(int dir, const TFT_eSPI::ScrollArea& area, float dt, uint32_t now)
     if (now < drag.liftedUntilMs) return;
     /* Kept well inside the list: a touch lands within TOUCH_HIT_SLOP of what
      * is next to it, and a grab just under a tab strip pressed the tab. */
-    const float lo = static_cast<float>(area.y0 + SCROLL_INSET);
-    const float hi = static_cast<float>(area.y1 - SCROLL_INSET);
-    if (hi - lo < 8.0f) return;
+    const float lo = static_cast<float>(area.y0 + SCROLL_INSET * uiScale);
+    const float hi = static_cast<float>(area.y1 - SCROLL_INSET * uiScale);
+    if (hi - lo < 8.0f * uiScale) return;
     if (!drag.active) {
         /* The finger moves against the direction of travel, as on glass:
          * to see further down, it pushes the list up. */
@@ -501,7 +511,7 @@ void stepDrag(int dir, const TFT_eSPI::ScrollArea& area, float dt, uint32_t now)
         drag.y = dir > 0 ? hi : lo;
         return;
     }
-    drag.y -= static_cast<float>(dir) * SCROLL_SPEED * dt;
+    drag.y -= static_cast<float>(dir) * SCROLL_SPEED * uiScale * dt;
     if (drag.y < lo || drag.y > hi) {
         drag.active = false;
         drag.liftedUntilMs = now + SCROLL_REGRAB_MS;
@@ -641,8 +651,8 @@ void stepCursor(uint32_t now) {
         const float sign = v < 0 ? -1.0f : 1.0f;
         return sign * (std::abs(v) - STICK_DEADZONE) / (32767.0f - STICK_DEADZONE);
     };
-    cursorX += axis(stickX) * CURSOR_FAST * dt;
-    cursorY += axis(stickY) * CURSOR_FAST * dt;
+    cursorX += axis(stickX) * CURSOR_FAST * uiScale * dt;
+    cursorY += axis(stickY) * CURSOR_FAST * uiScale * dt;
 
     if (cursorX < 0) cursorX = 0;
     if (cursorY < 0) cursorY = 0;
@@ -663,12 +673,13 @@ void stepCursor(uint32_t now) {
     } else if (!pressing && push != 0.0f && panel && panel->scrollArea(area) &&
         cursorX >= area.x0 && cursorX <= area.x1 && startY >= area.y0 - 1 &&
         startY <= area.y1) {
-        if (push > 0.0f && cursorY >= area.y1 - SCROLL_EDGE && area.moreBelow) {
+        const int edge = SCROLL_EDGE * uiScale;
+        if (push > 0.0f && cursorY >= area.y1 - edge && area.moreBelow) {
             dir = 1;
-            cursorY = static_cast<float>(area.y1 - SCROLL_EDGE);
-        } else if (push < 0.0f && cursorY <= area.y0 + SCROLL_EDGE && area.moreAbove) {
+            cursorY = static_cast<float>(area.y1 - edge);
+        } else if (push < 0.0f && cursorY <= area.y0 + edge && area.moreAbove) {
             dir = -1;
-            cursorY = static_cast<float>(area.y0 + SCROLL_EDGE);
+            cursorY = static_cast<float>(area.y0 + edge);
         }
     }
     stepDrag(dir, area, dt, now);
@@ -694,17 +705,19 @@ void drawCursor() {
     const int x = static_cast<int>(cursorX);
     const int y = static_cast<int>(cursorY);
     const bool pressing = padTouch || padStickClick || keyTouch;
-    /* A plain crosshair in a contrasting pair, so it reads on every theme. */
+    /* A plain crosshair in a contrasting pair, so it reads on every theme:
+     * arms of six canvas pixels, a canvas pixel thick, whatever the panel. */
+    const int k = uiScale, arm = 6 * k;
+    const SDL_Rect shadow[2] = {{x - arm, y + k, 2 * arm + k, k}, {x + k, y - arm, k, 2 * arm + k}};
+    const SDL_Rect light[2] = {{x - arm, y, 2 * arm + k, k}, {x, y - arm, k, 2 * arm + k}};
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderDrawLine(renderer, x - 6, y + 1, x + 6, y + 1);
-    SDL_RenderDrawLine(renderer, x + 1, y - 6, x + 1, y + 6);
+    SDL_RenderFillRects(renderer, shadow, 2);
     if (pressing) {
         SDL_SetRenderDrawColor(renderer, 255, 210, 0, 255);
     } else {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     }
-    SDL_RenderDrawLine(renderer, x - 6, y, x + 6, y);
-    SDL_RenderDrawLine(renderer, x, y - 6, x, y + 6);
+    SDL_RenderFillRects(renderer, light, 2);
 }
 
 /* A ring two pixels thick, just outside the control and in a contrasting pair,
@@ -941,11 +954,12 @@ void drmCursor(uint32_t* buf, int stride) {
     const int x = static_cast<int>(cursorX);
     const int y = static_cast<int>(cursorY);
     const bool pressing = padTouch || padStickClick || keyTouch;
-    drmFill(buf, stride, x - 6, y + 1, 13, 1, DRM_BLACK);
-    drmFill(buf, stride, x + 1, y - 6, 1, 13, DRM_BLACK);
+    const int k = uiScale, arm = 6 * k;
+    drmFill(buf, stride, x - arm, y + k, 2 * arm + k, k, DRM_BLACK);
+    drmFill(buf, stride, x + k, y - arm, k, 2 * arm + k, DRM_BLACK);
     const uint32_t c = pressing ? DRM_YELLOW : DRM_WHITE;
-    drmFill(buf, stride, x - 6, y, 13, 1, c);
-    drmFill(buf, stride, x, y - 6, 1, 13, c);
+    drmFill(buf, stride, x - arm, y, 2 * arm + k, k, c);
+    drmFill(buf, stride, x, y - arm, k, 2 * arm + k, c);
 }
 
 void drmSelector(uint32_t* buf, int stride) {
@@ -964,6 +978,11 @@ void drmPresent(uint32_t now) {
     uint32_t* buf = HostDrm::backBuffer(stride);
     if (!buf) return;
     const int screenW = HostDrm::width(), screenH = HostDrm::height();
+    /* The frame is the size of the panel found at start-up. An output that
+     * came along later and is smaller than it (a television in a mode below
+     * the panel's) cannot hold it, so it stays dark rather than be written
+     * past its edge. */
+    if (screenW < FRAME_W || screenH < FRAME_H) return;
     if (drmBordersDirty > 0) {
         for (int y = 0; y < screenH; ++y) {
             const bool inRows = y >= drmOffY && y < drmOffY + FRAME_H * drmScale;
@@ -985,7 +1004,9 @@ void drmPresent(uint32_t now) {
     if (!lutValid || mod != lutMod) drmBuildLut(mod);
 
     const uint16_t* src = panel->frame();
-    uint32_t line[FRAME_W];
+    static std::vector<uint32_t> lineBuf;
+    lineBuf.resize(FRAME_W);
+    uint32_t* line = lineBuf.data();
     for (int y = 0; y < FRAME_H; ++y) {
         const uint16_t* s = src + y * FRAME_W;
         for (int x = 0; x < FRAME_W; ++x) {
@@ -1119,7 +1140,40 @@ void adoptConsole() {
     if (!line.empty()) std::printf("[console] no job:%s\n", line.c_str());
 }
 
+/* The panel's size, from the first of: BRAINO_PANEL=WxH; the display mode,
+ * on a handheld (DRM) or a fullscreen desktop; otherwise 640x480, the
+ * RG40XX V's, so a PC window shows what the handheld will. Clamped up to the
+ * game canvas, which is the smallest panel src/ accepts. A display reported
+ * the other way up is taken as landscape: the frame is landscape at rotation
+ * 1 (host/boards/host.h). */
+void findPanel(int foundW, int foundH, const char* from) {
+    int w = foundW, h = foundH;
+    if (const char* env = std::getenv("BRAINO_PANEL")) {
+        int ew = 0, eh = 0;
+        if (std::sscanf(env, "%dx%d", &ew, &eh) == 2 && ew > 0 && eh > 0) {
+            w = ew;
+            h = eh;
+            from = "BRAINO_PANEL";
+        } else {
+            std::fprintf(stderr, "[host] BRAINO_PANEL=%s is not WxH; ignored\n", env);
+        }
+    }
+    if (h > w) std::swap(w, h);
+    if (w < GAME_CANVAS_WIDTH) w = GAME_CANVAS_WIDTH;
+    if (h < GAME_CANVAS_HEIGHT) h = GAME_CANVAS_HEIGHT;
+    FRAME_W = w;
+    FRAME_H = h;
+    uiScale = std::min(w / GAME_CANVAS_WIDTH, h / GAME_CANVAS_HEIGHT);
+    if (uiScale < 1) uiScale = 1;
+    cursorX = FRAME_W / 2.0f;
+    cursorY = FRAME_H / 2.0f;
+    std::printf("[host] panel %dx%d (%s)\n", FRAME_W, FRAME_H, from);
+}
+
 }   // namespace
+
+int panelWidth() { return FRAME_W; }
+int panelHeight() { return FRAME_H; }
 
 bool begin(int argc, char** argv) {
     (void)argc;
@@ -1135,6 +1189,7 @@ bool begin(int argc, char** argv) {
         return false;
     }
     if (!HostDrm::begin()) return false;
+    findPanel(HostDrm::width(), HostDrm::height(), "display mode");
     drmLayout();
     for (int i = 0; i < SDL_NumJoysticks(); ++i) openController(i);
     parseScripts();
@@ -1151,9 +1206,18 @@ bool begin(int argc, char** argv) {
      * a window. BRAINO_FULLSCREEN=1 forces the first. */
     const char* fs = std::getenv("BRAINO_FULLSCREEN");
     const bool fullscreen = fs && fs[0] == '1';
+    SDL_DisplayMode mode;
+    if (fullscreen && SDL_GetDesktopDisplayMode(0, &mode) == 0) {
+        findPanel(mode.w, mode.h, "desktop");
+    } else {
+        findPanel(640, 480, "default");
+    }
     const uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_RESIZABLE;
+    /* A canvas-sized panel would be a postage stamp on a desktop, so its
+     * window opens at twice the size; any other opens at the panel's own. */
+    const int windowScale = uiScale == 1 ? 2 : 1;
     window = SDL_CreateWindow("Braino!", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                              FRAME_W * 2, FRAME_H * 2, flags);
+                              FRAME_W * windowScale, FRAME_H * windowScale, flags);
     if (!window) {
         std::fprintf(stderr, "[host] window: %s\n", SDL_GetError());
         return false;
@@ -1182,8 +1246,8 @@ bool begin(int argc, char** argv) {
 }
 
 void outputSize(int& w, int& h) {
-    w = FRAME_W * 2;
-    h = FRAME_H * 2;
+    w = FRAME_W;
+    h = FRAME_H;
 #if GUME_HOST_DRM
     w = HostDrm::width();
     h = HostDrm::height();
@@ -1233,7 +1297,7 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
         if (!image) return !quit;
     }
     SDL_UpdateTexture(image, nullptr, rgb, w * 3);
-    /* Step out of the 320x240 logical size for this one picture, and back. */
+    /* Step out of the panel's logical size for this one picture, and back. */
     SDL_RenderSetLogicalSize(renderer, 0, 0);
     SDL_RenderSetIntegerScale(renderer, SDL_FALSE);
     SDL_RenderSetViewport(renderer, nullptr);

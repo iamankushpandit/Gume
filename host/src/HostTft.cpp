@@ -75,7 +75,13 @@ void TFT_eSPI::begin(uint8_t) {
     resetViewport();
     clipOn_ = false;
     forgetMarks();
-    std::fill(std::begin(frame_), std::end(frame_), 0);
+    /* The panel HostPlatform found before the firmware started: the frame is
+     * exactly that size, so the firmware draws at the panel's own
+     * resolution (src/hal/PanelSize.h). */
+    frameW_ = static_cast<int16_t>(HostPlatform::panelWidth());
+    frameH_ = static_cast<int16_t>(HostPlatform::panelHeight());
+    frame_.assign(static_cast<size_t>(frameW_) * frameH_, 0);
+    resetViewport();
     ++frameGen_;
     HostPlatform::attachPanel(this);
 }
@@ -107,17 +113,17 @@ void TFT_eSPI::writecommand(uint8_t c) {
 
 int16_t TFT_eSPI::width() const {
     if (vpDatum_) return static_cast<int16_t>(vpW_);
-    return (rotation_ & 1) ? FRAME_W : FRAME_H;
+    return (rotation_ & 1) ? frameW_ : frameH_;
 }
 
 int16_t TFT_eSPI::height() const {
     if (vpDatum_) return static_cast<int16_t>(vpH_);
-    return (rotation_ & 1) ? FRAME_H : FRAME_W;
+    return (rotation_ & 1) ? frameH_ : frameW_;
 }
 
 void TFT_eSPI::setViewport(int32_t x, int32_t y, int32_t w, int32_t h, bool vpDatum) {
-    const int32_t lw = (rotation_ & 1) ? FRAME_W : FRAME_H;
-    const int32_t lh = (rotation_ & 1) ? FRAME_H : FRAME_W;
+    const int32_t lw = (rotation_ & 1) ? frameW_ : frameH_;
+    const int32_t lh = (rotation_ & 1) ? frameH_ : frameW_;
     int32_t x1 = std::min(x + w, lw);
     int32_t y1 = std::min(y + h, lh);
     x = std::max<int32_t>(x, 0);
@@ -133,8 +139,8 @@ void TFT_eSPI::setViewport(int32_t x, int32_t y, int32_t w, int32_t h, bool vpDa
 void TFT_eSPI::resetViewport() {
     vpX_ = 0;
     vpY_ = 0;
-    vpW_ = (rotation_ & 1) ? FRAME_W : FRAME_H;
-    vpH_ = (rotation_ & 1) ? FRAME_H : FRAME_W;
+    vpW_ = (rotation_ & 1) ? frameW_ : frameH_;
+    vpH_ = (rotation_ & 1) ? frameH_ : frameW_;
     vpDatum_ = false;
     vpActive_ = false;
 }
@@ -149,11 +155,11 @@ bool TFT_eSPI::toFrame(int32_t x, int32_t y, int32_t& fx, int32_t& fy) const {
      * coordinates at this rotation into the rotation-1 frame. */
     switch (rotation_) {
         case 1: fx = x; fy = y; break;
-        case 3: fx = FRAME_W - 1 - x; fy = FRAME_H - 1 - y; break;
-        case 2: fx = FRAME_W - 1 - y; fy = x; break;
-        default: fx = y; fy = FRAME_H - 1 - x; break;   // 0
+        case 3: fx = frameW_ - 1 - x; fy = frameH_ - 1 - y; break;
+        case 2: fx = frameW_ - 1 - y; fy = x; break;
+        default: fx = y; fy = frameH_ - 1 - x; break;   // 0
     }
-    return fx >= 0 && fy >= 0 && fx < FRAME_W && fy < FRAME_H;
+    return fx >= 0 && fy >= 0 && fx < frameW_ && fy < frameH_;
 }
 
 void TFT_eSPI::setPaintClip(int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -188,7 +194,7 @@ void TFT_eSPI::plot(int32_t x, int32_t y, uint16_t color) {
     }
     int32_t fx = 0, fy = 0;
     if (toFrame(x, y, fx, fy)) {
-        frame_[fy * FRAME_W + fx] = color;
+        frame_[fy * frameW_ + fx] = color;
         ++frameGen_;
     }
 }
@@ -653,9 +659,9 @@ bool TFT_eSPI::nextTabTarget(int16_t& fx, int16_t& fy) const {
 void TFT_eSPI::logicalToFrame(int32_t x, int32_t y, int16_t& fx, int16_t& fy) const {
     switch (rotation_) {   // as toFrame(), without the viewport
         case 1: fx = static_cast<int16_t>(x); fy = static_cast<int16_t>(y); break;
-        case 3: fx = static_cast<int16_t>(FRAME_W - 1 - x); fy = static_cast<int16_t>(FRAME_H - 1 - y); break;
-        case 2: fx = static_cast<int16_t>(FRAME_W - 1 - y); fy = static_cast<int16_t>(x); break;
-        default: fx = static_cast<int16_t>(y); fy = static_cast<int16_t>(FRAME_H - 1 - x); break;
+        case 3: fx = static_cast<int16_t>(frameW_ - 1 - x); fy = static_cast<int16_t>(frameH_ - 1 - y); break;
+        case 2: fx = static_cast<int16_t>(frameW_ - 1 - y); fy = static_cast<int16_t>(x); break;
+        default: fx = static_cast<int16_t>(y); fy = static_cast<int16_t>(frameH_ - 1 - x); break;
     }
 }
 
@@ -828,16 +834,16 @@ bool TFT_eSPI::scrollArea(ScrollArea& out) const {
         out.moreAbove = moreUp;
         out.moreBelow = moreDown;
     } else {   // 3: the same picture turned half a turn
-        out.x0 = static_cast<int16_t>(FRAME_W - 1 - right);
-        out.x1 = static_cast<int16_t>(FRAME_W - 1 - left);
-        out.y0 = static_cast<int16_t>(FRAME_H - 1 - bottom);
-        out.y1 = static_cast<int16_t>(FRAME_H - 1 - top);
-        out.grabX = static_cast<int16_t>(FRAME_W - 1 - grab);
+        out.x0 = static_cast<int16_t>(frameW_ - 1 - right);
+        out.x1 = static_cast<int16_t>(frameW_ - 1 - left);
+        out.y0 = static_cast<int16_t>(frameH_ - 1 - bottom);
+        out.y1 = static_cast<int16_t>(frameH_ - 1 - top);
+        out.grabX = static_cast<int16_t>(frameW_ - 1 - grab);
         out.moreAbove = moreDown;
         out.moreBelow = moreUp;
     }
     if (out.y0 < 0) out.y0 = 0;
-    if (out.y1 > FRAME_H - 1) out.y1 = FRAME_H - 1;
+    if (out.y1 > frameH_ - 1) out.y1 = frameH_ - 1;
     return true;
 }
 

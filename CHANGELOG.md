@@ -32,6 +32,18 @@ things came with the move:
 `unlock`, so the strip can be looked at on a panel without running a battery
 down.
 
+**The PC build and the RG40XX V draw at the screen's own resolution.** They
+drew a 320x240 picture and stretched it to the panel, so a 640x480 console
+showed every menu at a quarter of the detail it has. The size is now found
+when Braino starts -- the display mode on the handheld, the desktop's in
+fullscreen, 640x480 in a window, or `BRAINO_PANEL=WxH` -- and the menus lay
+themselves out on all of it, as they already did on the 4-inch board. Games
+keep their 320x240 canvas and are drawn at the largest whole scale that fits,
+centred, with their text at that scale too: exactly 2x on a 640x480 panel.
+That is the rule for every platform from here on: it states how big its
+panel is (`PanelSize`), and nothing is stretched after the fact. The ESP32
+boards' pictures do not change.
+
 **A game left by mistake is still there.** Home is one press, and on a
 console with keys it is the key beside the one that answers; players pressed
 it and lost their game. Every game is now kept when it is left in the middle,

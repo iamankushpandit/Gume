@@ -15,9 +15,12 @@
  * TftRenderer, the HAL and every screen above them run unchanged. Only the
  * calls the firmware makes are here.
  *
- * The pixels live in ONE frame, 320x240 RGB565, in the landscape orientation
- * of rotation 1 -- the way the host board's panel is "mounted" -- and the host
- * window shows that frame as it stands. setRotation() changes how logical
+ * The pixels live in ONE frame of RGB565, in the landscape orientation of
+ * rotation 1 -- the way the host board's panel is "mounted" -- and the host
+ * window shows that frame as it stands. Its size is the panel HostPlatform
+ * found at start-up (640x480 on the RG40XX V), set when begin() runs, so the
+ * firmware draws at the panel's own resolution; before begin() it is empty
+ * and nothing drawn lands anywhere. setRotation() changes how logical
  * coordinates land in it, with the same four transforms Board::pollTouch()
  * undoes for touch, so a portrait screen appears turned on a landscape window
  * exactly as it would on a landscape device.
@@ -31,6 +34,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "WString.h"
 
 #define TFT_BLACK       0x0000
@@ -81,9 +85,6 @@
 
 class TFT_eSPI {
 public:
-    static constexpr int16_t FRAME_W = 320;
-    static constexpr int16_t FRAME_H = 240;
-
     TFT_eSPI(int16_t w = 240, int16_t h = 320) { (void)w; (void)h; }
 
     void init(uint8_t tc = 0) { (void)tc; begin(); }
@@ -173,8 +174,10 @@ public:
     void pushPixels(const void* data, uint32_t len);
     void pushColor(uint16_t color);
 
-    /* What the host window shows. */
-    const uint16_t* frame() const { return frame_; }
+    /* What the host window shows: frameWidth() x frameHeight(), row-major. */
+    const uint16_t* frame() const { return frame_.data(); }
+    int16_t frameWidth() const { return frameW_; }
+    int16_t frameHeight() const { return frameH_; }
     /* Moves whenever a pixel is written, so the window is shown again only
      * when there is something new to show. */
     uint32_t frameGeneration() const { return frameGen_; }
@@ -338,7 +341,9 @@ private:
     void forgetFocusUnder(int32_t x, int32_t y, int32_t w, int32_t h);
     void forgetFocus();
 
-    uint16_t frame_[FRAME_W * FRAME_H] = {0};
+    int16_t frameW_ = 0;
+    int16_t frameH_ = 0;
+    std::vector<uint16_t> frame_;
     uint32_t frameGen_ = 0;
     uint8_t rotation_ = 1;
     bool inverted_ = false;
@@ -346,7 +351,7 @@ private:
     bool displayOn_ = true;
     bool swapBytes_ = false;
 
-    int32_t vpX_ = 0, vpY_ = 0, vpW_ = FRAME_W, vpH_ = FRAME_H;
+    int32_t vpX_ = 0, vpY_ = 0, vpW_ = 0, vpH_ = 0;
     bool vpDatum_ = false;
     bool vpActive_ = false;
 

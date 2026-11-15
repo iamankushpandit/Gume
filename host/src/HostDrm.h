@@ -12,9 +12,11 @@
 /* The panel without a window system: two dumb buffers on the kernel's own
  * display driver, flipped on vertical blank. Built only with BRAINO_HOST_DRM,
  * for a whole-device image that has no GPU driver, no Mesa and no X or
- * Wayland -- the RG40XX V's Buildroot image (host/rg40xxv). Braino draws a
- * 320x240 picture; scaling it to the panel is a few hundred thousand pixel
- * writes a frame, which a Cortex-A53 does without noticing.
+ * Wayland -- the RG40XX V's Buildroot image (host/rg40xxv). Braino draws at
+ * the panel's own mode (HostPlatform's findPanel()), so on the panel the
+ * frame is copied 1:1; a television that came along later gets it at a whole
+ * scale. Either is a few hundred thousand pixel writes a frame, which a
+ * Cortex-A53 does without noticing.
  *
  * Only the kernel's DRM ioctls are used, not libdrm, so the image carries no
  * library for it. */

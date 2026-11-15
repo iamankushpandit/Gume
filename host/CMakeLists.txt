@@ -57,7 +57,9 @@ FetchContent_Declare(map_n_flag
 FetchContent_MakeAvailable(tft_espi arduinojson map_n_flag)
 
 # The firmware, minus what the host replaces: the hardware
-# watchdog and the codec/DAC backend (see host/src/Host*.cpp), and every
+# watchdog, the codec/DAC backend and each ESP32 implementation of a platform
+# interface -- the power probe, suspend and the panel's size (see
+# host/src/Host*.cpp) -- and every
 # standalone bench probe, which has its own setup() and loop().
 file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
   "${REPO_ROOT}/src/engine/*.cpp"
@@ -65,7 +67,7 @@ file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
   "${REPO_ROOT}/src/ui/*.cpp"
   "${REPO_ROOT}/src/hal/*.cpp")
 list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX
-  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32)\\.cpp$")
+  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32|PanelSizeEsp32)\\.cpp$")
 list(APPEND FIRMWARE_SOURCES
   "${REPO_ROOT}/src/main.cpp"
   "${REPO_ROOT}/src/BuildStamp.cpp")

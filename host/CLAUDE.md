@@ -182,8 +182,55 @@ synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
 What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
-regex: the hardware watchdog, the codec/DAC backend, and the two per-platform
-interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Host*.cpp`, and each says why.
+regex: the hardware watchdog, the codec/DAC backend, and the three per-platform
+interfaces, `PowerProbe`, `SystemSuspend` and `PanelSize`. Their host versions are in `src/Host*.cpp`, and each says why.
+
+## The panel is the console's own size, found when Braino starts
+
+The firmware draws at the resolution of the display in front of the player --
+640x480 on the RG40XX V -- and never at 320x240 stretched up. Nothing about
+the size is compiled in; `HostPlatform::begin()` finds it before `setup()`
+runs and it is fixed for the run:
+
+1. `BRAINO_PANEL=WxH`, if set, on any build -- the way to see another
+   console's screen on a PC (`BRAINO_PANEL=320x240`, `800x480`, `1280x720`).
+2. Otherwise the display mode: the DRM mode on the whole-device image, the
+   desktop's with `BRAINO_FULLSCREEN=1`.
+3. Otherwise 640x480, the RG40XX V's, so a PC window shows what the handheld
+   will.
+
+It is taken as landscape (a size reported the other way up is turned), and
+clamped up to the 320x240 game canvas, which is the smallest panel `src/`
+accepts. `[host] panel 640x480 (display mode)` in the log says what was found
+and where from.
+
+Everything downstream reads that one answer:
+
+- **`src/` asks `PanelSize`** (`src/hal/PanelSize.h`), the firmware's
+  interface for it, answered here by `src/HostPanelSize.cpp`. `boards/host.h`
+  still states a 240x320 panel: that is the compile-time floor the
+  static_asserts check, not the panel.
+- **The panel shim's frame is exactly that size** (`TFT_eSPI::begin()`), so
+  `tft.width()` / `tft.height()` are the console's and every system screen
+  lays itself out at the real resolution -- the launcher takes the 3x3 grid in
+  portrait, as on the 4-inch board.
+- **Games get the largest whole scale that fits, centred** (`ScaledRenderer::configure()`):
+  640x480 is the 320x240 canvas at exactly 2x, text included, so a game looks
+  as it does on the 2.8-inch board with every pixel a 2x2 block; 800x480 is
+  2x with an 80px border each side; 1280x720 is 3x. A press is mapped back
+  through the same transform, border and all. A panel under twice the canvas
+  (the 4-inch board's 480x320) keeps the fractional fill it always had.
+- **Touch and the d-pad are in the frame's pixels.** The emulated FT6336U
+  reports in the found panel's native portrait (`PanelSize::nativeWidth()`),
+  `BRAINO_TAPS` coordinates are frame pixels at the found size (a script
+  written for 320x240 replays under `BRAINO_PANEL=320x240`), and the
+  selector's ring is drawn around controls where the screen drew them. The
+  crosshair, its speed and a list's drag-scroll are stated per canvas pixel and
+  multiplied by the whole scale, so they look and feel the same at any size.
+- **The window opens at the panel's size**, or twice it for a 320x240 panel,
+  and letterboxes at whole multiples when resized. On the DRM image a
+  television plugged in later still shows the frame at a whole scale, centred;
+  an output smaller than the panel stays dark rather than be written past.
 
 ## How it fits together
 
@@ -191,8 +238,9 @@ interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Ho
 |---|---|
 | `boards/host.h` | A board profile whose every pin is **virtual**. It is deliberately not in `include/boards/`, which would make it a claim of support that `check_boards.py` and the web installer would hold it to. |
 | `shim/` | Arduino, TFT_eSPI, Preferences, NVS, FreeRTOS, Wire, I2S, Wi-Fi, SD and the ESP-IDF calls `src/` makes -- **only** what `src/` calls. A new platform call in `src/` breaks this build until a shim answers it, which is the intended way to find out. |
-| `src/HostTft.cpp` | The panel: one 320x240 RGB565 frame in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). The font tables are TFT_eSPI's own, fetched at the pinned version and never copied into this tree. |
+| `src/HostTft.cpp` | The panel: one RGB565 frame the size of the panel found at start-up, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). The font tables are TFT_eSPI's own, fetched at the pinned version and never copied into this tree. |
 | `src/HostWire.cpp` | An emulated FT6336U answering BoardTouch's one transaction with the pointer, in the panel's native portrait frame. |
+| `src/HostPanelSize.cpp` | `PanelSize`: the panel `HostPlatform` found, for `src/`. |
 | `src/HostNvs.cpp` | One typed key-value store behind both `nvs_*` and Preferences, with IDF's type codes and its refusal of mismatched reads and 16-character keys. Saved whole to `nvs.txt` after every change. |
 | `src/HostAudio.cpp`, `HostI2s.cpp` | The codec backend: an SDL queue kept about as deep as the codec board's DMA, so the audio task is paced the way it is on hardware. |
 | `src/HostWifiOs.cpp`, `HostNet.cpp` | Wi-Fi through the OS's network manager; UDP sockets and libcurl for the firmware's own requests. |
@@ -566,7 +614,8 @@ Two environment variables, both off by default:
   `<data dir>/shot-<ms>.bmp` at those milliseconds after start. F12 saves one
   on demand.
 - `BRAINO_TAPS="3000:237,223;4500:80,125,200"` presses the panel at frame
-  coordinates `x,y` at that time, for 120 ms or the given hold. `4000:next`
+  coordinates `x,y` -- pixels of the panel found at start-up, so set
+  `BRAINO_PANEL` to the size a script was written for -- at that time, for 120 ms or the given hold. `4000:next`
   and `4000:prev` press the page keys instead, and `4000:down,3000`,
   `4000:up`, `4000:left` and `4000:right` hold the d-pad (for 1000 ms unless a
   hold is given), `4000:a` holds A, and `4000:menu`, `4000:mute` and
@@ -583,8 +632,8 @@ of them, and nothing here models SPI time.
 `braino --splash <file.bmp> [width height [progress]]` writes the picture a
 handheld shows from power-on until Braino's first screen, then exits without
 opening a window. `src/HostSplash.cpp` draws it, and it is the one thing the
-host draws at the panel's own resolution rather than as the 320x240 canvas
-scaled up. The mark is vector artwork and gets every pixel:
+host draws itself rather than through the firmware's frame, which is the
+panel's own resolution too. The mark is vector artwork and gets every pixel:
 `tools/braino-badge.svg` is compiled into the binary (`cmake/EmbedMark.cmake`)
 and rasterised with 4x4 supersampling by a port of
 `tools/gen_logo_mask.py`'s rasteriser, the one that makes the device's
@@ -622,8 +671,9 @@ code in `host/`:
   with raw ioctls rather than libdrm. `HostPlatform` then initialises SDL
   without video (gamepad, events and sound only) and `present()` converts the
   RGB565 frame, dims it by the emulated backlight, scales it by a whole number
-  and draws the cursor and selector over it in canvas pixels, as the SDL
-  renderer does at its logical size. It still presents only when something
+  -- 1 on the panel, whose mode is the frame's size -- and draws the cursor
+  and selector over it in frame pixels, as the SDL renderer does at its
+  logical size. It still presents only when something
   changed, and `presentImage()` (the splash) clears that so the next frame is
   drawn. **HDMI wins whenever a screen is connected**: `outputChanged()` reads
   the kernel's hotplug uevents from a netlink socket (no udev), moves the
