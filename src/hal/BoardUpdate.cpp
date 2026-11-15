@@ -14,7 +14,7 @@
 #include <WiFiClientSecure.h>
 
 #include "AppVersion.h"
-#include "FirmwareLine.h"
+#include "FirmwareVersion.h"
 #include "UpdateChannel.h"
 #include "Watchdog.h"
 
@@ -144,9 +144,10 @@ time_t Board::lastUpdateCheckEpoch() {
 bool Board::updateAvailable() {
     loadUpdateState();
     if (latestVersion_[0] == '\0') return false;
-    /* This image's own line's version: the manifest gives each board the
-     * newest release of the line it ships on (tools/gen_site.py). */
-    return compareVersions(latestVersion_, FIRMWARE_VERSION) > 0;
+    /* BRAINO_VERSION, not FIRMWARE_VERSION: the device part after "+" says
+     * which board this is, never which release is newer, and the manifest
+     * carries the plain version (include/FirmwareVersion.h). */
+    return compareVersions(latestVersion_, BRAINO_VERSION) > 0;
 }
 
 /* Read the manifest and pick this board's line out of it.
@@ -266,12 +267,12 @@ bool Board::fetchUpdateManifest() {
         line = next;
     }
 
-#if GUME_LINE_ATTAKY
-    /* The `*` fallback is the braino line's number. An image on its own
-     * release line takes only its own entry: before that line's first
-     * release the manifest has none, and "nothing to report" is the true
-     * answer -- the fallback would tell an Attaky 1.0.0 that Braino 5.14.0
-     * is an update for it. See include/FirmwareLine.h. */
+#if GUME_EXPERIMENTAL
+    /* An experimental image (custom_env_kind = experimental, which
+     * tools/envs.py checks against this flag) is never in a release, so the
+     * `*` fallback -- the newest release -- is nothing that can be installed
+     * on it. It takes only an entry naming its own board, which the manifest
+     * does not carry while the board is experimental: "nothing to report". */
     (void)fallback;
     const char* picked = mine;
 #else

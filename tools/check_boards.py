@@ -330,6 +330,7 @@ def check_reachable(problems, boards, board_envs, ini):
     """
     site = read("tools", "gen_site.py")
     product_envs = set(env_kinds.of_kind(env_kinds.PRODUCT, ini))
+    experimental_envs = set(env_kinds.of_kind(env_kinds.EXPERIMENTAL, ini))
     offered = set(re.findall(r'"env":\s*"(\w+)"', site))
     labelled = set(re.findall(r'^\s{4}"(\w+)":\s*\{', site, re.M))
 
@@ -359,6 +360,11 @@ def check_reachable(problems, boards, board_envs, ini):
                 "not supported" % board_id)
 
         for env in games:
+            # An experimental environment keeps its VARIANTS entry so that
+            # publishing it is one word; gen_site.py leaves it off the page,
+            # so nothing points at binaries Pages does not build.
+            if env in experimental_envs:
+                continue
             if env not in product_envs:
                 problems.append(
                     "board '%s' is offered as firmware '%s', but [env:%s] is "

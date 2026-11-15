@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,644,341 / 3,145,728 bytes of the app partition (**84.1%**) |
+| Flash | 2,644,401 / 3,145,728 bytes of the app partition (**84.1%**) |
 | RAM | 92,836 / 327,680 bytes (**28.3%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -1514,12 +1514,14 @@ attached to releases: they are bench tools, built from source by whoever is
 holding the board, and a copy frozen into a release would only ever be older
 than the one in the tree.
 
-The Attaky Core has its own release line, Braino! for Attaky: tags
-`attaky-v<version>`, versioned by `ATTAKY_VERSION`, so it can ship when it has
-been tested on its hardware without holding up the other boards. A `v*`
-release carries the other boards only. That line is not published yet: an
-`attaky-v*` tag makes a draft release, and the web installer does not list
-the board, so it is built from source.
+Every platform carries one version, and every image says which device it was
+built for after a `+`: `5.14.0+e32r28t1` on the E32R28T-1, `5.14.0+h700` on the
+handheld card image, `5.14.0+host` on a PC. That is what the `[boot]` line,
+`identify`, About and System Info show. The part after the `+` names the
+device and nothing else: releases, tags and the update check use the plain
+version. A board that is still experimental is built by CI, with its image
+attached to the run for testers, and is not in a release or on the web
+installer until it is published.
 
 To check the page itself before pushing:
 
@@ -1611,6 +1613,7 @@ with `custom_env_kind`, and `tools/envs.py` is what every workflow asks:
 
 ```bash
 python tools/envs.py --product        # the five that are Braino!
+python tools/envs.py --experimental   # Braino! for a board not offered yet
 python tools/envs.py --diagnostic     # the fourteen bench probes
 ```
 

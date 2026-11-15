@@ -10,6 +10,25 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Every build says which device it is for, after one version.** About,
+System Info, the `[boot]` line and `identify` now show the version with the
+device after a `+` -- `5.14.0+e32r28t1`, `5.14.0+fnk0104b`, `5.14.0+h700` on
+the handheld card image, `5.14.0+host` on a PC -- so a screenshot or a pasted
+log says which build it is without a second question. Every platform carries
+the same version under the same `v*` tag; the separate release line one board
+had, with its own version, tags and changelog heading, is gone. The part after
+the `+` decides nothing: the update check, the update manifest, the release
+tag and the release notes use the plain version, and the checks refuse a
+published version with a `+` in it. On a narrow screen About drops the word
+"Version" rather than cut the version short.
+
+**A board can be experimental: built and tested, never published.** Beside
+`product` and `diagnostic` there is a third kind of environment. CI builds an
+experimental one on every push and attaches its image to the run for testers;
+no release, web installer page or update manifest carries it, and its image
+ignores the manifest's fallback line, so it is never told of a release it is
+not in.
+
 **A notice is along the bottom of the screen now, and the header stays whole.**
 A low battery, a newer firmware and Nearby each raise a one-line strip. It was
 painted over the top bar, so for as long as it was up there was no Home, no
@@ -527,14 +546,12 @@ And in both multiple-choice rounds a wrong tap flashed the *correct* button --
 in red, so it told the answer and mislabelled it at once. The button that was
 pressed is the one that flashes now.
 
-## attaky-1.0.0-SNAPSHOT — Unreleased
+### The Attaky Core (experimental)
 
-Braino! for Attaky: the same console on Attaky's modular handhelds, released
-on its own line. `ATTAKY_VERSION` is what these images report and
-`attaky-v<version>` is the tag that builds them; the Braino code each one
-is built from is on System Info and the `[boot]` line. First run on a Cyber
-Deck Plus on 2026-11-12. Nothing here is published: the tag makes a draft
-release and the web installer does not list the board.
+The same console on Attaky's modular handhelds. It reports this version as
+`5.14.0+attaky` and is an experimental environment: CI builds it and
+attaches the image to the run, and no release, installer or update manifest
+carries it. First run on a Cyber Deck Plus on 2026-11-12.
 
 **Locked, the Attaky Core's own lights go out, and it stops holding sixteen
 lines low.** With a Cyber Deck Plus locked and its panel dark, three lights

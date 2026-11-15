@@ -18,6 +18,10 @@
  * The TouchKind below is derived from this macro rather than stated alongside
  * it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 1
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "fnk0104b"
 
 /* This board has an ES8311 codec. Same reasoning as the macro above:
  * preprocessor, not `if constexpr`, so boards without one carry neither

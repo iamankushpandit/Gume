@@ -148,5 +148,13 @@ if(BRAINO_HOST_DRM)
   target_compile_definitions(braino PRIVATE GUME_HOST_DRM=1)
 endif()
 
+# The device part of the version (include/FirmwareVersion.h): "host" on a
+# desktop, the chip family on a handheld image (braino.mk passes h700).
+set(BRAINO_VERSION_TAG "host" CACHE STRING "Device part of the version, after the +")
+if(NOT BRAINO_VERSION_TAG MATCHES "^[0-9a-z-]+$")
+  message(FATAL_ERROR "BRAINO_VERSION_TAG must be lower case [0-9a-z-]: ${BRAINO_VERSION_TAG}")
+endif()
+target_compile_definitions(braino PRIVATE GUME_VERSION_TAG="${BRAINO_VERSION_TAG}")
+
 target_compile_options(braino PRIVATE -Wall)
 target_link_libraries(braino PRIVATE PkgConfig::SDL2 PkgConfig::CURL Threads::Threads m)

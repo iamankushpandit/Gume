@@ -15,11 +15,11 @@ keeps each run's image as a downloadable artifact. When it is published, the
 installer will label it "2.0-inch, capacitive touch, one USB-C port -- Attaky
 Core 1.0 in a Cyber Deck Plus".
 
-**Its own releases:** this board is Braino! for Attaky, with its own
-version (`ATTAKY_VERSION`, starting at 1.0.0) and its own tags
-(`attaky-v<version>`). System Info and the `[boot]` line also say which
-Braino version it is built from. A generic `v*` release does not include it,
-and an `attaky-v*` tag makes a draft release, not a public one.
+**Its version:** the same as every other board, with the device after a
+`+` -- `5.14.0+attaky` on About, System Info and the `[boot]` line. The
+environment is `custom_env_kind = experimental`: CI builds it and attaches
+the image to the run, and no release, installer or update manifest carries
+it, so it never reports a newer version to update to.
 
 **Which modules this build expects:** the Core, and Media I/O on the back for
 the SD slot and the speaker. The Expand modules share their pins, so before
