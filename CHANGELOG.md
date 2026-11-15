@@ -97,11 +97,10 @@ every answer, and Counting no longer reads a number range from an SD card.
 The serial console's new `level` command reads or sets the level of the
 player in use, and `games` with no slot lists every game id.
 
-**The Attaky Core is ported, on its own release line, and not published.**
-Its entries are under `attaky-1.0.0` below, because that build is tagged
-`attaky-v<version>` from `ATTAKY_VERSION` rather than with this one. The
-installer does not list it and its tags make draft releases; `tools/envs.py`
-`PUBLISHED_LINES` is the switch, and only `braino` is on it. Four
+**The Attaky Core is ported, as an experimental environment, and not
+published.** Its entries are under "The Attaky Core (experimental)" below.
+It reports this version with `+attaky`, CI builds it, and no release,
+installer or update manifest carries it. Four
 things in that work change every board's tree: each CI build of a product
 environment is packed and attached to its run for 30 days, so a tester can
 flash a pull request's build; a board with no audio path compiles again
@@ -611,8 +610,6 @@ gold that disappeared on the light themes' cards. They are the theme's accent
 and warning colours now. Scores is also on the theme sheets again -- they
 asked for a screen called `scores` that no longer existed, and left it out
 without saying so.
-
-## attaky-1.0.0-SNAPSHOT — Unreleased
 
 ### The Attaky Core (experimental)
 
