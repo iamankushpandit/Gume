@@ -261,14 +261,16 @@ private:
     static void clearBit(uint8_t* bits, uint16_t i) {
         bits[i >> 3] &= static_cast<uint8_t>(~(1U << (i & 7)));
     }
-    static bool bit(const uint8_t* bits, uint16_t i) {
+    /* Not bit(): Arduino.h defines that as a macro, and a member of the same
+     * name stops the build in whichever file reaches Arduino.h first. */
+    static bool testBit(const uint8_t* bits, uint16_t i) {
         return ((bits[i >> 3] >> (i & 7)) & 1U) != 0;
     }
 
     /* What this pass did not deal is owed to the next one. */
     void newPass() {
         for (uint16_t i = 0; i < size_; ++i) {
-            if (!bit(dealt_, i)) setBit(owed_, i);
+            if (!testBit(dealt_, i)) setBit(owed_, i);
         }
         memset(dealt_, 0, sizeof(dealt_));
         left_ = size_;
@@ -309,10 +311,10 @@ private:
     }
 
     bool isChoice(uint16_t i, Among among) const {
-        if (bit(dealt_, i) || isQueued(i)) return false;
+        if (testBit(dealt_, i) || isQueued(i)) return false;
         if (among == Among::Any) return true;
         if (isRecent(i)) return false;
-        return among == Among::Fresh || bit(owed_, i);
+        return among == Among::Fresh || testBit(owed_, i);
     }
 
     uint16_t countChoices(Among among) const {

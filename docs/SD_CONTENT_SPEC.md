@@ -6,11 +6,11 @@ Put all files under a `games` folder at the root of the microSD card.
 /games
   /memory
     default.json
-  /counting
-    default.json
 ```
 
-The current app has no quiz game. SD content is used only for Memory and Counting settings.
+SD content is used only for Memory's settings. Counting read a number range
+from `/games/counting/default.json` until it became a course with levels of
+its own; a file left there is ignored.
 
 ## Memory Game Config
 
@@ -31,23 +31,6 @@ Rules:
 - `cols` must be 2-6.
 - `rows * cols` must be even.
 - The firmware uses up to 12 pairs.
-
-## Counting Config
-
-Location: `/games/counting/default.json`
-
-```json
-{
-  "type": "counting_config",
-  "min": 1,
-  "max": 12
-}
-```
-
-Rules:
-
-- `min` must be at least 1.
-- `max` is capped at 20 so the objects stay visible on the small screen.
 
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->

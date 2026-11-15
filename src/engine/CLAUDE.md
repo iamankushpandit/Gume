@@ -115,7 +115,7 @@ Header-only ring buffer of the last 10 question tokens. Rejects recent repeats w
 
 ## ContentLoader.{h,cpp}
 
-Optional SD-card JSON overrides (Memory grid size/symbols) parsed with ArduinoJson. `loadCountingConfig()` still parses a Counting range, but Counting stopped reading it when it became a course: a range would change the size of a level under its deck. Purely additive: every game ships compiled-in defaults and must work with no card present. Format is documented in `docs/SD_CONTENT_SPEC.md`.
+Optional SD-card JSON overrides (Memory grid size/symbols) parsed with ArduinoJson. Counting's range used to be one too; it went when Counting became a course, because a range would change the size of a level under its deck. Purely additive: every game ships compiled-in defaults and must work with no card present. Format is documented in `docs/SD_CONTENT_SPEC.md`.
 
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->

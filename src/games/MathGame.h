@@ -9,14 +9,7 @@
 
 #pragma once
 
-/* Arduino.h defines bit() as a macro, and Course.h has a member of that name,
- * so whichever file reaches Arduino.h first would turn the deck's own helper
- * into a shift and stop the build. The macro is set aside only while the
- * header is read; nothing after it calls the deck's bit(). */
-#pragma push_macro("bit")
-#undef bit
 #include "engine/Course.h"
-#pragma pop_macro("bit")
 #include "engine/Game.h"
 #include "engine/RecentQuestions.h"
 #include "MathCourse.h"

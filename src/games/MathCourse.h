@@ -13,12 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Arduino.h's bit() macro would rewrite the deck's own bit() helper if it
- * came first: set it aside while Course.h is read. */
-#pragma push_macro("bit")
-#undef bit
 #include "engine/Course.h"
-#pragma pop_macro("bit")
 
 /* WHAT MATH TEACHES, IN THE ORDER IT TEACHES IT.
  *

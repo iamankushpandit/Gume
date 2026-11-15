@@ -9,12 +9,7 @@
 
 #pragma once
 
-/* Arduino.h's bit() macro would rewrite the deck's own bit() helper: set it
- * aside while Course.h is read (MathGame.h says more). */
-#pragma push_macro("bit")
-#undef bit
 #include "engine/Course.h"
-#pragma pop_macro("bit")
 #include "engine/Game.h"
 #include "MultiplicationCourse.h"
 #include "ui/Ui.h"
