@@ -820,6 +820,37 @@ sleep, not `esp_deep_sleep`: the CPU must stay up to poll touch, since no wake
 source is wired. `Board::displayWake()` blocks ~120ms for the panel, so its
 call site sits inside a `Watchdog::Pause` guard.
 
+**Asleep is more than a dark panel, on the ESP32 boards.** Panel sleep used
+to be all of it, and an E32R40T with a 3000 mAh pack went from full to about a
+tenth overnight: the processor ran at 240 MHz, the Wi-Fi station stayed
+associated all night, and the Wi-Fi screen had turned modem sleep off and
+nothing turned it back on until a reboot. Three things now, and
+`src/hal/SleepPower.h` is the interface, one `.cpp` per platform like
+`SystemSuspend` (the host answers no to all of it, because `HostSleep` already
+takes its own cores and Wi-Fi down):
+- **`WifiApp::end()` puts modem sleep back** (`WiFi.setSleep(true)`). The core
+  keeps the choice in a static and re-applies it at every station start, so a
+  scan's `setSleep(false)` outlived the screen.
+- **The clock drops to `SleepPower::ASLEEP_CPU_MHZ` (80) in `enterSleep()`**
+  and is put back in `wakeFromSleep()` before the panel wakes, inside the same
+  `Watchdog::Pause`. 80 MHz is the floor at which both radios still run, and
+  the APB bus stays at 80 MHz either way, so serial, SPI, LEDC and the
+  BLE beacon and Nearby scanner are unaffected. Nothing is drawn at the low
+  clock.
+- **After `SleepPower::STATION_REST_AFTER_MS` (5 minutes) asleep the Wi-Fi
+  station is stopped** (`BrainoApp::tickStationRest()` ->
+  `Board::restWifiForSleep()`), and started again on wake
+  (`Board::wakeWifiFromSleep()`). It is `esp_wifi_stop()`, **never
+  `WiFi.mode(WIFI_OFF)`**, which de-initialises the driver -- and a de-init
+  beside a live Bluetooth controller is the teardown that has panicked this
+  device. The driver, its netif (still named `braino`) and the BT controller
+  stay up, so a find from another console still wakes it. While resting,
+  `tickTimeSync()` and `beginTimeSync()` do nothing, or the Synced branch's
+  next resync would find the link down and rejoin. On wake a Synced clock
+  stays Synced and just rejoins (no NTP query); anything else goes back to
+  Idle with no attempt on record, so it joins at once. The update check needs
+  the link, so it simply waits for it.
+
 **Deep sleep is the one step further, and only where a platform can take
 it.** `Board::deepSleepEnabled()` (off by default, global, RAM-mirrored) asks
 `BrainoApp::tickDeepSleep()` to suspend the whole device once the panel has
@@ -1794,7 +1825,9 @@ src/hal/                  Board bring-up, BleBeacon (the radio) +
                           a notice, never an OTA), PowerProbe (what each
                           platform implements) + PowerMonitor + PowerLedger
                           (where the battery went), SystemSuspend (Deep
-                          sleep, where a platform can), BoardStorage, storage
+                          sleep, where a platform can), SleepPower (the
+                          clock and the Wi-Fi station while the panel
+                          sleeps), BoardStorage, storage
                           maintenance, TouchTypes, BoardKeys (the keys,
                           as one held set: HeldControls), ControlJobs
                           (what each button is for -- shared with the

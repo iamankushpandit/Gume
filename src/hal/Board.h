@@ -553,6 +553,14 @@ public:
      * the clock from this reply directly. Returns true if the clock was set. */
     bool ntpUdpProbe(const char* host);
     void tickTimeSync();
+    /* The panel has slept for SleepPower::STATION_REST_AFTER_MS: stop the
+     * Wi-Fi station (driver kept, Bluetooth untouched) and hold the time
+     * sync state machine still until wakeWifiFromSleep(). Both block for a
+     * few milliseconds inside their own Watchdog::Pause; call them from the
+     * runtime's sleep path, never from a render path. */
+    void restWifiForSleep();
+    void wakeWifiFromSleep();
+    bool wifiResting() const { return wifiResting_; }
     bool timeSynced() const;
     uint32_t lastTimeSyncMs() const;
     time_t lastTimeSyncEpoch() const;
@@ -661,6 +669,11 @@ public:
     NetworkActivity networkActivity(uint8_t newestFirstIndex) const;
 
 private:
+    /* WiFi.mode(WIFI_STA) and WiFi.begin() with the saved network, the
+     * station named first. Shared by beginTimeSync() and the wake from a
+     * station rest. */
+    void joinSavedNetwork(uint32_t now);
+
     struct RawTouch {
         bool down = false;
         int16_t x = 0;
@@ -705,6 +718,7 @@ private:
     uint32_t lastSyncAttemptMs_ = 0;
     uint32_t lastResyncMs_ = 0;
     uint32_t lastWifiBeginMs_ = 0;   // throttles our own WiFi.begin()
+    bool wifiResting_ = false;       // station stopped while the panel sleeps
     bool tzAutoDetected_ = false;
 
     /* Credentials are cached in RAM. hasWifiCredentials() is polled every

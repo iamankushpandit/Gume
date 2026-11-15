@@ -1014,9 +1014,15 @@ from the last touch, and **Sleep after** (15s / 30s / 1m / 2m / 5m) is how long
 the saver runs before the screen goes dark.
 
 **Sleep is not `esp_deep_sleep`.** The CPU stays up so it can poll the touch
-panel — there is no wake source wired for a true deep sleep on this board. The
-main loop drops from 50 Hz to 10 Hz while asleep, and the battery still drains,
-just far more slowly than with the backlight on.
+panel — there is no wake source wired for a true deep sleep on this board. But
+it does less while asleep: the main loop drops from 50 Hz to 10 Hz, the
+processor slows from 240 MHz to 80 MHz, and after five minutes asleep **Wi-Fi
+switches off** until the next touch, which reconnects it while you unlock.
+Bluetooth is left as it was, so a console that has the beacon on still shows
+up in Nearby and can still be found. Leaving the Wi-Fi screen also puts the
+radio's power saving back on; until 5.14.0 it stayed off until a restart. The
+battery still drains while asleep, just far more slowly than with the screen
+on.
 
 #### Hold to unlock
 
@@ -1788,6 +1794,7 @@ src/
     PanelSize.h         how big the panel is: every platform's own answer
     PanelSizeEsp32.cpp  a board's: the profile's panel
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
+    SleepPowerEsp32.cpp what sleep switches off: a slower clock, the station
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
     BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
     BoardAudioBackend.cpp  the hardware under it: codec, I2S, amp, DAC idle

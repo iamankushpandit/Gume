@@ -281,6 +281,7 @@ void BrainoApp::loop() {
         if (rawTouch.justPressed || rawTouch.down || keyPress) {
             wakeFromSleep();
         } else {
+            tickStationRest(nowMs);
             tickDeepSleep(nowMs);
         }
     } else if (view_ == View::Locked) {

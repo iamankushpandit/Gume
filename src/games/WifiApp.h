@@ -23,6 +23,8 @@ public:
      * renderStatic() in the .cpp and its entry in docs/RENDER_AUDIT.md. */
     void renderStatic(GameHost& host) override;
     void renderDynamic(GameHost& host) override;
+    /* Puts the radio's power saving back; see the .cpp. */
+    void end(GameHost& host) override;
 
 private:
     enum class Phase : uint8_t { Idle, Scanning, List, Keyboard, Connecting, Done, TimeZone };
