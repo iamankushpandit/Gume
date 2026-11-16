@@ -9,8 +9,12 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
+#include "engine/RecentQuestions.h"
 #include "ui/Ui.h"
+
+#include "SortCourse.h"
 
 struct AppMetadata;
 
@@ -32,15 +36,20 @@ private:
     Rect tileRect(uint8_t index) const;
     void newRound();
     int8_t touchedTile(int16_t x, int16_t y) const;
-    int16_t expectedValue() const;
     bool allLocked() const;
 
-    int16_t numbers_[6] = {};
-    int16_t ordered_[6] = {};
-    bool locked_[6] = {};
-    uint8_t count_ = 4;
+    Course::Ladder ladder_;
+    /* Boards are generated, too many to number: none comes back within ten. */
+    RecentQuestions recent_;
+    SortCourse::Round round_;
+    /* Which way the last two rounds ran, so no three run the same way. */
+    uint8_t directions_ = 0;
+    bool locked_[SortCourse::MAX_TILES] = {};
     uint8_t next_ = 0;
-    bool ascending_ = true;
+    /* A wrong tap this round: the round is then a wrong answer to the
+     * ladder, which hears about rounds rather than taps. */
+    bool slipped_ = false;
+    bool climbed_ = false;
     uint16_t score_ = 0;
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;

@@ -276,6 +276,17 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Sorting is a course of ten levels.** Its difficulty was the rounds
+finished this visit, the direction ran four boards up and two down in that
+order for ever, it never went past two-digit whole numbers, a board could
+not be got wrong, and it made no sound at all. Now it orders three small
+numbers, to twenty, both ways round, two digits, look-alikes, three digits
+made of the same digits, numbers below zero, decimals, fractions, and
+decimals and fractions together; from level 3 the direction is drawn at
+random, never three boards the same way. A board sorted with no wrong tap
+moves the player up, the level is kept between visits, a step up is named
+on the finished board, and every tap now sounds.
+
 **Roman is a course of eight levels.** Its level was the visit's score, so
 every visit began with I, V and X; its level 3 asked 90 to 99, which need a
 C its key did not show; and its last level brought D, CD, CM and M in at

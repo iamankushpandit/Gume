@@ -14,6 +14,8 @@ namespace {
 constexpr uint16_t TILE = 0x24BD;
 constexpr uint16_t LOCKED = 0x37F0;
 constexpr uint16_t WRONG = 0xF9EA;
+constexpr uint16_t YELLOW = 0xFEC0;
+namespace SC = SortCourse;
 
 constexpr AppScoreInfo SORT_SCORE = {
     "sort", "Sorting", "sortBest", "pts", false
@@ -43,10 +45,16 @@ const char* SortGame::title() const {
         : sortAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the tally starts over,
+ * the level does not. It used to be the rounds finished this visit. */
 void SortGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(sortAppMetadata().score->bestKey, 0));
+    ladder_.start(SC::LEVEL_COUNT, host.courseLevel());
+    recent_.reset();
+    directions_ = 0;
+    climbed_ = false;
     newRound();
     markDirty();
 }
@@ -62,49 +70,25 @@ void SortGame::newRound() {
      * sorted panel off. A layout change, and it lives here so no caller can
      * deal a round and forget. */
     markFullDirty();
-    count_ = static_cast<uint8_t>(4 + min<uint16_t>(2, score_ / 4));
-    ascending_ = (score_ % 6) < 4;
+    for (uint8_t tries = 0; tries < 20; ++tries) {
+        SC::deal(ladder_.level(), esp_random(), directions_, round_);
+        if (!recent_.recentlyUsed(SC::token(round_))) break;
+    }
+    recent_.remember(SC::token(round_));
+    directions_ = SC::remember(directions_, round_.ascending);
+    for (uint8_t i = 0; i < SC::MAX_TILES; ++i) locked_[i] = false;
     next_ = 0;
+    slipped_ = false;
     flashTile_ = -1;
     flashUntil_ = 0;
-    const int16_t maxValue = score_ < 6 ? 20 : (score_ < 12 ? 50 : 99);
-
-    for (uint8_t i = 0; i < count_; ++i) {
-        bool unique = false;
-        while (!unique) {
-            numbers_[i] = random(1, maxValue + 1);
-            unique = true;
-            for (uint8_t j = 0; j < i; ++j) {
-                if (numbers_[j] == numbers_[i]) {
-                    unique = false;
-                }
-            }
-        }
-        ordered_[i] = numbers_[i];
-        locked_[i] = false;
-    }
-
-    for (uint8_t i = 0; i < count_; ++i) {
-        for (uint8_t j = i + 1; j < count_; ++j) {
-            if (ordered_[j] < ordered_[i]) {
-                const int16_t tmp = ordered_[i];
-                ordered_[i] = ordered_[j];
-                ordered_[j] = tmp;
-            }
-        }
-    }
-}
-
-int16_t SortGame::expectedValue() const {
-    return ascending_ ? ordered_[next_] : ordered_[count_ - 1 - next_];
 }
 
 bool SortGame::allLocked() const {
-    return next_ >= count_;
+    return next_ >= round_.count;
 }
 
 int8_t SortGame::touchedTile(int16_t x, int16_t y) const {
-    for (uint8_t i = 0; i < count_; ++i) {
+    for (uint8_t i = 0; i < round_.count; ++i) {
         if (!locked_[i] && tileRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
         }
@@ -135,12 +119,8 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (allLocked()) {
-        ++score_;
-        ++streak_;
-        if (host.saveBestScore(sortAppMetadata().score->bestKey, streak_, false)) {
-            bestStreak_ = streak_;
-        }
         newRound();
+        climbed_ = false;
         markDirty();
         return;
     }
@@ -150,17 +130,45 @@ void SortGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    if (numbers_[tile] == expectedValue()) {
+    if (tile == round_.order[next_]) {
         locked_[tile] = true;
         flashTile_ = tile;
         flashError_ = false;
         flashUntil_ = millis() + 350UL;
         ++next_;
+        if (!allLocked()) {
+            host.beepOk();
+        } else {
+            /* The round is the answer: right with no slip in it. */
+            ++score_;
+            if (!slipped_) {
+                ++streak_;
+                if (host.saveBestScore(sortAppMetadata().score->bestKey, streak_, false)) {
+                    bestStreak_ = streak_;
+                }
+            }
+            const Course::Ladder::Step step = ladder_.answer(!slipped_);
+            if (step != Course::Ladder::Step::Stay) {
+                host.setCourseLevel(ladder_.level());
+                recent_.reset();
+            }
+            if (step == Course::Ladder::Step::Up) {
+                climbed_ = true;
+                host.pulseRgb(0, 255, 40, 450);
+                host.playSound(Sound::LevelUp);
+            } else {
+                host.beepOk();
+            }
+        }
     } else {
+        /* Wrong: the streak goes, and the round now counts as a miss, but the
+         * board stays to be finished. */
         streak_ = 0;
+        slipped_ = true;
         flashTile_ = tile;
         flashError_ = true;
         flashUntil_ = millis() + 500UL;
+        host.beepError();
     }
     markDirty();
 }
@@ -172,7 +180,7 @@ void SortGame::renderStatic(AppContext& host) {
     /* The direction is fixed for the round, and a new round is a full repaint,
      * so this is static even though it is not constant. */
     Ui::drawLabel(tft, Rect{10, 55, 300, 18},
-                  ascending_ ? "Tap smallest to largest" : "Tap largest to smallest",
+                  round_.ascending ? "Tap smallest to largest" : "Tap largest to smallest",
                   Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < 6; ++i) {
@@ -186,7 +194,7 @@ void SortGame::renderStatic(AppContext& host) {
 void SortGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
 
-    for (uint8_t i = 0; i < count_; ++i) {
+    for (uint8_t i = 0; i < round_.count; ++i) {
         const uint8_t state = static_cast<uint8_t>((locked_[i] ? 1 : 0) |
                               (flashTile_ == static_cast<int8_t>(i)
                                    ? (flashError_ ? 2 : 4) : 0));
@@ -200,26 +208,24 @@ void SortGame::renderDynamic(AppContext& host) {
             text = TFT_BLACK;
         }
         char label[8];
-        snprintf(label, sizeof(label), "%d", numbers_[i]);
+        SC::text(round_.tiles[i], label, sizeof(label));
         /* drawButton fills its rect opaquely, so a tile erases the tile that
          * was there and the flash needs no clearing of its own. */
         Ui::drawButton(tft, tileRect(i), label, fill, Ui::outline(), text, false, 4);
         drawnTile_[i] = state;
     }
 
-    /* Rounds grows and Best streak grows, but both reset when the game is
-     * re-entered, and Best is TR_DATUM so it would leave its old left-hand end
-     * behind. Cleared before written. */
     if (score_ != drawnScore_ || bestStreak_ != drawnBest_) {
-        tft.fillRect(10, 33, 140, 20, Ui::bg());
-        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 170, 33, 170, 20, Ui::bg());
+        tft.fillRect(10, 33, 150, 20, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 150, 33, 150, 20, Ui::bg());
         tft.setTextColor(Ui::text(), Ui::bg());
-        char buf[24];
+        char buf[32];
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "Rounds %u", score_);
+        snprintf(buf, sizeof(buf), "Level %u  Rounds %u", static_cast<unsigned>(round_.level),
+                 static_cast<unsigned>(score_));
         tft.drawString(buf, 10, 35, 2);
         tft.setTextDatum(TR_DATUM);
-        snprintf(buf, sizeof(buf), "Best streak %u", bestStreak_);
+        snprintf(buf, sizeof(buf), "Best streak %u", static_cast<unsigned>(bestStreak_));
         tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
         tft.setTextDatum(TL_DATUM);
         drawnScore_ = score_;
@@ -228,12 +234,22 @@ void SortGame::renderDynamic(AppContext& host) {
 
     /* Painted once. It overlaps the bottom row of tiles, but it never has to be
      * taken off: the only way past a sorted board is a tap, which deals a new
-     * round and asks for a full repaint. */
+     * round and asks for a full repaint. A step up names the new level on it. */
     if (allLocked() && !drawnSorted_) {
         tft.fillRoundRect(58, 178, 204, 42, 8, Ui::panel());
         tft.drawRoundRect(58, 178, 204, 42, 8, Ui::success());
-        Ui::drawLabel(tft, Rect{60, 184, 200, 30}, "Sorted - tap next", Ui::success(), 2, Align::Center);
+        char line[SC::LEVEL_LINE_MAX + 1];
+        uint16_t colour = Ui::success();
+        if (climbed_) {
+            SC::levelLine(ladder_.level(), line, sizeof(line));
+            colour = YELLOW;
+        } else {
+            snprintf(line, sizeof(line), "%s", slipped_ ? "Sorted - tap next" : "Sorted first time!");
+        }
+        tft.setTextColor(colour, Ui::panel());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(line, GAME_CANVAS_WIDTH / 2, 199, 2);
+        tft.setTextDatum(TL_DATUM);
         drawnSorted_ = true;
     }
 }
-
