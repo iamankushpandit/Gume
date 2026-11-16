@@ -1007,7 +1007,7 @@ def stateflags():
 def statemaps():
     im, d = blank(); topbar(d, "State Maps")
     d.text((8, 32), "4/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Medium", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([110, 42, 209, 141], fill=WHITE, outline=OUTLINE)
     m = tinted("mnf_state_map_fl", INK)
     if m: im.paste(m, (112 + (96 - m.width) // 2, 44 + (96 - m.height) // 2), m)

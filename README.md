@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,682,689 / 3,145,728 bytes of the app partition (**85.3%**) |
-| RAM | 94,836 / 327,680 bytes (**28.9%**) |
+| Flash | 2,683,553 / 3,145,728 bytes of the app partition (**85.3%**) |
+| RAM | 94,956 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -398,7 +398,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus**. Nine levels: the famous flags, the well known, then Europe, the Americas, Asia, Oceania and Africa one at a time with every wrong answer from the same continent, the whole world, and last the whole world with the capital counting as much as the flag | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore. Each player's level is kept between visits and moves up or down with their answers, every flag of a level comes up before any repeats, a missed flag comes back a few flags later, and flags that cannot be told apart at this size (Indonesia and Monaco, Chad and Romania) are never offered against each other |
 | **US States** | Name the state, then its capital | US geography as a name-then-capital pair, the same loop as Flags |
 | **State Flags** | A real state flag, name the state, then its capital. Five levels: the nine famous states, the next eighteen, the last twenty-three, all fifty, and all fifty with the capital counting as much as the flag | Fifty more flags with the same reward loop. Each player's level is kept between visits and moves up or down with their answers, and every flag of a level comes up before any repeats |
-| **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition |
+| **State Maps** | A real state outline, name the state, then its capital. Five levels: the nine famous states, the next eighteen, the last twenty-three, all fifty, and all fifty with the capital counting as much as the outline | Map-shape recognition. Each player's level is kept between visits and moves up or down with their answers, every outline of a level comes up before any repeats, and Colorado and Wyoming, the same rectangle, are never offered against each other |
 | **Calendar** | Days and months in order, as two courses with a level each. Days: the next day, then round the week (*after Sunday*), two or three days on, then a week and more (*10 days after Wednesday*). Months: the next month, round the year, which month is number 9, how many days a month has — and a week, a year and a leap year — then several months on | Sequence and cyclical time: the week and the year as circles rather than lists, a week on bringing the same day back, and the facts a calendar is built from. Each player's level on each is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong tiles are the mistakes players make — the day before given for the day after, the starting day counted as the first |
 | **Time** | Reading an analogue clock, over ten levels: o'clock, half past, quarter past and quarter to, minutes past and minutes to in fives, then any minute with the minutes marked round the rim; then the same clock said in words (*"quarter to 4"*), in 24-hour time, twenty minutes later or fifteen earlier, and how many minutes until the next o'clock | Telling the time from the hands, then saying it the ways people say it and working with it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the readings players really make: the hands read the wrong way round, the hour hand read as the next number when it is nearly there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. written as 13:00 |
 | **Space** | Forty-four questions about the solar system and the layers of air above it — the planets in order, why Venus beats Mercury, where the ozone is, which layer the Space Station orbits in. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Three levels, so a younger player is never asked about the Karman line |
@@ -464,15 +464,15 @@ overrides by hand, and the choice persists.
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
 **Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
-**Cinnamon**, **Flags** and **State Flags** are courses: twelve levels of
-adding and taking away, twelve of times tables and division, seven of
-counting, eight of adding and taking away with shapes, six of numbers to ten
-on the hands, ten of reading a clock, nine on the number line, four of days
-and five of months, six of mixing colours, seven of shapes, eight of spotting
-a difference, eight of coins and change, twelve of fractions, ten of percents,
-eight of Roman numerals, ten of putting numbers in order, eight of remembering
-where cards are, six of repeating a sequence, nine of flags and capitals, five
-of state flags. Each
+**Cinnamon**, **Flags**, **State Flags** and **State Maps** are courses:
+twelve levels of adding and taking away, twelve of times tables and division,
+seven of counting, eight of adding and taking away with shapes, six of numbers
+to ten on the hands, ten of reading a clock, nine on the number line, four of
+days and five of months, six of mixing colours, seven of shapes, eight of
+spotting a difference, eight of coins and change, twelve of fractions, ten of
+percents, eight of Roman numerals, ten of putting numbers in order, eight of
+remembering where cards are, six of repeating a sequence, nine of flags and
+capitals, five of state flags, five of state outlines. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

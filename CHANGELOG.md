@@ -276,6 +276,17 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**State Maps is a course of five levels**, the same five as State Flags:
+the nine famous states, the next eighteen, the last twenty-three, all fifty,
+and all fifty with the capital counting as much as the outline. Every outline
+of a level comes up before any repeats, the level is kept between visits and
+moves down as well as up, and a new level is named over its first outline.
+The capital round used to keep the four options where they were, so the
+capital was always on the button that had just been right; it is shuffled
+now. Colorado and Wyoming, the same rectangle, are never offered against
+each other, and a press near the top of a lower button no longer answers
+the one above.
+
 **State Flags is a course of five levels.** Its tiers were climbed by six
 right in a row and never come down from, and it dealt from the pool's
 positions, so the first tier was the same nine questions in a loop. Now it
