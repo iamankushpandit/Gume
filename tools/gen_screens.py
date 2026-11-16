@@ -980,7 +980,7 @@ def flags_capital(answered=False):
 def states():
     im, d = blank(); topbar(d, "US States")
     d.text((8, 32), "3/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     q = "What is the capital of Texas?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
     for i, lab in enumerate(["Austin", "Houston", "Dallas", "El Paso"]):

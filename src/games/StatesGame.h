@@ -10,8 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/Progress.h"
-#include "engine/RecentQuestions.h"
+#include "engine/Course.h"
+#include "StatesCourse.h"
 #include "ui/Ui.h"
 #include "StateData.h"
 
@@ -33,7 +33,6 @@ public:
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
-    void end(AppContext& host) override;
     /* No round ends, so the tally is the game: one answer is worth coming
      * back to, a tap on the difficulty alone is not. */
     Keep keepsGame() const override {
@@ -42,23 +41,24 @@ public:
     void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
-    enum class Mode  : uint8_t { CapitalOf, WhichState };
     enum class Phase : uint8_t { Asking, Feedback };
 
     static constexpr uint8_t OPTION_COUNT = 4;
 
     Rect answerRect(uint8_t i) const;
     Rect tierRect() const;
-    uint8_t poolSize() const;
-    const StateFact* fromPool(uint8_t index) const;
+    void startLevel();
+    bool canOffer(const StateFact* cand, bool close) const;
     void newQuestion();
 
-    Progress progress_;
-    RecentQuestions recent_;
-    uint8_t tier_ = 1;
-    uint8_t correctStreak_ = 0;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    uint8_t pool_[64] = {};        // STATE_FACTS rows of the level
+    uint8_t states_ = 0;           // how many of them
+    uint16_t item_ = 0;
+    bool announce_ = false;        // the prompt names the new level
 
-    Mode  mode_  = Mode::CapitalOf;
+    StatesCourse::Dir mode_ = StatesCourse::Dir::CapitalOf;
     Phase phase_ = Phase::Asking;
 
     const StateFact* current_ = nullptr;

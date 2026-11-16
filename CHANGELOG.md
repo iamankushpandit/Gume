@@ -276,6 +276,20 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**US States is a course of eight levels.** It asked a capital or a state at
+random from three tiers climbed by six right in a row and never come down
+from, and never asked the postal codes in its own table. Now it asks the
+nine famous states' capitals, the same nine the other way round, the next
+eighteen, those twenty-seven both ways, the last twenty-three, all fifty
+both ways, the postal codes both ways, and everything mixed. Every question
+of a level comes up before any repeats, a missed one returns a few questions
+later, the level is kept between visits and moves down as well as up, a new
+level is named over its first question, and from the postal codes on the
+wrong answers share the code's first letter where they can. The level
+button shows "Level N" and steps up one; a tap on it during feedback no
+longer throws the feedback away. The per-state practice record ("stateSrs")
+was written and never read, and is no longer kept.
+
 **State Maps is a course of five levels**, the same five as State Flags:
 the nine famous states, the next eighteen, the last twenty-three, all fifty,
 and all fifty with the capital counting as much as the outline. Every outline
