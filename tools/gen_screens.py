@@ -2737,6 +2737,7 @@ def _regular(n, xs=100, ys=100, flat_bottom=True):
              math.sin(start + i * 2 * math.pi / n) * ys) for i in range(n)]
 
 
+SHAPE_POLYS["kite"] = [(0, -100), (62, -30), (0, 100), (-62, -30)]
 SHAPE_POLYS["pentagon"] = _regular(5)
 SHAPE_POLYS["hexagon"] = _regular(6)
 SHAPE_POLYS["heptagon"] = _regular(7)
@@ -2768,7 +2769,7 @@ def _shape_screen(level, names, order, matched, stats):
     head = "Tap a shape, then its matching outline"
     d.text((W / 2 - d.textlength(head, font=F2) / 2, 34), head, font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength(stats, font=F1), 50), stats, font=F1, fill=TEXT)
-    tight = level >= 4
+    tight = level == 6   # Concave or convex: ShapesCourse::LEVELS
     cols = [(225, 60, 80), (42, 117, 213), (39, 157, 112), (244, 188, 48)]
     for i, (label, shape, concave) in enumerate(names):
         r = (16, 58 + i * 43, 136, 38)
@@ -2805,12 +2806,14 @@ def shapes():
 
 
 def shapes_concave():
-    """Shape & Color, level 4: two concave, two convex, and the word on the row."""
+    """Shape & Color, level 6: two concave, two convex, and the word on the row.
+
+    The shapes are from ShapesCourse.h's level 6 pool, four of each kind."""
     return _shape_screen(
-        4,
+        6,
         [("cross", "cross", True), ("hexagon", "hexagon", False),
-         ("pinwheel", "pinwheel", True), ("diamond", "diamond", False)],
-        [2, 3, 0, 1], set(), "Level 4   Taps 0   Best 8")
+         ("pinwheel", "pinwheel", True), ("kite", "kite", False)],
+        [2, 3, 0, 1], set(), "Level 6   Taps 0   Best 8")
 
 
 

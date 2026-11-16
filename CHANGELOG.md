@@ -134,6 +134,19 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Shapes is a course of seven levels.** It matched a filled shape to its own
+outline -- the same picture twice -- so the name on the row was never asked,
+and its level was the rounds played this visit, so every visit dealt the
+same three rounds in the same order. A round is still four shapes and four
+targets, and the level decides what a target is: the outline, in any
+colour; the lookalikes (with a parallelogram and a kite added); how many
+sides the shape has; its name, with none on the picture; its outline turned
+a quarter or half way round; concave or convex; and the sides of any shape,
+the stars and the cross included. A round with no wrong match moves the
+player up, one with two or more moves them down, the level is kept between
+visits, every shape of a level comes up before any repeats, and the targets
+are never in the rows' own order.
+
 **Color Mix is a course of six levels.** It had six questions, and its
 wrong buttons came from seven names one of which, brown, was never the
 answer, so a player learned to skip it; "pink" was a magenta swatch. It now
