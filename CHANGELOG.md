@@ -134,6 +134,16 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Roman is a course of eight levels.** Its level was the visit's score, so
+every visit began with I, V and X; its level 3 asked 90 to 99, which need a
+C its key did not show; and its last level brought D, CD, CM and M in at
+once. Now each level adds one sign -- I V X, tens, L (to 89), C, D, M --
+then the whole notation, with one question in four from a lower band so
+small numbers come back, and last, spotting the numeral written wrongly: IC
+for 99, XXXX for 40, VV for 10. The level is kept between visits, numbers
+with a 4 or a 9 come up more often, and the key and its rule cover all
+eight levels.
+
 **Percent is a course of ten levels, and no wrong answer is marked right
 any more.** It truncated 25% of 10 to 2 and 75% of 50 to 37 and marked them
 correct; most rounds showed one wrong percent on two buttons; its level
