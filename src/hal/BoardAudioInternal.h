@@ -83,6 +83,8 @@ extern int dacIdleLeft;
 
 /** Copy a script in and start it. The only thing a cue needs. */
 void arm(const Segment* segments, uint8_t count);
+/** Keep the note last struck held a segment longer: Sound::NoteHold. */
+void holdNote();
 size_t generateBlock(uint8_t* dst, int frames);
 void startAudioTask();
 

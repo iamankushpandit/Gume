@@ -184,19 +184,17 @@ void PianoGame::update(AppContext& host, const TouchPoint& touch) {
         held_ = NO_KEY;
     }
 
-    /* Held keys keep sounding. A cue runs for SOUND_NOTE_MS and then stops,
-     * so a finger resting on a key went quiet while it was still pressed --
-     * which is not what a piano does. Re-arming well before the note ends
-     * leaves no audible gap -- well before, because the sound is generated
-     * ahead of the speaker; see SOUND_NOTE_REARM_MS -- and arm() recognises
-     * the repeat and carries the oscillator phase across the seam rather
-     * than snapping it back to zero, so there is no click either. It is a
-     * re-trigger rather than true sustain, which the synthesiser has no
-     * notion of. */
+    /* Held keys keep sounding. A note is held for SOUND_NOTE_MS and then let
+     * go, so a finger resting on a key would go quiet while it was still
+     * pressed -- which is not what a piano does. Saying NoteHold well before
+     * that keeps it held, seamlessly: nothing is struck again. Well before,
+     * because the sound is generated ahead of the speaker; see
+     * SOUND_NOTE_REARM_MS. Asking for the note itself would strike it again,
+     * which is what a key pressed twice must do and a key held must not. */
     if (held_ != NO_KEY && now - lastArmMs_ >= SOUND_NOTE_REARM_MS) {
         lastArmMs_ = now;
         litSinceMs_ = now;
-        host.playSound(soundFor(held_));
+        host.playSound(Sound::NoteHold);
     }
 
     if (lit_ != NO_KEY && held_ == NO_KEY && now - litSinceMs_ >= KEY_LIT_MS) {

@@ -67,6 +67,12 @@ constexpr Segment vox(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t ms, uint8_
 constexpr Segment hiss(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t ms, uint8_t amp) {
     return Segment{f1, f2, f3, ms, amp, Wave::Unvoiced};
 }
+constexpr Segment note(uint16_t hz, uint16_t ms, uint8_t amp, audio::Timbre t) {
+    return Segment{hz, hz, t, ms, amp, Wave::Note};
+}
+constexpr Segment glide(uint16_t from, uint16_t to, uint16_t ms, uint8_t amp, audio::Timbre t) {
+    return Segment{from, to, t, ms, amp, Wave::Note};
+}
 
 constexpr Segment WRONG[] = {tone(160, 130, 100), hush(40), tone(160, 150, 100)};
 constexpr Segment YOUR_TURN[] = {tone(784, 70, 80), hush(45), tone(784, 120, 80)};
@@ -85,6 +91,32 @@ constexpr Segment VICTORY[] = {
 constexpr Segment GAME_OVER[] = {tone(392, 150, 92), tone(330, 150, 92), sweep(311, 110, 400, 96)};
 constexpr Segment WHOOSH[] = {air(2600, 1200, 32, 60), air(1700, 1000, 32, 68), air(950, 800, 42, 55)};
 constexpr Segment NOTE_A4[] = {tone(440, SOUND_NOTE_MS, 85)};
+
+/* The smooth set's shapes: a glide on its own, a glide into a glide, a run of
+ * notes ringing under each other into a chord, two notes struck together past
+ * full scale, more notes than voices, a tone handing over to a note, a note
+ * gliding on its own clock under noise, and the bell's overtone. */
+constexpr Segment N_TAP[] = {glide(700, 1100, 25, 90, audio::PURE)};
+constexpr Segment N_CORRECT[] = {glide(659, 988, 90, 88, audio::SOFT),
+                                 glide(988, 1319, 150, 92, audio::SOFT)};
+constexpr Segment N_WRONG[] = {glide(392, 233, 240, 96, audio::SOFT)};
+constexpr Segment N_VICTORY[] = {note(523, 100, 84, audio::GLOW), note(659, 100, 86, audio::GLOW),
+                                 note(784, 100, 88, audio::GLOW),
+                                 glide(988, 1047, 300, 100, audio::RING)};
+constexpr Segment N_HIGH_SCORE[] = {
+    note(1047, 60, 66, audio::GLOW), note(1319, 60, 68, audio::GLOW),
+    note(1568, 60, 70, audio::GLOW), note(2093, 120, 76, audio::RING),
+    note(1568, 1, 62, audio::RING),  note(2093, 200, 72, audio::RING),
+};
+constexpr Segment N_STEAL[] = {
+    note(523, 20, 100, audio::RING), note(659, 20, 100, audio::RING), note(784, 20, 100, audio::RING),
+    note(988, 20, 100, audio::RING), note(1175, 20, 100, audio::RING), note(1319, 20, 100, audio::RING),
+};
+constexpr Segment N_HANDOVER[] = {tone(660, 80, 90), note(880, 120, 90, audio::GLOW)};
+constexpr Segment N_WHOOSH[] = {glide(1400, 520, 1, 80, audio::SWISH), air(2400, 1400, 50, 16),
+                                air(1600, 1100, 50, 20), air(1000, 900, 50, 12)};
+constexpr Segment N_BELL[] = {note(1319, 290, 125, audio::BELL), note(1046, 290, 125, audio::BELL)};
+constexpr Segment N_KEY_A4[] = {note(440, SOUND_NOTE_MS, 92, audio::KEYS)};
 constexpr Segment PHRASE[] = {
     vox(360, 1050, 2600, 110, 92),    vox(560, 1750, 2500, 190, 100),  hush(45),
     hiss(3000, 4200, 5200, 28, 95),   hiss(4800, 6200, 7000, 200, 100), hush(110),
@@ -108,6 +140,13 @@ static const Cue CUES[] = {
     CUE("bell", BELL),          CUE("correct", CORRECT),    CUE("victory", VICTORY),
     CUE("gameover", GAME_OVER), CUE("whoosh", WHOOSH),      CUE("note", NOTE_A4),
     CUE("phrase", PHRASE),
+};
+
+static const Cue NOTE_CUES[] = {
+    CUE("n_tap", N_TAP),           CUE("n_correct", N_CORRECT),     CUE("n_wrong", N_WRONG),
+    CUE("n_victory", N_VICTORY),   CUE("n_highscore", N_HIGH_SCORE), CUE("n_steal", N_STEAL),
+    CUE("n_handover", N_HANDOVER), CUE("n_whoosh", N_WHOOSH),       CUE("n_bell", N_BELL),
+    CUE("n_key", N_KEY_A4),
 };
 
 constexpr int MAX_SAMPLES = 24000 * 4;
@@ -296,6 +335,118 @@ static double checkHeldNote(int rate, int frameMs) {
     return lowest;
 }
 
+/* A STRUCK NOTE MAKES NO STEP EITHER.
+ *
+ * Notes ring under each other, so the bound is the sum over every pitch a cue
+ * names -- the bell's at its octave too -- of the largest step a sine at that
+ * pitch and the cue's peak level can make, plus the slewed gain of whatever
+ * Tone hands over, plus the noise a cue with air in it may carry. A note cut
+ * off, a voice taken mid-cycle without the declick, or an attack with no
+ * rise is a step far past that. Returns the worst step against its bound. */
+static double checkNoteSteps(const Cue& cue, int rate, int n) {
+    double peak = 0.0;
+    for (int i = 0; i < n; ++i) peak = std::fmax(peak, std::fabs(static_cast<double>(out[i])));
+    double sumF = 0.0;
+    bool noisy = false;
+    for (uint8_t i = 0; i < cue.count; ++i) {
+        const Segment& s = cue.segs[i];
+        noisy |= s.wave == Wave::Noise;
+        if (s.wave != Wave::Note && s.wave != Wave::Tone) continue;
+        const double f = s.a > s.b ? s.a : s.b;
+        sumF += (s.wave == Wave::Note && s.c == audio::BELL) ? f * 1.5 : f;
+    }
+    /* Noise has no such bound; checkNoStep() skips it for the same reason. */
+    if (noisy) return 0.0;
+    /* The fastest attack is 2ms, and a rise adds its own slope. */
+    const double attack = peak * 1000.0 / (2.0 * rate);
+    double worst = 0.0;
+    for (int i = 1; i < n; ++i) {
+        const double slew = std::fabs(static_cast<double>(gainAt[i]) - gainAt[i - 1]) * 32000.0;
+        const double bound = 2.0 * M_PI * sumF / rate * peak * 1.05 + attack + 16.0 + slew;
+        const double step = std::fabs(static_cast<double>(out[i]) - out[i - 1]);
+        const double over = step / bound;
+        if (over > worst) worst = over;
+        if (step > bound) {
+            CHECK(false, "%s @%d Hz: step of %.0f at sample %d where the notes allow %.0f",
+                  cue.name, rate, step, i, bound);
+            return worst;
+        }
+    }
+    return worst;
+}
+
+/* A HELD KEY STAYS HELD, AND ONLY A NEW PRESS STRIKES.
+ *
+ * The key is struck once and then held with synthHold() every
+ * SOUND_NOTE_REARM_MS, on the same timeline as checkHeldNote(): the
+ * generator a DMA ahead of the speaker. KEYS falls to its sustain and must
+ * then stay there while the key is down -- a later dip is the note let go.
+ * Returns the lowest level seen from one second in, against the highest. */
+static double checkHeldKey(int rate, int frameMs) {
+    constexpr int DMA_FRAMES = 6 * 256 + 128;
+    const int perMs = rate / 1000;
+    const int holdMs = 2500;
+    static int16_t played[24000 * 3];
+    static int16_t made_[24000 * 3];
+    int heard = 0;
+    int made = 0;
+    audio::synthSetRate(rate);
+    for (int16_t s; audio::nextSample(s);) {}
+    uint32_t lastArm = 0;
+    for (int ms = 0; ms < holdMs; ++ms) {
+        if (ms % frameMs == 0) {
+            const uint32_t now = static_cast<uint32_t>(ms);
+            if (ms == 0) {
+                audio::synthLoad(N_KEY_A4, 1);
+            } else if (now - lastArm >= SOUND_NOTE_REARM_MS) {
+                lastArm = now;
+                audio::synthHold();
+            }
+        }
+        while (made < heard) made_[made++] = 0;
+        for (int16_t s; made < heard + DMA_FRAMES && audio::nextSample(s);) made_[made++] = s;
+        for (int k = 0; k < perMs; ++k, ++heard) played[heard] = heard < made ? made_[heard] : 0;
+    }
+    const int window = 3 * perMs;
+    double hi = 0.0;
+    double lo = 1e9;
+    int loAt = 0;
+    for (int i = 1000 * perMs; i + window <= heard - 100 * perMs; i += window) {
+        double p = 0.0;
+        for (int k = 0; k < window; ++k) p = std::fmax(p, std::fabs(static_cast<double>(played[i + k])));
+        hi = std::fmax(hi, p);
+        if (p < lo) {
+            lo = p;
+            loAt = i / perMs;
+        }
+    }
+    const double level = hi > 0.0 ? lo / hi : 0.0;
+    CHECK(hi > 32000.0 * 0.92 * 0.3, "held key @%d Hz, %dms frames: sustain only %.0f", rate,
+          frameMs, hi);
+    CHECK(level > 0.9, "held key @%d Hz, %dms frames: level falls to %.2f at %dms", rate, frameMs,
+          level, loAt);
+    /* And it must not go on for ever once the holding stops. */
+    int tail = 0;
+    for (int16_t s; audio::nextSample(s);) ++tail;
+    CHECK(tail < rate, "held key @%d Hz: still sounding %d samples after the last hold", rate, tail);
+    return level;
+}
+
+/* The same key pressed again while it rings is struck again: two voices, the
+ * second from its own attack, never a continuation of the first. */
+static void checkRestrike(int rate) {
+    audio::synthSetRate(rate);
+    for (int16_t s; audio::nextSample(s);) {}
+    audio::synthLoad(N_KEY_A4, 1);
+    int16_t s = 0;
+    for (int i = 0; i < rate / 5; ++i) audio::nextSample(s);
+    audio::synthLoad(N_KEY_A4, 1);
+    audio::nextSample(s);
+    CHECK(audio::synthNotesSounding() == 2, "re-pressed key @%d Hz: %d notes sounding, not 2", rate,
+          audio::synthNotesSounding());
+    while (audio::nextSample(s)) {}
+}
+
 int main(int argc, char** argv) {
     const char* dir = argc > 1 ? argv[1] : nullptr;
     for (int rate : {16000, 24000}) {
@@ -315,6 +466,21 @@ int main(int argc, char** argv) {
             std::printf("held A4    %5d Hz  %dms frames  lowest level %.2f\n", rate, frameMs,
                         checkHeldNote(rate, frameMs));
         }
+        for (const Cue& cue : NOTE_CUES) {
+            const int n = render(cue, rate);
+            writeCsv(dir, cue.name, rate, n);
+            CHECK(n > 0 && n < MAX_SAMPLES, "%s rendered %d samples", cue.name, n);
+            CHECK(std::abs(out[n - 1]) <= 320, "%s ends on %d", cue.name, out[n - 1]);
+            CHECK(audio::synthNotesSounding() == 0, "%s ended with notes sounding", cue.name);
+            const double step = checkNoteSteps(cue, rate, n);
+            std::printf("%-11s %5d Hz  %6d samples  worst step %.2fx bound\n", cue.name, rate, n,
+                        step);
+        }
+        for (int frameMs : {20, 40}) {
+            std::printf("held key   %5d Hz  %dms frames  lowest level %.2f\n", rate, frameMs,
+                        checkHeldKey(rate, frameMs));
+        }
+        checkRestrike(rate);
     }
     if (failures) {
         std::printf("%d failure(s)\n", failures);
