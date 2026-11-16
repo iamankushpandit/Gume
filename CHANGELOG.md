@@ -282,6 +282,13 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Cursive is a course of five stages**, on the same engine as Trace's: small
+letters first, since joined writing is built from them, then capitals, then
+joined words, each moved on by tracing it through; then less help, without
+the arrows; then from memory. It opened at capital A on every visit; now it
+opens on the stage's own tab, the stage is kept between visits, and the
+letter that moves a player on says so on its badge. Every tab stays open.
+
 **Trace is a course of six stages.** It opened at A on every visit, with
 every arrow and dot showing, and remembered nothing. Now a player's stage
 says which tab it opens on and how much help is drawn: capitals, small

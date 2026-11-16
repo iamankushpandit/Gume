@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,705,749 / 3,145,728 bytes of the app partition (**86.0%**) |
-| RAM | 95,076 / 327,680 bytes (**29.0%**) |
+| Flash | 2,706,033 / 3,145,728 bytes of the app partition (**86.0%**) |
+| RAM | 95,108 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -406,7 +406,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a young player can make something rather than be tested on it, and the note names are on the keys so the naming comes for free |
 | **Chess** | The full rules, against a friend or against the console — on one device, on two in the same room over Bluetooth, or on your own at Easy or Medium. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other — or, on your own, an opponent that is beatable on purpose |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a young player works out that hits come in lines long before anyone explains it |
-| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-nine short words a young player knows, covering every letter but q. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, drawn a third larger than the first version because young players found it too small to follow. A numbered arrow beside each stroke shows where it starts and which way it goes, the way a handwriting workbook marks it. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice |
+| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-nine short words a young player knows, covering every letter but q. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, drawn a third larger than the first version because young players found it too small to follow. A numbered arrow beside each stroke shows where it starts and which way it goes, the way a handwriting workbook marks it. Five stages: small letters, capitals and joined words, each finished by tracing it through; then less help, with no arrows; then from memory, with only the start ring and the next dot. Every tab is open at every stage, and each player's stage is kept between visits. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice |
 | **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a young player who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can |
 | **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk |
 | **Go** | The oldest board game there is, on a 9x9 board (19x19 on the 4-inch console), for two on one console, against the computer at Easy or Medium, or against another console in the room over Bluetooth. Five rule sets, chosen before the game: *Capture 1*, *3* or *5* -- first to take that many stones wins, the way it is taught in schools -- *Area*, and *Territory*, which ends with both players marking the groups that cannot live. A stone is placed in two taps, the first a ghost so a misplaced finger costs nothing, and on 19x19 the panel magnifies the five-by-five around it. Undo takes back your move and the computer's reply; the game is remembered if you put the device down | Surrounding rather than attacking, and the idea that a group lives or dies by its liberties -- the computer never fills its own eye, and a young player who watches it learns why |
@@ -465,10 +465,10 @@ overrides by hand, and the choice persists.
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
 **Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
 **Cinnamon**, **Flags**, **State Flags**, **State Maps**, **US States**,
-**Space**, **GRE Words**, **Elements** and **Trace** are courses: twelve
-levels of adding and taking away, twelve of times tables and division, seven
-of counting, eight of adding and taking away with shapes, six of numbers to
-ten on the hands, ten of reading a clock, nine on the number line, four of
+**Space**, **GRE Words**, **Elements**, **Trace** and **Cursive** are courses:
+twelve levels of adding and taking away, twelve of times tables and division,
+seven of counting, eight of adding and taking away with shapes, six of numbers
+to ten on the hands, ten of reading a clock, nine on the number line, four of
 days and five of months, six of mixing colours, seven of shapes, eight of
 spotting a difference, eight of coins and change, twelve of fractions, ten of
 percents, eight of Roman numerals, ten of putting numbers in order, eight of
@@ -476,7 +476,7 @@ remembering where cards are, six of repeating a sequence, nine of flags and
 capitals, five of state flags, five of state outlines, eight of states,
 capitals and postal codes, eight of the solar system and the sky, six of
 vocabulary, nine of the periodic table, six stages of tracing letters, numbers
-and words. Each
+and words, five stages of joined-up writing. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 
