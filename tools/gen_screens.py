@@ -3094,9 +3094,11 @@ def money():
     coins = [25, 10, 5, 1, 1]         # 42c, the highlighted answer
     cols = pw // 34
     for i, v in enumerate(coins):
-        draw_coin(d, px + 18 + (i % cols) * 34, py + 18 + (i // cols) * 30, v)
+        draw_coin(d, px + 18 + (i % cols) * 34, py + 14 + (i // cols) * 30, v)
 
-    for i, a in enumerate(["42c", "37c", "45c", "40c"]):
+    # MoneyCourse's slips for 42c: the quarter missed (17c), a cent counted
+    # twice (43c), every coin counted as one (5c).
+    for i, a in enumerate(["42c", "17c", "43c", "5c"]):
         r = (18 + (i % 2) * 152, 160 + (i // 2) * 36, 132, 30)   # optionRect
         button(d, r, a,
                SUCCESS if a == "42c" else BLUE, (0, 0, 0) if a == "42c" else TEXT)
@@ -3104,15 +3106,29 @@ def money():
 
 
 def fractions():
+    """Fractions, level 1: name the pie. Geometry from FractionGame.cpp: the
+    header, the line on y=70 in font 1, the pie at (160, 120) radius 38 with
+    its slices from twelve o'clock, buttons at (18 + col*152, 164 + row*34,
+    132, 30). The wrong answers are FractionsCourse's for 3/4: the empty
+    slice counted (1/4), one slice out (2/4), one slice too many cut (3/5)."""
     im, d = blank(); topbar(d, "Fractions")
+    d.text((8, 35), "Level 1", font=F2, fill=TEXT)
+    d.text((8, 51), "Score 3", font=F1, fill=TEXT)
+    for txt, y, f in (("Streak 3", 35, F2), ("Best 5", 51, F1)):
+        d.text((W - 8 - d.textlength(txt, font=f), y), txt, font=f, fill=TEXT)
     q = "Pick the matching fraction"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
-    cx, cy, r = W // 2, 84, 30
-    d.pieslice([cx - r, cy - r, cx + r, cy + r], -90, 90, fill=(255, 202, 84), outline=OUTLINE)
-    d.pieslice([cx - r, cy - r, cx + r, cy + r], 90, 270, fill=WHITE, outline=OUTLINE)
-    for i, a in enumerate(["1/2", "1/3", "2/3", "1/4"]):
+    d.text((W / 2 - d.textlength(q, font=F1) / 2, 66), q, font=F1, fill=MUTED)
+    cx, cy, r = W // 2, 120, 38
+    d.ellipse([cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3], fill=SURFACE)
+    d.pieslice([cx - r, cy - r, cx + r, cy + r], -90, 180, fill=(255, 216, 0), outline=(8, 8, 24))
+    d.pieslice([cx - r, cy - r, cx + r, cy + r], 180, 270, fill=(56, 60, 120), outline=(8, 8, 24))
+    for a in (-90, 0, 90, 180):
+        import math
+        d.line([(cx, cy), (cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a)))],
+               fill=(8, 8, 24))
+    for i, a in enumerate(["3/4", "1/4", "2/4", "3/5"]):
         rr = (18 + (i % 2) * 152, 164 + (i // 2) * 34, 132, 30)
-        button(d, rr, a, SUCCESS if a == "1/2" else PANEL, (0, 0, 0) if a == "1/2" else TEXT)
+        button(d, rr, a, SUCCESS if a == "3/4" else BLUE, (0, 0, 0) if a == "3/4" else WHITE)
     return im
 
 
@@ -3697,8 +3713,8 @@ def about_updates():
 
 def percent():
     im, d = blank(); topbar(d, "Percent")
-    q = "What percent?"   # PercentCircleGame: font 4, centred on (200, 60)
-    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
+    q = "What percent?"   # PercentCircleGame: font 4, centred on x=160, y=60
+    d.text((160 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     # Draw circle at (96, 130) with radius 62
     cx, cy, r = 96, 130, 62
@@ -3732,14 +3748,14 @@ def percent():
         y = cy + int(r * math.sin(rad))
         d.line([(cx, cy), (x, y)], fill=(100, 150, 200), width=1)
 
-    # Four option buttons
-    for i, pct in enumerate(["25%", "50%", "60%", "75%"]):
+    # Level 2's options for 60%: the empty part (40%), a ten either side.
+    for i, pct in enumerate(["40%", "50%", "60%", "70%"]):
         rr = (164 + (i % 2) * 76, 96 + (i // 2) * 44, 70, 38)
         button(d, rr, pct, SUCCESS if pct == "60%" else PANEL,
                on_fill(SUCCESS) if pct == "60%" else TEXT)
 
     # Score line
-    d.text((8, 226), "Score: 15  Streak: 2  Lvl: 1", font=F1, fill=TEXT)
+    d.text((8, 226), "Level 2  Score 15  Streak 2", font=F1, fill=TEXT)
 
     return im
 
@@ -3754,7 +3770,7 @@ def percent_make():
     import math
     im, d = blank(); topbar(d, "Percent")
     q = "Shade 70%"
-    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
+    d.text((160 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     cx, cy, r = 96, 130, 62
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(81, 113, 147), outline=BLUE)
@@ -3772,12 +3788,12 @@ def percent_make():
 
     button(d, (164, 152, 34, 34), "-")
     d.rounded_rectangle([200, 152, 237, 185], 4, fill=PANEL, outline=OUTLINE)
-    v = "45%"
+    v = "?"     # from Fives on the circle is read, not this box
     d.text((219 - d.textlength(v, font=F1) / 2, 164), v, font=F1, fill=TEXT)
     button(d, (240, 152, 34, 34), "+")
     button(d, (276, 152, 34, 34), "OK", ACCENT, on_fill(ACCENT))
 
-    d.text((8, 226), "Score: 7  Streak: 5  Lvl: 2", font=F1, fill=TEXT)
+    d.text((8, 226), "Level 3  Score 7  Streak 5", font=F1, fill=TEXT)
     return im
 
 

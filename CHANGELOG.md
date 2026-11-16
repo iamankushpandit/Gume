@@ -276,6 +276,59 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Roman is a course of eight levels.** Its level was the visit's score, so
+every visit began with I, V and X; its level 3 asked 90 to 99, which need a
+C its key did not show; and its last level brought D, CD, CM and M in at
+once. Now each level adds one sign -- I V X, tens, L (to 89), C, D, M --
+then the whole notation, with one question in four from a lower band so
+small numbers come back, and last, spotting the numeral written wrongly: IC
+for 99, XXXX for 40, VV for 10. The level is kept between visits, numbers
+with a 4 or a 9 come up more often, and the key and its rule cover all
+eight levels.
+
+**Percent is a course of ten levels, and no wrong answer is marked right
+any more.** It truncated 25% of 10 to 2 and 75% of 50 to 37 and marked them
+correct; most rounds showed one wrong percent on two buttons; its level
+followed the streak, so one wrong tap fell to level 1, and levels 4 and 5
+were level 3 again; and the shading round printed the shaded amount, so the
+circle was never read. Now it reads and shades quarters, tens and fives (the
+amount hidden from fives on); turns fractions into percents; finds 50% and
+10% of a number, 25% and 75%, any ten percent and the fives; asks what
+percent one number is of another; and adds or takes a percent off. Every
+answer is exact, the level is kept between visits, every question of a level
+comes up before any repeats, one try a question, and the answer is shown
+beside the circle rather than on a card over it.
+
+**Fractions is a course of twelve levels.** It took its kind of question
+from the visit's score, so every visit began with halves in the same order;
+its level 4 was its level 3 again; equal fractions were excluded rather than
+taught; its wrong answers included 0/4 and 4/4; and tapping all four buttons
+still scored. Now it names and finds pies in halves and quarters, thirds,
+then fifths, sixths and eighths; compares one piece each, the same bottom
+number and the same top number; finds equal fractions; compares any two,
+with pies and then without; and works written questions: a fraction of a
+number, adding and taking away with the same bottom number, and more than
+one whole. The level is kept between visits, every question of a level comes
+up before any repeats, the wrong answers are the misreadings players make
+-- the empty slices counted, the bottom numbers added -- and none is ever
+equal to the right one. One try a question, with the answer on the line
+under the header rather than on a panel over it.
+
+**Money is a course of eight levels.** Its level and its kind of question
+both came from the visit's score -- Total, Make, More, Change in that order
+for ever -- and a wrong tap could be tried again without limit, so the level
+counted rounds played. In Change the answer was the only amount ending in 0
+or 5. Now the levels are ones and fives; tens and making an amount; quarters
+and which pile is worth more; a whole dollar; change in fives; change to the
+cent; the fewest coins; and change from two prices. The kinds of question
+are mixed within a level, every question comes up before any repeats, and
+the level is kept between visits. The wrong amounts are a coin missed or
+counted twice, every coin counted as one cent, the price given back as the
+change, ten out. One try a question -- Make can still be put right, but
+only its first Done counts -- with the answer on the line under the header
+rather than on a panel over the buttons, and Make now shows a second row of
+coins.
+
 **Odd One Out is a course of eight levels.** It worked its difficulty out
 of the visit's score, so every visit began with colour again; the odd size
 was always the bigger one, the odd turn always the upside-down one, the

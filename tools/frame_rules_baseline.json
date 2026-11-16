@@ -54,16 +54,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/FractionGame.cpp": {
-      "String": 6,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/FractionGame.h": {
-      "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/MemoryGame.cpp": {
       "String": 1,
       "delay": 0,
@@ -75,16 +65,6 @@
       "heap": 0
     },
     "src/games/MicrokuGame.h": {
-      "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/MoneyGame.cpp": {
-      "String": 10,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/MoneyGame.h": {
       "String": 1,
       "delay": 0,
       "heap": 0

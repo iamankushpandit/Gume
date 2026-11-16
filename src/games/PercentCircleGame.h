@@ -9,8 +9,11 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
+
+#include "PercentCourse.h"
 
 struct AppMetadata;
 
@@ -30,34 +33,23 @@ public:
     Keep keepsGame() const override;
 
 private:
-    enum class RoundType : uint8_t {
-        ReadCircle,
-        MakeCircle,
-        PercentOfNumber
-    };
+    void startLevel();
+    void newRound();
+    /* The one answer a question gets, to the ladder. */
+    void answer(AppContext& host, bool right, int8_t pressed);
 
-    uint16_t score_;
-    uint8_t streak_;
-    int8_t correctButton_;
-    int8_t flashIndex_;
-    unsigned long flashUntil_;
-    RoundType roundType_;
-    uint8_t targetPercent_;
-    uint8_t currentPercent_;
-    uint8_t baseNumber_;
-    uint8_t options_[4];
-    char promptBuffer_[64];
-    bool roundComplete_;
-
-    uint8_t level() const {
-        return min<uint8_t>(5, 1 + streak_ / 5);
-    }
-
-    RoundType nextRoundType() const;
-    void newRound(AppContext& host);
-    void markCorrect(AppContext& host);
-    void markWrong(int8_t pressed);
-    void generateOptions();
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    PercentCourse::Question q_;
+    uint16_t item_ = 0;
+    bool announce_ = false;
+    bool banner_ = false;
+    uint16_t score_ = 0;
+    uint16_t rounds_ = 0;
+    uint16_t streak_ = 0;
+    int8_t selected_ = -1;
+    uint8_t currentPercent_ = 0;
+    bool roundComplete_ = false;
 
     Rect optionRect(uint8_t index) const {
         const int16_t col = index % 2;
@@ -83,7 +75,6 @@ private:
 
     void fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const;
     void drawCircle(Ui::Renderer& tft, uint8_t percent, bool highlight) const;
-    void drawReadCircleMode(Ui::Renderer& tft) const;
-    void drawMakeCircleMode(Ui::Renderer& tft) const;
-    void drawPercentOfNumberMode(Ui::Renderer& tft) const;
+    void drawOptions(Ui::Renderer& tft) const;
+    void drawShadeControls(Ui::Renderer& tft) const;
 };
