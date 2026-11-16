@@ -282,6 +282,31 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**GRE Words is a course of six levels.** The quiz asked one thing -- a word,
+pick its meaning -- with the wrong meanings drawn from anywhere, so a verb's
+gloss could often be struck out beside three adjectives' glosses. Now it
+asks the meaning with the wrong ones another part of speech, then all four
+the same part of speech, then the word from its meaning, then the word that
+fills the gap in its own sentence, then a word against its look-alikes (the
+words beside it in the alphabet), then all of them mixed. Every word comes
+up before any repeats; a word answered wrong, or marked "Didn't" in Study,
+returns a few words later. The level is kept between visits and moves down
+as well as up, and a step up is named in the footer, which now shows the
+level where it showed the word's place in the table. The per-word practice
+record ("greProg", 250 bytes a player) is no longer kept.
+
+**Space is a course of eight levels.** It had 41 questions in three levels
+worked out from this visit's right answers, so every visit began again with
+the same twelve. Now it has 123 written questions and 53 generated from the
+planets and the layers of air in order -- 176 in all -- over eight levels:
+the Sun, Earth and Moon; the eight planets; rocky worlds and giants; moons
+and small worlds; the air above us; days, years and seasons; exploring
+space; stars and beyond. Every question of a level comes up before any
+repeats, a missed one returns a few questions later, the level is kept
+between visits and moves down as well as up, and a new level is named over
+its first question. The airliners fact now says they cruise at the bottom of
+the stratosphere or just below it.
+
 **US States is a course of eight levels.** It asked a capital or a state at
 random from three tiers climbed by six right in a row and never come down
 from, and never asked the postal codes in its own table. Now it asks the

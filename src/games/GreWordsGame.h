@@ -10,7 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/Progress.h"
+#include "engine/Course.h"
+#include "GreCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -34,7 +35,6 @@ public:
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
-    void end(AppContext& host) override;
     Keep keepsGame() const override;
     void resume(AppContext& host, uint32_t awayMs) override;
 
@@ -67,7 +67,14 @@ private:
     void renderFlip(AppContext& host);
     void renderQuiz(AppContext& host);
 
-    Progress progress_;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    GreCourse::Kind kind_ = GreCourse::Kind::Meaning;
+    bool announce_ = false;   // the footer names the new level
+    /* The quiz's top line when it is not the word: the meaning to recall,
+     * or the sentence with its gap. */
+    char    quizLines_[2][WRAP_COLS + 1] = {};
+    uint8_t quizLineCount_ = 0;
     Mode     mode_        = Mode::Flip;
     uint16_t currentWord_ = 0;
     bool     cardFlipped_ = false;
