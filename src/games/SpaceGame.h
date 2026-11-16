@@ -10,7 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/RecentQuestions.h"
+#include "engine/Course.h"
+#include "SpaceCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -53,9 +54,12 @@ private:
     void drawQuestion(Ui::Renderer& tft);
     void drawNote(Ui::Renderer& tft);
 
-    RecentQuestions recent_;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    SpaceCourse::Question q_ = {};   // options[0] is the answer
+    uint16_t item_ = 0;
+    bool announce_ = false;          // the strip names the new level
 
-    uint16_t question_ = 0;
     /* Which table option each button shows. The correct answer is always
      * options[0] in the table, so this is what stops it being the same button
      * every time. */
