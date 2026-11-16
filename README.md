@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,680,793 / 3,145,728 bytes of the app partition (**85.2%**) |
-| RAM | 94,700 / 327,680 bytes (**28.9%**) |
+| Flash | 2,681,545 / 3,145,728 bytes of the app partition (**85.2%**) |
+| RAM | 94,724 / 327,680 bytes (**28.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -418,7 +418,7 @@ uses **adaptive difficulty** — see below.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Cinnamon** | Repeat the colour sequence | Working memory and sustained attention |
+| **Cinnamon** | Repeat the colour sequence, over six levels: one step at a time, then quicker, then a new sequence every round so it cannot be learned by heart, then the same at speed, then backwards, last pad first, and backwards with a new sequence every round | Working memory and sustained attention, then holding a sequence well enough to turn it round. Each player's level is kept between visits and moves on rounds of four steps or more repeated correctly; the pace never reaches three flashes a second |
 | **Memory** | Match pairs face-down, over eight levels: six cards, eight, twelve, sixteen, twenty, the full board of 24, look-alike faces (*O* and *Q*, *6* and *9*), and pairs that belong together rather than match (*G* with *g*, *7* with *3+4*) | Visual working memory. The faces change every board, each player's level is kept between visits, and a board cleared in no more than two moves a pair moves the player on |
 | **Odd One** | "Tap the one that is different", over eight levels: a different colour, then a different shape, size and turn, each on its own; any of them without saying which; a colour only a shade away; one difference hidden among cards that differ in a way that does not matter; and the smallest steps | Categorisation — spotting the attribute that doesn't fit, then holding on to the one that matters while others vary. Each player's level is kept between visits and moves up or down with their answers, and the odd card can be bigger or smaller, upside down or the right way up, so no rule but looking finds it |
 | **Shapes** | Match four shapes to four targets, over seven levels that each ask something new about a shape: its outline, in any colour (*"purple star"*); the **lookalikes** a young player calls circle and square (oval, rectangle, diamond, trapezium, parallelogram, kite); how many **sides** it has; its **name**, with none on the picture; its outline **turned**; **concave or convex**, with the word on the row; and the sides of any shape, stars and the cross included | Holding two attributes in mind at once, then shape vocabulary a young player can use: that a hexagon is a hexagon because it has six sides, that an oval is not a circle, that a triangle is still a triangle upside down, and that concave and convex are the names for bending in and bulging out. Each player's level is kept between visits and moves on a round with no wrong match, every shape of a level comes up before any repeats, and a shape matched wrongly comes back a few shapes later |
@@ -463,14 +463,15 @@ overrides by hand, and the choice persists.
 
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
-**Money**, **Fractions**, **Percent**, **Roman**, **Sorting** and **Memory**
-are courses: twelve levels of adding and taking away, twelve of times tables
-and division, seven of counting, eight of adding and taking away with shapes,
-six of numbers to ten on the hands, ten of reading a clock, nine on the number
-line, four of days and five of months, six of mixing colours, seven of shapes,
-eight of spotting a difference, eight of coins and change, twelve of
-fractions, ten of percents, eight of Roman numerals, ten of putting numbers in
-order, eight of remembering where cards are. Each
+**Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory** and
+**Cinnamon** are courses: twelve levels of adding and taking away, twelve of
+times tables and division, seven of counting, eight of adding and taking away
+with shapes, six of numbers to ten on the hands, ten of reading a clock, nine
+on the number line, four of days and five of months, six of mixing colours,
+seven of shapes, eight of spotting a difference, eight of coins and change,
+twelve of fractions, ten of percents, eight of Roman numerals, ten of putting
+numbers in order, eight of remembering where cards are, six of repeating a
+sequence. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

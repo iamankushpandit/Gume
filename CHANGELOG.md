@@ -276,6 +276,19 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Cinnamon is a course of six levels.** Every run began at one step at one
+pace, so the first rounds were trivial for a practised player, and at 32
+steps the sequence quietly stopped growing. Now it grows one step at a time,
+then quicker, then deals a new sequence every round, then the same at speed,
+then asks for it backwards, then backwards and new every round. A round of
+four steps or more repeated correctly counts as right; a run that ends
+before four steps, or on a level's first round, counts as wrong. The level is
+kept between visits, a new level is named over its first showing, and 32
+steps ends the run as a win. The score and best now update during a run
+rather than on the failure screen, the pad pressed by mistake goes dark so
+only the one that was owed is bright, a quick tap is no longer dropped while
+the last pad is still lit, and the best is kept for forwards levels only.
+
 **Memory is a course of eight levels.** Every board was 24 cards of the same
 twelve letters, A to L, for ever: nothing started small and nothing grew. Now
 it starts with six cards and grows to the full board, then deals look-alike
