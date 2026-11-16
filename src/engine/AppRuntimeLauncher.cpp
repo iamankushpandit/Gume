@@ -460,9 +460,18 @@ void LauncherApp::renderDynamic(GameHost& host) {
                 slotHasButton_[slot] = true;
             }
         } else {
-            tft.fillRect(static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2),
-                         static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4),
-                         fill);
+            /* Rounded, and concentric with the frame: the frame's outline is
+             * a rounded rect of Ui::cornerRadius(), and a square erase two
+             * pixels inside it took the outline's four corner pixels with
+             * it on every page turn. Inset by two with a radius two less, it
+             * stays two pixels inside the outline all the way round. What
+             * the icon or label drew BEYOND this area stays: that is why
+             * LauncherIcons.cpp keeps every icon inside its box (rule 3). */
+            const int16_t inner = static_cast<int16_t>(
+                Ui::cornerRadius() > 2 ? Ui::cornerRadius() - 2 : 0);
+            tft.fillRoundRect(static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2),
+                              static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4),
+                              inner, fill);
         }
 
         drawTileContents(tft, entry, r, fill, tall, pageTextScale, wrapSubtitles);

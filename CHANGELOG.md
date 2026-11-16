@@ -10,6 +10,15 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Turning the launcher's page leaves nothing of the page before.** On page
+3, Cinnamon's highlighted pad left the bottom of its white ring on the tile
+that took its place, and every tile lost the four corner pixels of its
+outline whenever the page turned, on every board. A page turn repaints only
+the inside of each tile, and Cinnamon's ring (and Shape & Color's triangle,
+by a pixel) reached past it onto the tile's border; both now stay inside the
+icon box their file states, a host test checks all 47 icons against it, and
+the erase is rounded to match the border instead of cutting its corners.
+
 **Every game can be switched off for a player now.** Chess, Sea Battle,
 Cursive, Ludo, Backgammon, Go, Space and Roman -- the last eight in
 the launcher -- could not be hidden, from Profiles or from the console's
