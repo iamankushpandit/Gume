@@ -144,15 +144,6 @@ bool drawsCode(uint8_t font, uint16_t code) {
     return code >= 32 && code <= 126;
 }
 
-uint16_t blend565(uint16_t under, uint16_t over, uint8_t a) {
-    if (a == 255) return over;
-    if (a == 0) return under;
-    const uint32_t ia = 255u - a;
-    const uint32_t r = (((over >> 11) & 31) * a + ((under >> 11) & 31) * ia + 127) / 255;
-    const uint32_t g = (((over >> 5) & 63) * a + ((under >> 5) & 63) * ia + 127) / 255;
-    const uint32_t b = ((over & 31) * a + (under & 31) * ia + 127) / 255;
-    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
-}
 
 }   // namespace
 
@@ -227,36 +218,13 @@ int32_t TFT_eSPI::ttAdvance(const char* text, uint8_t font) const {
     return pen;
 }
 
-/* One real pixel of a glyph, at (px, py) in the rotation's own coordinates
- * times the UI scale, with the viewport and the paint clip applied to the
- * logical pixel it falls in -- what plot() does for a whole one. */
-void TFT_eSPI::blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a) {
-    if (a == 0 || px < 0 || py < 0) return;
-    const int32_t d = scale_;
-    const int32_t lx = px / d, ly = py / d;   // absolute logical
-    if (clipOn_ && (lx < clipX_ || ly < clipY_ || lx >= clipX_ + clipW_ || ly >= clipY_ + clipH_)) return;
-    if (lx < vpX_ || ly < vpY_ || lx >= vpX_ + vpW_ || ly >= vpY_ + vpH_) return;
-    const int32_t pw = static_cast<int32_t>(frameW_) * d;
-    const int32_t ph = static_cast<int32_t>(frameH_) * d;
-    int32_t fx = 0, fy = 0;
-    switch (rotation_) {   // toFrame()'s transforms, at the real resolution
-        case 1: fx = px; fy = py; break;
-        case 3: fx = pw - 1 - px; fy = ph - 1 - py; break;
-        case 2: fx = pw - 1 - py; fy = px; break;
-        default: fx = py; fy = ph - 1 - px; break;
-    }
-    if (fx < 0 || fy < 0 || fx >= pw || fy >= ph) return;
-    uint16_t& at = frame_[static_cast<size_t>(fy) * pw + fx];
-    at = blend565(at, color, a);
-    ++frameGen_;
-}
-
 void TFT_eSPI::blendArt(int32_t x, int32_t y, int32_t dx, int32_t dy, const uint8_t* alpha,
                         int32_t w, int32_t h, uint16_t color) {
     if (!alpha || w <= 0 || h <= 0) return;
     const int32_t ax = vpDatum_ ? x + vpX_ : x;
     const int32_t ay = vpDatum_ ? y + vpY_ : y;
     const int32_t px = ax * scale_ + dx, py = ay * scale_ + dy;
+    beginShape('M', px, py, w, h, color);
     for (int32_t j = 0; j < h; ++j) {
         const uint8_t* row = alpha + j * w;
         for (int32_t i = 0; i < w; ++i) {
@@ -299,6 +267,7 @@ int32_t TFT_eSPI::ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, i
             const int32_t lx0 = gx / d - (vpDatum_ ? vpX_ : 0);
             const int32_t ly0 = gy / d - (vpDatum_ ? vpY_ : 0);
             forgetMarksUnder(lx0, ly0, (g->w + d - 1) / d + 1, (g->h + d - 1) / d + 1);
+            beginShape('G', gx, gy, code, cap, wide);
             for (int32_t j = 0; j < g->h; ++j) {
                 const uint8_t* row = g->alpha.data() + j * g->w;
                 for (int32_t i = 0; i < g->w; ++i) {

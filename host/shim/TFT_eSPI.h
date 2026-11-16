@@ -194,6 +194,12 @@ public:
      * (HostLogoArt.cpp) is drawn with it. */
     void blendArt(int32_t x, int32_t y, int32_t dx, int32_t dy, const uint8_t* alpha,
                   int32_t w, int32_t h, uint16_t color);
+
+    /* An arc one logical pixel thick at the real resolution, centred on
+     * logical pixel (cx, cy) from `fromDeg` to `toDeg` (0 right, clockwise):
+     * PanelArt::drawArc() on the host (HostLogoArt.cpp). */
+    void drawArcReal(int32_t cx, int32_t cy, int32_t radius, int32_t fromDeg, int32_t toDeg,
+                     uint16_t color);
     /* Moves whenever a pixel is written, so the window is shown again only
      * when there is something new to show. */
     uint32_t frameGeneration() const { return frameGen_; }
@@ -272,6 +278,14 @@ private:
     void fillCircleHalves(int32_t x0, int32_t y0, int32_t r, uint8_t sides, int32_t stretch,
                           uint16_t color);
     int16_t drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font);
+    /* Round and slanted shapes at the real resolution (HostTftShapes.cpp). */
+    bool realShapes() const;
+    void realCircle(int32_t ax, int32_t ay, int32_t r, bool filled, uint8_t quarters,
+                    uint16_t color);
+    void realLine(int32_t ax0, int32_t ay0, int32_t ax1, int32_t ay1, uint16_t color);
+    void realTriangle(int32_t ax0, int32_t ay0, int32_t ax1, int32_t ay1, int32_t ax2,
+                      int32_t ay2, uint16_t color);
+    void blockRect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t color);
     int32_t ttCapPx(uint8_t font) const;
     int32_t ttWidthPermille(uint8_t font) const;
     int32_t ttAdvance(const char* text, uint8_t font) const;
@@ -366,6 +380,18 @@ private:
     int16_t frameH_ = 0;
     int16_t scale_ = 1;   // real pixels per logical one, each way
     std::vector<uint16_t> frame_;
+    /* Per real pixel, for one left partly covered: what it was blended
+     * over, in what colour and how much (blendReal()). 0 alpha: solid. */
+    std::vector<uint16_t> edgeUnder_;
+    std::vector<uint16_t> edgeColour_;
+    std::vector<uint8_t> edgeAlpha_;
+    std::vector<uint16_t> edgeShape_;   // which shape left it: shape_ when it was drawn
+    /* The shape now being drawn, as a hash of what it is and where: the same
+     * shape drawn again is a redraw, another shape of the same colour is a
+     * neighbour (blendReal()). */
+    uint16_t shape_ = 0;
+    void beginShape(uint32_t a, int32_t b, int32_t c, int32_t d, int32_t e, int32_t f = 0,
+                    int32_t g = 0);
     uint32_t frameGen_ = 0;
     uint8_t rotation_ = 1;
     bool inverted_ = false;

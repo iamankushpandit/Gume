@@ -34,4 +34,12 @@ bool drawLogo(TFT_eSPI& panel, uint8_t which, int16_t x0, int16_t y0,
               const uint8_t* bits, int16_t width, int16_t height, int16_t stride,
               uint16_t colour);
 
+/* An arc one pixel thick, centred on pixel (cx, cy), from `fromDeg` to `toDeg`
+ * (0 is to the right, angles grow clockwise, as y does). The few glyphs that
+ * plot their arcs pixel by pixel -- the speaker's waves, the Wi-Fi badge's
+ * fan -- offer them here first, for the same reason the mark does; false
+ * means "plot the pixels", and on a board that is the art. */
+bool drawArc(TFT_eSPI& panel, int16_t cx, int16_t cy, int16_t radius, int16_t fromDeg,
+             int16_t toDeg, uint16_t colour);
+
 }  // namespace PanelArt

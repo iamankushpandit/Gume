@@ -114,7 +114,11 @@ and is measured with the same widths it is drawn with, so nothing is cut
 short that was not before: where FreeSans would run wider than the
 ESP32's font on a word, it is drawn a little narrower. The Braino! mark is
 drawn from its artwork at the screen's resolution too, rather than as
-doubled pixels. Every screen and all forty games were photographed at
+doubled pixels, and so are the icons: on the Linux build every circle,
+rounded corner, slanted line and triangle -- the header's padlock, speaker,
+gear and Wi-Fi badge, every launcher tile's icon, the pies, the clocks and
+the game boards -- is drawn at the screen's own resolution with smooth
+edges, where it was a staircase of doubled pixels. Every screen and all forty games were photographed at
 640x480 and checked: the eight games that came out small on the first
 RG40XX V card (Trace, Counting, Tic-Tac-Toe, Math, Multiply, Time, US States,
 State Flags) are the same size as the rest. Games keep their 320x240 canvas, drawn at the

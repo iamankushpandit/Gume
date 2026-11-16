@@ -37,6 +37,10 @@ void TFT_eSPI::begin(uint8_t) {
     frameH_ = static_cast<int16_t>(HostPlatform::panelHeight());
     scale_ = static_cast<int16_t>(HostPlatform::panelScale());
     frame_.assign(static_cast<size_t>(frameW_) * scale_ * frameH_ * scale_, 0);
+    edgeUnder_.assign(frame_.size(), 0);
+    edgeColour_.assign(frame_.size(), 0);
+    edgeAlpha_.assign(frame_.size(), 0);
+    edgeShape_.assign(frame_.size(), 0);
     resetViewport();
     ++frameGen_;
     HostPlatform::attachPanel(this);
@@ -152,12 +156,109 @@ void TFT_eSPI::plot(int32_t x, int32_t y, uint16_t color) {
     if (toFrame(x, y, fx, fy)) {
         const int32_t d = scale_;
         const int32_t pitch = static_cast<int32_t>(frameW_) * d;
-        uint16_t* at = frame_.data() + (fy * d) * pitch + fx * d;
-        for (int32_t j = 0; j < d; ++j, at += pitch) {
-            for (int32_t i = 0; i < d; ++i) at[i] = color;
+        const size_t first = static_cast<size_t>(fy * d) * pitch + fx * d;
+        uint16_t* at = frame_.data() + first;
+        uint8_t* edge = edgeAlpha_.data() + first;
+        for (int32_t j = 0; j < d; ++j, at += pitch, edge += pitch) {
+            for (int32_t i = 0; i < d; ++i) {
+                at[i] = color;
+                edge[i] = 0;   // solid: no longer anybody's edge
+            }
         }
         ++frameGen_;
     }
+}
+
+namespace {
+
+uint16_t blend565(uint16_t under, uint16_t over, uint8_t a) {
+    if (a == 255) return over;
+    if (a == 0) return under;
+    const uint32_t ia = 255u - a;
+    const uint32_t r = (((over >> 11) & 31) * a + ((under >> 11) & 31) * ia + 127) / 255;
+    const uint32_t g = (((over >> 5) & 63) * a + ((under >> 5) & 63) * ia + 127) / 255;
+    const uint32_t b = ((over & 31) * a + (under & 31) * ia + 127) / 255;
+    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
+}
+
+}   // namespace
+
+/* One real pixel at (px, py) -- the rotation's own coordinates times the UI
+ * scale -- covered `a`/255 by `color`, with the viewport and the paint clip
+ * applied to the logical pixel it falls in, as plot() does for a whole one.
+ *
+ * An anti-aliased edge is a blend, and a blend drawn twice is a different
+ * colour: the screens redraw the same shape over itself all the time (a
+ * repaint "is visually a no-op" is a rule they rely on), and every redraw
+ * would darken every edge until it was as jagged as the blocks it replaced.
+ * So each pixel left partly covered remembers what it was blended over, in
+ * what colour, how much and by which shape (edgeUnder_, edgeColour_,
+ * edgeAlpha_, edgeShape_), and a solid write forgets it:
+ *  - the same shape again takes the larger coverage, over the same ground,
+ *    so a redraw is a no-op;
+ *  - another shape of the same colour adds its coverage to the first, over
+ *    the same ground: two edges that meet -- a thick ring drawn as rings one
+ *    pixel apart, two wedges of one pie -- close up with no seam between
+ *    them, as the one shape they make would have;
+ *  - another colour covering at least as much is drawn over that ground too,
+ *    so an outline's edge laid on its fill's edge leaves no halo of the fill;
+ *  - anything less is blended over what is there now. */
+void TFT_eSPI::blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a) {
+    if (a == 0 || px < 0 || py < 0) return;
+    const int32_t d = scale_;
+    const int32_t lx = px / d, ly = py / d;   // absolute logical
+    if (clipOn_ && (lx < clipX_ || ly < clipY_ || lx >= clipX_ + clipW_ || ly >= clipY_ + clipH_)) return;
+    if (lx < vpX_ || ly < vpY_ || lx >= vpX_ + vpW_ || ly >= vpY_ + vpH_) return;
+    const int32_t pw = static_cast<int32_t>(frameW_) * d;
+    const int32_t ph = static_cast<int32_t>(frameH_) * d;
+    int32_t fx = 0, fy = 0;
+    switch (rotation_) {   // toFrame()'s transforms, at the real resolution
+        case 1: fx = px; fy = py; break;
+        case 3: fx = pw - 1 - px; fy = ph - 1 - py; break;
+        case 2: fx = pw - 1 - py; fy = px; break;
+        default: fx = py; fy = ph - 1 - px; break;
+    }
+    if (fx < 0 || fy < 0 || fx >= pw || fy >= ph) return;
+    const size_t i = static_cast<size_t>(fy) * pw + fx;
+    uint16_t& at = frame_[i];
+    ++frameGen_;
+    if (a == 255) {
+        at = color;
+        edgeAlpha_[i] = 0;
+        return;
+    }
+    uint16_t ground = at;
+    uint8_t cover = a;
+    if (edgeAlpha_[i] != 0) {
+        if (edgeColour_[i] == color) {
+            ground = edgeUnder_[i];
+            cover = edgeShape_[i] == shape_
+                        ? std::max(cover, edgeAlpha_[i])
+                        : static_cast<uint8_t>(std::min(255, cover + edgeAlpha_[i]));
+        } else if (a >= edgeAlpha_[i]) {
+            ground = edgeUnder_[i];
+        }
+    }
+    at = blend565(ground, color, cover);
+    if (cover == 255) {
+        edgeAlpha_[i] = 0;
+        return;
+    }
+    edgeUnder_[i] = ground;
+    edgeColour_[i] = color;
+    edgeAlpha_[i] = cover;
+    edgeShape_[i] = shape_;
+}
+
+void TFT_eSPI::beginShape(uint32_t a, int32_t b, int32_t c, int32_t d, int32_t e, int32_t f,
+                          int32_t g) {
+    uint32_t h = 2166136261u;   // FNV-1a over the shape's words
+    for (const uint32_t v : {a, static_cast<uint32_t>(b), static_cast<uint32_t>(c),
+                             static_cast<uint32_t>(d), static_cast<uint32_t>(e),
+                             static_cast<uint32_t>(f), static_cast<uint32_t>(g)}) {
+        h = (h ^ v) * 16777619u;
+    }
+    shape_ = static_cast<uint16_t>(h ^ (h >> 16));
 }
 
 /* ---- the page keys' target (see pagerTarget() in TFT_eSPI.h) ---------- */

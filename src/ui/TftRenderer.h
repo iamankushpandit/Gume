@@ -53,6 +53,10 @@ public:
         tft_.drawRoundRect(x, y, w, h, radius, color);
         Focus::noteOutline(x, y, w, h, radius, color);
     }
+    bool drawArcArt(int16_t cx, int16_t cy, int16_t radius, int16_t fromDeg, int16_t toDeg,
+                    uint16_t colour) override {
+        return PanelArt::drawArc(tft_, cx, cy, radius, fromDeg, toDeg, colour);
+    }
     bool drawLogoArt(uint8_t which, int16_t x0, int16_t y0, const uint8_t* bits,
                      int16_t width, int16_t height, int16_t stride,
                      uint16_t colour) override {

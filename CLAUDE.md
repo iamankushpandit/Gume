@@ -580,9 +580,12 @@ the guide. Three things about it are load-bearing:
   else, and on Linux text is GNU FreeSans, anti-aliased at that resolution,
   measured with the advances that draw it, in the bitmap fonts' cells, and
   narrowed where its widest word would outrun the bitmap font's
-  (`host/src/HostText.cpp`). The product mark is drawn from its SVG there
-  too, through `PanelArt` (`src/ui/PanelArt.h`): a board's answer declines and
-  the one-bit `LogoMask` stays the art, one pixel to one. Anything that means "the
+  (`host/src/HostText.cpp`). Circles, rounded corners, slanted lines and
+  triangles are drawn at the real resolution with smooth edges too, and a
+  redraw stays a no-op (`host/src/HostTftShapes.cpp`). The product mark and
+  the few arcs plotted pixel by pixel are offered to the platform through
+  `PanelArt` (`src/ui/PanelArt.h`): a board's answer declines, and the
+  one-bit `LogoMask` and the plotted pixels stay the art, one pixel to one. Anything that means "the
   panel in front of the player" -- the canvas fit, touch mapping, the boot
   banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
   are the profile's compile-time panel and on the host only the floor the
@@ -799,9 +802,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,684,513 / 3,145,728 bytes,
-**85.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 94,804 / 327,680 (28.9%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,702,653 / 3,145,728 bytes,
+**85.9%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 95,084 / 327,680 (29.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
