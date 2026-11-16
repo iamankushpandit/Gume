@@ -2760,6 +2760,7 @@ def _regular(n, xs=100, ys=100, flat_bottom=True):
              math.sin(start + i * 2 * math.pi / n) * ys) for i in range(n)]
 
 
+SHAPE_POLYS["kite"] = [(0, -100), (62, -30), (0, 100), (-62, -30)]
 SHAPE_POLYS["pentagon"] = _regular(5)
 SHAPE_POLYS["hexagon"] = _regular(6)
 SHAPE_POLYS["heptagon"] = _regular(7)
@@ -2791,7 +2792,7 @@ def _shape_screen(level, names, order, matched, stats):
     head = "Tap a shape, then its matching outline"
     d.text((W / 2 - d.textlength(head, font=F2) / 2, 34), head, font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength(stats, font=F1), 50), stats, font=F1, fill=TEXT)
-    tight = level >= 4
+    tight = level == 6   # Concave or convex: ShapesCourse::LEVELS
     cols = [(225, 60, 80), (42, 117, 213), (39, 157, 112), (244, 188, 48)]
     for i, (label, shape, concave) in enumerate(names):
         r = (16, 58 + i * 43, 136, 38)
@@ -2828,12 +2829,14 @@ def shapes():
 
 
 def shapes_concave():
-    """Shape & Color, level 4: two concave, two convex, and the word on the row."""
+    """Shape & Color, level 6: two concave, two convex, and the word on the row.
+
+    The shapes are from ShapesCourse.h's level 6 pool, four of each kind."""
     return _shape_screen(
-        4,
+        6,
         [("cross", "cross", True), ("hexagon", "hexagon", False),
-         ("pinwheel", "pinwheel", True), ("diamond", "diamond", False)],
-        [2, 3, 0, 1], set(), "Level 4   Taps 0   Best 8")
+         ("pinwheel", "pinwheel", True), ("kite", "kite", False)],
+        [2, 3, 0, 1], set(), "Level 6   Taps 0   Best 8")
 
 
 
@@ -3235,21 +3238,34 @@ def slide(layout=None, moves=14):
     return im
 
 
-def oddone(picked=False, score="Score 5/7"):
+def oddone(picked=False, score="Score 5"):
+    """Odd One Out, level 7 (Ignore the rest): the circles come in two
+    colours, split four and five so neither is alone, and the odd card is
+    the one square. Geometry from OddOneOutGame.cpp: nine cards at
+    (36 + col*86, 70 + row*50, 66, 40), radius 13, the header on y=35, the
+    line at (8, 52, 304, 16) in font 1, and once answered a ring 2-3px
+    outside the odd card."""
     im, d = blank(); topbar(d, "Odd One Out")
+    d.text((10, 35), "Level 7  " + score, font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("Best 5", font=F2), 35), "Best 5", font=F2, fill=TEXT)
     q = "Tap the one that is different"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 40), q, font=F2, fill=MUTED)
-    for i in range(6):
+    d.text((W / 2 - d.textlength(q, font=F1) / 2, 56), q, font=F1, fill=MUTED)
+    blue, green = (90, 178, 255), (50, 255, 128)
+    second = {0, 2, 5, 7}
+    for i in range(9):
         r = (36 + (i % 3) * 86, 70 + (i // 3) * 50, 66, 40)
-        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 5, fill=SURFACE,
-                            outline=SUCCESS if picked and i == 4 else OUTLINE,
-                            width=3 if picked and i == 4 else 1)
+        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 6, fill=SURFACE,
+                            outline=OUTLINE)
+        if picked and i == 4:
+            for k in (2, 3):
+                d.rounded_rectangle([r[0] - k, r[1] - k, r[0] + r[2] + k, r[1] + r[3] + k],
+                                    6 + k, outline=SUCCESS)
         cx, cy = r[0] + r[2] // 2, r[1] + r[3] // 2
+        col = green if i in second else blue
         if i == 4:
-            d.rectangle([cx - 12, cy - 12, cx + 12, cy + 12], fill=(255, 246, 178))
+            d.rectangle([cx - 12, cy - 12, cx + 12, cy + 12], fill=col, outline=OUTLINE)
         else:
-            d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(110, 190, 255))
-    d.text((W / 2 - d.textlength(score, font=F2) / 2, 186), score, font=F2, fill=TEXT)
+            d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=col, outline=OUTLINE)
     return im
 
 

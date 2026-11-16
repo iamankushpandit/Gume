@@ -9,95 +9,65 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
+
+#include "ShapesCourse.h"
 
 struct AppMetadata;
 
 const AppMetadata& shapeColorAppMetadata();
 
-/* Match four shapes to their outlines, getting harder each round.
- *
- * The ladder is the point. A round of circle / square / triangle / star is
- * solvable by colour alone, which is right for a younger player and is
- * nothing at all for an older player -- so the rounds after it take the easy
- * cues away one at a time:
- *
- *   1. the four everyone knows, named by colour and shape
- *   2. told apart by SIDE COUNT: pentagon, hexagon, heptagon, octagon
- *   3. lookalikes: oval, rectangle, diamond, trapezium -- the shapes a young player
- *      calls "circle" and "square" until somebody makes them look twice
- *   4. CONCAVE against CONVEX, with the word on the row, because the
- *      distinction has a name and this is where it is worth learning
- *
- * Level 4 is the only one that mixes families, and it always deals at least
- * one of each -- a round of four concave shapes would not be the lesson. */
+/* Shapes: a course in what a shape is. Each round is four shapes on the left
+ * and four targets on the right, and the level decides what a target is --
+ * the shape's outline, turned or not, how many sides it has, or its name.
+ * The levels, the deal and how a round moves the ladder are in
+ * ShapesCourse.h; this is the screen. */
 class ShapeColorGame : public AppGame {
 public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    /* Two-phase, and properly so since 5.12. The instruction line is the only
-     * thing that never changes while the screen is up; a tap used to repaint
-     * all eight rows and the header with it. See docs/RENDER_AUDIT.md. */
+    /* Two-phase. The instruction line belongs to the round and is drawn with
+     * the full repaint a new round makes; a tap repaints the rows it changed. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
     Keep keepsGame() const override;
 
-    /* Public only so the fact table in the .cpp can assert that it has one
-     * row per shape. A count stated in two places is a count that will
-     * eventually disagree with itself. */
-    enum class Shape : uint8_t {
-        Circle,
-        Square,
-        Triangle,
-        Star5,
-        Pentagon,
-        Hexagon,
-        Heptagon,
-        Octagon,
-        Oval,
-        Rectangle,
-        Diamond,
-        Trapezium,
-        Cross,
-        Arrow,
-        Star4,
-        Count
-    };
+    using Shape = ShapesCourse::Shape;
 
 private:
-    struct Item {
-        Shape shape;
-        uint16_t color;
-        char name[16];
-    };
-
     Rect choiceRect(uint8_t index) const;
     Rect targetRect(uint8_t index) const;
     Rect statsRect() const;
     void newRound();
     bool allMatched() const;
-    uint8_t level() const;
+    /* The round is done: tell the ladder how it went. */
+    void finishRound(AppContext& host);
     /** 0 normal, 1 selected, 2 matched -- what a left-hand row is showing. */
     uint8_t choiceState(uint8_t index) const;
     void drawChoice(Ui::Renderer& tft, uint8_t index);
     void drawTarget(Ui::Renderer& tft, uint8_t index);
     void drawStats(Ui::Renderer& tft);
     void drawWin(Ui::Renderer& tft);
-    void drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const;
+    void drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size,
+                   uint16_t color, bool filled, uint8_t turns = 0) const;
 
-    Item items_[4];
-    uint8_t targetOrder_[4] = {};
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    ShapesCourse::Round round_;
     bool matched_[4] = {};
     int8_t selected_ = -1;
     uint16_t taps_ = 0;
+    /* Wrong matches this round: none is a right answer for the ladder, two
+     * or more a wrong one, one says nothing. */
+    uint8_t wrongs_ = 0;
     uint16_t bestTaps_ = 0;
-    /* Rounds CLEARED, which is what the level is made of. It resets with the
-     * screen rather than persisting: a level is where you are in this sitting,
-     * not a rank, and a young player picking the console up should meet the easy
-     * round first. */
+    /* Rounds finished this visit, for the Carry on card. */
     uint8_t rounds_ = 0;
+    /* The round just finished moved the player up: the card names the level. */
+    bool climbed_ = false;
 
     /* Painted state. 0xFF means "nothing is painted there", which is what
      * renderStatic() and a new round both reset to -- a row that goes from

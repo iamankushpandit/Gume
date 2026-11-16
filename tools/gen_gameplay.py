@@ -409,7 +409,7 @@ def slide():
 
 
 def oddone():
-    return tap(gs.oddone(False, "Score 5/7"), gs.oddone(True, "Score 6/7"), (155, 140))
+    return tap(gs.oddone(False, "Score 5"), gs.oddone(True, "Score 6"), (155, 140))
 
 
 def tictactoe():

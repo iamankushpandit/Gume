@@ -11,10 +11,13 @@
 #include "engine/AppRegistry.h"
 
 namespace {
-constexpr uint16_t COLORS[] = {
-    0xF9EA, 0x5D9F, 0x37F0, 0xFFE6, 0xF81F, 0xFC00
-};
-constexpr uint8_t COLOR_COUNT = sizeof(COLORS) / sizeof(COLORS[0]);
+namespace OC = OddOneCourse;
+constexpr uint16_t YELLOW = 0xFEC0;
+constexpr uint32_t RIGHT_HOLD_MS = 700;
+constexpr uint32_t WRONG_HOLD_MS = 1600;
+/* A ring round a card sits 2 and 3 px outside it; the cards stand 20px
+ * apart across and 10px down, so neither reaches the next card. */
+constexpr int16_t RING = 3;
 
 constexpr AppScoreInfo ODD_ONE_OUT_SCORE = {
     "oddone", "Odd One", "oddBest", "pts", false
@@ -44,24 +47,30 @@ const char* OddOneOutGame::title() const {
         : oddOneOutAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the score starts over,
+ * the level does not. It used to be this visit's score, so every visit began
+ * with colour again. */
 void OddOneOutGame::begin(AppContext& host) {
     score_ = 0;
+    rounds_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(oddOneOutAppMetadata().score->bestKey, 0));
+    ladder_.start(OC::LEVEL_COUNT, host.courseLevel());
+    recent_.reset();
+    announce_ = false;
     newRound();
     markDirty();
 }
 
-/* score_ is also how hard the rounds have become, so a right answer is
- * something to come back to; a wrong tap is counted nowhere. */
+/* An answered round is something to come back to. */
 Game::Keep OddOneOutGame::keepsGame() const {
-    return score_ > 0 ? Keep::Ask : Keep::No;
+    return rounds_ > 0 ? Keep::Ask : Keep::No;
 }
 
-/* The Correct or Try again strip keeps the rest of its time. */
+/* The answer stays shown for the rest of its time. */
 void OddOneOutGame::resume(AppContext& host, uint32_t awayMs) {
     (void)host;
-    movedOn(flashUntil_, awayMs);
+    movedOn(feedbackUntil_, awayMs);
 }
 
 Rect OddOneOutGame::itemRect(uint8_t index) const {
@@ -71,52 +80,19 @@ Rect OddOneOutGame::itemRect(uint8_t index) const {
 }
 
 void OddOneOutGame::newRound() {
-    /* Nine new shapes and a new odd one out. A layout change, and it lives here
+    /* Nine new cards and a new odd one out. A layout change, and it lives here
      * so no caller can deal a round and forget. */
     markFullDirty();
-    oddIndex_ = random(9);
-    baseShape_ = static_cast<Shape>(random(3));
-    oddShape_ = baseShape_;
-    baseColor_ = COLORS[random(COLOR_COUNT)];
-    oddColor_ = baseColor_;
-    baseSize_ = 13;
-    oddSize_ = 13;
-    baseInverted_ = false;
-    oddInverted_ = false;
-
-    if (score_ < 5) {
-        difference_ = Difference::Color;
-    } else if (score_ < 10) {
-        difference_ = random(2) == 0 ? Difference::Color : Difference::Shape;
-    } else if (score_ < 16) {
-        difference_ = static_cast<Difference>(random(3));
-    } else {
-        difference_ = static_cast<Difference>(random(4));
+    for (uint8_t tries = 0; tries < 20; ++tries) {
+        OC::deal(ladder_.level(), esp_random(), round_);
+        if (!recent_.recentlyUsed(OC::token(round_))) break;
     }
-
-    switch (difference_) {
-        case Difference::Color:
-            while (oddColor_ == baseColor_) {
-                oddColor_ = COLORS[random(COLOR_COUNT)];
-            }
-            break;
-        case Difference::Shape:
-            while (oddShape_ == baseShape_) {
-                oddShape_ = static_cast<Shape>(random(3));
-            }
-            break;
-        case Difference::Size:
-            oddSize_ = score_ < 16 ? 18 : 16;
-            break;
-        case Difference::Orientation:
-            baseShape_ = Shape::Triangle;
-            oddShape_ = Shape::Triangle;
-            oddInverted_ = true;
-            break;
-    }
-    flashError_ = false;
-    flashCorrect_ = false;
-    flashUntil_ = 0;
+    recent_.remember(OC::token(round_));
+    banner_ = announce_;
+    announce_ = false;
+    selected_ = -1;
+    answered_ = false;
+    feedbackUntil_ = 0;
 }
 
 int8_t OddOneOutGame::touchedItem(int16_t x, int16_t y) const {
@@ -128,103 +104,113 @@ int8_t OddOneOutGame::touchedItem(int16_t x, int16_t y) const {
     return -1;
 }
 
-void OddOneOutGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool inverted) const {
-    switch (shape) {
-        case Shape::Circle:
-            tft.fillCircle(cx, cy, size, color);
+/* One card, from its own colour, shape, size and turn. */
+void OddOneOutGame::drawItem(Ui::Renderer& tft, uint8_t index) const {
+    const Rect r = itemRect(index);
+    const OC::Card& card = round_.cards[index];
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
+    tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
+    const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
+    const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
+    const int16_t size = card.size;
+    switch (card.shape) {
+        case OC::Shape::Circle:
+            tft.fillCircle(cx, cy, size, card.colour);
             tft.drawCircle(cx, cy, size, Ui::outline());
             break;
-        case Shape::Square:
+        case OC::Shape::Square:
             /* The fill a pixel inside its outline, which covers that pixel
              * anyway: a fill and an outline of one rectangle is what the
              * d-pad's selector stops at, and a square in a card would make the
              * card a panel with a control in it rather than the control. */
-            tft.fillRoundRect(cx - size + 1, cy - size + 1, size * 2 - 2, size * 2 - 2, 2, color);
+            tft.fillRoundRect(cx - size + 1, cy - size + 1, size * 2 - 2, size * 2 - 2, 2, card.colour);
             tft.drawRoundRect(cx - size, cy - size, size * 2, size * 2, 3, Ui::outline());
             break;
-        case Shape::Triangle:
-            if (inverted) {
-                tft.fillTriangle(cx, cy + size, cx - size, cy - size, cx + size, cy - size, color);
+        case OC::Shape::Triangle:
+            if (card.upsideDown) {
+                tft.fillTriangle(cx, cy + size, cx - size, cy - size, cx + size, cy - size, card.colour);
                 tft.drawTriangle(cx, cy + size, cx - size, cy - size, cx + size, cy - size, Ui::outline());
             } else {
-                Ui::drawTriangleShape(tft, cx, cy, size, color, true);
+                Ui::drawTriangleShape(tft, cx, cy, size, card.colour, true);
                 Ui::drawTriangleShape(tft, cx, cy, size, Ui::outline(), false);
             }
             break;
     }
 }
 
-void OddOneOutGame::drawItem(Ui::Renderer& tft, const Rect& r, bool odd) const {
-    tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
-    tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
-    drawShape(
-        tft,
-        odd ? oddShape_ : baseShape_,
-        r.x + r.w / 2,
-        r.y + r.h / 2,
-        odd ? oddSize_ : baseSize_,
-        odd ? oddColor_ : baseColor_,
-        odd ? oddInverted_ : baseInverted_);
-}
-
 void OddOneOutGame::update(AppContext& host, const TouchPoint& touch) {
-    if ((flashCorrect_ || flashError_) && millis() > flashUntil_) {
-        if (flashCorrect_) {
+    if (answered_) {
+        if (millis() >= feedbackUntil_) {
             newRound();
-        } else {
-            flashError_ = false;
-            flashUntil_ = 0;
         }
-        markDirty();
-    }
-
-    if (!touch.justPressed || flashCorrect_) {
+        /* Nothing else is live while the answer shows: the next grid is
+         * dealt before any tap is judged against it. */
         return;
     }
-
+    if (!touch.justPressed) {
+        return;
+    }
     const int8_t item = touchedItem(touch.x, touch.y);
     if (item < 0) {
         return;
     }
-    if (item == oddIndex_) {
+    /* One try: the odd card is shown either way. Tapping round the grid
+     * used to find it every time, and climbed with it. */
+    selected_ = item;
+    answered_ = true;
+    ++rounds_;
+    const bool right = item == round_.odd;
+    if (right) {
         ++score_;
         ++streak_;
         if (host.saveBestScore(oddOneOutAppMetadata().score->bestKey, streak_, false)) {
             bestStreak_ = streak_;
         }
-        flashCorrect_ = true;
-        flashError_ = false;
-        flashUntil_ = millis() + 650UL;
     } else {
         streak_ = 0;
-        flashError_ = true;
-        flashUntil_ = millis() + 450UL;
     }
+    const Course::Ladder::Step step = ladder_.answer(right);
+    if (step != Course::Ladder::Step::Stay) {
+        host.setCourseLevel(ladder_.level());
+        recent_.reset();
+    }
+    if (step == Course::Ladder::Step::Up) {
+        announce_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else if (right) {
+        host.beepOk();
+    } else {
+        host.beepError();
+    }
+    feedbackUntil_ = millis() + (right ? RIGHT_HOLD_MS : WRONG_HOLD_MS);
     markDirty();
 }
-
-namespace {
-/* Where the correct/try-again strip is drawn. Named because renderDynamic()
- * needs it three times: to draw it, to erase it, and to work out which shapes
- * it covered. */
-constexpr Rect FLASH_RECT{84, 196, 152, 30};
-}  // namespace
 
 void OddOneOutGame::renderStatic(AppContext& host) {
     Ui::Renderer& tft = host.display();
     Ui::clear(tft);
     host.drawTopBar(title());
-    Ui::drawLabel(tft, Rect{8, 52, 304, 16}, "Tap the one that is different",
-                  Ui::muted(), 1, Align::Center);
-
-    /* The nine shapes are fixed for the round. Tapping one either ends the
-     * round -- a full repaint -- or flashes "Try again" over them, so nothing
-     * in the grid itself ever changes while this screen is up. */
-    for (uint8_t i = 0; i < 9; ++i) {
-        drawItem(tft, itemRect(i), i == oddIndex_);
+    /* The line under the header: what to do, or over the first grid of a new
+     * level, its name. */
+    if (banner_) {
+        char line[OC::LEVEL_LINE_MAX + 1];
+        OC::levelLine(round_.level, line, sizeof(line));
+        tft.setTextColor(YELLOW, Ui::bg());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(line, GAME_CANVAS_WIDTH / 2, 60, 2);
+        tft.setTextDatum(TL_DATUM);
+    } else {
+        Ui::drawLabel(tft, Rect{8, 52, 304, 16}, "Tap the one that is different",
+                      Ui::muted(), 1, Align::Center);
     }
 
-    drawnFlash_ = false;
+    /* The nine cards are fixed for the round. */
+    for (uint8_t i = 0; i < OC::CARDS; ++i) {
+        drawItem(tft, i);
+    }
+
+    drawnRings_ = false;
     drawnScore_ = 0xFFFF;
     drawnBest_ = 0xFFFF;
 }
@@ -233,52 +219,36 @@ void OddOneOutGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
 
     if (score_ != drawnScore_ || bestStreak_ != drawnBest_) {
-        tft.fillRect(10, 33, 140, 20, Ui::bg());
-        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 140, 33, 140, 20, Ui::bg());
+        tft.fillRect(10, 33, 150, 18, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 8 - 140, 33, 140, 18, Ui::bg());
         tft.setTextColor(Ui::text(), Ui::bg());
-        char buf[24];
+        char buf[32];
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "Score %u", score_);
+        snprintf(buf, sizeof(buf), "Level %u  Score %u", static_cast<unsigned>(round_.level),
+                 static_cast<unsigned>(score_));
         tft.drawString(buf, 10, 35, 2);
         tft.setTextDatum(TR_DATUM);
-        snprintf(buf, sizeof(buf), "Best %u", bestStreak_);
+        snprintf(buf, sizeof(buf), "Best %u", static_cast<unsigned>(bestStreak_));
         tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
         tft.setTextDatum(TL_DATUM);
         drawnScore_ = score_;
         drawnBest_ = bestStreak_;
     }
 
-    const bool flash = flashCorrect_ || flashError_;
-    if (flash == drawnFlash_) {
-        return;
-    }
-
-    if (flash) {
-        const uint16_t color = flashCorrect_ ? Ui::success() : Ui::error();
-        tft.fillRoundRect(FLASH_RECT.x, FLASH_RECT.y, FLASH_RECT.w, FLASH_RECT.h, 8, color);
-        tft.setTextColor(TFT_BLACK, color);
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString(flashCorrect_ ? "Correct" : "Try again",
-                       GAME_CANVAS_WIDTH / 2, FLASH_RECT.y + FLASH_RECT.h / 2, 2);
-        tft.setTextDatum(TL_DATUM);
-    } else {
-        /* Taking it off is the only real erase on this screen, and filling it
-         * with background is not enough: the strip sits ON TOP of the bottom
-         * row of shapes, so anything it covered has to be put back. Rather than
-         * assume which row that is, ask each shape whether its rect intersects
-         * the strip -- the layout has moved before and would take this with it
-         * silently otherwise. */
-        tft.fillRect(FLASH_RECT.x, FLASH_RECT.y, FLASH_RECT.w, FLASH_RECT.h, Ui::bg());
-        for (uint8_t i = 0; i < 9; ++i) {
+    /* Answered: a green ring round the odd card, and a red one round the card
+     * tapped if that was not it. Rings are drawn outside the cards, so the
+     * cards are not touched; a new round repaints the whole screen. */
+    if (answered_ && !drawnRings_) {
+        for (uint8_t i = 0; i < OC::CARDS; ++i) {
+            const bool odd = i == round_.odd;
+            const bool tapped = i == static_cast<uint8_t>(selected_);
+            if (!odd && !tapped) continue;
             const Rect r = itemRect(i);
-            const bool overlaps =
-                r.x < FLASH_RECT.x + FLASH_RECT.w && r.x + r.w > FLASH_RECT.x &&
-                r.y < FLASH_RECT.y + FLASH_RECT.h && r.y + r.h > FLASH_RECT.y;
-            if (overlaps) {
-                drawItem(tft, r, i == oddIndex_);
+            const uint16_t colour = odd ? Ui::success() : Ui::error();
+            for (int16_t k = 2; k <= RING; ++k) {
+                tft.drawRoundRect(r.x - k, r.y - k, r.w + 2 * k, r.h + 2 * k, 6 + k, colour);
             }
         }
+        drawnRings_ = true;
     }
-    drawnFlash_ = flash;
 }
-
