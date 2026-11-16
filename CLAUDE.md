@@ -1797,7 +1797,8 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Cursive share: logic, Draw, Arrows, Words and a
                           Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
-                          Wi-Fi is WifiApp (phases, input, drawing) and
+                          Wi-Fi is WifiApp (phases, input, drawing),
+                          WifiPassword (the password phase) and
                           WifiConnect (scan, join, rejoin); Profiles is
                           ProfileApp, ProfileRename and ProfilePin (the
                           admin PIN pad).
