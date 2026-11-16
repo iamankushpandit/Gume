@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-85.2%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-86.0%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,684,513 / 3,145,728 bytes of the app partition (**85.3%**) |
-| RAM | 94,804 / 327,680 bytes (**28.9%**) |
+| Flash | 2,705,101 / 3,145,728 bytes of the app partition (**86.0%**) |
+| RAM | 95,036 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -402,7 +402,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Calendar** | Days and months in order, as two courses with a level each. Days: the next day, then round the week (*after Sunday*), two or three days on, then a week and more (*10 days after Wednesday*). Months: the next month, round the year, which month is number 9, how many days a month has — and a week, a year and a leap year — then several months on | Sequence and cyclical time: the week and the year as circles rather than lists, a week on bringing the same day back, and the facts a calendar is built from. Each player's level on each is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong tiles are the mistakes players make — the day before given for the day after, the starting day counted as the first |
 | **Time** | Reading an analogue clock, over ten levels: o'clock, half past, quarter past and quarter to, minutes past and minutes to in fives, then any minute with the minutes marked round the rim; then the same clock said in words (*"quarter to 4"*), in 24-hour time, twenty minutes later or fifteen earlier, and how many minutes until the next o'clock | Telling the time from the hands, then saying it the ways people say it and working with it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the readings players really make: the hands read the wrong way round, the hour hand read as the next number when it is nearly there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. written as 13:00 |
 | **Space** | 176 questions about the solar system and the layers of air above it, over eight levels: the Sun, Earth and Moon; the eight planets, in order (*Which planet is fifth from the Sun?*); rocky worlds and giants; moons and small worlds; the air above us; days, years and seasons; exploring space; stars and beyond. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the order of the planets and of the layers of air is asked every way round rather than learned as a list |
-| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen |
+| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** is a course of nine levels: the 26 famous elements' names, then their symbols and states, then where they sit and their protons; the 63 common elements the same ways, with families and which element comes next; then all 118, names and then places -- row, column and family; then all of it. **Level** follows the player, or pins the easy, common or whole table | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a young player can make something rather than be tested on it, and the note names are on the keys so the naming comes for free |
 | **Chess** | The full rules, against a friend or against the console — on one device, on two in the same room over Bluetooth, or on your own at Easy or Medium. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other — or, on your own, an opponent that is beatable on purpose |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a young player works out that hits come in lines long before anyone explains it |
@@ -465,16 +465,17 @@ overrides by hand, and the choice persists.
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
 **Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
 **Cinnamon**, **Flags**, **State Flags**, **State Maps**, **US States**,
-**Space** and **GRE Words** are courses: twelve levels of adding and taking
-away, twelve of times tables and division, seven of counting, eight of adding
-and taking away with shapes, six of numbers to ten on the hands, ten of
-reading a clock, nine on the number line, four of days and five of months, six
-of mixing colours, seven of shapes, eight of spotting a difference, eight of
-coins and change, twelve of fractions, ten of percents, eight of Roman
+**Space**, **GRE Words** and **Elements** are courses: twelve levels of adding
+and taking away, twelve of times tables and division, seven of counting, eight
+of adding and taking away with shapes, six of numbers to ten on the hands, ten
+of reading a clock, nine on the number line, four of days and five of months,
+six of mixing colours, seven of shapes, eight of spotting a difference, eight
+of coins and change, twelve of fractions, ten of percents, eight of Roman
 numerals, ten of putting numbers in order, eight of remembering where cards
 are, six of repeating a sequence, nine of flags and capitals, five of state
 flags, five of state outlines, eight of states, capitals and postal codes,
-eight of the solar system and the sky, six of vocabulary. Each
+eight of the solar system and the sky, six of vocabulary, nine of the periodic
+table. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

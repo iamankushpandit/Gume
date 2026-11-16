@@ -282,6 +282,26 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Elements is a course of nine levels.** Its quiz drew one of six kinds of
+question at random, and its pool grew once enough elements had been answered
+right once, any way -- so a player who could name Iron was taken to know
+where it sits. Now each level asks its own kinds, and each element gets each
+of them in turn: the 26 famous elements' names, then symbols and states,
+then the chart and protons; the 63 common ones the same ways, with families
+("Which family is Argon in?", "Which one is a noble gas?") and the element
+that comes next; all 118, names and then places (row, column, family); and
+last all of it. Every element of a level comes up before any repeats, the
+level is kept between visits and moves down as well as up, and a step up is
+named on the score line. A family is asked only where its label has one
+right answer; a fact that names its own element is not asked, and facts true
+of two elements (Polonium and Radium, Rubidium and Cesium, the steel metals)
+are never offered against each other. The state buttons are shuffled (Solid
+was the answer nineteen times in twenty-six), the prompt says "at room
+temperature", the fourth answer button is no longer clipped by the score
+line, and "Find it"'s hint is no longer printed over. The Level tab's Easy,
+Common and All pin the pool at levels 3, 6 and 9 without moving the level.
+The per-element practice record ("elemProg") is no longer kept.
+
 **GRE Words is a course of six levels.** The quiz asked one thing -- a word,
 pick its meaning -- with the wrong meanings drawn from anywhere, so a verb's
 gloss could often be struck out beside three adjectives' glosses. Now it
