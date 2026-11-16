@@ -282,6 +282,17 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Whack A Mole is a course of ten levels.** Its speed came from the hits of
+the run, so every run began at the same slow pace and only got faster within
+it. Now the speed is the player's: a mole hit counts as right, one missed or
+let go as wrong, so it settles where the player hits about two in three,
+from 1.5 seconds up to under half a second, and is kept between visits. From
+level 6 one face in five is a purple frown that must be left alone: pressing
+it is a miss, letting it go counts as right, and it gives no last-moment
+tick. A step up names the new level in the header. The header's two lines
+are now cleared down to the grid, so a shorter line no longer leaves the
+bottom of the old one behind.
+
 **Cursive is a course of five stages**, on the same engine as Trace's: small
 letters first, since joined writing is built from them, then capitals, then
 joined words, each moved on by tracing it through; then less help, without
