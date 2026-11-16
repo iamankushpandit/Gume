@@ -295,18 +295,19 @@ def cinnamon():
 
 def memory():
     def at(i):
-        return (18 + (i % 6) * 48 + 22, 55 + (i // 6) * 48 + 22)
+        return (27 + (i % 6) * 45 + 20, 59 + (i // 6) * 45 + 20)
     base = {2: "A", 3: "A"}
     frames = []
     a = gs.memory(base)
     b = gs.memory({**base, 7: "C"})
     frames += tap(a, b, at(7), wait=900, after_ms=300)
-    c = gs.memory({**base, 7: "C", 20: "D"})
+    c = gs.memory({**base, 7: "C", 20: "D"}, "Moves 4")
     frames += tap(b, c, at(20), wait=0, after_ms=900)
-    frames += [(a, 500)]                       # no match: both turn back
-    d1 = gs.memory({**base, 9: "F"})
-    frames += tap(a, d1, at(9), wait=0, after_ms=300)
-    d2 = gs.memory({**base, 9: "F", 16: "F"}, "Pairs 4/12")
+    a4 = gs.memory(base, "Moves 4")
+    frames += [(a4, 500)]                      # no match: both turn back
+    d1 = gs.memory({**base, 9: "F"}, "Moves 4")
+    frames += tap(a4, d1, at(9), wait=0, after_ms=300)
+    d2 = gs.memory({**base, 9: "F", 16: "F"}, "Moves 5")
     frames += tap(d1, d2, at(16), wait=0)
     return frames
 

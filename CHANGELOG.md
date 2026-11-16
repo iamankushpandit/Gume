@@ -276,6 +276,18 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Memory is a course of eight levels.** Every board was 24 cards of the same
+twelve letters, A to L, for ever: nothing started small and nothing grew. Now
+it starts with six cards and grows to the full board, then deals look-alike
+faces, then pairs that belong together -- a capital and its small letter, a
+number and a sum that makes it. Faces are dealt from a deck, so the next
+boards show faces not yet seen. A board cleared in no more than two moves a
+pair counts as right, more than three a pair as wrong; the level is kept
+between visits and a step up is named on the finished board. The best is
+kept for the full board only, the face of a turned card is now readable on
+its slate fill, and an SD card's memory.json is read once a visit rather than
+on every deal.
+
 **Sorting is a course of ten levels.** Its difficulty was the rounds
 finished this visit, the direction ran four boards up and two down in that
 order for ever, it never went past two-digit whole numbers, a board could
