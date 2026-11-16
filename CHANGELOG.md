@@ -134,6 +134,21 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Fractions is a course of twelve levels.** It took its kind of question
+from the visit's score, so every visit began with halves in the same order;
+its level 4 was its level 3 again; equal fractions were excluded rather than
+taught; its wrong answers included 0/4 and 4/4; and tapping all four buttons
+still scored. Now it names and finds pies in halves and quarters, thirds,
+then fifths, sixths and eighths; compares one piece each, the same bottom
+number and the same top number; finds equal fractions; compares any two,
+with pies and then without; and works written questions: a fraction of a
+number, adding and taking away with the same bottom number, and more than
+one whole. The level is kept between visits, every question of a level comes
+up before any repeats, the wrong answers are the misreadings players make
+-- the empty slices counted, the bottom numbers added -- and none is ever
+equal to the right one. One try a question, with the answer on the line
+under the header rather than on a panel over it.
+
 **Money is a course of eight levels.** Its level and its kind of question
 both came from the visit's score -- Total, Make, More, Change in that order
 for ever -- and a wrong tap could be tried again without limit, so the level

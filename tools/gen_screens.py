@@ -3083,15 +3083,29 @@ def money():
 
 
 def fractions():
+    """Fractions, level 1: name the pie. Geometry from FractionGame.cpp: the
+    header, the line on y=70 in font 1, the pie at (160, 120) radius 38 with
+    its slices from twelve o'clock, buttons at (18 + col*152, 164 + row*34,
+    132, 30). The wrong answers are FractionsCourse's for 3/4: the empty
+    slice counted (1/4), one slice out (2/4), one slice too many cut (3/5)."""
     im, d = blank(); topbar(d, "Fractions")
+    d.text((8, 35), "Level 1", font=F2, fill=TEXT)
+    d.text((8, 51), "Score 3", font=F1, fill=TEXT)
+    for txt, y, f in (("Streak 3", 35, F2), ("Best 5", 51, F1)):
+        d.text((W - 8 - d.textlength(txt, font=f), y), txt, font=f, fill=TEXT)
     q = "Pick the matching fraction"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
-    cx, cy, r = W // 2, 84, 30
-    d.pieslice([cx - r, cy - r, cx + r, cy + r], -90, 90, fill=(255, 202, 84), outline=OUTLINE)
-    d.pieslice([cx - r, cy - r, cx + r, cy + r], 90, 270, fill=WHITE, outline=OUTLINE)
-    for i, a in enumerate(["1/2", "1/3", "2/3", "1/4"]):
+    d.text((W / 2 - d.textlength(q, font=F1) / 2, 66), q, font=F1, fill=MUTED)
+    cx, cy, r = W // 2, 120, 38
+    d.ellipse([cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3], fill=SURFACE)
+    d.pieslice([cx - r, cy - r, cx + r, cy + r], -90, 180, fill=(255, 216, 0), outline=(8, 8, 24))
+    d.pieslice([cx - r, cy - r, cx + r, cy + r], 180, 270, fill=(56, 60, 120), outline=(8, 8, 24))
+    for a in (-90, 0, 90, 180):
+        import math
+        d.line([(cx, cy), (cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a)))],
+               fill=(8, 8, 24))
+    for i, a in enumerate(["3/4", "1/4", "2/4", "3/5"]):
         rr = (18 + (i % 2) * 152, 164 + (i // 2) * 34, 132, 30)
-        button(d, rr, a, SUCCESS if a == "1/2" else PANEL, (0, 0, 0) if a == "1/2" else TEXT)
+        button(d, rr, a, SUCCESS if a == "3/4" else BLUE, (0, 0, 0) if a == "3/4" else WHITE)
     return im
 
 

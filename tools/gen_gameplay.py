@@ -565,7 +565,7 @@ SEQUENCES = {
     "roman": roman,
     "time": time,
     "money": lambda: quiz(gs.money, gs.BLUE, gs.TEXT),
-    "fractions": lambda: quiz(gs.fractions),
+    "fractions": lambda: quiz(gs.fractions, gs.BLUE, gs.WHITE),
     "counting": counting,
     "shapearith": lambda: quiz(lambda: gs.shapearith(answered=False), after=gs.shapearith),
     # The answer, 9, is the second button: (14 + 74, 194, 64, 38).

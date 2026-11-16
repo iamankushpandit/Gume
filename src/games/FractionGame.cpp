@@ -17,9 +17,8 @@ constexpr uint16_t RED = 0xE8E4;
 constexpr uint16_t PIE_EMPTY = 0x39EF;
 constexpr uint16_t PIE_FILL = 0xFEC0;
 constexpr uint16_t PIE_LINE = 0x0843;
-constexpr uint8_t DENOMS_L1[] = {2, 4};
-constexpr uint8_t DENOMS_L3[] = {2, 3, 4, 8};
-constexpr uint8_t DENOMS_L5[] = {2, 3, 4, 5, 6, 8};
+constexpr uint16_t YELLOW = 0xFEC0;
+namespace FC = FractionsCourse;
 
 constexpr AppScoreInfo FRACTION_SCORE = {
     "fractions", "Fractions", "fracBest", "pts", false
@@ -49,154 +48,48 @@ const char* FractionGame::title() const {
         : fractionAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the tally starts over,
+ * the level does not. It used to be the visit's score, and so did the kind of
+ * question, so every visit began with halves in the same order. */
 void FractionGame::begin(AppContext& host) {
     score_ = 0;
+    rounds_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(fractionAppMetadata().score->bestKey, 0));
+    ladder_.start(FC::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announce_ = false;
     newRound();
     markDirty();
 }
 
-/* One right answer is a score worth coming back to. Before that the screen
- * is the opening question, which coming back produces anyway. A red option
- * still showing needs nothing on the way back: its deadline has passed by
- * then, and the first update() takes it off. */
+/* One answered question is worth coming back to. Nothing here runs on a
+ * clock, so there is no resume() to write. */
 Game::Keep FractionGame::keepsGame() const {
-    return score_ > 0 ? Keep::Ask : Keep::No;
+    return rounds_ > 0 ? Keep::Ask : Keep::No;
 }
 
-uint8_t FractionGame::level() const {
-    return min<uint8_t>(5, 1 + score_ / 4);
-}
-
-FractionGame::Mode FractionGame::nextMode() const {
-    const uint8_t currentLevel = level();
-    if (currentLevel == 1) {
-        return Mode::PickText;
-    }
-    if (currentLevel == 2) {
-        return score_ % 2 == 0 ? Mode::PickText : Mode::PickPie;
-    }
-    if (currentLevel == 3) {
-        return static_cast<Mode>(score_ % 3);
-    }
-    return static_cast<Mode>((score_ + 1) % 3);
-}
-
-FractionGame::Fraction FractionGame::randomFraction() const {
-    const uint8_t currentLevel = level();
-    const uint8_t* denoms = DENOMS_L1;
-    uint8_t denomCount = sizeof(DENOMS_L1) / sizeof(DENOMS_L1[0]);
-    if (currentLevel >= 5) {
-        denoms = DENOMS_L5;
-        denomCount = sizeof(DENOMS_L5) / sizeof(DENOMS_L5[0]);
-    } else if (currentLevel >= 3) {
-        denoms = DENOMS_L3;
-        denomCount = sizeof(DENOMS_L3) / sizeof(DENOMS_L3[0]);
-    }
-    Fraction fraction;
-    fraction.denominator = denoms[random(denomCount)];
-    fraction.numerator = static_cast<uint8_t>(random(1, fraction.denominator));
-    return fraction;
-}
-
-FractionGame::Fraction FractionGame::randomComparableFraction(const Fraction& other, bool allowSameDenominator) const {
-    Fraction candidate;
-    uint8_t attempts = 0;
-    do {
-        candidate = randomFraction();
-        if (!allowSameDenominator && candidate.denominator == other.denominator) {
-            candidate.denominator = other.denominator == 8 ? 3 : 8;
-            candidate.numerator = static_cast<uint8_t>(random(1, candidate.denominator));
-        }
-        ++attempts;
-    } while ((sameFraction(candidate, other) || candidate.denominator == 0) && attempts < 80);
-    return candidate;
-}
-
-bool FractionGame::sameFraction(const Fraction& a, const Fraction& b) const {
-    return static_cast<uint16_t>(a.numerator) * b.denominator == static_cast<uint16_t>(b.numerator) * a.denominator;
-}
-
-bool FractionGame::greaterThan(const Fraction& a, const Fraction& b) const {
-    return static_cast<uint16_t>(a.numerator) * b.denominator > static_cast<uint16_t>(b.numerator) * a.denominator;
-}
-
-String FractionGame::fractionText(const Fraction& fraction) const {
-    return String(fraction.numerator) + "/" + fraction.denominator;
-}
-
-bool FractionGame::optionExists(const Fraction& fraction, uint8_t upTo) const {
-    for (uint8_t i = 0; i < upTo; ++i) {
-        if (sameFraction(options_[i], fraction)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void FractionGame::makeOptions(const Fraction& correct) {
-    correctButton_ = random(4);
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i] = Fraction{};
-    }
-    options_[correctButton_] = correct;
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) {
-            continue;
-        }
-        Fraction candidate;
-        uint8_t attempts = 0;
-        do {
-            candidate = randomFraction();
-            if (level() <= 2 && random(2) == 0) {
-                candidate.denominator = random(2) == 0 ? 2 : 4;
-            }
-            candidate.numerator = static_cast<uint8_t>(random(0, candidate.denominator + 1));
-            ++attempts;
-        } while ((sameFraction(candidate, correct) || optionExists(candidate, i)) && attempts < 80);
-
-        while (sameFraction(candidate, correct) || optionExists(candidate, i)) {
-            candidate.denominator = level() <= 2 ? 4 : candidate.denominator;
-            candidate.numerator = static_cast<uint8_t>((candidate.numerator + 1) % (candidate.denominator + 1));
-        }
-        options_[i] = candidate;
-    }
+void FractionGame::startLevel() {
+    deck_.reset(FC::poolSize(ladder_.level()));
+    recent_.reset();
 }
 
 void FractionGame::newRound() {
-    mode_ = nextMode();
-    selected_ = -1;
-    flashIndex_ = -1;
-    flashUntil_ = 0;
-    roundComplete_ = false;
-    target_ = randomFraction();
-
-    if (mode_ == Mode::Compare) {
-        const bool allowSame = level() < 5;
-        other_ = randomComparableFraction(target_, allowSame);
-        correctButton_ = greaterThan(target_, other_) ? 0 : 1;
+    const uint8_t level = ladder_.level();
+    if (FC::numbered(level)) {
+        item_ = deck_.next(esp_random());
+        FC::make(level, item_, esp_random(), q_);
     } else {
-        makeOptions(target_);
+        for (uint8_t tries = 0; tries < 20; ++tries) {
+            FC::makeDrawn(level, esp_random(), q_);
+            if (!recent_.recentlyUsed(FC::token(q_))) break;
+        }
+        recent_.remember(FC::token(q_));
     }
-}
-
-void FractionGame::markCorrect(AppContext& host) {
-    ++score_;
-    ++streak_;
-    if (host.saveBestScore(fractionAppMetadata().score->bestKey, streak_, false)) {
-        bestStreak_ = streak_;
-    }
-    roundComplete_ = true;
-    flashIndex_ = -1;
-    host.beepOk();
-}
-
-void FractionGame::markWrong(int8_t index) {
-    streak_ = 0;
-    flashIndex_ = index;
-    flashUntil_ = millis() + 420UL;
+    banner_ = announce_;
+    announce_ = false;
+    selected_ = -1;
+    roundComplete_ = false;
 }
 
 Rect FractionGame::optionRect(uint8_t index) const {
@@ -216,62 +109,52 @@ Rect FractionGame::compareRect(uint8_t index) const {
 }
 
 void FractionGame::update(AppContext& host, const TouchPoint& touch) {
-    if (flashIndex_ >= 0 && millis() > flashUntil_) {
-        flashIndex_ = -1;
-        markDirty();
-    }
     if (!touch.justPressed) {
         return;
     }
-
     if (roundComplete_) {
         newRound();
         markDirty();
         return;
     }
-
-    if (mode_ == Mode::PickText) {
-        for (uint8_t i = 0; i < 4; ++i) {
-            if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                selected_ = i;
-                if (i == correctButton_) {
-                    markCorrect(host);
-                } else {
-                    markWrong(i);
-                    host.beepError();
-                }
-                markDirty();
-                return;
+    const bool compare = q_.mode == FC::Mode::Compare;
+    const uint8_t buttons = compare ? 2 : 4;
+    for (uint8_t i = 0; i < buttons; ++i) {
+        const Rect r = compare ? compareRect(i)
+                               : (q_.mode == FC::Mode::FindThePie ? pieOptionRect(i) : optionRect(i));
+        if (!r.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        /* One try: the right answer is shown either way. Tapping all four
+         * used to score, and climb. */
+        selected_ = static_cast<int8_t>(i);
+        roundComplete_ = true;
+        ++rounds_;
+        const bool right = i == q_.correct;
+        if (right) {
+            ++score_;
+            ++streak_;
+            if (host.saveBestScore(fractionAppMetadata().score->bestKey, streak_, false)) {
+                bestStreak_ = streak_;
             }
+        } else {
+            streak_ = 0;
+            if (FC::numbered(q_.level)) deck_.missed(item_);
         }
-    } else if (mode_ == Mode::PickPie) {
-        for (uint8_t i = 0; i < 4; ++i) {
-            if (pieOptionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                selected_ = i;
-                if (i == correctButton_) {
-                    markCorrect(host);
-                } else {
-                    markWrong(i);
-                    host.beepError();
-                }
-                markDirty();
-                return;
-            }
+        const Course::Ladder::Step step = ladder_.answer(right);
+        if (step != Course::Ladder::Step::Stay) {
+            host.setCourseLevel(ladder_.level());
+            startLevel();
         }
-    } else {
-        for (uint8_t i = 0; i < 2; ++i) {
-            if (compareRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                selected_ = i;
-                if (i == correctButton_) {
-                    markCorrect(host);
-                } else {
-                    markWrong(i);
-                    host.beepError();
-                }
-                markDirty();
-                return;
-            }
+        if (step == Course::Ladder::Step::Up) {
+            announce_ = true;
+            host.pulseRgb(0, 255, 40, 450);
+            host.playSound(Sound::LevelUp);
+        } else if (right) {
+            host.beepOk();
+        } else {
+            host.beepError();
         }
+        markDirty();
+        return;
     }
 }
 
@@ -308,17 +191,17 @@ void FractionGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t 
     }
 }
 
-void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, const Fraction& fraction, bool selected) const {
+void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, const Frac& fraction, bool selected) const {
     tft.fillCircle(cx, cy, radius + 3, selected ? Ui::warning() : Ui::surface());
     tft.fillCircle(cx, cy, radius, PIE_EMPTY);
-    for (uint8_t i = 0; i < fraction.numerator; ++i) {
-        const float start = -PI / 2.0f + i * TWO_PI / fraction.denominator;
-        const float end = -PI / 2.0f + (i + 1) * TWO_PI / fraction.denominator;
+    for (uint8_t i = 0; i < fraction.n; ++i) {
+        const float start = -PI / 2.0f + i * TWO_PI / fraction.d;
+        const float end = -PI / 2.0f + (i + 1) * TWO_PI / fraction.d;
         fillSlice(tft, cx, cy, radius, start, end, PIE_FILL);
     }
     tft.drawCircle(cx, cy, radius, PIE_LINE);
-    for (uint8_t i = 0; i < fraction.denominator; ++i) {
-        const float angle = -PI / 2.0f + i * TWO_PI / fraction.denominator;
+    for (uint8_t i = 0; i < fraction.d; ++i) {
+        const float angle = -PI / 2.0f + i * TWO_PI / fraction.d;
         const int16_t x = cx + static_cast<int16_t>(cosf(angle) * radius);
         const int16_t y = cy + static_cast<int16_t>(sinf(angle) * radius);
         tft.drawLine(cx, cy, x, y, PIE_LINE);
@@ -326,56 +209,90 @@ void FractionGame::drawPie(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t ra
 }
 
 void FractionGame::drawTextOptions(Ui::Renderer& tft) const {
-    drawPie(tft, GAME_CANVAS_WIDTH / 2, 115, 38, target_);
+    char label[12];
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
-        if (roundComplete_ && i == correctButton_) {
+        if (roundComplete_ && i == q_.correct) {
             fill = GREEN;
             text = TFT_BLACK;
-        } else if (flashIndex_ == i) {
+        } else if (roundComplete_ && i == selected_) {
             fill = RED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, optionRect(i), fractionText(options_[i]), fill, Ui::outline(), text, false, 2);
+        FC::text(q_.options[i], label, sizeof(label));
+        Ui::drawButton(tft, optionRect(i), label, fill, Ui::outline(), text, false, 2);
     }
 }
 
 void FractionGame::drawPieOptions(Ui::Renderer& tft) const {
+    char label[12];
+    FC::text(q_.a, label, sizeof(label));
     tft.fillRoundRect(96, 74, 128, 30, 6, Ui::panel());
     tft.drawRoundRect(96, 74, 128, 30, 6, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(fractionText(target_), GAME_CANVAS_WIDTH / 2, 89, 4);
+    tft.drawString(label, GAME_CANVAS_WIDTH / 2, 89, 4);
     for (uint8_t i = 0; i < 4; ++i) {
         const Rect r = pieOptionRect(i);
-        bool selected = roundComplete_ ? i == correctButton_ : flashIndex_ == i;
-        if (flashIndex_ == i) {
+        if (roundComplete_ && i == selected_ && i != q_.correct) {
             tft.fillRoundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 6, RED);
         }
-        drawPie(tft, r.x + r.w / 2, r.y + r.h / 2, 18, options_[i], selected);
+        drawPie(tft, r.x + r.w / 2, r.y + r.h / 2, 18, q_.options[i], roundComplete_ && i == q_.correct);
     }
 }
 
+/* Two fractions, each with its pie -- or on Compare without pies, the
+ * fractions alone in large type until answered, and then the pies, as the
+ * explanation. */
 void FractionGame::drawCompare(Ui::Renderer& tft) const {
-    drawPie(tft, 92, 112, 38, target_, roundComplete_ && correctButton_ == 0);
-    drawPie(tft, 228, 112, 38, other_, roundComplete_ && correctButton_ == 1);
-    tft.setTextColor(Ui::muted(), Ui::bg());
+    char left[12];
+    char right[12];
+    FC::text(q_.a, left, sizeof(left));
+    FC::text(q_.b, right, sizeof(right));
+    const bool pies = !q_.hidePies || roundComplete_;
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(fractionText(target_), 92, 156, 2);
-    tft.drawString(fractionText(other_), 228, 156, 2);
+    if (pies) {
+        drawPie(tft, 92, 112, 38, q_.a, roundComplete_ && q_.correct == 0);
+        drawPie(tft, 228, 112, 38, q_.b, roundComplete_ && q_.correct == 1);
+        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.drawString(left, 92, 160, 2);
+        tft.drawString(right, 228, 160, 2);
+    } else {
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.drawString(left, 92, 118, 4);
+        tft.drawString(right, 228, 118, 4);
+    }
     for (uint8_t i = 0; i < 2; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
-        if (roundComplete_ && i == correctButton_) {
+        if (roundComplete_ && i == q_.correct) {
             fill = GREEN;
             text = TFT_BLACK;
-        } else if (flashIndex_ == i) {
+        } else if (roundComplete_ && i == selected_) {
             fill = RED;
             text = TFT_BLACK;
         }
         Ui::drawButton(tft, compareRect(i), i == 0 ? "Left" : "Right", fill, Ui::outline(), text, false, 2);
     }
+}
+
+/* A question written out -- "3/4 of 12", "3/8 + 2/8", "7/4 = ?" -- and four
+ * written answers. */
+void FractionGame::drawWritten(Ui::Renderer& tft) const {
+    char line[24];
+    FC::questionText(q_, line, sizeof(line));
+    tft.fillRoundRect(40, 84, 240, 56, 8, Ui::panel());
+    tft.drawRoundRect(40, 84, 240, 56, 8, Ui::outline());
+    tft.setTextColor(Ui::text(), Ui::panel());
+    tft.setTextDatum(MC_DATUM);
+    const uint8_t font = tft.textWidth(line, 4) <= 220 ? 4 : 2;
+    tft.drawString(line, GAME_CANVAS_WIDTH / 2, 112, font);
+    if (q_.op >= 3) {
+        tft.setTextColor(Ui::muted(), Ui::panel());
+        tft.drawString(q_.op == 3 ? "as a mixed number" : "as a fraction", GAME_CANVAS_WIDTH / 2, 132, 1);
+    }
+    drawTextOptions(tft);
 }
 
 void FractionGame::renderStatic(AppContext& host) {
@@ -386,50 +303,63 @@ void FractionGame::renderStatic(AppContext& host) {
 
 void FractionGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
-    /* Split mechanically, and only half done.
-     *
-     * What this saves is the top bar -- a battery read and five glyphs -- and
-     * the strip of clear above the content, on every repaint that is not a
-     * full one. What it does NOT yet do is leave the question panel alone when
-     * only the answer buttons change, which is the win this screen actually
-     * has: answering recolours four buttons and rewrites one line, and the
-     * question above them does not move.
-     *
-     * Doing that needs the region cleared below to shrink to the parts that
-     * change, and the next-question path to call markFullDirty(). See this
-     * screen's entry in docs/RENDER_AUDIT.md before attempting it: the traps
-     * are text that gets narrower, things that stop being drawn, and
-     * right-aligned text whose stale characters are left at the LEFT end. */
+    /* The whole body on every change, as before: an answer recolours the
+     * buttons and rewrites the line, and a new question changes the rest. */
     tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH,
                  GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
 
+    char buf[48];
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Level ") + level(), 8, 35, 2);
-    tft.drawString(String("Score ") + score_, 8, 51, 1);
+    snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(q_.level));
+    tft.drawString(buf, 8, 35, 2);
+    snprintf(buf, sizeof(buf), "Score %u", static_cast<unsigned>(score_));
+    tft.drawString(buf, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 51, 1);
+    snprintf(buf, sizeof(buf), "Streak %u", static_cast<unsigned>(streak_));
+    tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
+    snprintf(buf, sizeof(buf), "Best %u", static_cast<unsigned>(bestStreak_));
+    tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 51, 1);
 
-    const char* prompt = mode_ == Mode::PickText ? "Pick the matching fraction" : (mode_ == Mode::PickPie ? "Pick the matching pie" : "Which fraction is bigger?");
-    Ui::drawLabel(tft, Rect{8, 66, 304, 12}, prompt, Ui::muted(), 1, Align::Center);
-
-    if (mode_ == Mode::PickText) {
-        drawTextOptions(tft);
-    } else if (mode_ == Mode::PickPie) {
-        drawPieOptions(tft);
-    } else {
-        drawCompare(tft);
-    }
-
+    /* The line: what to do, a new level's name, or how the answer went --
+     * where a panel used to be drawn over the answer it confirmed. */
+    uint16_t colour = Ui::muted();
+    const char* line = FC::prompt(q_);
     if (roundComplete_) {
-        tft.fillRoundRect(62, 126, 196, 42, 8, Ui::panel());
-        tft.drawRoundRect(62, 126, 196, 42, 8, GREEN);
-        Ui::drawLabel(tft, Rect{64, 132, 192, 28}, "Correct - tap next", GREEN, 2, Align::Center);
-    } else if (flashIndex_ >= 0) {
-        tft.setTextColor(RED, Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", GAME_CANVAS_WIDTH / 2, 226, 2);
+        const bool right = selected_ == static_cast<int8_t>(q_.correct);
+        colour = right ? GREEN : RED;
+        if (right) {
+            line = "Correct - tap for the next";
+        } else {
+            char answer[12];
+            FC::text(q_.answer, answer, sizeof(answer));
+            snprintf(buf, sizeof(buf), "It is %s - tap for the next", answer);
+            line = buf;
+        }
+    } else if (banner_) {
+        FC::levelLine(q_.level, buf, sizeof(buf));
+        line = buf;
+        colour = YELLOW;
+    }
+    tft.setTextColor(colour, Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(line, GAME_CANVAS_WIDTH / 2, 70, 1);
+
+    switch (q_.mode) {
+        case FC::Mode::NameThePie:
+            drawPie(tft, GAME_CANVAS_WIDTH / 2, 120, 38, q_.a);
+            drawTextOptions(tft);
+            break;
+        case FC::Mode::FindThePie:
+            drawPieOptions(tft);
+            break;
+        case FC::Mode::Compare:
+            drawCompare(tft);
+            break;
+        case FC::Mode::Written:
+        default:
+            drawWritten(tft);
+            break;
     }
     tft.setTextDatum(TL_DATUM);
 }
