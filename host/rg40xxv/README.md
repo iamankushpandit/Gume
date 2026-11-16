@@ -235,7 +235,12 @@ Every part keeps its own licence. Buildroot's `make legal-info` collects the
 licence texts and the exact sources of everything in the image, and that
 bundle is what a release must offer beside the image.
 
-- Braino: GPL-3.0-or-later (this repository).
+- Braino: GPL-3.0-or-later (this repository). Compiled into its binary: GNU
+  FreeFont's FreeSans, cut to Latin (`host/fonts/`, GPL-3.0-or-later with the
+  font exception; its `COPYING` is in Braino's legal-info), and
+  stb_truetype (`host/third_party/stb/`, public domain or MIT, its text at the
+  end of the header). Both are in Braino's source, so the source offer covers
+  them.
 - Linux, U-Boot, the joypad driver and ROCKNIX's patches: GPL-2.0. The patches
   and device trees in `rocknix/` are ROCKNIX's and their authors', not
   Braino's.

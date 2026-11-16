@@ -18,9 +18,15 @@
  * The pixels live in ONE frame of RGB565, in the landscape orientation of
  * rotation 1 -- the way the host board's panel is "mounted" -- and the host
  * window shows that frame as it stands. Its size is the panel HostPlatform
- * found at start-up (640x480 on the RG40XX V), set when begin() runs, so the
- * firmware draws at the panel's own resolution; before begin() it is empty
- * and nothing drawn lands anywhere. setRotation() changes how logical
+ * found at start-up (640x480 on the RG40XX V), set when begin() runs; before
+ * begin() it is empty and nothing drawn lands anywhere. Coordinates are the
+ * firmware's -- the panel over the UI scale, 320x240 on that console -- and
+ * every logical pixel is stored as scale x scale real ones, so the frame is at
+ * the panel's own resolution.
+ *
+ * Text is not TFT_eSPI's bitmaps here: it is GNU FreeSans, anti-aliased at
+ * the real resolution (src/HostText.h), placed and measured in the bitmap
+ * fonts' cells so every screen's layout holds. setRotation() changes how logical
  * coordinates land in it, with the same four transforms Board::pollTouch()
  * undoes for touch, so a portrait screen appears turned on a landscape window
  * exactly as it would on a landscape device.
@@ -174,10 +180,12 @@ public:
     void pushPixels(const void* data, uint32_t len);
     void pushColor(uint16_t color);
 
-    /* What the host window shows: frameWidth() x frameHeight(), row-major. */
+    /* What the host window shows: (frameWidth() x frameHeight()) times
+     * frameScale() each way, row-major, at the panel's real resolution. */
     const uint16_t* frame() const { return frame_.data(); }
     int16_t frameWidth() const { return frameW_; }
     int16_t frameHeight() const { return frameH_; }
+    int16_t frameScale() const { return scale_; }
     /* Moves whenever a pixel is written, so the window is shown again only
      * when there is something new to show. */
     uint32_t frameGeneration() const { return frameGen_; }
@@ -256,6 +264,10 @@ private:
     void fillCircleHalves(int32_t x0, int32_t y0, int32_t r, uint8_t sides, int32_t stretch,
                           uint16_t color);
     int16_t drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font);
+    int32_t ttCapPx(uint8_t font) const;
+    int32_t ttAdvance(const char* text, uint8_t font) const;
+    int32_t ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, int32_t w, int32_t h);
+    void blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a);
     void notePagerLabel(const char* text, int32_t x, int32_t y, int32_t w, int32_t h);
     void forgetMarks();
     void forgetMarksUnder(int32_t x, int32_t y, int32_t w, int32_t h);
@@ -343,6 +355,7 @@ private:
 
     int16_t frameW_ = 0;
     int16_t frameH_ = 0;
+    int16_t scale_ = 1;   // real pixels per logical one, each way
     std::vector<uint16_t> frame_;
     uint32_t frameGen_ = 0;
     uint8_t rotation_ = 1;

@@ -37,14 +37,22 @@ struct Contact {
 bool begin(int argc, char** argv);
 void shutdown();
 
-/* The panel the firmware draws on, in the landscape frame (rotation 1), found
- * by begin() and fixed for the run: the handheld's display mode, the desktop's
- * when fullscreen, or the window's -- BRAINO_PANEL=WxH, 640x480 when not
- * given -- and BRAINO_PANEL overrides the other two. Never smaller than the
- * 320x240 game canvas. src/ reads it as PanelSize (host/src/HostPanelSize.cpp),
- * and the frame the panel shim keeps is exactly this size. */
+/* The panel the firmware lays out on, in the landscape frame (rotation 1),
+ * found by begin() and fixed for the run. The real panel is the handheld's
+ * display mode, the desktop's when fullscreen, or the window's --
+ * BRAINO_PANEL=WxH, 640x480 when not given -- and BRAINO_PANEL overrides the
+ * other two. It is never smaller than the 320x240 game canvas.
+ *
+ * panelScale() is the UI scale: each pixel the firmware lays out is that
+ * many real pixels each way, and text is rasterised at that size. The
+ * largest whole number that leaves the canvas to lay out on -- 2 on 640x480
+ * -- unless BRAINO_UI_SCALE asks for less. panelWidth() x panelHeight() is
+ * the real panel divided by it: what src/ reads as PanelSize
+ * (host/src/HostPanelSize.cpp), what tft.width()/height() answer, and the
+ * coordinates of a Contact, a tap and every target the shim reports. */
 int panelWidth();
 int panelHeight();
+int panelScale();
 
 /* Pump events and show the frame. Returns false once the user has asked to
  * quit. Cheap to call often: it presents at most once per display frame. */

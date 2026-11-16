@@ -95,8 +95,20 @@ add_custom_command(
   COMMENT "Embedding the Braino mark")
 add_custom_target(embed_mark DEPENDS ${STAMP_DIR}/BrainoMarkSvg.h)
 
+# The typeface the host draws text in (host/fonts/README.md), compiled in so
+# no device needs a font directory. Rasterised by host/third_party/stb.
+add_custom_command(
+  OUTPUT ${STAMP_DIR}/BrainoFontTtf.h
+  COMMAND ${CMAKE_COMMAND} -DFONT=${CMAKE_CURRENT_SOURCE_DIR}/fonts/FreeSans-Latin.ttf
+          -DOUTPUT=${STAMP_DIR}/BrainoFontTtf.h
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFont.cmake
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/fonts/FreeSans-Latin.ttf
+          ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFont.cmake
+  COMMENT "Embedding the font")
+add_custom_target(embed_font DEPENDS ${STAMP_DIR}/BrainoFontTtf.h)
+
 add_executable(braino ${FIRMWARE_SOURCES} ${HOST_SOURCES} ${MAP_N_FLAG_SOURCES})
-add_dependencies(braino build_stamp embed_mark)
+add_dependencies(braino build_stamp embed_mark embed_font)
 
 # host/ first, so boards/host.h and the shims win; then the firmware's own
 # include roots, as PlatformIO lays them out.

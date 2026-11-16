@@ -68,15 +68,25 @@
 namespace HostPlatform {
 namespace {
 
-/* The panel, in the landscape frame: found by begin() (findPanel()) and
- * fixed from then on. The panel shim's frame is exactly this size. */
-int FRAME_W = 640;
-int FRAME_H = 480;
-/* How many panel pixels each pixel of the 320x240 canvas stands for, as a
- * whole number: the cursor, its speed and a list's scrolling are stated per
- * canvas pixel and multiplied by this, so they look and feel the same at any
- * resolution. 1 on a 320x240 panel. */
-int uiScale = 2;
+/* The panel, found by begin() (findPanel()) and fixed from then on, in two
+ * sizes. PHYS_W x PHYS_H is what is drawn: real pixels, the panel's own
+ * resolution, the size of the shim's pixel buffer. FRAME_W x FRAME_H is what
+ * the firmware lays out on, in the landscape frame: the physical size divided
+ * by `density`, the UI scale -- 2 on a 640x480 panel, so the screens are
+ * laid out as on the 2.8-inch board and every logical pixel is drawn as a
+ * 2x2 block, with text rasterised smooth at that size. Everything in this
+ * file that the firmware sees -- the cursor, taps, the selector, a contact --
+ * is in FRAME (logical) coordinates; only drawing multiplies by density. */
+int FRAME_W = 320;
+int FRAME_H = 240;
+int density = 2;
+int PHYS_W = 640;
+int PHYS_H = 480;
+/* How many 320x240 canvases the LOGICAL frame holds, as a whole number: the
+ * cursor, its speed and a list's scrolling are stated per canvas pixel and
+ * multiplied by this, so they feel the same whatever the UI scale. 1 unless
+ * BRAINO_UI_SCALE asks for a finer layout than the canvas. */
+int uiScale = 1;
 constexpr uint32_t PRESENT_INTERVAL_MS = 16;
 constexpr int STICK_DEADZONE = 8000;
 /* The stick at full push, in canvas pixels per second. */
@@ -438,12 +448,13 @@ void pumpEvents() {
                 break;
             case SDL_KEYUP: onKey(e.key.keysym.sym, false); break;
             /* With a logical size set, SDL has already mapped mouse
-             * coordinates into the panel's frame, letterbox and all. */
+             * coordinates into the panel's pixels, letterbox and all; one
+             * UI-scale division puts them in the frame the firmware sees. */
             case SDL_MOUSEBUTTONDOWN:
                 if (e.button.button == SDL_BUTTON_LEFT) {
                     mouseDown = true;
-                    mouseX = e.button.x;
-                    mouseY = e.button.y;
+                    mouseX = e.button.x / density;
+                    mouseY = e.button.y / density;
                     cursorShownAtMs = 0;
                     focusOn = false;
                 }
@@ -452,8 +463,8 @@ void pumpEvents() {
                 if (e.button.button == SDL_BUTTON_LEFT) mouseDown = false;
                 break;
             case SDL_MOUSEMOTION:
-                mouseX = e.motion.x;
-                mouseY = e.motion.y;
+                mouseX = e.motion.x / density;
+                mouseY = e.motion.y / density;
                 break;
             case SDL_CONTROLLERDEVICEADDED: openController(e.cdevice.which); break;
             case SDL_CONTROLLERBUTTONDOWN: onButton(e.cbutton.button, true); break;
@@ -710,12 +721,13 @@ void stepCursor(uint32_t now) {
 }
 
 void drawCursor() {
-    const int x = static_cast<int>(cursorX);
-    const int y = static_cast<int>(cursorY);
     const bool pressing = padTouch || padStickClick || keyTouch;
     /* A plain crosshair in a contrasting pair, so it reads on every theme:
-     * arms of six canvas pixels, a canvas pixel thick, whatever the panel. */
-    const int k = uiScale, arm = 6 * k;
+     * arms of six canvas pixels, a canvas pixel thick, whatever the panel --
+     * drawn in real pixels, so everything is multiplied by the UI scale. */
+    const int k = uiScale * density, arm = 6 * k;
+    const int x = static_cast<int>(cursorX) * density;
+    const int y = static_cast<int>(cursorY) * density;
     const SDL_Rect shadow[2] = {{x - arm, y + k, 2 * arm + k, k}, {x + k, y - arm, k, 2 * arm + k}};
     const SDL_Rect light[2] = {{x - arm, y, 2 * arm + k, k}, {x, y - arm, k, 2 * arm + k}};
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -775,9 +787,15 @@ int outlineInField(const SDL_Rect& r, SDL_Rect out[4]) {
     return inSelectorField(edges, 4, out);
 }
 
+/* A rectangle in the frame the firmware sees, in real pixels. */
+SDL_Rect toPhys(const SDL_Rect& r) {
+    return SDL_Rect{r.x * density, r.y * density, r.w * density, r.h * density};
+}
+
 void renderOutline(const SDL_Rect& r) {
     SDL_Rect edges[4];
     const int n = outlineInField(r, edges);
+    for (int i = 0; i < n; ++i) edges[i] = toPhys(edges[i]);
     if (n > 0) SDL_RenderFillRects(renderer, edges, n);
 }
 
@@ -800,7 +818,7 @@ void drawSelector() {
 void saveShot(uint32_t now) {
     if (!panel) return;
     SDL_Surface* frame = SDL_CreateRGBSurfaceWithFormatFrom(
-        const_cast<uint16_t*>(panel->frame()), FRAME_W, FRAME_H, 16, FRAME_W * 2,
+        const_cast<uint16_t*>(panel->frame()), PHYS_W, PHYS_H, 16, PHYS_W * 2,
         SDL_PIXELFORMAT_RGB565);
     if (!frame) return;
     /* A copy, so that the selector can be in the picture and stay out of the
@@ -815,6 +833,7 @@ void saveShot(uint32_t now) {
         const SDL_Rect edges[4] = {{x, y, w, 2}, {x, y + h - 2, w, 2}, {x, y, 2, h}, {x + w - 2, y, 2, h}};
         SDL_Rect shown[4];
         const int n = inSelectorField(edges, 4, shown);
+        for (int i = 0; i < n; ++i) shown[i] = toPhys(shown[i]);
         if (n > 0) SDL_FillRects(s, shown, n, ring);
     }
     char path[512];
@@ -914,11 +933,11 @@ uint32_t lutR[32], lutG[64], lutB[32];
 
 /* The largest whole-number scale that fits the current output, centred. */
 void drmLayout() {
-    drmScale = HostDrm::width() / FRAME_W;
-    if (HostDrm::height() / FRAME_H < drmScale) drmScale = HostDrm::height() / FRAME_H;
+    drmScale = HostDrm::width() / PHYS_W;
+    if (HostDrm::height() / PHYS_H < drmScale) drmScale = HostDrm::height() / PHYS_H;
     if (drmScale < 1) drmScale = 1;
-    drmOffX = (HostDrm::width() - FRAME_W * drmScale) / 2;
-    drmOffY = (HostDrm::height() - FRAME_H * drmScale) / 2;
+    drmOffX = (HostDrm::width() - PHYS_W * drmScale) / 2;
+    drmOffY = (HostDrm::height() - PHYS_H * drmScale) / 2;
 }
 
 void drmBuildLut(uint8_t mod) {
@@ -935,14 +954,16 @@ void drmBuildLut(uint8_t mod) {
     lutValid = true;
 }
 
-/* A rectangle in canvas pixels, clipped to the canvas. */
+/* A rectangle in the firmware's (logical) frame, clipped to it, drawn at the
+ * UI scale times the output's whole scale. */
 void drmFill(uint32_t* buf, int stride, int x, int y, int w, int h, uint32_t color) {
     int x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
     int x1 = x + w > FRAME_W ? FRAME_W : x + w, y1 = y + h > FRAME_H ? FRAME_H : y + h;
     if (x0 >= x1 || y0 >= y1) return;
-    for (int sy = drmOffY + y0 * drmScale; sy < drmOffY + y1 * drmScale; ++sy) {
+    const int k = drmScale * density;
+    for (int sy = drmOffY + y0 * k; sy < drmOffY + y1 * k; ++sy) {
         uint32_t* row = buf + sy * stride;
-        for (int sx = drmOffX + x0 * drmScale; sx < drmOffX + x1 * drmScale; ++sx) row[sx] = color;
+        for (int sx = drmOffX + x0 * k; sx < drmOffX + x1 * k; ++sx) row[sx] = color;
     }
 }
 
@@ -990,16 +1011,16 @@ void drmPresent(uint32_t now) {
      * came along later and is smaller than it (a television in a mode below
      * the panel's) cannot hold it, so it stays dark rather than be written
      * past its edge. */
-    if (screenW < FRAME_W || screenH < FRAME_H) return;
+    if (screenW < PHYS_W || screenH < PHYS_H) return;
     if (drmBordersDirty > 0) {
         for (int y = 0; y < screenH; ++y) {
-            const bool inRows = y >= drmOffY && y < drmOffY + FRAME_H * drmScale;
+            const bool inRows = y >= drmOffY && y < drmOffY + PHYS_H * drmScale;
             uint32_t* row = buf + y * stride;
             if (!inRows) {
                 std::memset(row, 0, screenW * sizeof(uint32_t));
             } else {
                 std::memset(row, 0, drmOffX * sizeof(uint32_t));
-                const int right = drmOffX + FRAME_W * drmScale;
+                const int right = drmOffX + PHYS_W * drmScale;
                 std::memset(row + right, 0, (screenW - right) * sizeof(uint32_t));
             }
         }
@@ -1013,20 +1034,20 @@ void drmPresent(uint32_t now) {
 
     const uint16_t* src = panel->frame();
     static std::vector<uint32_t> lineBuf;
-    lineBuf.resize(FRAME_W);
+    lineBuf.resize(PHYS_W);
     uint32_t* line = lineBuf.data();
-    for (int y = 0; y < FRAME_H; ++y) {
-        const uint16_t* s = src + y * FRAME_W;
-        for (int x = 0; x < FRAME_W; ++x) {
+    for (int y = 0; y < PHYS_H; ++y) {
+        const uint16_t* s = src + y * PHYS_W;
+        for (int x = 0; x < PHYS_W; ++x) {
             const uint16_t p = s[x];
             line[x] = lutR[p >> 11] | lutG[(p >> 5) & 63] | lutB[p & 31];
         }
         for (int k = 0; k < drmScale; ++k) {
             uint32_t* d = buf + (drmOffY + y * drmScale + k) * stride + drmOffX;
             if (drmScale == 2) {
-                for (int x = 0; x < FRAME_W; ++x) d[2 * x] = d[2 * x + 1] = line[x];
+                for (int x = 0; x < PHYS_W; ++x) d[2 * x] = d[2 * x + 1] = line[x];
             } else {
-                for (int x = 0; x < FRAME_W; ++x) {
+                for (int x = 0; x < PHYS_W; ++x) {
                     for (int j = 0; j < drmScale; ++j) d[x * drmScale + j] = line[x];
                 }
             }
@@ -1095,7 +1116,7 @@ void present(uint32_t now) {
     ++presents;
     return;
 #endif
-    SDL_UpdateTexture(texture, nullptr, panel->frame(), FRAME_W * sizeof(uint16_t));
+    SDL_UpdateTexture(texture, nullptr, panel->frame(), PHYS_W * sizeof(uint16_t));
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     if (panel->displayOn()) {
@@ -1169,19 +1190,40 @@ void findPanel(int foundW, int foundH, const char* from) {
     if (h > w) std::swap(w, h);
     if (w < GAME_CANVAS_WIDTH) w = GAME_CANVAS_WIDTH;
     if (h < GAME_CANVAS_HEIGHT) h = GAME_CANVAS_HEIGHT;
-    FRAME_W = w;
-    FRAME_H = h;
-    uiScale = std::min(w / GAME_CANVAS_WIDTH, h / GAME_CANVAS_HEIGHT);
+    /* The UI scale: the largest whole number that still leaves the firmware
+     * the game canvas to lay out on -- 2 on 640x480, 3 on 1280x720 -- so
+     * text and controls are the size they are on the 2.8-inch board, in
+     * proportion to the panel, and drawn with the panel's own pixels.
+     * BRAINO_UI_SCALE=n asks for another, down to 1: the firmware then lays
+     * out on the panel's full resolution, as the 4-inch board does. */
+    int d = std::min(w / GAME_CANVAS_WIDTH, h / GAME_CANVAS_HEIGHT);
+    if (const char* env = std::getenv("BRAINO_UI_SCALE")) {
+        const int asked = std::atoi(env);
+        if (asked >= 1 && asked <= d) {
+            d = asked;
+        } else {
+            std::fprintf(stderr, "[host] BRAINO_UI_SCALE=%s: must be 1..%d here; ignored\n", env, d);
+        }
+    }
+    if (d < 1) d = 1;
+    density = d;
+    FRAME_W = w / d;
+    FRAME_H = h / d;
+    PHYS_W = FRAME_W * d;
+    PHYS_H = FRAME_H * d;
+    uiScale = std::min(FRAME_W / GAME_CANVAS_WIDTH, FRAME_H / GAME_CANVAS_HEIGHT);
     if (uiScale < 1) uiScale = 1;
     cursorX = FRAME_W / 2.0f;
     cursorY = FRAME_H / 2.0f;
-    std::printf("[host] panel %dx%d (%s)\n", FRAME_W, FRAME_H, from);
+    std::printf("[host] panel %dx%d (%s), ui scale %d: laid out on %dx%d\n", w, h, from,
+                density, FRAME_W, FRAME_H);
 }
 
 }   // namespace
 
 int panelWidth() { return FRAME_W; }
 int panelHeight() { return FRAME_H; }
+int panelScale() { return density; }
 
 bool begin(int argc, char** argv) {
     (void)argc;
@@ -1223,9 +1265,9 @@ bool begin(int argc, char** argv) {
     const uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_RESIZABLE;
     /* A canvas-sized panel would be a postage stamp on a desktop, so its
      * window opens at twice the size; any other opens at the panel's own. */
-    const int windowScale = uiScale == 1 ? 2 : 1;
+    const int windowScale = PHYS_W <= GAME_CANVAS_WIDTH ? 2 : 1;
     window = SDL_CreateWindow("Braino!", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                              FRAME_W * windowScale, FRAME_H * windowScale, flags);
+                              PHYS_W * windowScale, PHYS_H * windowScale, flags);
     if (!window) {
         std::fprintf(stderr, "[host] window: %s\n", SDL_GetError());
         return false;
@@ -1238,10 +1280,10 @@ bool begin(int argc, char** argv) {
     }
     /* Whole multiples only: the firmware draws 1px lines and 5x7 glyphs, and
      * a fractional scale smears them. The window letterboxes instead. */
-    SDL_RenderSetLogicalSize(renderer, FRAME_W, FRAME_H);
+    SDL_RenderSetLogicalSize(renderer, PHYS_W, PHYS_H);
     SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING,
-                                FRAME_W, FRAME_H);
+                                PHYS_W, PHYS_H);
     if (!texture) {
         std::fprintf(stderr, "[host] texture: %s\n", SDL_GetError());
         return false;
@@ -1254,8 +1296,8 @@ bool begin(int argc, char** argv) {
 }
 
 void outputSize(int& w, int& h) {
-    w = FRAME_W;
-    h = FRAME_H;
+    w = PHYS_W;
+    h = PHYS_H;
 #if GUME_HOST_DRM
     w = HostDrm::width();
     h = HostDrm::height();
@@ -1313,7 +1355,7 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, image, nullptr, nullptr);
     SDL_RenderPresent(renderer);
-    SDL_RenderSetLogicalSize(renderer, FRAME_W, FRAME_H);
+    SDL_RenderSetLogicalSize(renderer, PHYS_W, PHYS_H);
     SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
     shownOnce = false;   // the firmware's frame is no longer what is on screen
     return !quit;

@@ -20,6 +20,7 @@
 #include "HostLed.h"
 #include "HostPlatform.h"
 #include "HostScreenPower.h"
+#include "HostText.h"
 #include "ui/LauncherLayout.h"
 
 /* TFT_eSPI's built-in fonts, from the copy of the library CMake fetches at the
@@ -75,12 +76,14 @@ void TFT_eSPI::begin(uint8_t) {
     resetViewport();
     clipOn_ = false;
     forgetMarks();
-    /* The panel HostPlatform found before the firmware started: the frame is
-     * exactly that size, so the firmware draws at the panel's own
-     * resolution (src/hal/PanelSize.h). */
+    /* The panel HostPlatform found before the firmware started. The frame is
+     * laid out at its size over the UI scale, and stored at its real
+     * resolution: every logical pixel is scale_ x scale_ real ones, and text
+     * is rasterised at the real resolution (src/hal/PanelSize.h). */
     frameW_ = static_cast<int16_t>(HostPlatform::panelWidth());
     frameH_ = static_cast<int16_t>(HostPlatform::panelHeight());
-    frame_.assign(static_cast<size_t>(frameW_) * frameH_, 0);
+    scale_ = static_cast<int16_t>(HostPlatform::panelScale());
+    frame_.assign(static_cast<size_t>(frameW_) * scale_ * frameH_ * scale_, 0);
     resetViewport();
     ++frameGen_;
     HostPlatform::attachPanel(this);
@@ -194,9 +197,194 @@ void TFT_eSPI::plot(int32_t x, int32_t y, uint16_t color) {
     }
     int32_t fx = 0, fy = 0;
     if (toFrame(x, y, fx, fy)) {
-        frame_[fy * frameW_ + fx] = color;
+        const int32_t d = scale_;
+        const int32_t pitch = static_cast<int32_t>(frameW_) * d;
+        uint16_t* at = frame_.data() + (fy * d) * pitch + fx * d;
+        for (int32_t j = 0; j < d; ++j, at += pitch) {
+            for (int32_t i = 0; i < d; ++i) at[i] = color;
+        }
         ++frameGen_;
     }
+}
+
+/* ---- text in the TrueType face (HostText.h) ------------------------------
+ *
+ * Laid out exactly as the bitmap fonts are -- the same cell height, the same
+ * baseline, the same datums -- so a screen's boxes hold it; drawn from
+ * FreeSans with capitals as tall as the bitmap font's, at the real
+ * resolution. Fonts 6, 7 and 8 are not loaded by this firmware and still draw
+ * nothing; fonts 2 and 4 still draw only 32..126, as TFT_eSPI does. */
+
+namespace {
+
+/* The rows a bitmap font's 'H' inks, at text size 1: its capital's top and
+ * bottom inside the cell, which place the TrueType capital. */
+struct CapRows { int8_t top = -1, bottom = -1; };
+
+CapRows bitmapCapRows(uint8_t font) {
+    CapRows r;
+    auto ink = [&](int row) {
+        if (r.top < 0 || row < r.top) r.top = static_cast<int8_t>(row);
+        if (row > r.bottom) r.bottom = static_cast<int8_t>(row);
+    };
+    const uint16_t code = 'H';
+    if (font == 1) {
+        for (int col = 0; col < 5; ++col) {
+            uint8_t line = ::font[code * 5 + col];
+            for (int row = 0; row < 8; ++row, line >>= 1) {
+                if (line & 1) ink(row);
+            }
+        }
+        return r;
+    }
+    const FontInfo* info = fontInfo(font);
+    if (!info) return r;
+    const int width = info->widths[code - 32];
+    const unsigned char* data = info->glyphs[code - 32];
+    if (font == 2) {
+        const int rowBytes = (width + 6) / 8;
+        for (int row = 0; row < info->height; ++row) {
+            for (int col = 0; col < width && col < rowBytes * 8; ++col) {
+                if (data[row * rowBytes + col / 8] & (0x80 >> (col % 8))) ink(row);
+            }
+        }
+        return r;
+    }
+    int pc = 0;
+    const int total = width * info->height;
+    while (pc < total) {
+        const uint8_t b = *data++;
+        int run = (b & 0x7F) + 1;
+        while (run-- > 0 && pc < total) {
+            if (b & 0x80) ink(pc / width);
+            ++pc;
+        }
+    }
+    return r;
+}
+
+const CapRows& capRows(uint8_t font) {
+    static CapRows rows[5];
+    static bool done[5] = {false};
+    static const CapRows none;
+    if (font != 1 && font != 2 && font != 4) return none;
+    if (!done[font]) {
+        rows[font] = bitmapCapRows(font);
+        done[font] = true;
+    }
+    return rows[font];
+}
+
+/* Whether this firmware font draws `code` at all, as TFT_eSPI decides. */
+bool drawsCode(uint8_t font, uint16_t code) {
+    if (code == 0) return false;
+    if (font == 1) return code <= 255;
+    return code >= 32 && code <= 126;
+}
+
+uint16_t blend565(uint16_t under, uint16_t over, uint8_t a) {
+    if (a == 255) return over;
+    if (a == 0) return under;
+    const uint32_t ia = 255u - a;
+    const uint32_t r = (((over >> 11) & 31) * a + ((under >> 11) & 31) * ia + 127) / 255;
+    const uint32_t g = (((over >> 5) & 63) * a + ((under >> 5) & 63) * ia + 127) / 255;
+    const uint32_t b = ((over & 31) * a + (under & 31) * ia + 127) / 255;
+    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
+}
+
+}   // namespace
+
+int32_t TFT_eSPI::ttCapPx(uint8_t font) const {
+    const CapRows& r = capRows(font);
+    if (r.top < 0) return 0;
+    return static_cast<int32_t>(r.bottom - r.top + 1) * textSize_ * scale_;
+}
+
+/* Real pixels the string advances, glyph by glyph, exactly as ttDraw() moves
+ * its pen; -1 when this font is not drawn in the TrueType face. */
+int32_t TFT_eSPI::ttAdvance(const char* text, uint8_t font) const {
+    const int32_t cap = ttCapPx(font);
+    if (cap <= 0 || !HostText::glyph(cap, 'H')) return -1;
+    int32_t pen = 0;
+    while (*text) {
+        const uint16_t code = nextCodepoint(text);
+        if (!drawsCode(font, code)) continue;
+        if (const HostText::Glyph* g = HostText::glyph(cap, code)) {
+            pen += g->advance;
+        } else if (font == 1) {
+            pen += 6 * textSize_ * scale_;   // drawn from the bitmap instead
+        }
+    }
+    return pen;
+}
+
+/* One real pixel of a glyph, at (px, py) in the rotation's own coordinates
+ * times the UI scale, with the viewport and the paint clip applied to the
+ * logical pixel it falls in -- what plot() does for a whole one. */
+void TFT_eSPI::blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a) {
+    if (a == 0 || px < 0 || py < 0) return;
+    const int32_t d = scale_;
+    const int32_t lx = px / d, ly = py / d;   // absolute logical
+    if (clipOn_ && (lx < clipX_ || ly < clipY_ || lx >= clipX_ + clipW_ || ly >= clipY_ + clipH_)) return;
+    if (lx < vpX_ || ly < vpY_ || lx >= vpX_ + vpW_ || ly >= vpY_ + vpH_) return;
+    const int32_t pw = static_cast<int32_t>(frameW_) * d;
+    const int32_t ph = static_cast<int32_t>(frameH_) * d;
+    int32_t fx = 0, fy = 0;
+    switch (rotation_) {   // toFrame()'s transforms, at the real resolution
+        case 1: fx = px; fy = py; break;
+        case 3: fx = pw - 1 - px; fy = ph - 1 - py; break;
+        case 2: fx = pw - 1 - py; fy = px; break;
+        default: fx = py; fy = ph - 1 - px; break;
+    }
+    if (fx < 0 || fy < 0 || fx >= pw || fy >= ph) return;
+    uint16_t& at = frame_[static_cast<size_t>(fy) * pw + fx];
+    at = blend565(at, color, a);
+    ++frameGen_;
+}
+
+/* Draw `text` with its cell's top-left at logical (x, y), already moved for
+ * the datum; returns the logical advance. */
+int32_t TFT_eSPI::ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, int32_t w,
+                         int32_t h) {
+    const int32_t cap = ttCapPx(font);
+    const int32_t d = scale_;
+    if (textFg_ != textBg_ && w > 0 && h > 0) fillRectQuiet(x, y, w, h, textBg_);
+    const int32_t ax = vpDatum_ ? x + vpX_ : x;
+    const int32_t ay = vpDatum_ ? y + vpY_ : y;
+    const int32_t baseline = (ay + static_cast<int32_t>(capRows(font).bottom + 1) * textSize_) * d;
+    int32_t pen = ax * d;
+    const int32_t start = pen;
+    while (*text) {
+        const uint16_t code = nextCodepoint(text);
+        if (!drawsCode(font, code)) continue;
+        const HostText::Glyph* g = HostText::glyph(cap, code);
+        if (!g) {
+            if (font == 1) {
+                /* No such glyph in the face: the bitmap's, at the logical
+                 * pixel the pen is in. */
+                const uint16_t savedBg = textBg_;
+                textBg_ = textFg_;   // the cell is already filled
+                drawChar(code, x + (pen - start) / d, y, font);
+                textBg_ = savedBg;
+                pen += 6 * textSize_ * d;
+            }
+            continue;
+        }
+        if (g->w > 0) {
+            const int32_t gx = pen + g->xoff, gy = baseline + g->yoff;
+            const int32_t lx0 = gx / d - (vpDatum_ ? vpX_ : 0);
+            const int32_t ly0 = gy / d - (vpDatum_ ? vpY_ : 0);
+            forgetMarksUnder(lx0, ly0, (g->w + d - 1) / d + 1, (g->h + d - 1) / d + 1);
+            for (int32_t j = 0; j < g->h; ++j) {
+                const uint8_t* row = g->alpha.data() + j * g->w;
+                for (int32_t i = 0; i < g->w; ++i) {
+                    if (row[i]) blendReal(gx + i, gy + j, textFg_, row[i]);
+                }
+            }
+        }
+        pen += g->advance;
+    }
+    return (pen - start + d - 1) / d;
 }
 
 void TFT_eSPI::span(int32_t x0, int32_t x1, int32_t y, uint16_t color) {
@@ -419,6 +607,10 @@ int16_t TFT_eSPI::fontHeight(int16_t font) const {
 
 int16_t TFT_eSPI::textWidth(const char* text, uint8_t font) const {
     if (!text) return 0;
+    /* The same advances ttDraw() moves by, so a width measured here is the
+     * width drawn: Ui::fitted(), wrapping and centring depend on it. */
+    const int32_t real = ttAdvance(text, font);
+    if (real >= 0) return static_cast<int16_t>((real + scale_ - 1) / scale_);
     if (font == 1) {
         int32_t n = 0;
         while (*text) {
@@ -529,10 +721,14 @@ int16_t TFT_eSPI::drawString(const char* text, int32_t x, int32_t y, uint8_t fon
         default: break;
     }
     int32_t advance = 0;
-    const char* s = text;
-    while (*s) {
-        const uint16_t code = nextCodepoint(s);
-        advance += drawChar(code, x + advance, y, font);
+    if (ttAdvance(text, font) >= 0) {
+        advance = ttDraw(text, x, y, font, w, h);
+    } else {
+        const char* s = text;
+        while (*s) {
+            const uint16_t code = nextCodepoint(s);
+            advance += drawChar(code, x + advance, y, font);
+        }
     }
     notePagerLabel(text, x, y, advance, h);
     if (advance > 0 && h > 0) noteIconPrim(Prim::Text, x, y, x + advance - 1, y + h - 1);
