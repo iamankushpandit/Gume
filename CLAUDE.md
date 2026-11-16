@@ -643,6 +643,14 @@ the guide. Three things about it are load-bearing:
   order with patch's default fuzz, and stops the build on any hunk that does
   not apply. **The image is a release asset, never in git**, and it ships
   with Buildroot's `legal-info` as its source offer.
+  **A television on HDMI takes the picture from the panel, and headphones
+  take the sound from the speaker** -- both RG40XX V only, so nothing else
+  changes. The TV shows the panel's frame at a whole scale and the layout
+  never moves to the TV's size; the panel's lamp follows the picture; sleep
+  turns off whichever output shows. The jack is the kernel's and the image's
+  init scripts' (`acpid` switching the codec's `Speaker` pin), so no line of
+  `src/` knows about it. There is no HDMI sound: the H700's audio hub has no
+  mainline driver. See `host/CLAUDE.md` and `host/rg40xxv/README.md`.
 
 `BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
 replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,

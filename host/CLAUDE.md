@@ -217,8 +217,11 @@ finds it before `setup()` runs and it is fixed for the run:
 
 1. `BRAINO_PANEL=WxH`, if set, on any build -- the way to see another
    console's screen on a PC (`BRAINO_PANEL=320x240`, `800x480`, `1280x720`).
-2. Otherwise the display mode: the DRM mode on the whole-device image, the
-   desktop's with `BRAINO_FULLSCREEN=1`.
+2. Otherwise the display mode: the built-in panel's DRM mode on the
+   whole-device image -- the panel's even when a television on HDMI is
+   showing at start, so unplugging it never leaves a frame bigger than the
+   panel (`HostDrm::panelWidth()`) -- or the desktop's with
+   `BRAINO_FULLSCREEN=1`.
 3. Otherwise 640x480, the RG40XX V's, so a PC window shows what the handheld
    will.
 
@@ -727,12 +730,38 @@ code in `host/`:
   and selector over it in frame pixels, as the SDL renderer does at its
   logical size. It still presents only when something
   changed, and `presentImage()` (the splash) clears that so the next frame is
-  drawn. **HDMI wins whenever a screen is connected**: `outputChanged()` reads
-  the kernel's hotplug uevents from a netlink socket (no udev), moves the
-  picture to the TV's own mode on fresh buffers and turns the panel's CRTC
-  off, and back again when it is unplugged; `present()` re-lays out and
-  redraws whole when it says so. The option is off by default: the PC build
-  is untouched.
+  drawn. **HDMI wins whenever a television is connected that can hold the
+  panel's frame**: `outputChanged()` reads the kernel's hotplug uevents from
+  a netlink socket (no udev), moves the picture to the TV on fresh buffers
+  and turns the panel's CRTC off, and back again when it is unplugged;
+  `present()` re-centres and redraws whole when it says so. Instead of the
+  panel, not beside it: the room watches the TV, and the console is the
+  controller. Four rules hold it:
+  - **The layout never moves.** The firmware is laid out on the panel's mode
+    for the run, and the TV shows that frame at a whole scale (2x at 1080p).
+  - **The TV's mode is `HostTvMode::pick()`'s**: its preferred mode up to
+    1920x1080, else the largest progressive one under that, and none smaller
+    than the panel (`test/host/tv_mode_test.cpp`). Dumb buffers are
+    contiguous memory; the image's boot line reserves 64 MB (`cma=64M`) for
+    two at 1080p beside the kernel's own, and a 4K pair would not fit.
+  - **The panel's lamp follows the picture.** `HostScreenPower::setPanelShown()`
+    keeps it off while the TV has the picture, awake or asleep, and lights it
+    when the picture comes back; otherwise waking from sleep relit a panel
+    with no CRTC behind it.
+  - **Sleep turns off whichever output is showing** (`setPower()`), and a TV
+    unplugged meanwhile makes the wake-up's mode set fail, which marks a
+    recheck so the next frame moves to the panel without waiting for an
+    event.
+  There is no HDMI sound: the H700's audio hub has no mainline driver
+  (`rg40xxv/README.md`). The option is off by default: the PC build is
+  untouched.
+- **Headphones take the sound from the speaker, and `host/` never knows.**
+  The kernel reads the jack (`hp-det-gpios`, a `Headphone Jack` control and
+  an input switch); the image's `acpid` runs
+  `board/overlay/usr/bin/braino-headphones`, which switches the codec's
+  `Speaker` pin, and `S40keys` syncs it at boot. Braino's sound path is
+  unchanged on every platform, and its volume and Mute act before the codec,
+  so both outputs behave alike.
 - **The light ring is found, not assumed.** Under Anbernic's kernel the MCU
   is `/dev/ttyS5` behind the PMIC's `mcu_pwr`; under mainline it is whichever
   `ttyS` is UART5 (`5001400.serial`, or `5001400.serial:0.0` now the serial

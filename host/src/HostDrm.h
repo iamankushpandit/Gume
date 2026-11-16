@@ -35,9 +35,22 @@ void shutdown();
 int width();
 int height();
 
+/* The built-in panel's mode, whatever is showing: the size the firmware is
+ * laid out on for the whole run. A television plugged in before power-on
+ * does not change it, so unplugging one finds the frame the panel's size. */
+int panelWidth();
+int panelHeight();
+
+/* Whether the built-in panel is what is showing -- false while a television
+ * has the picture. HostScreenPower keeps the panel's lamp off meanwhile. */
+bool panelShown();
+
 /* True when a screen was plugged in or unplugged since the last call and the
  * picture has moved: width() and height() may differ, and both buffers are
- * black. The caller redraws everything. Cheap enough to ask every frame. */
+ * black. The caller redraws everything. Cheap enough to ask every frame.
+ * A television is used in its preferred mode up to 1920x1080 (the largest
+ * progressive mode under that otherwise), and only if that mode holds the
+ * panel's frame; anything else stays on the panel. */
 bool outputChanged();
 
 /* The buffer to draw the next frame into, XRGB8888, `stride` pixels a row.

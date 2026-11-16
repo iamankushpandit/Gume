@@ -10,6 +10,7 @@
 /* See HostDrm.h. */
 
 #include "HostDrm.h"
+#include "HostTvMode.h"
 
 #if GUME_HOST_DRM
 
@@ -52,6 +53,15 @@ struct Output {
 int fd = -1;
 int uevents = -1;          // kernel hotplug events, no udev needed
 Output current;
+/* The built-in panel's mode, from the first time it is seen. The firmware is
+ * laid out on it for the whole run, so a television plugged in before
+ * power-on must not become the size Braino lays out on: unplugged, the panel
+ * would be smaller than the frame and stay dark. */
+int builtinW = 0, builtinH = 0;
+/* An output that would not come back on after sleep (a television unplugged
+ * meanwhile): look again on the next outputChanged(), event or not. */
+bool recheck = false;
+
 Buffer buffers[2];
 int front = 0;
 bool flipPending = false;
@@ -114,8 +124,26 @@ void freeBuffer(Buffer& b) {
     b = Buffer{};
 }
 
-/* Every connected output. HDMI is chosen over the built-in panel whenever a
- * screen is plugged in, as a handheld with a TV attached is expected to do. */
+/* A television's mode (HostTvMode::pick()), or null if none will do. */
+const drm_mode_modeinfo* tvMode(const std::vector<drm_mode_modeinfo>& modes) {
+    std::vector<HostTvMode::Mode> m(modes.size());
+    for (size_t i = 0; i < modes.size(); ++i) {
+        m[i].w = modes[i].hdisplay;
+        m[i].h = modes[i].vdisplay;
+        m[i].refresh = modes[i].vrefresh;
+        m[i].preferred = (modes[i].type & DRM_MODE_TYPE_PREFERRED) != 0;
+        m[i].interlaced = (modes[i].flags & DRM_MODE_FLAG_INTERLACE) != 0;
+    }
+    const int i = HostTvMode::pick(m.data(), static_cast<int>(m.size()));
+    return i < 0 ? nullptr : &modes[i];
+}
+
+/* Every connected output. A television on HDMI is chosen over the built-in
+ * panel whenever one is plugged in and has a mode that holds the panel's
+ * frame: the picture goes where the room is looking, and the panel goes
+ * dark. Showing both was the alternative, and it buys nothing a player in
+ * front of a TV wants -- the console in their hands becomes the controller --
+ * while it costs a second conversion of every frame and the panel's lamp. */
 bool pickOutput(Output& out) {
     drm_mode_card_res res{};
     if (ioctlRetry(DRM_IOCTL_MODE_GETRESOURCES, &res) != 0) return false;
@@ -127,7 +155,8 @@ bool pickOutput(Output& out) {
     res.fb_id_ptr = reinterpret_cast<uintptr_t>(fbs.data());
     if (ioctlRetry(DRM_IOCTL_MODE_GETRESOURCES, &res) != 0) return false;
 
-    bool found = false;
+    Output panelOut, hdmi;
+    bool havePanel = false, haveHdmi = false;
     for (uint32_t id : connectors) {
         drm_mode_get_connector conn{};
         conn.connector_id = id;
@@ -145,11 +174,21 @@ bool pickOutput(Output& out) {
         Output o;
         o.connector = id;
         o.type = conn.connector_type;
-        o.mode = modes[0];
-        for (const auto& m : modes) {
-            if (m.type & DRM_MODE_TYPE_PREFERRED) {
-                o.mode = m;
-                break;
+        if (isHdmi(o.type)) {
+            const drm_mode_modeinfo* m = tvMode(modes);
+            if (!m) {
+                std::printf("[drm] HDMI: no progressive mode up to %ux%u; staying on the panel\n",
+                            HostTvMode::MAX_W, HostTvMode::MAX_H);
+                continue;
+            }
+            o.mode = *m;
+        } else {
+            o.mode = modes[0];
+            for (const auto& m : modes) {
+                if (m.type & DRM_MODE_TYPE_PREFERRED) {
+                    o.mode = m;
+                    break;
+                }
             }
         }
         /* The encoder already in use keeps its CRTC; otherwise the first
@@ -167,12 +206,36 @@ bool pickOutput(Output& out) {
             }
         }
         if (!o.crtc) continue;
-        if (!found || (isHdmi(o.type) && !isHdmi(out.type))) {
-            out = o;
-            found = true;
+        if (isHdmi(o.type)) {
+            hdmi = o;
+            haveHdmi = true;
+        } else if (!havePanel) {
+            panelOut = o;
+            havePanel = true;
         }
     }
-    return found;
+    if (havePanel && builtinW == 0) {
+        builtinW = panelOut.mode.hdisplay;
+        builtinH = panelOut.mode.vdisplay;
+    }
+    /* A television that cannot hold the panel's frame would show nothing. */
+    HostTvMode::Mode tv;
+    tv.w = hdmi.mode.hdisplay;
+    tv.h = hdmi.mode.vdisplay;
+    if (haveHdmi && !HostTvMode::holdsPanel(tv, builtinW, builtinH)) {
+        std::printf("[drm] HDMI: %ux%u is smaller than the panel; staying on the panel\n",
+                    hdmi.mode.hdisplay, hdmi.mode.vdisplay);
+        haveHdmi = false;
+    }
+    if (haveHdmi) {
+        out = hdmi;
+        return true;
+    }
+    if (havePanel) {
+        out = panelOut;
+        return true;
+    }
+    return false;
 }
 
 bool setCrtc(const Buffer& b) {
@@ -302,14 +365,23 @@ void shutdown() {
 
 int width() { return current.mode.hdisplay; }
 int height() { return current.mode.vdisplay; }
+int panelWidth() { return builtinW; }
+int panelHeight() { return builtinH; }
+bool panelShown() { return fd >= 0 && !isHdmi(current.type); }
 
 bool outputChanged() {
     /* Not while off: use() would set a CRTC and light the output. The
      * kernel's events wait in the socket until it is back on. */
-    if (fd < 0 || poweredOff || !hotplugEvent()) return false;
+    if (fd < 0 || poweredOff) return false;
+    const bool event = hotplugEvent();
+    if (!event && !recheck) return false;
+    const bool retry = recheck;
+    recheck = false;
     Output o;
     if (!pickOutput(o)) return false;   // nothing connected for a moment: keep what there is
-    if (o.connector == current.connector && o.mode.hdisplay == current.mode.hdisplay &&
+    /* The same output in the same mode is left alone -- unless it would not
+     * come back on, when setting it again is the one thing left to try. */
+    if (!retry && o.connector == current.connector && o.mode.hdisplay == current.mode.hdisplay &&
         o.mode.vdisplay == current.mode.vdisplay) {
         return false;
     }
