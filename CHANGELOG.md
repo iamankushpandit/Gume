@@ -276,6 +276,19 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**State Flags is a course of five levels.** Its tiers were climbed by six
+right in a row and never come down from, and it dealt from the pool's
+positions, so the first tier was the same nine questions in a loop. Now it
+asks the nine famous states, then the next eighteen, then the last
+twenty-three on their own, then all fifty, then all fifty with the capital
+counting as much as the flag. Every flag of a level comes up before any
+repeats, a missed one returns a few flags later, the level is kept between
+visits and moves down as well as up, and a new level is named over its first
+flag; a player who had climbed the old tiers starts at the matching level.
+The capital round is a plain shuffle (it used to give one of the four away),
+a press near the top of a lower button no longer answers the one above, and
+a tap on the level button during feedback no longer throws it away.
+
 **Flags is a course of nine levels.** It had three tiers -- thirty
 countries, then sixty, then all 195 at once -- climbed by six right in a row
 and never come down from, and its continent column was never read. Now it

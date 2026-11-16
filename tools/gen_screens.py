@@ -992,7 +992,7 @@ def states():
 def stateflags():
     im, d = blank(); topbar(d, "State Flags")
     d.text((8, 32), "2/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 241, 169], fill=WHITE, outline=OUTLINE)
     f = art("mnf_state_flag_ca")
     if f:
