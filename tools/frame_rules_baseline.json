@@ -105,12 +105,17 @@
       "heap": 0
     },
     "src/games/WifiApp.cpp": {
-      "String": 15,
+      "String": 11,
       "delay": 0,
       "heap": 0
     },
     "src/games/WifiApp.h": {
       "String": 3,
+      "delay": 0,
+      "heap": 0
+    },
+    "src/games/WifiPassword.cpp": {
+      "String": 4,
       "delay": 0,
       "heap": 0
     },

@@ -4434,6 +4434,48 @@ def wifi_tall():
     return im
 
 
+WIFI_SYMBOL_ROWS = ["!@#$%^&*()", "-_=+[]{};:", "'\",.<>/?~\\"]
+
+
+def _wifi_password_typing(tall):
+    """WifiPassword.cpp with the clip-on keyboard typing (Attaky Core): the
+    hint where the digit row was, the symbol page's three rows -- the keyboard
+    has no symbol keys beyond , . # -- the keyboard button where CAPS was, and
+    JOIN. Every rect is WifiApp::baseRect, so the same picture serves both
+    orientations."""
+    if tall:
+        im, d = blank_tall(); sw, sh = PW, PH
+        mx, my, mr = pw, ph, prect
+    else:
+        im, d = blank(); sw, sh = W, H
+        mx, my, mr = (lambda x: x), (lambda y: y), (lambda x, y, w, h: (x, y, w, h))
+    topbar(d, "Wi-Fi", w=sw)
+    d.text((mx(8), my(36)), "< back   DextersLab", font=F2, fill=TEXT)
+    fx, fy, fw, fh = mr(8, 54, 304, 34)
+    d.rounded_rectangle([fx, fy, fx + fw, fy + fh], 4, fill=SURFACE, outline=OUTLINE)
+    d.text((fx + 8, fy + fh / 2 - 8), "********", font=F2, fill=TEXT)
+    sx, sy_, sw_, shh = mr(234, 59, 74, 24)
+    button(d, (sx, sy_, sw_, shh), "")
+    d.rounded_rectangle([sx + 6, sy_ + (shh - 14) // 2, sx + 20, sy_ + (shh - 14) // 2 + 14],
+                        3, fill=SURFACE, outline=OUTLINE)
+    d.text((sx + 26, sy_ + shh / 2 - 8), "Show", font=F2, fill=TEXT)
+    _typing_hint(d, my(100), sw)
+    for r, row in enumerate(WIFI_SYMBOL_ROWS, start=1):
+        for c, ch in enumerate(row):
+            button(d, mr(2 + c * 32, 96 + r * 28, 28, 24), ch, SURFACE, TEXT, F2)
+    _typing_toggle(d, mr(2, 208, 52, 24))
+    button(d, mr(246, 208, 72, 24), "JOIN", ACCENT, WHITE, F2)
+    return im
+
+
+def wifi_password_typing():
+    return _wifi_password_typing(False)
+
+
+def wifi_password_typing_tall():
+    return _wifi_password_typing(True)
+
+
 def settings_tall():
     """Settings (Device tab) in portrait. Mirrors SettingsApp's shared grid:
     pitch = (panelH - 36 - 8 - 58) / 4 floored at 34, row height capped at 44,
@@ -4678,6 +4720,8 @@ EXTRA_SCREENS = [
     ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
     ("profiles-rename-typing", profiles_rename_typing, "Profiles: the name entry with a keyboard attached"),
     ("profiles-pin-typing", profiles_pin_typing, "Profiles: the admin PIN with a keyboard attached"),
+    ("wifi-password-typing", wifi_password_typing, "Wi-Fi: the password with a keyboard attached"),
+    ("wifi-password-typing-tall", wifi_password_typing_tall, "Wi-Fi: the password with a keyboard attached, Tall layout"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
     ("systeminfo-battery", systeminfo_battery, "System Info: where the battery went"),

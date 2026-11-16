@@ -76,6 +76,9 @@ private:
     void runScan();
     void startConnect(GameHost& host);
     void typePassword(GameHost& host, char typed);
+    /* The password phase, in WifiPassword.cpp. */
+    void updatePassword(GameHost& host, const TouchPoint& touch);
+    void renderPassword(GameHost& host);
     /** Reconnect to the network already in NVS, if there is one. */
     void rejoinSaved(GameHost& host);
     void checkConnect(GameHost& host);

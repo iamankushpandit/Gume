@@ -799,9 +799,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,679,561 / 3,145,728 bytes,
-**85.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 94,572 / 327,680 (28.9%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,684,513 / 3,145,728 bytes,
+**85.3%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 94,804 / 327,680 (28.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1126,8 +1126,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the field opens**, so the choice is per visit and the next visit asks
   again. **A keyboard button on every one of them brings the keypad back
   for that visit** -- the module comes off and boot is the only time
-  anybody looks, so without it a field could be reachable only by key, and
-  it is also the way to a password symbol the keyboard lacks. **And the
+  anybody looks, so without it a field could be reachable only by key.
+  **A field that takes what the keyboard cannot type keeps it on screen**:
+  the keyboard has letters, digits, space and only `,` `.` `#` of the
+  punctuation, so the Wi-Fi password keeps the on-screen symbol page's three
+  rows where the keys were (`WifiPassword.cpp`); the names and PINs take
+  nothing the keyboard lacks. A new field, or a keyboard with a different
+  layout, has to be checked the same way. **And the
   keypad comes back by itself when the keyboard stops answering**:
   `Modules::keyboardAnswering()` counts the per-frame scan's own failures
   (five in a row is gone), and each screen asks `KeypadChoice::lost()`
@@ -1797,7 +1802,8 @@ src/games/                one .h/.cpp pair per game + GameInstances.h +
                           Cursive share: logic, Draw, Arrows, Words and a
                           Layout header), CursiveGlyphData (generated) +
                           Country/State, Maze and Trace data.
-                          Wi-Fi is WifiApp (phases, input, drawing) and
+                          Wi-Fi is WifiApp (phases, input, drawing),
+                          WifiPassword (the password phase) and
                           WifiConnect (scan, join, rejoin); Profiles is
                           ProfileApp, ProfileRename and ProfilePin (the
                           admin PIN pad).

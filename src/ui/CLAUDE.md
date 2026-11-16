@@ -193,16 +193,18 @@ as the field opens and kept for that visit; `Typing::fieldRect()`, the larger
 field centred in the space the keypad left; the hint line; and the bottom
 row -- the keyboard button at the left, OK at the right, Cancel staying
 centred where it was. **The keyboard button is not optional**: it is what
-keeps every field reachable by touch with the module off, and the way to the
-symbols the keyboard does not have. `KeypadChoice::lost()` turns the keypad
+keeps every field reachable by touch with the module off. **Nor is the
+keyboard's layout the field's**: the keyboard types only `,` `.` `#` of the
+punctuation, so a field that takes more keeps those keys on screen -- the
+Wi-Fi password keeps its symbol page's three rows (`WifiPassword.cpp`). `KeypadChoice::lost()` turns the keypad
 back on, once, when `Modules::keyboardAnswering()` goes false, and the screen
 repaints fully -- the layout changed, so this is a scene change. The button
 is a `drawButton()` with a glyph drawn inside it, so the d-pad's selector
 finds it like any other control. Without the keyboard macro `KeypadChoice` is
 an empty class whose `hidden()` is a constant false and the helpers are
 inline no-ops, so the screens need no `#if` and the image carries nothing.
-`tools/gen_screens.py` draws two of these screens (`profiles-rename-typing`,
-`profiles-pin-typing`), in landscape only.
+`tools/gen_screens.py` draws three of these screens (`profiles-rename-typing`
+and `profiles-pin-typing` in landscape, `wifi-password-typing` in both).
 
 ## RowList
 
