@@ -172,3 +172,39 @@ target_compile_definitions(braino PRIVATE GUME_VERSION_TAG="${BRAINO_VERSION_TAG
 
 target_compile_options(braino PRIVATE -Wall)
 target_link_libraries(braino PRIVATE PkgConfig::SDL2 PkgConfig::CURL Threads::Threads m)
+
+# The synthesiser on its own: every cue written to a WAV file, through the
+# firmware's own src/hal/AudioSynth.cpp, BoardAudio.cpp and BoardAudioCues.cpp
+# and nothing else from src/. braino-sounds generates as the codec path does (16-bit,
+# 16 kHz: this program, the Freenove and a bare I2S amplifier);
+# braino-sounds-dac as the E32R28T-1's built-in DAC does (24 kHz, of which
+# the speaker hears the high byte). host/CLAUDE.md, "Hearing the sounds".
+set(SOUND_SOURCES
+  "${REPO_ROOT}/src/hal/AudioSynth.cpp"
+  "${REPO_ROOT}/src/hal/BoardAudio.cpp"
+  "${REPO_ROOT}/src/hal/BoardAudioCues.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundRender.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundStubs.cpp")
+foreach(flavour IN ITEMS codec dac)
+  if(flavour STREQUAL "codec")
+    set(sound_target braino-sounds)
+    set(sound_board "boards/host.h")
+    set(sound_name "Host-SDL")
+  else()
+    set(sound_target braino-sounds-dac)
+    set(sound_board "boards/e32r28t1.h")
+    set(sound_name "E32R28T-1")
+  endif()
+  add_executable(${sound_target} ${SOUND_SOURCES})
+  target_include_directories(${sound_target} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shim"
+    "${REPO_ROOT}/include"
+    "${REPO_ROOT}/src"
+    "${REPO_ROOT}/src/hal")
+  target_compile_definitions(${sound_target} PRIVATE
+    GUME_BOARD_HEADER="${sound_board}"
+    BOARD_NAME="${sound_name}")
+  target_compile_options(${sound_target} PRIVATE -Wall)
+  target_link_libraries(${sound_target} PRIVATE m)
+endforeach()

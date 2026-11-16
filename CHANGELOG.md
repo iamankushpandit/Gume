@@ -98,6 +98,35 @@ is the rule for every platform from here on: it states how big its panel is
 (`PanelSize`), and nothing is stretched after the fact. The ESP32 boards'
 pictures do not change.
 
+**A new sound set: smooth, pure tones that glide.** Every cue was a tone or a
+square wave switched on at one level and switched off, which is heard as a
+beep however pleasant the notes. The synthesiser can now strike a note and
+let it ring -- a few milliseconds up, then falling away -- glide it from one
+pitch to another, and let the next note start while the last still rings, so
+a run of notes blooms into the chord it spells. Three directions were offered
+on a listening page, and the one chosen is the smooth one: pure sine tones,
+most of them gliding.
+
+- **Tap, Select, Correct and Wrong**, the four heard most, glide: Tap and
+  Select up, short and soft; Correct up twice, E to B to E; Wrong one slow
+  fall instead of two low buzzes.
+- **Reveal, Coin, Level Up, Victory, High Score, Countdown, Pop, Step,
+  Your Turn, Cinnamon's pads and the piano** keep their notes and their
+  shapes and are played the same smooth way. A piano key held down stays
+  held, and the same key pressed twice is struck twice.
+- **Whoosh** is new: a pure tone swelling in and gliding down, with a breath
+  of air under it, where it was the air alone.
+- **The Bell** for Find my Braino keeps a soft octave above its note, the one
+  sound that is not a pure tone, because it has to be heard through a
+  cushion.
+- **Game Over and "Let's play Braino!"** are unchanged.
+
+Nothing here is a recording: a note is still a few numbers in a table, and
+the struck-note engine and the new cues cost about 2 KB of flash. `test/host/audio_synth_test.cpp`
+renders every shape the new notes make -- glides, chords past full scale,
+more notes than voices, a held key -- and fails on a click. Nobody has heard
+the set on a board yet.
+
 **Three clicks are gone from the sounds, and nothing else about them
 changed.** Rendered off the device, sample by sample, each had one cause:
 

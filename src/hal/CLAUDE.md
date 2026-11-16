@@ -107,8 +107,9 @@ header comment in that file before changing it -- three of its decisions look
 arbitrary and are not.
 
 **Nothing here is a recording and nothing here may become one.** Every sound is
-generated a sample at a time from a script of `Segment`s: sine or square with
-an optional linear sweep, band-passed noise, and three formant resonators
+generated a sample at a time from a script of `Segment`s: struck notes that
+ring and glide, sine or square with an optional linear sweep, band-passed
+noise, and three formant resonators
 driven either by a monotone impulse train (voiced) or by noise (unvoiced).
 That is a flash decision -- a second of 16-bit 16 kHz mono is 32 KB against a
 budget already at 76.0% -- and it is also what makes a spoken phrase possible
@@ -147,13 +148,37 @@ dropping them is audible as a stutter on anything long enough to fill the DMA.
 `src/s3_diag.cpp` blocks the whole way through a note, and is right to: a
 bring-up probe has no frame budget.
 
-**Re-arming the same script while it is still sounding is a continuation, not a
-restart.** `arm()` compares the incoming script with the current one and keeps
-the oscillator phase and the resonators when they match. That exists for the
-piano: the synthesiser has no note-on and no sustain, so a held key is kept
-alive by asking for the same note again just before the last one ends, and
-snapping `phase` back to zero at that seam is a step in the waveform -- a click,
-every 280 ms, heard as a tone that is not continuous.
+**Most cues are Notes: struck, left to ring, often gliding.** `Wave::Note`
+(`AudioSynth.cpp`) is the smooth set the owner chose on 2026-11-15. A Note
+takes one of `NOTE_VOICES` (4) voices of its own, rises over its timbre's
+attack, falls exponentially towards its sustain (zero for all but the piano's
+KEYS), glides linearly from `a` to `b` across its segment -- or across the
+timbre's own `glideMs` -- and rings on under whatever segment follows. A
+segment's `ms` is when the NEXT thing starts, not when the note stops. The
+timbres are a table in `AudioSynth.cpp`, named by `audio::Timbre`; all are
+pure sines except BELL's soft octave. Five things are load-bearing:
+
+- **A script with no Note in it generates bit for bit what it did before.**
+  Notes are summed after the shared gain and only while one sounds, so
+  GameOver and the spoken phrase were not touched.
+- **A taken voice is faded, not cut** (`declick`), and the sum of voices
+  goes through a soft ceiling from 75% of full scale rather than the hard
+  clip, which would square the peaks a chord makes.
+- **A script of Notes is never a continuation of itself.** The same note
+  asked for again is struck again -- a key pressed twice. A key still down
+  is `Sound::NoteHold` (`synthHold()`), which gives the note its segment
+  again without striking it; PianoGame sends it every
+  `SOUND_NOTE_REARM_MS`, and the static_assert in `BoardAudio.cpp` still
+  states the margin. Re-arming any OTHER script while it sounds is still a
+  continuation that keeps the phase and the resonators.
+- **A Note ends at a floor**: -66 dB of full scale on the codec and the I2S
+  amplifier, just under one 8-bit step at full volume on the built-in DAC
+  (`synthSetNoteFloor()`), where a note left to fall further only buzzes.
+- **Mute fades the notes in 4 ms**, as `synthFadeOut()` fades the rest.
+
+`host/sound/` renders every cue to WAV through these same files (see
+`host/CLAUDE.md`), and `test/host/audio_synth_test.cpp` fails on a step any
+Note shape makes.
 
 **The voice is a phoneme table, not text-to-speech.** `PHRASE_LETS_PLAY_BRAINO`
 spells "Let's play Braino!" out as L EH T S / P L EY / B R EY N OW, each entry
@@ -584,10 +609,10 @@ the full amplitude. Mute uses the same fade rather than cutting.
 A rest inside a script fades the same way: it keeps the last sounding
 segment's waveform running while the gain falls, because a rest that
 outputs zero from its first sample is the same step (`AudioSynth.cpp`;
-`test/host/audio_synth_test.cpp` fails on it). And a held note is asked for
-again every `SOUND_NOTE_REARM_MS`, well inside `SOUND_NOTE_MS`, because
-the generator runs a DMA ahead of the speaker -- `BoardAudio.cpp`
-static_asserts the margin.
+`test/host/audio_synth_test.cpp` fails on it). And a held note is held
+again (`Sound::NoteHold`) every `SOUND_NOTE_REARM_MS`, well inside
+`SOUND_NOTE_MS`, because the generator runs a DMA ahead of the speaker --
+`BoardAudio.cpp` static_asserts the margin.
 
 **The sample rate is not the same on both backends, and this is measured.** The
 built-in DAC's clock divider cannot reach low rates: below 22050 Hz it wraps

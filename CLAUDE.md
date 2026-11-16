@@ -788,9 +788,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,665,117 / 3,145,728 bytes,
-**84.7%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 93,660 / 327,680 (28.6%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,667,413 / 3,145,728 bytes,
+**84.8%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 93,924 / 327,680 (28.7%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1493,7 +1493,9 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   console makes -- the cues in `hal/Sound.h`, the four Cinnamon pad notes, and
   the spoken "Let's play Braino!" at boot -- is *generated* by `AudioSynth.cpp`
   (the cue tables themselves live in `BoardAudioCues.cpp`)
-  from a script of oscillator, noise and formant segments. No WAV, no PCM
+  from a script of struck-note, oscillator, noise and formant segments --
+  the cues are the smooth set of pure, gliding tones the owner chose on
+  2026-11-15. No WAV, no PCM
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
@@ -1927,7 +1929,9 @@ host/                     src/ built unchanged as an SDL desktop program:
                           src/ calls), src/ (window, input, NVS file with
                           its secrets sealed, audio, the backlight,
                           emulated FT6336U, Wi-Fi through the OS, boot
-                          splash), cmake/ (aarch64 toolchain), muos/ (the
+                          splash), sound/ (every cue rendered to WAV,
+                          through the firmware's own synthesiser),
+                          cmake/ (aarch64 toolchain), muos/ (the
                           RG40XXV launcher and card packer), rg40xxv/ (the
                           RG40XX V's Braino-only Buildroot image: build.sh,
                           configs/, board/, package/, and rocknix/ --

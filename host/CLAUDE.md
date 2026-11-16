@@ -860,6 +860,32 @@ completely is not finished: its first-boot setup, its shutdown splash and its
 own network services are still to be dealt with, and a pre-built card image
 is the plan for the first boot.
 
+## Hearing the sounds
+
+`sound/` builds two more programs beside `braino`, from the firmware's own
+`src/hal/AudioSynth.cpp`, `BoardAudio.cpp` and `BoardAudioCues.cpp` and
+nothing else from `src/`. Every cue is asked for through
+`Board::playSound()`, mute gate and all, and the samples are pulled with
+`audio::generateBlock()`, as the `braino-audio` task does on a board.
+`SoundStubs.cpp` answers the rest of the firmware with nothing; if it ever
+computes a sample, it has stopped being a stand-in.
+
+```bash
+build/host/braino-sounds out/codec        # one WAV per cue, plus sequences
+build/host/braino-sounds-dac out/dac      # as the 8-bit built-in DAC plays them
+build/host/braino-sounds --check          # the same renders, judged
+build/host/braino-sounds --bench          # time per generated sample
+```
+
+`braino-sounds` is the codec path -- 16-bit at 16 kHz, what this program, the
+Freenove and a bare I2S amplifier are given. `braino-sounds-dac` is the
+E32R28T-1's: 24 kHz, of which the WAV keeps only the high byte the speaker
+hears. The sequences (a held piano key, a key pressed twice, a Ludo walk,
+the find alert) are played on the device's own timeline, the generator a
+DMA ahead of the speaker, because that is where a held note is decided.
+This is how the sound set chosen on 2026-11-15 was auditioned; a cue is
+changed by ear here first, then on a board.
+
 ## Known differences from a board
 
 - Portrait layout is drawn turned on a landscape window, as it would be on a

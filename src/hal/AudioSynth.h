@@ -39,6 +39,26 @@ enum class Wave : uint8_t {
     Noise,      // band-passed white noise: a = centre Hz, b = bandwidth Hz
     Voiced,     // formant resonators driven by a monotone impulse train
     Unvoiced,   // the same resonators driven by noise -- fricatives and stops
+    Note,       // struck and left to ring: a = Hz, b = Hz it glides to, c = Timbre
+};
+
+/* What a Note is played on: how it starts, how it dies away, and how it
+ * glides. A Note segment names one in `c`. Every timbre here is a pure sine
+ * except the Bell's, which carries one soft octave above it so it can be heard
+ * through a cushion -- this is the "smooth" set the owner chose in the
+ * listening page on 2026-11-15. Add at the end: the number is what the cue
+ * tables store. */
+enum Timbre : uint16_t {
+    PURE,      // over in a few tens of milliseconds: a tap, a tick
+    SOFT,      // a slower attack and a longer fall, for the glides
+    GLOW,      // between the two, for runs of notes that bloom into a chord
+    RING,      // left to ring, for the last note of a fanfare or a doorbell
+    SWISH,     // a slow swell and a fast fall, gliding on its own clock
+    PAD,       // Cinnamon's pads: round, and gone before the pad goes dark
+    KEYS,      // the piano: holds while a key is down, falls when it comes up
+    BELL,      // the find alert: rings long, with a soft octave for carry
+    TICK,      // shorter than PURE: a Ludo hop, gone well inside 110ms
+    TIMBRE_COUNT
 };
 
 /* One step of a sound. What `a`, `b` and `c` mean depends on the wave, which
@@ -67,8 +87,16 @@ void synthSetRate(int samplesPerSecond);
 void synthLoad(const Segment* segments, uint8_t count);
 
 /** Fade whatever is sounding to silence over the release, rather than
- *  stopping it dead. */
+ *  stopping it dead. Notes still ringing fade in a few milliseconds. */
 void synthFadeOut();
+
+/** Keep the note last struck held a segment longer, without striking it
+ *  again: a piano key still down. Does nothing once the note is let go. */
+void synthHold();
+
+/** The level below which a ringing note is finished. On the 8-bit DAC a note
+ *  left to fall further only gets coarser, so that backend ends it sooner. */
+void synthSetNoteFloor(float floor);
 
 /** Generate one sample. False once the script and its release are spent. */
 bool nextSample(int16_t& out);
@@ -77,5 +105,7 @@ bool nextSample(int16_t& out);
  * after the last sample. Nothing on the device reads them. */
 float synthGain();
 float synthPhase();
+/** How many notes are ringing just now. */
+int synthNotesSounding();
 
 }   // namespace audio

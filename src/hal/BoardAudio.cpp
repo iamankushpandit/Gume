@@ -9,9 +9,9 @@
 
 #include "BoardAudioInternal.h"
 
-#if GUME_HAS_AUDIO_CODEC
-#include <Wire.h>
-#endif
+/* Nothing here talks to a codec register or a DAC pad -- that is all
+ * BoardAudioBackend.cpp -- so nothing here includes Wire or the DAC and RTC
+ * headers. host/sound/ compiles this file on its own, which keeps it honest. */
 
 #if GUME_HAS_AUDIO
 #include <driver/i2s.h>
@@ -20,12 +20,6 @@
 #include <freertos/task.h>
 #include <math.h>
 #include <string.h>
-#endif
-
-#if GUME_HAS_AUDIO_DAC
-#include <driver/dac_common.h>
-#include <driver/rtc_io.h>
-#include <soc/rtc_io_reg.h>
 #endif
 
 /* ------------------------------------------------------------------ audio
@@ -184,6 +178,12 @@ void arm(const Segment* segments, uint8_t count) {
     /* The engine decides whether this is a fresh sound or a held note
      * asked for again; see synthLoad(). */
     synthSetRate(AUDIO_RATE);
+#if GUME_HAS_AUDIO_DAC
+    /* Just under one step of the DAC's eight bits at full volume: a note left
+     * to fall further there is not quieter, only coarser -- a buzz of the last
+     * step flicking at the note's pitch -- so it is ended where that begins. */
+    synthSetNoteFloor(0.008f);
+#endif
     synthLoad(segments, count);
 
     /* The pending tail belongs to a sound that has just been superseded. */
@@ -196,6 +196,16 @@ void arm(const Segment* segments, uint8_t count) {
     /* Wake the generator: it is asleep whenever nothing is playing, so without
      * this the sound would not start until its idle poll expired. */
     if (audioTask != nullptr) xTaskNotifyGive(audioTask);
+}
+
+/* A piano key is still down: Sound::NoteHold. Keeps the note held under the
+ * lock, as arming does; see synthHold(). */
+void holdNote() {
+    if (!codecUp && !dacUp && !i2sUp) return;
+    if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
+    synthHold();
+    ampIdleSinceMs = 0;
+    if (audioLock != nullptr) xSemaphoreGive(audioLock);
 }
 
 /* Generate up to `frames` samples into `dst`, in whichever word format this
