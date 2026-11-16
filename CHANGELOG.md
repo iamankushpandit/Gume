@@ -276,6 +276,25 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Flags is a course of nine levels.** It had three tiers -- thirty
+countries, then sixty, then all 195 at once -- climbed by six right in a row
+and never come down from, and its continent column was never read. Now it
+deals the famous flags, the well known, then Europe, the Americas, Asia,
+Oceania and Africa one at a time, with every wrong answer from the same
+continent, then the whole world, then the whole world with the capital
+counting as much as the flag. Every flag of a level comes up before any
+repeats, a missed flag returns a few flags later, the level is kept between
+visits and moves down as well as up, and a new level is named over its first
+flag. The level button shows "Level N" and steps up one, as the tier button
+did; a player who had climbed the old tiers starts at the matching level.
+Look-alike flags are never offered against each other, the capital round's
+shuffle no longer moves the answer off the button that was just right
+(which gave one of the four away), a press near the top of a lower button
+is no longer taken by the button above it, a tap on the level button during
+feedback no longer throws the feedback away, and the bonus question for a
+long name is shown whole. The per-country practice record ("flagSrs", 195
+bytes a player) is no longer read or written.
+
 **Cinnamon is a course of six levels.** Every run began at one step at one
 pace, so the first rounds were trivial for a practised player, and at 32
 steps the sequence quietly stopped growing. Now it grows one step at a time,

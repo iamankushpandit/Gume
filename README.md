@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-85.2%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-85.3%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,681,545 / 3,145,728 bytes of the app partition (**85.2%**) |
-| RAM | 94,724 / 327,680 bytes (**28.9%**) |
+| Flash | 2,682,337 / 3,145,728 bytes of the app partition (**85.3%**) |
+| RAM | 94,716 / 327,680 bytes (**28.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -395,7 +395,7 @@ needs without touching anyone else's. Only the admin can change it.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus** | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore |
+| **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus**. Nine levels: the famous flags, the well known, then Europe, the Americas, Asia, Oceania and Africa one at a time with every wrong answer from the same continent, the whole world, and last the whole world with the capital counting as much as the flag | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore. Each player's level is kept between visits and moves up or down with their answers, every flag of a level comes up before any repeats, a missed flag comes back a few flags later, and flags that cannot be told apart at this size (Indonesia and Monaco, Chad and Romania) are never offered against each other |
 | **US States** | Name the state, then its capital | US geography as a name-then-capital pair, the same loop as Flags |
 | **State Flags** | A real state flag, name the state, then its capital | Fifty more flags with the same reward loop |
 | **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition |
@@ -463,15 +463,15 @@ overrides by hand, and the choice persists.
 
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
-**Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory** and
-**Cinnamon** are courses: twelve levels of adding and taking away, twelve of
-times tables and division, seven of counting, eight of adding and taking away
-with shapes, six of numbers to ten on the hands, ten of reading a clock, nine
-on the number line, four of days and five of months, six of mixing colours,
-seven of shapes, eight of spotting a difference, eight of coins and change,
-twelve of fractions, ten of percents, eight of Roman numerals, ten of putting
-numbers in order, eight of remembering where cards are, six of repeating a
-sequence. Each
+**Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
+**Cinnamon** and **Flags** are courses: twelve levels of adding and taking
+away, twelve of times tables and division, seven of counting, eight of adding
+and taking away with shapes, six of numbers to ten on the hands, ten of
+reading a clock, nine on the number line, four of days and five of months, six
+of mixing colours, seven of shapes, eight of spotting a difference, eight of
+coins and change, twelve of fractions, ten of percents, eight of Roman
+numerals, ten of putting numbers in order, eight of remembering where cards
+are, six of repeating a sequence, nine of flags and capitals. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 
