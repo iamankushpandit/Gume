@@ -491,6 +491,11 @@ void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
      * against a left edge passes x + logoCentre(). */
     const int16_t x0 = static_cast<int16_t>(cx - art.centre);
     const int16_t y0 = static_cast<int16_t>(cy - art.height / 2);
+    /* A platform that can draw the mark better than its mask does (PanelArt). */
+    if (tft.drawLogoArt(static_cast<uint8_t>(which), x0, y0, art.bits, art.width,
+                        art.height, art.stride, colour)) {
+        return;
+    }
     for (int16_t y = 0; y < art.height; ++y) {
         const uint8_t* row = art.bits + y * art.stride;
         int16_t runStart = -1;

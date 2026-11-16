@@ -14,6 +14,7 @@
 #include <TFT_eSPI.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -294,6 +295,52 @@ uint16_t blend565(uint16_t under, uint16_t over, uint8_t a) {
 
 }   // namespace
 
+/* How wide FreeSans is drawn for this firmware font, in thousandths of its
+ * own proportions: 1000 unless, at the bitmap font's capital height, some
+ * word the screens draw would run wider than the bitmap font draws it --
+ * then narrow enough that none does, and never below 85%. The screens
+ * measure their boxes for the bitmap fonts' widths, so a word that ran wider
+ * is cut where a board shows it whole: System Info's "Network" tab read
+ * "Netwo" where a board reads "Networ". It is the WIDEST word that decides,
+ * not the average: on average FreeSans matches font 2, and on words with m
+ * and w it runs a tenth wider. Measured once; the log says the result. */
+int32_t TFT_eSPI::ttWidthPermille(uint8_t font) const {
+    static int32_t cached[5] = {0};
+    if (font != 1 && font != 2 && font != 4) return 0;
+    if (cached[font]) return cached[font];
+    /* The screens' own words, which are what gets cut. */
+    static const char* const WORDS[] = {
+        "Network", "Memory", "Battery", "Settings", "Board", "About", "Scores",
+        "Profiles", "Nearby", "Tap the answer", "How many objects?",
+        "Which time is shown?", "Level", "Score", "Streak", "Best", "Correct",
+        "Next", "Prev", "Done", "Add Player", "Guest", "Admin", "Who is playing?",
+        "Power", "Sound", "Theme", "Wi-Fi", "Sync now", "Back", "Multiplication",
+        "Whack A Mole", "Finger Counting", "Roman Numerals", "Backgammon",
+    };
+    const CapRows& rows = capRows(font);
+    const int capUnits = HostText::capHeightUnits();
+    if (rows.top < 0 || capUnits <= 0) return cached[font] = 1000;
+    const FontInfo* info = fontInfo(font);
+    const int capRowsN = rows.bottom - rows.top + 1;
+    double worst = 1.0;   // FreeSans width over bitmap width, widest word
+    for (const char* word : WORDS) {
+        int64_t bitmap = 0, tt = 0;
+        for (const char* p = word; *p; ++p) {
+            const uint8_t c = static_cast<uint8_t>(*p);
+            bitmap += font == 1 ? 6 : info->widths[c - 32];
+            const int adv = HostText::advanceUnits(c);
+            if (adv > 0) tt += adv;
+        }
+        const double ttPx = static_cast<double>(tt) * capRowsN / capUnits;
+        if (bitmap > 0 && ttPx / bitmap > worst) worst = ttPx / bitmap;
+    }
+    int32_t permille = static_cast<int32_t>(1000.0 / worst);
+    if (permille < 850) permille = 850;   // never squeeze a face out of shape
+    std::printf("[text] font %u: FreeSans at %d.%d%% of its width\n", font,
+                static_cast<int>(permille / 10), static_cast<int>(permille % 10));
+    return cached[font] = permille;
+}
+
 int32_t TFT_eSPI::ttCapPx(uint8_t font) const {
     const CapRows& r = capRows(font);
     if (r.top < 0) return 0;
@@ -304,12 +351,13 @@ int32_t TFT_eSPI::ttCapPx(uint8_t font) const {
  * its pen; -1 when this font is not drawn in the TrueType face. */
 int32_t TFT_eSPI::ttAdvance(const char* text, uint8_t font) const {
     const int32_t cap = ttCapPx(font);
-    if (cap <= 0 || !HostText::glyph(cap, 'H')) return -1;
+    const int32_t wide = ttWidthPermille(font);
+    if (cap <= 0 || !HostText::glyph(cap, wide, 'H')) return -1;
     int32_t pen = 0;
     while (*text) {
         const uint16_t code = nextCodepoint(text);
         if (!drawsCode(font, code)) continue;
-        if (const HostText::Glyph* g = HostText::glyph(cap, code)) {
+        if (const HostText::Glyph* g = HostText::glyph(cap, wide, code)) {
             pen += g->advance;
         } else if (font == 1) {
             pen += 6 * textSize_ * scale_;   // drawn from the bitmap instead
@@ -342,11 +390,26 @@ void TFT_eSPI::blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a) {
     ++frameGen_;
 }
 
+void TFT_eSPI::blendArt(int32_t x, int32_t y, int32_t dx, int32_t dy, const uint8_t* alpha,
+                        int32_t w, int32_t h, uint16_t color) {
+    if (!alpha || w <= 0 || h <= 0) return;
+    const int32_t ax = vpDatum_ ? x + vpX_ : x;
+    const int32_t ay = vpDatum_ ? y + vpY_ : y;
+    const int32_t px = ax * scale_ + dx, py = ay * scale_ + dy;
+    for (int32_t j = 0; j < h; ++j) {
+        const uint8_t* row = alpha + j * w;
+        for (int32_t i = 0; i < w; ++i) {
+            if (row[i]) blendReal(px + i, py + j, color, row[i]);
+        }
+    }
+}
+
 /* Draw `text` with its cell's top-left at logical (x, y), already moved for
  * the datum; returns the logical advance. */
 int32_t TFT_eSPI::ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, int32_t w,
                          int32_t h) {
     const int32_t cap = ttCapPx(font);
+    const int32_t wide = ttWidthPermille(font);
     const int32_t d = scale_;
     if (textFg_ != textBg_ && w > 0 && h > 0) fillRectQuiet(x, y, w, h, textBg_);
     const int32_t ax = vpDatum_ ? x + vpX_ : x;
@@ -357,7 +420,7 @@ int32_t TFT_eSPI::ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, i
     while (*text) {
         const uint16_t code = nextCodepoint(text);
         if (!drawsCode(font, code)) continue;
-        const HostText::Glyph* g = HostText::glyph(cap, code);
+        const HostText::Glyph* g = HostText::glyph(cap, wide, code);
         if (!g) {
             if (font == 1) {
                 /* No such glyph in the face: the bitmap's, at the logical

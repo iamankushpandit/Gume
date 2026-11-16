@@ -190,17 +190,18 @@ const Mark& mark() {
     return m;
 }
 
-/* Coverage 0..1 for the whole badge, `height` tall at the artwork's aspect,
- * by the same winding-number scanline fill as gen_logo_mask.py's
- * rasterise(), supersampled `ss` x `ss`. */
-std::vector<float> rasterise(int height, int& width, int ss) {
-    const Mark& m = mark();
+/* Coverage 0..1 for `paths` inside the box (vx, vy, vw, vh), `height` tall
+ * at the box's aspect, by the same winding-number scanline fill as
+ * gen_logo_mask.py's rasterise(), supersampled `ss` x `ss`. */
+std::vector<float> rasterisePaths(const std::vector<Path>& paths, double vx, double vy,
+                                  double vw, double vh, int height, int& width, int ss) {
+    struct View { double vx, vy, vw, vh; } m{vx, vy, vw, vh};
     width = static_cast<int>(std::lround(m.vw * height / m.vh));
     const int W = width * ss, H = height * ss;
     const double scale = static_cast<double>(height * ss) / m.vh;
     std::vector<uint8_t> ink(static_cast<size_t>(W) * H, 0);
     std::vector<int> wind(static_cast<size_t>(W) * H);
-    for (const Path& path : m.paths) {
+    for (const Path& path : paths) {
         std::fill(wind.begin(), wind.end(), 0);
         for (const auto& pts : path.subpaths) {
             for (size_t k = 0; k < pts.size(); ++k) {
@@ -235,6 +236,12 @@ std::vector<float> rasterise(int height, int& width, int ss) {
         }
     }
     return cover;
+}
+
+/* The whole badge, in its viewBox: what the splash draws. */
+std::vector<float> rasterise(int height, int& width, int ss) {
+    const Mark& m = mark();
+    return rasterisePaths(m.paths, m.vx, m.vy, m.vw, m.vh, height, width, ss);
 }
 
 /* Three box passes each way is a close Gaussian, and cheap at this size. */
@@ -442,6 +449,39 @@ const Base& base(int w, int h) {
 }   // namespace
 
 namespace HostSplash {
+
+std::vector<float> markPart(MarkPart part, int height, int& width) {
+    const Mark& m = mark();
+    /* gen_logo_mask.py's select(): the wordmark is every subpath that starts
+     * at or below WORDMARK_TOP, the brain every one above it. */
+    std::vector<Path> chosen;
+    double x0 = 1e18, y0 = 1e18, x1 = -1e18, y1 = -1e18;
+    for (const Path& path : m.paths) {
+        Path keep;
+        keep.evenOdd = path.evenOdd;
+        for (const auto& sub : path.subpaths) {
+            double top = 1e18;
+            for (const Point& pt : sub) top = std::min(top, pt.y);
+            const bool word = top >= WORDMARK_TOP;
+            if (part == MarkPart::Badge || (part == MarkPart::Wordmark) == word) {
+                keep.subpaths.push_back(sub);
+                for (const Point& pt : sub) {
+                    x0 = std::min(x0, pt.x);
+                    y0 = std::min(y0, pt.y);
+                    x1 = std::max(x1, pt.x);
+                    y1 = std::max(y1, pt.y);
+                }
+            }
+        }
+        if (!keep.subpaths.empty()) chosen.push_back(std::move(keep));
+    }
+    if (chosen.empty() || x1 <= x0 || y1 <= y0) {
+        width = 0;
+        return {};
+    }
+    /* Fitted to its own ink, as gen_logo_mask.py's bounds() fits each mask. */
+    return rasterisePaths(chosen, x0, y0, x1 - x0, y1 - y0, height, width, 4);
+}
 
 void render(uint8_t* rgb, int w, int h, float progress, float glow) {
     const Base& b = base(w, h);
