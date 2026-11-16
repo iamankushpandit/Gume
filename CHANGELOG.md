@@ -134,6 +134,21 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Money is a course of eight levels.** Its level and its kind of question
+both came from the visit's score -- Total, Make, More, Change in that order
+for ever -- and a wrong tap could be tried again without limit, so the level
+counted rounds played. In Change the answer was the only amount ending in 0
+or 5. Now the levels are ones and fives; tens and making an amount; quarters
+and which pile is worth more; a whole dollar; change in fives; change to the
+cent; the fewest coins; and change from two prices. The kinds of question
+are mixed within a level, every question comes up before any repeats, and
+the level is kept between visits. The wrong amounts are a coin missed or
+counted twice, every coin counted as one cent, the price given back as the
+change, ten out. One try a question -- Make can still be put right, but
+only its first Done counts -- with the answer on the line under the header
+rather than on a panel over the buttons, and Make now shows a second row of
+coins.
+
 **Odd One Out is a course of eight levels.** It worked its difficulty out
 of the visit's score, so every visit began with colour again; the odd size
 was always the bigger one, the odd turn always the upside-down one, the

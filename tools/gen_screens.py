@@ -3071,9 +3071,11 @@ def money():
     coins = [25, 10, 5, 1, 1]         # 42c, the highlighted answer
     cols = pw // 34
     for i, v in enumerate(coins):
-        draw_coin(d, px + 18 + (i % cols) * 34, py + 18 + (i // cols) * 30, v)
+        draw_coin(d, px + 18 + (i % cols) * 34, py + 14 + (i // cols) * 30, v)
 
-    for i, a in enumerate(["42c", "37c", "45c", "40c"]):
+    # MoneyCourse's slips for 42c: the quarter missed (17c), a cent counted
+    # twice (43c), every coin counted as one (5c).
+    for i, a in enumerate(["42c", "17c", "43c", "5c"]):
         r = (18 + (i % 2) * 152, 160 + (i // 2) * 36, 132, 30)   # optionRect
         button(d, r, a,
                SUCCESS if a == "42c" else BLUE, (0, 0, 0) if a == "42c" else TEXT)

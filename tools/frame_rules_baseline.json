@@ -79,16 +79,6 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/MoneyGame.cpp": {
-      "String": 10,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/MoneyGame.h": {
-      "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/ProfileApp.h": {
       "String": 1,
       "delay": 0,
