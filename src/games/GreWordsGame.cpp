@@ -15,8 +15,6 @@
 #include <cstring>
 
 namespace {
-/* Progress::pickWeighted takes a plain function pointer, not a closure. */
-bool allowAny(uint16_t, void*) { return true; }
 constexpr uint32_t REVEAL_MS = 900;
 
 constexpr AppScoreInfo GRE_WORDS_SCORE = {
@@ -63,18 +61,14 @@ Rect GreWordsGame::missedRect() const { return Rect{114, 192, 92, 30}; }
 Rect GreWordsGame::nextRect()   const { return Rect{216, 192, 92, 30}; }
 
 void GreWordsGame::begin(AppContext& host) {
-    progress_.begin(host, "greProg", GRE_WORD_COUNT);
+    ladder_.start(GreCourse::LEVEL_COUNT, host.courseLevel());
+    deck_.reset(GRE_WORD_COUNT);
+    announce_ = false;
     score_  = 0;
     streak_ = 0;
     mode_   = Mode::Flip;
     nextWord();
     markFullDirty();
-}
-
-void GreWordsGame::end(AppContext& host) {
-    (void)host;
-    // Mastery data is written lazily; hand it back on the way out.
-    progress_.flush();
 }
 
 /* Points scored are a quiz under way, and worth the question. Without them
@@ -95,8 +89,24 @@ void GreWordsGame::resume(AppContext& host, uint32_t awayMs) {
 }
 
 void GreWordsGame::nextWord() {
-    const uint16_t picked = progress_.pickWeighted(allowAny, this);
-    currentWord_ = (picked == 0xFFFF) ? 0 : picked;
+    /* Every word comes up before any comes back, and a missed one -- a
+     * wrong answer or a "Didn't" -- returns after three others. */
+    currentWord_ = deck_.next(esp_random());
+    kind_ = GreCourse::kindFor(ladder_.level(), currentWord_, esp_random());
+    quizLineCount_ = 0;
+    if (kind_ != GreCourse::Kind::Meaning) {
+        char text[160];
+        if (kind_ == GreCourse::Kind::Sentence) {
+            GreCourse::blank(GRE_WORDS[currentWord_].example, GRE_WORDS[currentWord_].word, text,
+                             sizeof(text));
+        } else {
+            snprintf(text, sizeof(text), "%s", GRE_WORDS[currentWord_].meaning);
+        }
+        char lines[WRAP_LINES][WRAP_COLS + 1];
+        wrapInto(text, lines, quizLineCount_);
+        if (quizLineCount_ > 2) quizLineCount_ = 2;
+        for (uint8_t i = 0; i < quizLineCount_; ++i) memcpy(quizLines_[i], lines[i], WRAP_COLS + 1);
+    }
     cardFlipped_ = false;
     chosenOption_ = -1;
     revealUntilMs_ = 0;
@@ -105,26 +115,9 @@ void GreWordsGame::nextWord() {
 }
 
 void GreWordsGame::buildOptions() {
-    correctOption_ = static_cast<uint8_t>(random(OPTION_COUNT));
-    for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (i == correctOption_) {
-            optionIndices_[i] = currentWord_;
-            continue;
-        }
-        /* Distractors must be distinct from the answer and from each other,
-         * or the round has two right-looking choices. Bounded retries: the
-         * table is 250 long, so a collision run this long cannot happen, but
-         * an unbounded while() in a frame path is never acceptable. */
-        for (uint8_t attempt = 0; attempt < 64; ++attempt) {
-            const uint16_t cand = static_cast<uint16_t>(random(GRE_WORD_COUNT));
-            if (cand == currentWord_) continue;
-            bool clash = false;
-            for (uint8_t j = 0; j < i; ++j) {
-                if (optionIndices_[j] == cand) { clash = true; break; }
-            }
-            if (!clash) { optionIndices_[i] = cand; break; }
-        }
-    }
+    /* The wrong options are the level's: another part of speech first, then
+     * the same part of speech, then the words beside it in the alphabet. */
+    GreCourse::options(ladder_.level(), currentWord_, esp_random(), optionIndices_, correctOption_);
 }
 
 void GreWordsGame::wrapInto(const char* src, char dst[WRAP_LINES][WRAP_COLS + 1],
@@ -162,16 +155,23 @@ void GreWordsGame::rewrapIfStale() {
 }
 
 void GreWordsGame::answer(AppContext& host, bool correct) {
+    announce_ = false;
     if (correct) {
-        host.beepOk();
         score_ += 10;
         ++streak_;
     } else {
-        host.beepError();
         streak_ = 0;
+        deck_.missed(currentWord_);   // before the ladder moves
     }
-    progress_.record(currentWord_, correct);
-    progress_.maybeFlush();
+    const Course::Ladder::Step step = ladder_.answer(correct);
+    if (step != Course::Ladder::Step::Stay) host.setCourseLevel(ladder_.level());
+    if (step == Course::Ladder::Step::Up) {
+        announce_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else {
+        correct ? host.beepOk() : host.beepError();
+    }
     host.saveBestScore(greWordsAppMetadata().score->bestKey, score_, false);
 }
 
@@ -207,14 +207,13 @@ void GreWordsGame::update(AppContext& host, const TouchPoint& touch) {
         }
         // Knew it / Didn't feed the same mastery data the quiz does, so study
         // mode is not wasted effort -- it just does not score.
+        /* Study does not move the ladder, but a "Didn't" brings the word
+         * back a few words later, as a wrong answer does. */
         if (knewRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            progress_.record(currentWord_, true);
-            progress_.maybeFlush();
             nextWord(); markFullDirty(); return;
         }
         if (missedRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            progress_.record(currentWord_, false);
-            progress_.maybeFlush();
+            deck_.missed(currentWord_);
             nextWord(); markFullDirty(); return;
         }
         if (nextRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
@@ -286,8 +285,19 @@ void GreWordsGame::renderQuiz(AppContext& host) {
 
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(word.word, static_cast<int16_t>(tft.width() / 2), 70, 4);
+    if (kind_ == GreCourse::Kind::Meaning) {
+        tft.drawString(word.word, static_cast<int16_t>(tft.width() / 2), 70, 4);
+    } else {
+        /* The meaning to recall, or the sentence with its gap: one or two
+         * lines of font 1 between the tabs and the first option. */
+        const int16_t top = quizLineCount_ > 1 ? 64 : 70;
+        for (uint8_t i = 0; i < quizLineCount_; ++i) {
+            tft.drawString(quizLines_[i], static_cast<int16_t>(tft.width() / 2),
+                           static_cast<int16_t>(top + i * 12), quizLineCount_ > 1 ? 1 : 2);
+        }
+    }
     tft.setTextDatum(TL_DATUM);
+    const bool wordsOnButtons = kind_ != GreCourse::Kind::Meaning;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         const Rect r = optionRect(i);
@@ -306,8 +316,13 @@ void GreWordsGame::renderQuiz(AppContext& host) {
         tft.setTextDatum(ML_DATUM);
         /* Ui::fitted() takes a String and would allocate; the glosses are
          * authored short enough to fit, so draw the flash pointer directly. */
-        tft.drawString(GRE_WORDS[optionIndices_[i]].meaning,
-                       r.x + 8, static_cast<int16_t>(r.y + r.h / 2), 1);
+        if (wordsOnButtons) {
+            tft.drawString(GRE_WORDS[optionIndices_[i]].word,
+                           r.x + 8, static_cast<int16_t>(r.y + r.h / 2), 2);
+        } else {
+            tft.drawString(GRE_WORDS[optionIndices_[i]].meaning,
+                           r.x + 8, static_cast<int16_t>(r.y + r.h / 2), 1);
+        }
     }
     tft.setTextDatum(TL_DATUM);
 }
@@ -337,14 +352,18 @@ void GreWordsGame::render(AppContext& host) {
     char buf[24];
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    snprintf(buf, sizeof(buf), "%u pts  x%u",
-             static_cast<unsigned>(score_), static_cast<unsigned>(streak_));
+    if (announce_) {
+        GreCourse::levelLine(ladder_.level(), buf, sizeof(buf));   // a step up
+        tft.setTextColor(Ui::success(), Ui::bg());
+    } else {
+        snprintf(buf, sizeof(buf), "%u pts  x%u",
+                 static_cast<unsigned>(score_), static_cast<unsigned>(streak_));
+    }
     tft.fillRect(8, 226, 150, 12, Ui::bg());
     tft.drawString(buf, 8, 226, 1);
 
-    snprintf(buf, sizeof(buf), "%u / %u",
-             static_cast<unsigned>(currentWord_ + 1),
-             static_cast<unsigned>(GRE_WORD_COUNT));
+    snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(ladder_.level()));
+    tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
     tft.fillRect(220, 226, 92, 12, Ui::bg());
     tft.drawString(buf, static_cast<int16_t>(w - 8), 226, 1);

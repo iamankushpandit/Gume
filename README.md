@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,701,069 / 3,145,728 bytes of the app partition (**85.9%**) |
-| RAM | 95,164 / 327,680 bytes (**29.0%**) |
+| Flash | 2,702,393 / 3,145,728 bytes of the app partition (**85.9%**) |
+| RAM | 95,084 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -429,7 +429,7 @@ uses **adaptive difficulty** — see below.
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up |
 | **Trace** | Trace uppercase, lowercase, digits and fifty-four short printed words following dots. A numbered arrow beside each stroke, outside the letter, shows where it starts and which way it goes, with an extra arrow at a sharp turn like the top of an A. Words are spelled out of the same lowercase letters, so a young player writes 'cat' with the strokes they practised on c, a and t | Letter formation and stroke order, with Again and Next controls so a player can repeat any character, then putting letters together into words |
-| **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older player, not a younger one |
+| **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** asks over six levels: pick the meaning, with the wrong ones another part of speech; pick it from four of the same part of speech; pick the word from its meaning; pick the word that fills the gap in its own sentence; tell a word from its look-alikes, the words beside it in the alphabet; and all of them mixed | 250 GRE-level words. Each player's level is kept between visits and moves up or down with their quiz answers, every word comes up before any repeats, and a word missed or marked *Didn't* comes back a few words later. Aimed at an older player, not a younger one |
 | **Dice** | Pick one, two or three dice and throw them | A physical randomiser to play board games with when the real dice are lost. Keeps no score, because a best total would be luck |
 | **Coin Flip** | Spin a coin, best of one, three or five | Settling an argument fairly, and seeing that best-of-five is not the same as one toss. Keeps no score, for the same reason |
 
@@ -464,17 +464,17 @@ overrides by hand, and the choice persists.
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
 **Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
-**Cinnamon**, **Flags**, **State Flags**, **State Maps**, **US States** and
-**Space** are courses: twelve levels of adding and taking away, twelve of
-times tables and division, seven of counting, eight of adding and taking away
-with shapes, six of numbers to ten on the hands, ten of reading a clock, nine
-on the number line, four of days and five of months, six of mixing colours,
-seven of shapes, eight of spotting a difference, eight of coins and change,
-twelve of fractions, ten of percents, eight of Roman numerals, ten of putting
-numbers in order, eight of remembering where cards are, six of repeating a
-sequence, nine of flags and capitals, five of state flags, five of state
-outlines, eight of states, capitals and postal codes, eight of the solar
-system and the sky. Each
+**Cinnamon**, **Flags**, **State Flags**, **State Maps**, **US States**,
+**Space** and **GRE Words** are courses: twelve levels of adding and taking
+away, twelve of times tables and division, seven of counting, eight of adding
+and taking away with shapes, six of numbers to ten on the hands, ten of
+reading a clock, nine on the number line, four of days and five of months, six
+of mixing colours, seven of shapes, eight of spotting a difference, eight of
+coins and change, twelve of fractions, ten of percents, eight of Roman
+numerals, ten of putting numbers in order, eight of remembering where cards
+are, six of repeating a sequence, nine of flags and capitals, five of state
+flags, five of state outlines, eight of states, capitals and postal codes,
+eight of the solar system and the sky, six of vocabulary. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 
