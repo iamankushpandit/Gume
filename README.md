@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-84.5%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-84.6%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,659,273 / 3,145,728 bytes of the app partition (**84.5%**) |
-| RAM | 93,348 / 327,680 bytes (**28.5%**) |
+| Flash | 2,660,757 / 3,145,728 bytes of the app partition (**84.6%**) |
+| RAM | 93,452 / 327,680 bytes (**28.5%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -420,7 +420,7 @@ uses **adaptive difficulty** — see below.
 |---|---|---|
 | **Cinnamon** | Repeat the colour sequence | Working memory and sustained attention |
 | **Memory** | Match pairs face-down | Visual working memory |
-| **Odd One** | "Tap the one that is different" | Categorisation — spotting the attribute that doesn't fit |
+| **Odd One** | "Tap the one that is different", over eight levels: a different colour, then a different shape, size and turn, each on its own; any of them without saying which; a colour only a shade away; one difference hidden among cards that differ in a way that does not matter; and the smallest steps | Categorisation — spotting the attribute that doesn't fit, then holding on to the one that matters while others vary. Each player's level is kept between visits and moves up or down with their answers, and the odd card can be bigger or smaller, upside down or the right way up, so no rule but looking finds it |
 | **Shapes** | Match four shapes to four targets, over seven levels that each ask something new about a shape: its outline, in any colour (*"purple star"*); the **lookalikes** a young player calls circle and square (oval, rectangle, diamond, trapezium, parallelogram, kite); how many **sides** it has; its **name**, with none on the picture; its outline **turned**; **concave or convex**, with the word on the row; and the sides of any shape, stars and the cross included | Holding two attributes in mind at once, then shape vocabulary a young player can use: that a hexagon is a hexagon because it has six sides, that an oval is not a circle, that a triangle is still a triangle upside down, and that concave and convex are the names for bending in and bulging out. Each player's level is kept between visits and moves on a round with no wrong match, every shape of a level comes up before any repeats, and a shape matched wrongly comes back a few shapes later |
 | **Color Mix** | Mixing paint, over six levels: the first mixes (*red + yellow*), lighter and darker with white or black, the same mixes backwards (*red + ? = pink*), the colours between a primary and its neighbour, opposite colours that make brown, and last mixing light, where red and green make yellow | Colour theory, and that mixing is predictable — then that it can be run backwards, and that light does not mix like paint. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the colours a mix is mistaken for — another mix sharing one of its colours, darker for lighter, and for light, what the same two make as paint |
 | **Microku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a player's level |
@@ -462,11 +462,12 @@ overrides by hand, and the choice persists.
 ### A level kept for each player
 
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
-**Number Line**, **Calendar**, **Color Mix** and **Shapes** are courses: twelve
-levels of adding and taking away, twelve of times tables and division, seven
-of counting, eight of adding and taking away with shapes, six of numbers to
-ten on the hands, ten of reading a clock, nine on the number line, four of
-days and five of months, six of mixing colours, seven of shapes. Each
+**Number Line**, **Calendar**, **Color Mix**, **Shapes** and **Odd One** are
+courses: twelve levels of adding and taking away, twelve of times tables and
+division, seven of counting, eight of adding and taking away with shapes, six
+of numbers to ten on the hands, ten of reading a clock, nine on the number
+line, four of days and five of months, six of mixing colours, seven of
+shapes, eight of spotting a difference. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

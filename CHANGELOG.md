@@ -134,6 +134,18 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Odd One Out is a course of eight levels.** It worked its difficulty out
+of the visit's score, so every visit began with colour again; the odd size
+was always the bigger one, the odd turn always the upside-down one, the
+colours never came closer, and tapping round the grid always found the
+answer. Now the levels are colour, shape, size and turned, each on its own;
+any of them without saying which; a colour a shade lighter or darker; the
+cards differing among themselves in a way that does not matter, with one
+differing in a way that does; and the smallest steps. Every grid has
+exactly one card that is alone in anything that can be seen. A grid has
+one try: the odd card is ringed green and a wrong tap red, then the next
+grid. The level is kept between visits.
+
 **Shapes is a course of seven levels.** It matched a filled shape to its own
 outline -- the same picture twice -- so the name on the row was never asked,
 and its level was the rounds played this visit, so every visit dealt the
