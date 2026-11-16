@@ -47,6 +47,7 @@
 #include "HostFocus.h"
 #include "HostLed.h"
 #include "HostPlatform.h"
+#include "HostScreenPower.h"
 #include "BoardConfig.h"
 
 #include <SDL.h>
@@ -1073,6 +1074,8 @@ void present(uint32_t now) {
         shownOnce = false;
         presentedAsleep = false;
     }
+    /* The panel's lamp is lit only while the panel has the picture. */
+    HostScreenPower::setPanelShown(HostDrm::panelShown());
 #endif
     if (shotRequested) {
         shotRequested = false;
@@ -1239,7 +1242,9 @@ bool begin(int argc, char** argv) {
         return false;
     }
     if (!HostDrm::begin()) return false;
-    findPanel(HostDrm::width(), HostDrm::height(), "display mode");
+    /* The built-in panel's mode, even with a television already showing:
+     * the layout is fixed for the run, and the panel is where it returns. */
+    findPanel(HostDrm::panelWidth(), HostDrm::panelHeight(), "display mode");
     drmLayout();
     for (int i = 0; i < SDL_NumJoysticks(); ++i) openController(i);
     parseScripts();

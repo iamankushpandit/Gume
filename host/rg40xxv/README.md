@@ -33,10 +33,44 @@ number, with no libdrm, no Mesa and no X or Wayland. SDL2 is still used, but
 only for the gamepad, events and sound. The PC build is unchanged: the option
 is off unless `BRAINO_HOST_DRM=ON`.
 
-**HDMI.** With a screen plugged into the console's HDMI port, Braino moves
-to it at the screen's own resolution (4× on a 1080p TV, centred) and the
-built-in panel switches off; unplugged, it comes back. The kernel's hotplug
-event is read straight from its netlink socket, so no udev is needed.
+**HDMI.** With a television plugged into the console's mini HDMI port
+(engraved "HD"), Braino moves to it and the built-in panel goes dark, lamp
+and all; unplugged, the picture comes back to the panel. The TV gets the
+panel's own 640x480 picture at a whole scale, centred -- 2x on a 1080p TV --
+so nothing is laid out again and nothing is stretched. Why instead of
+alongside: the room is looking at the TV and the console in the player's
+hands is the controller, and a second picture would cost a second
+conversion of every frame and the panel's lamp for something nobody watches.
+
+- **The layout is always the panel's.** A TV plugged in before power-on is
+  shown, but Braino still lays out on the panel's mode, so pulling the TV out
+  never leaves a frame too big for the panel.
+- **The TV's preferred mode is used up to 1920x1080**; a 4K TV is driven at
+  its largest progressive mode up to that (`host/src/HostTvMode.h`, tested by
+  `test/host/tv_mode_test.cpp`). Every buffer the display engine scans has to
+  be physically contiguous, and two at 4K would be 66 MB; the boot line asks
+  for 64 MB of contiguous memory (`cma=64M` in `board/extlinux.conf`, against
+  the kernel's 32 MB) for two at 1080p beside the kernel's own. A TV whose best
+  mode is smaller than the panel is ignored.
+- **Sleep turns off whichever output is showing**, and a TV unplugged while
+  the console sleeps finds the panel on waking.
+- **Nothing else draws on the TV.** The kernel has no text console, U-Boot
+  has no video output on this chip, and the kernel's fbdev emulation, which
+  has no console to show, holds a black frame until Braino starts.
+- **The sound stays on the console** (see below). The kernel's hotplug event
+  is read straight from its netlink socket, so no udev is needed.
+
+**Headphones.** With headphones in the 3.5 mm jack the speaker is silent and
+its amplifier is powered down; pulled out, the speaker is back. The kernel
+already reads the jack -- the device tree gives the codec its detect line
+(`hp-det-gpios`, PI3), and `sun4i-codec` reports it as a `Headphone Jack`
+control and an input switch -- but both outputs hang off the codec's one line
+output and the kernel never takes the speaker away. `acpid` hears the switch
+and runs `/usr/bin/braino-headphones in|out`, which turns the codec's
+`Speaker` pin off or on; `S40keys` runs it once at boot with `sync` for a
+plug that was already in. Volume and Mute are the same on both: Braino sets
+its own level in software, and the volume keys move the line output that
+feeds both.
 
 ### Nothing on the screen but Braino
 
@@ -59,11 +93,15 @@ loopback interface):
   before the chip has power and no `hci0` appears otherwise (not yet
   confirmed on the device). It also writes
   `hardware.txt` (what the kernel named every LED, serial port, input, sound
-  card and display connector) and `dmesg.txt` next to Braino's own log in
+  card and display connector, each connector's modes, and what the headphone
+  jack read at boot) and `dmesg.txt` next to Braino's own log in
   `BRAINODATA/braino/`, so a card brought back to a PC explains itself. They
   stay on the card; nothing is sent anywhere.
 - `S40keys` runs busybox's `acpid` for the keys that are not on the gamepad:
-  power (turns the console off) and the volume keys (the codec's mixer).
+  power (turns the console off) and the volume keys (the codec's mixer). It
+  also hears the headphone jack, which moves the sound between the speaker
+  and the jack (`/usr/bin/braino-headphones`), and sets the speaker from the
+  jack as it is at boot.
 - `/etc/braino/consoles/` holds one profile per console, copied from
   `host/consoles/`: the controls on its case. Braino reads the model from the
   device tree and picks one, then decides what each control is for
@@ -253,9 +291,27 @@ bundle is what a release must offer beside the image.
 
 - **The display output switching off in sleep is untested on the device.**
   If the panel ever wakes wrong, set `BRAINO_SLEEP_LCD=0` in `braino-run`.
-- **HDMI is untested on the device**, and HDMI sound is not routed: ROCKNIX
-  ships the H700's HDMI audio (its `ahub` sound card) disabled in this
-  device tree.
+- **HDMI and the headphone jack are untested on the device.** Both are
+  wired as described above, from the kernel and device tree that are built,
+  but no television or headphones have been plugged into a console running
+  this image yet. One thing only a console can answer: the board routes the
+  line output to the speaker and the jack through a 74HC4052 analog switch,
+  and if the speaker's amplifier enable also selects that switch, headphones
+  would go quiet with the speaker. `hardware.txt`'s `== headphone jack` says
+  whether the detect line reads at all.
+- **No sound over HDMI.** ROCKNIX's `0204-dts-Enable-hdmi-sound.patch` turns
+  on device-tree nodes for the H700's audio hub (`ahub1_plat`,
+  `ahub1_mach_hdmi`), but their compatibles (`allwinner,sunxi-snd-plat-ahub`,
+  `allwinner,sunxi-snd-mach`) belong to Allwinner's vendor kernel, and
+  mainline Linux 7.2 has no driver for either, so nothing binds and there is
+  no HDMI sound card. The HDMI controller's side is there
+  (`CONFIG_DRM_DW_HDMI_I2S_AUDIO`, `CONFIG_SND_SOC_HDMI_CODEC`). What it would
+  take is a mainline ASoC driver for the H616/H700 audio hub -- its I2S/TDM
+  block and the routing that feeds the HDMI controller's I2S input -- as a
+  kernel patch of our own, plus a device-tree overlay pointing those nodes at
+  it, and then a choice in Braino of which card to open. That is a driver
+  port, not configuration; until someone writes or upstreams one, the sound
+  stays on the console's speaker or headphones.
 - **Wi-Fi scans use the radio's real hardware address**, as a board's do, so
   anyone in radio range can hear it while the Wi-Fi screen scans or the
   console joins. The driver supports scanning from a random address

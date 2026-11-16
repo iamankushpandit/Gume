@@ -72,7 +72,7 @@ start)
         echo "== tty"; for t in /sys/class/tty/ttyS*; do echo "$t -> $(readlink "$t/device")"; done
         echo "== backlight"; ls /sys/class/backlight
         echo "== power_supply"; for p in /sys/class/power_supply/*; do echo "$p: $(cat "$p/type" 2>/dev/null)"; done
-        echo "== drm"; for c in /sys/class/drm/card*-*; do echo "$c: $(cat "$c/status" 2>/dev/null)"; done
+        echo "== drm"; for c in /sys/class/drm/card*-*; do echo "$c: $(cat "$c/status" 2>/dev/null) $(tr '\n' ' ' <"$c/modes" 2>/dev/null)"; done
         echo "== net"; ls /sys/class/net; echo "== bluetooth"; ls /sys/class/bluetooth 2>/dev/null
         # The image's kernel is built without IPv6, so that the console never
         # has an address made from its radio's MAC. This line is the proof.
@@ -80,6 +80,9 @@ start)
         echo "== input"; cat /proc/bus/input/devices
         echo "== sound"; cat /proc/asound/cards
         for c in 0 1 2; do [ -e /proc/asound/card$c ] && { echo "-- card $c"; amixer -c $c scontents; }; done
+        # Whether the headphone jack's detect line is wired and what it reads
+        # at boot (braino-headphones follows it from here on).
+        echo "== headphone jack"; amixer -c 0 cget iface=CARD,name='Headphone Jack'
         echo "== modules"; lsmod
     } 2>&1 | scrub >/data/braino/hardware.txt
     dmesg 2>&1 | scrub >/data/braino/dmesg.txt

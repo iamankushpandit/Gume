@@ -203,9 +203,11 @@ namespace {
 /* The rest of what sleep switches off (HostSleep.h) follows the lamp: off
  * after it, back before it, so the lamp never lights a panel with no output. */
 bool sleeping = false;
+/* A television has the picture and the panel is dark (HostDrm). */
+bool panelHidden = false;
 
 void lampOn() {
-    if (method == None || !lampOff) return;
+    if (method == None || !lampOff || panelHidden) return;
     restoreLamp();
     std::printf("[display] host: backlight on (level %lu)\n", savedLevel);
 }
@@ -242,6 +244,18 @@ void setAwake(bool awake) {
     }
 }
 
+void setPanelShown(bool shown) {
+    if (panelHidden == !shown) return;
+    panelHidden = !shown;
+    std::printf("[display] host: picture on %s\n", shown ? "the panel" : "HDMI; panel lamp off");
+    if (sleeping) return;   // waking lights it, or not, by the same rule
+    if (shown) {
+        lampOn();
+    } else {
+        lampOffNow();
+    }
+}
+
 void restore() {
     if (sleeping) {
         sleeping = false;
@@ -268,6 +282,7 @@ int16_t lampPercent() {
 namespace HostScreenPower {
 void begin() {}
 void setAwake(bool) {}
+void setPanelShown(bool) {}
 void restore() {}
 int16_t lampPercent() { return -1; }
 }   // namespace HostScreenPower

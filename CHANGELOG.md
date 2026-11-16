@@ -80,6 +80,25 @@ things came with the move:
 `unlock`, so the strip can be looked at on a panel without running a battery
 down.
 
+**The RG40XX V shows Braino on a television, and headphones take the sound
+from the speaker.** Neither port had been tried, and neither is on the ESP32
+boards or the Attaky Core, which are unchanged. With a TV on the mini HDMI port
+the picture moves to it and the console's own screen goes dark, its lamp too:
+the room watches the TV and the console in the player's hands is the
+controller. It is the panel's 640x480 picture at a whole scale, centred -- 2x
+on a 1080p TV. A television plugged in before power-on used to become the size
+Braino laid itself out on, so pulling it out left the panel dark; the layout
+is now always the panel's, a 4K TV is driven at 1080p rather than in a mode
+too big for the kernel's display memory (raised to 64 MB on the boot line for
+it), and a TV whose best mode is smaller than the panel is ignored. Sleep turns
+off whichever is showing, and a TV unplugged while asleep wakes to the panel.
+Sound stays on the console: the H700's HDMI audio needs an audio-hub driver
+that mainline Linux does not have. Plugging headphones into the 3.5 mm jack
+now silences the speaker and powers its amplifier down; pulling them out
+brings it back, and the jack is read at boot too. Volume and Mute are the
+same on both, because one line output feeds both and Braino sets its level
+before the codec. Neither has been tried on a console yet.
+
 **The PC build and the RG40XX V draw at the screen's own resolution, with
 smooth text.** They drew a 320x240 picture and stretched it to the panel, so
 a 640x480 console showed every line and letter as a block of four pixels.
