@@ -57,70 +57,57 @@ Rect StatesGame::answerRect(uint8_t i) const {
                 static_cast<int16_t>(150 + row * 40), 150, 36};
 }
 
-uint8_t StatesGame::poolSize() const {
-    uint8_t n = 0;
-    for (uint8_t i = 0; i < STATE_COUNT; ++i) {
-        if (STATE_FACTS[i].tier <= tier_) ++n;
+namespace SC = StatesCourse;
+
+/* The states of the ladder's level; a deck item is a state and a direction. */
+void StatesGame::startLevel() {
+    states_ = 0;
+    for (uint8_t i = 0; i < STATE_COUNT && states_ < sizeof(pool_); ++i) {
+        if (SC::asks(ladder_.level(), STATE_FACTS[i].tier)) pool_[states_++] = i;
     }
-    return n;
+    deck_.reset(SC::poolSize(ladder_.level(), states_));
 }
 
-const StateFact* StatesGame::fromPool(uint8_t index) const {
-    for (uint8_t i = 0; i < STATE_COUNT; ++i) {
-        if (STATE_FACTS[i].tier > tier_) continue;
-        if (index == 0) return &STATE_FACTS[i];
-        --index;
+bool StatesGame::canOffer(const StateFact* cand, bool close) const {
+    if (cand == nullptr || cand == current_) return false;
+    if (!SC::offers(ladder_.level(), cand->tier)) return false;
+    const char* mine = SC::label(mode_, current_->name, current_->capital, current_->code);
+    if (strcmp(SC::label(mode_, cand->name, cand->capital, cand->code), mine) == 0) return false;
+    if (close && cand->code[0] != current_->code[0]) return false;
+    for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
+        if (options_[j] == cand) return false;
     }
-    return nullptr;
+    return true;
 }
 
 void StatesGame::newQuestion() {
-    const uint8_t pool = poolSize();
-    if (pool == 0) { current_ = nullptr; return; }
-
-    /* Draw at random but reject anything still in the recent window, so a state
-     * cannot come back within ten questions while the order stays unpredictable.
-     * The window is skipped when the pool is too small to satisfy it. */
-    const StateFact* chosen = nullptr;
-    for (uint8_t attempt = 0; attempt < 24; ++attempt) {
-        const StateFact* cand = fromPool(static_cast<uint8_t>(random(pool)));
-        if (cand == nullptr) continue;
-        const uint32_t token = static_cast<uint32_t>(cand - STATE_FACTS);
-        if (pool > RecentQuestions::DEPTH && recent_.recentlyUsed(token)) continue;
-        chosen = cand;
-        recent_.remember(token);
-        break;
-    }
-    current_ = (chosen != nullptr) ? chosen : fromPool(0);
-
-    mode_ = (random(2) == 0) ? Mode::CapitalOf : Mode::WhichState;
+    const uint8_t level = ladder_.level();
+    if (states_ == 0) { current_ = nullptr; return; }
+    item_ = deck_.next(esp_random());
+    const uint8_t dirs = SC::dirCount(level);
+    current_ = &STATE_FACTS[pool_[(item_ / dirs) % states_]];
+    mode_ = SC::dirAt(level, static_cast<uint8_t>(item_ % dirs));
 
     correctBtn_ = static_cast<uint8_t>(random(OPTION_COUNT));
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) options_[i] = current_;
-
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         if (i == correctBtn_) continue;
-        for (uint8_t attempt = 0; attempt < 40; ++attempt) {
-            const StateFact* cand = fromPool(static_cast<uint8_t>(random(pool)));
-            if (cand == nullptr || cand == current_) continue;
-            bool dup = false;
-            for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
-                if (j != i && options_[j] == cand) { dup = true; break; }
+        /* Close wrong answers first where the level asks for them -- the
+         * eight M states for MA -- then anything the level offers. */
+        for (uint8_t pass = SC::prefersClose(level) ? 0 : 1; pass < 2 && options_[i] == current_; ++pass) {
+            for (uint8_t attempt = 0; attempt < 40; ++attempt) {
+                const StateFact* cand = &STATE_FACTS[random(STATE_COUNT)];
+                if (!canOffer(cand, pass == 0)) continue;
+                options_[i] = cand;
+                break;
             }
-            if (dup) continue;
-            options_[i] = cand;
-            break;
         }
+        /* Every question has three: test/host/states_course_test.cpp. */
         if (options_[i] == current_) {
-            // Deterministic fallback so two buttons never show the same answer.
-            for (uint8_t k = 0; k < pool; ++k) {
-                const StateFact* cand = fromPool(k);
-                if (cand == nullptr || cand == current_) continue;
-                bool used = false;
-                for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
-                    if (j != i && options_[j] == cand) { used = true; break; }
-                }
-                if (!used) { options_[i] = cand; break; }
+            for (uint8_t k = 0; k < STATE_COUNT; ++k) {
+                if (!canOffer(&STATE_FACTS[k], false)) continue;
+                options_[i] = &STATE_FACTS[k];
+                break;
             }
         }
     }
@@ -132,21 +119,22 @@ void StatesGame::newQuestion() {
 }
 
 void StatesGame::begin(AppContext& host) {
-    tier_ = static_cast<uint8_t>(host.getScore("stateTier", 1));
-    if (tier_ < 1 || tier_ > 3) tier_ = 1;
-    progress_.begin(host, "stateSrs", STATE_COUNT);
-    recent_.reset();
-    correctStreak_ = 0;
+    uint8_t stored = host.courseLevel();
+    if (stored == 0) {
+        /* A player who climbed the old tiers starts where they were. */
+        const uint8_t tier = static_cast<uint8_t>(host.getScore("stateTier", 1));
+        stored = tier >= 3 ? 6 : (tier == 2 ? 4 : 1);
+    }
+    ladder_.start(SC::LEVEL_COUNT, stored);
+    announce_ = false;
     score_ = 0;
     rounds_ = 0;
     current_ = nullptr;
+    startLevel();
     newQuestion();
 }
 
-void StatesGame::end(AppContext& host) {
-    (void)host;
-    progress_.flush();
-}
+
 
 /* The feedback pause is the only clock: moved on, so the right answer is
  * still on show when the player comes back. */
@@ -166,14 +154,19 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
     }
     if (!touch.justPressed) return;
 
+    if (phase_ != Phase::Asking) return;
+    /* The level button steps up one and wraps, as the tier button did; after
+     * the phase test, so a tap during feedback does not throw it away. */
     if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
-        host.setScore("stateTier", tier_);
-        recent_.reset();
+        ladder_.setLevel(ladder_.atTop() ? 1 : static_cast<uint8_t>(ladder_.level() + 1));
+        host.setCourseLevel(ladder_.level());
+        host.playSound(Sound::Select);
+        startLevel();
+        announce_ = true;
         newQuestion();
         return;
     }
-    if (phase_ != Phase::Asking || current_ == nullptr) return;
+    if (current_ == nullptr) return;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
@@ -181,22 +174,20 @@ void StatesGame::update(AppContext& host, const TouchPoint& touch) {
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
         ++rounds_;
-        progress_.record(static_cast<uint16_t>(current_ - STATE_FACTS), lastCorrect_);
-        progress_.maybeFlush();
-
-        if (lastCorrect_) {
-            ++score_;
-            ++correctStreak_;
-            host.beepOk();
-            // Six in a row means the pool is too easy; the tier button still wins.
-            if (correctStreak_ >= 6 && tier_ < 3) {
-                ++tier_;
-                correctStreak_ = 0;
-                host.setScore("stateTier", tier_);
-            }
+        announce_ = false;
+        if (lastCorrect_) ++score_;
+        if (!lastCorrect_) deck_.missed(item_);   // before the ladder moves
+        const Course::Ladder::Step step = ladder_.answer(lastCorrect_);
+        if (step != Course::Ladder::Step::Stay) {
+            host.setCourseLevel(ladder_.level());
+            startLevel();
+        }
+        if (step == Course::Ladder::Step::Up) {
+            announce_ = true;   // named over the next question
+            host.pulseRgb(0, 255, 40, 450);
+            host.playSound(Sound::LevelUp);
         } else {
-            correctStreak_ = 0;
-            host.beepError();
+            lastCorrect_ ? host.beepOk() : host.beepError();
         }
         host.saveBestScore(statesAppMetadata().score->bestKey, score_, false);
         feedbackUntil_ = now + 1600UL;
@@ -213,10 +204,12 @@ void StatesGame::render(AppContext& host) {
 
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(Ui::text(), Ui::bg());
-    tft.drawString(String(score_) + "/" + rounds_, 8, 33, 2);
+    char buf[40];
+    snprintf(buf, sizeof(buf), "%u/%u", score_, rounds_);
+    tft.drawString(buf, 8, 33, 2);
 
-    static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(ladder_.level()));
+    Ui::drawButton(tft, tierRect(), buf, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No states available",
@@ -227,19 +220,21 @@ void StatesGame::render(AppContext& host) {
     // Subject first and large, question underneath.
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(Ui::rgb(90, 170, 255), Ui::bg());
-    tft.drawString(mode_ == Mode::CapitalOf ? current_->name : current_->capital,
+    tft.drawString(SC::subject(mode_, current_->name, current_->capital, current_->code),
                    GAME_CANVAS_WIDTH / 2, 72, 4);
 
     const bool done = (phase_ == Phase::Feedback);
     tft.setTextColor(done ? (lastCorrect_ ? Ui::success() : Ui::error()) : Ui::text(), Ui::bg());
 
-    String prompt;
+    char prompt[48];
     if (done) {
-        prompt = lastCorrect_ ? String("Yes! ") : String("It is ");
-        prompt += (mode_ == Mode::CapitalOf) ? current_->capital : current_->name;
+        snprintf(prompt, sizeof(prompt), "%s%s", lastCorrect_ ? "Yes! " : "It is ",
+                 SC::label(mode_, current_->name, current_->capital, current_->code));
+    } else if (announce_) {
+        SC::levelLine(ladder_.level(), prompt, sizeof(prompt));   // a step up
+        tft.setTextColor(Ui::rgb(255, 200, 0), Ui::bg());
     } else {
-        prompt = (mode_ == Mode::CapitalOf) ? String("What is its capital?")
-                                            : String("is the capital of which state?");
+        snprintf(prompt, sizeof(prompt), "%s", SC::question(mode_));
     }
     tft.drawString(fitLabel(tft, prompt, GAME_CANVAS_WIDTH - 16, 2), GAME_CANVAS_WIDTH / 2, 112, 2);
 
@@ -254,7 +249,7 @@ void StatesGame::render(AppContext& host) {
             else if (i == static_cast<uint8_t>(selected_)) { fill = Ui::error(); tc = TFT_BLACK; }
         }
         const Rect r = answerRect(i);
-        const char* label = (mode_ == Mode::CapitalOf) ? opt->capital : opt->name;
+        const char* label = SC::label(mode_, opt->name, opt->capital, opt->code);
         Ui::drawButton(tft, r, fitLabel(tft, label, r.w - 10, 2), fill, Ui::outline(), tc, false, 2);
     }
     tft.setTextDatum(TL_DATUM);

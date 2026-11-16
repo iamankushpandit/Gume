@@ -35,12 +35,12 @@
       "heap": 0
     },
     "src/games/CinnamonGame.cpp": {
-      "String": 2,
+      "String": 0,
       "delay": 0,
       "heap": 0
     },
     "src/games/CinnamonGame.h": {
-      "String": 1,
+      "String": 0,
       "delay": 0,
       "heap": 0
     },
@@ -55,7 +55,7 @@
       "heap": 0
     },
     "src/games/MemoryGame.cpp": {
-      "String": 1,
+      "String": 0,
       "delay": 0,
       "heap": 0
     },
@@ -80,12 +80,12 @@
       "heap": 0
     },
     "src/games/StateFlagGame.cpp": {
-      "String": 2,
+      "String": 0,
       "delay": 0,
       "heap": 0
     },
     "src/games/StatesGame.cpp": {
-      "String": 7,
+      "String": 2,
       "delay": 0,
       "heap": 0
     },

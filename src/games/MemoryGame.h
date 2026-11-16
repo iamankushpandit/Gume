@@ -11,6 +11,8 @@
 
 #include "engine/Game.h"
 #include "engine/ContentLoader.h"
+#include "engine/Course.h"
+#include "MemoryCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -37,8 +39,16 @@ private:
     Rect cardRect(uint8_t index) const;
     bool allMatched() const;
 
+    uint8_t total() const { return board_.total(); }
+
+    /* An SD card's memory.json, when there is one, is the board for the
+     * whole device as before, and the ladder is not moved by it. */
     MemoryConfig config_;
-    uint8_t cards_[MAX_MEMORY_CARDS] = {};
+    bool fromCard_ = false;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    MemoryCourse::Board board_;
+    bool climbed_ = false;
     bool visible_[MAX_MEMORY_CARDS] = {};
     bool matched_[MAX_MEMORY_CARDS] = {};
     int8_t first_ = -1;

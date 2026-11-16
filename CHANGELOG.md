@@ -282,6 +282,88 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**US States is a course of eight levels.** It asked a capital or a state at
+random from three tiers climbed by six right in a row and never come down
+from, and never asked the postal codes in its own table. Now it asks the
+nine famous states' capitals, the same nine the other way round, the next
+eighteen, those twenty-seven both ways, the last twenty-three, all fifty
+both ways, the postal codes both ways, and everything mixed. Every question
+of a level comes up before any repeats, a missed one returns a few questions
+later, the level is kept between visits and moves down as well as up, a new
+level is named over its first question, and from the postal codes on the
+wrong answers share the code's first letter where they can. The level
+button shows "Level N" and steps up one; a tap on it during feedback no
+longer throws the feedback away. The per-state practice record ("stateSrs")
+was written and never read, and is no longer kept.
+
+**State Maps is a course of five levels**, the same five as State Flags:
+the nine famous states, the next eighteen, the last twenty-three, all fifty,
+and all fifty with the capital counting as much as the outline. Every outline
+of a level comes up before any repeats, the level is kept between visits and
+moves down as well as up, and a new level is named over its first outline.
+The capital round used to keep the four options where they were, so the
+capital was always on the button that had just been right; it is shuffled
+now. Colorado and Wyoming, the same rectangle, are never offered against
+each other, and a press near the top of a lower button no longer answers
+the one above.
+
+**State Flags is a course of five levels.** Its tiers were climbed by six
+right in a row and never come down from, and it dealt from the pool's
+positions, so the first tier was the same nine questions in a loop. Now it
+asks the nine famous states, then the next eighteen, then the last
+twenty-three on their own, then all fifty, then all fifty with the capital
+counting as much as the flag. Every flag of a level comes up before any
+repeats, a missed one returns a few flags later, the level is kept between
+visits and moves down as well as up, and a new level is named over its first
+flag; a player who had climbed the old tiers starts at the matching level.
+The capital round is a plain shuffle (it used to give one of the four away),
+a press near the top of a lower button no longer answers the one above, and
+a tap on the level button during feedback no longer throws it away.
+
+**Flags is a course of nine levels.** It had three tiers -- thirty
+countries, then sixty, then all 195 at once -- climbed by six right in a row
+and never come down from, and its continent column was never read. Now it
+deals the famous flags, the well known, then Europe, the Americas, Asia,
+Oceania and Africa one at a time, with every wrong answer from the same
+continent, then the whole world, then the whole world with the capital
+counting as much as the flag. Every flag of a level comes up before any
+repeats, a missed flag returns a few flags later, the level is kept between
+visits and moves down as well as up, and a new level is named over its first
+flag. The level button shows "Level N" and steps up one, as the tier button
+did; a player who had climbed the old tiers starts at the matching level.
+Look-alike flags are never offered against each other, the capital round's
+shuffle no longer moves the answer off the button that was just right
+(which gave one of the four away), a press near the top of a lower button
+is no longer taken by the button above it, a tap on the level button during
+feedback no longer throws the feedback away, and the bonus question for a
+long name is shown whole. The per-country practice record ("flagSrs", 195
+bytes a player) is no longer read or written.
+
+**Cinnamon is a course of six levels.** Every run began at one step at one
+pace, so the first rounds were trivial for a practised player, and at 32
+steps the sequence quietly stopped growing. Now it grows one step at a time,
+then quicker, then deals a new sequence every round, then the same at speed,
+then asks for it backwards, then backwards and new every round. A round of
+four steps or more repeated correctly counts as right; a run that ends
+before four steps, or on a level's first round, counts as wrong. The level is
+kept between visits, a new level is named over its first showing, and 32
+steps ends the run as a win. The score and best now update during a run
+rather than on the failure screen, the pad pressed by mistake goes dark so
+only the one that was owed is bright, a quick tap is no longer dropped while
+the last pad is still lit, and the best is kept for forwards levels only.
+
+**Memory is a course of eight levels.** Every board was 24 cards of the same
+twelve letters, A to L, for ever: nothing started small and nothing grew. Now
+it starts with six cards and grows to the full board, then deals look-alike
+faces, then pairs that belong together -- a capital and its small letter, a
+number and a sum that makes it. Faces are dealt from a deck, so the next
+boards show faces not yet seen. A board cleared in no more than two moves a
+pair counts as right, more than three a pair as wrong; the level is kept
+between visits and a step up is named on the finished board. The best is
+kept for the full board only, the face of a turned card is now readable on
+its slate fill, and an SD card's memory.json is read once a visit rather than
+on every deal.
+
 **Sorting is a course of ten levels.** Its difficulty was the rounds
 finished this visit, the direction ran four boards up and two down in that
 order for ever, it never went past two-digit whole numbers, a board could

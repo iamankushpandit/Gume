@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-85.2%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-85.3%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -395,10 +395,10 @@ needs without touching anyone else's. Only the admin can change it.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus** | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore |
-| **US States** | Name the state, then its capital | US geography as a name-then-capital pair, the same loop as Flags |
-| **State Flags** | A real state flag, name the state, then its capital | Fifty more flags with the same reward loop |
-| **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition |
+| **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus**. Nine levels: the famous flags, the well known, then Europe, the Americas, Asia, Oceania and Africa one at a time with every wrong answer from the same continent, the whole world, and last the whole world with the capital counting as much as the flag | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore. Each player's level is kept between visits and moves up or down with their answers, every flag of a level comes up before any repeats, a missed flag comes back a few flags later, and flags that cannot be told apart at this size (Indonesia and Monaco, Chad and Romania) are never offered against each other |
+| **US States** | Name the state, then its capital, over eight levels: the nine famous states' capitals, the same nine the other way round, the next eighteen, those twenty-seven both ways, the last twenty-three, all fifty both ways, the postal codes (*TX*), and everything mixed | US geography as a name-then-capital pair, the same loop as Flags, then the postal codes. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong codes share a first letter where they can (the eight *M* states) |
+| **State Flags** | A real state flag, name the state, then its capital. Five levels: the nine famous states, the next eighteen, the last twenty-three, all fifty, and all fifty with the capital counting as much as the flag | Fifty more flags with the same reward loop. Each player's level is kept between visits and moves up or down with their answers, and every flag of a level comes up before any repeats |
+| **State Maps** | A real state outline, name the state, then its capital. Five levels: the nine famous states, the next eighteen, the last twenty-three, all fifty, and all fifty with the capital counting as much as the outline | Map-shape recognition. Each player's level is kept between visits and moves up or down with their answers, every outline of a level comes up before any repeats, and Colorado and Wyoming, the same rectangle, are never offered against each other |
 | **Calendar** | Days and months in order, as two courses with a level each. Days: the next day, then round the week (*after Sunday*), two or three days on, then a week and more (*10 days after Wednesday*). Months: the next month, round the year, which month is number 9, how many days a month has — and a week, a year and a leap year — then several months on | Sequence and cyclical time: the week and the year as circles rather than lists, a week on bringing the same day back, and the facts a calendar is built from. Each player's level on each is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong tiles are the mistakes players make — the day before given for the day after, the starting day counted as the first |
 | **Time** | Reading an analogue clock, over ten levels: o'clock, half past, quarter past and quarter to, minutes past and minutes to in fives, then any minute with the minutes marked round the rim; then the same clock said in words (*"quarter to 4"*), in 24-hour time, twenty minutes later or fifteen earlier, and how many minutes until the next o'clock | Telling the time from the hands, then saying it the ways people say it and working with it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the readings players really make: the hands read the wrong way round, the hour hand read as the next number when it is nearly there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. written as 13:00 |
 | **Space** | Forty-four questions about the solar system and the layers of air above it — the planets in order, why Venus beats Mercury, where the ozone is, which layer the Space Station orbits in. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Three levels, so a younger player is never asked about the Karman line |
@@ -418,8 +418,8 @@ uses **adaptive difficulty** — see below.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Cinnamon** | Repeat the colour sequence | Working memory and sustained attention |
-| **Memory** | Match pairs face-down | Visual working memory |
+| **Cinnamon** | Repeat the colour sequence, over six levels: one step at a time, then quicker, then a new sequence every round so it cannot be learned by heart, then the same at speed, then backwards, last pad first, and backwards with a new sequence every round | Working memory and sustained attention, then holding a sequence well enough to turn it round. Each player's level is kept between visits and moves on rounds of four steps or more repeated correctly; the pace never reaches three flashes a second |
+| **Memory** | Match pairs face-down, over eight levels: six cards, eight, twelve, sixteen, twenty, the full board of 24, look-alike faces (*O* and *Q*, *6* and *9*), and pairs that belong together rather than match (*G* with *g*, *7* with *3+4*) | Visual working memory. The faces change every board, each player's level is kept between visits, and a board cleared in no more than two moves a pair moves the player on |
 | **Odd One** | "Tap the one that is different", over eight levels: a different colour, then a different shape, size and turn, each on its own; any of them without saying which; a colour only a shade away; one difference hidden among cards that differ in a way that does not matter; and the smallest steps | Categorisation — spotting the attribute that doesn't fit, then holding on to the one that matters while others vary. Each player's level is kept between visits and moves up or down with their answers, and the odd card can be bigger or smaller, upside down or the right way up, so no rule but looking finds it |
 | **Shapes** | Match four shapes to four targets, over seven levels that each ask something new about a shape: its outline, in any colour (*"purple star"*); the **lookalikes** a young player calls circle and square (oval, rectangle, diamond, trapezium, parallelogram, kite); how many **sides** it has; its **name**, with none on the picture; its outline **turned**; **concave or convex**, with the word on the row; and the sides of any shape, stars and the cross included | Holding two attributes in mind at once, then shape vocabulary a young player can use: that a hexagon is a hexagon because it has six sides, that an oval is not a circle, that a triangle is still a triangle upside down, and that concave and convex are the names for bending in and bulging out. Each player's level is kept between visits and moves on a round with no wrong match, every shape of a level comes up before any repeats, and a shape matched wrongly comes back a few shapes later |
 | **Color Mix** | Mixing paint, over six levels: the first mixes (*red + yellow*), lighter and darker with white or black, the same mixes backwards (*red + ? = pink*), the colours between a primary and its neighbour, opposite colours that make brown, and last mixing light, where red and green make yellow | Colour theory, and that mixing is predictable — then that it can be run backwards, and that light does not mix like paint. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the colours a mix is mistaken for — another mix sharing one of its colours, darker for lighter, and for light, what the same two make as paint |
@@ -463,14 +463,17 @@ overrides by hand, and the choice persists.
 
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
-**Money**, **Fractions**, **Percent**, **Roman** and **Sorting** are courses:
-twelve levels of adding and taking away, twelve of times tables and
+**Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
+**Cinnamon**, **Flags**, **State Flags**, **State Maps** and **US States** are
+courses: twelve levels of adding and taking away, twelve of times tables and
 division, seven of counting, eight of adding and taking away with shapes, six
 of numbers to ten on the hands, ten of reading a clock, nine on the number
-line, four of days and five of months, six of mixing colours, seven of
-shapes, eight of spotting a difference, eight of coins and change, twelve of
+line, four of days and five of months, six of mixing colours, seven of shapes,
+eight of spotting a difference, eight of coins and change, twelve of
 fractions, ten of percents, eight of Roman numerals, ten of putting numbers in
-order. Each
+order, eight of remembering where cards are, six of repeating a sequence, nine
+of flags and capitals, five of state flags, five of state outlines, eight of
+states, capitals and postal codes. Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

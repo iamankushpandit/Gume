@@ -943,7 +943,7 @@ def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength("+2", font=F2), 32), "+2", font=F2, fill=GOLD)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 242, 170], fill=WHITE, outline=OUTLINE)
     f = art("mnf_flag_br")
     if f: im.paste(f.resize((160, 120), Image.NEAREST), (80, 48), f.resize((160, 120), Image.NEAREST))
@@ -959,7 +959,7 @@ def flags_capital(answered=False):
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "4/5", font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength("+3", font=F2), 32), "+3", font=F2, fill=GOLD)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 242, 170], fill=WHITE, outline=OUTLINE)
     f = art("mnf_flag_br")
     if f: im.paste(f.resize((160, 120), Image.NEAREST), (80, 48), f.resize((160, 120), Image.NEAREST))
@@ -980,7 +980,7 @@ def flags_capital(answered=False):
 def states():
     im, d = blank(); topbar(d, "US States")
     d.text((8, 32), "3/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     q = "What is the capital of Texas?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
     for i, lab in enumerate(["Austin", "Houston", "Dallas", "El Paso"]):
@@ -992,7 +992,7 @@ def states():
 def stateflags():
     im, d = blank(); topbar(d, "State Flags")
     d.text((8, 32), "2/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 241, 169], fill=WHITE, outline=OUTLINE)
     f = art("mnf_state_flag_ca")
     if f:
@@ -1007,7 +1007,7 @@ def stateflags():
 def statemaps():
     im, d = blank(); topbar(d, "State Maps")
     d.text((8, 32), "4/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Medium", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([110, 42, 209, 141], fill=WHITE, outline=OUTLINE)
     m = tinted("mnf_state_map_fl", INK)
     if m: im.paste(m, (112 + (96 - m.width) // 2, 44 + (96 - m.height) // 2), m)
@@ -2476,23 +2476,29 @@ def tictactoe(marks=None, status="X turn"):
     return im
 
 
-def memory(faces=None, pairs="Pairs 3/12"):
+def memory(faces=None, pairs="Moves 3"):
+    # The full board (levels 6-8), which keeps a best; below it the second
+    # line names the level instead. Header text as MemoryGame draws it.
     im, d = blank(); topbar(d, "Memory Match")
-    d.text((10, 36), pairs, font=F2, fill=TEXT)
-    cols, rows, cell, gap = 6, 4, 44, 4
+    d.text((8, 32), pairs, font=F2, fill=TEXT)
+    d.text((8, 48), "Best 18", font=F1, fill=TEXT)
+    # MemoryGame::cardRect() for the 4x6 board: 41px cells, 4px gaps,
+    # centred below GRID_TOP (the top bar plus 30).
+    cols, rows, cell, gap = 6, 4, 41, 4
     gw = cols * cell + (cols - 1) * gap
     gh = rows * cell + (rows - 1) * gap
-    sx, sy = (W - gw) // 2, 58 + (H - 58 - gh) // 2
+    sx, sy = (W - gw) // 2, 58 + (H - 58 - 4 - gh) // 2
     faces = {2: "A", 3: "A", 9: "F"} if faces is None else faces
     for i in range(cols * rows):
         x = sx + (i % cols) * (cell + gap)
         y = sy + (i // cols) * (cell + gap)
         if i in faces:
-            d.rounded_rectangle([x, y, x + cell, y + cell], 4, fill=(255, 246, 178), outline=OUTLINE)
-            d.text((x + cell / 2 - 4, y + cell / 2 - 7), faces[i], font=F2, fill=(40, 40, 46))
+            # CARD_FRONT 0x39EF, with the ink Ui::onFill() picks against it.
+            d.rounded_rectangle([x, y, x + cell, y + cell], 4, fill=(57, 61, 123), outline=OUTLINE)
+            d.text((x + cell / 2 - 4, y + cell / 2 - 7), faces[i], font=F2, fill=(255, 255, 255))
         else:
             d.rounded_rectangle([x, y, x + cell, y + cell], 4, fill=BLUE, outline=OUTLINE)
-            d.ellipse([x + 16, y + 16, x + cell - 16, y + cell - 16], outline=(150, 200, 240))
+            d.ellipse([x + 15, y + 15, x + cell - 15, y + cell - 15], outline=(150, 200, 240))
     return im
 
 
