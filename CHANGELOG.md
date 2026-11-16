@@ -134,6 +134,19 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Percent is a course of ten levels, and no wrong answer is marked right
+any more.** It truncated 25% of 10 to 2 and 75% of 50 to 37 and marked them
+correct; most rounds showed one wrong percent on two buttons; its level
+followed the streak, so one wrong tap fell to level 1, and levels 4 and 5
+were level 3 again; and the shading round printed the shaded amount, so the
+circle was never read. Now it reads and shades quarters, tens and fives (the
+amount hidden from fives on); turns fractions into percents; finds 50% and
+10% of a number, 25% and 75%, any ten percent and the fives; asks what
+percent one number is of another; and adds or takes a percent off. Every
+answer is exact, the level is kept between visits, every question of a level
+comes up before any repeats, one try a question, and the answer is shown
+beside the circle rather than on a card over it.
+
 **Fractions is a course of twelve levels.** It took its kind of question
 from the visit's score, so every visit began with halves in the same order;
 its level 4 was its level 3 again; equal fractions were excluded rather than

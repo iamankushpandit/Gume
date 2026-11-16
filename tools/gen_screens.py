@@ -3688,8 +3688,8 @@ def about_updates():
 
 def percent():
     im, d = blank(); topbar(d, "Percent")
-    q = "What percent?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
+    q = "What percent?"   # PercentCircleGame: font 4, centred on x=160, y=60
+    d.text((160 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     # Draw circle at (96, 130) with radius 62
     cx, cy, r = 96, 130, 62
@@ -3723,14 +3723,14 @@ def percent():
         y = cy + int(r * math.sin(rad))
         d.line([(cx, cy), (x, y)], fill=(100, 150, 200), width=1)
 
-    # Four option buttons
-    for i, pct in enumerate(["25%", "50%", "60%", "75%"]):
+    # Level 2's options for 60%: the empty part (40%), a ten either side.
+    for i, pct in enumerate(["40%", "50%", "60%", "70%"]):
         rr = (164 + (i % 2) * 76, 96 + (i // 2) * 44, 70, 38)
         button(d, rr, pct, SUCCESS if pct == "60%" else PANEL,
                (0, 0, 0) if pct == "60%" else TEXT)
 
     # Score line
-    d.text((8, 226), "Score: 15  Streak: 2  Lvl: 1", font=F1, fill=TEXT)
+    d.text((8, 226), "Level 2  Score 15  Streak 2", font=F1, fill=TEXT)
 
     return im
 
@@ -3745,7 +3745,7 @@ def percent_make():
     import math
     im, d = blank(); topbar(d, "Percent")
     q = "Shade 70%"
-    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
+    d.text((160 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     cx, cy, r = 96, 130, 62
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(81, 113, 147), outline=BLUE)
@@ -3763,12 +3763,12 @@ def percent_make():
 
     button(d, (164, 152, 34, 34), "-")
     d.rounded_rectangle([200, 152, 237, 185], 4, fill=PANEL, outline=OUTLINE)
-    v = "45%"
+    v = "?"     # from Fives on the circle is read, not this box
     d.text((219 - d.textlength(v, font=F1) / 2, 164), v, font=F1, fill=TEXT)
     button(d, (240, 152, 34, 34), "+")
     button(d, (276, 152, 34, 34), "OK", ACCENT, on_fill(ACCENT))
 
-    d.text((8, 226), "Score: 7  Streak: 5  Lvl: 2", font=F1, fill=TEXT)
+    d.text((8, 226), "Level 3  Score 7  Streak 5", font=F1, fill=TEXT)
     return im
 
 

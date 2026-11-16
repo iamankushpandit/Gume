@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-84.7%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-84.8%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,665,385 / 3,145,728 bytes of the app partition (**84.7%**) |
-| RAM | 93,748 / 327,680 bytes (**28.6%**) |
+| Flash | 2,667,169 / 3,145,728 bytes of the app partition (**84.8%**) |
+| RAM | 93,796 / 327,680 bytes (**28.6%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -387,7 +387,7 @@ needs without touching anyone else's. Only the admin can change it.
 | **Multiply** | "Tap the product" — the times tables in teaching order, twelve levels: twos, fives and tens; threes and fours; 0 and 1; sixes and eights; sevens and nines; elevens and twelves; all of them mixed. Then missing numbers (? x 7 = 56) and division as the same facts backwards, up to 144 ÷ 12 | Fluent recall of the multiplication facts, then the link between multiplying and dividing. Each player's level is kept and goes up or down with their answers, every fact in a level comes up before any repeats, and a missed one comes back a few questions later. The wrong buttons are the neighbouring facts, such as 49 offered for 7 x 8 |
 | **Fractions** | Twelve levels, from pies to written sums: name a pie and find the pie for a fraction, in halves and quarters, then thirds, then fifths, sixths and eighths; which of two is bigger — one piece each, the same bottom number, the same top number; equal fractions (*6/8 is 3/4*); comparing any two, with pies and then without; a fraction of a number (*3/4 of 12*); adding and taking away with the same bottom number; and more than one whole (*7/4 = 1 3/4*) | Connects the written fraction to the amount it represents, then the reasoning that comes after: that a bigger bottom number means a smaller piece, that two fractions can be the same amount, and how fractions add. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong answers are the misreadings players make — the empty slices counted, the bottom numbers added (*3/8 + 2/8 = 5/16*) — never a second right answer |
 | **Money** | Counting coins over eight levels: ones and fives; tens, and making an amount from a tray of coins; quarters, and which of two piles is worth more; a whole dollar; change in fives; change to the cent; making an amount with the fewest coins; and change from two prices | Coin values and everyday arithmetic — and that more coins is not more money, which the piles are built to show. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong amounts are the slips players make: a coin missed or counted twice, every coin counted as one cent, the price given back as the change |
-| **Percent** | Read, make and calculate percentages on a circle | Percentage as a portion of a whole, before it is an algorithm |
+| **Percent** | Ten levels on a circle and then off it: read and shade quarters, tens and fives (from fives on the shaded amount is not printed, so the circle is what is read); fractions as percents (*3/4 = 75%*); 50% and 10% of a number, then 25% and 75%, then any ten percent, then the fives; what percent one number is of another; and adding or taking a percent off | Percentage as a portion of a whole, before it is an algorithm, then the arithmetic built on it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, every answer is a whole number, and the wrong answers are the mistakes players make — the top of a fraction taken as the percent, the part left over, the other direction |
 | **Sorting** | "Tap smallest to largest" (or the reverse) | Ordering and magnitude comparison |
 | **Roman** | Roman numerals, both ways round: read one, or write a number as one. The symbol key and the rule for the level stay on the screen, and every answer is followed by the number taken apart — `XIV = X + IV = 10 + 4`. The wrong answers are the real mistakes: reading XIV as 10 + 1 + 5, or writing 4 as IIII | Place value in a system that has none, and the habit of checking a smaller symbol before a bigger one. Five levels, each adding the next letter: X, then L, then C, then D and M |
 
@@ -463,12 +463,13 @@ overrides by hand, and the choice persists.
 
 **Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
 **Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
-**Money** and **Fractions** are courses: twelve levels of adding and taking
-away, twelve of times tables and division, seven of counting, eight of adding
-and taking away with shapes, six of numbers to ten on the hands, ten of
-reading a clock, nine on the number line, four of days and five of months,
-six of mixing colours, seven of shapes, eight of spotting a difference, eight
-of coins and change, twelve of fractions. Each
+**Money**, **Fractions** and **Percent** are courses: twelve levels of adding
+and taking away, twelve of times tables and division, seven of counting,
+eight of adding and taking away with shapes, six of numbers to ten on the
+hands, ten of reading a clock, nine on the number line, four of days and five
+of months, six of mixing colours, seven of shapes, eight of spotting a
+difference, eight of coins and change, twelve of fractions, ten of percents.
+Each
 player's level in each of them is kept between visits, so a player starts
 where they left off, not at the first level.
 

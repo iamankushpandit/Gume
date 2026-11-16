@@ -17,12 +17,16 @@ constexpr uint16_t PERCENT_OUTLINE = 0x2478;  // Ui::rgb(36, 132, 204) - blue
 constexpr int16_t CIRCLE_CX = 96;
 constexpr int16_t CIRCLE_CY = 130;
 constexpr int16_t CIRCLE_RADIUS = 62;
+constexpr uint16_t YELLOW = 0xFEC0;
+namespace PC = PercentCourse;
+/* Under the buttons and the shading controls, right of the circle: how the
+ * answer went, or a new level's name. It used to be a card drawn over the
+ * circle and the buttons, which left pieces behind. */
+constexpr Rect NOTE_RECT = {162, 190, 158, 30};
 
-/* A flashIndex_ that is not one of the four option buttons: the make round's
- * OK was pressed on the wrong amount. That round has no option to flash, and
- * before this a wrong press there changed nothing on the panel at all. Passed
- * to markWrong() like any other thing a player can press. */
-constexpr int8_t SUBMIT_REFUSED = 4;
+/* A selection that is not one of the four option buttons: the shading
+ * round's OK. */
+constexpr int8_t SUBMIT = 4;
 
 constexpr AppScoreInfo PERCENT_SCORE = {
     "percent", "Percent", "pctBest", "pts", false
@@ -52,158 +56,68 @@ const char* PercentCircleGame::title() const {
         : percentCircleAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the tally starts over,
+ * the level does not. It used to follow the streak, so one wrong tap fell to
+ * level 1, and every visit began there. */
 void PercentCircleGame::begin(AppContext& host) {
     score_ = 0;
+    rounds_ = 0;
     streak_ = 0;
-    newRound(host);
+    ladder_.start(PC::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announce_ = false;
+    newRound();
     markFullDirty();
 }
 
-/* One right answer is a score worth coming back to; the level follows the
- * streak, so that comes back with it. A circle half shaded with nothing yet
- * answered is a few taps, not a game. The red flash ends on its own past
- * deadline, so there is nothing to move on the way back. */
+/* One answered question is worth coming back to. Nothing here runs on a
+ * clock. */
 Game::Keep PercentCircleGame::keepsGame() const {
-    return score_ > 0 ? Keep::Ask : Keep::No;
+    return rounds_ > 0 ? Keep::Ask : Keep::No;
 }
 
-PercentCircleGame::RoundType PercentCircleGame::nextRoundType() const {
-    const uint8_t currentLevel = level();
-    const uint8_t cycleIndex = score_ % 3;
-
-    if (currentLevel == 1) {
-        return RoundType::ReadCircle;
-    }
-
-    if (currentLevel == 2) {
-        return cycleIndex == 0 ? RoundType::ReadCircle : RoundType::MakeCircle;
-    }
-
-    return static_cast<RoundType>(cycleIndex);
+void PercentCircleGame::startLevel() {
+    deck_.reset(PC::poolSize(ladder_.level()));
 }
 
-void PercentCircleGame::generateOptions() {
-    correctButton_ = random(4);
-    const uint8_t currentLevel = level();
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i] = 0;
-    }
-    options_[correctButton_] = targetPercent_;
-
-    const uint8_t* possiblePercents = nullptr;
-    uint8_t percentCount = 0;
-
-    if (currentLevel == 1) {
-        static constexpr uint8_t L1[] = {25, 50, 75, 100};
-        possiblePercents = L1;
-        percentCount = 4;
-    } else if (currentLevel == 2) {
-        static constexpr uint8_t L2[] = {10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 100};
-        possiblePercents = L2;
-        percentCount = 12;
-    } else {
-        static constexpr uint8_t L3[] = {5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100};
-        possiblePercents = L3;
-        percentCount = 20;
-    }
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) {
-            continue;
-        }
-
-        uint8_t candidate;
-        uint8_t attempts = 0;
-        do {
-            candidate = possiblePercents[random(percentCount)];
-            ++attempts;
-        } while ((candidate == targetPercent_ || candidate == options_[i]) && attempts < 20);
-
-        bool exists = false;
-        for (uint8_t j = 0; j < i; ++j) {
-            if (options_[j] == candidate) {
-                exists = true;
-                break;
-            }
-        }
-
-        if (!exists && candidate != targetPercent_) {
-            options_[i] = candidate;
-        } else if (candidate != targetPercent_) {
-            options_[i] = candidate;
-        }
-    }
-}
-
-void PercentCircleGame::newRound(AppContext& host) {
-    (void)host;
-    roundType_ = nextRoundType();
-    correctButton_ = -1;
-    flashIndex_ = -1;
-    flashUntil_ = 0;
+void PercentCircleGame::newRound() {
+    item_ = deck_.next(esp_random());
+    PC::make(ladder_.level(), item_, esp_random(), q_);
+    banner_ = announce_;
+    announce_ = false;
+    selected_ = -1;
     roundComplete_ = false;
     currentPercent_ = 0;
-
-    if (roundType_ == RoundType::ReadCircle) {
-        targetPercent_ = (level() == 1) ?
-            ((random(4) + 1) * 25) :
-            ((random(10) + 1) * 10);
-        generateOptions();
-        snprintf(promptBuffer_, sizeof(promptBuffer_), "What percent?");
-    } else if (roundType_ == RoundType::MakeCircle) {
-        targetPercent_ = (random(20) + 1) * 5;
-        snprintf(promptBuffer_, sizeof(promptBuffer_), "Shade %u%%", targetPercent_);
-    } else {
-        static constexpr uint8_t BASE_NUMBERS[] = {10, 20, 40, 50, 100};
-        static constexpr uint8_t PERCENTS[] = {10, 25, 50, 75, 100};
-
-        baseNumber_ = BASE_NUMBERS[random(5)];
-        targetPercent_ = PERCENTS[random(5)];
-        uint8_t correctAnswer = (baseNumber_ * targetPercent_) / 100;
-
-        correctButton_ = random(4);
-        for (uint8_t i = 0; i < 4; ++i) {
-            options_[i] = 0;
-        }
-        options_[correctButton_] = correctAnswer;
-
-        for (uint8_t i = 0; i < 4; ++i) {
-            if (i == correctButton_) {
-                continue;
-            }
-            uint8_t candidate;
-            uint8_t attempts = 0;
-            do {
-                candidate = random(baseNumber_ + 1);
-                ++attempts;
-            } while (candidate == correctAnswer && attempts < 10);
-            options_[i] = candidate;
-        }
-
-        snprintf(promptBuffer_, sizeof(promptBuffer_), "%u%% of %u = ?", targetPercent_, baseNumber_);
-    }
 }
 
-void PercentCircleGame::markCorrect(AppContext& host) {
-    ++score_;
-    ++streak_;
-    host.saveBestScore(percentCircleAppMetadata().score->bestKey, score_, false);
+/* One try: the right answer is shown either way, where wrong taps used to
+ * be retried until right and still score. */
+void PercentCircleGame::answer(AppContext& host, bool right, int8_t pressed) {
+    selected_ = pressed;
     roundComplete_ = true;
-    flashIndex_ = -1;
-    host.beepOk();
-}
-
-/* `pressed` is what the player touched, and that is what turns red.
- *
- * This used to flash correctButton_ instead. One wrong tap and the right
- * answer lit up for half a second -- in the colour that means wrong, so it
- * misled as well as told. A wrong answer is information about the answer that
- * was given; it must not be a second way of being handed the right one. */
-void PercentCircleGame::markWrong(int8_t pressed) {
-    streak_ = 0;
-    flashIndex_ = pressed;
-    flashUntil_ = millis() + 500UL;
+    ++rounds_;
+    if (right) {
+        ++score_;
+        ++streak_;
+        host.saveBestScore(percentCircleAppMetadata().score->bestKey, score_, false);
+    } else {
+        streak_ = 0;
+        deck_.missed(item_);
+    }
+    const Course::Ladder::Step step = ladder_.answer(right);
+    if (step != Course::Ladder::Step::Stay) {
+        host.setCourseLevel(ladder_.level());
+        startLevel();
+    }
+    if (step == Course::Ladder::Step::Up) {
+        announce_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else if (right) {
+        host.beepOk();
+    } else {
+        host.beepError();
+    }
 }
 
 void PercentCircleGame::fillSlice(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t radius, float startAngle, float endAngle, uint16_t color) const {
@@ -258,166 +172,91 @@ void PercentCircleGame::drawCircle(Ui::Renderer& tft, uint8_t percent, bool high
     }
 }
 
-void PercentCircleGame::drawReadCircleMode(Ui::Renderer& tft) const {
-    drawCircle(tft, targetPercent_, false);
-
+void PercentCircleGame::drawOptions(Ui::Renderer& tft) const {
+    char label[12];
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = Ui::panel();
         uint16_t text = Ui::text();
         uint16_t outline = Ui::outline();
-
-        if (roundComplete_ && i == correctButton_) {
+        if (roundComplete_ && i == q_.correct) {
             fill = Ui::success();
             text = TFT_BLACK;
             outline = Ui::success();
-        } else if (flashIndex_ == i) {
+        } else if (roundComplete_ && i == selected_) {
             fill = Ui::error();
             text = TFT_BLACK;
             outline = Ui::error();
         }
-
-        char label[16];
-        snprintf(label, sizeof(label), "%u%%", options_[i]);
+        PC::optionText(q_, q_.options[i], label, sizeof(label));
         Ui::drawButton(tft, optionRect(i), label, fill, outline, text, false, 2);
     }
 }
 
-void PercentCircleGame::drawMakeCircleMode(Ui::Renderer& tft) const {
-    drawCircle(tft, currentPercent_, false);
-
+/* - the box + and OK. From Fives on the box says "?": the circle is what is
+ * read, not the number beside it. */
+void PercentCircleGame::drawShadeControls(Ui::Renderer& tft) const {
     tft.fillRoundRect(200, 152, 38, 34, 4, Ui::panel());
     tft.drawRoundRect(200, 152, 38, 34, 4, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
     char valueStr[8];
-    snprintf(valueStr, sizeof(valueStr), "%u%%", currentPercent_);
+    if (PC::showShadedValue(q_.level) || roundComplete_) {
+        snprintf(valueStr, sizeof(valueStr), "%u%%", currentPercent_);
+    } else {
+        snprintf(valueStr, sizeof(valueStr), "?");
+    }
     tft.drawString(valueStr, 219, 169, 1);
-
-    /* ASCII, because that is all font 2 has. These two labels were a minus
-     * sign and a tick, which TFT_eSPI's built-in fonts do not carry -- so the
-     * buttons a player needed most were drawn with nothing readable on them. */
-    Ui::drawPagerButton(tft, minusRect(), "-", currentPercent_ > 0);
-    Ui::drawPagerButton(tft, plusRect(), "+", currentPercent_ < 100);
-
-    /* OK LOOKS THE SAME WHATEVER THE CIRCLE SHOWS.
-     *
-     * It used to turn the success colour the moment the shaded amount matched
-     * the target, before it had been pressed. That made the round a matter of
-     * tapping + until a button lit up: the answer was announced by the control
-     * for submitting it, and nothing was being asked. The only thing that may
-     * change this button is the player pressing it -- red for the half second
-     * after a wrong answer, and the Correct card after a right one. */
-    const uint16_t okFill = flashIndex_ == SUBMIT_REFUSED ? Ui::error() : Ui::accent();
+    Ui::drawPagerButton(tft, minusRect(), "-", currentPercent_ > 0 && !roundComplete_);
+    Ui::drawPagerButton(tft, plusRect(), "+", currentPercent_ < 100 && !roundComplete_);
+    /* OK looks the same whatever the circle shows: it changes only once
+     * pressed, green or red. */
+    uint16_t okFill = Ui::accent();
+    if (roundComplete_) okFill = currentPercent_ == q_.answer ? Ui::success() : Ui::error();
     Ui::drawButton(tft, okRect(), "OK", okFill, Ui::outline(), Ui::onFill(okFill), false, 2);
-
     tft.setTextDatum(TL_DATUM);
 }
 
-void PercentCircleGame::drawPercentOfNumberMode(Ui::Renderer& tft) const {
-    drawCircle(tft, targetPercent_, false);
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        uint16_t fill = Ui::panel();
-        uint16_t text = Ui::text();
-        uint16_t outline = Ui::outline();
-
-        if (roundComplete_ && i == correctButton_) {
-            fill = Ui::success();
-            text = TFT_BLACK;
-            outline = Ui::success();
-        } else if (flashIndex_ == i) {
-            fill = Ui::error();
-            text = TFT_BLACK;
-            outline = Ui::error();
-        }
-
-        char label[16];
-        snprintf(label, sizeof(label), "%u", options_[i]);
-        Ui::drawButton(tft, optionRect(i), label, fill, outline, text, false, 2);
-    }
-
-    /* NOTHING IS WRITTEN IN THE CIRCLE. It used to carry
-     * baseNumber_ * targetPercent_ / 100 at its centre -- the answer to the
-     * question printed above it, beside four buttons asking for it. The
-     * shaded share is the picture of the question; the number is the
-     * player's to work out. */
-}
-
 void PercentCircleGame::update(AppContext& host, const TouchPoint& touch) {
-    if (flashIndex_ >= 0 && millis() > flashUntil_) {
-        flashIndex_ = -1;
-        markDirty();
-    }
-
     if (!touch.justPressed) {
         return;
     }
-
     if (roundComplete_) {
-        /* THIS IS A CASE WHERE THE FULL REPAINT IS SOMETIMES REQUIRED, AND
-         * SOMETIMES NOT -- so it asks rather than assuming either way.
-         *
-         * A new round cycles between three round types with genuinely
-         * different layouts: a circle to read, a circle to build, and a plain
-         * "what is N% of M". Their drawing functions paint different regions,
-         * so switching between them leaves the previous layout's pixels
-         * wherever the new one does not reach. That is a real layout change
-         * and it needs the screen cleared.
-         *
-         * A new round of the SAME type is content: the same regions with
-         * different numbers in them. That is the common case -- the type
-         * changes once every three rounds -- and it now costs a repaint of
-         * the body rather than a wipe of the screen.
-         *
-         * Deciding by comparison rather than by rule is the point: nobody has
-         * to remember to update this when a fourth round type is added. */
-        const RoundType before = roundType_;
-        newRound(host);
-        if (roundType_ != before) {
+        /* A new round of another kind paints other regions, so it clears
+         * the screen; one of the same kind is content in the same places. */
+        const PC::Mode before = q_.mode;
+        newRound();
+        if (q_.mode != before) {
             markFullDirty();
         } else {
             markDirty();
         }
         return;
     }
-
-    if (roundType_ == RoundType::ReadCircle || roundType_ == RoundType::PercentOfNumber) {
-        for (uint8_t i = 0; i < 4; ++i) {
-            if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                if (i == correctButton_) {
-                    markCorrect(host);
-                } else {
-                    markWrong(static_cast<int8_t>(i));
-                    host.beepError();
-                }
-                markDirty();
-                return;
-            }
-        }
-    } else if (roundType_ == RoundType::MakeCircle) {
+    if (q_.mode == PC::Mode::Shade) {
+        const uint8_t step = PC::shadeStep(q_.level);
         if (minusRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (currentPercent_ > 0) {
-                currentPercent_ -= 5;
+            if (currentPercent_ >= step) {
+                currentPercent_ = static_cast<uint8_t>(currentPercent_ - step);
                 markDirty();
             }
             return;
         }
-
         if (plusRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (currentPercent_ < 100) {
-                currentPercent_ += 5;
+            if (currentPercent_ + step <= 100) {
+                currentPercent_ = static_cast<uint8_t>(currentPercent_ + step);
                 markDirty();
             }
             return;
         }
-
         if (okRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (currentPercent_ == targetPercent_) {
-                markCorrect(host);
-            } else {
-                markWrong(SUBMIT_REFUSED);
-                host.beepError();
-            }
+            answer(host, currentPercent_ == q_.answer, SUBMIT);
+            markDirty();
+        }
+        return;
+    }
+    for (uint8_t i = 0; i < 4; ++i) {
+        if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            answer(host, i == q_.correct, static_cast<int8_t>(i));
             markDirty();
             return;
         }
@@ -432,42 +271,60 @@ void PercentCircleGame::renderStatic(AppContext& host) {
 
 void PercentCircleGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
+    char buf[48];
 
+    /* The question, in font 4 where it fits beside nothing. */
+    PC::prompt(q_, buf, sizeof(buf));
     tft.fillRect(0, 48, GAME_CANVAS_WIDTH, 34, Ui::bg());
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(promptBuffer_, 200, 60, 4);
-    tft.setTextDatum(TL_DATUM);
+    tft.drawString(buf, 160, 60, tft.textWidth(buf, 4) <= 300 ? 4 : 2);
 
-    if (roundType_ == RoundType::ReadCircle) {
-        drawReadCircleMode(tft);
-    } else if (roundType_ == RoundType::MakeCircle) {
-        drawMakeCircleMode(tft);
+    /* The circle: what was asked about -- and for a fraction or "what
+     * percent", nothing until answered, then the answer. While shading, what
+     * the player has shaded. */
+    uint8_t shaded = q_.percent;
+    if (q_.mode == PC::Mode::Shade) {
+        shaded = currentPercent_;
+    } else if (q_.mode == PC::Mode::Fraction || q_.mode == PC::Mode::WhatPercent) {
+        shaded = roundComplete_ ? PC::shownPercent(q_) : 0;
+    }
+    drawCircle(tft, shaded, false);
+
+    if (q_.mode == PC::Mode::Shade) {
+        drawShadeControls(tft);
     } else {
-        drawPercentOfNumberMode(tft);
+        drawOptions(tft);
+    }
+
+    tft.fillRect(NOTE_RECT.x, NOTE_RECT.y, NOTE_RECT.w, NOTE_RECT.h, Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    const int16_t cx = static_cast<int16_t>(NOTE_RECT.x + NOTE_RECT.w / 2);
+    if (roundComplete_) {
+        const bool right = q_.mode == PC::Mode::Shade ? currentPercent_ == q_.answer
+                                                       : selected_ == static_cast<int8_t>(q_.correct);
+        tft.setTextColor(right ? Ui::success() : Ui::error(), Ui::bg());
+        if (right) {
+            tft.drawString("Correct!", cx, NOTE_RECT.y + 8, 2);
+        } else {
+            char answerText[12];
+            PC::optionText(q_, q_.answer, answerText, sizeof(answerText));
+            if (q_.mode == PC::Mode::Shade) snprintf(answerText, sizeof(answerText), "%u%%", q_.answer);
+            snprintf(buf, sizeof(buf), "It is %s", answerText);
+            tft.drawString(buf, cx, NOTE_RECT.y + 8, 2);
+        }
+        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.drawString("Tap for the next", cx, NOTE_RECT.y + 24, 1);
+    } else if (banner_) {
+        PC::levelLine(q_.level, buf, sizeof(buf));
+        tft.setTextColor(YELLOW, Ui::bg());
+        tft.drawString(buf, cx, NOTE_RECT.y + 14, 1);
     }
 
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
     tft.fillRect(0, 222, GAME_CANVAS_WIDTH, 18, Ui::bg());
-    char scoreStr[48];
-    snprintf(scoreStr, sizeof(scoreStr), "Score: %u  Streak: %u  Lvl: %u", score_, streak_, level());
-    tft.drawString(scoreStr, 8, 226, 1);
-
-    if (roundComplete_) {
-        tft.fillRoundRect(52, 96, 216, 68, 8, Ui::panel());
-        tft.drawRoundRect(52, 96, 216, 68, 8, Ui::success());
-        tft.setTextColor(Ui::success(), Ui::panel());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Correct!", 160, 120, 4);
-        tft.drawString("Tap next", 160, 150, 2);
-        tft.setTextDatum(TL_DATUM);
-    } else if (flashIndex_ >= 0 && flashIndex_ != SUBMIT_REFUSED) {
-        /* Not for the make round: its refusal is the OK button itself, and
-         * this line would be written across the middle of "Shade N%". */
-        tft.setTextColor(Ui::error(), Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", 160, 60, 2);
-        tft.setTextDatum(TL_DATUM);
-    }
+    snprintf(buf, sizeof(buf), "Level %u  Score %u  Streak %u", static_cast<unsigned>(q_.level),
+             static_cast<unsigned>(score_), static_cast<unsigned>(streak_));
+    tft.drawString(buf, 8, 226, 1);
 }
