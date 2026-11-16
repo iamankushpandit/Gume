@@ -282,6 +282,17 @@ include the likeliest mistake -- the fingers that are up when the question
 is how many are down, one hand when it is both -- and a finger tapped
 repaints its own hand rather than the whole screen.
 
+**Trace is a course of six stages.** It opened at A on every visit, with
+every arrow and dot showing, and remembered nothing. Now a player's stage
+says which tab it opens on and how much help is drawn: capitals, small
+letters, numbers and words, each moved on by tracing it through (26, 26, 10
+and 20 finished); then less help, without the numbered arrows and the guide
+arrow (30 finished, in any tab); then from memory, without the ghost line
+or the dots not yet reached -- the caption, the start ring and the next dot
+stay. Tracing has no wrong answer, so a stage only ever moves forward, and
+no tab is ever locked. The stage is kept between visits, and the letter
+that moves a player on says so on its "Great job" badge ("Next: Numbers").
+
 **Elements is a course of nine levels.** Its quiz drew one of six kinds of
 question at random, and its pool grew once enough elements had been answered
 right once, any way -- so a player who could name Iron was taken to know

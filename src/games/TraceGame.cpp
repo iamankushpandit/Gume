@@ -89,11 +89,26 @@ const char* TraceGame::title() const {
 }
 
 void TraceGame::begin(AppContext& host) {
-    (void)host;
     tracer_.configure(TRACE_GLYPHS, TRACE_SETS,
                       sizeof(TRACE_SETS) / sizeof(TRACE_SETS[0]));
-    tracer_.begin();
+    /* The player's stage says which tab opens and how much help is drawn;
+     * every tab is still a tap away. */
+    course_.start(TracingCourse::TRACE_STAGES, TracingCourse::TRACE_STAGE_COUNT,
+                  host.courseLevel());
+    const uint8_t set = course_.current().set;
+    tracer_.begin(set == TracingCourse::ANY_SET ? 0 : set);
+    tracer_.setAids(course_.current().aids);
     markFullDirty();
+}
+
+void TraceGame::countFinished(AppContext& host) {
+    if (!course_.finished(tracer_.setIndex())) return;
+    host.setCourseLevel(course_.stage());
+    TracingCourse::note(course_.current(), note_, sizeof(note_));
+    tracer_.setNote(note_);
+    tracer_.setAids(course_.current().aids);
+    host.pulseRgb(0, 255, 40, 450);
+    host.playSound(Sound::LevelUp);
 }
 
 /* Straight back to the letter and the dots already traced, with no question:
@@ -106,6 +121,7 @@ Game::Keep TraceGame::keepsGame() const {
 
 void TraceGame::update(AppContext& host, const TouchPoint& touch) {
     tracer_.update(host, touch);
+    if (tracer_.takeCompleted()) countFinished(host);
     /* BOTH are drained, every frame, before either is acted on. markFullDirty()
      * in the tracer raises both flags, so a short-circuit would leave the
      * plain one set and spend the next frame on a repaint nothing asked for. */

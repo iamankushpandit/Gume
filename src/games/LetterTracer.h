@@ -149,8 +149,19 @@ public:
     void configure(const Glyph* glyphs, const Set* sets, uint8_t setCount,
                    int16_t coordW = 200, int16_t coordH = 200);
 
-    /** Back to the first letter of the first alphabet. */
-    void begin();
+    /** Back to the first letter of alphabet `set` (the first by default). */
+    void begin(uint8_t set = 0);
+
+    /* How much help is drawn: 0 all of it, 1 without the numbered arrows and
+     * the guide arrow, 2 without the ghost line and the dots not yet reached
+     * as well -- the caption, the start ring and the next dot stay. A course
+     * stage sets it (TracingCourse.h); it never locks anything. */
+    void setAids(uint8_t aids);
+    /** The tab being traced, for a shell counting finished glyphs by tab. */
+    uint8_t setIndex() const { return setIndex_; }
+    /* Words for the "Great job" badge in place of its own, on the glyph just
+     * finished only; the pointer must outlive the badge. */
+    void setNote(const char* note) { note_ = note; }
     void update(AppContext& host, const TouchPoint& touch);
     /* `fullRender` comes from the shell's needsFullRender(), because whether
      * the chrome needs repainting is the Game's business and not the
@@ -307,6 +318,8 @@ private:
      * the dots it is pointing along. */
     Arrow guide_ = {};
     bool guideShown_ = false;
+    uint8_t aids_ = 0;
+    const char* note_ = nullptr;
     /* What the panel actually has, so a partial frame can erase exactly the
      * pixels it drew last time. */
     Arrow guideDrawn_ = {};
