@@ -129,8 +129,10 @@ Rect ElementsGame::optionRect(int16_t w, uint8_t index, uint8_t count) {
      * state question does not shuffle the buttons under a player's finger
      * relative to every other question. */
     (void)count;
-    return Rect{10, static_cast<int16_t>(90 + index * 36),
-                static_cast<int16_t>(w - 20), 32};
+    /* Four at a 34px pitch end at y=222, clear of the score line at 228;
+     * at 36 the fourth reached 229 and the score's clear took its bottom. */
+    return Rect{10, static_cast<int16_t>(90 + index * 34),
+                static_cast<int16_t>(w - 20), 30};
 }
 
 Rect ElementsGame::levelRect(int16_t w, uint8_t index) {
@@ -161,36 +163,21 @@ uint8_t ElementsGame::cellHit(int16_t x, int16_t y) {
 
 // ---- level -----------------------------------------------------------------
 
-uint8_t ElementsGame::tierMastery(uint8_t tier) const {
-    uint16_t total = 0;
-    uint16_t known = 0;
-    for (uint16_t i = 0; i < ELEMENT_COUNT; ++i) {
-        if (ELEMENTS[i].tier > tier) continue;
-        ++total;
-        if (progress_.score(i) > 0) ++known;
-    }
-    return total == 0 ? 0 : static_cast<uint8_t>((known * 100UL) / total);
+uint8_t ElementsGame::quizLevel() const {
+    if (tierPin_ >= 1 && tierPin_ <= 3) return static_cast<uint8_t>(tierPin_ * 3);
+    return ladder_.level();
 }
 
 uint8_t ElementsGame::activeTier() const {
-    if (tierPin_ >= 1 && tierPin_ <= 3) return tierPin_;
-    /* Auto. Deliberately measured over the tier being practised rather than
-     * Progress::masteryPercent(), which counts only items already seen and so
-     * would read 100% after two lucky answers. */
-    if (tierMastery(1) < 80) return 1;
-    if (tierMastery(2) < 70) return 2;
-    return 3;
-}
-
-bool ElementsGame::inPool(uint16_t index, void* ctx) {
-    const ElementsGame* self = static_cast<const ElementsGame*>(ctx);
-    return index < ELEMENT_COUNT && ELEMENTS[index].tier <= self->activeTier();
+    return ElementsCourse::tierFor(quizLevel());
 }
 
 // ---- lifecycle -------------------------------------------------------------
 
 void ElementsGame::begin(AppContext& host) {
-    progress_.begin(host, "elemProg", ELEMENT_COUNT);
+    ladder_.start(ElementsCourse::LEVEL_COUNT, host.courseLevel());
+    deckTier_ = 0;
+    announce_ = false;
     const uint32_t pin = host.getScore(TIER_KEY, 0);
     tierPin_ = pin <= 3 ? static_cast<uint8_t>(pin) : 0;
 
@@ -204,11 +191,6 @@ void ElementsGame::begin(AppContext& host) {
     wrappedFor_ = 0xFF;
     nextQuestion();
     markFullDirty();
-}
-
-void ElementsGame::end(AppContext& host) {
-    (void)host;
-    progress_.flush();
 }
 
 /* Points scored are a quiz under way. Without them it is a place -- a tab, a
@@ -524,13 +506,19 @@ void ElementsGame::render(AppContext& host) {
         case Tab::Level:   renderLevel(host);   break;
     }
 
-    if (tab_ == Tab::Quiz) {
+    /* Not under "Find it": the line below the chart is that question's
+     * confirm hint, and the score used to be printed over it. */
+    if (tab_ == Tab::Quiz && !questionUsesTable()) {
         char buf[32];
-        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.setTextColor(announce_ ? Ui::success() : Ui::muted(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "%u pts  x%u", static_cast<unsigned>(score_),
-                 static_cast<unsigned>(streak_));
-        tft.fillRect(8, SCORE_Y, 150, 12, Ui::bg());
+        if (announce_) {
+            ElementsCourse::levelLine(quizLevel(), buf, sizeof(buf));   // a step up
+        } else {
+            snprintf(buf, sizeof(buf), "%u pts  x%u", static_cast<unsigned>(score_),
+                     static_cast<unsigned>(streak_));
+        }
+        tft.fillRect(8, SCORE_Y, 190, 12, Ui::bg());
         tft.drawString(buf, 8, SCORE_Y, 1);
     }
 }

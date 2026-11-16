@@ -10,6 +10,7 @@
 #pragma once
 
 #include "LetterTracer.h"
+#include "TracingCourse.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
@@ -50,7 +51,12 @@ public:
     using Glyph = LetterTracer::Glyph;
 
 private:
+    /* A finished glyph counts towards the stage; a stage up is stored. */
+    void countFinished(AppContext& host);
+
     LetterTracer tracer_;
+    TracingCourse::Progress course_;
+    char note_[TracingCourse::NOTE_MAX] = {};
     /* How many letters and words this player has finished tracing, ever.
      *
      * A count rather than a best, and it only ever goes up: there is nothing

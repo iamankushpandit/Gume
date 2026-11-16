@@ -32,6 +32,7 @@ using namespace LetterTracerLayout;
  * IDEMPOTENT, like drawGhost() and drawAllDots(): it paints each arrow's exact
  * pixels, so it can be re-run to repair whatever an erase took. */
 void LetterTracer::drawArrows(Ui::Renderer& tft) {
+    if (aids_ >= 1) return;   // a stage without arrows
     tft.setTextDatum(MC_DATUM);
     for (uint8_t i = 0; i < arrowCount_; ++i) {
         /* All of them muted, including the stroke being traced. They are the
@@ -235,7 +236,7 @@ void LetterTracer::drawCaption(Ui::Renderer& tft) {
  * visibly corners on the tight curves -- which is exactly where a young player needs
  * the target to be accurate. */
 void LetterTracer::drawGhost(Ui::Renderer& tft) {
-    if (glyphs_ == nullptr) return;
+    if (glyphs_ == nullptr || aids_ >= 2) return;   // from memory: no ghost
     const Glyph& g = glyph();
     for (uint8_t st = 0; st < g.strokeCount && st < MAX_STROKES; ++st) {
         const Stroke& s = g.strokes[st];
@@ -276,7 +277,10 @@ void LetterTracer::drawAllDots(Ui::Renderer& tft) {
             } else if (active && i == inked) {
                 tft.fillCircle(pts_[idx].x, pts_[idx].y, NEXT_R,
                                pulseState_ ? Ui::text() : Ui::warning());
-            } else {
+            } else if (aids_ < 2) {
+                /* From memory, a dot not yet reached is not drawn: the
+                 * player writes towards the one next dot. Nothing drawn,
+                 * so nothing has to be erased. */
                 tft.fillCircle(pts_[idx].x, pts_[idx].y, dotR, Ui::muted());
             }
         }
@@ -316,7 +320,9 @@ void LetterTracer::drawCompleteStatus(Ui::Renderer& tft) {
      * without stealing room from the letter for the whole game to pay for a
      * message that shows for a moment. Painted only on the repaint completion
      * triggers, and wiped by the next one. */
-    const int16_t w = 156;
+    const char* words = note_ != nullptr ? note_ : "Great job";
+    const int16_t wide = static_cast<int16_t>(tft.textWidth(words, 2) + 16);
+    const int16_t w = wide > 156 ? (wide > DRAW_W ? DRAW_W : wide) : 156;
     const int16_t h = 21;
     const int16_t x = static_cast<int16_t>(DRAW_X + (DRAW_W - w) / 2);
     const int16_t y = static_cast<int16_t>(DRAW_Y + DRAW_H - h - 2);
@@ -326,7 +332,7 @@ void LetterTracer::drawCompleteStatus(Ui::Renderer& tft) {
      * ink comes from the fill rather than from an assumption about it. */
     tft.setTextColor(Ui::onFill(Ui::success()), Ui::success());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("Great job", static_cast<int16_t>(x + w / 2),
+    tft.drawString(words, static_cast<int16_t>(x + w / 2),
                    static_cast<int16_t>(y + h / 2), 2);
 }
 

@@ -144,7 +144,7 @@ that, so a label that overflows looks perfect in every mock-up.
 
 ## A quiz that is a course
 
-Math, Multiplication, Counting, Shape Arith, Fingers, Time, Number Line, Calendar, Color Mix, Shapes, Odd One Out, Money, Fractions, Percent, Roman, Sorting, Memory, Cinnamon, Flags, State Flags, State Maps, US States, Space and GRE Words keep each player's level between visits and
+Math, Multiplication, Counting, Shape Arith, Fingers, Time, Number Line, Calendar, Color Mix, Shapes, Odd One Out, Money, Fractions, Percent, Roman, Sorting, Memory, Cinnamon, Flags, State Flags, State Maps, US States, Space, GRE Words, Elements, Trace and Cursive keep each player's level between visits and
 deal every question of a level before any comes back. The pieces are
 `../engine/Course.h` (`Course::Ladder`, `Course::QuestionDeck`) and, for each
 game, a pure `<Game>Course.h` that knows its levels: how many questions each
@@ -724,6 +724,13 @@ who has never held a pencil to joined writing would read it.
   strokes, and a screen clear between each was exactly the flashing the root
   rendering rule forbids. `tools/gen_screens.py` restates the placement
   candidate for candidate; change both or the stills lie.
+- **A course stage takes help away; it never locks anything.** Trace and
+  Cursive keep a stage (`TracingCourse.h`), moved on by glyphs finished and
+  never back, which says which tab opens and how much is drawn:
+  `setAids(1)` drops the numbered arrows and the guide arrow, `setAids(2)`
+  the ghost line and the dots not yet reached as well. Both paths simply do
+  not draw, so nothing has to be erased, and the next dot and the start
+  ring always stay. `setNote()` puts words on the finished glyph's badge.
 - **A `Set` may be spelled rather than stored** (`alphabet` names the table
   index of 'a'). Trace's Words tab is strings only: each word is laid out from
   the lowercase letters in `LetterTracerWords.cpp`, all at one scale set by the

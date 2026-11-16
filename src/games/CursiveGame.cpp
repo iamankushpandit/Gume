@@ -91,9 +91,25 @@ void CursiveGame::begin(AppContext& host) {
     tracer_.configure(CURSIVE_GLYPHS, CURSIVE_SETS,
                       sizeof(CURSIVE_SETS) / sizeof(CURSIVE_SETS[0]),
                       CURSIVE_COORD_W, CURSIVE_COORD_H);
-    tracer_.begin();
+    /* The player's stage says which tab opens and how much help is drawn;
+     * every tab is still a tap away. */
+    course_.start(TracingCourse::CURSIVE_STAGES, TracingCourse::CURSIVE_STAGE_COUNT,
+                  host.courseLevel());
+    const uint8_t set = course_.current().set;
+    tracer_.begin(set == TracingCourse::ANY_SET ? 0 : set);
+    tracer_.setAids(course_.current().aids);
     practised_ = host.getScore(CURSIVE_SCORE.bestKey);
     markFullDirty();
+}
+
+void CursiveGame::countFinished(AppContext& host) {
+    if (!course_.finished(tracer_.setIndex())) return;
+    host.setCourseLevel(course_.stage());
+    TracingCourse::note(course_.current(), note_, sizeof(note_));
+    tracer_.setNote(note_);
+    tracer_.setAids(course_.current().aids);
+    host.pulseRgb(0, 255, 40, 450);
+    host.playSound(Sound::LevelUp);
 }
 
 /* Straight back to the letter or word and the dots already traced, as in
@@ -122,6 +138,7 @@ void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
         host.setScore(CURSIVE_SCORE.bestKey, practised_);
         host.saveBestScore(CURSIVE_SCORE.bestKey, practised_,
                            CURSIVE_SCORE.lowerIsBetter);
+        countFinished(host);
     }
 
     const bool full = tracer_.takeFullDirty();

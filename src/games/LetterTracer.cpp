@@ -75,8 +75,15 @@ uint8_t LetterTracer::setStartIndex() const {
     return static_cast<uint8_t>(first + (esp_random() % s.count));
 }
 
-void LetterTracer::begin() {
-    selectSet(0);
+void LetterTracer::begin(uint8_t set) {
+    selectSet(set);
+}
+
+void LetterTracer::setAids(uint8_t aids) {
+    if (aids == aids_) return;
+    aids_ = aids;
+    updateGuide();
+    markFullDirty();
 }
 
 /* Switch alphabet. A spelled set works out its one word scale here, once,
@@ -147,6 +154,7 @@ uint8_t LetterTracer::setLastIndex() const {
 
 void LetterTracer::loadGlyph() {
     glyphIndex_ = constrain(glyphIndex_, setFirstIndex(), setLastIndex());
+    note_ = nullptr;
     complete_ = false;
     completeAt_ = 0;
     activeStroke_ = 0;
