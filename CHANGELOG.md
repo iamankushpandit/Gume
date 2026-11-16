@@ -10,6 +10,15 @@ In development on `dev`. Nothing here has shipped; the version carries the
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Turning the launcher's page leaves nothing of the page before.** On page
+3, Cinnamon's highlighted pad left the bottom of its white ring on the tile
+that took its place, and every tile lost the four corner pixels of its
+outline whenever the page turned, on every board. A page turn repaints only
+the inside of each tile, and Cinnamon's ring (and Shape & Color's triangle,
+by a pixel) reached past it onto the tile's border; both now stay inside the
+icon box their file states, a host test checks all 47 icons against it, and
+the erase is rounded to match the border instead of cutting its corners.
+
 **Every game can be switched off for a player now.** Chess, Sea Battle,
 Cursive, Ludo, Backgammon, Go, Space and Roman -- the last eight in
 the launcher -- could not be hidden, from Profiles or from the console's
@@ -114,7 +123,11 @@ and is measured with the same widths it is drawn with, so nothing is cut
 short that was not before: where FreeSans would run wider than the
 ESP32's font on a word, it is drawn a little narrower. The Braino! mark is
 drawn from its artwork at the screen's resolution too, rather than as
-doubled pixels. Every screen and all forty games were photographed at
+doubled pixels, and so are the icons: on the Linux build every circle,
+rounded corner, slanted line and triangle -- the header's padlock, speaker,
+gear and Wi-Fi badge, every launcher tile's icon, the pies, the clocks and
+the game boards -- is drawn at the screen's own resolution with smooth
+edges, where it was a staircase of doubled pixels. Every screen and all forty games were photographed at
 640x480 and checked: the eight games that came out small on the first
 RG40XX V card (Trace, Counting, Tic-Tac-Toe, Math, Multiply, Time, US States,
 State Flags) are the same size as the rest. Games keep their 320x240 canvas, drawn at the

@@ -17,3 +17,7 @@ bool PanelArt::drawLogo(TFT_eSPI&, uint8_t, int16_t, int16_t, const uint8_t*, in
                         int16_t, int16_t, uint16_t) {
     return false;
 }
+
+bool PanelArt::drawArc(TFT_eSPI&, int16_t, int16_t, int16_t, int16_t, int16_t, uint16_t) {
+    return false;
+}

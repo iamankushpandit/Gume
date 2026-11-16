@@ -276,12 +276,48 @@ mark sign in FreeSans at the height of the mask's sign -- the small
 wordmarks carry none, as on a board. At a UI scale of 1 it declines, so a
 320x240 window shows exactly the board's mark.
 
+**Nor are the shapes** (`src/HostTftShapes.cpp`). Every icon in the header
+and on the launcher's tiles is drawn from primitives, and drawn as blocks of
+the scale they were the last 2x2 staircases on the panel once text and the
+mark were smooth. At a UI scale of 2 or more, a circle, a ring, a rounded
+corner, a slanted line and a triangle are drawn at the real resolution from
+their logical geometry times the scale, radius and thickness included, with
+anti-aliased edges; rectangles, straight lines and single pixels stay whole
+blocks, which is exactly their shape already. Three rules keep it the
+firmware's picture:
+
+- **A shape covers what TFT_eSPI's covers.** Logical pixels are filled to
+  their edges: a circle of radius r reaches r + 0.5 to its rim, a ring is one
+  logical pixel thick about r, a line one pixel thick with square ends, a
+  triangle half a pixel past its vertices' centres. So a fill and the outline
+  on it share a rim, and two wedges of one pie overlap rather than leave a
+  hairline.
+- **A redraw changes nothing** (`blendReal()` in `src/HostTft.cpp`). The
+  screens redraw the same shape over itself all the time, and a blend drawn
+  twice is darker. Each pixel left partly covered remembers what it was
+  blended over, in what colour, how much and by which shape (a hash of what
+  and where): the same shape again keeps the larger coverage, another shape
+  of the same colour adds to it (a thick ring drawn as rings one pixel apart
+  closes up), another colour covering as much is drawn over the same ground
+  (no halo of a fill outside its outline), and a solid write forgets it all.
+  Text and the mark go through the same door.
+- **At a UI scale of 1 none of it runs**, so a 320x240 window draws its
+  shapes exactly as a board does.
+
+Two glyphs plot their arcs pixel by pixel rather than as shapes -- the
+speaker's two waves and the Wi-Fi badge's fan -- and they are offered to
+the platform first, as the mark is: `Renderer::drawArcArt()` ->
+`PanelArt::drawArc()`. The ESP32 one declines and the same pixels are
+plotted; here `drawArcReal()` draws the arc. The gear's hub is rings of
+radius 4, 3 and 2 and a dot of 1, which are one solid disc; a board's
+midpoint circles leave pinholes between them, so on the panel it reads as
+texture and here as solid. That is the glyph's geometry, not a fault in the
+drawing.
+
 **What is still blocks, and why.** The flags and state maps are bitmaps
 (`map-n-flag`) at the size the 2.8-inch panel shows them, so at 2x they are
 their own pixels doubled; sharper ones need bigger artwork, which is flash
-on every board. Everything drawn as shapes -- buttons, tiles, the launcher's
-icons, boards, clocks -- is drawn in logical pixels, each a block of the
-scale.
+on every board.
 
 Everything else reads that one answer:
 
@@ -310,7 +346,8 @@ Everything else reads that one answer:
 | `boards/host.h` | A board profile whose every pin is **virtual**. It is deliberately not in `include/boards/`, which would make it a claim of support that `check_boards.py` and the web installer would hold it to. |
 | `shim/` | Arduino, TFT_eSPI, Preferences, NVS, FreeRTOS, Wire, I2S, Wi-Fi, SD and the ESP-IDF calls `src/` makes -- **only** what `src/` calls. A new platform call in `src/` breaks this build until a shim answers it, which is the intended way to find out. |
 | `src/HostTft.cpp` | The panel: one RGB565 frame at the real resolution of the panel found at start-up, laid out in logical pixels over the UI scale, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, cells, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). TFT_eSPI's own font tables, fetched at the pinned version and never copied into this tree, give the cells and font 1's fallback glyphs. |
-| `src/HostLogoArt.cpp` | `PanelArt`: the product mark from its SVG, at the real resolution. |
+| `src/HostTftShapes.cpp`, `HostTftText.cpp` | The panel's shapes, and its text in the bitmap fonts' cells; split from `HostTft.cpp`. |
+| `src/HostLogoArt.cpp` | `PanelArt`: the product mark from its SVG, and the plotted arcs, at the real resolution. |
 | `src/HostText.cpp` | The text itself: GNU FreeSans (`fonts/`, GPL-3.0-or-later with the font exception), rasterised by stb_truetype (`third_party/`, public domain or MIT) and cached per size. |
 | `src/HostWire.cpp` | An emulated FT6336U answering BoardTouch's one transaction with the pointer, in the panel's native portrait frame. |
 | `src/HostPanelSize.cpp` | `PanelSize`: the panel `HostPlatform` found, for `src/`. |

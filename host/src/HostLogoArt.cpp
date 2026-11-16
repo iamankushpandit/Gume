@@ -99,6 +99,13 @@ void findSign(Drawn& d, const uint8_t* bits, int16_t w, int16_t h, int16_t strid
 
 }   // namespace
 
+bool PanelArt::drawArc(TFT_eSPI& panel, int16_t cx, int16_t cy, int16_t radius, int16_t fromDeg,
+                       int16_t toDeg, uint16_t colour) {
+    if (panel.frameScale() < 2) return false;   // at 1:1 the pixels are the art
+    panel.drawArcReal(cx, cy, radius, fromDeg, toDeg, colour);
+    return true;
+}
+
 bool PanelArt::drawLogo(TFT_eSPI& panel, uint8_t which, int16_t x0, int16_t y0,
                         const uint8_t* bits, int16_t width, int16_t height, int16_t stride,
                         uint16_t colour) {

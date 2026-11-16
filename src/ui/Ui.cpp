@@ -773,6 +773,8 @@ void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
         const WifiPixel* arc = WIFI_ARCS[band];
         const uint8_t count = WIFI_ARC_COUNTS[band];
         const uint16_t col = lit >= band + 2 ? on : off;
+        /* The same arc, drawn by a platform that can (ui/PanelArt.h). */
+        if (tft.drawArcArt(cx, dotY, static_cast<int16_t>(3 * (band + 1)), -132, -48, col)) continue;
         for (uint8_t i = 0; i < count; ++i) {
             tft.drawPixel(static_cast<int16_t>(cx + arc[i].dx),
                           static_cast<int16_t>(dotY + arc[i].dy), col);
@@ -934,6 +936,8 @@ void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colo
      * plotted by hand is four pixels each. */
     for (int8_t band = 0; band < 2; ++band) {
         const int16_t rad = static_cast<int16_t>(2 + band * 3);
+        /* The same arc, drawn by a platform that can (ui/PanelArt.h). */
+        if (tft.drawArcArt(static_cast<int16_t>(waveX - 1), cy, rad, -60, 60, colour)) continue;
         for (int16_t dy = static_cast<int16_t>(-rad); dy <= rad; ++dy) {
             const int32_t dx2 = static_cast<int32_t>(rad) * rad - static_cast<int32_t>(dy) * dy;
             if (dx2 < 0) continue;
