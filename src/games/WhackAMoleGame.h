@@ -10,8 +10,6 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/Course.h"
-#include "WhackCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -45,13 +43,6 @@ private:
     void drawSmile(Ui::Renderer& tft, const Rect& r) const;
     void drawCell(Ui::Renderer& tft, uint8_t index, uint8_t state);
 
-    /* One answer per mole; true on a step up, announced in place of the
-     * hit's sound. */
-    bool judge(AppContext& host, WhackCourse::Outcome outcome);
-
-    Course::Ladder ladder_;
-    bool activeDecoy_ = false;   // the mole up now frowns: leave it alone
-    bool climbed_ = false;       // the header names the new level
     int8_t activeCell_ = -1;
     int8_t flashCell_ = -1;
     uint16_t score_ = 0;
@@ -91,6 +82,4 @@ private:
     uint8_t drawnLevel_ = 0xFF;
     uint8_t drawnMiss_ = 0xFF;
     bool drawnOver_ = false;
-    bool drawnClimbed_ = false;
-    uint16_t drawnSpeed_ = 0xFFFF;
 };
