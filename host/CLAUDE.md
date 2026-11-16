@@ -202,8 +202,8 @@ synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
 What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
-regex: the hardware watchdog, the codec/DAC backend, and the three per-platform
-interfaces, `PowerProbe`, `SystemSuspend`, `PanelSize` and `SleepPower` (which
+regex: the hardware watchdog, the codec/DAC backend, and the per-platform
+interfaces, `PowerProbe`, `SystemSuspend`, `PanelSize`, `PanelArt` and `SleepPower` (which
 answers no to everything here: `HostSleep` already slows the cores and takes
 the Wi-Fi interface down). Their host versions are in `src/Host*.cpp`, and
 each says why.
@@ -254,11 +254,34 @@ UI scale. Three rules hold it to the firmware's layout:
   lands in the boxes the screens laid out.
 - **Width is measured with the advances that draw.** `textWidth()` sums the
   same whole-pixel glyph advances `ttDraw()` moves its pen by, so
-  `Ui::fitted()`, wrapping and centring measure exactly what appears. FreeSans
-  is a little narrower than the bitmaps, so nothing cut on a board grows.
+  `Ui::fitted()`, wrapping and centring measure exactly what appears.
+- **No word is wider than the bitmap font draws it.** At font 2's capital
+  height FreeSans matches it on average but runs a tenth wider on words with
+  m and w, so System Info's "Network" tab read "Netwo" where a board reads
+  "Networ". `ttWidthPermille()` narrows each face just enough that the widest
+  of the screens' own words fits (font 2 is drawn at 88.4% of its width,
+  fonts 1 and 4 unchanged; the log says so), keeping the capitals' height.
+  So a cut on the PC is a cut on a board, and the other way round.
 - **What TFT_eSPI would not draw, this does not draw.** Fonts 6, 7 and 8 are
   not loaded and draw nothing; fonts 2 and 4 draw only 32..126; font 1 draws
   up to 255, from its bitmap where FreeSans has no glyph.
+
+**Nor is the product mark.** `Ui::drawLogo()` offers the mark to the
+renderer first (`Renderer::drawLogoArt()` -> `PanelArt`, `src/ui/PanelArt.h`)
+and paints the one-bit `LogoMask` only when it declines. Here
+`src/HostLogoArt.cpp` rasterises the same SVG the mask was made from
+(`HostSplash::markPart()`, which is `gen_logo_mask.py`'s select, bounds and
+fill) at the real resolution, into the mask's own box, and sets the trade
+mark sign in FreeSans at the height of the mask's sign -- the small
+wordmarks carry none, as on a board. At a UI scale of 1 it declines, so a
+320x240 window shows exactly the board's mark.
+
+**What is still blocks, and why.** The flags and state maps are bitmaps
+(`map-n-flag`) at the size the 2.8-inch panel shows them, so at 2x they are
+their own pixels doubled; sharper ones need bigger artwork, which is flash
+on every board. Everything drawn as shapes -- buttons, tiles, the launcher's
+icons, boards, clocks -- is drawn in logical pixels, each a block of the
+scale.
 
 Everything else reads that one answer:
 
@@ -287,6 +310,7 @@ Everything else reads that one answer:
 | `boards/host.h` | A board profile whose every pin is **virtual**. It is deliberately not in `include/boards/`, which would make it a claim of support that `check_boards.py` and the web installer would hold it to. |
 | `shim/` | Arduino, TFT_eSPI, Preferences, NVS, FreeRTOS, Wire, I2S, Wi-Fi, SD and the ESP-IDF calls `src/` makes -- **only** what `src/` calls. A new platform call in `src/` breaks this build until a shim answers it, which is the intended way to find out. |
 | `src/HostTft.cpp` | The panel: one RGB565 frame at the real resolution of the panel found at start-up, laid out in logical pixels over the UI scale, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, cells, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). TFT_eSPI's own font tables, fetched at the pinned version and never copied into this tree, give the cells and font 1's fallback glyphs. |
+| `src/HostLogoArt.cpp` | `PanelArt`: the product mark from its SVG, at the real resolution. |
 | `src/HostText.cpp` | The text itself: GNU FreeSans (`fonts/`, GPL-3.0-or-later with the font exception), rasterised by stb_truetype (`third_party/`, public domain or MIT) and cached per size. |
 | `src/HostWire.cpp` | An emulated FT6336U answering BoardTouch's one transaction with the pointer, in the panel's native portrait frame. |
 | `src/HostPanelSize.cpp` | `PanelSize`: the panel `HostPlatform` found, for `src/`. |

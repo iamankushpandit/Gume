@@ -35,9 +35,16 @@ struct Glyph {
     std::vector<uint8_t> alpha;  // w * h, 0..255
 };
 
-/* The glyph for `code` with capitals `capPx` real pixels tall, or nullptr if
- * the font has none for it (the caller falls back to the bitmap font or draws
- * nothing, as TFT_eSPI would). Cached for the life of the program. */
-const Glyph* glyph(int capPx, uint32_t code);
+/* The glyph for `code` with capitals `capPx` real pixels tall, drawn
+ * `widthPermille` thousandths as wide as the face's own proportions (1000 is
+ * the face as designed), or nullptr if the font has none for it (the caller
+ * falls back to the bitmap font or draws nothing, as TFT_eSPI would). Cached
+ * for the life of the program. */
+const Glyph* glyph(int capPx, int widthPermille, uint32_t code);
+
+/* The face's own metrics in font units, for working out a width: a glyph's
+ * advance (-1 when the font has none) and the height of 'H'. */
+int advanceUnits(uint32_t code);
+int capHeightUnits();
 
 }   // namespace HostText

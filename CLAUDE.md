@@ -578,8 +578,11 @@ the guide. Three things about it are load-bearing:
   (`host/src/HostPanelSize.cpp`). Every pixel is still drawn at the panel's
   own resolution: nothing draws a 320x240 picture to be stretched by somebody
   else, and on Linux text is GNU FreeSans, anti-aliased at that resolution,
-  measured with the advances that draw it, in the bitmap fonts' cells
-  (`host/src/HostText.cpp`). Anything that means "the
+  measured with the advances that draw it, in the bitmap fonts' cells, and
+  narrowed where its widest word would outrun the bitmap font's
+  (`host/src/HostText.cpp`). The product mark is drawn from its SVG there
+  too, through `PanelArt` (`src/ui/PanelArt.h`): a board's answer declines and
+  the one-bit `LogoMask` stays the art, one pixel to one. Anything that means "the
   panel in front of the player" -- the canvas fit, touch mapping, the boot
   banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
   are the profile's compile-time panel and on the host only the floor the
@@ -796,7 +799,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,679,373 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,679,561 / 3,145,728 bytes,
 **85.2%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 94,572 / 327,680 (28.9%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
@@ -1866,7 +1869,9 @@ src/ui/                   Renderer, TftRenderer, PaintClip (the arithmetic of
                           drawn), FocusMath (where the selector goes next;
                           shared with the Linux host),
                           LauncherLayout, LogoMask (generated -- the product
-                          mark, as a one-bit silhouette), Stops (what a
+                          mark, as a one-bit silhouette), PanelArt (the mark
+                          drawn by a platform that can do better than the
+                          mask), Stops (what a
                           screen says about its board: whether the d-pad's
                           selector may stop on it just now)
 tools/                    gen_screens.py, gen_site.py, check_docs.py,

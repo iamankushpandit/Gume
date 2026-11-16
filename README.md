@@ -40,7 +40,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,679,373 / 3,145,728 bytes of the app partition (**85.2%**) |
+| Flash | 2,679,561 / 3,145,728 bytes of the app partition (**85.2%**) |
 | RAM | 94,572 / 327,680 bytes (**28.9%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -1827,6 +1827,8 @@ src/
     PaintClip.h         the arithmetic of that adapter's paint clip
     LauncherIcons.cpp   launcher tile icon drawing
     LogoMask.cpp        the product mark, generated -- see tools/gen_logo_mask.py
+    PanelArt.h          the mark drawn by a platform that can do better than the mask
+    PanelArtEsp32.cpp   a board's: it cannot, the mask is the art
     LauncherLayout.cpp  launcher header, profile and tile geometry
     FocusRecorder.cpp   the controls on the panel, as drawn, for the selector
     FocusMath.h         where the selector goes next (shared with host/)

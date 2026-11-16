@@ -111,7 +111,13 @@ buttons and the tiles keep the proportions they have on the 2.8-inch board;
 on the Linux build is GNU FreeSans, anti-aliased at the screen's real
 resolution, instead of the ESP32's pixel fonts. It sits in the same places
 and is measured with the same widths it is drawn with, so nothing is cut
-short that was not before. Games keep their 320x240 canvas, drawn at the
+short that was not before: where FreeSans would run wider than the
+ESP32's font on a word, it is drawn a little narrower. The Braino! mark is
+drawn from its artwork at the screen's resolution too, rather than as
+doubled pixels. Every screen and all forty games were photographed at
+640x480 and checked: the eight games that came out small on the first
+RG40XX V card (Trace, Counting, Tic-Tac-Toe, Math, Multiply, Time, US States,
+State Flags) are the same size as the rest. Games keep their 320x240 canvas, drawn at the
 largest whole scale that fits, centred, with their text at that scale. That
 is the rule for every platform from here on: it states how big its panel is
 (`PanelSize`), and nothing is stretched after the fact. The ESP32 boards'

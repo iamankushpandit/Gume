@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 /* The boot splash, drawn at the panel's own resolution. See HostSplash.cpp. */
 namespace HostSplash {
@@ -28,5 +29,12 @@ bool writeBmp(const char* path, int w, int h, float progress, float glow = 1.0f)
  * launcher): show the splash across the window and fill the loading bar to
  * 100% before the first screen. A no-op otherwise. */
 void runBootPhase();
+
+/* The mark's coverage, 0..1, `height` real pixels tall and fitted to the
+ * part's own ink -- the same art and the same fitting as the firmware's
+ * one-bit LogoMask (tools/gen_logo_mask.py), anti-aliased. `width` is set.
+ * HostLogoArt.cpp draws the firmware's marks with it. */
+enum class MarkPart : uint8_t { Badge, Wordmark, Icon };
+std::vector<float> markPart(MarkPart part, int height, int& width);
 
 }   // namespace HostSplash

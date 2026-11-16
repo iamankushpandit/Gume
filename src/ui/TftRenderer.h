@@ -12,6 +12,7 @@
 #include <TFT_eSPI.h>
 #include "ui/FocusRecorder.h"
 #include "ui/PaintClip.h"
+#include "ui/PanelArt.h"
 #include "ui/Renderer.h"
 
 namespace Ui {
@@ -51,6 +52,11 @@ public:
                        int32_t radius, uint16_t color) override {
         tft_.drawRoundRect(x, y, w, h, radius, color);
         Focus::noteOutline(x, y, w, h, radius, color);
+    }
+    bool drawLogoArt(uint8_t which, int16_t x0, int16_t y0, const uint8_t* bits,
+                     int16_t width, int16_t height, int16_t stride,
+                     uint16_t colour) override {
+        return PanelArt::drawLogo(tft_, which, x0, y0, bits, width, height, stride, colour);
     }
     void drawFastHLine(int32_t x, int32_t y, int32_t w, uint16_t color) override {
         tft_.drawFastHLine(x, y, w, color);

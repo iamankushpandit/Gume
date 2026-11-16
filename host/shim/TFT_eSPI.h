@@ -186,6 +186,14 @@ public:
     int16_t frameWidth() const { return frameW_; }
     int16_t frameHeight() const { return frameH_; }
     int16_t frameScale() const { return scale_; }
+
+    /* Coverage drawn at the real resolution: `w` x `h` real pixels of alpha,
+     * with its top-left at logical (x, y) -- viewport datum and all, as any
+     * primitive -- moved by (dx, dy) real pixels. Clipped to the viewport and
+     * the paint clip like every other pixel. The product mark
+     * (HostLogoArt.cpp) is drawn with it. */
+    void blendArt(int32_t x, int32_t y, int32_t dx, int32_t dy, const uint8_t* alpha,
+                  int32_t w, int32_t h, uint16_t color);
     /* Moves whenever a pixel is written, so the window is shown again only
      * when there is something new to show. */
     uint32_t frameGeneration() const { return frameGen_; }
@@ -265,6 +273,7 @@ private:
                           uint16_t color);
     int16_t drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font);
     int32_t ttCapPx(uint8_t font) const;
+    int32_t ttWidthPermille(uint8_t font) const;
     int32_t ttAdvance(const char* text, uint8_t font) const;
     int32_t ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, int32_t w, int32_t h);
     void blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a);

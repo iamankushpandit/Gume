@@ -48,9 +48,20 @@ std::unordered_map<uint64_t, bool> missing;
 
 }   // namespace
 
-const Glyph* glyph(int capPx, uint32_t code) {
-    if (capPx <= 0 || !ready()) return nullptr;
-    const uint64_t key = (static_cast<uint64_t>(capPx) << 32) | code;
+int advanceUnits(uint32_t code) {
+    if (!ready()) return -1;
+    if (code != ' ' && stbtt_FindGlyphIndex(&font, static_cast<int>(code)) == 0) return -1;
+    int adv = 0, lsb = 0;
+    stbtt_GetCodepointHMetrics(&font, static_cast<int>(code), &adv, &lsb);
+    return adv;
+}
+
+int capHeightUnits() { return ready() ? capUnits : 0; }
+
+const Glyph* glyph(int capPx, int widthPermille, uint32_t code) {
+    if (capPx <= 0 || widthPermille <= 0 || !ready()) return nullptr;
+    const uint64_t key = (static_cast<uint64_t>(capPx) << 42) |
+                         (static_cast<uint64_t>(widthPermille & 0x3FF) << 32) | code;
     const auto hit = cache.find(key);
     if (hit != cache.end()) return &hit->second;
     if (missing.count(key)) return nullptr;
@@ -60,19 +71,20 @@ const Glyph* glyph(int capPx, uint32_t code) {
     }
 
     const float scale = static_cast<float>(capPx) / static_cast<float>(capUnits);
+    const float scaleX = scale * static_cast<float>(widthPermille) / 1000.0f;
     Glyph g;
     int adv = 0, lsb = 0;
     stbtt_GetCodepointHMetrics(&font, static_cast<int>(code), &adv, &lsb);
-    g.advance = static_cast<int16_t>(std::lround(adv * scale));
+    g.advance = static_cast<int16_t>(std::lround(adv * scaleX));
     int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-    stbtt_GetCodepointBitmapBox(&font, static_cast<int>(code), scale, scale, &x0, &y0, &x1, &y1);
+    stbtt_GetCodepointBitmapBox(&font, static_cast<int>(code), scaleX, scale, &x0, &y0, &x1, &y1);
     if (x1 > x0 && y1 > y0) {
         g.w = static_cast<int16_t>(x1 - x0);
         g.h = static_cast<int16_t>(y1 - y0);
         g.xoff = static_cast<int16_t>(x0);
         g.yoff = static_cast<int16_t>(y0);
         g.alpha.assign(static_cast<size_t>(g.w) * g.h, 0);
-        stbtt_MakeCodepointBitmap(&font, g.alpha.data(), g.w, g.h, g.w, scale, scale,
+        stbtt_MakeCodepointBitmap(&font, g.alpha.data(), g.w, g.h, g.w, scaleX, scale,
                                   static_cast<int>(code));
     }
     return &(cache[key] = std::move(g));
