@@ -15,6 +15,12 @@
  * keys and what a keyboard types -- split from WifiApp.cpp, which keeps the
  * other phases, the scan and the routing. */
 
+namespace {
+/* With a keyboard typing, the symbol page's rows from here down stay on the
+ * panel: row 0 is the digits, which the keyboard has. */
+constexpr uint8_t SYMBOL_FIRST_ROW = 1;
+}  // namespace
+
 Rect WifiApp::keyRect(uint8_t row, uint8_t col) const {
     return baseRect(static_cast<int16_t>(2 + col * 32),
                     static_cast<int16_t>(96 + row * 28), 28, 24);
@@ -33,7 +39,7 @@ Rect WifiApp::showRect() const {
  * takes exactly what was typed -- a password is case-sensitive and may
  * hold the punctuation on the keys -- with the same 63-character limit as
  * the on-screen keys. Delete and Enter are DEL and JOIN. A symbol the
- * keyboard does not have is still on the on-screen symbol page. */
+ * keyboard does not have is on the panel beside it: see renderPassword(). */
 void WifiApp::typePassword(GameHost& host, char typed) {
     if (typed == '\n') {
         startConnect(host);
@@ -60,8 +66,17 @@ void WifiApp::updatePassword(GameHost& host, const TouchPoint& touch) {
         return;
     }
     if (keypad_.hidden()) {
-        /* A keyboard is typing the password: the keyboard button where
-         * CAPS was, JOIN, Show and back are all there is to press. */
+        /* A keyboard is typing the password: the symbols it cannot type,
+         * the keyboard button where CAPS was, JOIN, Show and back are all
+         * there is to press. */
+        for (uint8_t row = SYMBOL_FIRST_ROW; row < 4; ++row) {
+            for (uint8_t col = 0; col < 10; ++col) {
+                if (keyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                    if (password_.length() < 63) password_ += KEYS_SYMBOL[row][col];
+                    markDirty(); return;
+                }
+            }
+        }
         if (baseRect(2, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             keypad_.show();
             keyboardPainted_ = false;
@@ -183,17 +198,20 @@ void WifiApp::renderPassword(GameHost& host) {
      * -- or when the screen underneath was cleared, and both of those say
      * so by clearing keyboardPainted_. */
     if (keypad_.hidden()) {
-        /* A keyboard is typing: no keys, a hint where they were, the
-         * keyboard button where CAPS was -- which is also the way to a
-         * symbol the keyboard does not have -- and JOIN. The keyboard
-         * has its own Delete. Painted once, like the keys. */
+        /* A keyboard is typing: the hint where the digit row was, the
+         * symbol page's three rows below it -- the keyboard has letters,
+         * digits, space and only , . # of the punctuation, and a Wi-Fi
+         * password may hold any of these -- the keyboard button where
+         * CAPS was, and JOIN. The keyboard has its own Delete. Painted
+         * once, like the keys. */
         if (!keyboardPainted_) {
-            Ui::Typing::drawHint(tft, panelW_, baseY(118));
-            tft.setTextColor(Ui::muted(), Ui::bg());
-            tft.setTextDatum(TC_DATUM);
-            tft.drawString("The keyboard button has every symbol.",
-                           static_cast<int16_t>(panelW_ / 2), baseY(142), 1);
-            tft.setTextDatum(TL_DATUM);
+            Ui::Typing::drawHint(tft, panelW_, baseY(100));
+            for (uint8_t row = SYMBOL_FIRST_ROW; row < 4; ++row) {
+                for (uint8_t col = 0; col < 10; ++col) {
+                    const char buf[2] = {KEYS_SYMBOL[row][col], 0};
+                    Ui::drawButton(tft, keyRect(row, col), buf, Ui::surface(), Ui::outline(), Ui::text(), false, 2);
+                }
+            }
             Ui::Typing::drawToggle(tft, baseRect(2, 208, 52, 24));
             Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
             keyboardPainted_ = true;

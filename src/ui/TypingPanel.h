@@ -29,8 +29,10 @@
  * NOTHING MAY BECOME REACHABLE ONLY BY KEY. The keyboard comes off, and boot
  * is the only time anybody looks for it, so each of those screens also draws
  * a small button with a keyboard on it that brings the on-screen keypad back
- * for the rest of that visit -- which is also the way to a character the
- * keyboard does not have, such as most of a Wi-Fi password's symbols. And if
+ * for the rest of that visit. A field that takes characters the keyboard
+ * does not have keeps those on screen as well: the keyboard types only
+ * , . # of the punctuation, so the Wi-Fi password keeps its symbol page
+ * (games/WifiPassword.cpp); names and PINs need nothing more. And if
  * the keyboard stops answering while the keypad is off, the keypad comes back
  * by itself: the keyboard driver counts the frames its scan failed in a row,
  * which costs nothing, because the scan runs every frame anyway.

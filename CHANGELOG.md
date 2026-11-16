@@ -1008,12 +1008,22 @@ under it, and keep only what is not a key: OK or JOIN, Cancel or Back, and
 Show on the password. The keyboard has its own Delete, so no DEL is drawn.
 The module comes off and is looked for only at boot, so nothing is reachable
 only by typing: a small button with a keyboard on it brings the keypad back
-for the rest of that visit, which is also the way to a password symbol the
-keyboard does not have, and if the keyboard stops answering -- five frames of
-failed scans, counted on the scan that already runs every frame -- the keypad
-comes back by itself and the log says `[keyboard] not answering`. The Wi-Fi
-field keeps its size, for now. Other boards carry none of it. Not yet seen on
-a device.
+for the rest of that visit, and if the keyboard stops answering -- five
+frames of failed scans, counted on the scan that already runs every frame --
+the keypad comes back by itself and the log says `[keyboard] not answering`.
+Other boards carry none of it.
+
+**The Wi-Fi password keeps its symbols on screen beside the keyboard.** The
+keyboard types letters in both cases, digits, space, and of the punctuation
+only `,` `.` and `#`; it has no symbol layer. With the keypad off, the Wi-Fi
+password screen therefore keeps the on-screen keypad's whole symbol page --
+three rows, `!@#$%^&*()`, `-_=+[]{};:` and `'",.<>/?~\` -- in the space the
+keys used, under the hint, reachable by touch and by the d-pad's selector, so
+a password with `@`, `_` or `-` in it can be typed without bringing the
+keypad back. Its field keeps its size. The names and the PINs take only
+capitals, digits and space, all on the keyboard, so they need no such row.
+The Wi-Fi screen's password phase moved into `WifiPassword.cpp` first: the
+file had passed the 600 lines CLAUDE.md allows.
 
 **Locked, the Attaky Core's own lights go out, and it stops holding sixteen
 lines low.** With a Cyber Deck Plus locked and its panel dark, three lights
