@@ -40,7 +40,9 @@ for convenience:
     patches, device trees, board config and panel data the RG40XX V image is
     built from (host/rg40xxv/rocknix/, see its PROVENANCE.txt). They are not
     this project's, so stamping its notice on them would claim them -- the
-    same reason LICENSE carries none.
+    same reason LICENSE carries none. Likewise the third-party code the
+    Linux build compiles in verbatim (host/third_party/, see its README.md)
+    and the font's own licence text (host/fonts/COPYING).
 
 WHAT GENERATED FILES DO. A generated source file carries the same header as a
 handwritten one, emitted by its generator, so that regenerating it cannot
@@ -154,6 +156,7 @@ MARKDOWN = {".md"}
 
 EXEMPT_PATHS = {
     "LICENSE",
+    "host/fonts/COPYING",
     "include/README",
     "lib/README",
     "test/README",
@@ -233,7 +236,7 @@ def tracked_files():
 # Third-party, kept verbatim; see the module docstring.
 THIRD_PARTY_DIRS = tuple(
     "host/rg40xxv/rocknix/" + d + "/" for d in ("linux", "dts", "firmware", "patches", "uboot")
-)
+) + ("host/third_party/stb/",)
 
 
 def classify(path):

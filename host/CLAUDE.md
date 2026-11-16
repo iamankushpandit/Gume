@@ -210,10 +210,10 @@ each says why.
 
 ## The panel is the console's own size, found when Braino starts
 
-The firmware draws at the resolution of the display in front of the player --
-640x480 on the RG40XX V -- and never at 320x240 stretched up. Nothing about
-the size is compiled in; `HostPlatform::begin()` finds it before `setup()`
-runs and it is fixed for the run:
+Every pixel on the screen is drawn at the resolution of the display in front
+of the player -- 640x480 on the RG40XX V -- and nothing is stretched after
+the fact. Nothing about the size is compiled in; `HostPlatform::begin()`
+finds it before `setup()` runs and it is fixed for the run:
 
 1. `BRAINO_PANEL=WxH`, if set, on any build -- the way to see another
    console's screen on a PC (`BRAINO_PANEL=320x240`, `800x480`, `1280x720`).
@@ -223,37 +223,59 @@ runs and it is fixed for the run:
    will.
 
 It is taken as landscape (a size reported the other way up is turned), and
-clamped up to the 320x240 game canvas, which is the smallest panel `src/`
-accepts. `[host] panel 640x480 (display mode)` in the log says what was found
-and where from.
+clamped up to the 320x240 game canvas.
 
-Everything downstream reads that one answer:
+**The firmware lays out on the panel over a UI scale.** The scale is the
+largest whole number that still leaves the 320x240 canvas -- 2 on 640x480, 3
+on 1280x720, 1 on 320x240 -- so the firmware sees a 320x240 panel on the
+RG40XX V and every logical pixel is a 2x2 block of real ones. That was not
+the first answer. 5.14.0's first cut laid the screens out at the full
+640x480, and the owner, on the device, found the top bar and the player
+picker's buttons too small to read and the tiles too big: the screens size
+their boxes in pixels for the 2.8-inch panel's text, so on a panel with
+twice the pixels the text cannot grow without leaving its box. The scale is
+what lets text be the right size for the panel. `BRAINO_UI_SCALE=n` asks for
+less, down to 1 (the full-resolution layout, as the 4-inch board has).
+`[host] panel 640x480 (display mode), ui scale 2: laid out on 320x240` in
+the log says what was found.
 
-- **`src/` asks `PanelSize`** (`src/hal/PanelSize.h`), the firmware's
-  interface for it, answered here by `src/HostPanelSize.cpp`. `boards/host.h`
-  still states a 240x320 panel: that is the compile-time floor the
-  static_asserts check, not the panel.
-- **The panel shim's frame is exactly that size** (`TFT_eSPI::begin()`), so
-  `tft.width()` / `tft.height()` are the console's and every system screen
-  lays itself out at the real resolution -- the launcher takes the 3x3 grid in
-  portrait, as on the 4-inch board.
-- **Games get the largest whole scale that fits, centred** (`ScaledRenderer::configure()`):
-  640x480 is the 320x240 canvas at exactly 2x, text included, so a game looks
-  as it does on the 2.8-inch board with every pixel a 2x2 block; 800x480 is
-  2x with an 80px border each side; 1280x720 is 3x. A press is mapped back
-  through the same transform, border and all. A panel under twice the canvas
-  (the 4-inch board's 480x320) keeps the fractional fill it always had.
-- **Touch and the d-pad are in the frame's pixels.** The emulated FT6336U
-  reports in the found panel's native portrait (`PanelSize::nativeWidth()`),
-  `BRAINO_TAPS` coordinates are frame pixels at the found size (a script
-  written for 320x240 replays under `BRAINO_PANEL=320x240`), and the
-  selector's ring is drawn around controls where the screen drew them. The
-  crosshair, its speed and a list's drag-scroll are stated per canvas pixel and
-  multiplied by the whole scale, so they look and feel the same at any size.
+**Text is not the ESP32's bitmaps here.** `src/HostText.cpp` draws GNU
+FreeSans (`fonts/`, compiled in by `cmake/EmbedFont.cmake`) with
+stb_truetype (`third_party/stb/`), anti-aliased at the real resolution: a
+capital as tall as the bitmap font's capital, times the text size, times the
+UI scale. Three rules hold it to the firmware's layout:
+
+- **The cell is the bitmap font's.** `fontHeight()`, the datums and the
+  baseline are TFT_eSPI's, and the TrueType capital sits on the bitmap
+  capital's baseline (`bitmapCapRows()` measures each font's 'H'), so text
+  lands in the boxes the screens laid out.
+- **Width is measured with the advances that draw.** `textWidth()` sums the
+  same whole-pixel glyph advances `ttDraw()` moves its pen by, so
+  `Ui::fitted()`, wrapping and centring measure exactly what appears. FreeSans
+  is a little narrower than the bitmaps, so nothing cut on a board grows.
+- **What TFT_eSPI would not draw, this does not draw.** Fonts 6, 7 and 8 are
+  not loaded and draw nothing; fonts 2 and 4 draw only 32..126; font 1 draws
+  up to 255, from its bitmap where FreeSans has no glyph.
+
+Everything else reads that one answer:
+
+- **`src/` asks `PanelSize`** (`src/hal/PanelSize.h`), answered here by
+  `src/HostPanelSize.cpp` with the logical size (320x240 on the RG40XX V).
+  `boards/host.h` still states a 240x320 panel: that is the compile-time floor
+  the static_asserts check, not the panel.
+- **The panel shim's frame is the real size** (`TFT_eSPI::begin()`), and
+  `tft.width()` / `tft.height()` are the logical one. Shapes are drawn as
+  blocks of the UI scale, so a game at 2x looks as it does on the 2.8-inch
+  board, its text in FreeSans at 2x rather than doubled pixels.
+- **Touch, taps and the d-pad are in logical pixels.** The emulated FT6336U
+  reports in the logical native portrait (`PanelSize::nativeWidth()`), a
+  mouse click is divided by the scale, `BRAINO_TAPS` coordinates are logical
+  (so a script written for 320x240 replays unchanged at 640x480), and the
+  cursor and the selector's ring are drawn at the scale.
 - **The window opens at the panel's size**, or twice it for a 320x240 panel,
   and letterboxes at whole multiples when resized. On the DRM image a
-  television plugged in later still shows the frame at a whole scale, centred;
-  an output smaller than the panel stays dark rather than be written past.
+  television plugged in later shows the frame at a whole scale, centred; an
+  output smaller than the panel stays dark rather than be written past.
 
 ## How it fits together
 
@@ -261,7 +283,8 @@ Everything downstream reads that one answer:
 |---|---|
 | `boards/host.h` | A board profile whose every pin is **virtual**. It is deliberately not in `include/boards/`, which would make it a claim of support that `check_boards.py` and the web installer would hold it to. |
 | `shim/` | Arduino, TFT_eSPI, Preferences, NVS, FreeRTOS, Wire, I2S, Wi-Fi, SD and the ESP-IDF calls `src/` makes -- **only** what `src/` calls. A new platform call in `src/` breaks this build until a shim answers it, which is the intended way to find out. |
-| `src/HostTft.cpp` | The panel: one RGB565 frame the size of the panel found at start-up, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). The font tables are TFT_eSPI's own, fetched at the pinned version and never copied into this tree. |
+| `src/HostTft.cpp` | The panel: one RGB565 frame at the real resolution of the panel found at start-up, laid out in logical pixels over the UI scale, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, cells, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). TFT_eSPI's own font tables, fetched at the pinned version and never copied into this tree, give the cells and font 1's fallback glyphs. |
+| `src/HostText.cpp` | The text itself: GNU FreeSans (`fonts/`, GPL-3.0-or-later with the font exception), rasterised by stb_truetype (`third_party/`, public domain or MIT) and cached per size. |
 | `src/HostWire.cpp` | An emulated FT6336U answering BoardTouch's one transaction with the pointer, in the panel's native portrait frame. |
 | `src/HostPanelSize.cpp` | `PanelSize`: the panel `HostPlatform` found, for `src/`. |
 | `src/HostNvs.cpp` | One typed key-value store behind both `nvs_*` and Preferences, with IDF's type codes and its refusal of mismatched reads and 16-character keys. Saved whole to `nvs.txt` after every change. |
@@ -639,12 +662,12 @@ tree, so an image built without the change would shut down on every wake.
 
 Two environment variables, both off by default:
 
-- `BRAINO_SHOTS="2500,5000"` saves the panel frame as
-  `<data dir>/shot-<ms>.bmp` at those milliseconds after start. F12 saves one
+- `BRAINO_SHOTS="2500,5000"` saves the panel frame, at its real resolution,
+  as `<data dir>/shot-<ms>.bmp` at those milliseconds after start. F12 saves one
   on demand.
 - `BRAINO_TAPS="3000:237,223;4500:80,125,200"` presses the panel at frame
-  coordinates `x,y` -- pixels of the panel found at start-up, so set
-  `BRAINO_PANEL` to the size a script was written for -- at that time, for 120 ms or the given hold. `4000:next`
+  coordinates `x,y` -- logical pixels, the panel over the UI scale, so a
+  script written for 320x240 works at 640x480 too -- at that time, for 120 ms or the given hold. `4000:next`
   and `4000:prev` press the page keys instead, and `4000:down,3000`,
   `4000:up`, `4000:left` and `4000:right` hold the d-pad (for 1000 ms unless a
   hold is given), `4000:a` holds A, and `4000:menu`, `4000:mute` and

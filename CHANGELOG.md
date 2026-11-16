@@ -80,17 +80,23 @@ things came with the move:
 `unlock`, so the strip can be looked at on a panel without running a battery
 down.
 
-**The PC build and the RG40XX V draw at the screen's own resolution.** They
-drew a 320x240 picture and stretched it to the panel, so a 640x480 console
-showed every menu at a quarter of the detail it has. The size is now found
-when Braino starts -- the display mode on the handheld, the desktop's in
-fullscreen, 640x480 in a window, or `BRAINO_PANEL=WxH` -- and the menus lay
-themselves out on all of it, as they already did on the 4-inch board. Games
-keep their 320x240 canvas and are drawn at the largest whole scale that fits,
-centred, with their text at that scale too: exactly 2x on a 640x480 panel.
-That is the rule for every platform from here on: it states how big its
-panel is (`PanelSize`), and nothing is stretched after the fact. The ESP32
-boards' pictures do not change.
+**The PC build and the RG40XX V draw at the screen's own resolution, with
+smooth text.** They drew a 320x240 picture and stretched it to the panel, so
+a 640x480 console showed every line and letter as a block of four pixels.
+The size is now found when Braino starts -- the display mode on the
+handheld, the desktop's in fullscreen, 640x480 in a window, or
+`BRAINO_PANEL=WxH` -- and every pixel is drawn at it. The menus are laid out
+over a whole-number UI scale, 2 on the RG40XX V, so the top bar, the player
+buttons and the tiles keep the proportions they have on the 2.8-inch board;
+`BRAINO_UI_SCALE=1` lays them out on the full resolution instead. All text
+on the Linux build is GNU FreeSans, anti-aliased at the screen's real
+resolution, instead of the ESP32's pixel fonts. It sits in the same places
+and is measured with the same widths it is drawn with, so nothing is cut
+short that was not before. Games keep their 320x240 canvas, drawn at the
+largest whole scale that fits, centred, with their text at that scale. That
+is the rule for every platform from here on: it states how big its panel is
+(`PanelSize`), and nothing is stretched after the fact. The ESP32 boards'
+pictures do not change.
 
 **Three clicks are gone from the sounds, and nothing else about them
 changed.** Rendered off the device, sample by sample, each had one cause:

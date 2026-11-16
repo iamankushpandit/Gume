@@ -573,8 +573,13 @@ the guide. Three things about it are load-bearing:
   panel's size is `PanelSize` (`src/hal/PanelSize.h`), one implementation per
   platform: a board answers from its profile (`hal/PanelSizeEsp32.cpp`), the
   host from the display it found when it started -- 640x480 on the RG40XX V,
-  or `BRAINO_PANEL=WxH` (`host/src/HostPanelSize.cpp`). Nothing draws a
-  320x240 picture to be stretched by somebody else. Anything that means "the
+  or `BRAINO_PANEL=WxH` -- divided by a whole-number UI scale, 2 there, so
+  text and controls keep the 2.8-inch board's proportions
+  (`host/src/HostPanelSize.cpp`). Every pixel is still drawn at the panel's
+  own resolution: nothing draws a 320x240 picture to be stretched by somebody
+  else, and on Linux text is GNU FreeSans, anti-aliased at that resolution,
+  measured with the advances that draw it, in the bitmap fonts' cells
+  (`host/src/HostText.cpp`). Anything that means "the
   panel in front of the player" -- the canvas fit, touch mapping, the boot
   banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
   are the profile's compile-time panel and on the host only the floor the
