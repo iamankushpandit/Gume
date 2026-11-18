@@ -7,6 +7,7 @@ This project keeps its guidance in **`CLAUDE.md`** files. They apply to everyone
 - [`src/games/CLAUDE.md`](src/games/CLAUDE.md) — how to add or change a game
 - [`src/hal/CLAUDE.md`](src/hal/CLAUDE.md) — hardware, persistence, profiles, watchdog
 - [`src/ui/CLAUDE.md`](src/ui/CLAUDE.md) — theming and drawing helpers
+- [`host/CLAUDE.md`](host/CLAUDE.md) — the same firmware on Linux: the PC build and the RG40XX V image
 
 **Modularity rule:** If a file is becoming large (as a rule of thumb, `src/main.cpp` > ~400 lines of active logic in one function, or any `.cpp` > ~600 lines total), **refactor it into a more modular form first** before making the requested change. The refactor must not break existing functionality and must land as its own commit before the feature change that prompted it.
 

@@ -1653,7 +1653,7 @@ Work through all four groups. Nothing here is optional for a screen that ships.
     per playable game: its still, its blurb from `AppRegistry` and its
     "What it builds" cell read from the README table in step 6, grouped by
     that table's heading. So the README row *is* the site copy -- write it
-    for a parent deciding whether the game is worth a child's time.
+    for a parent deciding whether the game is worth a young player's time.
     `gen_site.py` and `check_docs.py` both fail when a game has no README
     row or no still. The still is `docs/screens/<game-id>.png` unless the id
     is in `GAME_STILL_ALIASES`, which `check_docs.py` reads too; add an
