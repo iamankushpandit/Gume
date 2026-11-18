@@ -1068,7 +1068,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   player picked it up is a poor thing to hand a young player in a quiet house. Per-profile: scores, mastery blobs, game visibility, course levels.
 - **The admin PIN gates every route to admin powers**: switching to the admin
   profile, opening its Edit menu (rename plus its per-player game list), and
-  the serial console's `unlock` (see Hardware notes). One profile is admin
+  the serial console's `unlock` (see "The serial console"). One profile is admin
   (`Board::adminProfileIndex()`, one `uint16_t` PIN beside it in NVS). Add
   another way to become admin and it needs the same gate. It is asked **every
   time**, including when already admin: being admin is not evidence about who
