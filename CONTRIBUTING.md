@@ -337,14 +337,15 @@ directly through `TFT_eSPI`.
 
 ## Adding A System App
 
-System apps are screens such as Settings, Wi-Fi, Profiles, Scores, About and
-System Info. They can use `GameHost` only when they truly need privileged board
+System apps are screens such as Settings, Wi-Fi, Profiles, Scores, About,
+System Info and Nearby. They can use `GameHost` only when they truly need privileged board
 access.
 
 System apps must:
 
-- Work in both landscape and portrait.
-- Read `tft.width()` and `tft.height()` at render time.
+- Read `tft.width()` and `tft.height()` at render time: the same screen runs
+  on every panel size. Portrait is decided screen by screen (issue 22); the
+  launcher, the lock screen and the saver support it and must keep doing so.
 - Use `requireCapability()` before privileged actions.
 - Keep privacy and radio claims in README and About accurate.
 - Derive catalog facts from the registry rather than restating them.
