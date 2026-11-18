@@ -16,7 +16,7 @@ erase. Ask `logoWidth()`/`logoHeight()` for the variant you are drawing rather
 than assuming a size.
 
 Six marks are generated, not one: `BADGE` (the whole artwork, 118px, the screen
-saver) and `BADGE_MID` (two thirds of it, the lock screen); `WORD` /
+saver) and `BADGE_MID` (about half of it, 64px high, the lock screen); `WORD` /
 `WORD_SMALL` (the wordmark alone, at the heights the product name used to be
 drawn as text in a font-4 header and a font-2 row); and `ICON` / `ICON_BIG`
 (the brain on its own, for a row that has no room for the name). `Ui::Logo`
@@ -148,7 +148,7 @@ characters at font 2 on a 320px panel, so a long screen title -- "Cinnamon
 Says", "Finger Counting" -- is cut, without an ellipsis. **Anything else that
 wants space up here has to say what it is taking it from.**
 
-`drawTopBarClock()` redraws only the top bar's time, at the minute, over the old one with its background filled, and refuses (false) when the time changed width; `drawTopBar()` records where it put the clock for it. `Ui::bar()` is the bar's fill, for anything that must stand out on it. `drawTopBar()` carries Home, Lock, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's 18px came out of the title (Home narrowed to 32px, the title moved from x=48 to x=62). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
+`drawTopBarClock()` redraws only the top bar's time, at the minute, over the old one with its background filled, and refuses (false) when the time changed width; `drawTopBar()` records where it put the clock for it. `Ui::bar()` is the bar's fill, for anything that must stand out on it. `drawTopBar()` carries Home, Lock, Mute, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's and Mute's pixels came out of the title (Home narrowed to 32px; the title moved from x=48 to x=62 for Lock, then on to just past the speaker for Mute, `LauncherLayout::topBarTitleLeft()`). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSpeakerRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
 
 `drawNotification()` paints a transient strip along the bottom edge of the panel, full width and `NOTIFICATION_HEIGHT` tall. `notificationRect()` is where it is drawn, where a press puts it away, and what the runtime keeps every other painter out of while it is up. It is painted by the runtime **after** the screen has drawn itself, and painted once: while it is up `TftRenderer`'s paint clip leaves its strip out, so nothing a screen draws lands on it, and when it goes the screen is rendered again with the clip turned round, so that the strip is the only thing repainted (`BrainoApp::settleNotice()`). It used to be painted over the header, which hid the header. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
 
@@ -218,7 +218,7 @@ Callers keep their own scroll offset and pass it in, so one list can serve sever
 
 `draw()` wipes the rect and paints every row; `drawChanged()` repaints only the rows whose content changed since the last paint. It keeps a 32-bit hash per row (192 bytes) plus the layout, rect and offset they were drawn at, and falls back to a full paint when any of those differ. Changed text rows are overdrawn, not cleared -- the glyphs carry their background and only the tail of an old, longer string is erased -- so a value changing does not blink its row. **After the screen under the list has been cleared, call `draw()`**: the hashes describe pixels that are gone. Nearby is the caller; it rebuilds from live beacon data, where nearly every rebuild is identical to the last.
 
-`Rect` is defined here — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
+`RowList` uses `Ui::Rect`, defined in `Ui.h` — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
 
 ## Country and state artwork
 
