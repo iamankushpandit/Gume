@@ -116,6 +116,10 @@ backend is possible without a panel. That is
 [issue #44](https://github.com/iamankushpandit/Gume/issues/44), and the rest of what this firmware does not
 do yet is [on the tracker](https://github.com/iamankushpandit/Gume/issues) beside it.
 
+**Ideas, written down.** Every idea and future plan discussed for Braino --
+agreed or not -- is in [docs/IDEAS.md](docs/IDEAS.md), a backlog rather than
+a plan. Pick one up, argue with one, or add your own.
+
 Found a security problem instead? Don't open an issue —
 [SECURITY.md](SECURITY.md) has the private route.
 

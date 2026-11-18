@@ -1827,6 +1827,8 @@ site/                     index.template.html — the GitHub Pages landing page;
                           and a card-rg40xxv-* tag publishes both as a
                           pre-release; it also runs in full once a week
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
+                          IDEAS.md (every idea and future plan -- a
+                          backlog, nothing in it agreed unless it says so),
                           gameplay/ (the stills played, from gen_gameplay.py),
                           boards/ (one page per supported board; the pin
                           tables and diagrams in it are generated)
