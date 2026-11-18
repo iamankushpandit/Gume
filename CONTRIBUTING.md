@@ -16,12 +16,15 @@ what this firmware does not do yet -- and
 
 Start here:
 
-- `AGENTS.md`: repo-level rules that apply to every contributor.
-- `CLAUDE.md`: architecture, build commands, invariants and workflow.
+- `AGENTS.md`: the index of the rulebooks, and the rules in brief.
+- `CLAUDE.md`: the product's rules -- architecture, build commands,
+  invariants, workflow -- and where each platform's rules live.
 - `src/engine/CLAUDE.md`: screen lifecycle, app registry, progress tracking.
 - `src/games/CLAUDE.md`: how games and system screens are structured.
 - `src/hal/CLAUDE.md`: board, storage, profiles, watchdog and hardware rules.
 - `src/ui/CLAUDE.md`: renderer, theme, widgets and drawing helpers.
+- `host/CLAUDE.md`: the same `src/` on Linux -- the PC build and the
+  Anbernic RG40XX V image. `host/` adapts to `src/`, never the reverse.
 
 These files exist because multiple contributors can work on this repo at the
 same time. They are the rules for every contributor, and a pull request is
@@ -92,18 +95,17 @@ add a second.
 
 ## What would help most
 
-**Board ports.** Braino targets the E32R28T-1 properly, with a 4-inch ST7796
-variant in progress. The CYD family has many variants whose differences fail
+**Board ports.** Braino ships on five ESP32 boards (the table is in
+[docs/boards/](docs/boards/README.md)), with the Attaky Core experimental and
+the Linux platform built from `host/`. The CYD family has many variants whose differences fail
 silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
 but a light sensor on the ESP32-2432S028R. A board is described in two files
 and nowhere else — a profile header in `include/boards/` and a `[board_*]`
 section in `platformio.ini` — and no file under `src/` names a GPIO. The
-mechanics are in [docs/PORTING.md](docs/PORTING.md); everything a port needs
-around the code is in
-[AGENTS.md → "Supporting a new board"](AGENTS.md#supporting-a-new-board--the-whole-checklist):
-hardware reference first, then the profile and the PlatformIO env, then a
-verification app, then games. The "known issues" section of the board doc is
-not optional.
+mechanics, the bring-up checks and what a port has to land with are in
+[docs/PORTING.md](docs/PORTING.md): the profile and the PlatformIO env, then
+bring-up on the hardware, then a page in `docs/boards/` saying what was
+checked and how. The known problems on that page are not optional.
 
 **Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
 in a folder named after the `BOARD_NAME` the firmware reports. A case is
@@ -150,9 +152,9 @@ The job always runs on a pull request, whatever the change touches, because
 `verify` is the required check: a required check that never runs does not read
 as passed, it reads as still expected, and the pull request waits for a status
 that will never arrive. So the skipping happens a level down. A pull request
-touching only `docs/`, `cases/`, `site/`, `LICENSE` or Markdown skips the
-firmware build and reports on the repository checks alone; anything else
-builds all three environments as before. `paths-ignore:` on the trigger is the
+touching only `docs/`, `cases/`, `site/`, `tools/`, `.github/`, Markdown or
+`LICENSE` skips the firmware build and reports on the repository checks alone;
+anything else builds what `tools/envs.py --for-changes` says it reaches. `paths-ignore:` on the trigger is the
 obvious way to do this and is the trap -- it would make every
 documentation-only pull request permanently unmergeable.
 
@@ -188,16 +190,18 @@ report on your PR without any secret being exposed to it. That one job covers
 three things, and it is worth knowing which of them your change triggers:
 
 - **The repository checks and site generation always run**, on every pull
-  request, including a documentation-only one. `check_docs`, `check_boards`,
-  `check_catalog`, `check_frame_rules`, `check_privacy` and `gen_site.py` are
-  cheap and are exactly what a docs change can break.
+  request, including a documentation-only one: `check_docs`, `check_boards`,
+  `check_catalog`, `check_frame_rules`, `check_privacy`, `check_identifiers`,
+  `check_licenses`, `gen_board_docs.py --check` and `gen_site.py`. They are
+  cheap and are exactly what a docs change can break. So is every test in
+  `test/host/`, which the `host` job runs through `tools/run_host_tests.py`.
 - **The firmware build is skipped** when a pull request touches only `docs/`,
   `cases/`, `site/`, `tools/`, `.github/`, Markdown or `LICENSE`.
 - **When it does build, a pull request builds selectively** -- `app` always,
-  plus `bringup` if you touched the HAL or a board profile, `batdiag` for
-  battery files, `wifidiag` for Wi-Fi files. All ten environments are built on
-  a push to `main` or `dev`, which is the safety net rather than the first
-  line of defence. If your change touches something every board shares, build
+  plus whatever `tools/envs.py --for-changes` says the diff reaches: a
+  diagnostic environment only when its own source or `platformio.ini` moved.
+  Every product and experimental environment is built on a push to `main` or
+  `dev`, which is the safety net rather than the first line of defence. If your change touches something every board shares, build
   the full derived set locally before opening the PR.
 
 What CI cannot do is flash a board: anything touching hardware, touch, storage
@@ -243,21 +247,18 @@ missing seven. `.github/workflows/release.yml` builds the same set the same
 derived way.
 
 ```bash
-pio run $(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")
+pio run $(python tools/envs.py --product --pio-args)
 ```
 
-That is currently ten environments: an `app`, a `bringup` and a `batdiag` for
-each of the three supported boards, plus the board-independent `wifidiag`. It
-takes a while. For everyday work, the default board's four are usually enough:
-
-```bash
-pio run -e app -e bringup -e batdiag -e wifidiag
-```
-
-Build the whole set before opening a pull request that touches the HAL, a board
-profile, `platformio.ini` or anything else every board shares -- CI builds all
-ten on a push to `main` or `dev`, and a break that only shows up on the third
-board is a break you want to find here.
+`tools/envs.py` is the one list of environments: `--product` is every board
+that is published, `--experimental` the ones that are not yet, `--diagnostic`
+the bench probes, `--all` everything. For everyday work `pio run -e app` is
+usually enough. Build the product set (and `--experimental`) before opening a
+pull request that touches the HAL, a board profile, `platformio.ini` or
+anything else every board shares -- CI builds them all on a push to `main` or
+`dev`, and a break that only shows up on the third board is a break you want
+to find here. If you changed `src/`, also build `host/` (see `host/CLAUDE.md`)
+and run `python tools/run_host_tests.py`.
 
 Before any build, upload or serial monitor session, take the shared board lock.
 It lives in the common git directory so every worktree sees the same lock:
@@ -284,17 +285,15 @@ board. Say what you are doing before flashing in a shared session.
 Run the checks that match your change. For normal firmware work, run:
 
 ```bash
-python tools/check_catalog.py
-python tools/check_frame_rules.py
-python tools/check_docs.py
-python tools/check_boards.py
-python tools/check_privacy.py
-python tools/check_licenses.py
-pio run -e app -e bringup -e batdiag -e wifidiag
+for c in tools/check_*.py; do python "$c" || echo "FAILED: $c"; done
+python tools/run_host_tests.py
+pio run -e app
 ```
 
-Those six checks plus site generation are what CI's required `verify` job runs
-on every pull request, so running them locally is running the gate:
+Every `tools/check_*.py` is listed, with the rules it enforces, under "Which
+rules a machine checks" in `CLAUDE.md`. CI's required `verify` job runs those
+checks, `gen_board_docs.py --check`, the host tests and site generation on
+every pull request, so running them locally is running the gate:
 
 ```bash
 python tools/gen_site.py --out /tmp/gume-site-check
@@ -385,8 +384,8 @@ A release is a tag, pushed on `main`. Everything else is automatic:
 git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 ```
 
-`.github/workflows/release.yml` builds every environment `platformio.ini`
-declares, packs them with `tools/pack_release.py`, and publishes a GitHub
+`.github/workflows/release.yml` builds every product environment
+(`tools/envs.py --product`), packs them with `tools/pack_release.py`, and publishes a GitHub
 release carrying, per environment, all four flash parts and a single
 `-merged.bin` to write at `0x0` -- plus `SHA256SUMS.txt` and `FLASHING.txt`.
 Release notes are lifted from the `CHANGELOG.md` section for that version, so
@@ -412,12 +411,13 @@ To rehearse the packing without tagging anything, run it against a local
 build:
 
 ```bash
-pio run $(python -c "import re,io; print(' '.join('-e ' + e for e in re.findall(r'^\[env:(\w+)\]', io.open('platformio.ini', encoding='utf-8').read(), re.M)))")
+pio run $(python tools/envs.py --product --pio-args)
 python tools/pack_release.py --out dist --strict
 ```
 
-`--strict` wants every environment present, so this needs the full derived
-build above, not the four-environment shorthand.
+Packing refuses to run until every product environment is built, so this
+needs the full product build above, not `pio run -e app` alone; `--strict`
+also refuses an environment with no description.
 
 Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
 flashed from `dev` cannot be mistaken for the release it is ahead of.
