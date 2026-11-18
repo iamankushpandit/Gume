@@ -148,12 +148,12 @@ because history, clones, forks and tarballs all keep copies.
 
 Braino collects nothing about the player using it, and no change may alter
 that. It is not a setting that ships switched off; it is what the product is.
-Exactly three things leave the device: an NTP time query, one `ip-api.com`
-lookup to guess the timezone on first connect, and the opt-in, non-connectable
-BLE beacon. **That list is closed.** Do not add analytics, usage counters,
+Exactly four things leave the device: an NTP time query, one `ip-api.com`
+lookup to guess the timezone on first connect, the opt-in, non-connectable
+BLE beacon, and the daily update-availability check. **That list is closed.** Do not add analytics, usage counters,
 crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
 home at runtime, or anything transmitted that carries a player's name, profile
-name, score, progress or typing. A fourth outbound flow needs the maintainer's
+name, score, progress or typing. A fifth outbound flow needs the maintainer's
 agreement in an issue *before* the code exists — it is a change to what the
 product promises, not a feature to be reviewed on merit.
 
