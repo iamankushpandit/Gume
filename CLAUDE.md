@@ -425,7 +425,12 @@ What follows from the classification:
 - **CI builds every product and experimental environment** on a push to
   `main` or `dev` (an experimental one is never published -- see "An
   experimental board is built and never published"),
-  and on a pull request builds `app` plus whatever the diff reaches.
+  and on a pull request builds `app` plus whatever the diff reaches:
+  `app` for any firmware source, one board for that board's own
+  `include/boards/<id>.h`, every board for `platformio.ini`, the board
+  contract or `src/hal/`, and no board at all for documentation, `tools/`,
+  `host/` or `test/`. `envs.py --for-changes` is the one answer;
+  `--reaches-host` gives the same answer for the PC build.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is four
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
   installs all the toolchains once into the one cache it alone saves; `build`
@@ -442,6 +447,22 @@ What follows from the classification:
   so the set changes with the diff, and a ruleset can only wait for names it
   knows. `verify` runs `if: always()` so a docs-only pull request, where
   `build` is skipped, still reports.
+- **A newer push to a pull request cancels the older run; a push to `main`
+  or `dev` is never cancelled.** Each of those is a commit on a protected
+  branch and gets its own result.
+- **The caches are sized to fit, because GitHub evicts past 10 GB.** On
+  2026-11-18 the repository held 11.9 GB: each board's object cache was
+  re-saved per commit and never pruned (142 MB growing to 184 MB in a week,
+  against 37 MB for one build), every pull request saved five more that only
+  it could read, and Pages and release kept a second 1.2 GB toolchain cache
+  under another key. So: one toolchain key everywhere
+  (`pio-<os>-<platformio.ini hash>`); object caches saved only from a push to
+  `main` or `dev`, after the build drops every object it did not read (SCons
+  stamps each cache entry it reads, so anything older than the build's start
+  is unused); a pull request restores `dev`'s; `release.yml` saves nothing,
+  because a cache saved by a tag's run is readable by that tag alone. The
+  `host` job keeps Ubuntu's `.deb` files in a weekly cache: the mirror served
+  SDL2's 37 MB at 88 kB/s once, and the step took 7.5 minutes.
 - **Every test in `test/host/` runs on every pull request**, in the `host`
   job, through `tools/run_host_tests.py`. There is no list of tests: each
   `*_test.cpp` states its own `g++` line in its header, the runner builds it
@@ -455,12 +476,26 @@ What follows from the classification:
   even on a docs-only pull request (they need only the runner's g++); the
   SDL build beside them waits for source to change.
 - **The RG40XX V's card image is `card-image.yml`, not a check.** It builds
-  on a pull request or push that touches `host/`, `src/` or `include/`, on a
+  on a pull request or push that touches what the image is built from, on a
   `card-rg40xxv-*` tag (which publishes it as a pre-release), and once a week
   in full from source, ignoring the stored OS base, so a vanished upstream
   tarball is found on a Monday rather than on the day an OS change needs it.
   It is not part of `verify`: it takes an hour when the OS changed, and it
   protects a download rather than the firmware.
+- **The card image rebuilds the OS only when an OS input changed.** A full
+  build is 50-80 minutes; Braino on a stored OS base is about two and a half.
+  **`tools/card_inputs.py` is the one definition of which files are the OS**
+  -- every file in `host/rg40xxv/` but Braino's package, the boot menu, the
+  card layout, `post-image.sh` and the overlay's contents (its file names
+  count) -- and of the workflow's trigger paths. The base is named after the
+  hash it prints, the download cache is keyed on the same hash, and
+  `tools/check_card_inputs.py` fails if the workflow's paths or Buildroot
+  version drift from it or if anything else starts keeping a list. Never key
+  the base on `src/`, `host/src/` or a date. A push to `main` or `dev` is
+  never cancelled, because the full build after an OS change is the run that
+  stores the next base, and a push that finds a base over 60 days old stores
+  it again so it does not expire. `host/rg40xxv/README.md` ("In CI") has the
+  detail.
 - **A diagnostic is built only when its own source or `platformio.ini`
   moves** -- `tools/envs.py --for-changes` derives that from each one's
   `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
@@ -1911,6 +1946,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           header_for()), build_stamp.py,
                           envs.py (which environments are the product and
                           which are bench probes -- the only list),
+                          card_inputs.py (which files of the card image
+                          are the OS -- the only list) +
+                          check_card_inputs.py,
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),

@@ -13,6 +13,7 @@
 # and rebuild only Braino on top of it.
 #
 #   host/rg40xxv/os-base.sh key    # what the base depends on, as one hash
+#                                  # (tools/card_inputs.py says what that is)
 #   host/rg40xxv/os-base.sh trim   # cut $OUT down to the base, in place
 #   host/rg40xxv/os-base.sh settle # date the OS inputs before an unpacked base
 #
@@ -26,32 +27,15 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${OUT:-$HOME/braino-rg40xxv/out}
 
-# Everything the OS is built from, apart from the Buildroot release: the
-# configuration, every package but Braino's own, the kernel and busybox
-# fragments, ROCKNIX's patches and device trees, and this script. Left out,
-# because every build applies them afresh: Braino's package, the overlay and
-# the post-build and post-image scripts, the boot menu and the card layout.
-# Paths are relative to this directory, which is where both callers are.
-os_inputs() {
-    find . -type f \
-        ! -path './package/braino/*' \
-        ! -path './board/overlay/*' \
-        ! -name post-build.sh ! -name post-image.sh \
-        ! -name extlinux.conf ! -name genimage.cfg \
-        ! -name README.md ! -name write-card.ps1 \
-        | LC_ALL=C sort
-}
+# Which files are OS inputs is decided in one place, tools/card_inputs.py,
+# which card-image.yml and tools/check_card_inputs.py read too. Its
+# docstring says what each kind of file is and why.
+CARD_INPUTS="$HERE/../../tools/card_inputs.py"
 
 case "${1:-}" in
 key)
-    # Bump BASE_EPOCH to force a full build.
-    BASE_EPOCH=1
-    cd "$HERE"
-    {
-        echo "epoch $BASE_EPOCH"
-        echo "buildroot ${BUILDROOT:-buildroot-2026.08.1}"
-        os_inputs | xargs sha256sum
-    } | sha256sum | cut -c1-16
+    # Bump BASE_EPOCH in tools/card_inputs.py to force a full build.
+    python3 "$CARD_INPUTS" key
     ;;
 settle)
     # A checkout dates every file now, after every stamp in the base, and
@@ -60,7 +44,7 @@ settle)
     # and the build stops. The key has already said these files are the
     # ones the base was built from, so they are dated before it instead.
     cd "$HERE"
-    os_inputs | xargs touch -d '2000-01-01 00:00:00 UTC'
+    python3 "$CARD_INPUTS" list os | xargs touch -d '2000-01-01 00:00:00 UTC'
     ;;
 trim)
     # What stays whole:
