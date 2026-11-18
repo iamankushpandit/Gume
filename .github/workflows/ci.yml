@@ -114,6 +114,8 @@ jobs:
           python -m py_compile tools/check_frame_rules.py
           python -m py_compile tools/check_privacy.py
           python -m py_compile tools/check_identifiers.py
+          python -m py_compile tools/check_card_inputs.py
+          python -m py_compile tools/card_inputs.py
           python -m py_compile tools/check_licenses.py
           python -m py_compile tools/gen_site.py
           python -m py_compile tools/gen_board_docs.py
@@ -145,6 +147,11 @@ jobs:
           # releases before anybody noticed. This check runs on every PR because
           # noticing is exactly what did not happen.
           python tools/check_identifiers.py
+
+          # The card image's OS base is named after what tools/card_inputs.py
+          # calls the OS; card-image.yml's trigger paths and Buildroot version
+          # are held to it here, where a docs-only change still runs.
+          python tools/check_card_inputs.py
 
       # main is the released state, and only a check can keep it that way.
       #

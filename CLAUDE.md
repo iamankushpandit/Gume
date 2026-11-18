@@ -455,12 +455,26 @@ What follows from the classification:
   even on a docs-only pull request (they need only the runner's g++); the
   SDL build beside them waits for source to change.
 - **The RG40XX V's card image is `card-image.yml`, not a check.** It builds
-  on a pull request or push that touches `host/`, `src/` or `include/`, on a
+  on a pull request or push that touches what the image is built from, on a
   `card-rg40xxv-*` tag (which publishes it as a pre-release), and once a week
   in full from source, ignoring the stored OS base, so a vanished upstream
   tarball is found on a Monday rather than on the day an OS change needs it.
   It is not part of `verify`: it takes an hour when the OS changed, and it
   protects a download rather than the firmware.
+- **The card image rebuilds the OS only when an OS input changed.** A full
+  build is 50-80 minutes; Braino on a stored OS base is about two and a half.
+  **`tools/card_inputs.py` is the one definition of which files are the OS**
+  -- every file in `host/rg40xxv/` but Braino's package, the boot menu, the
+  card layout, `post-image.sh` and the overlay's contents (its file names
+  count) -- and of the workflow's trigger paths. The base is named after the
+  hash it prints, the download cache is keyed on the same hash, and
+  `tools/check_card_inputs.py` fails if the workflow's paths or Buildroot
+  version drift from it or if anything else starts keeping a list. Never key
+  the base on `src/`, `host/src/` or a date. A push to `main` or `dev` is
+  never cancelled, because the full build after an OS change is the run that
+  stores the next base, and a push that finds a base over 60 days old stores
+  it again so it does not expire. `host/rg40xxv/README.md` ("In CI") has the
+  detail.
 - **A diagnostic is built only when its own source or `platformio.ini`
   moves** -- `tools/envs.py --for-changes` derives that from each one's
   `build_src_filter`, so touching `src/battery_diag.cpp` builds the four
@@ -1911,6 +1925,9 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           header_for()), build_stamp.py,
                           envs.py (which environments are the product and
                           which are bench probes -- the only list),
+                          card_inputs.py (which files of the card image
+                          are the OS -- the only list) +
+                          check_card_inputs.py,
                           pack_release.py, split_render.py,
                           fetch_release_firmware.py (past releases, for the
                           installer's version picker),

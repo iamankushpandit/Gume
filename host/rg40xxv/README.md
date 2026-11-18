@@ -169,46 +169,83 @@ slower.
 ### In CI
 
 `.github/workflows/card-image.yml` builds the same image on GitHub's runners
-whenever a pull request or a push to `dev` or `main` changes `host/`, `src/`
-or `include/`, and uploads two artifacts: `braino-rg40xxv` (the `.img.gz`,
-its checksums and `write-card.ps1`) and `braino-rg40xxv-sources` (the source
-bundle below).
+when a pull request or a push to `dev` or `main` changes something the image
+is built from -- `host/` (not its Markdown, not the muOS packer), `src/`,
+`include/`, the product mark, the licences -- and uploads two artifacts:
+`braino-rg40xxv` (the `.img.gz`, its checksums and `write-card.ps1`) and
+`braino-rg40xxv-sources` (the source bundle below). A change to the README, to
+an ESP32 board or to the site starts nothing. Those paths are
+`TRIGGER_PATHS` in `tools/card_inputs.py`, and `tools/check_card_inputs.py`
+fails if the workflow's copy of them drifts.
 
 **Most runs build only Braino.** A full build -- toolchain, glibc, kernel,
-U-Boot, every library -- takes about an hour on a runner, and a change to a
-game touches none of it. So a full build on `dev` or `main` stores its
-output as an *OS base*: `os-base.sh trim` cuts the 17 GB build directory to
-the 3 GB a later build reads (the toolchain, the root filesystem, the
-kernel's tree, the Arduino libraries Braino compiles, and every other
-package's `.stamp_*` files), and it is kept as a 90-day artifact named after
-`os-base.sh key`, a hash of everything the OS is built from. A later run with
-the same hash unpacks it, runs `os-base.sh settle`, and runs the same
-`build.sh`: Braino's build directory is named after its commit, so Buildroot
-builds it afresh, then repacks the root filesystem and relinks the kernel
-around it, and nothing else. That was 57 seconds on a desk, against an hour.
-`settle` dates the OS's own files in the checkout before the base's stamps,
-because a fresh checkout dates them now, and make takes a fragment newer than
-its stamp as a change to rebuild from sources the base no longer has.
+U-Boot, every library -- takes 50 to 80 minutes on a runner (measured on
+every run from 12 to 13 November 2026), and a change to a game touches none of
+it. So a full build on `dev` or `main` stores its output as an *OS base*:
+`os-base.sh trim` cuts the 17 GB build directory to the 1.3 GB (compressed) a
+later build reads -- the toolchain, the root filesystem, the kernel's tree, the
+Arduino libraries Braino compiles, and every other package's `.stamp_*` files
+-- and it is kept as a 90-day artifact named after `os-base.sh key`, a hash of
+everything the OS is built from. A later run with the same hash unpacks it,
+runs `os-base.sh settle`, and runs the same `build.sh`: Braino's build
+directory is named after its commit, so Buildroot builds it afresh, then
+repacks the root filesystem and relinks the kernel around it, and nothing
+else. On a runner that whole job is about two and a half minutes, the build
+itself 78 seconds, against an hour; in WSL, from a trimmed base to the
+finished image, 2 minutes 53 seconds, with `braino` the only package built. `settle` dates the OS's own files in the
+checkout before the base's stamps, because a fresh checkout dates them now,
+and make takes a fragment newer than its stamp as a change to rebuild from
+sources the base no longer has.
 
-What counts as the OS is everything in this directory except Braino's
-package, the overlay, the post-build and post-image scripts, the boot menu,
-the card layout, this README and `write-card.ps1`, which every build applies
-afresh. Change anything else -- the defconfig, a package, a kernel or busybox
-fragment, ROCKNIX's patches -- and the hash moves, no base matches, and the
-run builds everything; on `dev` or `main` it then stores the new base. Three
-things to know:
+**What counts as the OS is decided in one place, `tools/card_inputs.py`**,
+which `os-base.sh` asks for the key and for the files to settle;
+`python3 tools/card_inputs.py explain` prints every file here with its kind,
+and `python3 tools/card_inputs.py needs <path>...` says whether a change to
+those paths is a full build. Everything in this directory is OS, and its
+contents are hashed, except:
+
+- **the overlay**, whose file *names* are hashed and whose contents are not.
+  Buildroot copies the overlay into the root filesystem on every build, so
+  editing an init script, `acpid`'s map or `braino-run` takes minutes. Adding
+  or removing a file is a full build: a removed file would otherwise survive
+  in the base's root filesystem, and a new one usually comes with an OS change
+  beside it.
+- **what every build applies afresh**: Braino's package, `post-image.sh`, the
+  boot menu and the card layout, which write only into `images/`.
+- **this README and `write-card.ps1`**, which are not in the image.
+
+`post-build.sh` is OS on purpose: it deletes from the root filesystem
+(firmware blobs, init scripts), and a base's root filesystem has already lost
+whatever it deleted. The defconfig, the packages, the kernel and busybox
+fragments, ROCKNIX's patches and device trees, `fetch.sh`'s pinned commit and
+`build.sh` (which names the Buildroot release) are all OS. Change one and the
+hash moves, no base matches, and the run builds everything; on `dev` or
+`main` it then stores the new base. Things to know:
 
 - **Only a base stored by a push to `dev` or `main` of this repository is
   used.** A base goes into published images, and a pull request runs code
   nobody has reviewed yet. Pull requests build on bases and never store one,
-  so a pull request that changes the OS builds everything every time.
-- **A file taken out of the overlay stays on a card built on an old base**,
-  because the base's root filesystem still has it; the same goes for a file
-  Braino's package stops installing. Bump `BASE_EPOCH` in `os-base.sh` when
-  that matters, and the next run builds everything.
+  so a pull request that changes the OS builds everything on each push, and
+  its merge builds everything once more to store the base.
+- **A push to `dev` or `main` is never cancelled by the next one**, only
+  queued behind it. The full build after an OS change is the one that stores
+  the base; cancelled, the next push would find none and build in full again.
+  Pull request runs are cancelled by a newer push.
+- **A base does not expire while it is used.** A push that finds one over 60
+  days old stores the same bytes again, which starts its 90 days over. The
+  weekly full build (Mondays, from the default branch's copy of the workflow,
+  so only once `card-image.yml` is on `main`) proves the OS still builds from
+  source and stores a fresh base too.
+- **A file Braino's package stops installing stays on a card built on an old
+  base.** Bump `BASE_EPOCH` in `tools/card_inputs.py` when that matters, and
+  the next run builds everything. A manual run of the workflow with *Build
+  everything from source* ticked does the same once.
 - **A post-build step that reads a package's build directory needs that file
   kept by `os-base.sh trim`.** `rtl8761b_config.bin` is the one there is; a
   build on a base fails at once, not quietly, when one is missing.
+
+The run's summary says which it did and why: "Braino on a stored OS base" with
+the base's run and age, or "Full build" with the reason.
 
 To publish an image for testers, tag the commit and push the tag:
 

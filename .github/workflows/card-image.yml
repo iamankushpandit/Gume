@@ -34,20 +34,36 @@ name: Card image
 # the corresponding source from the same place. Buildroot's `make legal-info`
 # collects exactly that.
 
+# The paths are tools/card_inputs.py's TRIGGER_PATHS -- everything the image
+# is built from, and nothing else -- and tools/check_card_inputs.py fails if
+# either list here stops being exactly that. A documentation change, or a
+# change to an ESP32 board alone, does not start an image build.
 on:
   pull_request:
     paths:
       - "host/**"
       - "src/**"
       - "include/**"
+      - "tools/braino-badge.svg"
+      - "tools/card_inputs.py"
+      - "LICENSE"
+      - "NOTICE.md"
       - ".github/workflows/card-image.yml"
+      - "!host/**/*.md"
+      - "!host/muos/**"
   push:
     branches: [main, dev]
     paths:
       - "host/**"
       - "src/**"
       - "include/**"
+      - "tools/braino-badge.svg"
+      - "tools/card_inputs.py"
+      - "LICENSE"
+      - "NOTICE.md"
       - ".github/workflows/card-image.yml"
+      - "!host/**/*.md"
+      - "!host/muos/**"
     # Path filters do not apply to tags: a tag always builds.
     tags: ["card-rg40xxv-*"]
   # Once a week, a FULL build from source on the default branch, ignoring any
@@ -60,15 +76,28 @@ on:
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Build everything from source, ignoring any stored OS base"
+        type: boolean
+        default: false
 
-# A newer push to the same branch makes an older build worthless, and a full
-# one holds a runner for an hour.
+# A newer push to a pull request makes its older build worthless, so that one
+# is cancelled.
+#
+# A push to dev or main is never cancelled, only queued behind the one
+# running: the full build that follows an OS change is the run that STORES
+# the next base, and when it was cancelled by the next merge -- as it would be
+# whenever dev took two pushes within the hour -- the push after it found no
+# base either and built in full again, and so on for as long as dev was busy.
+# GitHub keeps one waiting run per group, so a burst of pushes still costs one
+# extra build, not one each. Tags are never cancelled.
 #
 # The weekly build has a group of its own: it runs on the default branch, and a
-# push there must not cancel the one full build of the week, nor it the push.
+# push there must not wait behind the one full build of the week.
 concurrency:
   group: card-image-${{ github.event_name == 'schedule' && 'weekly' || github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BUILDROOT: buildroot-2026.08.1
@@ -116,30 +145,45 @@ jobs:
       # Pull requests build on bases; they never store one.
       #
       # The weekly run looks for none: proving the OS still builds from
-      # source is what it is for.
+      # source is what it is for. Nor does a manual run asked to build in
+      # full.
+      #
+      # WHICH files are the OS is tools/card_inputs.py's to say, and nobody
+      # else's; `os-base.sh key` asks it. Its docstring has the rules, and
+      # `python3 tools/card_inputs.py explain` lists every file's kind.
       - name: Look for a stored OS base
         id: base
         env:
           GH_TOKEN: ${{ github.token }}
           REPO_ID: ${{ github.repository_id }}
+          FORCE_FULL: ${{ inputs.full && 'true' || '' }}
         run: |
           key=$(sh host/rg40xxv/os-base.sh key)
           echo "key=$key" >>"$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            echo "Weekly build: ignoring any stored OS base $key and building everything."
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] || [ -n "$FORCE_FULL" ]; then
+            echo "Full build asked for ($GITHUB_EVENT_NAME): ignoring any stored OS base $key and building everything."
             echo "run=" >>"$GITHUB_OUTPUT"
+            echo "### Full build: asked for (OS base \`$key\` ignored)" >>"$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=rg40xxv-os-$key&per_page=100" \
+          # The newest such base, with its age in days.
+          found=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=rg40xxv-os-$key&per_page=100" \
             --jq "[.artifacts[] | select(.expired == false
                      and .workflow_run.head_repository_id == $REPO_ID
                      and (.workflow_run.head_branch == \"dev\" or .workflow_run.head_branch == \"main\"))]
-                  | .[0].workflow_run.id // empty")
+                  | sort_by(.created_at) | last
+                  | if . == null then empty
+                    else \"\(.workflow_run.id) \(((now - (.created_at | fromdateiso8601)) / 86400) | floor)\" end")
+          run=${found% *}
+          age=${found#* }
           echo "run=$run" >>"$GITHUB_OUTPUT"
+          echo "age=$age" >>"$GITHUB_OUTPUT"
           if [ -n "$run" ]; then
-            echo "OS base $key, stored by run $run: building Braino on top of it."
+            echo "OS base $key, stored by run $run $age days ago: building Braino on top of it."
+            echo "### Braino on a stored OS base \`$key\` (run $run, $age days old)" >>"$GITHUB_STEP_SUMMARY"
           else
             echo "No stored OS base $key: building everything."
+            echo "### Full build: no stored OS base \`$key\` -- an OS input changed, or none was stored yet" >>"$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Fetch the OS base
@@ -150,6 +194,21 @@ jobs:
           run-id: ${{ steps.base.outputs.run }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/base
+
+      # An artifact lasts 90 days at most, and the weekly full build that
+      # stores a fresh one runs only once this file is on the default branch.
+      # So a push to dev or main that finds a base over 60 days old stores
+      # the same bytes again under the same name, which starts its 90 days
+      # over: about a minute, where letting it expire costs the next run an
+      # hour. The lookup above takes the newest copy.
+      - name: Keep the OS base from expiring
+        if: steps.base.outputs.run != '' && steps.base.outputs.age >= 60 && github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        uses: actions/upload-artifact@v4
+        with:
+          name: rg40xxv-os-${{ steps.base.outputs.key }}
+          path: ${{ runner.temp }}/base/os-base.tar.zst
+          retention-days: 90
+          compression-level: 0
 
       - name: Unpack the OS base
         if: steps.base.outputs.run != ''
@@ -173,13 +232,15 @@ jobs:
       # Every source tarball a full build downloads: about 2 GB, most of it
       # the kernel, glibc and linux-firmware. Saved only from dev and main,
       # whose caches every branch can read; one saved by a pull request is
-      # visible to that pull request alone.
+      # visible to that pull request alone. Keyed on the OS base's key, so
+      # one definition of the OS names both; a key with no cache yet starts
+      # from the newest, and downloads only what changed.
       - name: Restore the downloaded sources
         if: steps.base.outputs.run == ''
         uses: actions/cache/restore@v4
         with:
           path: ~/braino-rg40xxv/dl
-          key: card-dl-${{ hashFiles('host/rg40xxv/configs/**', 'host/rg40xxv/package/**', 'host/rg40xxv/board/*.fragment') }}
+          key: card-dl-${{ steps.base.outputs.key }}
           restore-keys: card-dl-
 
       # Buildroot's whole output goes to this step's log, as it runs: a build
@@ -209,7 +270,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/braino-rg40xxv/dl
-          key: card-dl-${{ hashFiles('host/rg40xxv/configs/**', 'host/rg40xxv/package/**', 'host/rg40xxv/board/*.fragment') }}
+          key: card-dl-${{ steps.base.outputs.key }}
 
       # The corresponding source: every package's source and patches, the
       # configuration, the licence texts -- and Buildroot itself, which
