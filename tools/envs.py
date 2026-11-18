@@ -49,13 +49,20 @@ There are three kinds:
     python tools/envs.py --diagnostic
     python tools/envs.py --all
     python tools/envs.py --for-changes file [file ...]
+    python tools/envs.py --for-changes --reaches-host file [file ...]
 
 `--for-changes` is what CI asks: given the paths a push or a pull request
 touched, which environments actually need building? The product side answers
-conservatively (a board header or platformio.ini means all of them); the
-diagnostic side answers from each environment's own `build_src_filter`, so
-touching `src/battery_diag.cpp` builds the four batdiag environments and
-nothing else.
+conservatively -- `app` for any firmware source, every board for
+platformio.ini, the shared board contract or src/hal/ -- except that one
+board's own header, include/boards/<id>.h, builds only the environments whose
+board section names it. host/ and test/ build no board at all: nothing under
+them is in a board's image. The diagnostic side answers from each
+environment's own `build_src_filter`, so touching `src/battery_diag.cpp`
+builds the four batdiag environments and nothing else.
+
+`--for-changes --reaches-host` answers the same question for the PC build of
+host/: true or false.
 """
 
 import argparse
@@ -82,7 +89,6 @@ EXPERIMENTAL_FLAG = re.compile(r"-D\s*GUME_EXPERIMENTAL\s*=\s*1\b")
 # where the board is described.
 PRODUCT_WIDE = (
     "platformio.ini",
-    "include/boards/",
     "include/BoardProfile.h",
     "include/BoardConfig.h",
     "src/hal/",
@@ -101,6 +107,25 @@ DIAGNOSTIC_WIDE = ("platformio.ini",)
 # request needs; the other six boards differ only in flags and are covered on
 # the push to dev.
 REFERENCE_ENV = "app"
+
+# A board's own profile header, include/boards/<id>.h, is compiled by the
+# environments whose [board_*] section names it in GUME_BOARD_HEADER, and by
+# nothing else: BoardConfig.h includes exactly that one. So a change to one
+# board's header builds that board, not all of them.
+BOARD_HEADERS = "include/boards/"
+
+# Paths that are not ESP32 firmware source. host/ adapts to src/, never the
+# reverse, so nothing under it reaches a board's image; test/host/ is built by
+# g++ on the runner. Neither builds `app` to prove it still compiles.
+NOT_FIRMWARE = re.compile(r"^(docs/|cases/|site/|tools/|host/|test/|\.github/|LICENSE$)")
+
+# What the PC build (host/, ci.yml's `host` job) is compiled from: Braino's
+# source, the host's own, the product mark it embeds and the library versions
+# platformio.ini pins. Not the card image's Buildroot tree, not the muOS
+# packer, not Markdown.
+HOST_BUILD = ("src/", "include/", "lib/", "host/", "tools/braino-badge.svg",
+              "platformio.ini")
+NOT_HOST_BUILD = ("host/rg40xxv/", "host/muos/")
 
 # A bringup environment builds the whole tree with -D CYD_BRINGUP_ONLY, so its
 # build_src_filter names no file of its own. What is actually distinct about it
@@ -253,14 +278,21 @@ def for_changes(paths, ini=None, with_product=False):
                    for path in paths for prefix in prefixes)
 
     product_wide = touched(PRODUCT_WIDE)
+    owners = board_header_envs(ini)
     code = any(path not in probe_only
-               and not re.match(r"^(docs/|cases/|site/|tools/|\.github/|LICENSE$)", path)
+               and path not in owners
+               and not NOT_FIRMWARE.match(path)
                and not path.endswith(".md") for path in paths)
 
     for env, kind in kinds.items():
         if kind in FIRMWARE_KINDS and (with_product or product_wide
                                 or (code and env == REFERENCE_ENV)):
             add(env)
+
+    for path in paths:
+        for env in owners.get(path, ()):
+            if kinds[env] in FIRMWARE_KINDS:
+                add(env)
 
     # A probe is built when its own source moves, or when the file its flags
     # live in does. Not otherwise: that is the whole point.
@@ -270,6 +302,45 @@ def for_changes(paths, ini=None, with_product=False):
             add(env)
 
     return [env for env in kinds if env in wanted]
+
+
+def board_header_envs(ini=None):
+    """{"include/boards/<file>": [environments that compile it]}.
+
+    Followed from each environment's `${board_<id>.build_flags}` to the
+    GUME_BOARD_HEADER that board section states. A header no environment
+    names is not in the map, so a change to it counts as ordinary source.
+    """
+    ini = read_ini() if ini is None else ini
+    headers = {}
+    for section, body in re.findall(r"^\[board_(\w+)\](.*?)(?=^\[|\Z)", ini,
+                                    re.M | re.S):
+        match = re.search(r'GUME_BOARD_HEADER=\\"([^\\"]+)\\"', body)
+        if match:
+            headers[section] = "include/" + match.group(1)
+    owners = {}
+    for env, body in sections(ini):
+        ref = re.search(r"\$\{board_(\w+)\.build_flags\}", body)
+        if ref and ref.group(1) in headers:
+            owners.setdefault(headers[ref.group(1)], []).append(env)
+    return owners
+
+
+def reaches_host(paths, with_product=False):
+    """Whether these changed paths reach the PC build of host/.
+
+    `with_product` says yes regardless, as a push to main or dev does for the
+    boards. The host TESTS are not decided here: they run on every pull
+    request, because they need nothing but the runner's g++.
+    """
+    if with_product:
+        return True
+    for path in (path.replace("\\", "/") for path in paths):
+        if path.endswith(".md") or path.startswith(NOT_HOST_BUILD):
+            continue
+        if path == "platformio.ini" or path.startswith(HOST_BUILD):
+            return True
+    return False
 
 
 def main():
@@ -292,6 +363,10 @@ def main():
                         help="with --for-changes: union in every product "
                              "and experimental environment, whatever the "
                              "change was")
+    parser.add_argument("--reaches-host", action="store_true",
+                        help="with --for-changes: print true or false -- "
+                             "whether the change reaches the PC build of "
+                             "host/ -- instead of environments")
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
     parser.add_argument("--matrix", action="store_true",
@@ -305,6 +380,9 @@ def main():
     elif args.for_changes is not None:
         paths = args.for_changes or [line.strip() for line in sys.stdin
                                      if line.strip()]
+        if args.reaches_host:
+            print("true" if reaches_host(paths, args.with_product) else "false")
+            return
         envs = for_changes(paths, ini, with_product=args.with_product)
     else:
         envs = of_kind(args.kind, ini)

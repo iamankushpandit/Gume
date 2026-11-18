@@ -102,14 +102,17 @@ jobs:
             --out _site \
             --repo "${{ github.server_url }}/${{ github.repository }}"
 
+      # The same key as ci.yml's, so the repository holds one copy of the
+      # toolchains rather than two of 1.2 GB each; ci.yml's push to main
+      # usually saves it first.
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
 
       # The compiled-object cache. Separate from the PlatformIO *packages* cache
       # above, which holds the toolchain: this holds build output, and until
@@ -124,15 +127,18 @@ jobs:
       # so a restored entry is either right or is not a hit -- there is no
       # stale-artifact failure mode to guard against. The key rotates per run
       # so the cache keeps absorbing new objects; restore-keys is what makes
-      # the previous run's copy the starting point.
-      - name: Cache compiled objects
-        uses: actions/cache@v4
+      # the previous run's copy the starting point, and the step after the
+      # build drops what this build did not use, or it would grow without
+      # end (ci.yml says what that cost). `objects-pages-`, so that no
+      # restore key here or in ci.yml picks up the other's.
+      - name: Restore compiled objects
+        uses: actions/cache/restore@v4
         with:
           path: .pio/build_cache
-          key: objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          key: objects-pages-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
           restore-keys: |
-            objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
-            objects-${{ runner.os }}-
+            objects-pages-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
+            objects-pages-${{ runner.os }}-
 
       - name: Install PlatformIO
         run: pip install --upgrade platformio
@@ -154,7 +160,25 @@ jobs:
       - name: Build the firmware the installer offers
         # --product only: an `experimental` environment is not on the page,
         # so it is not built for it (tools/envs.py).
-        run: pio run $(python tools/envs.py --product --pio-args)
+        run: |
+          touch "$RUNNER_TEMP/build-started"
+          pio run $(python tools/envs.py --product --pio-args)
+
+      # Every object the build read was stamped when it was read (ci.yml has
+      # the reason this works), so anything older is unused.
+      - name: Drop objects this build did not use
+        run: |
+          mkdir -p .pio/build_cache
+          echo "Before: $(du -sh .pio/build_cache | cut -f1)"
+          find .pio/build_cache -type f ! -newer "$RUNNER_TEMP/build-started" -delete
+          find .pio/build_cache -mindepth 1 -type d -empty -delete
+          echo "After:  $(du -sh .pio/build_cache | cut -f1)"
+
+      - name: Save compiled objects
+        uses: actions/cache/save@v4
+        with:
+          path: .pio/build_cache
+          key: objects-pages-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
 
       # Flash is the scarce resource here (3 MB partition), so put the image
       # size where a reviewer sees it without opening the build log.

@@ -425,7 +425,12 @@ What follows from the classification:
 - **CI builds every product and experimental environment** on a push to
   `main` or `dev` (an experimental one is never published -- see "An
   experimental board is built and never published"),
-  and on a pull request builds `app` plus whatever the diff reaches.
+  and on a pull request builds `app` plus whatever the diff reaches:
+  `app` for any firmware source, one board for that board's own
+  `include/boards/<id>.h`, every board for `platformio.ini`, the board
+  contract or `src/hal/`, and no board at all for documentation, `tools/`,
+  `host/` or `test/`. `envs.py --for-changes` is the one answer;
+  `--reaches-host` gives the same answer for the PC build.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is four
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
   installs all the toolchains once into the one cache it alone saves; `build`
@@ -442,6 +447,22 @@ What follows from the classification:
   so the set changes with the diff, and a ruleset can only wait for names it
   knows. `verify` runs `if: always()` so a docs-only pull request, where
   `build` is skipped, still reports.
+- **A newer push to a pull request cancels the older run; a push to `main`
+  or `dev` is never cancelled.** Each of those is a commit on a protected
+  branch and gets its own result.
+- **The caches are sized to fit, because GitHub evicts past 10 GB.** On
+  2026-11-18 the repository held 11.9 GB: each board's object cache was
+  re-saved per commit and never pruned (142 MB growing to 184 MB in a week,
+  against 37 MB for one build), every pull request saved five more that only
+  it could read, and Pages and release kept a second 1.2 GB toolchain cache
+  under another key. So: one toolchain key everywhere
+  (`pio-<os>-<platformio.ini hash>`); object caches saved only from a push to
+  `main` or `dev`, after the build drops every object it did not read (SCons
+  stamps each cache entry it reads, so anything older than the build's start
+  is unused); a pull request restores `dev`'s; `release.yml` saves nothing,
+  because a cache saved by a tag's run is readable by that tag alone. The
+  `host` job keeps Ubuntu's `.deb` files in a weekly cache: the mirror served
+  SDL2's 37 MB at 88 kB/s once, and the step took 7.5 minutes.
 - **Every test in `test/host/` runs on every pull request**, in the `host`
   job, through `tools/run_host_tests.py`. There is no list of tests: each
   `*_test.cpp` states its own `g++` line in its header, the runner builds it
