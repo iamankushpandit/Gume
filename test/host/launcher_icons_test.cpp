@@ -25,7 +25,7 @@
  * cx - r .. cx + r), and fails on any icon whose box leaves the square.
  *
  * Build and run from the repository root:
- *   g++ -std=c++17 -O2 -Wall -Wextra -I src -I include -I host -I host/shim -DGUME_BOARD_HEADER='"boards/host.h"' test/host/launcher_icons_test.cpp src/ui/LauncherIcons.cpp -o /tmp/launcher_icons_test && /tmp/launcher_icons_test
+ *   g++ -std=c++17 -O2 -Wall -Wextra -I src -I include -I host -I host/shim -DGUME_BOARD_HEADER='"boards/host.h"' test/host/launcher_icons_test.cpp src/ui/LauncherIcons.cpp src/ui/LauncherIconArt.cpp -o /tmp/launcher_icons_test && /tmp/launcher_icons_test
  */
 
 #include <algorithm>
